@@ -220,7 +220,7 @@ export function VitalSignsDetailPanel({ name, subtitle: subtitleProp, onClose }:
               Height & weight
             </h3>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              <DataTile label="Height (m)" value={displayValue(doc.height)} />
+              <DataTile label="Height (cm)" value={displayValue(doc.height)} />
               <DataTile label="Weight (kg)" value={displayValue(doc.weight)} />
             </div>
             <div className="mt-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">

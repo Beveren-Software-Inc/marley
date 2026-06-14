@@ -503,7 +503,7 @@ const TABS: { id: TabId; label: string }[] = [
 
 const BASIC_VITAL_FIELDS = [
   { fieldname: 'weight' as const, label: 'Weight', placeholder: 'e.g. 72 kg' },
-  { fieldname: 'height' as const, label: 'Height', placeholder: 'e.g. 1.70 m' },
+  { fieldname: 'height' as const, label: 'Height (cm)', placeholder: 'e.g. 170' },
   { fieldname: 'blood_pressure' as const, label: 'Blood Pressure', placeholder: 'e.g. 120/80 mmHg' },
   { fieldname: 'temp_pressure' as const, label: 'Temp Pressure', placeholder: 'e.g. 37.0 °C' },
   { fieldname: 'resp_rate' as const, label: 'Respiratory Rate', placeholder: 'e.g. 16 /min' },

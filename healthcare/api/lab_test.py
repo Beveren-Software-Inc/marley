@@ -464,6 +464,181 @@ def _calculate_result_flag(result_value, patient_gender, female_min_range=None, 
     
     return ""
 
+def _parse_normal_range_text(normal_range):
+	"""Parse '12.0 - 16.0' style normal range text into (min, max)."""
+	if not normal_range:
+		return None, None
+	import re
+	text = str(normal_range).strip()
+	match = re.search(r"([\d.]+)\s*[-–]\s*([\d.]+)", text)
+	if not match:
+		return None, None
+	try:
+		return float(match.group(1)), float(match.group(2))
+	except (TypeError, ValueError):
+		return None, None
+
+
+def _matrix_cell_flag(result_value, normal_range=None):
+	"""Return normal | abnormal | neutral for matrix cell colouring."""
+	if result_value is None or str(result_value).strip() == "":
+		return "neutral"
+	try:
+		val = float(result_value)
+	except (TypeError, ValueError):
+		return "neutral"
+	min_val, max_val = _parse_normal_range_text(normal_range)
+	if min_val is None or max_val is None:
+		return "neutral"
+	if val < min_val or val > max_val:
+		return "abnormal"
+	return "normal"
+
+
+@frappe.whitelist()
+def get_lab_test_history_matrix(
+	patient=None,
+	from_date=None,
+	to_date=None,
+	test_search=None,
+	template=None,
+):
+	"""Pivot lab results for a patient: rows = test parameters, columns = result dates."""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	patient = (patient or "").strip()
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	permitted_cc = get_permitted_cost_centers()
+	filters = {"patient": patient, "docstatus": ["!=", 2]}
+	if template:
+		filters["template"] = template
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return {"columns": [], "rows": [], "patient": patient, "patient_name": None}
+		filters["cost_center"] = ["in", permitted_cc]
+
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters=filters,
+		fields=[
+			"name",
+			"lab_test_name",
+			"template",
+			"status",
+			"result_date",
+			"date",
+			"time",
+			"creation",
+			"custom_result",
+			"results",
+			"result_flag",
+		],
+		order_by="result_date asc, creation asc",
+	)
+
+	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
+	search_term = (test_search or "").strip().lower()
+
+	def _effective_date(lt):
+		return (lt.result_date or lt.date or (str(lt.creation)[:10] if lt.creation else "")) or ""
+
+	lab_tests.sort(key=lambda lt: (_effective_date(lt), str(lt.creation or "")))
+
+	# Apply date range on effective date
+	if from_date or to_date:
+		filtered = []
+		for lt in lab_tests:
+			eff = _effective_date(lt)
+			if not eff:
+				continue
+			if from_date and eff < from_date:
+				continue
+			if to_date and eff > to_date:
+				continue
+			filtered.append(lt)
+		lab_tests = filtered
+
+	columns = []
+	rows_map = {}
+
+	for lt in lab_tests:
+		col_key = lt.name
+		eff_date = _effective_date(lt)
+		columns.append(
+			{
+				"key": col_key,
+				"date": eff_date,
+				"time": (lt.time or "").strip(),
+				"lab_test": lt.name,
+				"lab_test_name": lt.lab_test_name or lt.template or lt.name,
+				"status": lt.status,
+			}
+		)
+
+		items = frappe.get_all(
+			"Normal Test Result",
+			filters={"parent": lt.name, "parenttype": "Lab Test"},
+			fields=[
+				"lab_test_name",
+				"lab_test_event",
+				"result_value",
+				"lab_test_uom",
+				"normal_range",
+			],
+			order_by="idx asc",
+		)
+
+		if items:
+			for item in items:
+				label_base = (item.lab_test_event or item.lab_test_name or "").strip()
+				if not label_base:
+					continue
+				if search_term and search_term not in label_base.lower():
+					continue
+				uom = (item.lab_test_uom or "").strip()
+				row_key = label_base.lower()
+				label = f"{label_base} ({uom})" if uom else label_base
+				if row_key not in rows_map:
+					rows_map[row_key] = {"key": row_key, "label": label, "uom": uom, "cells": {}}
+				value = (item.result_value or "").strip()
+				if value:
+					rows_map[row_key]["cells"][col_key] = {
+						"value": value,
+						"flag": _matrix_cell_flag(value, item.normal_range),
+						"lab_test": lt.name,
+					}
+		else:
+			label_base = (lt.lab_test_name or lt.template or lt.name or "").strip()
+			if not label_base:
+				continue
+			if search_term and search_term not in label_base.lower():
+				continue
+			row_key = label_base.lower()
+			if row_key not in rows_map:
+				rows_map[row_key] = {"key": row_key, "label": label_base, "uom": "", "cells": {}}
+			value = (lt.custom_result or lt.results or "").strip()
+			if value:
+				flag = "neutral"
+				if lt.result_flag:
+					flag = "normal" if lt.result_flag == "Normal" else "abnormal"
+				rows_map[row_key]["cells"][col_key] = {
+					"value": value,
+					"flag": flag,
+					"lab_test": lt.name,
+				}
+
+	rows = sorted(rows_map.values(), key=lambda r: r["label"].lower())
+
+	return {
+		"columns": columns,
+		"rows": rows,
+		"patient": patient,
+		"patient_name": patient_name,
+	}
+
+
 @frappe.whitelist()
 def get_lab_test(name):
 	"""Get single Lab Test by name (includes documents child table)."""

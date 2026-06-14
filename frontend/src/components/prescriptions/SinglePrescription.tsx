@@ -414,11 +414,11 @@ const EditMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Unit of Measure</label>
               <MiniCombobox
                 value={form.uom}
                 displayValue={uomQuery}
-                placeholder="Type or select UOM..."
+                placeholder="Type or select unit of measure…"
                 options={uomOptions}
                 loading={uomLoading}
                 disabled={disabled}
@@ -803,11 +803,11 @@ const AddMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">UOM</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Unit of Measure</label>
               <MiniCombobox
                 value={form.uom}
                 displayValue={addUomQuery}
-                placeholder="Type or select UOM..."
+                placeholder="Type or select unit of measure…"
                 options={addUomOptions}
                 loading={addUomLoading}
                 onQueryChange={(q) => { setAddUomQuery(q); addSearchUoms(q) }}

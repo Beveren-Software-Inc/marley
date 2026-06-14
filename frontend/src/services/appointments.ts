@@ -17,6 +17,7 @@ export interface Appointment {
   cost_center?: string
   service_unit?: string
   notes?: string
+  remarks?: string
   temporary_patient_name?: string
   temporary_mobile_no?: string
   referring_practitioner?: string
@@ -270,6 +271,34 @@ export async function updateAppointmentStatus(
     return resData.message as UpdateAppointmentStatusResult
   }
   return {}
+}
+
+export async function updateAppointmentAdRemark(
+  appointmentName: string,
+  remark: string,
+): Promise<{ name: string; remarks: string }> {
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.update_appointment_ad_remark',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_name: appointmentName, remark }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as { name: string; remarks: string }
+  }
+  throw new Error('Failed to save AD remark')
 }
 
 /** Appointment has no linked Patient record (walk-in or incomplete booking). */

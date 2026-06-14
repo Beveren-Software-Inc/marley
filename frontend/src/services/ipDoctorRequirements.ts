@@ -4,6 +4,7 @@ export interface IpDoctorRequiredDocumentsStatus {
   medical_history: boolean
   suicide_risk: boolean
   history_form: boolean
+  morse_fall_scale: boolean
   all_complete: boolean
 }
 

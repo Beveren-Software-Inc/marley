@@ -1,5 +1,6 @@
 import { apiRequest } from './apiClient'
 import { ensureCSRF } from './apiClient'
+import type { PatientDocumentRow } from './patients'
 
 
 export interface InpatientOccupancy {
@@ -103,6 +104,8 @@ export interface InpatientRecord {
   }[]
   patient_visitors?: PatientVisitorRow[]
   signature?: string
+  e_signatures?: PatientDocumentRow[]
+  patient_documents?: PatientDocumentRow[]
 }
 
 export interface PackageDetail {

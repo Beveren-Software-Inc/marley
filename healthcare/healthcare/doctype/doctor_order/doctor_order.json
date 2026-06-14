@@ -27,6 +27,7 @@
   "nurse_name",
   "nurse_entry_date",
   "request",
+  "department",
   "column_break_vrgp",
   "nurses_remarks",
   "status",
@@ -147,7 +148,15 @@
   {
    "fieldname": "request",
    "fieldtype": "Data",
+   "hidden": 1,
    "label": "Request"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Department",
+   "options": "Medical Department"
   },
   {
    "fieldname": "cr_id",

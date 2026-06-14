@@ -4,6 +4,7 @@
 import json
 import frappe
 from frappe import _
+from frappe.utils import flt
 
 
 @frappe.whitelist()
@@ -99,7 +100,7 @@ def get_iop_session_types():
 	"""List IOP Session Types for dropdowns."""
 	return frappe.get_all(
 		"IOP Session Type",
-		fields=["name", "session_type_name", "description"],
+		fields=["name", "session_type_name", "description", "rate"],
 		order_by="session_type_name asc",
 	)
 
@@ -148,6 +149,65 @@ def _linked_patient_visits_by_enrollment(enrollment_names):
 	return linked
 
 
+def _session_type_rates(session_types):
+	"""Map IOP Session Type name -> rate."""
+	if not session_types:
+		return {}
+	rates = {}
+	for row in frappe.get_all(
+		"IOP Session Type",
+		filters={"name": ["in", list(set(session_types))]},
+		fields=["name", "rate"],
+	):
+		rates[row.name] = flt(row.get("rate"))
+	return rates
+
+
+def _enrollment_cost_details(enrollment_name):
+	"""Sum session rates and optional linked visit billing total."""
+	sessions = frappe.get_all(
+		"IOP Day Session",
+		filters={"parent": enrollment_name, "parenttype": "IOP Enrollment"},
+		fields=["session_type"],
+	)
+	session_types = [s.session_type for s in sessions if s.session_type]
+	rates = _session_type_rates(session_types)
+	session_costs = []
+	session_total = 0.0
+	for row in sessions:
+		st = row.session_type
+		if not st:
+			continue
+		amount = flt(rates.get(st))
+		session_total += amount
+		session_costs.append({"session_type": st, "rate": amount})
+
+	visit_amount = 0.0
+	visit_name = frappe.db.get_value(
+		"Patient Visit", {"iop_enrollment": enrollment_name}, "name"
+	)
+	if visit_name:
+		visit_amount = flt(
+			frappe.db.sql(
+				"""
+				SELECT COALESCE(SUM(so.grand_total), 0)
+				FROM `tabSales Order` so
+				WHERE so.custom_reference_type = 'Patient Visit'
+					AND so.custom_reference_name = %s
+					AND so.docstatus < 2
+				""",
+				visit_name,
+			)[0][0]
+		)
+
+	return {
+		"session_total": session_total,
+		"session_costs": session_costs,
+		"visit_amount": visit_amount,
+		"total_cost": session_total or visit_amount,
+	}
+
+
 @frappe.whitelist()
 def get_iop_enrollments(limit=50, offset=0, iop_day=None, patient=None, status=None):
 	"""List IOP Enrollments for reception dashboard."""
@@ -169,6 +229,11 @@ def get_iop_enrollments(limit=50, offset=0, iop_day=None, patient=None, status=N
 	linked_visits = _linked_patient_visits_by_enrollment([e["name"] for e in enrollments])
 	for enrollment in enrollments:
 		enrollment["patient_visit"] = linked_visits.get(enrollment["name"])
+		cost = _enrollment_cost_details(enrollment["name"])
+		enrollment["session_total"] = cost["session_total"]
+		enrollment["session_costs"] = cost["session_costs"]
+		enrollment["visit_amount"] = cost["visit_amount"]
+		enrollment["total_cost"] = cost["total_cost"]
 	return enrollments
 
 

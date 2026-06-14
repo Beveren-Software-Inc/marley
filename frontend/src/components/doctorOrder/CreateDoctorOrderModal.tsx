@@ -9,6 +9,7 @@ import {
   fetchCostCenters,
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
+  fetchMedicalDepartments,
   getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
@@ -37,7 +38,10 @@ export const CreateDoctorOrderModal = ({
   const [transNoLoading, setTransNoLoading] = useState(true)
 
   const [doctorOrder, setDoctorOrder] = useState('')
-  const [request, setRequest] = useState('')
+  const [department, setDepartment] = useState('')
+  const [departmentQuery, setDepartmentQuery] = useState('')
+  const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
+  const [departmentOpen, setDepartmentOpen] = useState(false)
   const [patientId, setPatientId] = useState(patientProp || '')
   const [patientName, setPatientName] = useState('')
   const [admission, setAdmission] = useState(mode === 'IP' && activeAdmission ? activeAdmission : '')
@@ -79,6 +83,11 @@ export const CreateDoctorOrderModal = ({
       cancelled = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!departmentOpen) return
+    fetchMedicalDepartments(departmentQuery || undefined).then(setDepartmentOptions).catch(() => setDepartmentOptions([]))
+  }, [departmentQuery, departmentOpen])
 
   useEffect(() => {
     getCurrentUserPractitioner().then(async (practId) => {
@@ -165,7 +174,7 @@ export const CreateDoctorOrderModal = ({
         doctor: doctor || undefined,
         doctor_name: doctorName || undefined,
         doctor_order: doctorOrder.trim(),
-        request: request.trim() || undefined,
+        department: department || undefined,
       })
       if (!result.success) {
         throw new Error(result.message || 'Failed to save doctor order')
@@ -317,14 +326,37 @@ export const CreateDoctorOrderModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Request</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Department</label>
             <input
               type="text"
-              value={request}
-              onChange={(e) => setRequest(e.target.value)}
+              value={departmentQuery || department}
+              onChange={(e) => {
+                setDepartmentQuery(e.target.value)
+                setDepartment('')
+                setDepartmentOpen(true)
+              }}
+              onFocus={() => setDepartmentOpen(true)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Optional request reference"
+              placeholder="Search department…"
             />
+            {departmentOpen && departmentOptions.length > 0 && (
+              <div className="mt-1 border border-slate-200 rounded-md bg-white shadow-lg max-h-36 overflow-auto">
+                {departmentOptions.map((d) => (
+                  <button
+                    key={d.name}
+                    type="button"
+                    onClick={() => {
+                      setDepartment(d.name)
+                      setDepartmentQuery(d.label || d.name)
+                      setDepartmentOpen(false)
+                    }}
+                    className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                  >
+                    {d.label || d.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

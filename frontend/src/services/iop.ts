@@ -24,6 +24,7 @@ export interface IOPSessionType {
   name: string
   session_type_name?: string
   description?: string
+  rate?: number
 }
 
 /** IOP Enrollment (patient enrolled in an IOP day). */
@@ -38,6 +39,13 @@ export interface IOPEnrollment {
   doctor?: string
   /** Linked Patient Visit when one was created from this enrollment. */
   patient_visit?: string
+  /** Sum of IOP Session Type rates on this enrollment. */
+  session_total?: number
+  /** Linked visit Sales Order total when billed. */
+  visit_amount?: number
+  /** session_total or visit_amount — whichever is available. */
+  total_cost?: number
+  session_costs?: Array<{ session_type: string; rate: number }>
 }
 
 /** One row of IOP Session child table (type, from, to, notes). */

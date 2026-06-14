@@ -367,7 +367,7 @@
 
 //             <div>
 //               <label className="block text-sm font-medium text-slate-700 mb-1">
-//                 Height (m)
+//                 Height (cm)
 //               </label>
 //               <input
 //                 type="number"
@@ -1014,7 +1014,7 @@ export const CreateVitalSignModal = ({
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Height (m)
+                Height (cm)
               </label>
               <input
                 type="number"

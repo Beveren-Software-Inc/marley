@@ -24,6 +24,7 @@ interface MorseFallScaleListProps {
   defaultAdmission?: string
   createModalOpen?: boolean
   onCreateModalOpenChange?: (open: boolean) => void
+  onRecordCreated?: () => void
 }
 
 const FilterToggleButton = ({
@@ -76,6 +77,7 @@ export const MorseFallScaleList = ({
   defaultAdmission,
   createModalOpen,
   onCreateModalOpenChange,
+  onRecordCreated,
 }: MorseFallScaleListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
@@ -171,6 +173,7 @@ export const MorseFallScaleList = ({
   const handleCreateSuccess = () => {
     setShowCreateModal(false)
     loadRows()
+    onRecordCreated?.()
   }
 
   const handleView = (name: string) => {

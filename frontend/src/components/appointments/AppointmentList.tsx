@@ -669,6 +669,7 @@ import { MarkPatientArrivedModal } from './MarkPatientArrivedModal'
 import { MarkPatientCheckedOutModal } from './MarkPatientCheckedOutModal'
 import { AppointmentCreateSalesOrderModal } from './AppointmentCreateSalesOrderModal'
 import { AppointmentPaymentModal } from './AppointmentPaymentModal'
+import { AppointmentAdRemarkModal } from './AppointmentAdRemarkModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
@@ -746,6 +747,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
   }
   if (apt.sales_order) fields.push(['Sales order', apt.sales_order])
   if (apt.ref_sales_invoice) fields.push(['Sales invoice', apt.ref_sales_invoice])
+  if (apt.remarks) fields.push(['AD remark', apt.remarks])
   return fields
 }
 
@@ -863,6 +865,7 @@ export const AppointmentList = ({
   const [checkoutTarget, setCheckoutTarget] = useState<Appointment | null>(null)
   const [billingTarget, setBillingTarget] = useState<Appointment | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Appointment | null>(null)
+  const [adRemarkTarget, setAdRemarkTarget] = useState<Appointment | null>(null)
   const [registerWalkInTarget, setRegisterWalkInTarget] = useState<Appointment | null>(null)
   /** After registration, auto mark arrived and create patient visit. */
   const [registerThenArrive, setRegisterThenArrive] = useState(false)
@@ -1921,6 +1924,18 @@ export const AppointmentList = ({
                               Reschedule
                             </button>
                           )}
+                          {showAll && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionRow(null)
+                                setAdRemarkTarget(apt)
+                              }}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              AD remark{apt.remarks ? '…' : ''}
+                            </button>
+                          )}
                           {apt.patient && !isWalkInAppointment(apt) && (
                             <>
                               <button type="button" onClick={() => handleCreateVitalSign(apt)}
@@ -2030,6 +2045,14 @@ export const AppointmentList = ({
             setPaymentTarget(null)
             setRefreshTrigger((t) => t + 1)
           }}
+        />
+      )}
+
+      {adRemarkTarget && (
+        <AppointmentAdRemarkModal
+          appointment={adRemarkTarget}
+          onClose={() => setAdRemarkTarget(null)}
+          onSuccess={() => setRefreshTrigger((t) => t + 1)}
         />
       )}
 

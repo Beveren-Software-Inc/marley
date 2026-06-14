@@ -1,101 +1,211 @@
-// LabTestHistory.tsx
-
-import { useState, useEffect } from 'react'
-import { fetchLabTests, type LabTest } from '../../services/labTests'
-import { Search, ChevronDown } from 'lucide-react'
-import { StatusPill } from '../ui/StatusPill'
+import { useState, useEffect, useCallback } from 'react'
+import {
+  fetchLabTestHistoryMatrix,
+  type LabHistoryMatrixColumn,
+  type LabHistoryMatrixRow,
+} from '../../services/labTests'
+import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { Search, User } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 interface LabTestHistoryProps {
   patientId?: string
-  /** Custom className for styling */
+  patientName?: string
+  onPatientChange?: (patientId: string) => void
   className?: string
-  /** Max lab tests to fetch from API */
-  limit?: number
-  /** When true, only rows with status Completed are shown */
-  showOnlyCompleted?: boolean
 }
 
 interface Filters {
-  status: string
   fromDate: string
   toDate: string
   testName: string
 }
 
-const STATUS_OPTIONS = [
-  'Draft', 'Requested', 'Awaiting sample collection', 'Sample Collection in Progress',
-  'Sample Collected', 'Testing in progress', 'Completed', 'Pending Review',
-  'Reviewed', 'Rejected', 'Cancelled',
-] as const
-
-const statusColors: Record<string, string> = {
-  'Reviewed': 'success', 'Rejected': 'danger', 'Completed': 'success',
-  'Pending Review': 'warning', 'Submitted': 'info', 'Cancelled': 'default',
-  'Draft': 'warning', 'Pending': 'warning', 'Requested': 'info',
-  'Awaiting sample collection': 'warning', 'Sample Collection in Progress': 'info',
-  'Sample Collected': 'info', 'Testing in progress': 'info',
+function localDateISO(d = new Date()): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
 }
 
-const makeEmptyFilters = (): Filters => ({
-  status: '', fromDate: '', toDate: '', testName: '',
+function defaultDateRange(): { fromDate: string; toDate: string } {
+  const toDate = localDateISO()
+  const from = new Date()
+  from.setMonth(from.getMonth() - 6)
+  return { fromDate: localDateISO(from), toDate }
+}
+
+const makeDefaultFilters = (): Filters => ({
+  ...defaultDateRange(),
+  testName: '',
 })
 
-// Filter Bar Component
-const FilterBar = ({ filters, onChange, onClear, activeCount }: {
+function formatColumnHeader(col: LabHistoryMatrixColumn): { dateLine: string; timeLine: string } {
+  let dateLine = col.date || '—'
+  try {
+    if (col.date) {
+      dateLine = new Date(col.date + 'T00:00:00').toLocaleDateString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    }
+  } catch {
+    dateLine = col.date || '—'
+  }
+  const timeLine = col.time || ''
+  return { dateLine, timeLine }
+}
+
+function cellClass(flag?: string) {
+  switch (flag) {
+    case 'normal':
+      return 'bg-green-100 text-green-900'
+    case 'abnormal':
+      return 'bg-red-100 text-red-900 font-medium'
+    default:
+      return 'bg-white text-slate-800'
+  }
+}
+
+const FilterBar = ({
+  filters,
+  onChange,
+  onClear,
+  activeCount,
+  patientId,
+  patientName,
+  patientQuery,
+  onPatientQueryChange,
+  onPatientSelect,
+  patientOptions,
+  patientOpen,
+  setPatientOpen,
+  patientLoading,
+  showPatientPicker,
+}: {
   filters: Filters
   onChange: (f: Filters) => void
   onClear: () => void
   activeCount: number
+  patientId?: string
+  patientName?: string
+  patientQuery: string
+  onPatientQueryChange: (q: string) => void
+  onPatientSelect: (p: PatientListItem) => void
+  patientOptions: PatientListItem[]
+  patientOpen: boolean
+  setPatientOpen: (v: boolean) => void
+  patientLoading: boolean
+  showPatientPicker: boolean
 }) => {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
   return (
     <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
-      <div className="flex flex-col gap-1 min-w-[160px]">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
-        <div className="relative">
-          <select 
-            value={filters.status} 
-            onChange={(e) => set('status', e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            <option value="">All statuses</option>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
-          </select>
-          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
+      {showPatientPicker ? (
+        <div className="flex flex-col gap-1 min-w-[220px] relative">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient</label>
+          <div className="relative">
+            <User className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+            <input
+              type="text"
+              value={patientQuery}
+              onChange={(e) => {
+                onPatientQueryChange(e.target.value)
+                setPatientOpen(true)
+              }}
+              onFocus={() => setPatientOpen(true)}
+              placeholder="Search patient…"
+              className="w-full pl-8 pr-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            {patientOpen && (patientOptions.length > 0 || patientLoading) && (
+              <div className="absolute z-20 mt-1 w-full max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                {patientLoading ? (
+                  <p className="px-3 py-2 text-xs text-slate-500">Searching…</p>
+                ) : (
+                  patientOptions.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      onClick={() => {
+                        onPatientSelect(p)
+                        setPatientOpen(false)
+                      }}
+                      className="block w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                    >
+                      <span className="font-medium text-slate-800">{p.patient_name || p.name}</span>
+                      <span className="text-xs text-slate-400 ml-2">{p.name}</span>
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      ) : patientId ? (
+        <div className="flex flex-col gap-1 min-w-[180px]">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient</label>
+          <div className="px-3 py-1.5 text-sm rounded-md border border-slate-200 bg-slate-50 text-slate-800 font-medium truncate">
+            {patientName || patientId}
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-col gap-1 min-w-[150px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
-        <input 
-          type="date" 
-          value={filters.fromDate} 
+        <input
+          type="date"
+          value={filters.fromDate}
           onChange={(e) => set('fromDate', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" 
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
       <div className="flex flex-col gap-1 min-w-[150px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
-        <input 
-          type="date" 
-          value={filters.toDate} 
+        <input
+          type="date"
+          value={filters.toDate}
           onChange={(e) => set('toDate', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" 
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
       <div className="flex flex-col gap-1 min-w-[200px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Test Name</label>
-        <input 
-          type="text" 
-          value={filters.testName} 
+        <input
+          type="text"
+          value={filters.testName}
           onChange={(e) => set('testName', e.target.value)}
-          placeholder="Search by test name..."
-          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" 
+          placeholder="Filter test rows…"
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
         />
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide invisible">Quick</label>
+        <div className="flex gap-1">
+          {[
+            { label: '3M', months: 3 },
+            { label: '6M', months: 6 },
+            { label: '1Y', months: 12 },
+          ].map(({ label, months }) => (
+            <button
+              key={label}
+              type="button"
+              onClick={() => {
+                const toDate = localDateISO()
+                const from = new Date()
+                from.setMonth(from.getMonth() - months)
+                onChange({ ...filters, fromDate: localDateISO(from), toDate })
+              }}
+              className="px-2.5 py-1.5 text-xs font-medium rounded-md border border-slate-300 bg-white hover:bg-slate-50 text-slate-600"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeCount > 0 ? (
@@ -105,167 +215,110 @@ const FilterBar = ({ filters, onChange, onClear, activeCount }: {
   )
 }
 
-// Helper to get result flag color classes
-const getResultFlagClasses = (flag?: string) => {
-  switch (flag) {
-    case 'Normal': return 'bg-green-100 text-green-700'
-    case 'High': return 'bg-orange-100 text-orange-700'
-    case 'Low': return 'bg-orange-100 text-orange-700'
-    case 'Critically High': return 'bg-red-100 text-red-700 font-bold'
-    case 'Critically Low': return 'bg-red-100 text-red-700 font-bold'
-    default: return 'bg-slate-100 text-slate-500'
-  }
-}
-
-// Helper to format date
-const formatDate = (dateStr?: string) => {
-  if (!dateStr) return '—'
-  try {
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
-  } catch {
-    return dateStr
-  }
-}
-
 export const LabTestHistory = ({
   patientId,
+  patientName,
+  onPatientChange,
   className = '',
-  limit = 100,
-  showOnlyCompleted = false,
 }: LabTestHistoryProps) => {
-  const [labTests, setLabTests] = useState<LabTest[]>([])
-  const [filteredTests, setFilteredTests] = useState<LabTest[]>([])
-  const [loading, setLoading] = useState(true)
+  const defaults = defaultDateRange()
+  const [filters, setFilters] = useState<Filters>({ ...defaults, testName: '' })
+  const [columns, setColumns] = useState<LabHistoryMatrixColumn[]>([])
+  const [rows, setRows] = useState<LabHistoryMatrixRow[]>([])
+  const [displayPatientName, setDisplayPatientName] = useState(patientName || '')
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [filters, setFilters] = useState<Filters>(makeEmptyFilters())
 
-  // Load lab tests
+  const [patientQuery, setPatientQuery] = useState(patientName || patientId || '')
+  const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
+  const [patientOpen, setPatientOpen] = useState(false)
+  const [patientLoading, setPatientLoading] = useState(false)
+
   useEffect(() => {
+    setPatientQuery(patientName || patientId || '')
+    setDisplayPatientName(patientName || '')
+  }, [patientId, patientName])
+
+  useEffect(() => {
+    if (!patientOpen) return
+    const timer = setTimeout(async () => {
+      setPatientLoading(true)
+      try {
+        const results = patientQuery.trim()
+          ? await searchPatients(patientQuery, 20)
+          : await fetchPatients(20, 0)
+        setPatientOptions(results)
+      } catch {
+        setPatientOptions([])
+      } finally {
+        setPatientLoading(false)
+      }
+    }, patientQuery.trim() ? 300 : 0)
+    return () => clearTimeout(timer)
+  }, [patientQuery, patientOpen])
+
+  const loadMatrix = useCallback(async () => {
     if (!patientId) {
-      setLoading(false)
+      setColumns([])
+      setRows([])
       return
     }
-
-    const loadLabTests = async () => {
-      try {
-        setLoading(true)
-        setError(null)
-        
-        const result = await fetchLabTests(
-          limit,
-          0,
-          patientId,
-          undefined,
-          false,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          false
-        )
-
-        let sortedTests = [...result.data].sort((a, b) => {
-          const dateA = a.result_date || a.submitted_date || a.date || ''
-          const dateB = b.result_date || b.submitted_date || b.date || ''
-          return dateB.localeCompare(dateA)
-        })
-
-        if (showOnlyCompleted) {
-          sortedTests = sortedTests.filter((t) => t.status === 'Completed')
-        }
-
-        setLabTests(sortedTests)
-        setFilteredTests(sortedTests)
-      } catch (err) {
-        console.error('Failed to load lab test history:', err)
-        setError(err instanceof Error ? err.message : 'Failed to load lab test history')
-      } finally {
-        setLoading(false)
-      }
+    try {
+      setLoading(true)
+      setError(null)
+      const data = await fetchLabTestHistoryMatrix({
+        patient: patientId,
+        from_date: filters.fromDate || undefined,
+        to_date: filters.toDate || undefined,
+        test_search: filters.testName.trim() || undefined,
+      })
+      setColumns(data.columns || [])
+      setRows(data.rows || [])
+      if (data.patient_name) setDisplayPatientName(data.patient_name)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load lab history')
+      setColumns([])
+      setRows([])
+    } finally {
+      setLoading(false)
     }
+  }, [patientId, filters.fromDate, filters.toDate, filters.testName])
 
-    loadLabTests()
-  }, [patientId, limit, showOnlyCompleted])
-
-  // Apply filters
   useEffect(() => {
-    let filtered = [...labTests]
+    loadMatrix()
+  }, [loadMatrix])
 
-    // Filter by status
-    if (filters.status) {
-      filtered = filtered.filter(test => test.status === filters.status)
-    }
+  const defaultFilters = makeDefaultFilters()
+  const activeCount = [
+    filters.fromDate !== defaultFilters.fromDate ? filters.fromDate : '',
+    filters.toDate !== defaultFilters.toDate ? filters.toDate : '',
+    filters.testName,
+  ].filter(Boolean).length
 
-    // Filter by date range
-    if (filters.fromDate) {
-      filtered = filtered.filter(test => {
-        const testDate = test.result_date || test.submitted_date || test.date
-        return testDate && testDate >= filters.fromDate
-      })
-    }
-
-    if (filters.toDate) {
-      filtered = filtered.filter(test => {
-        const testDate = test.result_date || test.submitted_date || test.date
-        return testDate && testDate <= filters.toDate
-      })
-    }
-
-    // Filter by test name
-    if (filters.testName) {
-      const searchTerm = filters.testName.toLowerCase()
-      filtered = filtered.filter(test => 
-        (test.lab_test_name || '').toLowerCase().includes(searchTerm) ||
-        (test.template || '').toLowerCase().includes(searchTerm) ||
-        test.name.toLowerCase().includes(searchTerm)
-      )
-    }
-
-    setFilteredTests(filtered)
-  }, [labTests, filters])
-
-  const activeCount = [filters.status, filters.fromDate, filters.toDate, filters.testName].filter(Boolean).length
-
-  const handleClearFilters = () => {
-    setFilters(makeEmptyFilters())
-  }
+  const handleClearFilters = () => setFilters(makeDefaultFilters())
 
   if (!patientId) {
     return (
-      <div className={`text-center py-12 text-slate-400 ${className}`}>
-        <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
-        <p className="text-sm font-medium">Select a patient to view lab test history</p>
-        <p className="text-xs mt-1 text-slate-400">Lab test results will appear here</p>
-      </div>
-    )
-  }
-
-  if (loading) {
-    return (
-      <div className={`flex items-center justify-center py-12 ${className}`}>
-        <div className="flex flex-col items-center gap-2">
-          <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-          <span className="text-sm text-slate-500">Loading lab test history...</span>
+      <div className={`flex flex-col min-w-full ${className}`}>
+        <FilterBar
+          filters={filters}
+          onChange={setFilters}
+          onClear={handleClearFilters}
+          activeCount={0}
+          patientQuery={patientQuery}
+          onPatientQueryChange={setPatientQuery}
+          onPatientSelect={(p) => onPatientChange?.(p.name)}
+          patientOptions={patientOptions}
+          patientOpen={patientOpen}
+          setPatientOpen={setPatientOpen}
+          patientLoading={patientLoading}
+          showPatientPicker={!!onPatientChange}
+        />
+        <div className="text-center py-12 text-slate-400">
+          <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-medium">Select a patient to view lab test history</p>
+          <p className="text-xs mt-1 text-slate-400">Results appear in a date matrix — one column per test date</p>
         </div>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className={`bg-red-50 border border-red-200 rounded-lg p-6 ${className}`}>
-        <p className="text-red-700 text-sm">{error}</p>
-        <button 
-          onClick={() => window.location.reload()} 
-          className="mt-3 text-xs text-red-600 hover:text-red-800 font-medium"
-        >
-          Retry
-        </button>
       </div>
     )
   }
@@ -277,92 +330,114 @@ export const LabTestHistory = ({
         onChange={setFilters}
         onClear={handleClearFilters}
         activeCount={activeCount}
+        patientId={patientId}
+        patientName={displayPatientName}
+        patientQuery={patientQuery}
+        onPatientQueryChange={setPatientQuery}
+        onPatientSelect={(p) => onPatientChange?.(p.name)}
+        patientOptions={patientOptions}
+        patientOpen={patientOpen}
+        setPatientOpen={setPatientOpen}
+        patientLoading={patientLoading}
+        showPatientPicker={!!onPatientChange}
       />
 
-      {filteredTests.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            <span className="text-sm text-slate-500">Loading lab history…</span>
+          </div>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 m-4">
+          <p className="text-red-700 text-sm">{error}</p>
+          <button
+            type="button"
+            onClick={loadMatrix}
+            className="mt-3 text-xs text-red-600 hover:text-red-800 font-medium"
+          >
+            Retry
+          </button>
+        </div>
+      ) : columns.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
           <Search className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm">
-            {activeCount > 0 
-              ? 'No lab tests match the current filters.' 
-              : 'No lab test history found for this patient.'}
+            {activeCount > 0
+              ? 'No lab results match the current filters.'
+              : 'No lab results found for this patient in the selected date range.'}
           </p>
           {activeCount > 0 ? (
             <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
           ) : null}
         </div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Test Name</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Result</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Result Flag</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Test ID</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {filteredTests.map((test) => (
-                <tr key={test.name} className="hover:bg-slate-50 transition-colors">
-                  {/* Test Name */}
-                  <td className="px-4 py-3 text-sm font-medium text-slate-800">
-                    {test.lab_test_name || test.template || test.name}
-                  </td>
-                  
-                  {/* Result */}
-                  <td className="px-4 py-3 text-sm text-slate-700 max-w-[250px]">
-                    <div className="truncate" title={test.custom_result || test.results || '—'}>
-                      {test.custom_result || test.results || '—'}
-                    </div>
-                  </td>
-                  
-                  {/* Result Flag */}
-                  <td className="px-4 py-3">
-                    {test.result_flag ? (
-                      <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${getResultFlagClasses(test.result_flag)}`}>
-                        {test.result_flag}
-                      </span>
-                    ) : (
-                      <span className="text-slate-400 text-xs">—</span>
-                    )}
-                  </td>
-                  
-                  {/* Status */}
-                  <td className="px-4 py-3">
-                    <StatusPill 
-                      status={test.status || 'Draft'} 
-                      color={statusColors[test.status || 'Draft'] || 'default'} 
-                    />
-                  </td>
-                  
-                  {/* Date */}
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {formatDate(test.result_date || test.submitted_date || test.date)}
-                  </td>
-                  
-                  {/* Practitioner */}
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {test.practitioner_name || test.practitioner || '—'}
-                  </td>
-                  
-                  {/* Test ID */}
-                  <td className="px-4 py-3 text-sm text-slate-500 font-mono">
-                    {test.name}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          
-          {/* Footer with count */}
-          <div className="px-4 py-3 border-t border-slate-200 bg-slate-50 text-xs text-slate-500">
-            Showing {filteredTests.length} of {labTests.length} lab test{labTests.length !== 1 ? 's' : ''}
+        <>
+          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2">
+            <span>
+              {rows.length} test{rows.length !== 1 ? 's' : ''} × {columns.length} date
+              {columns.length !== 1 ? 's' : ''}
+              {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
+            </span>
+            <span className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Normal
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Abnormal
+              </span>
+            </span>
           </div>
-        </div>
+
+          <div className="overflow-auto max-h-[520px]" style={{ scrollbarWidth: 'thin' }}>
+            <table className="w-full border-collapse min-w-max">
+              <thead className="sticky top-0 z-10 bg-slate-50">
+                <tr>
+                  <th className="sticky left-0 z-20 bg-slate-50 border-b border-r border-slate-200 px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase min-w-[240px] max-w-[320px]">
+                    Test
+                  </th>
+                  {columns.map((col) => {
+                    const { dateLine, timeLine } = formatColumnHeader(col)
+                    return (
+                      <th
+                        key={col.key}
+                        className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold text-slate-600 min-w-[88px]"
+                        title={col.lab_test_name || col.lab_test}
+                      >
+                        <div>{dateLine}</div>
+                        {timeLine ? (
+                          <div className="text-[10px] font-normal text-slate-400 mt-0.5">{timeLine}</div>
+                        ) : null}
+                      </th>
+                    )
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rows.map((row) => (
+                  <tr key={row.key} className="hover:bg-slate-50/50">
+                    <td className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-4 py-2 text-sm text-slate-800 font-medium whitespace-nowrap">
+                      {row.label}
+                    </td>
+                    {columns.map((col) => {
+                      const cell = row.cells[col.key]
+                      return (
+                        <td
+                          key={col.key}
+                          className={`px-3 py-2 text-center text-sm border-l border-slate-100 ${cellClass(cell?.flag)}`}
+                          title={cell?.lab_test ? `Lab Test: ${cell.lab_test}` : undefined}
+                        >
+                          {cell?.value ?? ''}
+                        </td>
+                      )
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   )

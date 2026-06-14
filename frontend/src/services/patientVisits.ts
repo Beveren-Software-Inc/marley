@@ -264,4 +264,30 @@ const csrf = await ensureCSRF()
   return resData.message;
 }
 
+export async function updatePatientVisitDocuments(
+  name: string,
+  documents: PatientDocumentRow[]
+): Promise<{ success: boolean; name: string }> {
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_visit.update_patient_visit_documents',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name, documents }),
+    }
+  )
+  const resData = await response.json()
+  if (!response.ok || resData?.exc) {
+    throw new Error(
+      typeof resData?.message === 'string' ? resData.message : 'Failed to save documents'
+    )
+  }
+  return resData.message as { success: boolean; name: string }
+}
 

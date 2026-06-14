@@ -1064,7 +1064,7 @@ def get_patient_history_config():
 				{"label": "Reflexes", "fieldname": "reflexes", "fieldtype": "Select"},
 				{"label": "Blood Pressure", "fieldname": "bp", "fieldtype": "Data"},
 				{"label": "Notes", "fieldname": "vital_signs_note", "fieldtype": "Small Text"},
-				{"label": "Height (In Meter)", "fieldname": "height", "fieldtype": "Float"},
+				{"label": "Height (cm)", "fieldname": "height", "fieldtype": "Float"},
 				{"label": "Weight (In Kilogram)", "fieldname": "weight", "fieldtype": "Float"},
 				{"label": "BMI", "fieldname": "bmi", "fieldtype": "Float"},
 			],

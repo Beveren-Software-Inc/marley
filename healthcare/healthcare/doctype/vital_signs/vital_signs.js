@@ -29,8 +29,9 @@ frappe.ui.form.on('Vital Signs', {
 
 let calculate_bmi = function(frm){
 	// Reference https://en.wikipedia.org/wiki/Body_mass_index
-	// bmi = weight (in Kg) / height * height (in Meter)
-	let bmi = (frm.doc.weight / (frm.doc.height * frm.doc.height)).toFixed(2);
+	// bmi = weight (kg) / height (m)^2 — height stored in cm
+	let height_m = frm.doc.height / 100;
+	let bmi = (frm.doc.weight / (height_m * height_m)).toFixed(2);
 	let bmi_note = null;
 
 	if (bmi<18.5) {

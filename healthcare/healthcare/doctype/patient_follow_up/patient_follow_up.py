@@ -7,21 +7,29 @@ from frappe.model.document import Document
 
 
 @frappe.whitelist()
-def get_follow_ups(status=None, cost_center=None, limit=20, offset=0):
+def get_follow_ups(status=None, cost_center=None, follow_up_type=None, patient=None, date_from=None, date_to=None, limit=20, offset=0):
 	"""List Patient Follow Up for UI with filters. Returns {data, total_count}."""
-	filters = []
+	filters = {}
 	if status:
-		filters.append(["status", "=", status])
+		filters["status"] = status
 	if cost_center:
-		filters.append(["cost_center", "=", cost_center])
+		filters["cost_center"] = cost_center
+	if patient:
+		filters["patient"] = patient
+	if follow_up_type:
+		filters["follow_up_type"] = follow_up_type
+	if date_from and date_to:
+		filters["follow_up_date"] = ["between", [date_from, date_to]]
+	elif date_from:
+		filters["follow_up_date"] = [">=", date_from]
+	elif date_to:
+		filters["follow_up_date"] = ["<=", date_to]
 	fields = [
 		"name", "patient", "patient_name", "follow_up_type", "follow_up_date",
 		"status", "cost_center", "remarks", "company",
 	]
 
-	total_count = frappe.count("Patient Follow Up", filters={"name": ["!=", ""]}) if not filters else len(
-		frappe.get_all("Patient Follow Up", filters=filters, fields=["name"], limit=0)
-	)
+	total_count = frappe.db.count("Patient Follow Up", filters=filters)
 
 	out = frappe.get_all(
 		"Patient Follow Up",
@@ -29,7 +37,7 @@ def get_follow_ups(status=None, cost_center=None, limit=20, offset=0):
 		fields=fields,
 		order_by="follow_up_date asc",
 		limit=int(limit) if limit else 20,
-		start=int(offset) if offset else 0,
+		limit_start=int(offset) if offset else 0,
 	)
 	return {"data": out, "total_count": total_count}
 
@@ -230,7 +238,7 @@ def update_follow_up_status(patient_follow_up_name, status):
 	"""Update status of a Patient Follow Up. Call from UI or API."""
 	if not patient_follow_up_name:
 		return {"updated": False, "message": "No follow-up specified"}
-	if status not in ["Open", "Completed", "No Follow Up Required"]:
+	if status not in ["Open", "Contacted", "Completed", "No Follow Up Required"]:
 		return {"updated": False, "message": "Invalid status"}
 	try:
 		doc = frappe.get_doc("Patient Follow Up", patient_follow_up_name)

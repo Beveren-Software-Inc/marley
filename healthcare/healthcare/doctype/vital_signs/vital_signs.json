@@ -194,7 +194,7 @@
    "fieldname": "height",
    "fieldtype": "Float",
    "in_list_view": 1,
-   "label": "Height (In Meter)"
+   "label": "Height (cm)"
   },
   {
    "fieldname": "weight",

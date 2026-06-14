@@ -60,6 +60,8 @@ import { PatientHistoryModal } from '../components/patientHistory/PatientHistory
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { type PatientVisitListRow } from '../services/patientVisits'
+import { useIpDoctorRequirements } from '../hooks/useIpDoctorRequirements'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 
@@ -98,6 +100,8 @@ export const NursePage = () => {
     costCenterCareScope,
     guardClinicalCreate,
     setMode,
+    setActiveVisit,
+    setActiveAdmission,
   } = useCareContext()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -145,12 +149,22 @@ export const NursePage = () => {
   const [showSessionScheduleModal, setShowSessionScheduleModal] = useState(false)
   const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
     const [patientRefreshKey, setPatientRefreshKey] = useState(0)
+  const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
 
   // ECT dashboard state
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
+
+  const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
+  const { status: ipDocStatus } = useIpDoctorRequirements(
+    selectedPatient,
+    activeAdmission,
+    showIpRequiredDocs,
+    `${morseFallRefreshKey}-${patientHistoryRefreshKey}`
+  )
+
   const rawScreen = searchParams.get('screen')
   const dischargeAdmission = searchParams.get('discharge')
   const inDischargeRoute = isInpatientDischargeRoute(searchParams, [NURSE_DISCHARGE_SCREEN_ID])
@@ -192,6 +206,31 @@ export const NursePage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const handleVisitActivate = (visit: PatientVisitListRow) => {
+    if (visit.patient) {
+      handlePatientSelect(visit.patient)
+    }
+    setMode('OP')
+    setActiveAdmission(undefined)
+    setActiveVisit(visit.value)
+    try {
+      localStorage.setItem('patientSearch_activeMode', 'OP')
+      localStorage.setItem('patientSearch_activeVisit', visit.value)
+      localStorage.setItem(
+        'patientSearch_activeVisitLabel',
+        visit.label || `${visit.value} — ${visit.patient_name || visit.patient || ''}`
+      )
+      localStorage.removeItem('patientSearch_activeAdmission')
+      localStorage.removeItem('patientSearch_activeAdmissionLabel')
+    } catch {
+      /* ignore storage errors */
+    }
+    const np = new URLSearchParams(searchParams)
+    if (visit.patient) np.set('patient', visit.patient)
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
   }
 
   useEffect(() => {
@@ -1142,13 +1181,20 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+          <DashboardCard
+            title="Morse Fall Scale"
+            listingScreen="n-fall"
+            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.morse_fall_scale}
+            attentionLabel="Required for this IP admission — complete Morse Fall Scale"
+          >
             <MorseFallScaleList
               patient={selectedPatient}
+              refreshKey={morseFallRefreshKey}
               onPatientClick={handlePatientSelect}
               defaultAdmission={activeAdmission || undefined}
+              onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
             />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1420,13 +1466,13 @@ export const NursePage = () => {
       {/* OP / IP mode: list at top — hides once a patient is selected */}
       {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
       !selectedPatient ? (
-        <div className="px-4 pt-4 pb-0">
-          <DashboardCard
-            title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
-            fixedHeight
-            listingScreen={mode === 'OP' ? 'n-op' : 'n-reg'}
-          >
-            {mode === 'OP' ? (
+        <div className={`px-4 pt-4 pb-0 ${mode === 'IP' ? 'grid gap-4 md:grid-cols-2 auto-rows-fr' : ''}`}>
+          {mode === 'OP' ? (
+            <DashboardCard
+              title="Patient Visits (OP)"
+              fixedHeight
+              listingScreen="n-op"
+            >
               <PatientVisitList
                 patient={selectedPatient || undefined}
                 onPatientFromVisit={(p) => {
@@ -1435,19 +1481,39 @@ export const NursePage = () => {
                   sp.set('patient', p)
                   setSearchParams(sp, { replace: true })
                 }}
+                onVisitActivate={handleVisitActivate}
               />
-            ) : (
-              <AdmissionList
-                patient={selectedPatient || undefined}
-                onPatientFromAdmission={(p) => {
-                  setSelectedPatient(p)
-                  const sp = new URLSearchParams(searchParams)
-                  sp.set('patient', p)
-                  setSearchParams(sp, { replace: true })
-                }}
-              />
-            )}
-          </DashboardCard>
+            </DashboardCard>
+          ) : (
+            <>
+              <DashboardCard
+                title="Inpatient Admissions (IP)"
+                fixedHeight
+                listingScreen="n-reg"
+              >
+                <AdmissionList
+                  patient={selectedPatient || undefined}
+                  onPatientFromAdmission={(p) => {
+                    setSelectedPatient(p)
+                    const sp = new URLSearchParams(searchParams)
+                    sp.set('patient', p)
+                    setSearchParams(sp, { replace: true })
+                  }}
+                />
+              </DashboardCard>
+              <DashboardCard fixedHeight title="Patient Visits" listingScreen="n-op">
+                <PatientVisitList
+                  onPatientFromVisit={(p) => {
+                    setSelectedPatient(p)
+                    const sp = new URLSearchParams(searchParams)
+                    sp.set('patient', p)
+                    setSearchParams(sp, { replace: true })
+                  }}
+                  onVisitActivate={handleVisitActivate}
+                />
+              </DashboardCard>
+            </>
+          )}
         </div>
       ) : null}
 
@@ -1587,6 +1653,35 @@ export const NursePage = () => {
               <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>
           </div>
+
+          {/* IP: patient visits + Morse Fall Scale */}
+          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
+            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+              <DashboardCard fixedHeight title="Patient Visits" listingScreen="n-op">
+                <PatientVisitList
+                  patient={selectedPatient}
+                  onPatientFromVisit={handlePatientSelect}
+                  onVisitActivate={handleVisitActivate}
+                />
+              </DashboardCard>
+
+              <DashboardCard
+                fixedHeight
+                title="Morse Fall Scale"
+                listingScreen="n-fall"
+                requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.morse_fall_scale}
+                attentionLabel="Required for this IP admission — complete Morse Fall Scale"
+              >
+                <MorseFallScaleList
+                  patient={selectedPatient}
+                  refreshKey={morseFallRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                  defaultAdmission={activeAdmission || undefined}
+                  onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
+                />
+              </DashboardCard>
+            </div>
+          )}
 
           {/* Discharges — IP mode only */}
           {costCenterCareScope !== 'op_only' && mode === 'IP' && (

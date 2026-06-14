@@ -142,17 +142,9 @@ export function PastMedicalHistoryFields({ value, onChange, disabled }: Props) {
 
       <section>
         <h4 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">
-          Social history
+          Lifestyle
         </h4>
-        <textarea
-          className={textAreaClass}
-          rows={3}
-          disabled={disabled}
-          value={value.social_history || ''}
-          onChange={(e) => set('social_history', e.target.value)}
-          placeholder="Social history notes"
-        />
-        <div className="flex flex-wrap gap-6 mt-3">
+        <div className="flex flex-wrap gap-6">
           <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
             <input
               type="checkbox"

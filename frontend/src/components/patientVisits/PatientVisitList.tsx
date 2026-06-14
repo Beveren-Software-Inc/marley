@@ -20,6 +20,7 @@ import { observationsAllowedForMode } from '../../config/costCenterCareScope'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -42,6 +43,8 @@ function getOpDefaultDateRange() {
 
 interface PatientVisitListProps {
   onVisitSelect?: (visitName: string) => void
+  /** Select visit in navbar (OP mode) and navigate — used from doctor/nurse lists */
+  onVisitActivate?: (visit: PatientVisitListRow) => void
   onPatientFromVisit?: (patient: string) => void
   searchQuery?: string
   patient?: string
@@ -56,6 +59,7 @@ interface PatientVisitListProps {
 
 export const PatientVisitList = ({
   onVisitSelect,
+  onVisitActivate,
   onPatientFromVisit,
   searchQuery: externalSearchQuery = '',
   patient,
@@ -74,7 +78,7 @@ export const PatientVisitList = ({
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** OP browse (no active visit, not a typed sub-list): today + linked practitioner. */
-  const shouldUseOpDefaults = mode === 'OP' && !effectiveVisitFilter && !visitType
+  const shouldUseOpDefaults = mode === 'OP' && !effectiveVisitFilter && !visitType && !onVisitActivate
   const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -101,7 +105,6 @@ export const PatientVisitList = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
-  const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
   const [defaultsReady, setDefaultsReady] = useState(!shouldUseOpDefaults)
 
   const [dateFrom, setDateFrom] = useState(() => opDefaultsOnMount?.dateFrom ?? '')
@@ -125,7 +128,6 @@ export const PatientVisitList = ({
       try {
         const practId = await getCurrentUserPractitioner()
         if (cancelled) return
-        setDefaultPractitionerId(practId)
         if (practId) {
           setPractitionerFilter(practId)
           try {
@@ -163,6 +165,7 @@ export const PatientVisitList = ({
   const [vitalSignVisit, setVitalSignVisit] = useState<PatientVisitListRow | null>(null)
   const [observationVisit, setObservationVisit] = useState<PatientVisitListRow | null>(null)
   const [diagnosisVisit, setDiagnosisVisit] = useState<PatientVisitListRow | null>(null)
+  const [uploadDocumentsVisit, setUploadDocumentsVisit] = useState<PatientVisitListRow | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -314,43 +317,7 @@ export const PatientVisitList = ({
     window.open(url, '_blank')
   }
 
-  const resetOpDefaultFilters = async () => {
-    const { dateFrom: from, dateTo: to } = getOpDefaultDateRange()
-    setDateFrom(from)
-    setDateTo(to)
-    setVisitIdFilter('')
-    setVisitQuery('')
-    setSelectedVisit(null)
-    setSelectedStatus('')
-    const practId = defaultPractitionerId
-    if (practId) {
-      setPractitionerFilter(practId)
-      try {
-        const options = await fetchHealthcarePractitioners()
-        const match = options.find((p) => p.name === practId)
-        if (match) {
-          setSelectedPractitioner(match)
-          setPractitionerQuery(match.label)
-        } else {
-          setSelectedPractitioner(null)
-          setPractitionerQuery(practId)
-        }
-      } catch {
-        setSelectedPractitioner(null)
-        setPractitionerQuery(practId)
-      }
-    } else {
-      setPractitionerFilter('')
-      setPractitionerQuery('')
-      setSelectedPractitioner(null)
-    }
-  }
-
   const handleClearFilters = () => {
-    if (shouldUseOpDefaults) {
-      void resetOpDefaultFilters()
-      return
-    }
     setVisitIdFilter('')
     setVisitQuery('')
     setSelectedVisit(null)
@@ -362,16 +329,9 @@ export const PatientVisitList = ({
     setSelectedStatus('')
   }
 
-  const todayStr = localDateISO()
-  const hasActiveFilters = shouldUseOpDefaults
-    ? Boolean(
-        visitIdFilter ||
-          selectedStatus ||
-          practitionerFilter !== (defaultPractitionerId || '') ||
-          dateFrom !== todayStr ||
-          dateTo !== todayStr,
-      )
-    : Boolean(visitIdFilter || practitionerFilter || dateFrom || dateTo || selectedStatus)
+  const hasActiveFilters = Boolean(
+    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo,
+  )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
@@ -671,7 +631,14 @@ export const PatientVisitList = ({
                 <tr key={visit.value} className="hover:bg-slate-50 transition-colors">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => { setDetailVisit(visit.value); onVisitSelect?.(visit.value) }}
+                    onClick={() => {
+                      if (onVisitActivate) {
+                        onVisitActivate(visit)
+                      } else {
+                        setDetailVisit(visit.value)
+                        onVisitSelect?.(visit.value)
+                      }
+                    }}
                   >
                     {visit.value}
                   </td>
@@ -798,6 +765,16 @@ export const PatientVisitList = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => { setUploadDocumentsVisit(visit); setOpenActionRow(null) }}
+                          className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 w-full text-left"
+                        >
+                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                          </svg>
+                          Upload Document
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
                           className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
                         >
@@ -868,6 +845,19 @@ export const PatientVisitList = ({
           patientName={diagnosisVisit.patient_name}
           onClose={() => setDiagnosisVisit(null)}
           onSuccess={() => setDiagnosisVisit(null)}
+        />
+      )}
+
+      {/* Upload Documents Modal */}
+      {uploadDocumentsVisit && (
+        <UploadPatientDocumentsModal
+          target={{
+            doctype: 'Patient Visit',
+            name: uploadDocumentsVisit.value,
+            label: `Upload Documents — ${uploadDocumentsVisit.patient_name || uploadDocumentsVisit.value}`,
+          }}
+          onClose={() => setUploadDocumentsVisit(null)}
+          onSuccess={() => setUploadDocumentsVisit(null)}
         />
       )}
 

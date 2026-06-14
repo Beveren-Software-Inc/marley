@@ -806,4 +806,45 @@ def create_patient_visit(data):
 	}
 
 
+def _apply_patient_visit_documents(doc, documents_data):
+	documents = frappe.parse_json(documents_data) if isinstance(documents_data, str) else documents_data
+	if not isinstance(documents, list):
+		return
+	doc.set("documents", [])
+	for idx, row in enumerate(documents, start=1):
+		if not isinstance(row, dict):
+			continue
+		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
+		document_type = (row.get("document_type") or "").strip()
+		document_url = (row.get("document") or "").strip()
+		if not file_name and not document_type and not document_url:
+			continue
+		doc.append(
+			"documents",
+			{
+				"idx": idx,
+				"file_name": file_name or document_type or None,
+				"document_type": document_type or None,
+				"transaction_no": (row.get("transaction_no") or "").strip() or None,
+				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+				"document": document_url or None,
+			},
+		)
+
+
+@frappe.whitelist()
+def update_patient_visit_documents(name, documents):
+	"""Replace Patient Visit uploaded documents child table."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Patient Visit name is required"))
+	if not frappe.db.exists("Patient Visit", name):
+		frappe.throw(_("Patient Visit {0} not found").format(name))
+
+	doc = frappe.get_doc("Patient Visit", name)
+	_apply_patient_visit_documents(doc, documents)
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": doc.name}
+
 

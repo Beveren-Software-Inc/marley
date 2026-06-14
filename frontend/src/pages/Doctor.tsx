@@ -78,6 +78,8 @@ import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
 import { toast } from '../hooks/useToast'
 import { useIpDoctorRequirements } from '../hooks/useIpDoctorRequirements'
 import { useOpDoctorRequirements } from '../hooks/useOpDoctorRequirements'
+import { fetchIpDoctorRequiredDocumentsStatus } from '../services/ipDoctorRequirements'
+import type { PatientVisitListRow } from '../services/patientVisits'
 import { useCareContext } from '../providers/CareContextProvider'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
@@ -125,6 +127,8 @@ export const DoctorPage = () => {
     costCenterCareScope,
     guardClinicalCreate,
     setMode,
+    setActiveVisit,
+    setActiveAdmission,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -336,6 +340,59 @@ export const DoctorPage = () => {
       newSearchParams.delete('patient')
     }
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  const handleVisitActivate = (visit: PatientVisitListRow) => {
+    if (visit.patient) {
+      handlePatientSelect(visit.patient)
+    }
+    setMode('OP')
+    setActiveAdmission(undefined)
+    setActiveVisit(visit.value)
+    try {
+      localStorage.setItem('patientSearch_activeMode', 'OP')
+      localStorage.setItem('patientSearch_activeVisit', visit.value)
+      localStorage.setItem(
+        'patientSearch_activeVisitLabel',
+        visit.label || `${visit.value} — ${visit.patient_name || visit.patient || ''}`
+      )
+      localStorage.removeItem('patientSearch_activeAdmission')
+      localStorage.removeItem('patientSearch_activeAdmissionLabel')
+    } catch {
+      /* ignore storage errors */
+    }
+    const np = new URLSearchParams(searchParams)
+    if (visit.patient) np.set('patient', visit.patient)
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }
+
+  const continueIpRequiredDocsAfterPmh = async () => {
+    if (mode !== 'IP' || !selectedPatient || !activeAdmission) return
+    try {
+      const status = await fetchIpDoctorRequiredDocumentsStatus(selectedPatient, activeAdmission)
+      setMedicalHistoryRefreshKey((t) => t + 1)
+      if (!status.history_form) {
+        setShowPatientHistoryModal(true)
+      } else if (!status.suicide_risk) {
+        setShowCreateSuicideRiskModal(true)
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const continueIpRequiredDocsAfterHistoryForm = async () => {
+    if (mode !== 'IP' || !selectedPatient || !activeAdmission) return
+    try {
+      const status = await fetchIpDoctorRequiredDocumentsStatus(selectedPatient, activeAdmission)
+      setPatientHistoryRefreshKey((t) => t + 1)
+      if (!status.suicide_risk) {
+        setShowCreateSuicideRiskModal(true)
+      }
+    } catch {
+      /* ignore */
+    }
   }
 
   const closeDischarge = () => {
@@ -1197,7 +1254,11 @@ export const DoctorPage = () => {
             addButtonTitle="Create Patient Visit"
             allowCreateOnClosedEpisode
           >
-            <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+            <PatientVisitList
+              patient={selectedPatient}
+              onPatientFromVisit={handlePatientSelect}
+              onVisitActivate={handleVisitActivate}
+            />
           </DashboardCard>
         </div>
       </div>
@@ -1288,10 +1349,10 @@ export const DoctorPage = () => {
             patient={selectedPatient}
             defaultAdmission={activeAdmission || undefined}
             onClose={() => setShowCreateMedicalHistoryModal(false)}
-            onCreated={() => {
+            onCreated={async () => {
               setMedicalHistoryRefreshKey((prev) => prev + 1)
               setShowCreateMedicalHistoryModal(false)
-              toast.success('Patient medical history saved')
+              await continueIpRequiredDocsAfterPmh()
             }}
           />
         )}
@@ -1808,25 +1869,31 @@ export const DoctorPage = () => {
     {showOpIpListStrip && !selectedPatient ? (
       <div className="px-4 pt-4 pb-0 grid gap-4 md:grid-cols-2 auto-rows-fr">
         {doctorAppointmentsCard}
-        <DashboardCard
-          fixedHeight
-          title={mode === 'OP' ? 'Patient Visits (OP)' : 'Inpatient Admissions (IP)'}
-          onAdd={mode === 'OP' ? () => setShowCreateVisitModal(true) : undefined}
-          addButtonTitle="Create Patient Visit"
-          listingScreen={mode === 'OP' ? 'pvh' : 'admission'}
-          allowCreateOnClosedEpisode={mode === 'OP'}
-        >
-          {mode === 'OP' ? (
+        {mode === 'OP' ? (
+          <DashboardCard
+            fixedHeight
+            title="Patient Visits (OP)"
+            onAdd={() => setShowCreateVisitModal(true)}
+            addButtonTitle="Create Patient Visit"
+            listingScreen="pvh"
+            allowCreateOnClosedEpisode
+          >
             <PatientVisitList
-              patient={undefined}
               onPatientFromVisit={(p) => {
                 setSelectedPatient(p)
                 const sp = new URLSearchParams(searchParams)
                 sp.set('patient', p)
                 setSearchParams(sp, { replace: true })
               }}
+              onVisitActivate={handleVisitActivate}
             />
-          ) : (
+          </DashboardCard>
+        ) : (
+          <DashboardCard
+            fixedHeight
+            title="Inpatient Admissions (IP)"
+            listingScreen="admission"
+          >
             <AdmissionList
               patient={undefined}
               onPatientFromAdmission={(p) => {
@@ -1836,7 +1903,23 @@ export const DoctorPage = () => {
                 setSearchParams(sp, { replace: true })
               }}
             />
-          )}
+          </DashboardCard>
+        )}
+      </div>
+    ) : null}
+
+    {mode === 'IP' && costCenterCareScope !== 'op_only' && !selectedPatient ? (
+      <div className="px-4 pt-2 pb-0">
+        <DashboardCard fixedHeight title="Patient Visits" listingScreen="pvh">
+          <PatientVisitList
+            onPatientFromVisit={(p) => {
+              setSelectedPatient(p)
+              const sp = new URLSearchParams(searchParams)
+              sp.set('patient', p)
+              setSearchParams(sp, { replace: true })
+            }}
+            onVisitActivate={handleVisitActivate}
+          />
         </DashboardCard>
       </div>
     ) : null}
@@ -1878,7 +1961,11 @@ export const DoctorPage = () => {
               listingScreen="pvh"
               allowCreateOnClosedEpisode
             >
-              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+              <PatientVisitList
+                patient={selectedPatient}
+                onPatientFromVisit={handlePatientSelect}
+                onVisitActivate={handleVisitActivate}
+              />
             </DashboardCard>
           </div>
         ) : null}
@@ -1947,6 +2034,27 @@ export const DoctorPage = () => {
         </div>
         )}
 
+        {/* IP: always show patient visits alongside admission workflow */}
+        {costCenterCareScope !== 'ip_only' && mode === 'IP' && !!selectedPatient ? (
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
+            {doctorAppointmentsCard}
+            <DashboardCard
+              fixedHeight
+              title="Patient Visits"
+              onAdd={() => setShowCreateVisitModal(true)}
+              addButtonTitle="Create Patient Visit"
+              listingScreen="pvh"
+              allowCreateOnClosedEpisode
+            >
+              <PatientVisitList
+                patient={selectedPatient}
+                onPatientFromVisit={handlePatientSelect}
+                onVisitActivate={handleVisitActivate}
+              />
+            </DashboardCard>
+          </div>
+        ) : null}
+
         {/* OP with visit selected: Appointments + visits (choose/switch visit) */}
         {costCenterCareScope !== 'ip_only' && mode === 'OP' && !!activeVisit ? (
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
@@ -1959,7 +2067,11 @@ export const DoctorPage = () => {
               listingScreen="pvh"
               allowCreateOnClosedEpisode
             >
-              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+              <PatientVisitList
+                patient={selectedPatient}
+                onPatientFromVisit={handlePatientSelect}
+                onVisitActivate={handleVisitActivate}
+              />
             </DashboardCard>
           </div>
         ) : null}
@@ -2377,9 +2489,10 @@ export const DoctorPage = () => {
         admissionNo={mode === 'IP' ? activeAdmission || '' : ''}
         patient={selectedPatient}
         onClose={() => setShowPatientHistoryModal(false)}
-        onSuccess={() => {
+        onSuccess={async () => {
           setPatientHistoryRefreshKey((prev) => prev + 1)
           setShowPatientHistoryModal(false)
+          await continueIpRequiredDocsAfterHistoryForm()
         }}
       />
     )}
@@ -2389,10 +2502,10 @@ export const DoctorPage = () => {
         patient={selectedPatient}
         defaultAdmission={activeAdmission || undefined}
         onClose={() => setShowCreateMedicalHistoryModal(false)}
-        onCreated={() => {
+        onCreated={async () => {
           setMedicalHistoryRefreshKey((prev) => prev + 1)
           setShowCreateMedicalHistoryModal(false)
-          toast.success('Patient medical history saved')
+          await continueIpRequiredDocsAfterPmh()
         }}
       />
     )}
