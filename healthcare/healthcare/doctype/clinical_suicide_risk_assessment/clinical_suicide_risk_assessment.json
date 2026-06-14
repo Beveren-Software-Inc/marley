@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "CSRA-.#####",
  "creation": "2026-04-02 17:25:59.910774",
  "doctype": "DocType",
  "engine": "InnoDB",
@@ -345,10 +346,11 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 17:55:24.771844",
+ "modified": "2026-06-14 13:17:40.988872",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Clinical Suicide Risk Assessment",
+ "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {

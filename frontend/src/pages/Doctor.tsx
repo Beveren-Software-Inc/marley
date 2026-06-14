@@ -1995,26 +1995,9 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Row 2: IP only — Suicide risk assessment + History form */}
+        {/* Row 2: IP only — History form + Suicide risk assessment */}
         {mode === 'IP' && (
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-          <DashboardCard
-            fixedHeight
-            title="Suicide Risk Assessment"
-            onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
-            addButtonTitle="Create Suicide Risk Assessment"
-            listingScreen="clinical-suicide-risk"
-            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.suicide_risk}
-            attentionLabel="Required for this IP admission — complete suicide risk assessment"
-          >
-            <SuicideRiskAssessmentList
-              patient={selectedPatient}
-              inpatientAdmission={activeAdmission || undefined}
-              refreshKey={suicideRiskRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
-
           <DashboardCard
             fixedHeight
             title="History Form"
@@ -2028,6 +2011,23 @@ export const DoctorPage = () => {
               patient={selectedPatient}
               inpatientAdmission={activeAdmission || undefined}
               refreshKey={patientHistoryRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+
+          <DashboardCard
+            fixedHeight
+            title="Suicide Risk Assessment"
+            onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
+            addButtonTitle="Create Suicide Risk Assessment"
+            listingScreen="clinical-suicide-risk"
+            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.suicide_risk}
+            attentionLabel="Required for this IP admission — complete suicide risk assessment"
+          >
+            <SuicideRiskAssessmentList
+              patient={selectedPatient}
+              inpatientAdmission={activeAdmission || undefined}
+              refreshKey={suicideRiskRefreshKey}
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
