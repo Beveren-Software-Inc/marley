@@ -11,7 +11,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { Check } from 'lucide-react'
-import { searchPatients, fetchPatients, fetchPatientDoc, type PatientListItem } from '../../services/patients'
+import { searchPatients, fetchPatients, fetchPatientDoc, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
 import {
@@ -28,8 +28,10 @@ import {
   getCurrentUserPractitioner,
   fetchMedicalDepartments,
   fetchObservationLevels,
+  fetchDocumentTypes,
   type LinkFieldOption,
 } from '../../services/common'
+import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import {
   createObservation,
   createObservationSalesOrder,
@@ -43,7 +45,7 @@ interface Company {
   company_name: string
 }
 
-type EditTab = 'details' | 'relatives' | 'visitors'
+type EditTab = 'details' | 'relatives' | 'visitors' | 'documents'
 type CreateTab = 'admission' | 'observation'
 
 type ObservationFormState = {
@@ -232,6 +234,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [visitors, setVisitors] = useState<VisitorEditRow[]>([])
   const [signature, setSignature] = useState('')
   const [signatureUploading, setSignatureUploading] = useState(false)
+  const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
+  const [documentUploading, setDocumentUploading] = useState<number | null>(null)
 
   const [observationForm, setObservationForm] = useState<ObservationFormState>(() => ({
     addObservation: '',
@@ -364,6 +369,21 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         if (record.signature) {
           setSignature(record.signature)
         }
+
+        const existingDocs = record.e_signatures || record.patient_documents || []
+        if (existingDocs.length > 0) {
+          setDocuments(existingDocs.map((d) => ({
+            file_name: d.file_name || '',
+            document_type: d.document_type || '',
+            transaction_no: d.transaction_no || '',
+            upload_remarks: d.upload_remarks || '',
+            document: d.document || '',
+          })))
+        } else {
+          setDocuments([])
+        }
+
+        fetchDocumentTypes().then(setDocumentTypes).catch(() => setDocumentTypes([]))
       } catch (err) {
         if (!cancelled) {
           const msg = err instanceof Error ? err.message : 'Failed to load admission'
@@ -711,6 +731,19 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               entered_date: v.entered_date,
             })),
           signature: signature || undefined,
+          patient_documents: documents
+            .filter((d) =>
+              (d.file_name || '').trim()
+              || (d.document_type || '').trim()
+              || (d.document || '').trim()
+            )
+            .map((d) => ({
+              file_name: (d.file_name || d.document_type || '').trim(),
+              document_type: (d.document_type || '').trim() || undefined,
+              transaction_no: (d.transaction_no || '').trim() || undefined,
+              upload_remarks: (d.upload_remarks || '').trim() || undefined,
+              document: (d.document || '').trim() || undefined,
+            })),
         }
 
         await updateInpatientAdmission(editAdmissionName, updatePayload)
@@ -871,9 +904,45 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
   const filledRelativesCount = relatives.filter((r) => r.relative_relation.trim()).length
   const filledVisitorsCount = visitors.filter((v) => v.visitors_name.trim()).length
+  const filledDocumentsCount = documents.filter(
+    (d) => (d.file_name || '').trim() || (d.document_type || '').trim() || (d.document || '').trim()
+  ).length
   const showAdmissionFields = isEditMode
     ? activeTab === 'details'
     : activeCreateTab === 'admission'
+
+  const addDocumentRow = () =>
+    setDocuments((prev) => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
+  const removeDocumentRow = (idx: number) => setDocuments((prev) => prev.filter((_, i) => i !== idx))
+  const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setDocuments((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+  const handleDocumentFile = async (idx: number, file: File | null) => {
+    if (!file) return
+    setDocumentUploading(idx)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setDocuments((prev) => {
+        const next = [...prev]
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
+        return next
+      })
+      toast.success('File uploaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'File upload failed')
+    } finally {
+      setDocumentUploading(null)
+    }
+  }
 
   const handleObservationLevelSelect = async (obsLevel: LinkFieldOption) => {
     setSelectedObservationLevel(obsLevel)
@@ -916,6 +985,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 { id: 'details' as const, label: 'Details' },
                 { id: 'relatives' as const, label: 'Relatives', count: filledRelativesCount },
                 { id: 'visitors' as const, label: 'Visitors', count: filledVisitorsCount },
+                { id: 'documents' as const, label: 'Documents', count: filledDocumentsCount },
               ]).map((tab) => (
                 <button
                   key={tab.id}
@@ -1894,6 +1964,93 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   uploading={signatureUploading}
                 />
               </div>
+            </div>
+          )}
+
+          {isEditMode && activeTab === 'documents' && (
+            <div className="space-y-4">
+              <p className="text-sm text-slate-500">
+                Attach admission documents (e-signatures child table on the admission record).
+              </p>
+              {documents.length === 0 && (
+                <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
+                  No documents added yet.
+                </div>
+              )}
+              {documents.map((row, idx) => (
+                <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                      Document #{idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removeDocumentRow(idx)}
+                      className="text-xs text-red-600 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                      <input
+                        value={row.file_name}
+                        onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                      <DocumentTypeSelect
+                        value={row.document_type || ''}
+                        onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
+                        types={documentTypes}
+                        onTypesUpdated={setDocumentTypes}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                      <input
+                        value={row.transaction_no || ''}
+                        onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                      <input
+                        value={row.upload_remarks || ''}
+                        onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
+                        className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-medium text-slate-600 mb-0.5">File Attachment</label>
+                      <input
+                        type="file"
+                        disabled={documentUploading === idx}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0]
+                          if (f) handleDocumentFile(idx, f)
+                          e.target.value = ''
+                        }}
+                        className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white"
+                      />
+                      {row.document && documentUploading !== idx && (
+                        <span className="text-xs text-green-600 mt-1 block">✓ File attached</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={addDocumentRow}
+                className="text-sm text-primary font-medium hover:underline"
+              >
+                + Add document
+              </button>
             </div>
           )}
 

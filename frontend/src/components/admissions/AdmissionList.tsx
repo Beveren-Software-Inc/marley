@@ -38,6 +38,7 @@ import { toast } from '../../hooks/useToast' // Add this import if not already p
 import { Stethoscope } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
+import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -120,6 +121,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [diagnosisModalAdmission, setDiagnosisModalAdmission] = useState<InpatientRecord | null>(null)
   const [editAdmissionName, setEditAdmissionName] = useState<string | null>(null)
+  const [uploadDocumentsAdmission, setUploadDocumentsAdmission] = useState<InpatientRecord | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   // --- Filter: Admission No (searchable dropdown) ---
@@ -654,6 +656,19 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                                   Edit
                                 </button>
                               )}
+
+                              {(record.status === 'Admission Scheduled' || record.status === 'Admitted') && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setUploadDocumentsAdmission(record)
+                                    setOpenActionRow(null)
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50"
+                                >
+                                  Upload Document
+                                </button>
+                              )}
                               
                               {record.status === 'Admission Scheduled' && (
                                 <button
@@ -1134,6 +1149,21 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
             if (detailAdmission === editAdmissionName) {
               setDetailAdmission(editAdmissionName)
             }
+          }}
+        />
+      )}
+
+      {uploadDocumentsAdmission && (
+        <UploadPatientDocumentsModal
+          target={{
+            doctype: 'Inpatient Admission',
+            name: uploadDocumentsAdmission.name,
+            label: `Upload Documents — ${uploadDocumentsAdmission.patient_name || uploadDocumentsAdmission.name}`,
+          }}
+          onClose={() => setUploadDocumentsAdmission(null)}
+          onSuccess={() => {
+            setUploadDocumentsAdmission(null)
+            refetch()
           }}
         />
       )}

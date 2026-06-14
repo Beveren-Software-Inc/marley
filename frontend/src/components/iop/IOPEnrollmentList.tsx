@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchIOPEnrollments, type IOPEnrollment } from '../../services/iop'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { CreateIOPEnrollmentModal } from './CreateIOPEnrollmentModal'
 import { EditIOPEnrollmentModal } from './EditIOPEnrollmentModal'
 import { MarkIOPEnrollmentAttendedModal } from './MarkIOPEnrollmentAttendedModal'
@@ -21,6 +22,7 @@ export const IOPEnrollmentList = ({
   patientFilter,
   onPatientClick,
 }: IOPEnrollmentListProps) => {
+  const formatMoney = useFormatMoney()
   const [enrollments, setEnrollments] = useState<IOPEnrollment[]>([])
   const [loading, setLoading] = useState(true)
   const [createVisitForEnrollment, setCreateVisitForEnrollment] = useState<IOPEnrollment | null>(null)
@@ -78,6 +80,7 @@ export const IOPEnrollmentList = ({
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">IOP Day</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[4.5rem]">Actions</th>
             </tr>
@@ -85,7 +88,7 @@ export const IOPEnrollmentList = ({
           <tbody className="divide-y divide-slate-200">
             {enrollments.length === 0 ? (
               <tr>
-                <td colSpan={patientFilter ? 5 : 6} className="px-4 py-6 text-center text-slate-500">
+                <td colSpan={patientFilter ? 6 : 7} className="px-4 py-6 text-center text-slate-500">
                   No enrollments. Enroll a patient in an IOP day.
                 </td>
               </tr>
@@ -114,6 +117,24 @@ export const IOPEnrollmentList = ({
                     >
                       {e.status || '-'}
                     </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                    {(e.total_cost ?? 0) > 0 ? (
+                      <span title={
+                        e.session_costs?.length
+                          ? e.session_costs.map((s) => `${s.session_type}: ${formatMoney(s.rate)}`).join(', ')
+                          : undefined
+                      }>
+                        {formatMoney(e.total_cost ?? 0)}
+                        {e.session_total && e.visit_amount ? (
+                          <span className="block text-[10px] text-slate-400">
+                            sessions {formatMoney(e.session_total)} · visit {formatMoney(e.visit_amount)}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-sm whitespace-nowrap">
                     {e.patient_visit ? (

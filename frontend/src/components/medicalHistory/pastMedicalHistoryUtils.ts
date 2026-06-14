@@ -66,7 +66,6 @@ export function hasPastMedicalHistoryContent(h: Partial<PastMedicalHistoryFormFi
   if (h.current_and_past_medications?.trim()) return true
   if (h.no_known_allergies) return true
   if (h.allergies?.trim()) return true
-  if (h.social_history?.trim()) return true
   if (h.addiction) return true
   if (h.smoking) return true
   return false

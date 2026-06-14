@@ -24,7 +24,6 @@ export function PastMedicalHistoryDisplay({ history }: Props) {
     history.current_and_past_medications?.trim() ||
     history.no_known_allergies ||
     history.allergies?.trim() ||
-    history.social_history?.trim() ||
     history.addiction ||
     history.smoking
 
@@ -71,13 +70,12 @@ export function PastMedicalHistoryDisplay({ history }: Props) {
         </div>
       ) : null}
 
-      {(history.social_history?.trim() || history.addiction || history.smoking) && (
+      {(history.addiction || history.smoking) && (
         <section>
           <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Social history
+            Lifestyle
           </h4>
-          <TextBlock label="" text={history.social_history} />
-          <div className="flex flex-wrap gap-2 mt-2">
+          <div className="flex flex-wrap gap-2">
             {history.addiction ? (
               <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold bg-amber-100 text-amber-800">
                 Addiction

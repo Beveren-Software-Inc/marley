@@ -42,10 +42,10 @@ export interface MentalStateRow {
   abnormal: 0 | 1
   hallucinatory_behaviour: 0 | 1
   // Orientation
-  place: string | null
-  time: string | null
+  place: 0 | 1
+  time: 0 | 1
   normal_ap: 0 | 1
-  person: string | null
+  person: 0 | 1
   // Appetite
   increased: 0 | 1
   poor_ap: 0 | 1

@@ -104,9 +104,9 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [hallucinatoryBehaviour, setHallucinatoryBehaviour] = useState<0|1>(0)
 
   // Orientation & Appetite
-  const [place, setPlace] = useState('')
-  const [time, setTime] = useState('')
-  const [person, setPerson] = useState('')
+  const [place, setPlace] = useState<0|1>(0)
+  const [time, setTime] = useState<0|1>(0)
+  const [person, setPerson] = useState<0|1>(0)
   const [normalAp, setNormalAp] = useState<0|1>(0)
   const [increased, setIncreased] = useState<0|1>(0)
   const [poorAp, setPoorAp] = useState<0|1>(0)
@@ -249,7 +249,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         anxious, angry, depressed, elated, euthymic, irritable,
         twitches, hyperactive, stereotypes, restless, gait, tics, agitated, abnormal,
         hallucinatory_behaviour: hallucinatoryBehaviour,
-        place: place || undefined, time: time || undefined, person: person || undefined,
+        place, time, person,
         normal_ap: normalAp, increased, poor_ap: poorAp, reported, non_reported: nonReported,
         normal_b: normalB, reported_type: reportedType || undefined,
         sleep_duration: sleepDuration ? parseInt(sleepDuration) : undefined,
@@ -528,19 +528,10 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
               <>
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700 mb-3">Orientation</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Place</label>
-                      <input type="text" value={place} onChange={(e) => setPlace(e.target.value)} placeholder="Place" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Time</label>
-                      <input type="text" value={time} onChange={(e) => setTime(e.target.value)} placeholder="Time" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Person</label>
-                      <input type="text" value={person} onChange={(e) => setPerson(e.target.value)} placeholder="Person" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                    <CF label="Place" checked={!!place} onChange={setPlace} />
+                    <CF label="Time" checked={!!time} onChange={setTime} />
+                    <CF label="Person" checked={!!person} onChange={setPerson} />
                   </div>
                   <CF label="Normal AP" checked={!!normalAp} onChange={setNormalAp} />
                 </div>

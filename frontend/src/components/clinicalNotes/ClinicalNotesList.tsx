@@ -139,10 +139,13 @@ export const ClinicalNotesList = ({
         let referenceDocument: string | undefined
         let inpatientAdmission: string | undefined
 
-        // Care context: IP uses inpatient_admission link; OP uses visit reference fields.
+        // Care context: IP uses inpatient_admission link; OP uses Patient Visit references.
         if (mode === 'OP' && activeVisit) {
           referenceDoctype = 'Patient Visit'
           referenceDocument = activeVisit
+        } else if (mode === 'OP' && patient) {
+          // OP mode without a specific visit: still limit to this patient's visit notes only.
+          referenceDoctype = 'Patient Visit'
         } else if (mode === 'IP' && activeAdmission) {
           inpatientAdmission = activeAdmission
         }
@@ -226,6 +229,9 @@ export const ClinicalNotesList = ({
   const getContextLabel = () => {
     if (mode === 'OP' && activeVisit) {
       return `Showing notes for OP Visit: ${activeVisit}`
+    }
+    if (mode === 'OP' && patient) {
+      return 'Showing Patient Visit notes for this patient'
     }
     if (mode === 'IP' && activeAdmission) {
       return `Showing notes for IP Admission: ${activeAdmission}`

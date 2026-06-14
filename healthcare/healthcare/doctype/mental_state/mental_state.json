@@ -324,13 +324,15 @@
    "label": "Orientation & Appetite"
   },
   {
+   "default": "0",
    "fieldname": "place",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Place"
   },
   {
+   "default": "0",
    "fieldname": "time",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Time"
   },
   {
@@ -340,8 +342,9 @@
    "label": "Normal AP"
   },
   {
+   "default": "0",
    "fieldname": "person",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Person"
   },
   {

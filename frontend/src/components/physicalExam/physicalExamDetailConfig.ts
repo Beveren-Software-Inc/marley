@@ -1,7 +1,7 @@
 /** Shared field labels for Physical Examination create + detail views */
 export const PE_BASIC_FIELDS = [
   { key: 'weight', label: 'Weight' },
-  { key: 'height', label: 'Height' },
+  { key: 'height', label: 'Height (cm)' },
   { key: 'blood_pressure', label: 'Blood Pressure' },
   { key: 'temp_pressure', label: 'Temp Pressure' },
   { key: 'pulse', label: 'Pulse' },

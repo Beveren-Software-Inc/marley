@@ -14,6 +14,7 @@ import { DocDetailView } from '../ui/DocDetailView'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -26,16 +27,23 @@ const STATUS_OPTIONS = [
   { value: 'Contacted', label: 'Contacted' },
   { value: 'Completed', label: 'Completed' },
   { value: 'No Follow Up Required', label: 'No Follow Up Required' },
-  { value: '', label: 'All' },
+  { value: '', label: 'All statuses' },
 ]
 
-// Status options available as actions in the dropdown
 const STATUS_ACTIONS: { value: string; label: string }[] = [
   { value: 'Open', label: 'Mark as Open' },
   { value: 'Contacted', label: 'Mark as Contacted' },
   { value: 'Completed', label: 'Mark as Completed' },
   { value: 'No Follow Up Required', label: 'No Follow Up Required' },
 ]
+
+const FOLLOW_UP_CATEGORIES = [
+  { id: 'Normal', label: 'Normal', description: 'General follow-ups' },
+  { id: 'OP', label: 'OP', description: 'Outpatient follow-ups' },
+  { id: 'IP', label: 'IP', description: 'Inpatient follow-ups' },
+] as const
+
+type FollowUpCategory = (typeof FOLLOW_UP_CATEGORIES)[number]['id']
 
 interface FollowUpListProps {
   refreshKey?: number | string
@@ -46,8 +54,11 @@ interface FollowUpListProps {
 export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpListProps) => {
   const [list, setList] = useState<PatientFollowUpRow[]>([])
   const [loading, setLoading] = useState(true)
+  const [category, setCategory] = useState<FollowUpCategory>('Normal')
   const [status, setStatus] = useState<string>('Open')
   const [costCenter, setCostCenter] = useState<string>('')
+  const [dateFrom, setDateFrom] = useState<string>('')
+  const [dateTo, setDateTo] = useState<string>('')
   const [costCenterOptions, setCostCenterOptions] = useState<{ name: string }[]>([])
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [sendingBulk, setSendingBulk] = useState(false)
@@ -56,26 +67,28 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const cardFilters = useCardFilters()
-  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const [showFiltersInternal, setShowFiltersInternal] = useState(true)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
   const menuRef = useRef<HTMLDivElement>(null)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
 
-  // Pagination state
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   const [totalCount, setTotalCount] = useState(0)
 
-  const loadList = useCallback(async (overridePage?: number) => {
-    const currentPage = overridePage ?? page
+  const loadList = useCallback(async () => {
     setLoading(true)
     try {
       const result = await getFollowUps({
         status: status || undefined,
         cost_center: costCenter || undefined,
+        follow_up_type: category,
+        patient: patient || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
         limit: pageSize,
-        offset: (currentPage - 1) * pageSize,
+        offset: (page - 1) * pageSize,
       })
       setList(result.data)
       setTotalCount(result.total_count)
@@ -86,7 +99,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     } finally {
       setLoading(false)
     }
-  }, [status, costCenter, page, pageSize])
+  }, [status, costCenter, category, patient, page, pageSize, dateFrom, dateTo])
 
   useEffect(() => {
     loadList()
@@ -96,7 +109,6 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     getCostCenters().then(setCostCenterOptions).catch(() => setCostCenterOptions([]))
   }, [])
 
-  // Close dropdown when clicking outside (ignore portaled menu and trigger button)
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       const el = e.target as HTMLElement
@@ -156,6 +168,18 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     }
   }
 
+  const clearFilters = () => {
+    setStatus('Open')
+    setCostCenter('')
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }
+
+  const hasActiveFilters = Boolean(
+    (status && status !== 'Open') || costCenter || dateFrom || dateTo
+  )
+
   const remarksPreview = (r?: string) => {
     if (!r) return '—'
     const plain = r.replace(/<[^>]+>/g, '').trim()
@@ -164,14 +188,12 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
 
   return (
     <div className="flex flex-col gap-4 min-h-[400px]">
-      {/* Header row */}
       {!isInsideCard && (
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-slate-900">Follow Ups</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-xl font-semibold text-slate-900">Follow Ups</h2>
           <button
             type="button"
-            onClick={() => setShowFiltersInternal(prev => !prev)}
+            onClick={() => setShowFiltersInternal((prev) => !prev)}
             className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
             title={showFilters ? 'Hide filters' : 'Show filters'}
           >
@@ -180,85 +202,125 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
             </svg>
           </button>
         </div>
-      </div>
       )}
 
-      {/* Filters + Send all reminders */}
-      {showFilters && (
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">Status</label>
-          <select
-            value={status}
-            onChange={(e) => { setStatus(e.target.value); setPage(1) }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          >
-            {STATUS_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium text-slate-700">Cost Center</label>
-          <select
-            value={costCenter}
-            onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
-            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[160px]"
-          >
-            <option value="">All</option>
-            {costCenterOptions.map((cc) => (
-              <option key={cc.name} value={cc.name}>{cc.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="relative" ref={bulkMenuRef}>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {FOLLOW_UP_CATEGORIES.map((item) => (
           <button
+            key={item.id}
             type="button"
-            onClick={() => setBulkChannelMenuOpen((p) => !p)}
-            disabled={sendingBulk || list.length === 0}
-            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            onClick={() => {
+              setCategory(item.id)
+              setPage(1)
+            }}
+            className={`rounded-lg border p-4 text-left transition-colors ${
+              category === item.id
+                ? 'border-primary bg-primary/5 shadow-sm ring-1 ring-primary/20'
+                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+            }`}
           >
-            {sendingBulk ? 'Sending…' : 'Send all reminders'}
-            {!sendingBulk && (
-              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-            )}
+            <div className="text-sm font-semibold text-slate-900">{item.label}</div>
+            <div className="mt-1 text-xs text-slate-500">{item.description}</div>
           </button>
-          {bulkChannelMenuOpen && (
-            <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
-              <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                Choose Channel
-              </div>
-              {CHANNEL_OPTIONS.map((ch) => (
-                <button
-                  key={ch.value}
-                  type="button"
-                  onClick={() => { setBulkChannelMenuOpen(false); handleSendAllReminders(ch.value) }}
-                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                >
-                  <span>{ch.icon}</span> {ch.label}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        ))}
       </div>
+
+      {showFilters && (
+        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+          <div className="flex flex-col gap-1 min-w-[140px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+            <select
+              value={status}
+              onChange={(e) => { setStatus(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              {STATUS_OPTIONS.map((o) => (
+                <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cost Center</label>
+            <select
+              value={costCenter}
+              onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All</option>
+              {costCenterOptions.map((cc) => (
+                <option key={cc.name} value={cc.name}>{cc.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</label>
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To</label>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          <div className="relative ml-auto" ref={bulkMenuRef}>
+            <button
+              type="button"
+              onClick={() => setBulkChannelMenuOpen((p) => !p)}
+              disabled={sendingBulk || list.length === 0}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+            >
+              {sendingBulk ? 'Sending…' : 'Send all reminders'}
+              {!sendingBulk && (
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+              )}
+            </button>
+            {bulkChannelMenuOpen && (
+              <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                  Choose Channel
+                </div>
+                {CHANNEL_OPTIONS.map((ch) => (
+                  <button
+                    key={ch.value}
+                    type="button"
+                    onClick={() => { setBulkChannelMenuOpen(false); handleSendAllReminders(ch.value) }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span>{ch.icon}</span> {ch.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
-      {/* List */}
-      <div className="border border-slate-200 rounded-lg bg-white">
+      <div className="border border-slate-200 rounded-lg bg-white flex flex-col min-h-[320px]">
+        <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 text-xs text-slate-600">
+          Showing <span className="font-medium text-slate-800">{category}</span> follow-ups
+          {hasActiveFilters ? ' (filtered)' : ''}
+        </div>
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading follow-ups…</div>
         ) : list.length === 0 ? (
           <div className="p-8 text-center text-slate-500">No follow-ups match the filters.</div>
         ) : (
-          <div className="overflow-x-auto overflow-y-visible">
-            <table className="min-w-full divide-y divide-slate-200 text-sm min-h-[300px]">
+          <div className="overflow-x-auto overflow-y-visible flex-1">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
                   {!patient && (
                     <th className="px-4 py-2 text-left font-medium text-slate-700">Patient</th>
                   )}
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Type</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Follow Up Date</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
                   <th className="px-4 py-2 text-left font-medium text-slate-700">Cost Center</th>
@@ -277,7 +339,6 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                         <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient}</span>
                       </td>
                     )}
-                    <td className="px-4 py-2 text-slate-600">{row.follow_up_type}</td>
                     <td className="px-4 py-2 text-slate-600">{row.follow_up_date}</td>
                     <td className="px-4 py-2">
                       <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
@@ -292,8 +353,6 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                     <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.remarks || ''}>
                       {remarksPreview(row.remarks)}
                     </td>
-
-                    {/* ── Actions dropdown ── */}
                     <td className="px-4 py-2 text-right">
                       <div
                         className="relative inline-block"
@@ -317,7 +376,6 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                             </svg>
                           )}
                         </button>
-
                         <PortalActionsMenu
                           open={openActionRow === row.name}
                           onClose={() => setOpenActionRow(null)}
@@ -325,7 +383,6 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                           placement="above-right"
                           minWidth={200}
                         >
-                          {/* Send Reminder channel options */}
                           <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
                             Send Reminder
                           </div>

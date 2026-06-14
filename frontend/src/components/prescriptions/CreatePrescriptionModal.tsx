@@ -1207,12 +1207,12 @@ export const CreatePrescriptionModal = ({
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
-                                UOM
+                                Unit of Measure
                               </label>
                               <Combobox
                                 value={row.uom ?? ''}
                                 displayValue={uomQueries[index] ?? row.uom ?? ''}
-                                placeholder="Type or select UOM..."
+                                placeholder="Type or select unit of measure…"
                                 options={uomOptions}
                                 loading={loadingUom}
                                 allowCustom={true}

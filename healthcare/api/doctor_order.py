@@ -100,6 +100,7 @@ def get_doctor_orders(
 				"nurses_remarks",
 				"status",
 				"request",
+				"department",
 				"creation",
 				"modified",
 			],
@@ -143,7 +144,7 @@ def create_doctor_order(data):
 				"doctor_name": data.get("doctor_name"),
 				"doctor_entry_date": doctor_entry_date,
 				"doctor_order": data.get("doctor_order"),
-				"request": data.get("request"),
+				"department": data.get("department"),
 				"status": data.get("status") or "Pending",
 			}
 		)

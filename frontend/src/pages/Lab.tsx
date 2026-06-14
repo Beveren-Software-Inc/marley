@@ -1208,16 +1208,12 @@ export const LabPage = () => {
             )}
             {/* ADD Lab History Tab - placed before medical-history */}
             {resolvedTab === 'lab-history' && (
-              needsPatient && !selectedPatient ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                  <History className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm font-medium">Select a patient to view lab test history</p>
-                </div>
-              ) : (
-                <div className="p-3">
-                  <LabTestHistory patientId={selectedPatient!} limit={20} showOnlyCompleted={false} />
-                </div>
-              )
+              <div className="p-1">
+                <LabTestHistory
+                  patientId={selectedPatient}
+                  onPatientChange={(p) => handlePatientSelect(p)}
+                />
+              </div>
             )}
             {resolvedTab === 'medical-history' && (
               needsPatient && !selectedPatient ? (

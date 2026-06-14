@@ -631,3 +631,56 @@ export async function fetchLabTestById(name: string): Promise<LabTest | null> {
     throw error
   }
 }
+
+export interface LabHistoryMatrixColumn {
+  key: string
+  date: string
+  time?: string
+  lab_test: string
+  lab_test_name?: string
+  status?: string
+}
+
+export interface LabHistoryMatrixCell {
+  value: string
+  flag: 'normal' | 'abnormal' | 'neutral'
+  lab_test?: string
+}
+
+export interface LabHistoryMatrixRow {
+  key: string
+  label: string
+  uom?: string
+  cells: Record<string, LabHistoryMatrixCell>
+}
+
+export interface LabHistoryMatrixResponse {
+  columns: LabHistoryMatrixColumn[]
+  rows: LabHistoryMatrixRow[]
+  patient: string
+  patient_name?: string
+}
+
+export async function fetchLabTestHistoryMatrix(params: {
+  patient: string
+  from_date?: string
+  to_date?: string
+  test_search?: string
+  template?: string
+}): Promise<LabHistoryMatrixResponse> {
+  const qs = new URLSearchParams()
+  qs.set('patient', params.patient)
+  if (params.from_date) qs.set('from_date', params.from_date)
+  if (params.to_date) qs.set('to_date', params.to_date)
+  if (params.test_search) qs.set('test_search', params.test_search)
+  if (params.template) qs.set('template', params.template)
+
+  const response = await fetch(
+    `/api/method/healthcare.api.lab_test.get_lab_test_history_matrix?${qs.toString()}`
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(typeof resData.message === 'string' ? resData.message : 'Failed to load lab history')
+  }
+  return (resData?.message || { columns: [], rows: [], patient: params.patient }) as LabHistoryMatrixResponse
+}

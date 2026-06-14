@@ -30,6 +30,9 @@ def get_ip_doctor_required_documents_status(
 	medical_history = bool(frappe.db.exists("Patient Medical History", medical_history_filters))
 	suicide_risk = bool(frappe.db.exists("Clinical Suicide Risk Assessment", suicide_filters))
 	history_form = bool(frappe.db.exists("Patient History", history_form_filters))
+	morse_fall_scale = bool(
+		frappe.db.exists("Morse Fall Scale", {"admission_no": admission})
+	) if admission else False
 
 	return {
 		"patient": patient,
@@ -37,7 +40,8 @@ def get_ip_doctor_required_documents_status(
 		"medical_history": medical_history,
 		"suicide_risk": suicide_risk,
 		"history_form": history_form,
-		"all_complete": medical_history and suicide_risk and history_form,
+		"morse_fall_scale": morse_fall_scale,
+		"all_complete": medical_history and suicide_risk and history_form and morse_fall_scale,
 	}
 
 

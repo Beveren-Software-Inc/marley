@@ -42,6 +42,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import {
   canEditMainDischargeChecklist,
   getVisibleDischargeTabIds,
+  isDoctorRole,
   isNurseRole,
   type DischargeTabId,
 } from '../../config/permissions'
@@ -2055,7 +2056,8 @@ const loadDailyVisitSetup = async () => {
 
           {/* ── TAB: DETAILS ── */}
           {canViewDischargeTabPanel('details') && (
-            <div className="p-6 space-y-6">
+            <div className={`p-6 ${isDoctorRole(userRole) && !visibleTabIds.includes('checklist') ? 'grid lg:grid-cols-[1fr_240px] gap-6' : ''}`}>
+              <div className="space-y-6 min-w-0">
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
                 <div className="grid grid-cols-2 gap-4">
@@ -2364,6 +2366,31 @@ const loadDailyVisitSetup = async () => {
                   </div>
                 </div>
               </section>
+              </div>
+
+              {isDoctorRole(userRole) && !visibleTabIds.includes('checklist') && (
+                <aside className="space-y-3 lg:sticky lg:top-4 self-start">
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
+                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Checklist status</h4>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-700">Discharge checklist</span>
+                      <span className={`font-semibold ${allCompleted || financeOnlyPending ? 'text-green-700' : totalItems === 0 ? 'text-slate-500' : 'text-amber-700'}`}>
+                        {totalItems === 0
+                          ? 'Pending'
+                          : allCompleted || financeOnlyPending
+                            ? 'Done'
+                            : 'Pending'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-2 text-sm">
+                      <span className="text-slate-700">Nursing checklist</span>
+                      <span className={`font-semibold ${nurseAllCompleted ? 'text-green-700' : nurseTotalItems === 0 ? 'text-slate-500' : 'text-amber-700'}`}>
+                        {nurseTotalItems === 0 ? 'Not done' : nurseAllCompleted ? 'Done' : 'Not done'}
+                      </span>
+                    </div>
+                  </div>
+                </aside>
+              )}
             </div>
           )}
 

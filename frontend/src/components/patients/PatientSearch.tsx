@@ -81,6 +81,8 @@ export const PatientSearch = ({
     setMode,
     setActiveVisit,
     setActiveAdmission,
+    activeVisit,
+    activeAdmission,
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
   } = useCareContext()
@@ -208,9 +210,25 @@ export const PatientSearch = ({
       careModeChangeInitialized.current = true
       return
     }
+    if (mode === 'OP' && activeVisit) return
+    if (mode === 'IP' && activeAdmission) return
     setSecondaryQuery('')
     setSecondaryOpen(false)
-  }, [mode])
+  }, [mode, activeVisit, activeAdmission])
+
+  /** Reflect visit/admission picked elsewhere (e.g. patient visit list click) in the header field. */
+  useEffect(() => {
+    if (!isHydrated) return
+    if (mode === 'OP' && activeVisit) {
+      const storedLabel = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
+      const next = storedLabel || activeVisit
+      setSecondaryQuery((prev) => (prev === next ? prev : next))
+    } else if (mode === 'IP' && activeAdmission) {
+      const storedLabel = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
+      const next = storedLabel || activeAdmission
+      setSecondaryQuery((prev) => (prev === next ? prev : next))
+    }
+  }, [isHydrated, mode, activeVisit, activeAdmission])
 
   const handleOpModeClick = () => {
     selectOp()
@@ -371,6 +389,25 @@ export const PatientSearch = ({
     }
   }, [secondaryQuery, secondaryOpen, hasPatient, mode, selectedPatient])
 
+  const handleClearSecondary = () => {
+    setSecondaryQuery('')
+    setSecondaryOpen(false)
+    if (mode === 'OP') {
+      setActiveVisit(undefined)
+      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT, '')
+      setStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL, '')
+    } else if (mode === 'IP') {
+      setActiveAdmission(undefined)
+      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION, '')
+      setStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL, '')
+    }
+  }
+
+  const hasSecondarySelection =
+    Boolean(secondaryQuery) ||
+    (mode === 'OP' && Boolean(activeVisit)) ||
+    (mode === 'IP' && Boolean(activeAdmission))
+
   const alertsPortal =
     showAlertsBanner &&
     selectedPatient &&
@@ -447,8 +484,25 @@ export const PatientSearch = ({
           }}
           onFocus={() => setSecondaryOpen(true)}
           placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
-          className="w-full rounded-md border border-white/60 bg-white/10 px-2 py-1.5 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
+          className="w-full rounded-md border border-white/60 bg-white/10 px-2 py-1.5 pr-8 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
         />
+        {hasSecondarySelection && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              handleClearSecondary()
+            }}
+            className="absolute inset-y-0 right-2 flex items-center text-white/70 hover:text-white transition-colors p-0.5"
+            title={mode === 'OP' ? 'Clear visit selection' : 'Clear admission selection'}
+            aria-label={mode === 'OP' ? 'Clear visit selection' : 'Clear admission selection'}
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         {secondaryOpen && (
           <div className="absolute z-40 mt-1 w-full min-w-[240px] rounded-md border border-slate-200 bg-white shadow-lg max-h-64 overflow-auto text-slate-900">
             {secondaryLoading ? (

@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, nowdate
+from frappe.utils import cint, cstr, flt, nowdate
 
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
@@ -48,7 +48,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		'status', 'appointment_type', 'department',
 		'practitioner', 'practitioner_name', 'company', 'cost_center',
 		'temporary_patient_name', 'temporary_mobile_no',
-		'invoiced', 'ref_sales_invoice',
+		'invoiced', 'ref_sales_invoice', 'remarks', 'notes',
 	]
 
 	count_args = {'doctype': 'Patient Appointment', 'filters': filters}
@@ -63,6 +63,27 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	_enrich_appointments_with_sales_order(appointments)
 
 	return {"data": appointments, "total_count": total_count}
+
+@frappe.whitelist()
+def update_appointment_ad_remark(appointment_name, remark):
+	"""Reception: save or update the AD (administrative) remark on an appointment."""
+	if not appointment_name:
+		frappe.throw(_("Appointment is required"))
+	if not frappe.db.exists("Patient Appointment", appointment_name):
+		frappe.throw(_("Appointment {0} not found").format(appointment_name))
+	frappe.db.set_value(
+		"Patient Appointment",
+		appointment_name,
+		"remarks",
+		(cstr(remark) or "").strip(),
+		update_modified=True,
+	)
+	frappe.db.commit()
+	return {
+		"name": appointment_name,
+		"remarks": (cstr(remark) or "").strip(),
+	}
+
 
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None,

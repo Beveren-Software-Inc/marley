@@ -334,6 +334,16 @@ def get_inpatient_record(name):
 			"entered_date": row.entered_date,
 		})
 
+	e_signatures = []
+	for row in getattr(record, "e_signatures", []) or []:
+		e_signatures.append({
+			"file_name": getattr(row, "file_name", None),
+			"document_type": getattr(row, "document_type", None),
+			"transaction_no": getattr(row, "transaction_no", None),
+			"upload_remarks": getattr(row, "upload_remarks", None),
+			"document": getattr(row, "document", None),
+		})
+
 	return {
 		'name': record.name,
 		'patient': record.patient,
@@ -356,6 +366,8 @@ def get_inpatient_record(name):
 		'charges': charges_info,
 		'patient_relatives': relatives,
 		'patient_visitors': visitors,
+		'e_signatures': e_signatures,
+		'patient_documents': e_signatures,
 		'signature': getattr(record, "signature", None),
 		'gender': getattr(record, "gender", None),
 		'blood_group': getattr(record, "blood_group", None),
@@ -1551,6 +1563,32 @@ def _apply_patient_visitors(doc, visitors_data):
 		child.entered_date = row.get("entered_date") or frappe.utils.today()
 
 
+def _apply_e_signatures(doc, documents_data):
+	documents = frappe.parse_json(documents_data) if isinstance(documents_data, str) else documents_data
+	if not isinstance(documents, list):
+		return
+	doc.set("e_signatures", [])
+	for idx, row in enumerate(documents, start=1):
+		if not isinstance(row, dict):
+			continue
+		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
+		document_type = (row.get("document_type") or "").strip()
+		document_url = (row.get("document") or "").strip()
+		if not file_name and not document_type and not document_url:
+			continue
+		doc.append(
+			"e_signatures",
+			{
+				"idx": idx,
+				"file_name": file_name or document_type or None,
+				"document_type": document_type or None,
+				"transaction_no": (row.get("transaction_no") or "").strip() or None,
+				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
+				"document": document_url or None,
+			},
+		)
+
+
 @frappe.whitelist()
 def update_inpatient_admission(name, data):
 	"""Update editable fields on a scheduled or admitted Inpatient Admission."""
@@ -1595,6 +1633,9 @@ def update_inpatient_admission(name, data):
 
 	if "patient_visitors" in data:
 		_apply_patient_visitors(doc, data.get("patient_visitors"))
+
+	if "patient_documents" in data or "e_signatures" in data:
+		_apply_e_signatures(doc, data.get("patient_documents") or data.get("e_signatures"))
 
 	if "signature" in data:
 		doc.signature = data.get("signature") or ""

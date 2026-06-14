@@ -230,10 +230,10 @@ export function MentalStateDetailPanel({
             <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
               <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Orientation & Appetite</h3>
             </div>
-            <div className="mb-3 grid grid-cols-2 gap-4">
-              <DataField label="Place" value={source.place} />
-              <DataField label="Time" value={source.time} />
-              <DataField label="Person" value={source.person} />
+            <div className="mb-3 grid grid-cols-2 gap-x-6 sm:grid-cols-3">
+              <DetailRow label="Place" value={source.place} />
+              <DetailRow label="Time" value={source.time} />
+              <DetailRow label="Person" value={source.person} />
               <DataField label="Reported Type" value={source.reported_type} />
             </div>
             <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-3">

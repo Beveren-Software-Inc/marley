@@ -13,6 +13,10 @@ export interface PatientFollowUpRow {
 export interface GetFollowUpsParams {
   status?: string
   cost_center?: string
+  follow_up_type?: string
+  patient?: string
+  date_from?: string
+  date_to?: string
   limit?: number
   offset?: number
 }
@@ -26,6 +30,10 @@ export async function getFollowUps(params: GetFollowUpsParams = {}): Promise<Pag
   const sp = new URLSearchParams()
   if (params.status) sp.set('status', params.status)
   if (params.cost_center) sp.set('cost_center', params.cost_center)
+  if (params.follow_up_type) sp.set('follow_up_type', params.follow_up_type)
+  if (params.patient) sp.set('patient', params.patient)
+  if (params.date_from) sp.set('date_from', params.date_from)
+  if (params.date_to) sp.set('date_to', params.date_to)
   if (params.limit != null) sp.set('limit', String(params.limit))
   if (params.offset != null) sp.set('offset', String(params.offset))
   const url = `/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.get_follow_ups?${sp.toString()}`

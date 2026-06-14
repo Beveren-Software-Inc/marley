@@ -552,7 +552,7 @@ export const DoctorOrderList = ({
                   value: selected.inpatient_admission || '—',
                 },
                 { label: 'Cost center', value: selected.cost_center || '—' },
-                { label: 'Request', value: selected.request || '—' },
+                { label: 'Department', value: selected.department || '—' },
               ].map(({ label, value }) => (
                 <div
                   key={label}

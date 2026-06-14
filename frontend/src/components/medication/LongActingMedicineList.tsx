@@ -152,7 +152,7 @@ function getRowColorClass(nextRunDate?: string) {
   next.setHours(0, 0, 0, 0)
   const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
   if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'
-  if (diffDays <= 2) return 'bg-green-100 hover:bg-green-200'
+  if (diffDays === 0) return 'bg-green-100 hover:bg-green-200'
   return 'hover:bg-slate-50'
 }
 

@@ -67,11 +67,20 @@ export const PrescriptionList = ({
   const careContext = careContextProp ?? (mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit')
   // Use context patient when no patient prop is passed.
   const effectivePatient = patient ?? (contextPatient || undefined)
-  // Precise filter: the specific chosen visit or admission.
-  const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
-  const effectiveAdmissionFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
+  /** Show all prescriptions for the patient (ignore active visit/admission scope). */
+  const [showAllPatientPrescriptions, setShowAllPatientPrescriptions] = useState(false)
+
+  // Precise filter: the specific chosen visit or admission (unless history view is active).
+  const effectiveVisitFilter =
+    showAllPatientPrescriptions ? undefined : mode === 'OP' && activeVisit ? activeVisit : undefined
+  const effectiveAdmissionFilter =
+    showAllPatientPrescriptions ? undefined : mode === 'IP' && activeAdmission ? activeAdmission : undefined
+  const effectiveCareContext = showAllPatientPrescriptions ? undefined : careContext
   /** Active visit/admission scopes the list; user filters still apply on top. */
-  const hasContextScope = !!(effectiveVisitFilter || effectiveAdmissionFilter)
+  const hasContextScope = !showAllPatientPrescriptions && !!(effectiveVisitFilter || effectiveAdmissionFilter)
+  const hasCareModeScope =
+    !showAllPatientPrescriptions &&
+    Boolean(effectivePatient && mode && !hasContextScope)
 
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [loading, setLoading] = useState(true)
@@ -98,7 +107,6 @@ export const PrescriptionList = ({
     doctorPrescriptionDefaults ? localDateISO() : '',
   )
   const [searchQuery, setSearchQuery] = useState('')
-  const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
   const [defaultsReady, setDefaultsReady] = useState(!doctorPrescriptionDefaults)
 
   // Doctor dashboard: default From/To = today; practitioner = logged-in user's link (if any).
@@ -112,7 +120,6 @@ export const PrescriptionList = ({
       try {
         const practId = await getCurrentUserPractitioner()
         if (cancelled) return
-        setDefaultPractitionerId(practId)
         if (practId) {
           setPractitionerFilter(practId)
           try {
@@ -139,20 +146,18 @@ export const PrescriptionList = ({
     fromDate: dateFrom || undefined,
     toDate: dateTo || undefined,
     search: searchQuery.trim() || undefined,
-    careContext,
+    careContext: effectiveCareContext,
     patientEncounter: effectiveVisitFilter,
     inpatientRecord: effectiveAdmissionFilter,
   }
 
-  const todayStr = localDateISO()
   const hasActiveFilters = Boolean(
+    showAllPatientPrescriptions ||
     statusFilter ||
     searchQuery.trim() ||
-    (doctorPrescriptionDefaults
-      ? practitionerFilter !== (defaultPractitionerId || '') ||
-        dateFrom !== todayStr ||
-        dateTo !== todayStr
-      : !!(practitionerFilter || dateFrom || dateTo)),
+    practitionerFilter ||
+    dateFrom ||
+    dateTo,
   )
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
@@ -177,9 +182,10 @@ export const PrescriptionList = ({
     dateFrom,
     dateTo,
     searchQuery,
-    careContext,
+    effectiveCareContext,
     effectiveVisitFilter,
     effectiveAdmissionFilter,
+    showAllPatientPrescriptions,
   ])
 
   useEffect(() => {
@@ -195,33 +201,52 @@ export const PrescriptionList = ({
     return () => clearTimeout(t)
   }, [practitionerQuery, practitionerOpen])
 
-  const handleClearFilters = async () => {
+  const historyStorageKey = effectivePatient ? `prescriptionHistory:${effectivePatient}` : null
+
+  const clearUserFilters = () => {
     setStatusFilter('')
     setSearchQuery('')
-    if (doctorPrescriptionDefaults) {
-      const t = localDateISO()
-      setDateFrom(t)
-      setDateTo(t)
-      if (defaultPractitionerId) {
-        setPractitionerFilter(defaultPractitionerId)
-        try {
-          const options = await fetchHealthcarePractitioners()
-          const match = options.find((p) => p.name === defaultPractitionerId)
-          setPractitionerQuery(match?.label || defaultPractitionerId)
-        } catch {
-          setPractitionerQuery(defaultPractitionerId)
-        }
-      } else {
-        setPractitionerFilter('')
-        setPractitionerQuery('')
+    setPractitionerFilter('')
+    setPractitionerQuery('')
+    setDateFrom('')
+    setDateTo('')
+  }
+
+  /** All prescriptions for patient — drop visit/admission/OP-IP scope and every list filter. */
+  const enterHistoryView = (persist = true) => {
+    clearUserFilters()
+    setShowAllPatientPrescriptions(true)
+    if (persist && historyStorageKey) {
+      try {
+        sessionStorage.setItem(historyStorageKey, '1')
+      } catch {
+        /* ignore */
       }
-    } else {
-      setPractitionerFilter('')
-      setPractitionerQuery('')
-      setDateFrom('')
-      setDateTo('')
     }
   }
+
+  const handleClearFilters = () => {
+    setShowAllPatientPrescriptions(false)
+    clearUserFilters()
+    if (historyStorageKey) {
+      try {
+        sessionStorage.removeItem(historyStorageKey)
+      } catch {
+        /* ignore */
+      }
+    }
+  }
+
+  useEffect(() => {
+    if (!defaultsReady || !historyStorageKey) return
+    try {
+      if (sessionStorage.getItem(historyStorageKey) === '1') {
+        enterHistoryView(false)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [defaultsReady, historyStorageKey])
 
   // Close actions / filter dropdowns when clicking outside
   useEffect(() => {
@@ -291,14 +316,48 @@ export const PrescriptionList = ({
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {/* Active-context banner — shown when filtering by a specific visit or admission */}
       {hasContextScope && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
-          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-          {effectiveVisitFilter
-            ? <>Filtered by active visit: <span className="font-semibold ml-1">{effectiveVisitFilter}</span></>
-            : <>Filtered by active admission: <span className="font-semibold ml-1">{effectiveAdmissionFilter}</span></>
-          }
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+            {effectiveVisitFilter
+              ? <>Filtered by active visit: <span className="font-semibold ml-1">{effectiveVisitFilter}</span></>
+              : <>Filtered by active admission: <span className="font-semibold ml-1">{effectiveAdmissionFilter}</span></>
+            }
+          </div>
+          <button
+            type="button"
+            onClick={() => enterHistoryView()}
+            className="shrink-0 rounded-md border border-blue-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 transition-colors"
+          >
+            History
+          </button>
+        </div>
+      )}
+
+      {hasCareModeScope && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-slate-50 border border-slate-200 text-slate-700 text-xs mb-2">
+          <span>
+            Showing {mode === 'IP' ? 'inpatient' : 'outpatient'} prescriptions for this patient
+          </span>
+          <button
+            type="button"
+            onClick={() => enterHistoryView()}
+            className="shrink-0 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-800 hover:bg-slate-100 transition-colors"
+          >
+            History
+          </button>
+        </div>
+      )}
+
+      {showAllPatientPrescriptions && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs mb-2">
+          <span>Showing all prescriptions for this patient (all visits and admissions)</span>
+          <ClearFiltersButton
+            onClick={handleClearFilters}
+            title="Clear history view and filters"
+          />
         </div>
       )}
 
@@ -306,16 +365,27 @@ export const PrescriptionList = ({
       {!inDashboardCard && (
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-xl font-semibold text-slate-900">Prescriptions</h2>
-          <button
-            type="button"
-            onClick={() => setShowFiltersInternal(prev => !prev)}
-            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-            title={showFilters ? 'Hide filters' : 'Show filters'}
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            {effectivePatient && !showAllPatientPrescriptions && (
+              <button
+                type="button"
+                onClick={() => enterHistoryView()}
+                className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 transition-colors"
+              >
+                History
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowFiltersInternal(prev => !prev)}
+              className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+              title={showFilters ? 'Hide filters' : 'Show filters'}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
@@ -413,7 +483,7 @@ export const PrescriptionList = ({
             className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
           />
         </div>
-        {hasActiveFilters ? <ClearFiltersButton onClick={handleClearFilters} /> : null}
+        <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />
       </div>
       )}
 

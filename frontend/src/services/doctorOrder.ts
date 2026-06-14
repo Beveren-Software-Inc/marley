@@ -16,6 +16,7 @@ export interface DoctorOrderRow {
   nurses_remarks: string | null
   status: string | null
   request: string | null
+  department: string | null
   creation: string
   modified?: string
 }
@@ -30,6 +31,7 @@ export type CreateDoctorOrderInput = {
   doctor_entry_date?: string
   doctor_order?: string
   request?: string
+  department?: string
   trans_date?: string
 }
 

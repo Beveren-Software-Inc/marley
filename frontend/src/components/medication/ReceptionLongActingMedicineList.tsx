@@ -138,8 +138,8 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     const next = new Date(nextRunDate)
     next.setHours(0, 0, 0, 0)
     const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-    if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'    // past due
-    if (diffDays <= 2) return 'bg-green-100 hover:bg-green-200' // due today, tomorrow, or in 2 days
+    if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'
+    if (diffDays === 0) return 'bg-green-100 hover:bg-green-200'
     return 'hover:bg-slate-50'
   }
 
