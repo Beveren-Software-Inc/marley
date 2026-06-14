@@ -19,6 +19,8 @@
   "patient_age",
   "is_pink",
   "after_discharge",
+  "nursing_pharmacy_giveout",
+  "source_prescription",
   "ip_admission_rec_id",
   "column_break_6",
   "posting_date",
@@ -282,6 +284,23 @@
    "fieldname": "after_discharge",
    "fieldtype": "Check",
    "label": "After Discharge"
+  },
+  {
+   "default": "0",
+   "fieldname": "nursing_pharmacy_giveout",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Nursing Pharmacy Give Out",
+   "read_only": 1
+  },
+  {
+   "depends_on": "eval:doc.nursing_pharmacy_giveout",
+   "fieldname": "source_prescription",
+   "fieldtype": "Link",
+   "label": "Source Prescription",
+   "options": "Patient Medication Order",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_pram",

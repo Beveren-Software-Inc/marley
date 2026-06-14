@@ -94,3 +94,52 @@ def cost_center_from_base_reference(base_reference, base_reference_name):
 	except Exception:
 		pass
 	return None
+
+
+def _user_default_cost_center():
+	"""First permitted cost center for the user, else employee cost center."""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted = get_permitted_cost_centers()
+	if permitted:
+		return permitted[0]
+
+	user = frappe.session.user
+	if user in ("Guest", ""):
+		return None
+	employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+	if employee:
+		return frappe.db.get_value("Employee", employee, "cost_center")
+	return None
+
+
+def resolve_cost_center_for_clinical_doc(data):
+	"""Resolve cost center from payload, care context, appointment, or user default."""
+	if not data:
+		return None
+
+	explicit = data.get("cost_center")
+	if explicit:
+		explicit = explicit.strip() if isinstance(explicit, str) else explicit
+		if explicit:
+			return explicit
+
+	admission = data.get("admission_no") or data.get("inpatient_admission") or data.get("inpatient_record")
+	if admission:
+		cc = cost_center_from_visit_or_admission("Inpatient Admission", admission)
+		if cc:
+			return cc
+
+	visit = data.get("patient_visit") or data.get("patient_encounter")
+	if visit:
+		cc = cost_center_from_visit_or_admission("Patient Visit", visit)
+		if cc:
+			return cc
+
+	appointment = data.get("appointment")
+	if appointment and frappe.db.exists("Patient Appointment", appointment):
+		cc = frappe.db.get_value("Patient Appointment", appointment, "cost_center")
+		if cc:
+			return cc.strip() if isinstance(cc, str) else cc
+
+	return _user_default_cost_center()

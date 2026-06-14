@@ -33,6 +33,7 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Med Reminder' },
       { id: 'n-tpr',          title: 'TPR / Vital Signs' },
+      { id: 'n-pharmacy-giveout', title: 'Pharmacy Give Out' },
       // { id: 'n-prn',       title: 'PRN' },
     ],
   },
