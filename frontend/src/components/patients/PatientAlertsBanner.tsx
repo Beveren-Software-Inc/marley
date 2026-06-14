@@ -20,7 +20,6 @@ interface PatientAlertsBannerProps {
   dismissed: boolean
   onDismiss: () => void
   visible: boolean
-  autoDismissMs?: number
 }
 
 export const PatientAlertsBanner = ({
@@ -29,27 +28,12 @@ export const PatientAlertsBanner = ({
   dismissed,
   onDismiss,
   visible,
-  autoDismissMs = 10000,
 }: PatientAlertsBannerProps) => {
   const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(patient)
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistory | null>(null)
   const [medicalLoading, setMedicalLoading] = useState(false)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
-
-  // Auto-dismiss timer
-  useEffect(() => {
-    if (!visible || dismissed || autoDismissMs <= 0) {
-      return
-    }
-
-    const timer = setTimeout(() => {
-      onDismiss()
-    }, autoDismissMs)
-
-    // Cleanup timer if banner is dismissed or unmounts
-    return () => clearTimeout(timer)
-  }, [visible, dismissed, autoDismissMs, onDismiss])
 
   useEffect(() => {
     if (!patient) {

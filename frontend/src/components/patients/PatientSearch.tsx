@@ -18,7 +18,6 @@ interface PatientSearchProps {
   onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
   showAlertsBanner?: boolean
-  alertsAutoDismissMs?: number
   /** Mobile nav menu button — header is menu + patient only; OP/IP lives in sidebar. */
   leadingSlot?: ReactNode
 }
@@ -73,7 +72,6 @@ export const PatientSearch = ({
   selectedPatient,
   onPatientSelect,
   showAlertsBanner = true,
-  alertsAutoDismissMs = 10000,
   leadingSlot,
 }: PatientSearchProps) => {
   const {
@@ -433,7 +431,6 @@ export const PatientSearch = ({
                   setAlertsBannerDismissed(true)
                 }}
                 visible={Boolean(selectedPatient)}
-                autoDismissMs={alertsAutoDismissMs}
               />
             </div>
           </>,
