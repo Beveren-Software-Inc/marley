@@ -222,10 +222,7 @@ export const NursePage = () => {
     try {
       localStorage.setItem('patientSearch_activeMode', 'OP')
       localStorage.setItem('patientSearch_activeVisit', visit.value)
-      localStorage.setItem(
-        'patientSearch_activeVisitLabel',
-        visit.label || `${visit.value} — ${visit.patient_name || visit.patient || ''}`
-      )
+      localStorage.setItem('patientSearch_activeVisitLabel', visit.value)
       localStorage.removeItem('patientSearch_activeAdmission')
       localStorage.removeItem('patientSearch_activeAdmissionLabel')
     } catch {

@@ -69,11 +69,13 @@ def get_patient_display_name(patient: str | None = None) -> dict:
 	"""Display name for portal patient search bar (clinical roles often lack REST read on Patient)."""
 	patient = (patient or "").strip()
 	if not patient:
-		return {"name": "", "patient_name": ""}
+		return {"name": "", "patient_name": "", "file_number": ""}
 	if not frappe.db.exists("Patient", patient):
-		return {"name": patient, "patient_name": patient}
-	patient_name = frappe.db.get_value("Patient", patient, "patient_name") or patient
-	return {"name": patient, "patient_name": patient_name}
+		return {"name": patient, "patient_name": patient, "file_number": ""}
+	row = frappe.db.get_value("Patient", patient, ["patient_name", "file_no"], as_dict=True) or {}
+	patient_name = row.get("patient_name") or patient
+	file_number = row.get("file_no") or patient
+	return {"name": patient, "patient_name": patient_name, "file_number": file_number}
 
 
 @frappe.whitelist()

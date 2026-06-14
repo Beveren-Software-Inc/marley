@@ -75,10 +75,22 @@ export async function searchPatients(query: string, limit?: number): Promise<Pat
   }
 }
 
+/** Display label for navbar patient search after selection: "file no - patient name". */
+export function formatPatientSearchLabel(
+  patientName: string,
+  fileNumber?: string | null,
+  fallbackId?: string
+): string {
+  const name = (patientName || fallbackId || '').trim()
+  const file = (fileNumber || '').trim()
+  if (file && name) return `${file} - ${name}`
+  return name || file
+}
+
 /** Resolve patient display name for search bar (works for Nurse and other portal roles). */
 export async function fetchPatientDisplayName(
   patient: string
-): Promise<{ name: string; patient_name: string }> {
+): Promise<{ name: string; patient_name: string; file_number?: string }> {
   const response = await fetch(
     `/api/method/healthcare.api.patient.get_patient_display_name?patient=${encodeURIComponent(patient)}`
   )
@@ -88,10 +100,11 @@ export async function fetchPatientDisplayName(
       typeof resData.message === 'string' ? resData.message : 'Failed to load patient name'
     )
   }
-  const msg = resData?.message as { name?: string; patient_name?: string } | undefined
+  const msg = resData?.message as { name?: string; patient_name?: string; file_number?: string } | undefined
   return {
     name: msg?.name ?? patient,
     patient_name: msg?.patient_name ?? patient,
+    file_number: msg?.file_number,
   }
 }
 

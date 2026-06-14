@@ -257,6 +257,13 @@ def _warehouse_for_admission(admission: str) -> str | None:
 	return get_warehouse_for_cost_center(cost_center)
 
 
+def _resolve_stock_warehouse(admission: str, warehouse: str | None = None) -> str | None:
+	wh = (warehouse or "").strip() or None
+	if wh:
+		return wh
+	return _warehouse_for_admission(admission)
+
+
 def _item_tracking_flags(item_code: str) -> tuple[bool, bool]:
 	if not item_code:
 		return False, False
@@ -272,6 +279,34 @@ def _item_requires_dispensing_lot(item_code: str) -> bool:
 	return bool(cint(frappe.db.get_value("Item", item_code, "custom_has_dispense_lot") or 0))
 
 
+def _resolve_batch_no_for_dispensing_lot_filter(batch_no: str, item_code: str | None = None) -> list[str]:
+	"""Return Batch doc name / batch_id variants for filtering Dispensing Lot.batch_no."""
+	batch_no = (batch_no or "").strip()
+	if not batch_no:
+		return []
+
+	values = {batch_no}
+
+	if frappe.db.exists("Batch", batch_no):
+		batch_id = frappe.db.get_value("Batch", batch_no, "batch_id")
+		if batch_id:
+			values.add((batch_id or "").strip())
+
+	filters: dict = {"batch_id": batch_no}
+	if item_code:
+		filters["item"] = item_code
+	for name in frappe.get_all("Batch", filters=filters, pluck="name") or []:
+		if name:
+			values.add(name)
+
+	if item_code:
+		for name in frappe.get_all("Batch", filters={"item": item_code, "name": batch_no}, pluck="name") or []:
+			if name:
+				values.add(name)
+
+	return [v for v in values if v]
+
+
 def _get_dispensing_lots_for_item(item_code: str, warehouse: str | None, batch_no: str | None = None) -> list[dict]:
 	if not item_code or not frappe.db.exists("DocType", "Dispensing Lot"):
 		return []
@@ -284,7 +319,11 @@ def _get_dispensing_lots_for_item(item_code: str, warehouse: str | None, batch_n
 	if warehouse:
 		filters["warehouse"] = warehouse
 	if batch_no:
-		filters["batch_no"] = batch_no
+		batch_values = _resolve_batch_no_for_dispensing_lot_filter(batch_no, item_code)
+		if len(batch_values) == 1:
+			filters["batch_no"] = batch_values[0]
+		elif batch_values:
+			filters["batch_no"] = ["in", batch_values]
 
 	rows = frappe.get_all(
 		"Dispensing Lot",
@@ -329,13 +368,14 @@ def _validate_medicine_given_batch_lot(
 	batch_no: str | None,
 	lot_no: str | None,
 	dispensing_lot: str | None = None,
+	warehouse: str | None = None,
 ) -> None:
 	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
 	has_batch, has_serial = _item_tracking_flags(item_code)
 	if not requires_dispensing_lot and not has_batch and not has_serial:
 		return
 
-	warehouse = _warehouse_for_admission(admission)
+	warehouse = _resolve_stock_warehouse(admission, warehouse)
 	batch_no = (batch_no or "").strip() or None
 	lot_no = (lot_no or "").strip() or None
 	dispensing_lot = (dispensing_lot or "").strip() or None
@@ -362,8 +402,10 @@ def _validate_medicine_given_batch_lot(
 				frappe.throw(_("Dispensing Lot {0} does not belong to item {1}").format(dispensing_lot, item_code))
 			if batch_no:
 				lot_batch = frappe.db.get_value("Dispensing Lot", dispensing_lot, "batch_no")
-				if lot_batch and lot_batch != batch_no:
-					frappe.throw(_("Dispensing Lot {0} does not belong to batch {1}").format(dispensing_lot, batch_no))
+				if lot_batch:
+					allowed_batches = set(_resolve_batch_no_for_dispensing_lot_filter(batch_no, item_code))
+					if lot_batch not in allowed_batches:
+						frappe.throw(_("Dispensing Lot {0} does not belong to batch {1}").format(dispensing_lot, batch_no))
 		return
 
 	if has_batch:
@@ -414,7 +456,7 @@ def _apply_medicine_given_batch_lot(
 
 
 @frappe.whitelist()
-def get_medicine_given_stock_options(admission: str, item_code: str) -> dict:
+def get_medicine_given_stock_options(admission: str, item_code: str, warehouse: str | None = None) -> dict:
 	"""Return warehouse, batch list, and whether lots (serials) apply for given medicine."""
 	if not admission:
 		frappe.throw(_("Admission is required"))
@@ -424,7 +466,7 @@ def get_medicine_given_stock_options(admission: str, item_code: str) -> dict:
 	item_code = item_code.strip()
 	has_batch, has_serial = _item_tracking_flags(item_code)
 	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
-	warehouse = _warehouse_for_admission(admission)
+	warehouse = _resolve_stock_warehouse(admission, warehouse)
 
 	batches = []
 	if has_batch and warehouse:
@@ -447,13 +489,18 @@ def get_medicine_given_stock_options(admission: str, item_code: str) -> dict:
 
 
 @frappe.whitelist()
-def get_medicine_given_dispensing_lots(admission: str, item_code: str, batch_no: str | None = None) -> list[dict]:
+def get_medicine_given_dispensing_lots(
+	admission: str,
+	item_code: str,
+	batch_no: str | None = None,
+	warehouse: str | None = None,
+) -> list[dict]:
 	"""Dispensing lots for an item at the admission warehouse (optionally filtered by batch)."""
 	if not admission or not item_code:
 		return []
 	return _get_dispensing_lots_for_item(
 		item_code.strip(),
-		_warehouse_for_admission(admission),
+		_resolve_stock_warehouse(admission, warehouse),
 		(batch_no or "").strip() or None,
 	)
 

@@ -81,6 +81,7 @@
   "default_return_medicine",
   "section_break_whbc",
   "nurse_mini_warehouse",
+  "phamarcy_give_out",
   "section_break_vzkt",
   "laboratory_mini_warehouse",
   "more_info_tab",
@@ -589,11 +590,17 @@
    "fieldname": "block_new_patient_visit_if_open_exist",
    "fieldtype": "Check",
    "label": "Block New Patient Visit if Open Exist"
+  },
+  {
+   "fieldname": "phamarcy_give_out",
+   "fieldtype": "Table MultiSelect",
+   "label": "Phamarcy Give Out",
+   "options": "Nurse Give Out Medicine"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-11 13:45:30.464225",
+ "modified": "2026-06-14 17:02:01.374511",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

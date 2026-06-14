@@ -6,6 +6,7 @@ import {
   searchPatients,
   fetchPatientsPaginated,
   fetchPatientDisplayName,
+  formatPatientSearchLabel,
   type PatientListItem,
 } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -259,9 +260,9 @@ export const PatientSearch = ({
         }
 
         try {
-          const { patient_name: fullName } = await fetchPatientDisplayName(selectedPatient)
+          const { patient_name: fullName, file_number: fileNumber } = await fetchPatientDisplayName(selectedPatient)
           if (cancelled) return
-          const display = fullName || selectedPatient
+          const display = formatPatientSearchLabel(fullName, fileNumber, selectedPatient)
           setSelectedPatientName(display)
           setPatientQuery(display)
           setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
@@ -348,7 +349,7 @@ export const PatientSearch = ({
           setSecondaryResults(
             visitsResponse.data.slice(0, 50).map((v) => ({
               value: v.value,
-              label: v.label,
+              label: v.value,
               patient: v.patient,
               patient_name: v.patient_name,
               meta: v.encounter_date ? `${v.encounter_date} • ${v.status}` : v.status
@@ -364,7 +365,7 @@ export const PatientSearch = ({
           setSecondaryResults(
             admissions.slice(0, 30).map((a) => ({
               value: a.name,
-              label: `${a.name} - ${a.patient_name || a.patient || ''}`,
+              label: a.name,
               patient: a.patient,
               patient_name: a.patient_name,
               meta: a.status
@@ -526,9 +527,16 @@ export const PatientSearch = ({
                     if (!hasPatient && row.patient) {
                       onPatientSelect(row.patient)
                       setGlobalPatient(row.patient)
-                      const displayName = row.patient_name || row.patient
-                      setSelectedPatientName(displayName)
-                      setPatientQuery(displayName)
+                      void fetchPatientDisplayName(row.patient).then(({ patient_name, file_number }) => {
+                        const display = formatPatientSearchLabel(
+                          patient_name || row.patient_name || row.patient || '',
+                          file_number,
+                          row.patient
+                        )
+                        setSelectedPatientName(display)
+                        setPatientQuery(display)
+                        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
+                      })
                       showPatientAlertsFromUserAction()
                     }
                     setSecondaryOpen(false)
@@ -696,12 +704,17 @@ export const PatientSearch = ({
                       className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
                       onClick={() => {
                         const patientName = patient.patient_name || patient.name
+                        const display = formatPatientSearchLabel(
+                          patientName,
+                          patient.file_number,
+                          patient.name
+                        )
                         onPatientSelect(patient.name)
                         setGlobalPatient(patient.name)
-                        setSelectedPatientName(patientName)
-                        setPatientQuery(patientName)
+                        setSelectedPatientName(display)
+                        setPatientQuery(display)
                         setStoredValue(STORAGE_KEYS.SELECTED_PATIENT, patient.name)
-                        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, patientName)
+                        setStoredValue(STORAGE_KEYS.SELECTED_PATIENT_NAME, display)
                         setPatientOpen(false)
                         showPatientAlertsFromUserAction()
                       }}
