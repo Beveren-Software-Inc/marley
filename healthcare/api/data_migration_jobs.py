@@ -19,6 +19,7 @@ IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
 IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
 CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
 DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
+PATIENT_HISTORY_DATE_BATCH_SIZE = 100
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 
@@ -410,6 +411,34 @@ def start_patient_history_import_migration() -> dict:
 		"message": _(
 			"Patient History import started in the background ({0} admissions, {1} unresolved rows)."
 		).format(len(admission_keys), len(unresolved)),
+	}
+
+
+@frappe.whitelist()
+def start_patient_history_date_backfill_migration() -> dict:
+	"""Set Patient History.date from Patient History Import CR Date (matched by admission)."""
+	_require_admin()
+	from healthcare.api.patient_history_date_backfill import run_patient_history_date_backfill_preview
+
+	preview = run_patient_history_date_backfill_preview()
+	_acquire_lock("patient_history_date_backfill")
+	_set_progress(
+		"patient_history_date_backfill",
+		0,
+		missing_date=preview.get("missing_date") or 0,
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_history_date_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_history_date_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient History date backfill started in the background ({0} record(s) missing date)."
+		).format(preview.get("missing_date") or 0),
 	}
 
 
@@ -982,6 +1011,47 @@ def process_patient_history_import_batch(offset: int = 0) -> None:
 		_release_lock(job)
 		frappe.cache().delete_value(_patient_history_import_admissions_cache_key())
 		frappe.cache().delete_value(_patient_history_import_grouped_cache_key())
+		raise
+
+
+def process_patient_history_date_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_history_date_backfill import run_patient_history_date_backfill_batch
+
+	job = "patient_history_date_backfill"
+	try:
+		result = run_patient_history_date_backfill_batch(offset=offset)
+		processed = cint(result.get("processed") or 0)
+		_set_progress(
+			job,
+			processed,
+			remaining=result.get("remaining"),
+			stats=result.get("stats"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_history_date_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_history_date_backfill_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True, stats=result.get("stats"))
+			_release_lock(job)
+			frappe.log_error(
+				title="Healthcare Patient History date backfill complete",
+				message=frappe.as_json(
+					{
+						**(result.get("stats") or {}),
+						"remaining": result.get("remaining"),
+					}
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
 		raise
 
 
