@@ -43,6 +43,8 @@ import { IPServiceList } from '../components/ipServices/IPServiceList'
 import { CreateIPServiceModal } from '../components/ipServices/CreateIPServiceModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
+import { NursingPharmacyGiveOutModal } from '../components/medication/NursingPharmacyGiveOutModal'
+import { PharmacyGiveOutList } from '../components/medication/PharmacyGiveOutList'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
@@ -133,6 +135,8 @@ export const NursePage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [showGivenMedicineModal, setShowGivenMedicineModal] = useState(false)
+  const [showPharmacyGiveOutModal, setShowPharmacyGiveOutModal] = useState(false)
+  const [pharmacyGiveOutRefreshKey, setPharmacyGiveOutRefreshKey] = useState(0)
     const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [givenRefreshKey, setGivenRefreshKey] = useState(0)
   const [reconcileLoading, setReconcileLoading] = useState(false)
@@ -932,6 +936,48 @@ export const NursePage = () => {
     )
   }
 
+  // Pharmacy Give Out — IP only
+  if (screen === 'n-pharmacy-giveout' && mode !== 'OP') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <div className="font-semibold mb-4 flex items-center justify-between gap-2">
+              <span>Pharmacy Give Out</span>
+              <button
+                type="button"
+                onClick={() => guardClinicalCreate(() => setShowPharmacyGiveOutModal(true))}
+                className={gmIconBtnPrimary}
+                title="New pharmacy give-out from current prescription"
+              >
+                <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
+                <span className="sr-only">New pharmacy give-out</span>
+              </button>
+            </div>
+            <PharmacyGiveOutList
+              patient={selectedPatient}
+              refreshKey={pharmacyGiveOutRefreshKey}
+              onPatientClick={handlePatientSelect}
+              scopeToActiveAdmission={false}
+            />
+          </section>
+        </div>
+        {showPharmacyGiveOutModal && (
+          <NursingPharmacyGiveOutModal
+            initialPatient={selectedPatient}
+            inpatientRecord={activeAdmission}
+            onClose={() => setShowPharmacyGiveOutModal(false)}
+            onSuccess={() => {
+              setPharmacyGiveOutRefreshKey((k) => k + 1)
+              setShowPharmacyGiveOutModal(false)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   // Given Medicines – list administrations, not prescriptions — hidden in OP mode
   if (screen === 'n-given' && mode !== 'OP') {
     return (
@@ -1697,6 +1743,27 @@ export const NursePage = () => {
             </div>
           )}
 
+          {/* Pharmacy Give Out — last card on IP nurse dashboard (full width, same layout as Discharges) */}
+          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
+            <div className="px-4 pb-4">
+              <DashboardCard
+                fixedHeight
+                title="Pharmacy Give Out"
+                filterable={false}
+                listingScreen="n-pharmacy-giveout"
+                openListingTitle="Open Pharmacy Give Out"
+                onAdd={() => guardClinicalCreate(() => setShowPharmacyGiveOutModal(true))}
+                addButtonTitle="New pharmacy give-out from current prescription"
+              >
+                <PharmacyGiveOutList
+                  patient={selectedPatient}
+                  refreshKey={pharmacyGiveOutRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                />
+              </DashboardCard>
+            </div>
+          )}
+
           {/* <div className="px-4 pb-4">
             <DoctorServiceDetailsTable 
               patient={selectedPatient} 
@@ -1793,6 +1860,18 @@ export const NursePage = () => {
           onSuccess={() => {
             setGivenRefreshKey((prev) => prev + 1)
             setShowGivenMedicineModal(false)
+          }}
+        />
+      )}
+
+      {showPharmacyGiveOutModal && (
+        <NursingPharmacyGiveOutModal
+          initialPatient={selectedPatient}
+          inpatientRecord={mode === 'IP' ? activeAdmission : undefined}
+          onClose={() => setShowPharmacyGiveOutModal(false)}
+          onSuccess={() => {
+            setPharmacyGiveOutRefreshKey((k) => k + 1)
+            setShowPharmacyGiveOutModal(false)
           }}
         />
       )}

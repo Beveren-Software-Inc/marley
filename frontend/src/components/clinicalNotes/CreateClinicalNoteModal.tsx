@@ -600,7 +600,7 @@ import {
 import { NotebookPen } from 'lucide-react'
 import { createClinicalNote } from '../../services/clinicalNotes'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClassTall,
   linkComboboxInputClass,
@@ -633,7 +633,7 @@ export const CreateClinicalNoteModal = ({
   defaultVisit,
 }: CreateClinicalNoteModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter, costCenterCompany } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -665,7 +665,11 @@ export const CreateClinicalNoteModal = ({
   // Admission and Visit options
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
   const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
-  
+
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterOpen, setCostCenterOpen] = useState(false)
+  const [costCenterQuery, setCostCenterQuery] = useState('')
+  const [costCenter, setCostCenter] = useState(userCostCenter || '')
 
   // Load admissions and visits when patient changes
   useEffect(() => {
@@ -735,6 +739,7 @@ export const CreateClinicalNoteModal = ({
         note_type: defaultNoteType,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
+        cost_center: costCenter || undefined,
       }
 
       // Add the appropriate care context based on global mode
@@ -884,6 +889,37 @@ export const CreateClinicalNoteModal = ({
     })
   }, [isOPMode, formData.patient, activeVisit, defaultVisit, visitOptions])
 
+  useEffect(() => {
+    if (userCostCenter && !costCenter) {
+      setCostCenter(userCostCenter)
+      setCostCenterQuery(userCostCenter)
+    }
+  }, [userCostCenter, costCenter])
+
+  useEffect(() => {
+    const refDoctype = isIPMode ? 'Inpatient Admission' : isOPMode ? 'Patient Visit' : null
+    const refName = isIPMode ? formData.admission_no : isOPMode ? formData.patient_visit : null
+    if (!refDoctype || !refName) return
+
+    fetch(`/api/resource/${refDoctype}/${encodeURIComponent(refName)}?fields=["cost_center"]`)
+      .then((r) => r.json())
+      .then((data) => {
+        const cc = data?.data?.cost_center
+        if (cc) {
+          setCostCenter(cc)
+          setCostCenterQuery(cc)
+        }
+      })
+      .catch(() => {})
+  }, [isIPMode, isOPMode, formData.admission_no, formData.patient_visit])
+
+  useEffect(() => {
+    if (!costCenterOpen) return
+    fetchCostCenters(costCenterCompany, costCenterQuery || undefined)
+      .then(setCostCenterOptions)
+      .catch(() => setCostCenterOptions([]))
+  }, [costCenterOpen, costCenterQuery, costCenterCompany])
+
   const handlePatientSelect = (patient: PatientListItem) => {
     setFormData((prev) => ({
       ...prev,
@@ -936,6 +972,7 @@ export const CreateClinicalNoteModal = ({
             if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
               setPatientOpen(false)
               setPractitionerOpen(false)
+              setCostCenterOpen(false)
             }
           }}
         >
@@ -947,7 +984,7 @@ export const CreateClinicalNoteModal = ({
               </div>
             )}
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Patient <span className="text-red-500">*</span>
@@ -990,106 +1027,6 @@ export const CreateClinicalNoteModal = ({
                   )}
                 </div>
               </div>
-
-              {/* Care Context Selection */}
-              {formData.patient && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Care Context <span className="text-red-500">*</span>
-                  </label>
-                  <div className="flex gap-3 mb-3">
-                    <button
-                      type="button"
-                      disabled
-                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors cursor-not-allowed ${
-                        isIPMode
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-slate-100 text-slate-400 border-slate-200'
-                      }`}
-                    >
-                      Inpatient Admission
-                    </button>
-                    <button
-                      type="button"
-                      disabled
-                      className={`px-3 py-1.5 text-sm rounded-md border transition-colors cursor-not-allowed ${
-                        isOPMode
-                          ? 'bg-primary text-white border-primary'
-                          : 'bg-slate-100 text-slate-400 border-slate-200'
-                      }`}
-                    >
-                      Patient Visit
-                    </button>
-                  </div>
-                  <p className="text-xs text-slate-500 -mt-2 mb-2">
-                    Context is determined by the IP/OP switcher in the navbar
-                  </p>
-                </div>
-              )}
-
-              {/* Admission Selection - Only shown in IP mode */}
-              {isIPMode && formData.patient && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Inpatient Admission <span className="text-red-500">*</span>
-                  </label>
-                  {activeAdmission ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={formData.admission_no}
-                        readOnly
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
-                    </div>
-                  ) : (
-                    <select
-                      value={formData.admission_no}
-                      onChange={(e) => handleChange('admission_no', e.target.value)}
-                      required
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">— Select admission —</option>
-                      {admissionOptions.map((a) => (
-                        <option key={a.name} value={a.name}>{a.label}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
-
-              {/* Visit Selection - Only shown in OP mode */}
-              {isOPMode && formData.patient && (
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Patient Visit <span className="text-red-500">*</span>
-                  </label>
-                  {activeVisit ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={formData.patient_visit}
-                        readOnly
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
-                    </div>
-                  ) : (
-                    <select
-                      value={formData.patient_visit}
-                      onChange={(e) => handleChange('patient_visit', e.target.value)}
-                      required
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">— Select visit —</option>
-                      {visitOptions.map((v) => (
-                        <option key={v.name} value={v.name}>{v.label}</option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1150,6 +1087,68 @@ export const CreateClinicalNoteModal = ({
                 </div>
               </div>
 
+              {isIPMode && formData.patient && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Inpatient Admission <span className="text-red-500">*</span>
+                  </label>
+                  {activeAdmission ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.admission_no}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.admission_no}
+                      onChange={(e) => handleChange('admission_no', e.target.value)}
+                      required
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">— Select admission —</option>
+                      {admissionOptions.map((a) => (
+                        <option key={a.name} value={a.name}>{a.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {isOPMode && formData.patient && (
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Patient Visit <span className="text-red-500">*</span>
+                  </label>
+                  {activeVisit ? (
+                    <div>
+                      <input
+                        type="text"
+                        value={formData.patient_visit}
+                        readOnly
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                      />
+                      <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
+                    </div>
+                  ) : (
+                    <select
+                      value={formData.patient_visit}
+                      onChange={(e) => handleChange('patient_visit', e.target.value)}
+                      required
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    >
+                      <option value="">— Select visit —</option>
+                      {visitOptions.map((v) => (
+                        <option key={v.name} value={v.name}>{v.label}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Posting Date
@@ -1163,6 +1162,52 @@ export const CreateClinicalNoteModal = ({
               </div>
 
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Cost Center
+                </label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={
+                      costCenter
+                        ? costCenterOptions.find((c) => c.name === costCenter)?.label || costCenterQuery || costCenter
+                        : costCenterQuery
+                    }
+                    onChange={(e) => {
+                      setCostCenterQuery(e.target.value)
+                      setCostCenterOpen(true)
+                      setCostCenter('')
+                    }}
+                    onFocus={() => setCostCenterOpen(true)}
+                    placeholder="Search cost center..."
+                    className={linkComboboxInputClass}
+                  />
+                  {costCenterOpen && (
+                    <div className={linkComboboxDropdownClassTall}>
+                      {costCenterOptions.length > 0 ? (
+                        costCenterOptions.map((cc) => (
+                          <button
+                            key={cc.name}
+                            type="button"
+                            onClick={() => {
+                              setCostCenter(cc.name)
+                              setCostCenterQuery(cc.label || cc.name)
+                              setCostCenterOpen(false)
+                            }}
+                            className={linkComboboxOptionClass}
+                          >
+                            {cc.label || cc.name}
+                          </button>
+                        ))
+                      ) : (
+                        <div className="px-4 py-2 text-sm text-slate-500">No cost centers found</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Note <span className="text-red-500">*</span>
                 </label>

@@ -36,6 +36,7 @@ export interface CreateClinicalNoteData {
   posting_date?: string
   admission_no?: string
   patient_visit?: string
+  cost_center?: string
 }
 
 export interface PendingDoctorProgressEncounter {

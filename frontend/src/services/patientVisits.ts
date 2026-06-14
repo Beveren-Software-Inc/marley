@@ -202,6 +202,7 @@ export interface CreatePatientVisitData {
   visit_type?: string
   appointment?: string
   iop_enrollment?: string
+  cost_center?: string
   documents?: Record<string, unknown>[]
   status?: 'Open' | 'Ordered' | 'Completed' | 'Cancelled'
 }

@@ -18,6 +18,7 @@ import {
 import { 
   fetchHealthcarePractitioners,
   fetchDocumentTypes,
+  fetchCostCenters,
   getCurrentUserPractitioner,
   type LinkFieldOption 
 } from '../../services/common'
@@ -27,6 +28,7 @@ import { fetchIOPEnrollment } from '../../services/iop'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { toast } from '../../hooks/useToast'
 import { PenLine } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface SignaturePadProps {
   onSave: (file: File) => void
@@ -197,6 +199,7 @@ export const CreatePatientVisitModal = ({
   initialAppointment,
   initialPractitioner,
 }: CreatePatientVisitModalProps) => {
+  const { userCostCenter, costCenterCompany } = useCareContext()
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
@@ -223,6 +226,11 @@ export const CreatePatientVisitModal = ({
   const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
   const [visitTypeOpen, setVisitTypeOpen] = useState(false)
   const [visitTypeQuery, setVisitTypeQuery] = useState('')
+
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterOpen, setCostCenterOpen] = useState(false)
+  const [costCenterQuery, setCostCenterQuery] = useState('')
+  const [costCenter, setCostCenter] = useState(userCostCenter || '')
 
   const [formData, setFormData] = useState({
     practitioner: initialPractitioner || '',
@@ -271,6 +279,34 @@ export const CreatePatientVisitModal = ({
     }
     loadOptions()
   }, [initialPractitioner])
+
+  useEffect(() => {
+    if (userCostCenter && !costCenter) {
+      setCostCenter(userCostCenter)
+      setCostCenterQuery(userCostCenter)
+    }
+  }, [userCostCenter, costCenter])
+
+  useEffect(() => {
+    if (!initialAppointment) return
+    fetch(`/api/resource/Patient Appointment/${encodeURIComponent(initialAppointment)}?fields=["cost_center"]`)
+      .then((r) => r.json())
+      .then((data) => {
+        const cc = data?.data?.cost_center
+        if (cc) {
+          setCostCenter(cc)
+          setCostCenterQuery(cc)
+        }
+      })
+      .catch(() => {})
+  }, [initialAppointment])
+
+  useEffect(() => {
+    if (!costCenterOpen) return
+    fetchCostCenters(costCenterCompany, costCenterQuery || undefined)
+      .then(setCostCenterOptions)
+      .catch(() => setCostCenterOptions([]))
+  }, [costCenterOpen, costCenterQuery, costCenterCompany])
 
   const addDocumentRow = () => {
     setDocuments((prev) => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
@@ -570,6 +606,7 @@ export const CreatePatientVisitModal = ({
         visit_type: formData.visit_type,
         appointment: formData.appointment || undefined,
         iop_enrollment: initialIOPEnrollment || undefined,
+        cost_center: costCenter || undefined,
         status: 'Open',
       })
 
@@ -587,7 +624,7 @@ export const CreatePatientVisitModal = ({
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh]')}>
+      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh]')}>
         <CreateModalHeader title="Create New Patient Visit" onClose={onClose}>
           <div className="-mb-px mt-4 flex border-b border-emerald-100/80">
             {[
@@ -652,11 +689,13 @@ export const CreatePatientVisitModal = ({
             setPatientOpen(false)
             setPractOpen(false)
             setVisitTypeOpen(false)
+            setCostCenterOpen(false)
           }
         }}>
           {activeTab === 'details' && (
             <>
-          {/* Patient Selection */}
+          <div className="grid grid-cols-2 gap-4">
+          {/* Patient */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Patient <span className="text-red-500">*</span>
@@ -736,7 +775,6 @@ export const CreatePatientVisitModal = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
             {/* Practitioner */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -872,6 +910,51 @@ export const CreatePatientVisitModal = ({
                     <div className="px-3 py-2 text-xs text-slate-500">
                       {visitTypeQuery ? 'No visit types match your search.' : 'No visit types found.'}
                     </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Cost Center */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Cost Center
+              </label>
+              <input
+                type="text"
+                value={
+                  costCenter
+                    ? costCenterOptions.find((c) => c.name === costCenter)?.label || costCenterQuery || costCenter
+                    : costCenterQuery
+                }
+                onChange={(e) => {
+                  setCostCenterQuery(e.target.value)
+                  setCostCenterOpen(true)
+                  setCostCenter('')
+                }}
+                onFocus={() => setCostCenterOpen(true)}
+                placeholder="Search cost center..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+              {costCenterOpen && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {costCenterOptions.length > 0 ? (
+                    costCenterOptions.map((cc) => (
+                      <button
+                        key={cc.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        onClick={() => {
+                          setCostCenter(cc.name)
+                          setCostCenterQuery(cc.label || cc.name)
+                          setCostCenterOpen(false)
+                        }}
+                      >
+                        {cc.label || cc.name}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-500">No cost centers found</div>
                   )}
                 </div>
               )}

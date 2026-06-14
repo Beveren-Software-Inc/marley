@@ -784,6 +784,12 @@ def create_patient_visit(data):
 			if isinstance(row, dict):
 				visit_doc.append("documents", row)
 
+	from healthcare.api.sales_order_cost_center import resolve_cost_center_for_clinical_doc
+
+	cost_center = resolve_cost_center_for_clinical_doc(data)
+	if cost_center:
+		visit_doc.cost_center = cost_center
+
 	visit_doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 

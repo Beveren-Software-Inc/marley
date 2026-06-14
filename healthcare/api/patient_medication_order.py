@@ -277,6 +277,25 @@ def _apply_legacy_ip_admission_medicine_fallbacks(doc):
 			row.route_of_administration = (ip_med.get("route") or "").strip()
 
 
+def _cost_center_from_inpatient_admission(inpatient_record):
+	"""Return cost center from Inpatient Admission (required for IP billing/list scoping)."""
+	if not inpatient_record:
+		return None
+	cc = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+	return (cc or "").strip() or None
+
+
+def _invoice_for_sales_order(sales_order):
+	"""Return linked Sales Invoice name, or the Sales Order when not yet invoiced."""
+	if not sales_order:
+		return None
+	if frappe.db.exists("DocType", "Sales Invoice Item"):
+		invoice = frappe.db.get_value("Sales Invoice Item", {"sales_order": sales_order}, "parent")
+		if invoice:
+			return invoice
+	return sales_order
+
+
 @frappe.whitelist()
 def create_patient_medication_order(
 	patient,
@@ -334,12 +353,14 @@ def create_patient_medication_order(
 		adm = frappe.db.get_value(
 			'Inpatient Admission',
 			inpatient_record,
-			['patient', 'patient_name', 'primary_practitioner', 'secondary_practitioner'],
+			['patient', 'patient_name', 'primary_practitioner', 'secondary_practitioner', 'cost_center'],
 			as_dict=True,
 		)
 		if adm:
 			doc.patient = adm.get('patient') or doc.patient
 			doc.patient_name = adm.get('patient_name')
+			if adm.get('cost_center'):
+				doc.cost_center = adm.get('cost_center')
 			if not practitioner and adm.get('primary_practitioner'):
 				doc.practitioner = adm.primary_practitioner
 			elif not practitioner and adm.get('secondary_practitioner'):
@@ -552,6 +573,9 @@ def get_medication_order_by_id(name):
 			"practitioner_name"
 		) or doc.practitioner
 	_apply_legacy_ip_admission_medicine_fallbacks(doc)
+
+	if getattr(doc, "reference_doctype", None) == "Sales Order" and getattr(doc, "reference_document_name", None):
+		doc.invoice = _invoice_for_sales_order(doc.reference_document_name)
 
 	return doc
 @frappe.whitelist()
@@ -1331,3 +1355,419 @@ def get_given_status_for_prescription(patient_medication_order):
             result[row.name] = {"has_given": fallback > 0, "count": fallback}
 
     return result
+
+
+def _resolve_sales_order_reference(pmo):
+	"""Return (ref_doctype, ref_name) for healthcare context on Sales Order."""
+	ref_doctype = None
+	ref_name = None
+	if pmo.care_context == "Inpatient Admission" and pmo.inpatient_record:
+		ref_doctype = "Inpatient Admission"
+		ref_name = pmo.inpatient_record
+	elif pmo.care_context == "Patient Visit" and pmo.patient_encounter:
+		ref_doctype = "Patient Visit"
+		ref_name = pmo.patient_encounter
+	elif pmo.inpatient_record:
+		ref_doctype = "Inpatient Admission"
+		ref_name = pmo.inpatient_record
+	elif pmo.patient_encounter:
+		ref_doctype = "Patient Visit"
+		ref_name = pmo.patient_encounter
+	return ref_doctype, ref_name
+
+
+def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
+	"""Append Sales Order items (with rates/taxes) from PMO medication rows."""
+	tax_templates_added = set()
+
+	for row in pmo.get("medication_orders") or []:
+		if not getattr(row, "drug", None):
+			continue
+		qty = flt(getattr(row, "quantity", 0)) or 1
+		item_row = {
+			"item_code": row.drug,
+			"qty": qty,
+			"description": getattr(row, "drug_name", None) or row.drug,
+		}
+		rate = flt(get_item_rate(row.drug))
+		if rate:
+			item_row["rate"] = rate
+			item_row["price_list_rate"] = rate
+		if warehouse:
+			item_row["warehouse"] = warehouse
+		so.append("items", item_row)
+
+		tax_info = get_item_tax(row.drug, pmo.company)
+		tax_template = tax_info.get("tax_template")
+		if tax_template and tax_template not in tax_templates_added:
+			tax_account = get_tax_account(tax_template)
+			if tax_account:
+				so.append(
+					"taxes",
+					{
+						"charge_type": "On Net Total",
+						"account_head": tax_account,
+						"description": f"Tax: {tax_template}",
+						"rate": tax_info.get("tax_rate", 0),
+						"included_in_print_rate": 0,
+						"included_in_paid_amount": 0,
+					},
+				)
+				tax_templates_added.add(tax_template)
+
+	if not so.items:
+		frappe.throw(_("No medication items found to create a Sales Order"))
+
+
+def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None):
+	"""Create and submit Sales Order for a submitted PMO; link back on PMO."""
+	if pmo.docstatus != 1:
+		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
+
+	if getattr(pmo, "reference_doctype", None) == "Sales Order" and getattr(pmo, "reference_document_name", None):
+		if frappe.db.exists("Sales Order", pmo.reference_document_name):
+			so = frappe.get_doc("Sales Order", pmo.reference_document_name)
+			return so
+
+	if not pmo.company:
+		frappe.throw(_("Company is required on Patient Medication Order"))
+	if not pmo.patient:
+		frappe.throw(_("Patient is required on Patient Medication Order"))
+
+	ref_doctype, ref_name = _resolve_sales_order_reference(pmo)
+	if not ref_doctype or not ref_name:
+		frappe.throw(
+			_("Patient Medication Order {0} must be linked to a Patient Visit or Inpatient Admission to create a Sales Order.").format(
+				pmo.name
+			)
+		)
+
+	customer = frappe.db.get_value("Patient", pmo.patient, "customer")
+	if not customer:
+		frappe.throw(
+			_("Patient {0} has no Customer linked. Link a customer on the patient record first.").format(pmo.patient)
+		)
+
+	so = frappe.new_doc("Sales Order")
+	so.company = pmo.company
+	so.patient = pmo.patient
+	so.customer = customer
+	so.transaction_date = nowdate()
+	so.delivery_date = nowdate()
+	if getattr(pmo, "patient_name", None):
+		so.custom_patient_name = pmo.patient_name
+	so.custom_patient = pmo.patient
+	so.custom_reference_type = ref_doctype
+	so.custom_reference_name = ref_name
+	so.custom_base_reference = "Patient Medication Order"
+	so.custom_base_reference_name = pmo.name
+
+	if warehouse and hasattr(so, "set_warehouse"):
+		so.set_warehouse = warehouse
+
+	_append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
+
+	cc = cost_center or cost_center_from_patient_medication_order(pmo, ref_doctype, ref_name)
+	apply_cost_center_to_sales_order(so, cc)
+
+	so.insert(ignore_permissions=True)
+	so.submit()
+
+	pmo.reference_doctype = "Sales Order"
+	pmo.reference_document_name = so.name
+	pmo.save(ignore_permissions=True)
+
+	return so
+
+
+@frappe.whitelist()
+def create_nursing_pharmacy_giveout(
+	patient,
+	inpatient_record,
+	medication_orders,
+	source_prescription=None,
+	practitioner=None,
+):
+	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order."""
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	if not inpatient_record:
+		frappe.throw(_("Inpatient Admission is required"))
+	if not frappe.db.exists("Inpatient Admission", inpatient_record):
+		frappe.throw(_("Inpatient Admission {0} does not exist").format(inpatient_record))
+
+	if isinstance(medication_orders, str):
+		import json
+
+		medication_orders = json.loads(medication_orders)
+
+	if not medication_orders or not isinstance(medication_orders, list):
+		frappe.throw(_("At least one medication is required"))
+
+	valid_rows = [row for row in medication_orders if row.get("drug")]
+	if not valid_rows:
+		frappe.throw(_("At least one medication with a drug is required"))
+
+	admission_doc = frappe.get_doc("Inpatient Admission", inpatient_record)
+	if admission_doc.patient and admission_doc.patient != patient:
+		frappe.throw(_("Patient does not match the selected Inpatient Admission"))
+
+	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required on Inpatient Admission {0}").format(inpatient_record))
+
+	cost_center = _cost_center_from_inpatient_admission(inpatient_record)
+	if not cost_center:
+		frappe.throw(
+			_("Cost Center is not set on Inpatient Admission {0}. Please set it on the admission record.").format(
+				inpatient_record
+			)
+		)
+
+	from healthcare.api.common import get_warehouse_for_cost_center
+
+	warehouse = get_warehouse_for_cost_center(cost_center)
+
+	start_date = nowdate()
+	doc = frappe.new_doc("Patient Medication Order")
+	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
+	doc.patient = patient
+	doc.care_context = "Inpatient Admission"
+	doc.company = company
+	doc.start_date = start_date
+	doc.inpatient_record = inpatient_record
+	doc.patient_name = admission_doc.patient_name
+	doc.cost_center = cost_center
+	if practitioner:
+		doc.practitioner = practitioner
+	elif admission_doc.get("primary_practitioner"):
+		doc.practitioner = admission_doc.primary_practitioner
+	elif admission_doc.get("secondary_practitioner"):
+		doc.practitioner = admission_doc.secondary_practitioner
+
+	doc.nursing_pharmacy_giveout = 1
+	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
+		doc.source_prescription = source_prescription
+	for row in valid_rows:
+		row = dict(row)
+		if not row.get("date"):
+			row["date"] = start_date
+		if not row.get("time"):
+			row["time"] = "00:00:00"
+		if not row.get("quantity") and not row.get("qty"):
+			row["quantity"] = 1
+		_set_medication_row(doc, row)
+
+	if doc.medication_orders:
+		last_dates = [r.date for r in doc.medication_orders if r.date]
+		if last_dates:
+			doc.end_date = max(last_dates)
+		doc.completed_orders = len(doc.medication_orders)
+
+	doc.insert(ignore_permissions=True)
+	doc.submit()
+
+	so = _create_submitted_sales_order_for_pmo(doc, cost_center=cost_center, warehouse=warehouse)
+
+	frappe.db.commit()
+
+	return {
+		"patient_medication_order": doc.name,
+		"sales_order": so.name,
+		"sales_order_status": so.status,
+		"pmo_status": frappe.db.get_value("Patient Medication Order", doc.name, "status"),
+		"source_prescription": source_prescription,
+	}
+
+
+@frappe.whitelist()
+def get_nursing_pharmacy_giveouts(
+	limit=50,
+	offset=0,
+	patient=None,
+	inpatient_record=None,
+	from_date=None,
+	to_date=None,
+	search=None,
+):
+	"""List submitted Patient Medication Orders marked as nursing pharmacy give-out."""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if not pmo_meta.has_field("nursing_pharmacy_giveout"):
+		return []
+
+	limit = int(limit) if limit else 50
+	offset = int(offset) if offset else 0
+
+	fields = [
+		"name",
+		"patient",
+		"patient_name",
+		"posting_date",
+		"start_date",
+		"status",
+		"inpatient_record",
+		"reference_doctype",
+		"reference_document_name",
+		"total_orders",
+	]
+	if pmo_meta.has_field("source_prescription"):
+		fields.append("source_prescription")
+
+	conditions = ["docstatus = 1", "nursing_pharmacy_giveout = 1"]
+	params = {}
+
+	if patient:
+		conditions.append("patient = %(patient)s")
+		params["patient"] = patient
+	if inpatient_record:
+		conditions.append("inpatient_record = %(inpatient_record)s")
+		params["inpatient_record"] = inpatient_record
+	if from_date:
+		conditions.append("posting_date >= %(from_date)s")
+		params["from_date"] = from_date
+	if to_date:
+		conditions.append("posting_date <= %(to_date)s")
+		params["to_date"] = to_date
+	if search:
+		conditions.append(
+			"(name LIKE %(search)s OR patient_name LIKE %(search)s OR patient LIKE %(search)s)"
+		)
+		params["search"] = f"%{search}%"
+
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			return []
+		placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(permitted_cc)))
+		for i, cc in enumerate(permitted_cc):
+			params[f"cc_{i}"] = cc
+		admission_placeholders = ", ".join(f"%(adm_cc_{i})s" for i in range(len(permitted_cc)))
+		for i, cc in enumerate(permitted_cc):
+			params[f"adm_cc_{i}"] = cc
+		conditions.append(
+			f"""(
+				cost_center IN ({placeholders})
+				OR (
+					IFNULL(cost_center, '') = ''
+					AND inpatient_record IN (
+						SELECT name FROM `tabInpatient Admission`
+						WHERE cost_center IN ({admission_placeholders})
+					)
+				)
+			)"""
+		)
+
+	where_sql = " AND ".join(conditions)
+	orders = frappe.db.sql(
+		f"""
+		SELECT {", ".join(fields)}
+		FROM `tabPatient Medication Order`
+		WHERE {where_sql}
+		ORDER BY posting_date DESC, creation DESC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		{**params, "limit": limit, "offset": offset},
+		as_dict=True,
+	)
+
+	child_dt = "Inpatient Medication Order Entry"
+	for row in orders:
+		row["sales_order"] = (
+			row.get("reference_document_name")
+			if row.get("reference_doctype") == "Sales Order"
+			else None
+		)
+		row["invoice"] = _invoice_for_sales_order(row.get("sales_order"))
+		entries = frappe.get_all(
+			child_dt,
+			filters={"parent": row.name},
+			fields=["drug_name", "drug", "quantity"],
+			limit=5,
+			ignore_permissions=True,
+		)
+		row["medication_count"] = len(entries)
+		labels = []
+		for e in entries:
+			label = (e.get("drug_name") or e.get("drug") or "").strip()
+			qty = flt(e.get("quantity")) or 1
+			if label:
+				labels.append(f"{label} x{qty:g}")
+		if row.get("total_orders") and row["total_orders"] > len(entries):
+			labels.append("…")
+		row["medications_summary"] = ", ".join(labels) if labels else ""
+
+	return orders
+
+
+def _sales_order_has_invoice(sales_order):
+	"""True when a Sales Invoice is linked to the Sales Order."""
+	if not sales_order:
+		return False
+	return bool(frappe.db.exists("Sales Invoice Item", {"sales_order": sales_order}))
+
+
+@frappe.whitelist()
+def delete_nursing_pharmacy_giveout(name):
+	"""Cancel a nursing pharmacy give-out PMO and its linked Sales Order when not invoiced."""
+	if not name:
+		frappe.throw(_("Give-out record name is required"))
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if not frappe.db.exists("Patient Medication Order", name):
+		frappe.throw(_("Patient Medication Order {0} does not exist").format(frappe.bold(name)))
+
+	doc = frappe.get_doc("Patient Medication Order", name)
+	_ensure_pmo_write_permission(doc)
+
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if not pmo_meta.has_field("nursing_pharmacy_giveout") or not doc.get("nursing_pharmacy_giveout"):
+		frappe.throw(_("This is not a nursing pharmacy give-out record"))
+
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted give-out records can be removed"))
+
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		if not permitted_cc:
+			frappe.throw(_("Not permitted"), frappe.PermissionError)
+		cc = doc.get("cost_center")
+		if not cc and doc.get("inpatient_record"):
+			cc = _cost_center_from_inpatient_admission(doc.inpatient_record)
+		if cc and cc not in permitted_cc:
+			frappe.throw(_("Not permitted for this cost center"), frappe.PermissionError)
+
+	sales_order = None
+	if doc.get("reference_doctype") == "Sales Order" and doc.get("reference_document_name"):
+		sales_order = doc.reference_document_name
+
+	if sales_order and frappe.db.exists("Sales Order", sales_order):
+		if _sales_order_has_invoice(sales_order):
+			invoice = frappe.db.get_value(
+				"Sales Invoice Item", {"sales_order": sales_order}, "parent"
+			)
+			frappe.throw(
+				_(
+					"This give-out is linked to Sales Invoice {0} and cannot be removed."
+				).format(frappe.bold(invoice))
+			)
+
+		so = frappe.get_doc("Sales Order", sales_order)
+		if so.docstatus == 1:
+			so.cancel()
+
+	if doc.docstatus == 1:
+		doc.cancel()
+
+	frappe.db.commit()
+	return {"cancelled": name, "sales_order": sales_order}

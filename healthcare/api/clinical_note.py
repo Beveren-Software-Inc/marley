@@ -403,6 +403,14 @@ def create_clinical_note(data):
 	
 	inpatient_admission = data.get('inpatient_admission') or admission_no
 
+	cost_center = None
+	try:
+		from healthcare.api.sales_order_cost_center import resolve_cost_center_for_clinical_doc
+
+		cost_center = resolve_cost_center_for_clinical_doc(data)
+	except Exception:
+		pass
+
 	doc = frappe.get_doc({
 		'doctype': 'Clinical Note',
 		'patient': patient,
@@ -415,6 +423,8 @@ def create_clinical_note(data):
 		'reference_document': reference_document,
 		'inpatient_admission': inpatient_admission,
 	})
+	if cost_center:
+		doc.cost_center = cost_center
 
 	fill_patient_from_inpatient_admission(doc)
 	assign_clinical_note_trans_no(doc)

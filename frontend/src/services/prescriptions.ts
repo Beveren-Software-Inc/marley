@@ -16,7 +16,10 @@ export interface Prescription {
   company?: string
   reference_doctype?: string
   reference_document_name?: string
+  invoice?: string
   medication_orders?: MedicationOrderEntry[]
+  source_prescription?: string
+  nursing_pharmacy_giveout?: 0 | 1
   creation?: string
   modified?: string
   modified_by?: string
@@ -267,6 +270,16 @@ export interface MedicationOrderRow {
   is_long_acting?: boolean
   long_acting_frequency?: LongActingFrequency | string
   medication_type?: string
+  quantity?: number
+  qty?: number
+}
+
+export interface NursingPharmacyGiveOutResult {
+  patient_medication_order: string
+  sales_order: string
+  sales_order_status: string
+  pmo_status: string
+  source_prescription?: string
 }
 
 export interface MedicationOrderEntry {
@@ -275,6 +288,7 @@ export interface MedicationOrderEntry {
   drug_name?: string
   dosage: string
   uom?: string
+  quantity?: number
   dosage_form: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
@@ -522,6 +536,30 @@ export async function getGivenStatusForPrescription(
       method: 'POST',
       body: JSON.stringify({
         patient_medication_order: patientMedicationOrder,
+      }),
+    }
+  )
+}
+
+/** Nursing pharmacy give-out: PMO + submitted Sales Order in one step. */
+export async function createNursingPharmacyGiveOut(input: {
+  patient: string
+  inpatient_record: string
+  medication_orders: MedicationOrderRow[]
+  source_prescription?: string
+  practitioner?: string
+}): Promise<NursingPharmacyGiveOutResult> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<NursingPharmacyGiveOutResult>(
+    '/api/method/healthcare.api.patient_medication_order.create_nursing_pharmacy_giveout',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        patient: input.patient,
+        inpatient_record: input.inpatient_record,
+        medication_orders: input.medication_orders,
+        source_prescription: input.source_prescription || undefined,
+        practitioner: input.practitioner || undefined,
       }),
     }
   )
