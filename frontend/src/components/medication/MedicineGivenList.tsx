@@ -318,7 +318,7 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
       return
     }
 
-    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from the admission cost center warehouse.')) {
+    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from the admission branch warehouse.')) {
       return
     }
 

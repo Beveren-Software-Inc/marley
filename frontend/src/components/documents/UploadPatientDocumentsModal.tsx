@@ -6,6 +6,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { fetchDocumentTypes } from '../../services/common'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchPatientVisit, updatePatientVisitDocuments } from '../../services/patientVisits'
@@ -245,7 +246,10 @@ export function UploadPatientDocumentsModal({
                           className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white"
                         />
                         {row.document && documentUploading !== idx && (
-                          <span className="text-xs text-green-600 mt-1 block">✓ File attached</span>
+                          <PatientDocumentAttachmentPreview
+                            url={row.document}
+                            fileName={row.file_name}
+                          />
                         )}
                       </div>
                     </div>

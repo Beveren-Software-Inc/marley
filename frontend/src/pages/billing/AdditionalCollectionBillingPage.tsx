@@ -126,7 +126,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Cross‑Branch Payment invoices</h1>
           <p className="text-slate-600 text-xs mt-1 max-w-xl">
-            Invoices with a collection cost center (excludes internal employee). Use the button to create.
+            Invoices with a collection branch (excludes internal employee). Use the button to create.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -164,7 +164,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Invoice</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-600">Collection CC</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-600">Collection Branch</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Reference</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>

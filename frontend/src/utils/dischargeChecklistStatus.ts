@@ -24,7 +24,7 @@ export function isChecklistRowComplete(click?: boolean | number | null): boolean
 }
 
 export function summarizeDischargeChecklistStatus(
-  rows: Array<{ action_required?: string; click?: boolean | number }> | undefined
+  rows: Array<{ action_required?: string; click?: boolean | number | null }> | undefined
 ): DischargeChecklistSummary {
   const list = rows ?? []
   const total = list.length
@@ -64,7 +64,7 @@ export function summarizeDischargeChecklistStatus(
 }
 
 export function canSubmitDischargeWithChecklist(
-  rows: Array<{ action_required?: string; click?: boolean | number }> | undefined
+  rows: Array<{ action_required?: string; click?: boolean | number | null }> | undefined
 ): boolean {
   const { checklist_status } = summarizeDischargeChecklistStatus(rows)
   return checklist_status === 'complete' || checklist_status === 'finance_pending' || checklist_status === 'none'

@@ -118,11 +118,11 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     return (
       <div className="text-center py-12">
         <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-        <h3 className="text-lg font-medium text-slate-900 mb-1">No Cost Center Selected</h3>
+        <h3 className="text-lg font-medium text-slate-900 mb-1">No Branch Selected</h3>
         <p className="text-sm text-slate-500">
           {isFullAccess 
-            ? 'Please select a cost center from the dropdown above to view stock ledger.'
-            : 'Please ensure you have a cost center assigned to view stock ledger.'}
+            ? 'Please select a branch from the dropdown above to view stock ledger.'
+            : 'Please ensure you have a branch assigned to view stock ledger.'}
         </p>
       </div>
     )

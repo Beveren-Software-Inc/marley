@@ -215,7 +215,7 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
                 {!compactClinical && (
                   <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Group</th>
                 )}
-                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Details</th>
+                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Remarks</th>
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">Date</th>
                 {!compactClinical && (
                   <>

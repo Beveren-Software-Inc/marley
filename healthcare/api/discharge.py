@@ -34,7 +34,7 @@ def get_discharge(name=None):
 
 
 @frappe.whitelist()
-def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None, from_date=None, to_date=None, status=None, discharge_type=None):
+def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None, from_date=None, to_date=None, status=None, discharge_type=None, exclude_cancelled=None):
 	"""Get list of Discharge documents with pagination.
 	Returns { data: [...], total_count: N }
 	"""
@@ -70,6 +70,8 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 		docstatus_map = {'Draft': 0, 'Submitted': 1, 'Cancelled': 2}
 		if status in docstatus_map:
 			filters['docstatus'] = docstatus_map[status]
+	elif cint(exclude_cancelled):
+		filters['docstatus'] = ['!=', 2]
 
 	if discharge_type:
 		filters['discharge_type'] = discharge_type

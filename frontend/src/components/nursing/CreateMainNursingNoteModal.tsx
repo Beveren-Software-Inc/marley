@@ -279,7 +279,7 @@ export const CreateMainNursingNoteModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Cost center</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Branch</label>
             <input
               type="text"
               value={ccQuery || costCenter}

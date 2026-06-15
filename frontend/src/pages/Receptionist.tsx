@@ -263,7 +263,7 @@ export const ReceptionistPage = () => {
     return (
       <div className="flex flex-col p-6">
         <p className="text-sm text-slate-700">
-          Inpatient discharge is not available for OP-only cost centers. Switch to a site that supports IP care or
+          Inpatient discharge is not available for OP-only branches. Switch to a site that supports IP care or
           use the desk Discharge form.
         </p>
         <button type="button" onClick={closeDischarge} className="mt-4 text-sm text-primary hover:underline w-fit">
@@ -449,7 +449,7 @@ export const ReceptionistPage = () => {
             <div className="mb-4">
               <h2 className="text-xl font-semibold text-slate-900">Follow-up Dashboard</h2>
               <p className="text-sm text-slate-600 mt-1">
-                OP &amp; IP discharged follow-up list. Filter by status (default: Open) and cost center. Send reminder per row or send all reminders.
+                OP &amp; IP discharged follow-up list. Filter by status (default: Open) and branch. Send reminder per row or send all reminders.
               </p>
             </div>
             <FollowUpList refreshKey={patientVisitRefreshKey} onPatientClick={handlePatientSelect} />
@@ -622,7 +622,7 @@ export const ReceptionistPage = () => {
               <div>
                 <h2 className="text-xl font-semibold text-slate-900">Branch Transfer</h2>
                 <p className="text-sm text-slate-600 mt-1">
-                  Transfer admitted patients internally between cost centers.
+                  Transfer admitted patients internally between branches.
                 </p>
               </div>
               <button
@@ -740,7 +740,7 @@ export const ReceptionistPage = () => {
               <p className="text-sm text-slate-600 mt-1">
                 {currentView === 'op-dashboard'
                   ? 'Outpatient: patients, appointments, visits. Change user for entry and receipt voucher as needed.'
-                  : 'Inpatient: admissions, transfers, discharge. Cost center per hospital.'}
+                  : 'Inpatient: admissions, transfers, discharge. Branch per hospital.'}
               </p>
             </div>
             {currentView === 'op-dashboard' && (

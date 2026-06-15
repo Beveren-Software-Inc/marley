@@ -36,10 +36,10 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // When IP mode has a specific admission, scope discharges to that admission.
-  // Otherwise fall through to the prop, then context patient.
-  const effectiveAdmission = (mode === 'IP' && activeAdmission) ? activeAdmission : admission
+  // When IP mode has a specific admission, scope discharges to that admission
+  // unless a patient is in scope (dashboard patient view shows all discharges for that patient).
   const effectivePatient = patient ?? (contextPatient || undefined)
+  const effectiveAdmission = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : admission
 
   const [discharges, setDischarges] = useState<Discharge[]>([])
   const [loading, setLoading] = useState(true)
@@ -58,6 +58,8 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   const [totalCount, setTotalCount] = useState(0)
+
+  const excludeCancelled = Boolean(effectivePatient && !statusFilter && !effectiveAdmission)
 
   // Discharge ID — searchable dropdown (link to Discharge)
   const [dischargeIdQuery, setDischargeIdQuery] = useState('')
@@ -87,7 +89,8 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
           fromDate || undefined,
           toDate || undefined,
           statusFilter || undefined,
-          typeFilter || undefined
+          typeFilter || undefined,
+          excludeCancelled
         )
         setDischarges(response.data)
         setTotalCount(response.total_count)
@@ -99,12 +102,12 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     }
 
     loadDischarges()
-  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, page, pageSize])
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, page, pageSize, excludeCancelled])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter])
+  }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, excludeCancelled])
 
   // Load discharge ID options when dropdown is open (searchable list of discharges)
   useEffect(() => {

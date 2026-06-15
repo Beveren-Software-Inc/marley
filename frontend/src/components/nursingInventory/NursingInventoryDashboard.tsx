@@ -52,7 +52,7 @@ function NursingInventoryDashboardInner() {
   const [selectedCostCenter, setSelectedCostCenter] = useState('')
   const [loadingCostCenters, setLoadingCostCenters] = useState(false)
 
-  // Check if user has full access (System Manager, Administrator, or no cost center restriction)
+  // Check if user has full access (System Manager, Administrator, or no branch restriction)
   const hasFullAccess = () => {
     const roles = userRole || []
     const fullAccessRoles = ['System Manager', 'Administrator', 'Accounts Manager', 'Stock Manager']
@@ -71,7 +71,7 @@ function NursingInventoryDashboardInner() {
   const [stockReconciliationRefreshKey, setStockReconciliationRefreshKey] = useState(0)
   const [materialReceiptRefreshKey, setMaterialReceiptRefreshKey] = useState(0)
 
-  // Load all cost centers for users with full access
+  // Load all branches for users with full access
   useEffect(() => {
     if (isFullAccess && !userCostCenter) {
       loadAllCostCenters()
@@ -87,13 +87,13 @@ function NursingInventoryDashboardInner() {
         setSelectedCostCenter(costCenters[0].name)
       }
     } catch (error) {
-      console.error('Failed to load cost centers:', error)
+      console.error('Failed to load branches:', error)
     } finally {
       setLoadingCostCenters(false)
     }
   }
 
-  // Get the effective cost center (selected one for full access, or user's assigned one)
+  // Get the effective branch (selected one for full access, or user's assigned one)
   const effectiveCostCenter = isFullAccess ? selectedCostCenter : userCostCenter
 
   const CARDS: CardDef[] = [
@@ -147,14 +147,14 @@ function NursingInventoryDashboardInner() {
     }
   }
 
-  // Show cost center selector for users with full access
+  // Show branch selector for users with full access
   const renderCostCenterSelector = () => {
     if (!isFullAccess) return null
 
     return (
       <div className="bg-white border border-slate-200 rounded-lg p-4 mb-4">
         <div className="flex items-center gap-4">
-          <label className="text-sm font-semibold text-slate-700">Cost Center:</label>
+          <label className="text-sm font-semibold text-slate-700">Branch:</label>
           {loadingCostCenters ? (
             <div className="flex items-center gap-2">
               <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
@@ -172,14 +172,14 @@ function NursingInventoryDashboardInner() {
             </select>
           )}
           <span className="text-xs text-slate-400 ml-auto">
-            You have full access to all cost centers
+            You have full access to all branches
           </span>
         </div>
       </div>
     )
   }
 
-  // Show warning for users with restricted access but no cost center
+  // Show warning for users with restricted access but no branch
   if (!isFullAccess && !userCostCenter) {
     return (
       <div className="space-y-4">
@@ -189,11 +189,11 @@ function NursingInventoryDashboardInner() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-amber-800 mb-2">No Cost Center Assigned</h3>
+          <h3 className="text-lg font-semibold text-amber-800 mb-2">No Branch Assigned</h3>
           <p className="text-sm text-amber-700">
-            Please contact your administrator to assign a cost center to your user account.
+            Please contact your administrator to assign a branch to your user account.
             <br />
-            You need a cost center to access the {moduleLabel} Inventory module.
+            You need a branch to access the {moduleLabel} Inventory module.
           </p>
         </div>
       </div>

@@ -301,6 +301,34 @@ export async function updateAppointmentAdRemark(
   throw new Error('Failed to save AD remark')
 }
 
+export async function updateAppointmentDoctorNote(
+  appointmentName: string,
+  note: string,
+): Promise<{ name: string; notes: string }> {
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    '/api/method/healthcare.api.patient_appointment.update_appointment_doctor_note',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ appointment_name: appointmentName, note }),
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as { name: string; notes: string }
+  }
+  throw new Error('Failed to save doctor note')
+}
+
 /** Appointment has no linked Patient record (walk-in or incomplete booking). */
 export function appointmentNeedsRegistration(
   apt: Pick<Appointment, 'patient'>,

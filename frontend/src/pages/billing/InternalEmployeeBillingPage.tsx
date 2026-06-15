@@ -169,7 +169,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Invoice</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-600">Collection CC</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-600">Collection Branch</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Status</th>

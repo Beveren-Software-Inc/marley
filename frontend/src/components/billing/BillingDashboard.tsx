@@ -215,7 +215,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     }
   }
 
-  // Handle make payment - fetch invoice details for company and cost center
+  // Handle make payment - fetch invoice details for company and branch
 const handleMakePayment = async (
   referenceId: string,
   customerName: string,
@@ -240,7 +240,7 @@ const handleMakePayment = async (
     // Use the first invoice's name
     const invoiceName = invoices[0].name
     
-    // Fetch invoice details to get company and cost center
+    // Fetch invoice details to get company and branch
     const invoiceDetails = await getInvoiceDetails(invoiceName)
     
     setSelectedPaymentInvoice({
@@ -912,7 +912,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Admission ID</p><p className="text-slate-700 font-mono text-xs">{balance.admission_id}</p></div>
                         <div><p className="text-xs text-slate-400">Admission Date</p><p className="text-slate-700">{balance.admission_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Cost Center</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
                     </div>
@@ -1052,7 +1052,7 @@ const handleMakePayment = async (
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
                         <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
-                        <div><p className="text-xs text-slate-400">Cost Center</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
                     </div>
@@ -1153,7 +1153,7 @@ const handleMakePayment = async (
 
       {billingCcRestricted === true && (effectivePatient || effectiveReferenceName) && (
         <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          Billing lists and totals are limited to your assigned cost center (Settings → Cost Center Filter). To see all
+          Billing lists and totals are limited to your assigned branch (Settings → Branch Filter). To see all
           branches, clear that filter or ask an administrator.
         </div>
       )}
@@ -1170,7 +1170,7 @@ const handleMakePayment = async (
           <div className="px-5 py-4 border-b border-slate-200">
             <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
             <p className="text-xs text-slate-500 mt-1">
-              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single cost center.
+              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single branch.
             </p>
           </div>
           <div className="overflow-x-auto">
@@ -1287,7 +1287,7 @@ const handleMakePayment = async (
                           className="text-[11px] text-slate-500 mt-0.5 truncate"
                           title={order.cost_center_name || order.cost_center || undefined}
                         >
-                          CC: {order.cost_center_name || order.cost_center}
+                          Branch: {order.cost_center_name || order.cost_center}
                         </p>
                       )}
                     </div>
@@ -1319,7 +1319,7 @@ const handleMakePayment = async (
                       <p className="text-xs text-slate-400">{invoice.posting_date}</p>
                       {(invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at) && (
                         <p className="text-[11px] text-slate-500 mt-0.5 truncate" title={invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at || ''}>
-                          CC: {invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at}
+                          Branch: {invoice.cost_center_name || invoice.cost_center || invoice.custom_created_at}
                         </p>
                       )}
                     </div>

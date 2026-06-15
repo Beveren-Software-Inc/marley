@@ -156,7 +156,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
     e.preventDefault()
     
     if (!effectiveCostCenter) {
-      toast.error('No cost center assigned')
+      toast.error('No branch assigned')
       return
     }
 
@@ -244,7 +244,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Cost Center <span className="text-red-500">*</span>
+                    Branch <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -253,7 +253,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                     disabled
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Cost center is auto-detected from your profile</p>
+                  <p className="text-xs text-slate-400 mt-1">Branch is auto-detected from your profile</p>
                 </div>
 
                 <div>

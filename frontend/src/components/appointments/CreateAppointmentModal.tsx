@@ -172,7 +172,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [costCenter, setCostCenter] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
-  /** True when user has exactly one permitted cost center (User Permission). */
+  /** True when user has exactly one permitted branch (User Permission). */
   const [costCenterLocked, setCostCenterLocked] = useState(false)
 
   const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
@@ -364,7 +364,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           return defaultCc
         })
       } catch (err) {
-        console.error('Failed to load cost centers:', err)
+        console.error('Failed to load branches:', err)
         if (!cancelled) {
           setCostCenterOptions([])
           setCostCenterLocked(false)
@@ -770,7 +770,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
             <select
               value={costCenter}
               onChange={(e) => setCostCenter(e.target.value)}
@@ -778,7 +778,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white disabled:bg-slate-50 disabled:text-slate-700"
             >
               <option value="">
-                {costCenterLoading ? 'Loading cost centers…' : 'Select cost center'}
+                {costCenterLoading ? 'Loading branches…' : 'Select branch'}
               </option>
               {costCenterOptions.map((cc) => (
                 <option key={cc.name} value={cc.name}>
@@ -788,15 +788,15 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             </select>
             {costCenterLocked ? (
               <p className="text-[11px] text-slate-500 mt-1">
-                Assigned from your user permission (only one cost center linked to your account).
+                Assigned from your user permission (only one branch linked to your account).
               </p>
             ) : costCenter && costCenterOptions.length > 1 ? (
               <p className="text-[11px] text-slate-500 mt-1">
-                Pre-selected from your linked cost center. You can choose another permitted cost center.
+                Pre-selected from your linked branch. You can choose another permitted branch.
               </p>
             ) : costCenterOptions.length > 0 && costCenterOptions.length <= 10 ? (
               <p className="text-[11px] text-slate-500 mt-1">
-                Showing cost centers linked to your user permissions.
+                Showing branches linked to your user permissions.
               </p>
             ) : null}
           </div>

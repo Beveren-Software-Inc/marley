@@ -152,7 +152,7 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
             <p className="font-medium text-primary">{data.service_request || '-'}</p>
           </div>
           <div>
-            <span className="text-slate-500">Cost Center:</span>
+            <span className="text-slate-500">Branch:</span>
             <p className="font-medium text-slate-800">{data.cost_center || '-'}</p>
           </div>
         </div>

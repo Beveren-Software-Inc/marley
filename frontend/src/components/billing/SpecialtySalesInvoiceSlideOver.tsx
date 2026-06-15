@@ -215,7 +215,7 @@ export function SpecialtySalesInvoiceSlideOver({
                 </div>
                 {(detail.collection_cost_center_name || detail.custom_created_at) && (
                   <div className="sm:col-span-2">
-                    <dt className="text-[11px] font-medium text-slate-500 uppercase">Collection cost center</dt>
+                    <dt className="text-[11px] font-medium text-slate-500 uppercase">Collection branch</dt>
                     <dd className="text-slate-900">{detail.collection_cost_center_name || detail.custom_created_at}</dd>
                   </div>
                 )}

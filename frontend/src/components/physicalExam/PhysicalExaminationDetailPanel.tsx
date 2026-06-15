@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Activity, ClipboardList, Stethoscope } from 'lucide-react'
+import { ClipboardList, Stethoscope } from 'lucide-react'
 import { fetchDoc } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
-import {
-  PE_BASIC_FIELDS,
-  PE_FINDING_SECTIONS,
-  PE_VISIT_FIELDS,
-} from './physicalExamDetailConfig'
+import { PE_FINDING_SECTIONS, PE_VISIT_FIELDS } from './physicalExamDetailConfig'
 
 type PhysicalExamDoc = Record<string, unknown>
 
@@ -137,22 +133,6 @@ export function PhysicalExaminationDetailPanel({
             </h3>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {PE_VISIT_FIELDS.map((field) => (
-                <DataTile
-                  key={field.key}
-                  label={field.label}
-                  value={displayValue(doc[field.key])}
-                />
-              ))}
-            </div>
-          </section>
-
-          <section className={MODAL_SECTION_CLASS}>
-            <h3 className={MODAL_SECTION_TITLE_CLASS}>
-              <Activity className="h-4 w-4 text-emerald-600" strokeWidth={2} />
-              Basic examination
-            </h3>
-            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {PE_BASIC_FIELDS.map((field) => (
                 <DataTile
                   key={field.key}
                   label={field.label}

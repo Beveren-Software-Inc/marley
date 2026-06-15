@@ -2,8 +2,6 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Building2,
   Calendar,
-  Check,
-  ClipboardCheck,
   ClipboardList,
   FileText,
   Link2,
@@ -11,12 +9,10 @@ import {
   Stethoscope,
   User,
   Users,
-  X,
 } from 'lucide-react'
 import {
   fetchDischarge,
   type Discharge,
-  type DischargeChecklistRow,
   type DischargeDoc,
   type DischargePatientDocument,
   type DischargePatientRelative,
@@ -24,6 +20,7 @@ import {
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
+import { DischargeChecklistStatusCard } from './DischargeChecklistStatusCard'
 import { RichTextContent } from '../ui/RichTextContent'
 
 interface DischargeDetailPanelProps {
@@ -74,10 +71,6 @@ function formatTime(value?: string | null): string {
   return value
 }
 
-function isChecked(value: unknown): boolean {
-  return value === 1 || value === true || value === '1'
-}
-
 function statusLabel(docstatus: number | undefined): { text: string; className: string } {
   if (docstatus === 1) {
     return { text: 'Submitted', className: 'bg-emerald-100 text-emerald-800' }
@@ -86,14 +79,6 @@ function statusLabel(docstatus: number | undefined): { text: string; className: 
     return { text: 'Cancelled', className: 'bg-red-100 text-red-800' }
   }
   return { text: 'Draft', className: 'bg-amber-100 text-amber-800' }
-}
-
-function checklistStats(rows: DischargeChecklistRow[] | undefined) {
-  const list = rows ?? []
-  const completed = list.filter((row) => isChecked(row.click)).length
-  const total = list.length
-  const pct = total > 0 ? Math.round((completed / total) * 100) : null
-  return { completed, total, pct }
 }
 
 function InfoTile({
@@ -135,100 +120,16 @@ function InfoTile({
 }
 
 function ClinicalBlock({ title, value }: { title: string; value?: string | null }) {
-  if (!value?.trim()) return null
+  const text = value?.trim() || '—'
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-3">
       <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-600">{title}</h4>
-      <RichTextContent value={value} />
-    </div>
-  )
-}
-
-function ChecklistSection({
-  title,
-  icon,
-  rows,
-  loading,
-}: {
-  title: string
-  icon: ReactNode
-  rows: DischargeChecklistRow[]
-  loading: boolean
-}) {
-  const { completed, total, pct } = checklistStats(rows)
-
-  if (!loading && total === 0) return null
-
-  return (
-    <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-      <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
-        {icon}
-        <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">{title}</h3>
-        {pct != null ? (
-          <span
-            className={`ml-auto rounded-full px-2.5 py-0.5 text-xs font-semibold ${
-              pct >= 100
-                ? 'bg-emerald-100 text-emerald-800'
-                : pct >= 50
-                  ? 'bg-amber-100 text-amber-800'
-                  : 'bg-slate-100 text-slate-700'
-            }`}
-          >
-            {completed} / {total} ({pct}%)
-          </span>
-        ) : null}
-      </div>
-
-      {total > 0 ? (
-        <div className="mb-3 h-2 overflow-hidden rounded-full bg-slate-100">
-          <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct ?? 0}%` }} />
-        </div>
-      ) : null}
-
-      {loading && total === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">Loading checklist…</p>
-      ) : total === 0 ? (
-        <p className="py-6 text-center text-sm text-slate-500">No checklist items.</p>
+      {text === '—' ? (
+        <p className="text-sm text-slate-400">—</p>
       ) : (
-        <ul className="space-y-2">
-          {rows.map((row, index) => {
-            const checked = isChecked(row.click)
-            return (
-              <li
-                key={row.name || `${title}-${index}`}
-                className={`rounded-md border px-3 py-2.5 ${
-                  checked ? 'border-green-200 bg-green-50/60' : 'border-slate-200 bg-slate-50/50'
-                }`}
-              >
-                <div className="flex items-start gap-2.5">
-                  {checked ? (
-                    <Check className="mt-0.5 h-4 w-4 shrink-0 text-green-600" strokeWidth={2.5} />
-                  ) : (
-                    <X className="mt-0.5 h-4 w-4 shrink-0 text-slate-400" strokeWidth={2.5} />
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium leading-snug text-slate-900">
-                      {row.action_required || '—'}
-                    </p>
-                    <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
-                      {row.department ? <span>Dept: {row.department}</span> : null}
-                      {row.user ? <span>User: {row.user}</span> : null}
-                      {row.name1 ? <span>{row.name1}</span> : null}
-                      {row.date_time ? <span>{formatDateTime(row.date_time)}</span> : null}
-                    </div>
-                    {row.description ? (
-                      <div className="mt-2 text-sm text-slate-700">
-                        <RichTextContent value={row.description} />
-                      </div>
-                    ) : null}
-                  </div>
-                </div>
-              </li>
-            )
-          })}
-        </ul>
+        <RichTextContent value={text} />
       )}
-    </section>
+    </div>
   )
 }
 
@@ -357,20 +258,27 @@ export function DischargeDetailPanel({
     return parts.length ? parts.join(' · ') : name
   }, [source, name])
 
-  const clinicalFields = doc
+  const detail = doc ?? (preview as DischargeDoc | undefined)
+
+  const dischargePlanFields = detail
     ? [
-        { title: 'Discharge diagnosis', value: doc.discharge_diagnosis },
-        { title: 'Discharge reason', value: doc.discharge_reason },
-        { title: 'Treatment plan', value: doc.discharge_treatment_plan },
-        { title: 'Conditions', value: doc.discharge_conditions },
-        { title: 'Instructions', value: doc.discharge_instructions },
-        { title: 'Mental status summary', value: doc.final_exam_mental_status_summary },
-        { title: 'Management in hospital', value: doc.management_in_hospital },
-        { title: 'Prognosis', value: doc.prognosis },
+        { title: 'Discharge treatment plan', value: detail.discharge_treatment_plan },
+        { title: 'Discharge reason', value: detail.discharge_reason },
+        { title: 'Discharge condition', value: detail.discharge_conditions },
+        { title: 'Discharge instructions', value: detail.discharge_instructions },
+      ]
+    : []
+
+  const otherClinicalFields = detail
+    ? [
+        { title: 'Discharge diagnosis', value: detail.discharge_diagnosis },
+        { title: 'Mental status summary', value: detail.final_exam_mental_status_summary },
+        { title: 'Management in hospital', value: detail.management_in_hospital },
+        { title: 'Prognosis', value: detail.prognosis },
       ].filter((field) => field.value?.trim())
     : []
 
-  const hasClinical = clinicalFields.length > 0
+  const hasOtherClinical = otherClinicalFields.length > 0
   const dischargeChecklist = doc?.discharge_checklist ?? []
   const nursingChecklist = doc?.nursing_checklist ?? []
   const documents = doc?.patient_documents ?? []
@@ -447,32 +355,41 @@ export function DischargeDetailPanel({
             </div>
           </section>
 
-          {hasClinical ? (
+          <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+            <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
+              <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
+              <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Discharge plan & instructions</h3>
+            </div>
+            <div className="space-y-3">
+              {dischargePlanFields.map((field) => (
+                <ClinicalBlock
+                  key={field.title}
+                  title={field.title}
+                  value={field.value?.trim() ? field.value : '—'}
+                />
+              ))}
+            </div>
+          </section>
+
+          {hasOtherClinical ? (
             <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
               <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
                 <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
                 <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Clinical information</h3>
               </div>
               <div className="space-y-3">
-                {clinicalFields.map((field) => (
+                {otherClinicalFields.map((field) => (
                   <ClinicalBlock key={field.title} title={field.title} value={field.value} />
                 ))}
               </div>
             </section>
           ) : null}
 
-          <ChecklistSection
-            title="Discharge checklist"
-            icon={<ClipboardCheck className="h-5 w-5 text-emerald-600" strokeWidth={2} />}
-            rows={dischargeChecklist}
+          <DischargeChecklistStatusCard
+            dischargeChecklist={dischargeChecklist}
+            nursingChecklist={nursingChecklist}
             loading={loading}
-          />
-
-          <ChecklistSection
-            title="Nursing checklist"
-            icon={<ClipboardCheck className="h-5 w-5 text-emerald-600" strokeWidth={2} />}
-            rows={nursingChecklist}
-            loading={loading}
+            className="border-emerald-200/80 bg-white shadow-sm ring-1 ring-emerald-100/80"
           />
 
           <DocumentsSection documents={documents} />
@@ -600,7 +517,7 @@ export function DischargeDetailPanel({
               {doc?.cost_center || preview?.cost_center ? (
                 <InfoTile
                   icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
-                  label="Cost center"
+                  label="Branch"
                   value={displayValue(doc?.cost_center || preview?.cost_center)}
                 />
               ) : null}

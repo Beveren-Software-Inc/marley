@@ -61,9 +61,9 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
   }
 
   const loadReconciliations = async () => {
-    console.log('Loading stock reconciliations for cost center:', effectiveCostCenter)
+    console.log('Loading stock reconciliations for branch:', effectiveCostCenter)
     if (!effectiveCostCenter) {
-      console.log('No effective cost center, skipping load')
+      console.log('No effective branch, skipping load')
       return
     }
     setLoading(true)
@@ -85,7 +85,7 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
       return
     }
     if (!effectiveCostCenter) {
-      toast.error('Cost center not available')
+      toast.error('Branch not available')
       return
     }
     
@@ -160,7 +160,7 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
     e.preventDefault()
     
     if (!effectiveCostCenter) {
-      toast.error('Cost center not available')
+      toast.error('Branch not available')
       return
     }
 

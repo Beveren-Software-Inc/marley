@@ -326,14 +326,14 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess }: CreateMateria
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
                 <select
                   value={costCenter}
                   onChange={(e) => setCostCenter(e.target.value)}
                   className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-800 bg-white"
                   disabled={optionsLoading}
                 >
-                  <option value="">Select cost center</option>
+                  <option value="">Select branch</option>
                   {costCenters.map((cc) => (
                     <option key={cc} value={cc}>
                       {cc}

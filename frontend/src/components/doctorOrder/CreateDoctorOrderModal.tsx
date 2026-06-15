@@ -360,7 +360,7 @@ export const CreateDoctorOrderModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Cost center</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Branch</label>
             <input
               type="text"
               value={ccQuery || costCenter}
@@ -371,7 +371,7 @@ export const CreateDoctorOrderModal = ({
               }}
               onFocus={() => setCcOpen(true)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Cost center…"
+              placeholder="Branch…"
             />
             {ccOpen && ccOptions.length > 0 && (
               <div className="mt-1 border border-slate-200 rounded-md bg-white shadow-lg max-h-36 overflow-auto">

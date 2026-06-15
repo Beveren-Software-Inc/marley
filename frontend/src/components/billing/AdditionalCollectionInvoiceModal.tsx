@@ -108,7 +108,7 @@ export function AdditionalCollectionInvoiceModal({
     }
     fetchCostCenters(company)
       .then(setCostCenters)
-      .catch(() => toast.error('Failed to load cost centers'))
+      .catch(() => toast.error('Failed to load branches'))
   }, [isOpen, company])
 
   useEffect(() => {
@@ -215,7 +215,7 @@ export function AdditionalCollectionInvoiceModal({
             <div className="min-w-0 flex-1">
               <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Cross-Branch Payment invoice</h2>
               <p className="text-xs text-emerald-900/80 mt-0.5">
-                Sets <strong className="font-medium text-emerald-900">Created At</strong> (collection cost center) on Sales Invoice.
+                Sets <strong className="font-medium text-emerald-900">Created At</strong> (collection branch) on Sales Invoice.
               </p>
             </div>
             <div className="flex items-center gap-2 shrink-0 self-end md:self-start">
@@ -341,13 +341,13 @@ export function AdditionalCollectionInvoiceModal({
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Collection cost center</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Collection branch</label>
                     <select
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                       value={createdAtCostCenter}
                       onChange={(e) => setCreatedAtCostCenter(e.target.value)}
                     >
-                      <option value="">Select cost center</option>
+                      <option value="">Select branch</option>
                       {costCenters.map((c) => (
                         <option key={c.name} value={c.name}>
                           {c.label}

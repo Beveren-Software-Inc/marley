@@ -31,7 +31,7 @@ export const AppointmentAdRemarkModal = ({
     setError(null)
     try {
       await updateAppointmentAdRemark(appointment.name, remark.trim())
-      toast.success('AD remark saved')
+      toast.success('Remarks saved')
       onSuccess()
       onClose()
     } catch (err) {
@@ -48,7 +48,7 @@ export const AppointmentAdRemarkModal = ({
       <div className={createModalShellClass('max-w-md w-full')}>
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">AD Remark</h2>
+            <h2 className="text-lg font-semibold text-slate-900">Add Remarks</h2>
             <button
               type="button"
               onClick={onClose}
@@ -85,7 +85,7 @@ export const AppointmentAdRemarkModal = ({
               Cancel
             </button>
             <button type="submit" className={CM_BTN_PRIMARY} disabled={saving}>
-              {saving ? 'Saving…' : 'Save remark'}
+              {saving ? 'Saving…' : 'Save remarks'}
             </button>
           </div>
         </form>

@@ -101,7 +101,7 @@ export const CreateIPServiceModal = ({
         const sr = srData?.data
         
         if (sr && sr.template_dt === 'Healthcare Service Template' && sr.template_dn) {
-          // Auto-fill cost center from service request
+          // Auto-fill branch from service request
           if (sr.cost_center) {
             setCostCenter(sr.cost_center)
           }
@@ -230,7 +230,7 @@ export const CreateIPServiceModal = ({
     return () => clearTimeout(t)
   }, [admissionOpen, admissionSearch, effectivePatient])
 
-  // Load cost centers (optionally by company when admission is selected)
+  // Load branches (optionally by company when admission is selected)
   useEffect(() => {
     const selectedAdmission = admissions.find((a) => a.name === admissionNo)
     const company = selectedAdmission?.company
@@ -264,7 +264,7 @@ export const CreateIPServiceModal = ({
       return
     }
     if (!costCenter.trim()) {
-      setError('Cost Center is required.')
+      setError('Branch is required.')
       return
     }
 
@@ -523,7 +523,7 @@ export const CreateIPServiceModal = ({
 
                 <div ref={costCenterDropdownRef} className="relative">
                   <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Cost Center <span className="text-red-500">*</span>
+                    Branch <span className="text-red-500">*</span>
                   </label>
                   {prefillFromServiceRequest && initialServiceRequest && costCenter ? (
                     <div>
@@ -551,13 +551,13 @@ export const CreateIPServiceModal = ({
                       }}
                       onFocus={() => setCostCenterOpen(true)}
                       className={linkComboboxInputClass}
-                      placeholder="Search cost center..."
+                      placeholder="Search branch..."
                     />
                   )}
                   {costCenterOpen && !(prefillFromServiceRequest && initialServiceRequest) && (
                     <div className={linkComboboxDropdownClassShort}>
                       {costCenters.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-slate-500">No cost centers found.</div>
+                        <div className="px-3 py-2 text-sm text-slate-500">No branches found.</div>
                       ) : (
                         costCenters.map((c) => (
                           <button

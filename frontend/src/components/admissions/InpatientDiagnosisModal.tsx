@@ -196,7 +196,7 @@ export const InpatientDiagnosisModal = ({
         return
       }
       if (!diag.details) {
-        toast.error(`Row ${i + 1}: Please enter diagnosis details`)
+        toast.error(`Row ${i + 1}: Please enter diagnosis remarks`)
         return
       }
       if (!diag.posting_date) {
@@ -418,9 +418,9 @@ export const InpatientDiagnosisModal = ({
                       </div>
                     </div>
 
-                    {/* Cost Center */}
+                    {/* Branch */}
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
                       <select
                         value={diagnosis.cost_center || ''}
                         onChange={(e) => updateDiagnosis(index, 'cost_center', e.target.value)}
@@ -473,17 +473,17 @@ export const InpatientDiagnosisModal = ({
                       </div>
                     </div>
 
-                    {/* Details - Full Width */}
+                    {/* Remarks - Full Width */}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Details <span className="text-red-500">*</span>
+                        Remarks <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <textarea
                           value={diagnosis.details}
                           onChange={(e) => updateDiagnosis(index, 'details', e.target.value)}
                           rows={3}
-                          placeholder="Enter diagnosis details, notes, and observations..."
+                          placeholder="Enter diagnosis remarks, notes, and observations..."
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                           required
                         />

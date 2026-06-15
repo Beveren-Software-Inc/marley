@@ -915,10 +915,10 @@ export const CreatePatientVisitModal = ({
               )}
             </div>
 
-            {/* Cost Center */}
+            {/* Branch */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Cost Center
+                Branch
               </label>
               <input
                 type="text"
@@ -933,7 +933,7 @@ export const CreatePatientVisitModal = ({
                   setCostCenter('')
                 }}
                 onFocus={() => setCostCenterOpen(true)}
-                placeholder="Search cost center..."
+                placeholder="Search branch..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
               {costCenterOpen && (
@@ -954,7 +954,7 @@ export const CreatePatientVisitModal = ({
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No cost centers found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
                   )}
                 </div>
               )}

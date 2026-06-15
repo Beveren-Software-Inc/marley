@@ -110,7 +110,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
   const [visitQuery, setVisitQuery] = useState('')
   const [selectedVisit, setSelectedVisit] = useState<LinkFieldOption | null>(null)
 
-  // Cost Center dropdown
+  // Branch dropdown
   const [ccOptions, setCcOptions] = useState<LinkFieldOption[]>([])
   const [ccOpen, setCcOpen] = useState(false)
   const [ccQuery, setCcQuery] = useState('')
@@ -207,7 +207,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
     return () => { cancelled = true; clearTimeout(t) }
   }, [visitQuery, visitOpen, patientId, isOPMode])
 
-  // Fetch cost centers on open / query change
+  // Fetch branches on open / query change
   useEffect(() => {
     if (!ccOpen) return
     let cancelled = false
@@ -522,14 +522,14 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
 
                     {/* Cost Centre */}
                     <div className={isIPMode || isOPMode ? "md:col-span-2" : "md:col-span-2"}>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Cost Centre</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
                       <div className="relative">
                         <input
                           type="text"
                           value={ccOpen ? ccQuery : (selectedCc?.label ?? ccQuery)}
                           onChange={(e) => { setCcQuery(e.target.value); setCcOpen(true); if (!e.target.value) { setCostCenter(''); setSelectedCc(null) } }}
                           onFocus={() => setCcOpen(true)}
-                          placeholder="Search cost centre…"
+                          placeholder="Search branch…"
                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         {ccOpen && ccOptions.length > 0 && (

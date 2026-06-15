@@ -99,7 +99,8 @@ export async function fetchDischarges(
   fromDate?: string,
   toDate?: string,
   status?: string,
-  dischargeType?: string
+  dischargeType?: string,
+  excludeCancelled?: boolean
 ): Promise<DischargesPaginatedResponse> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -111,6 +112,7 @@ export async function fetchDischarges(
   if (toDate) params.append('to_date', toDate)
   if (status) params.append('status', status)
   if (dischargeType) params.append('discharge_type', dischargeType)
+  if (excludeCancelled) params.append('exclude_cancelled', '1')
 
   const result = await apiRequest<DischargesPaginatedResponse | Discharge[]>(
     `/api/method/healthcare.api.discharge.get_discharges?${params.toString()}`

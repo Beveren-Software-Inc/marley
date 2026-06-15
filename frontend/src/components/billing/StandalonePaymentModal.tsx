@@ -321,7 +321,7 @@ export function StandalonePaymentModal({
           {referenceType === 'Sales Invoice' ? (
             <LinkField
               label="Sales Invoice"
-              placeholder="Search by invoice ID, customer, or patient..."
+              placeholder="Search by invoice ID, case no, admission or visit…"
               value={selectedInvoice}
               options={invoiceOptions}
               open={invoiceOpen}
@@ -350,7 +350,7 @@ export function StandalonePaymentModal({
           ) : (
             <LinkField
               label="Sales Order"
-              placeholder="Search by order ID, customer, or patient..."
+              placeholder="Search by order ID, case no, admission or visit…"
               value={selectedOrder}
               options={orderOptions}
               open={orderOpen}

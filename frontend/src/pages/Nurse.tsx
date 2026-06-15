@@ -290,7 +290,7 @@ export const NursePage = () => {
     return (
       <div className="flex flex-col p-6">
         <p className="text-sm text-slate-700">
-          Inpatient discharge is not available for OP-only cost centers. Switch to a site that supports IP care or
+          Inpatient discharge is not available for OP-only branches. Switch to a site that supports IP care or
           use the desk Discharge form.
         </p>
       </div>
@@ -1224,12 +1224,7 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard
-            title="Morse Fall Scale"
-            listingScreen="n-fall"
-            requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.morse_fall_scale}
-            attentionLabel="Required for this IP admission — complete Morse Fall Scale"
-          >
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <MorseFallScaleList
               patient={selectedPatient}
               refreshKey={morseFallRefreshKey}
@@ -1237,7 +1232,7 @@ export const NursePage = () => {
               defaultAdmission={activeAdmission || undefined}
               onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
             />
-          </DashboardCard>
+          </section>
         </div>
       </div>
     )
@@ -1562,7 +1557,7 @@ export const NursePage = () => {
 
       {selectedPatient ? (
         <>
-          {/* Row 1: Given Medicines + Long Acting Med Reminder — hidden when OP mode or OP-only cost center */}
+          {/* Row 1: Given Medicines + Long Acting Med Reminder — hidden when OP mode or OP-only branch */}
           <div
             className={`grid gap-4 p-4 auto-rows-fr ${(costCenterCareScope === 'op_only' || mode === 'OP') ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
           >

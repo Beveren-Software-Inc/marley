@@ -86,6 +86,27 @@ def update_appointment_ad_remark(appointment_name, remark):
 
 
 @frappe.whitelist()
+def update_appointment_doctor_note(appointment_name, note):
+	"""Doctor: save or update the clinical note on an appointment."""
+	if not appointment_name:
+		frappe.throw(_("Appointment is required"))
+	if not frappe.db.exists("Patient Appointment", appointment_name):
+		frappe.throw(_("Appointment {0} not found").format(appointment_name))
+	frappe.db.set_value(
+		"Patient Appointment",
+		appointment_name,
+		"notes",
+		(cstr(note) or "").strip(),
+		update_modified=True,
+	)
+	frappe.db.commit()
+	return {
+		"name": appointment_name,
+		"notes": (cstr(note) or "").strip(),
+	}
+
+
+@frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None,
                                   search=None, date_from=None, date_to=None):
     """Get appointments for the current user's healthcare practitioner with server-side pagination."""
@@ -129,6 +150,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
         'appointment_date', 'appointment_time', 'old_time',
         'status', 'appointment_type', 'department',
         'practitioner', 'practitioner_name', 'cost_center',
+        'remarks', 'notes',
     ]
 
     count_args = {'doctype': 'Patient Appointment', 'filters': filters}

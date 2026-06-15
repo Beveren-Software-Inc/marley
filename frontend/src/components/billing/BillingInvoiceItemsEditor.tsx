@@ -410,10 +410,10 @@ export function BillingInvoiceItemsEditor({
             )}
           </div>
           <div className="md:col-span-12">
-            <label className="block text-xs font-medium text-slate-500 mb-1.5">Cost center</label>
+            <label className="block text-xs font-medium text-slate-500 mb-1.5">Branch</label>
             <input
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-              placeholder="Cost center"
+              placeholder="Branch"
               value={item.cost_center || defaultCostCenter}
               onChange={(e) => patchRow(idx, { cost_center: e.target.value })}
             />

@@ -185,7 +185,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber }: Se
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Session Type</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Time Range</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost Center</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
               </tr>

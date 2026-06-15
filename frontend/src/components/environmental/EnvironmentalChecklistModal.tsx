@@ -472,9 +472,9 @@ export function EnvironmentalChecklistModal({
               />
 
               <LinkCombobox
-                label="Cost Center"
+                label="Branch"
                 value={costCenterLabel}
-                placeholder="Search cost center..."
+                placeholder="Search branch..."
                 fetchOptions={fetchCostCenterOptions}
                 onSelect={(opt) => {
                   setCostCenter(opt.name)

@@ -198,7 +198,7 @@ export function MedicalDiagnosisDetailPanel({
           <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
             <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
               <FileText className="h-5 w-5 text-emerald-600" strokeWidth={2} />
-              <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Details</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Remarks</h3>
             </div>
             <div className="min-h-[6rem] rounded-lg bg-slate-50/80 px-4 py-4 ring-1 ring-slate-100">
               {loading && detailsBody ? (
@@ -251,7 +251,7 @@ export function MedicalDiagnosisDetailPanel({
               />
               <InfoTile
                 icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
-                label="Cost center"
+                label="Branch"
                 value={displayValue(doc?.cost_center || preview?.cost_center)}
               />
               <InfoTile

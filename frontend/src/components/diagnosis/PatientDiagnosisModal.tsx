@@ -179,7 +179,7 @@ export function PatientDiagnosisModal({
     if (standalone) setContextName('')
   }, [contextType]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Load context defaults (practitioner, cost center) for new rows
+  // Load context defaults (practitioner, branch) for new rows
   useEffect(() => {
     if (!parentName) {
       setContextDefaults({})
@@ -618,9 +618,9 @@ export function PatientDiagnosisModal({
                       )}
                     </div>
 
-                    {/* Cost Center */}
+                    {/* Branch */}
                     <div>
-                      <label className="block text-xs font-medium text-slate-600 mb-1">Cost Center</label>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
                       <select
                         value={row.cost_center}
                         onChange={(e) => updateField(row._id, 'cost_center', e.target.value)}
@@ -640,15 +640,15 @@ export function PatientDiagnosisModal({
                     </div>
                   </div>
 
-                  {/* Details */}
+                  {/* Remarks */}
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Details</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Remarks</label>
                     <textarea
                       rows={2}
                       value={row.details}
                       onChange={(e) => updateField(row._id, 'details', e.target.value)}
                       className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm resize-none shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
-                      placeholder="Additional details or notes…"
+                      placeholder="Additional remarks or notes…"
                     />
                   </div>
 

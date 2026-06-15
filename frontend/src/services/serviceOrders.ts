@@ -39,7 +39,7 @@ export interface OutpatientBalance {
   patient_id: string
   visit_date: string
   practitioner?: string
-  /** Patient Visit cost center */
+  /** Patient Visit branch */
   cost_center?: string | null
   /** Most recent submitted invoice for this visit (for quick open / print) */
   latest_invoice_name?: string | null
@@ -68,7 +68,7 @@ export interface ServiceInvoice {
   patient: string
   patient_name: string
   order_count?: number
-  /** Collection / created-at cost center (same convention as specialty billing) */
+  /** Collection / created-at branch (same convention as specialty billing) */
   custom_created_at?: string | null
   cost_center?: string | null
   cost_center_name?: string
@@ -146,7 +146,8 @@ export async function fetchServiceOrders(
   patient?: string,
   status?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  search?: string
 ): Promise<ServiceOrder[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -155,6 +156,7 @@ export async function fetchServiceOrders(
   if (status) params.append('status', status)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (search?.trim()) params.append('search', search.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_order.get_service_orders?${params.toString()}`
@@ -168,7 +170,8 @@ export async function fetchServiceOrderSummary(
   referenceName?: string,
   patient?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  search?: string
 ): Promise<OrderSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -176,6 +179,7 @@ export async function fetchServiceOrderSummary(
   if (patient) params.append('patient', patient)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (search?.trim()) params.append('search', search.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_order.get_service_order_summary?${params.toString()}`
@@ -190,7 +194,8 @@ export async function fetchServiceInvoices(
   patient?: string,
   status?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  search?: string
 ): Promise<ServiceInvoice[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -199,6 +204,7 @@ export async function fetchServiceInvoices(
   if (status) params.append('status', status)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (search?.trim()) params.append('search', search.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_service_invoices?${params.toString()}`
@@ -214,7 +220,8 @@ export async function fetchInvoiceSummary(
   referenceName?: string,
   patient?: string,
   fromDate?: string,
-  toDate?: string
+  toDate?: string,
+  search?: string
 ): Promise<InvoiceSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -222,6 +229,7 @@ export async function fetchInvoiceSummary(
   if (patient) params.append('patient', patient)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (search?.trim()) params.append('search', search.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_invoice_summary?${params.toString()}`

@@ -302,7 +302,7 @@ export function WarningMessageDetailPanel({
               {doc?.cost_center ? (
                 <InfoTile
                   icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
-                  label="Cost center"
+                  label="Branch"
                   value={displayValue(doc.cost_center)}
                 />
               ) : null}

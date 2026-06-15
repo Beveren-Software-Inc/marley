@@ -54,7 +54,7 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, limit=20, offset=0):
+def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, limit=20, offset=0):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
 	Always enforces Cost Center User Permissions so that users restricted to a
@@ -65,9 +65,10 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 	permitted_cc = get_permitted_cost_centers()
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
+	exclude_cancelled = cint(exclude_cancelled)
 
-	# Use SQL path when we have search, practitioner, date, or status filters (avoids get_all OR filter format issues)
-	use_sql = bool(search or practitioner or from_date or to_date or status)
+	# Use SQL path when we have search, practitioner, date, status, or exclude_cancelled filters
+	use_sql = bool(search or practitioner or from_date or to_date or status or exclude_cancelled)
 
 	if use_sql:
 		conditions = ["1=1"]
@@ -78,6 +79,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		if status:
 			conditions.append("ia.status = %(status)s")
 			params['status'] = status
+		elif exclude_cancelled:
+			conditions.append("ia.status != 'Cancelled'")
 		if search:
 			conditions.append("(ia.name LIKE %(search)s OR ia.patient_name LIKE %(search)s OR ia.patient LIKE %(search)s OR p.file_no LIKE %(search)s)")
 			params['search'] = f'%{search}%'
@@ -142,6 +145,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		filters = {}
 		if status:
 			filters['status'] = status
+		elif exclude_cancelled:
+			filters['status'] = ['!=', 'Cancelled']
 		if patient:
 			filters['patient'] = patient
 

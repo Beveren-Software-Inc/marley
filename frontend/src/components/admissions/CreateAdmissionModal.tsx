@@ -10,6 +10,7 @@ import {
   createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { Check } from 'lucide-react'
 import { searchPatients, fetchPatients, fetchPatientDoc, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
@@ -195,7 +196,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [companyOpen, setCompanyOpen] = useState(false)
   const [companyQuery, setCompanyQuery] = useState('')
 
-  // Cost center state
+  // Branch state
   const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
   const [costCenterOpen, setCostCenterOpen] = useState(false)
   const [costCenterQuery, setCostCenterQuery] = useState('')
@@ -427,17 +428,17 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     loadCompanies()
   }, [])
 
-  // Load cost centers filtered by selected company
+  // Load branches filtered by selected company
   const loadCostCenters = async (companyName?: string, query?: string) => {
     try {
       const list = await fetchCostCenters(companyName, query)
       setCostCenters(list)
     } catch (err) {
-      console.error('Failed to load cost centers:', err)
+      console.error('Failed to load branches:', err)
     }
   }
 
-  // Re-fetch cost centers when company changes or search query changes
+  // Re-fetch branches when company changes or search query changes
   useEffect(() => {
     if (!formData.company && !isSingleCompany) return
     const timeoutId = setTimeout(() => {
@@ -650,7 +651,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
 
     if (!formData.cost_center) {
-      setError('Cost Center is required')
+      setError('Branch is required')
       if (!isEditMode) setActiveCreateTab('admission')
       return
     }
@@ -1112,7 +1113,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </div>
           </div>
 
-          {/* Company + Cost Center row — company hidden when single */}
+          {/* Company + Branch row — company hidden when single */}
           <div className={`grid gap-4 ${isSingleCompany ? 'grid-cols-1' : 'grid-cols-2'}`}>
             {/* Company — only shown when multiple companies exist */}
             {!isSingleCompany && (
@@ -1126,7 +1127,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   onChange={(e) => {
                     setCompanyQuery(e.target.value)
                     setCompanyOpen(true)
-                    // Clear cost center when company changes
+                    // Clear branch when company changes
                     setFormData(prev => ({ ...prev, company: '', cost_center: '' }))
                     setCostCenterQuery('')
                   }}
@@ -1164,10 +1165,10 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               </div>
             )}
 
-            {/* Cost Center — always shown, mandatory */}
+            {/* Branch — always shown, mandatory */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Cost Center <span className="text-red-500">*</span>
+                Branch <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -1178,7 +1179,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   setFormData(prev => ({ ...prev, cost_center: '' }))
                 }}
                 onFocus={() => setCostCenterOpen(true)}
-                placeholder={!formData.company && !isSingleCompany ? 'Select a company first...' : 'Search Cost Center...'}
+                placeholder={!formData.company && !isSingleCompany ? 'Select a company first...' : 'Search Branch...'}
                 disabled={!formData.company && !isSingleCompany}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
@@ -1200,7 +1201,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No cost centers found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
                   )}
                 </div>
               )}
@@ -2038,7 +2039,10 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white"
                       />
                       {row.document && documentUploading !== idx && (
-                        <span className="text-xs text-green-600 mt-1 block">✓ File attached</span>
+                        <PatientDocumentAttachmentPreview
+                          url={row.document}
+                          fileName={row.file_name}
+                        />
                       )}
                     </div>
                   </div>

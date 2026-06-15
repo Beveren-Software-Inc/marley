@@ -98,7 +98,7 @@ export const PaymentModal = ({
       const list = await fetchCostCenters(companyName, query)
       setCostCenters(list)
     } catch (err) {
-      console.error('Failed to load cost centers:', err)
+      console.error('Failed to load branches:', err)
     }
   }
 
@@ -176,7 +176,7 @@ export const PaymentModal = ({
     }
 
     if (!costCenter) {
-      toast.error('Please select a cost center')
+      toast.error('Please select a branch')
       return
     }
 
@@ -357,7 +357,7 @@ export const PaymentModal = ({
 
               <div className="relative">
                 <label className="mb-1 block text-sm font-medium text-emerald-900/90">
-                  Cost center <span className="text-red-500">*</span>
+                  Branch <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -373,7 +373,7 @@ export const PaymentModal = ({
                       setCostCenterOpen(true)
                     }}
                     onFocus={() => setCostCenterOpen(true)}
-                    placeholder={!company && !isSingleCompany ? 'Select a company first…' : 'Search cost center…'}
+                    placeholder={!company && !isSingleCompany ? 'Select a company first…' : 'Search branch…'}
                     disabled={!company && !isSingleCompany}
                     className={`${fieldClass} pl-9 disabled:cursor-not-allowed disabled:bg-emerald-50/40 disabled:text-emerald-800/50`}
                     required
@@ -397,7 +397,7 @@ export const PaymentModal = ({
                           </button>
                         ))
                       ) : (
-                        <div className="px-3 py-2 text-xs text-emerald-800/60">No cost centers found</div>
+                        <div className="px-3 py-2 text-xs text-emerald-800/60">No branches found</div>
                       )}
                     </div>
                   )}

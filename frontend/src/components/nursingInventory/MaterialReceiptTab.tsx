@@ -119,7 +119,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     e.preventDefault()
     
     if (!effectiveCostCenter) {
-      toast.error('No cost center assigned')
+      toast.error('No branch assigned')
       return
     }
 
@@ -465,7 +465,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                     <p className="text-sm">{selectedReceipt.received_by}</p>
                   </div>
                   <div>
-                    <label className="text-xs text-slate-500">Cost Center</label>
+                    <label className="text-xs text-slate-500">Branch</label>
                     <p className="text-sm">{selectedReceipt.cost_center}</p>
                   </div>
                 </div>

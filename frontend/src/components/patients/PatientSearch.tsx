@@ -168,7 +168,7 @@ export const PatientSearch = ({
     setIsHydrated(true)
   }, [])
 
-  /** Align with Cost Center care type after server load — also clears secondary OP/IP picker state. */
+  /** Align with Branch care type after server load — also clears secondary OP/IP picker state. */
   useEffect(() => {
     if (costCenterCareScope === 'op_only') {
       setMode('OP')
