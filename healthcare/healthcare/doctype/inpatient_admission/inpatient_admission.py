@@ -19,6 +19,35 @@ from healthcare.healthcare.utils import validate_nursing_tasks
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
+def resolve_admission_datetime(
+	admitted_datetime=None,
+	admission_date=None,
+	admission_time=None,
+):
+	"""Prefer admitted_datetime; fall back to Oracle import fields admission_date + admission_time."""
+	if admitted_datetime:
+		try:
+			return get_datetime(admitted_datetime)
+		except Exception:
+			pass
+
+	if admission_date:
+		date_str = str(admission_date).strip()
+		time_str = (admission_time or "").strip()
+		if time_str:
+			for candidate in (f"{date_str} {time_str}", f"{date_str}T{time_str}"):
+				try:
+					return get_datetime(candidate)
+				except Exception:
+					continue
+		try:
+			return get_datetime(date_str)
+		except Exception:
+			pass
+
+	return None
+
+
 class InpatientAdmission(Document):
 	def after_insert(self):
 		frappe.db.set_value("Patient", self.patient, "inpatient_record", self.name)

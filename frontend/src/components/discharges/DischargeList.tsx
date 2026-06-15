@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { fetchDischarges, type Discharge } from '../../services/discharges'
+import { formatDateTimeDisplay } from '../../utils/admissionDateTime'
+import { resolveDischargeDisplayDate } from '../../utils/dischargeDisplay'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -197,11 +199,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     setAdmissionOpen(false)
   }
 
-  // Helper function to format date
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
-    return new Date(dateStr).toLocaleString()
-  }
+  const formatDate = (dateStr?: string) => formatDateTimeDisplay(dateStr, '-')
 
   const getDocStatus = (docstatus?: number): string => {
     if (docstatus === 0) return 'Draft'
@@ -532,7 +530,10 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                       {formatDate(discharge.admission_date)}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">
-                      {formatDate(discharge.discharge_date)}
+                      {formatDate(
+                        discharge.display_discharge_date ||
+                          resolveDischargeDisplayDate(discharge)
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {discharge.discharge_type || '-'}

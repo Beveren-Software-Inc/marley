@@ -24,6 +24,8 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { DischargeChecklistStatusCard } from './DischargeChecklistStatusCard'
 import { RichTextContent } from '../ui/RichTextContent'
+import { formatDateTimeDisplay } from '../../utils/admissionDateTime'
+import { resolveDischargeDisplayDate, resolveSpendDays } from '../../utils/dischargeDisplay'
 
 interface DischargeDetailPanelProps {
   name: string
@@ -282,10 +284,11 @@ export function DischargeDetailPanel({
 
   const headerSubtitle = useMemo(() => {
     if (!source) return name
+    const dischargeDate = resolveDischargeDisplayDate(source)
     const parts = [
       source.patient_name || source.file_no,
       source.discharge_type,
-      source.discharge_date ? formatDate(source.discharge_date) : null,
+      dischargeDate ? formatDateTimeDisplay(dischargeDate) : null,
     ].filter(Boolean)
     return parts.length ? parts.join(' · ') : name
   }, [source, name])
@@ -317,6 +320,13 @@ export function DischargeDetailPanel({
   const relatives = doc?.patient_relatives ?? []
   const stoppedMedications = doc?.stopped_medications ?? []
   const hasFollowUp = Boolean(doc?.next_appointment_date || doc?.next_appointment_time)
+  const effectiveDischargeDate =
+    doc?.display_discharge_date ||
+    resolveDischargeDisplayDate(doc || preview || {})
+  const effectiveDischargeTime = doc?.discharge_date
+    ? doc?.discharge_time
+    : doc?.final_discharge_time
+  const spendDays = resolveSpendDays(doc || preview || {})
 
   return (
     <DetailSlideOver
@@ -372,17 +382,23 @@ export function DischargeDetailPanel({
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Discharge date</p>
                 <p className="mt-0.5 text-sm font-medium text-slate-900">
-                  {formatDate(doc?.discharge_date || preview?.discharge_date)}
-                  {doc?.discharge_time ? ` · ${formatTime(doc.discharge_time)}` : ''}
+                  {formatDateTimeDisplay(effectiveDischargeDate)}
+                  {effectiveDischargeTime ? ` · ${formatTime(effectiveDischargeTime)}` : ''}
                 </p>
               </div>
-              {doc?.final_discharge_date ? (
+              {doc?.discharge_date && doc?.final_discharge_date ? (
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Final discharge</p>
                   <p className="mt-0.5 text-sm font-medium text-slate-900">
-                    {formatDate(doc.final_discharge_date)}
+                    {formatDateTimeDisplay(doc.final_discharge_date)}
                     {doc.final_discharge_time ? ` · ${formatTime(doc.final_discharge_time)}` : ''}
                   </p>
+                </div>
+              ) : null}
+              {spendDays ? (
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Spend days</p>
+                  <p className="mt-0.5 text-sm font-medium text-slate-900">{spendDays}</p>
                 </div>
               ) : null}
             </div>
@@ -473,7 +489,10 @@ export function DischargeDetailPanel({
               <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Discharge date"
-                value={formatDate(doc?.discharge_date || preview?.discharge_date)}
+                value={formatDateTimeDisplay(
+                  doc?.display_discharge_date ||
+                    resolveDischargeDisplayDate(doc || preview || {})
+                )}
               />
               <InfoTile
                 icon={<FileText className="h-4 w-4" strokeWidth={2} />}

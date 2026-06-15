@@ -13,6 +13,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { useCareModeSelection } from '../../hooks/useCareModeSelection'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
+import { formatAdmissionDate } from '../../utils/admissionDateTime'
 
 interface PatientSearchProps {
   selectedPatient: string
@@ -368,7 +369,7 @@ export const PatientSearch = ({
               label: a.name,
               patient: a.patient,
               patient_name: a.patient_name,
-              meta: a.status
+              meta: [formatAdmissionDate(a, { fallback: '' }), a.status].filter(Boolean).join(' • '),
             }))
           )
         } else {

@@ -100,17 +100,24 @@ def find_import_cr_date_for_admission(admission: str) -> str | None:
 
 def find_admission_datetime(admission: str) -> str | None:
 	"""Use Inpatient Admission date when import CR Date is missing."""
+	from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
+		resolve_admission_datetime,
+	)
+
 	row = frappe.db.get_value(
 		"Inpatient Admission",
 		admission,
-		["admitted_datetime", "admission_date"],
+		["admitted_datetime", "admission_date", "admission_time"],
 		as_dict=True,
 	)
 	if not row:
 		return None
-	return _format_datetime(row.get("admitted_datetime")) or _format_datetime(
-		row.get("admission_date")
+	dt = resolve_admission_datetime(
+		row.get("admitted_datetime"),
+		row.get("admission_date"),
+		row.get("admission_time"),
 	)
+	return dt.strftime("%Y-%m-%d %H:%M:%S") if dt else None
 
 
 def find_patient_history_date_for_admission(admission: str) -> tuple[str | None, str | None]:

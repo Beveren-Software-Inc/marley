@@ -7,7 +7,11 @@ export interface Discharge {
   admission_date?: string
   file_no: string
   patient_name: string
-  discharge_date: string
+  discharge_date?: string
+  final_discharge_date?: string
+  display_discharge_date?: string
+  duration?: string
+  spend_days?: string
   discharge_type: string
   discharged_by_user: string
   discharged_by_user_name?: string
@@ -68,6 +72,9 @@ export interface DischargeDoc extends Discharge {
   discharge_time?: string
   final_discharge_date?: string
   final_discharge_time?: string
+  display_discharge_date?: string
+  duration?: string
+  admission_spend_days?: string
   ama_type?: string
   discharge_treatment_plan?: string
   discharge_reason?: string
