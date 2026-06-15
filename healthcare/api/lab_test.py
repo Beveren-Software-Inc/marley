@@ -203,6 +203,116 @@ def get_lab_test_template_details(template):
 
 # 	return lab_tests
 
+_LAB_TEST_LIST_FIELDS = [
+	"name",
+	"docstatus",
+	"patient",
+	"cost_center",
+	"patient_name",
+	"practitioner",
+	"practitioner_name",
+	"lab_test_name",
+	"template",
+	"status",
+	"creation",
+	"result_date",
+	"submitted_date",
+	"approved_date",
+	"invoiced",
+	"department",
+	"is_outsourced",
+	"material_request",
+	"amount",
+	"grand_total",
+	"cost_center",
+	"custom_result",
+	"service_request",
+	"lab_test_group",
+	"is_group_lab_test",
+	"lab_technician",
+	"lab_technician_name",
+	"results",
+	"gender",
+	"result_flag",
+]
+
+
+def _enrich_lab_test_rows(lab_tests, template_cache=None):
+	"""Attach template ranges and display names to lab test list rows."""
+	if template_cache is None:
+		template_cache = {}
+
+	for lab_test in lab_tests:
+		lab_test["female_min_range"] = None
+		lab_test["female_max_range"] = None
+		lab_test["male_min_range"] = None
+		lab_test["male_max_range"] = None
+		lab_test["min_range"] = None
+		lab_test["max_range"] = None
+
+		if lab_test.template:
+			if lab_test.template not in template_cache:
+				template_cache[lab_test.template] = frappe.get_doc("Lab Test Template", lab_test.template)
+			template_doc = template_cache[lab_test.template]
+			lab_test["female_min_range"] = template_doc.get("female_min_range")
+			lab_test["female_max_range"] = template_doc.get("female_max_range")
+			lab_test["male_min_range"] = template_doc.get("male_min_range")
+			lab_test["male_max_range"] = template_doc.get("male_max_range")
+			lab_test["min_range"] = template_doc.get("min_range")
+			lab_test["max_range"] = template_doc.get("max_range")
+
+		if lab_test.patient and not lab_test.patient_name:
+			lab_test["patient_name"] = (
+				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient
+			)
+		if lab_test.practitioner and not lab_test.practitioner_name:
+			lab_test["practitioner_name"] = (
+				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
+				or lab_test.practitioner
+			)
+		if lab_test.get("lab_technician") and not (lab_test.get("lab_technician_name") or "").strip():
+			lab_test["lab_technician_name"] = (
+				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
+				or lab_test.lab_technician
+			)
+
+	return lab_tests
+
+
+def _group_scope_filters(filters):
+	"""Scope filters for fetching all siblings in a grouped lab request (no status/date)."""
+	scope_keys = ("patient", "practitioner", "cost_center", "template", "is_outsourced", "docstatus")
+	return {key: filters[key] for key in scope_keys if key in filters}
+
+
+def _expand_grouped_lab_test_siblings(lab_tests, filters):
+	"""When any grouped child matches, include all siblings under the same service request."""
+	group_srs = {
+		lt.service_request
+		for lt in lab_tests
+		if int(lt.get("is_group_lab_test") or 0) == 1 and lt.get("service_request")
+	}
+	if not group_srs:
+		return lab_tests
+
+	existing = {lt.name for lt in lab_tests}
+	sibling_filters = _group_scope_filters(filters)
+	sibling_filters["service_request"] = ["in", list(group_srs)]
+	sibling_filters["is_group_lab_test"] = 1
+
+	siblings = frappe.get_all(
+		"Lab Test",
+		filters=sibling_filters,
+		fields=_LAB_TEST_LIST_FIELDS,
+		order_by="creation asc",
+	)
+	new_rows = [row for row in siblings if row.name not in existing]
+	if not new_rows:
+		return lab_tests
+
+	return lab_tests + new_rows
+
+
 @frappe.whitelist()
 def get_lab_tests(
 	limit=50,
@@ -281,93 +391,15 @@ def get_lab_tests(
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters=filters,
-		fields=[
-			"name",
-			"docstatus",
-			"patient",
-			"cost_center",
-			"patient_name",
-			"practitioner",
-			"practitioner_name",
-			"lab_test_name",
-			"template",
-			"status",
-			"creation",
-			"result_date",
-			"submitted_date",
-			"approved_date",
-			"invoiced",
-			"department",
-			"is_outsourced",
-			"material_request",
-			"amount",
-			"grand_total",
-			"cost_center",
-			"custom_result",
-			"service_request",
-			"lab_test_group",
-			"is_group_lab_test",
-			"lab_technician",
-			"lab_technician_name",
-			"results",
-			"gender",
-			"result_flag"
-		],
+		fields=_LAB_TEST_LIST_FIELDS,
 		limit=limit,
 		limit_start=offset,
 		order_by="creation desc",
 	)
 
-	# Fetch template details for each lab test to get gender-specific ranges
+	lab_tests = _expand_grouped_lab_test_siblings(lab_tests, filters)
 	template_cache = {}
-	for lab_test in lab_tests:
-		# Get patient gender for proper range selection
-		patient_gender = None
-		if lab_test.patient:
-			patient_gender = frappe.db.get_value("Patient", lab_test.patient, "sex")
-		
-		# Initialize range fields with None
-		lab_test["female_min_range"] = None
-		lab_test["female_max_range"] = None
-		lab_test["male_min_range"] = None
-		lab_test["male_max_range"] = None
-		lab_test['min_range'] = None
-		lab_test['max_range'] = None
-		
-		# Fetch template details if template exists
-		if lab_test.template:
-			if lab_test.template not in template_cache:
-				template_doc = frappe.get_doc("Lab Test Template", lab_test.template)
-				template_cache[lab_test.template] = template_doc
-			else:
-				template_doc = template_cache[lab_test.template]
-			
-			# Get min/max ranges from the first normal_test_template (or aggregate as needed)
-			# You might need to adjust this logic based on your requirements
-			# if template_doc.normal_test_templates and len(template_doc.normal_test_templates) > 0:
-			# 	first_test = template_doc.normal_test_templates[0]
-			lab_test["female_min_range"] = template_doc.get("female_min_range")
-			lab_test["female_max_range"] = template_doc.get("female_max_range")
-			lab_test["male_min_range"] = template_doc.get("male_min_range")
-			lab_test["male_max_range"] = template_doc.get("male_max_range")
-			lab_test['min_range'] = template_doc.get('min_range')
-			lab_test['max_range'] = template_doc.get('max_range')
-		
-		# Fill patient_name and practitioner_name if missing
-		if lab_test.patient and not lab_test.patient_name:
-			lab_test["patient_name"] = (
-				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient
-			)
-		if lab_test.practitioner and not lab_test.practitioner_name:
-			lab_test["practitioner_name"] = (
-				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
-				or lab_test.practitioner
-			)
-		if lab_test.get("lab_technician") and not (lab_test.get("lab_technician_name") or "").strip():
-			lab_test["lab_technician_name"] = (
-				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
-				or lab_test.lab_technician
-			)
+	_enrich_lab_test_rows(lab_tests, template_cache)
 	return {"data": lab_tests, "total_count": total_count}
 
 # def _calculate_result_flag(result_value, patient_gender, female_min_range=None, female_max_range=None, 
@@ -504,6 +536,10 @@ def get_lab_test_history_matrix(
 	template=None,
 ):
 	"""Pivot lab results for a patient: rows = test parameters, columns = result dates."""
+	from datetime import timedelta
+
+	from frappe.utils import format_timedelta, getdate
+
 	from healthcare.api.common import get_permitted_cost_centers
 
 	patient = (patient or "").strip()
@@ -541,21 +577,36 @@ def get_lab_test_history_matrix(
 	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
 	search_term = (test_search or "").strip().lower()
 
-	def _effective_date(lt):
-		return (lt.result_date or lt.date or (str(lt.creation)[:10] if lt.creation else "")) or ""
+	def _format_time(value):
+		if not value:
+			return ""
+		if isinstance(value, timedelta):
+			return format_timedelta(value)
+		return str(value).strip()
 
-	lab_tests.sort(key=lambda lt: (_effective_date(lt), str(lt.creation or "")))
+	def _effective_date(lt):
+		raw = lt.result_date or lt.date
+		if not raw and lt.creation:
+			raw = getdate(lt.creation)
+		if not raw:
+			return None
+		return getdate(raw)
+
+	lab_tests.sort(key=lambda lt: (_effective_date(lt) or getdate("1900-01-01"), str(lt.creation or "")))
+
+	from_d = getdate(from_date) if from_date else None
+	to_d = getdate(to_date) if to_date else None
 
 	# Apply date range on effective date
-	if from_date or to_date:
+	if from_d or to_d:
 		filtered = []
 		for lt in lab_tests:
 			eff = _effective_date(lt)
 			if not eff:
 				continue
-			if from_date and eff < from_date:
+			if from_d and eff < from_d:
 				continue
-			if to_date and eff > to_date:
+			if to_d and eff > to_d:
 				continue
 			filtered.append(lt)
 		lab_tests = filtered
@@ -569,8 +620,8 @@ def get_lab_test_history_matrix(
 		columns.append(
 			{
 				"key": col_key,
-				"date": eff_date,
-				"time": (lt.time or "").strip(),
+				"date": str(eff_date) if eff_date else "",
+				"time": _format_time(lt.time),
 				"lab_test": lt.name,
 				"lab_test_name": lt.lab_test_name or lt.template or lt.name,
 				"status": lt.status,

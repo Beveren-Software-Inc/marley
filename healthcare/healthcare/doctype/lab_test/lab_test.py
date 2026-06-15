@@ -14,6 +14,27 @@ from healthcare.healthcare.doctype.service_request.service_request import (
 )
 from healthcare.api.patient_visit import update_patient_visit_status
 
+
+def _inherit_lab_technician_from_group(doc):
+	"""Copy lab_technician from another test in the same grouped service request."""
+	if doc.get("lab_technician") or not doc.get("service_request"):
+		return
+	peer = frappe.db.get_value(
+		"Lab Test",
+		{
+			"service_request": doc.service_request,
+			"is_group_lab_test": 1,
+			"lab_technician": ["is", "set"],
+			"name": ["!=", doc.name],
+			"docstatus": ["!=", 2],
+		},
+		"lab_technician",
+		order_by="modified desc",
+	)
+	if peer:
+		doc.lab_technician = peer
+
+
 class LabTest(Document):
 	_lab_technician_allowed_roles = ("Lab Technologist", "Lab Technician")
 
@@ -24,6 +45,13 @@ class LabTest(Document):
 		# 	self.set_secondary_uom_result()
 
 	def before_submit(self):
+		if getattr(self.flags, "via_doctor_review", False):
+			# Doctor review may submit draft results the lab saved without a per-row technician.
+			# Inherit from a grouped sibling when possible; do not block the doctor review step.
+			if not self.get("lab_technician"):
+				_inherit_lab_technician_from_group(self)
+			return
+
 		if not self.get("lab_technician"):
 			frappe.throw(
 				_(
