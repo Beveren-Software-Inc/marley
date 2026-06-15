@@ -20,6 +20,10 @@ def _payment_search_cost_center_filter(filters: dict) -> bool:
 
 def _format_invoice_payment_label(row: dict) -> str:
 	parts = [row.get("name") or ""]
+	if row.get("custom_reference_name"):
+		ref = row.get("custom_reference_name")
+		ref_type = row.get("custom_reference_type") or "Case"
+		parts.append(f"{ref_type}: {ref}")
 	if row.get("customer_name"):
 		parts.append(row["customer_name"])
 	if row.get("patient_name"):
@@ -32,6 +36,10 @@ def _format_invoice_payment_label(row: dict) -> str:
 
 def _format_order_payment_label(row: dict) -> str:
 	parts = [row.get("name") or ""]
+	if row.get("custom_reference_name"):
+		ref = row.get("custom_reference_name")
+		ref_type = row.get("custom_reference_type") or "Case"
+		parts.append(f"{ref_type}: {ref}")
 	if row.get("customer_name"):
 		parts.append(row["customer_name"])
 	if row.get("patient_name"):
@@ -57,13 +65,13 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 
 	search = (search or "").strip()
 	if search:
-		like = f"%{search}%"
+		from healthcare.api.billing_search import billing_search_or_filters
+
+		or_filters = billing_search_or_filters(search, patient)
 		rows = frappe.get_all(
 			"Sales Invoice",
-			filters={
-				**filters,
-				"name": ["like", like],
-			},
+			filters=filters,
+			or_filters=or_filters,
 			fields=[
 				"name",
 				"customer_name",
@@ -71,38 +79,12 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 				"outstanding_amount",
 				"grand_total",
 				"posting_date",
+				"custom_reference_type",
+				"custom_reference_name",
 			],
 			limit=limit,
 			order_by="modified desc",
 		)
-		if len(rows) < limit:
-			extra_filters = {**filters}
-			extra_filters.pop("name", None)
-			extra_rows = frappe.get_all(
-				"Sales Invoice",
-				filters=extra_filters,
-				or_filters=[
-					["customer_name", "like", like],
-					["patient_name", "like", like],
-				],
-				fields=[
-					"name",
-					"customer_name",
-					"patient_name",
-					"outstanding_amount",
-					"grand_total",
-					"posting_date",
-				],
-				limit=limit,
-				order_by="modified desc",
-			)
-			seen = {r.name for r in rows}
-			for row in extra_rows:
-				if row.name not in seen:
-					rows.append(row)
-					seen.add(row.name)
-				if len(rows) >= limit:
-					break
 	else:
 		rows = frappe.get_all(
 			"Sales Invoice",
@@ -146,35 +128,25 @@ def search_sales_orders_for_payment(search=None, patient=None, limit=30):
 
 	search = (search or "").strip()
 	if search:
-		like = f"%{search}%"
+		from healthcare.api.billing_search import billing_search_or_filters
+
+		or_filters = billing_search_or_filters(search, patient)
 		rows = frappe.get_all(
 			"Sales Order",
-			filters={**filters, "name": ["like", like]},
-			fields=["name", "customer_name", "patient_name", "grand_total", "transaction_date"],
+			filters=filters,
+			or_filters=or_filters,
+			fields=[
+				"name",
+				"customer_name",
+				"patient_name",
+				"grand_total",
+				"transaction_date",
+				"custom_reference_type",
+				"custom_reference_name",
+			],
 			limit=limit,
 			order_by="modified desc",
 		)
-		if len(rows) < limit:
-			extra_filters = {**filters}
-			extra_filters.pop("name", None)
-			extra_rows = frappe.get_all(
-				"Sales Order",
-				filters=extra_filters,
-				or_filters=[
-					["customer_name", "like", like],
-					["patient_name", "like", like],
-				],
-				fields=["name", "customer_name", "patient_name", "grand_total", "transaction_date"],
-				limit=limit,
-				order_by="modified desc",
-			)
-			seen = {r.name for r in rows}
-			for row in extra_rows:
-				if row.name not in seen:
-					rows.append(row)
-					seen.add(row.name)
-				if len(rows) >= limit:
-					break
 	else:
 		rows = frappe.get_all(
 			"Sales Order",

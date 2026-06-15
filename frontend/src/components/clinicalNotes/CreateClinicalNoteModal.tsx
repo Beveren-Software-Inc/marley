@@ -1163,7 +1163,7 @@ export const CreateClinicalNoteModal = ({
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Cost Center
+                  Branch
                 </label>
                 <div className="relative">
                   <input
@@ -1179,7 +1179,7 @@ export const CreateClinicalNoteModal = ({
                       setCostCenter('')
                     }}
                     onFocus={() => setCostCenterOpen(true)}
-                    placeholder="Search cost center..."
+                    placeholder="Search branch..."
                     className={linkComboboxInputClass}
                   />
                   {costCenterOpen && (
@@ -1200,7 +1200,7 @@ export const CreateClinicalNoteModal = ({
                           </button>
                         ))
                       ) : (
-                        <div className="px-4 py-2 text-sm text-slate-500">No cost centers found</div>
+                        <div className="px-4 py-2 text-sm text-slate-500">No branches found</div>
                       )}
                     </div>
                   )}

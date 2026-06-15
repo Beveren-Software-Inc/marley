@@ -56,6 +56,13 @@ export const ServiceInvoicesList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<{ name: string; kind: 'submit' | 'cancel' } | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
+  const [caseSearch, setCaseSearch] = useState('')
+  const [debouncedCaseSearch, setDebouncedCaseSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCaseSearch(caseSearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [caseSearch])
 
   useEffect(() => {
     if (propStatusFilter !== undefined) {
@@ -66,9 +73,10 @@ export const ServiceInvoicesList = ({
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
+  const hasCaseSearch = Boolean(debouncedCaseSearch)
 
   const loadData = async () => {
-    if (!effectivePatient && !effectiveReferenceName) {
+    if (!effectivePatient && !effectiveReferenceName && !hasCaseSearch) {
       setInvoices([])
       setSummary(null)
       setLoading(false)
@@ -77,8 +85,23 @@ export const ServiceInvoicesList = ({
     try {
       setLoading(true)
       const [invoicesData, summaryData] = await Promise.all([
-        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter, fromDate, toDate),
-        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate, toDate),
+        fetchServiceInvoices(
+          hasCaseSearch ? undefined : effectiveReferenceType,
+          hasCaseSearch ? undefined : effectiveReferenceName,
+          effectivePatient,
+          statusFilter,
+          fromDate,
+          toDate,
+          debouncedCaseSearch || undefined
+        ),
+        fetchInvoiceSummary(
+          hasCaseSearch ? undefined : effectiveReferenceType,
+          hasCaseSearch ? undefined : effectiveReferenceName,
+          effectivePatient,
+          fromDate,
+          toDate,
+          debouncedCaseSearch || undefined
+        ),
       ])
       setInvoices(invoicesData)
       setSummary(summaryData)
@@ -92,7 +115,7 @@ export const ServiceInvoicesList = ({
 
   useEffect(() => {
     void loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate])
+  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -199,8 +222,15 @@ export const ServiceInvoicesList = ({
       )}
 
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold text-slate-900">Service Invoices</h3>
+          <input
+            type="search"
+            value={caseSearch}
+            onChange={(e) => setCaseSearch(e.target.value)}
+            placeholder="Case no, invoice, admission or visit…"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm w-64 min-w-[12rem]"
+          />
           {!propStatusFilter && (
             <select
               value={statusFilter}
@@ -230,6 +260,9 @@ export const ServiceInvoicesList = ({
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
           <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
           <p>No invoices found</p>
+          {!effectivePatient && !effectiveReferenceName && !hasCaseSearch && (
+            <p className="text-xs mt-2">Select a patient or search by IP/OP case no or invoice ID.</p>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -240,7 +273,7 @@ export const ServiceInvoicesList = ({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Due Date</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost center</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Orders</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Paid</th>

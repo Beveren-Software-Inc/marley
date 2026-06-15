@@ -31,13 +31,21 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
   const [loading, setLoading] = useState(true)
   const [showBulkInvoiceModal, setShowBulkInvoiceModal] = useState(false)
   const [statusFilter, setStatusFilter] = useState<string>('')
+  const [caseSearch, setCaseSearch] = useState('')
+  const [debouncedCaseSearch, setDebouncedCaseSearch] = useState('')
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedCaseSearch(caseSearch.trim()), 300)
+    return () => clearTimeout(t)
+  }, [caseSearch])
 
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
+  const hasCaseSearch = Boolean(debouncedCaseSearch)
 
   const loadData = async () => {
-    if (!effectivePatient && !effectiveReferenceName) {
+    if (!effectivePatient && !effectiveReferenceName && !hasCaseSearch) {
       setOrders([])
       setSummary(null)
       setLoading(false)
@@ -47,8 +55,23 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
     try {
       setLoading(true)
       const [ordersData, summaryData] = await Promise.all([
-        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, statusFilter, fromDate, toDate),
-        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate, toDate)
+        fetchServiceOrders(
+          hasCaseSearch ? undefined : effectiveReferenceType,
+          hasCaseSearch ? undefined : effectiveReferenceName,
+          effectivePatient,
+          statusFilter,
+          fromDate,
+          toDate,
+          debouncedCaseSearch || undefined
+        ),
+        fetchServiceOrderSummary(
+          hasCaseSearch ? undefined : effectiveReferenceType,
+          hasCaseSearch ? undefined : effectiveReferenceName,
+          effectivePatient,
+          fromDate,
+          toDate,
+          debouncedCaseSearch || undefined
+        ),
       ])
       setOrders(ordersData)
       setSummary(summaryData)
@@ -62,7 +85,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
 
   useEffect(() => {
     loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, fromDate, toDate])
+  }, [effectivePatient, effectiveReferenceName, statusFilter, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType])
 
   const billableOrders = orders.filter(isBillableServiceOrder)
 
@@ -126,8 +149,15 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
 
       {/* Header with actions */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <h3 className="text-lg font-semibold text-slate-900">Service Orders</h3>
+          <input
+            type="search"
+            value={caseSearch}
+            onChange={(e) => setCaseSearch(e.target.value)}
+            placeholder="Case no, sales order, admission or visit…"
+            className="rounded-md border border-slate-300 px-3 py-1.5 text-sm w-64 min-w-[12rem]"
+          />
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
@@ -164,6 +194,9 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
           <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
           <p>No service orders found</p>
+          {!effectivePatient && !effectiveReferenceName && !hasCaseSearch && (
+            <p className="text-xs mt-2">Select a patient or search by IP/OP case no or sales order ID.</p>
+          )}
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
@@ -177,7 +210,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
                     Service / type
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Amount</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost center</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice Status</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>

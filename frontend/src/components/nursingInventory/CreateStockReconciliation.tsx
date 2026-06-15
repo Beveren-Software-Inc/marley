@@ -88,7 +88,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
     }
     
     if (!effectiveCostCenter) {
-      toast.error('Cost center is required')
+      toast.error('Branch is required')
       return
     }
     
@@ -426,7 +426,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
 
     const itemsWithDiscrepancy = items.filter(item => item.difference !== 0)
     if (!effectiveCostCenter) {
-      toast.error('Cost center is required')
+      toast.error('Branch is required')
       return
     }
 
@@ -530,7 +530,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Cost Center <span className="text-red-500">*</span>
+                    Branch <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"

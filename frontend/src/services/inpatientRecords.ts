@@ -171,7 +171,8 @@ export async function fetchInpatientRecords(
   fromDate?: string,
   toDate?: string,
   limit?: number,
-  offset?: number
+  offset?: number,
+  excludeCancelled?: boolean
 ): Promise<InpatientRecordsPaginatedResponse> {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
@@ -180,6 +181,7 @@ export async function fetchInpatientRecords(
   if (practitioner) params.append('practitioner', practitioner)
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
+  if (excludeCancelled) params.append('exclude_cancelled', '1')
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
 

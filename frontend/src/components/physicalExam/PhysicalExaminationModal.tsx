@@ -405,7 +405,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { ChevronDown, Check, Stethoscope, ClipboardList, Activity } from 'lucide-react'
+import { ChevronDown, Check, Stethoscope, ClipboardList } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 // ─── Link Combobox ────────────────────────────────────────────────────────────
@@ -493,25 +493,12 @@ interface PhysicalExaminationModalProps {
   onSuccess?: () => void
 }
 
-type TabId = 'general' | 'findings' | 'basic'
+type TabId = 'general' | 'findings'
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'general', label: 'General' },
   { id: 'findings', label: 'Examination Findings' },
-  { id: 'basic', label: 'Basic Examination' },
 ]
-
-const BASIC_VITAL_FIELDS = [
-  { fieldname: 'weight' as const, label: 'Weight', placeholder: 'e.g. 72 kg' },
-  { fieldname: 'height' as const, label: 'Height (cm)', placeholder: 'e.g. 170' },
-  { fieldname: 'blood_pressure' as const, label: 'Blood Pressure', placeholder: 'e.g. 120/80 mmHg' },
-  { fieldname: 'temp_pressure' as const, label: 'Temp Pressure', placeholder: 'e.g. 37.0 °C' },
-  { fieldname: 'resp_rate' as const, label: 'Respiratory Rate', placeholder: 'e.g. 16 /min' },
-  { fieldname: 'pulse' as const, label: 'Pulse', placeholder: 'e.g. 72 bpm' },
-] as const
-
-const BASIC_VITAL_FIELD_COUNT = BASIC_VITAL_FIELDS.length
-
 const ic = MODAL_FIELD_CLASS
 const lc = MODAL_LABEL_CLASS
 
@@ -620,32 +607,6 @@ export const PhysicalExaminationModal = ({
     if (hidePatientVisit) setPatientVisit('')
   }, [hidePatientVisit])
 
-  // Basic examination (vitals)
-  const [weight, setWeight] = useState('')
-  const [height, setHeight] = useState('')
-  const [bloodPressure, setBloodPressure] = useState('')
-  const [tempPressure, setTempPressure] = useState('')
-  const [respRate, setRespRate] = useState('')
-  const [pulse, setPulse] = useState('')
-
-  const basicValues: Record<(typeof BASIC_VITAL_FIELDS)[number]['fieldname'], string> = {
-    weight,
-    height,
-    blood_pressure: bloodPressure,
-    temp_pressure: tempPressure,
-    resp_rate: respRate,
-    pulse,
-  }
-  const basicSetters: Record<(typeof BASIC_VITAL_FIELDS)[number]['fieldname'], (v: string) => void> = {
-    weight: setWeight,
-    height: setHeight,
-    blood_pressure: setBloodPressure,
-    temp_pressure: setTempPressure,
-    resp_rate: setRespRate,
-    pulse: setPulse,
-  }
-  const basicFilledCount = Object.values(basicValues).filter(v => v.trim().length > 0).length
-
   // Findings
   const [skin, setSkin] = useState('')
   const [cvsresp, setCvsresp] = useState('')
@@ -683,12 +644,6 @@ export const PhysicalExaminationModal = ({
         patient_visit: patientVisit || undefined,
         patient: patientField || undefined,
         patient_name: patientNameField || undefined,
-        weight: weight.trim() || undefined,
-        height: height.trim() || undefined,
-        blood_pressure: bloodPressure.trim() || undefined,
-        temp_pressure: tempPressure.trim() || undefined,
-        resp_rate: respRate.trim() || undefined,
-        pulse: pulse.trim() || undefined,
         skin_: skin || undefined,
         cvsresp: cvsresp || undefined,
         cnc: cnc || undefined,
@@ -750,11 +705,6 @@ export const PhysicalExaminationModal = ({
                     {findingsFilledCount}/5
                   </span>
                 ) : null}
-                {tab.id === 'basic' && basicFilledCount > 0 ? (
-                  <span className="ml-1.5 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-emerald-100 px-1.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                    {basicFilledCount}/{BASIC_VITAL_FIELD_COUNT}
-                  </span>
-                ) : null}
               </button>
             ))}
           </div>
@@ -785,7 +735,7 @@ export const PhysicalExaminationModal = ({
                   {hidePatientField && hidePatientName && hidePatientVisit && hideInpatientAdmission ? (
                     <p className="text-sm leading-relaxed text-slate-600">
                       Patient and care episode are set from your current selection. Continue to document
-                      examination findings or basic measurements.
+                      examination findings.
                     </p>
                   ) : (
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -913,43 +863,6 @@ export const PhysicalExaminationModal = ({
               </div>
             )}
 
-            {/* ── Tab 3: Basic Examination ── */}
-            {activeTab === 'basic' && (
-              <div className="space-y-5">
-                <div className="flex items-start gap-2.5 rounded-xl border border-emerald-100/90 bg-white/80 px-4 py-3 shadow-sm ring-1 ring-emerald-50">
-                  <Activity className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600" strokeWidth={2} />
-                  <p className="text-sm leading-relaxed text-slate-600">
-                    Record baseline measurements — weight, height, blood pressure, temp pressure, pulse, and
-                    respiratory rate.
-                  </p>
-                </div>
-
-                <section className={MODAL_SECTION_CLASS}>
-                  <h3 className={MODAL_SECTION_TITLE_CLASS}>
-                    <Activity className="h-4 w-4 text-emerald-600" strokeWidth={2} />
-                    Basic examination
-                  </h3>
-                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    {BASIC_VITAL_FIELDS.map(field => (
-                      <div key={field.fieldname}>
-                        <label className={lc} htmlFor={`pe-${field.fieldname}`}>
-                          {field.label}
-                        </label>
-                        <input
-                          id={`pe-${field.fieldname}`}
-                          type="text"
-                          value={basicValues[field.fieldname]}
-                          onChange={e => basicSetters[field.fieldname](e.target.value)}
-                          placeholder={field.placeholder}
-                          className={ic}
-                          autoComplete="off"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              </div>
-            )}
             </div>
           </div>
 

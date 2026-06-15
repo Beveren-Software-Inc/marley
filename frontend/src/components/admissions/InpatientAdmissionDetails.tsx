@@ -289,7 +289,7 @@ const AdmissionDetailsSection = ({ record }: { record: InpatientRecord }) => {
         <Field label="Expected Length of Stay" value={record.expected_length_of_stay ? `${record.expected_length_of_stay} days` : undefined} />
         <Field label="Admission Ordered For" value={formatDate(record.admission_ordered_for)} />
         <Field label="Company" value={record.company} />
-        <Field label="Cost Center" value={record.cost_center} />
+        <Field label="Branch" value={record.cost_center} />
         <Field
           label="Service Units"
           value={record.service_unit_selections?.length

@@ -74,11 +74,11 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const location = useLocation()
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
 
-  // When IP mode has a specific admission selected globally, lock the list to that admission.
-  // Fall back to the patient prop, then context patient, for broader filtering.
-  const effectiveNameFilter = (mode === 'IP' && activeAdmission) ? activeAdmission : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
-  const shouldUseIpDefaults = mode === 'IP' && !effectiveNameFilter
+  // When IP mode has a specific admission selected globally, lock the list to that admission
+  // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
+  const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
+  const shouldUseIpDefaults = mode === 'IP' && !effectiveNameFilter && !effectivePatient
   const ipDefaultsOnMount = shouldUseIpDefaults ? getIpDefaultFilters() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>(() => ipDefaultsOnMount?.status ?? '')
@@ -141,6 +141,8 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [dateFrom, setDateFrom] = useState(() => ipDefaultsOnMount?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(() => ipDefaultsOnMount?.dateTo ?? '')
 
+  const excludeCancelled = Boolean(effectivePatient && !selectedStatus && !effectiveNameFilter)
+
   // IP mode: apply defaults before paint when switching into IP (avoids one unfiltered fetch).
   useLayoutEffect(() => {
     if (!shouldUseIpDefaults) return
@@ -167,20 +169,21 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
     effectiveNameFilter ? undefined : (dateTo || undefined),
     refreshKey,
     pageSize,
-    (page - 1) * pageSize
+    (page - 1) * pageSize,
+    excludeCancelled
   )
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter])
+  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled])
 
   // --- Admission No: debounced search when dropdown is open ---
   useEffect(() => {
     if (!admissionOpen) return
     const t = setTimeout(async () => {
       try {
-        const response = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined, 30, 0)
+        const response = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined, 30, 0, excludeCancelled)
         setAdmissionOptions(response.data.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
       } catch (err) {
         console.error('Failed to load admission options', err)
@@ -188,7 +191,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
       }
     }, admissionNoQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [admissionNoQuery, admissionOpen, effectivePatient])
+  }, [admissionNoQuery, admissionOpen, effectivePatient, excludeCancelled])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {

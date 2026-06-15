@@ -464,7 +464,7 @@ export const CreatePatientReferralModal = ({
             {errors.reasonForReferral && <p className="mt-1 text-xs text-red-500">{errors.reasonForReferral}</p>}
           </div>
 
-          {/* Status + Cost Center */}
+          {/* Status + Branch */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Referral Status</label>
@@ -479,7 +479,7 @@ export const CreatePatientReferralModal = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Cost Center</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Branch</label>
               <select
                 value={costCenter}
                 onChange={e => setCostCenter(e.target.value)}

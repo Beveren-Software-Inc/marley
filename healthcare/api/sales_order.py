@@ -15,16 +15,22 @@ def get_service_orders(
     status=None,
     from_date=None,
     to_date=None,
+    search=None,
     limit=50,
     offset=0
 ):
     """Get list of Sales Orders for services"""
+    from healthcare.api.billing_search import billing_search_or_filters
+
     filters = {}
-    
-    if reference_type:
-        filters['custom_reference_type'] = reference_type
-    if reference_name:
-        filters['custom_reference_name'] = reference_name
+    search_term = (search or "").strip()
+    or_filters = billing_search_or_filters(search_term, patient) if search_term else None
+
+    if not search_term:
+        if reference_type:
+            filters['custom_reference_type'] = reference_type
+        if reference_name:
+            filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if status:
@@ -44,8 +50,8 @@ def get_service_orders(
             return []
         filters['cost_center'] = ['in', permitted_cc]
     
-    sales_orders = frappe.get_all(
-        'Sales Order',
+    list_kwargs = dict(
+        doctype='Sales Order',
         filters=filters,
         fields=[
             'name',
@@ -66,8 +72,11 @@ def get_service_orders(
         ],
         limit=limit,
         limit_start=offset,
-        order_by='transaction_date desc, creation desc'
+        order_by='transaction_date desc, creation desc',
     )
+    if or_filters:
+        list_kwargs['or_filters'] = or_filters
+    sales_orders = frappe.get_all(**list_kwargs)
     
     # Check if invoice exists for each sales order
     for so in sales_orders:
@@ -106,14 +115,19 @@ def get_service_orders(
 
 
 @frappe.whitelist()
-def get_service_order_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
+def get_service_order_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, search=None):
     """Get summary of orders for a reference"""
-    filters = {}
+    from healthcare.api.billing_search import billing_search_or_filters
 
-    if reference_type:
-        filters['custom_reference_type'] = reference_type
-    if reference_name:
-        filters['custom_reference_name'] = reference_name
+    filters = {}
+    search_term = (search or "").strip()
+    or_filters = billing_search_or_filters(search_term, patient) if search_term else None
+
+    if not search_term:
+        if reference_type:
+            filters['custom_reference_type'] = reference_type
+        if reference_name:
+            filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if from_date and to_date:
@@ -139,11 +153,14 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
             }
         filters['cost_center'] = ['in', permitted_cc]
 
-    sales_orders = frappe.get_all(
-        'Sales Order',
+    summary_kwargs = dict(
+        doctype='Sales Order',
         filters=filters,
-        fields=['name', 'status', 'grand_total']
+        fields=['name', 'status', 'grand_total'],
     )
+    if or_filters:
+        summary_kwargs['or_filters'] = or_filters
+    sales_orders = frappe.get_all(**summary_kwargs)
     
     summary = {
         'total_orders': len(sales_orders),

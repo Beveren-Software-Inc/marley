@@ -354,7 +354,7 @@ export const MainNursingNoteList = ({
                   <div>{selected.shift || '—'}</div>
                 </div>
                 <div>
-                  <div className="text-xs text-slate-500 uppercase font-semibold">Cost center</div>
+                  <div className="text-xs text-slate-500 uppercase font-semibold">Branch</div>
                   <div>{selected.cost_center || '—'}</div>
                 </div>
               </div>

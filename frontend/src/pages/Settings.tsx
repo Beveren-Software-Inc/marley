@@ -92,7 +92,7 @@ const CostCenterCombobox = ({ value, onChange, disabled }: CostCenterComboboxPro
           disabled={disabled}
           onChange={e => { setQuery(e.target.value); onChange(""); setOpen(true) }}
           onFocus={() => !disabled && setOpen(true)}
-          placeholder="Search cost centers…"
+          placeholder="Search branches…"
           autoComplete="off"
           className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 pr-16 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
         />
@@ -113,7 +113,7 @@ const CostCenterCombobox = ({ value, onChange, disabled }: CostCenterComboboxPro
         <div className="absolute z-30 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-52 overflow-y-auto">
           {options.length === 0
             ? <div className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500">
-                {loading ? "Searching…" : "No cost centers found"}
+                {loading ? "Searching…" : "No branches found"}
               </div>
             : options.map(opt => (
               <button key={opt.name} type="button"
@@ -137,7 +137,7 @@ async function apiGetCostCenterPerm(): Promise<{ cost_center: string; is_exempt:
   )
   const data = await res.json()
   if (data?.message) return data.message
-  throw new Error("Failed to load cost center permission")
+  throw new Error("Failed to load branch permission")
 }
 
 async function apiSetCostCenterPerm(cost_center: string): Promise<{ status: string; cost_center: string; message?: string }> {
@@ -176,7 +176,7 @@ const PreferencesSection = () => {
         setSavedCostCenter(result.cost_center)
         setIsExempt(result.is_exempt)
       } catch {
-        toast.error("Failed to load cost center preference.")
+        toast.error("Failed to load branch preference.")
       } finally {
         setLoading(false)
       }
@@ -191,10 +191,10 @@ const PreferencesSection = () => {
       if (result.status === "skipped") {
         toast.success("You have elevated privileges — no restriction applied.")
       } else if (result.status === "cleared") {
-        toast.success("Cost center restriction removed. You can now see all data.")
+        toast.success("Branch restriction removed. You can now see all data.")
         setSavedCostCenter("")
       } else {
-        toast.success(`Cost center set to "${result.cost_center}". Data will be filtered accordingly.`)
+        toast.success(`Branch set to "${result.cost_center}". Data will be filtered accordingly.`)
         setSavedCostCenter(result.cost_center)
       }
     } catch (err) {
@@ -218,9 +218,9 @@ const PreferencesSection = () => {
   return (
     <div className="space-y-6">
       <div>
-        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Cost Center Filter</h3>
+        <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Branch Filter</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          Restrict your view to a specific cost center. When set, only records belonging to that cost center will be visible to you.
+          Restrict your view to a specific branch. When set, only records belonging to that branch will be visible to you.
           Leave blank to see all data.
         </p>
 
@@ -231,7 +231,7 @@ const PreferencesSection = () => {
               <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Elevated privileges detected</p>
               <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
                 Your account has <strong>Administrator</strong>, <strong>System Manager</strong>, or <strong>Healthcare Administrator</strong> role.
-                Cost center permissions do not apply to your account and will not be created.
+                Branch permissions do not apply to your account and will not be created.
               </p>
             </div>
           </div>
@@ -241,7 +241,7 @@ const PreferencesSection = () => {
           <div>
             <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
               <Building2 className="w-4 h-4 text-gray-400" />
-              Cost Center
+              Branch
             </label>
             <CostCenterCombobox
               value={costCenter}
@@ -274,7 +274,7 @@ const PreferencesSection = () => {
             ? <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
             : savedCostCenter
               ? <span>Active restriction: <strong>{savedCostCenter}</strong></span>
-              : "No restriction active — you see all cost centers."}
+              : "No restriction active — you see all branches."}
         </div>
         <button
           type="button"

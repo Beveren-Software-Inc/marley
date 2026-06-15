@@ -159,7 +159,7 @@ export const CreateSessionScheduleModal = ({
   const [companyOptions, setCompanyOptions] = useState<LinkFieldOption[]>([])
   const [companyLoading, setCompanyLoading] = useState(false)
 
-  // Cost Centers
+  // Branchs
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
 
@@ -209,7 +209,7 @@ export const CreateSessionScheduleModal = ({
     loadCompanies()
   }, [])
 
-  // Load cost centers
+  // Load branches
   useEffect(() => {
     const loadCostCenters = async () => {
       try {
@@ -220,7 +220,7 @@ export const CreateSessionScheduleModal = ({
           setCostCenterOptions(resData.message as LinkFieldOption[])
         }
       } catch (err) {
-        console.error('Failed to load cost centers:', err)
+        console.error('Failed to load branches:', err)
       } finally {
         setCostCenterLoading(false)
       }
@@ -432,10 +432,10 @@ export const CreateSessionScheduleModal = ({
             />
           </div>
 
-          {/* Cost Center */}
+          {/* Branch */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Cost Center
+              Branch
             </label>
             <select
               value={formData.cost_center}
@@ -443,7 +443,7 @@ export const CreateSessionScheduleModal = ({
               disabled={costCenterLoading}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
             >
-              <option value="">Select cost center...</option>
+              <option value="">Select branch...</option>
               {costCenterOptions.map((cc) => (
                 <option key={cc.name} value={cc.name}>
                   {cc.name}

@@ -239,7 +239,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
             {doc.cost_center ? (
               <InfoTile
                 icon={<Building2 className="h-4 w-4" />}
-                label="Cost center"
+                label="Branch"
                 value={String(doc.cost_center)}
               />
             ) : null}

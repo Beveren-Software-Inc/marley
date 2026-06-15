@@ -138,7 +138,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     e.preventDefault()
     
     if (!effectiveCostCenter) {
-      toast.error('No cost center assigned')
+      toast.error('No branch assigned')
       return
     }
 

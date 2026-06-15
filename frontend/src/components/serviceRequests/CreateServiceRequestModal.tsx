@@ -415,7 +415,7 @@ export const CreateServiceRequestModal = ({
       return
     }
     if (!form.cost_center?.trim()) {
-      setError('Please select a cost center for this service request.')
+      setError('Please select a branch for this service request.')
       return
     }
     if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
@@ -788,7 +788,7 @@ export const CreateServiceRequestModal = ({
                   </div>
                 )}
                 <div className="relative">
-                  <label className={labelClass}>Cost center</label>
+                  <label className={labelClass}>Branch</label>
                   <input
                     type="text"
                     value={costCenterSearchQuery}
@@ -801,13 +801,13 @@ export const CreateServiceRequestModal = ({
                     onBlur={() => {
                       window.setTimeout(() => setCostCenterDropdownOpen(false), 180)
                     }}
-                    placeholder="Search cost center…"
+                    placeholder="Search branch…"
                     className={inputClass}
                   />
                   {costCenterDropdownOpen && (
                     <div className={linkComboboxDropdownClass}>
                       {costCenterOptions.length === 0 ? (
-                        <div className="px-3 py-2.5 text-xs text-slate-500">No cost centers match. Try another search.</div>
+                        <div className="px-3 py-2.5 text-xs text-slate-500">No branches match. Try another search.</div>
                       ) : (
                         costCenterOptions.map((item) => (
                           <button

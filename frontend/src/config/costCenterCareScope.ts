@@ -24,7 +24,7 @@ const OP_ONLY_DOCTOR_SCREEN_IDS = new Set([
   'single-prescription',
 ])
 
-/** Doctor screens hidden when the active mode is OP (regardless of cost center scope) */
+/** Doctor screens hidden when the active mode is OP (regardless of branch scope) */
 const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'admission', 'df', 'obs'])
 const OP_MODE_DOCTOR_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation'])
 
@@ -65,7 +65,7 @@ const OP_ONLY_NURSE_SCREEN_IDS = new Set([
 
 const OP_ONLY_NURSE_GROUP_TITLES = new Set(['Daily Routine Care', 'Admission & Discharge'])
 
-/** Nurse screens hidden when the active mode is OP (regardless of cost center scope) */
+/** Nurse screens hidden when the active mode is OP (regardless of branch scope) */
 const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-pharmacy-giveout', 'n-reg', 'n-discharge', 'n-package', 'n-ob'])
 const OP_MODE_NURSE_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation & Monitoring'])
 

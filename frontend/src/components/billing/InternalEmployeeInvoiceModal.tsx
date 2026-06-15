@@ -119,7 +119,7 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
     }
     fetchCostCenters(company)
       .then(setCostCenters)
-      .catch(() => toast.error('Failed to load cost centers'))
+      .catch(() => toast.error('Failed to load branches'))
   }, [isOpen, company])
 
   const filledLines = items.filter((r) => r.item_code?.trim()).length
@@ -293,13 +293,13 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
                     </select>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Collection cost center</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1.5">Collection branch</label>
                     <select
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary bg-white"
                       value={createdAtCostCenter}
                       onChange={(e) => setCreatedAtCostCenter(e.target.value)}
                     >
-                      <option value="">Select cost center</option>
+                      <option value="">Select branch</option>
                       {costCenters.map((c) => (
                         <option key={c.name} value={c.name}>
                           {c.label}

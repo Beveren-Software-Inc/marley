@@ -1100,7 +1100,9 @@ def get_long_acting_medicine(name: str | None = None):
 			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
 			or doc.practitioner
 		)
-	return data
+	from healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine import enrich_long_acting_medicine_row
+
+	return enrich_long_acting_medicine_row(data)
 
 
 @frappe.whitelist()
@@ -1140,7 +1142,9 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 		limit=limit,
 		limit_start=offset,
 	)
-	return list(docs)
+	from healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine import enrich_long_acting_medicine_list_rows
+
+	return enrich_long_acting_medicine_list_rows(list(docs))
 
 
 @frappe.whitelist()

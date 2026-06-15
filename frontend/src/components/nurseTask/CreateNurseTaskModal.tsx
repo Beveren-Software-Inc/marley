@@ -183,7 +183,7 @@
 //   const [shiftDisplay, setShiftDisplay] = useState('')
 //   const [shiftOptions, setShiftOptions] = useState<LinkFieldOption[]>([])
 
-//   // ── Cost Center ──
+//   // ── Branch ──
 //   const [costCenter, setCostCenter] = useState('')
 //   const [costCenterDisplay, setCostCenterDisplay] = useState('')
 //   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
@@ -511,13 +511,13 @@
 //                 </div>
 //               </div>
 
-//               {/* ── Cost Center ── */}
+//               {/* ── Branch ── */}
 //               <div>
-//                 <label className="block text-xs font-medium text-slate-600 mb-1">Cost Center</label>
+//                 <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
 //                 <Combo
 //                   value={costCenter}
 //                   display={costCenterDisplay}
-//                   placeholder="Search cost center…"
+//                   placeholder="Search branch…"
 //                   options={costCenterOptions}
 //                   onOpen={() => loadCostCenterOptions()}
 //                   onSearch={(q) => { setCostCenterDisplay(q); setCostCenter(''); loadCostCenterOptions(q) }}
@@ -869,7 +869,7 @@ export const CreateNurseTaskModal = ({
   const [shiftDisplay, setShiftDisplay] = useState('')
   const [shiftOptions, setShiftOptions] = useState<LinkFieldOption[]>([])
 
-  // ── Cost Center ──
+  // ── Branch ──
   const [costCenter, setCostCenter] = useState('')
   const [costCenterDisplay, setCostCenterDisplay] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
@@ -1308,13 +1308,13 @@ export const CreateNurseTaskModal = ({
                 </div>
               </div>
 
-              {/* ── Cost Center ── */}
+              {/* ── Branch ── */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Cost Center</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
                 <Combo
                   value={costCenter}
                   display={costCenterDisplay}
-                  placeholder="Search cost center…"
+                  placeholder="Search branch…"
                   options={costCenterOptions}
                   onOpen={() => loadCostCenterOptions()}
                   onSearch={(q) => { setCostCenterDisplay(q); setCostCenter(''); loadCostCenterOptions(q) }}

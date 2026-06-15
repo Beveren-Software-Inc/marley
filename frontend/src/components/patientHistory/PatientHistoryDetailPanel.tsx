@@ -200,7 +200,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
                 <div className="flex min-w-0 items-center gap-2 rounded-lg border border-emerald-100/60 bg-white/70 px-3 py-2 sm:col-span-2">
                   <Building2 className="h-4 w-4 shrink-0 text-emerald-600/70" />
                   <div className="min-w-0">
-                    <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">Cost center</p>
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">Branch</p>
                     <p className="truncate font-medium text-emerald-950">{detail.cost_center}</p>
                   </div>
                 </div>

@@ -1,12 +1,17 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import {
   getFollowUps,
+  getOpFollowUpVisits,
+  getIpFollowUpAdmissions,
   sendFollowUpReminder,
   sendFollowUpRemindersBulk,
+  sendFollowUpRemindersSelected,
   updateFollowUpStatus,
   getCostCenters,
   type PatientFollowUpRow,
+  type FollowUpCandidateRow,
   type ReminderChannel,
+  type FollowUpReferencePayload,
 } from '../../services/followUp'
 import { toast } from '../../hooks/useToast'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -38,9 +43,9 @@ const STATUS_ACTIONS: { value: string; label: string }[] = [
 ]
 
 const FOLLOW_UP_CATEGORIES = [
-  { id: 'Normal', label: 'Normal', description: 'General follow-ups' },
-  { id: 'OP', label: 'OP', description: 'Outpatient follow-ups' },
-  { id: 'IP', label: 'IP', description: 'Inpatient follow-ups' },
+  { id: 'Normal', label: 'Normal', description: 'General follow-up records' },
+  { id: 'OP', label: 'OP', description: 'Latest outpatient visit per patient' },
+  { id: 'IP', label: 'IP', description: 'Latest inpatient admission per patient' },
 ] as const
 
 type FollowUpCategory = (typeof FOLLOW_UP_CATEGORIES)[number]['id']
@@ -51,21 +56,40 @@ interface FollowUpListProps {
   onPatientClick?: (patient: string) => void
 }
 
+function normalRowKey(row: PatientFollowUpRow): string {
+  return `followup:${row.name}`
+}
+
+function candidateRowKey(row: FollowUpCandidateRow): string {
+  return `ref:${row.reference_doctype}:${row.reference_name}`
+}
+
+function statusBadgeClass(status?: string): string {
+  if (status === 'Open') return 'bg-amber-100 text-amber-800'
+  if (status === 'Contacted') return 'bg-blue-100 text-blue-800'
+  if (status === 'Completed') return 'bg-green-100 text-green-800'
+  return 'bg-slate-100 text-slate-700'
+}
+
 export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpListProps) => {
-  const [list, setList] = useState<PatientFollowUpRow[]>([])
+  const [normalList, setNormalList] = useState<PatientFollowUpRow[]>([])
+  const [candidateList, setCandidateList] = useState<FollowUpCandidateRow[]>([])
   const [loading, setLoading] = useState(true)
   const [category, setCategory] = useState<FollowUpCategory>('Normal')
   const [status, setStatus] = useState<string>('Open')
   const [costCenter, setCostCenter] = useState<string>('')
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
+  const [search, setSearch] = useState<string>('')
+  const [searchInput, setSearchInput] = useState<string>('')
   const [costCenterOptions, setCostCenterOptions] = useState<{ name: string }[]>([])
   const [sendingId, setSendingId] = useState<string | null>(null)
   const [sendingBulk, setSendingBulk] = useState(false)
-  const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
+  const [bulkMenuMode, setBulkMenuMode] = useState<'selected' | 'all' | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(true)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -77,29 +101,57 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   const [totalCount, setTotalCount] = useState(0)
 
+  const isNormal = category === 'Normal'
+  const currentRowKeys = useMemo(() => {
+    if (isNormal) return normalList.map(normalRowKey)
+    return candidateList.map(candidateRowKey)
+  }, [isNormal, normalList, candidateList])
+
+  const allOnPageSelected =
+    currentRowKeys.length > 0 && currentRowKeys.every((key) => selectedKeys.has(key))
+
   const loadList = useCallback(async () => {
     setLoading(true)
     try {
-      const result = await getFollowUps({
-        status: status || undefined,
+      const commonParams = {
         cost_center: costCenter || undefined,
-        follow_up_type: category,
         patient: patient || undefined,
+        search: search || undefined,
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         limit: pageSize,
         offset: (page - 1) * pageSize,
-      })
-      setList(result.data)
-      setTotalCount(result.total_count)
+      }
+
+      if (category === 'Normal') {
+        const result = await getFollowUps({
+          ...commonParams,
+          status: status || undefined,
+          follow_up_type: 'Normal',
+        })
+        setNormalList(result.data)
+        setCandidateList([])
+        setTotalCount(result.total_count)
+      } else if (category === 'OP') {
+        const result = await getOpFollowUpVisits(commonParams)
+        setCandidateList(result.data)
+        setNormalList([])
+        setTotalCount(result.total_count)
+      } else {
+        const result = await getIpFollowUpAdmissions(commonParams)
+        setCandidateList(result.data)
+        setNormalList([])
+        setTotalCount(result.total_count)
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load follow-ups')
-      setList([])
+      setNormalList([])
+      setCandidateList([])
       setTotalCount(0)
     } finally {
       setLoading(false)
     }
-  }, [status, costCenter, category, patient, page, pageSize, dateFrom, dateTo])
+  }, [status, costCenter, category, patient, page, pageSize, dateFrom, dateTo, search])
 
   useEffect(() => {
     loadList()
@@ -122,7 +174,40 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const handleRemind = async (name: string, channel: ReminderChannel) => {
+  useEffect(() => {
+    setSelectedKeys(new Set())
+  }, [category, page, pageSize, status, costCenter, dateFrom, dateTo, search, patient])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setSearch(searchInput.trim())
+      setPage(1)
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  const toggleRow = (key: string) => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleAllOnPage = () => {
+    setSelectedKeys((prev) => {
+      const next = new Set(prev)
+      if (allOnPageSelected) {
+        currentRowKeys.forEach((key) => next.delete(key))
+      } else {
+        currentRowKeys.forEach((key) => next.add(key))
+      }
+      return next
+    })
+  }
+
+  const handleRemindFollowUp = async (name: string, channel: ReminderChannel) => {
     setOpenActionRow(null)
     setSendingId(name)
     const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
@@ -130,8 +215,41 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
       const result = await sendFollowUpReminder(name, channel)
       if (result.sent) {
         toast.success(`${channelLabel} reminder sent`)
+        loadList()
       } else {
         toast.error(result.message || 'Reminder not sent')
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminder`)
+    } finally {
+      setSendingId(null)
+    }
+  }
+
+  const handleRemindCandidate = async (row: FollowUpCandidateRow, channel: ReminderChannel) => {
+    setOpenActionRow(null)
+    const key = candidateRowKey(row)
+    setSendingId(key)
+    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    try {
+      const result = await sendFollowUpRemindersSelected({
+        channel,
+        names: row.follow_up_name ? [row.follow_up_name] : undefined,
+        references: row.follow_up_name
+          ? undefined
+          : [
+              {
+                reference_doctype: row.reference_doctype,
+                reference_name: row.reference_name,
+                follow_up_type: row.follow_up_type,
+              },
+            ],
+      })
+      if (result.sent > 0) {
+        toast.success(`${channelLabel} reminder sent`)
+        loadList()
+      } else {
+        toast.error('Reminder not sent')
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminder`)
@@ -154,13 +272,103 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     }
   }
 
-  const handleSendAllReminders = async (channel: ReminderChannel) => {
+  const buildSelectedPayload = () => {
+    const names: string[] = []
+    const references: FollowUpReferencePayload[] = []
+
+    if (isNormal) {
+      normalList.forEach((row) => {
+        const key = normalRowKey(row)
+        if (selectedKeys.has(key)) names.push(row.name)
+      })
+    } else {
+      candidateList.forEach((row) => {
+        const key = candidateRowKey(row)
+        if (!selectedKeys.has(key)) return
+        if (row.follow_up_name) {
+          names.push(row.follow_up_name)
+        } else {
+          references.push({
+            reference_doctype: row.reference_doctype,
+            reference_name: row.reference_name,
+            follow_up_type: row.follow_up_type,
+          })
+        }
+      })
+    }
+
+    return { names, references }
+  }
+
+  const handleSendSelected = async (channel: ReminderChannel) => {
+    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    const { names, references } = buildSelectedPayload()
+    if (!names.length && !references.length) {
+      toast.error('Select at least one row')
+      return
+    }
+    setSendingBulk(true)
+    try {
+      const result = await sendFollowUpRemindersSelected({ names, references, channel })
+      toast.success(`${channelLabel} reminders sent: ${result.sent} of ${result.total}`)
+      if (result.sent > 0) loadList()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminders`)
+    } finally {
+      setSendingBulk(false)
+    }
+  }
+
+  const handleSendAllMatching = async (channel: ReminderChannel) => {
     const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
     setSendingBulk(true)
     try {
-      const result = await sendFollowUpRemindersBulk(status || 'Open', costCenter || undefined, channel)
-      toast.success(`${channelLabel} reminders sent: ${result.sent} of ${result.total}`)
-      if (result.sent > 0) loadList()
+      if (isNormal) {
+        const result = await sendFollowUpRemindersBulk({
+          status: status || 'Open',
+          cost_center: costCenter || undefined,
+          follow_up_type: 'Normal',
+          search: search || undefined,
+          channel,
+        })
+        toast.success(`${channelLabel} reminders sent: ${result.sent} of ${result.total}`)
+      } else {
+        // Fetch all matching rows (up to 500) for current filters
+        const commonParams = {
+          cost_center: costCenter || undefined,
+          patient: patient || undefined,
+          search: search || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          limit: 500,
+          offset: 0,
+        }
+        const result =
+          category === 'OP'
+            ? await getOpFollowUpVisits(commonParams)
+            : await getIpFollowUpAdmissions(commonParams)
+
+        const names: string[] = []
+        const references: FollowUpReferencePayload[] = []
+        result.data.forEach((row) => {
+          if (row.follow_up_name) names.push(row.follow_up_name)
+          else {
+            references.push({
+              reference_doctype: row.reference_doctype,
+              reference_name: row.reference_name,
+              follow_up_type: row.follow_up_type,
+            })
+          }
+        })
+
+        const sendResult = await sendFollowUpRemindersSelected({
+          channel,
+          names: names.length ? names : undefined,
+          references: references.length ? references : undefined,
+        })
+        toast.success(`${channelLabel} reminders sent: ${sendResult.sent} of ${sendResult.total}`)
+      }
+      loadList()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminders`)
     } finally {
@@ -173,11 +381,13 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     setCostCenter('')
     setDateFrom('')
     setDateTo('')
+    setSearchInput('')
+    setSearch('')
     setPage(1)
   }
 
   const hasActiveFilters = Boolean(
-    (status && status !== 'Open') || costCenter || dateFrom || dateTo
+    (status && status !== 'Open') || costCenter || dateFrom || dateTo || search,
   )
 
   const remarksPreview = (r?: string) => {
@@ -185,6 +395,31 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     const plain = r.replace(/<[^>]+>/g, '').trim()
     return plain.length > 50 ? plain.slice(0, 50) + '…' : plain
   }
+
+  const listEmpty = isNormal ? normalList.length === 0 : candidateList.length === 0
+  const selectedCount = selectedKeys.size
+
+  const renderBulkMenu = (mode: 'selected' | 'all') => (
+    <div className="absolute right-0 z-30 mt-1 w-52 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+      <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+        Choose Channel
+      </div>
+      {CHANNEL_OPTIONS.map((ch) => (
+        <button
+          key={ch.value}
+          type="button"
+          onClick={() => {
+            setBulkMenuMode(null)
+            if (mode === 'selected') handleSendSelected(ch.value)
+            else handleSendAllMatching(ch.value)
+          }}
+          className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+        >
+          <span>{ch.icon}</span> {ch.label}
+        </button>
+      ))}
+    </div>
+  )
 
   return (
     <div className="flex flex-col gap-4 min-h-[400px]">
@@ -227,20 +462,32 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
 
       {showFilters && (
         <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-          <div className="flex flex-col gap-1 min-w-[140px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
-            <select
-              value={status}
-              onChange={(e) => { setStatus(e.target.value); setPage(1) }}
+          <div className="flex flex-col gap-1 min-w-[180px] flex-1">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Search</label>
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Patient name, ID, visit, mobile…"
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              {STATUS_OPTIONS.map((o) => (
-                <option key={o.value || 'all'} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            />
           </div>
+          {isNormal && (
+            <div className="flex flex-col gap-1 min-w-[140px]">
+              <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
+              <select
+                value={status}
+                onChange={(e) => { setStatus(e.target.value); setPage(1) }}
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {STATUS_OPTIONS.map((o) => (
+                  <option key={o.value || 'all'} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex flex-col gap-1 min-w-[160px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Cost Center</label>
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Branch</label>
             <select
               value={costCenter}
               onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
@@ -271,148 +518,276 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
             />
           </div>
           <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
-          <div className="relative ml-auto" ref={bulkMenuRef}>
-            <button
-              type="button"
-              onClick={() => setBulkChannelMenuOpen((p) => !p)}
-              disabled={sendingBulk || list.length === 0}
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
-            >
-              {sendingBulk ? 'Sending…' : 'Send all reminders'}
-              {!sendingBulk && (
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-              )}
-            </button>
-            {bulkChannelMenuOpen && (
-              <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                  Choose Channel
-                </div>
-                {CHANNEL_OPTIONS.map((ch) => (
-                  <button
-                    key={ch.value}
-                    type="button"
-                    onClick={() => { setBulkChannelMenuOpen(false); handleSendAllReminders(ch.value) }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                  >
-                    <span>{ch.icon}</span> {ch.label}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex flex-wrap gap-2 ml-auto">
+            <div className="relative" ref={bulkMenuRef}>
+              <button
+                type="button"
+                onClick={() => setBulkMenuMode((m) => (m === 'selected' ? null : 'selected'))}
+                disabled={sendingBulk || selectedCount === 0}
+                className="inline-flex items-center gap-1.5 px-3 py-2 border border-primary text-primary rounded-md text-sm font-medium hover:bg-primary/5 disabled:opacity-50"
+              >
+                {sendingBulk ? 'Sending…' : `Send selected (${selectedCount})`}
+              </button>
+              {bulkMenuMode === 'selected' && selectedCount > 0 && renderBulkMenu('selected')}
+            </div>
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setBulkMenuMode((m) => (m === 'all' ? null : 'all'))}
+                disabled={sendingBulk || totalCount === 0}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-white rounded-md text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
+              >
+                {sendingBulk ? 'Sending…' : `Send all matching (${totalCount})`}
+              </button>
+              {bulkMenuMode === 'all' && totalCount > 0 && renderBulkMenu('all')}
+            </div>
           </div>
         </div>
       )}
 
       <div className="border border-slate-200 rounded-lg bg-white flex flex-col min-h-[320px]">
         <div className="px-4 py-2 border-b border-slate-100 bg-slate-50 text-xs text-slate-600">
-          Showing <span className="font-medium text-slate-800">{category}</span> follow-ups
-          {hasActiveFilters ? ' (filtered)' : ''}
+          {isNormal ? (
+            <>
+              Showing <span className="font-medium text-slate-800">Normal</span> follow-up records
+            </>
+          ) : (
+            <>
+              Showing latest <span className="font-medium text-slate-800">{category}</span>{' '}
+              {category === 'OP' ? 'visit' : 'admission'} per patient (patients with follow-up enabled)
+            </>
+          )}
+          {hasActiveFilters ? ' · filtered' : ''}
+          {selectedCount > 0 ? ` · ${selectedCount} selected` : ''}
         </div>
         {loading ? (
           <div className="p-8 text-center text-slate-500">Loading follow-ups…</div>
-        ) : list.length === 0 ? (
-          <div className="p-8 text-center text-slate-500">No follow-ups match the filters.</div>
+        ) : listEmpty ? (
+          <div className="p-8 text-center text-slate-500">
+            {isNormal
+              ? 'No follow-up records match the filters. Try “All statuses” or check the OP/IP tabs.'
+              : 'No patients with follow-up enabled match the filters.'}
+          </div>
         ) : (
           <div className="overflow-x-auto overflow-y-visible flex-1">
             <table className="min-w-full divide-y divide-slate-200 text-sm">
               <thead className="bg-slate-50">
                 <tr>
+                  <th className="px-3 py-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      onChange={toggleAllOnPage}
+                      aria-label="Select all on page"
+                      className="rounded border-slate-300"
+                    />
+                  </th>
                   {!patient && (
                     <th className="px-4 py-2 text-left font-medium text-slate-700">Patient</th>
                   )}
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Follow Up Date</th>
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Cost Center</th>
-                  <th className="px-4 py-2 text-left font-medium text-slate-700">Remarks</th>
+                  {isNormal ? (
+                    <>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Follow Up Date</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Branch</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Remarks</th>
+                    </>
+                  ) : (
+                    <>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">
+                        {category === 'OP' ? 'Latest Visit' : 'Latest Admission'}
+                      </th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Last Date</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Follow Up Date</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Status</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Doctor</th>
+                      <th className="px-4 py-2 text-left font-medium text-slate-700">Branch</th>
+                    </>
+                  )}
                   <th className="px-4 py-2 text-right font-medium text-slate-700 w-[80px]">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {list.map((row) => (
-                  <tr key={row.name} className="hover:bg-slate-50">
-                    {!patient && (
-                      <td
-                        className="px-4 py-2 cursor-pointer"
-                        onClick={() => row.patient && onPatientClick?.(row.patient)}
-                      >
-                        <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient}</span>
-                      </td>
-                    )}
-                    <td className="px-4 py-2 text-slate-600">{row.follow_up_date}</td>
-                    <td className="px-4 py-2">
-                      <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
-                        row.status === 'Open' ? 'bg-amber-100 text-amber-800' :
-                        row.status === 'Contacted' ? 'bg-blue-100 text-blue-800' :
-                        row.status === 'Completed' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'
-                      }`}>
-                        {row.status}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
-                    <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.remarks || ''}>
-                      {remarksPreview(row.remarks)}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <div
-                        className="relative inline-block"
-                        ref={openActionRow === row.name ? menuRef : undefined}
-                      >
-                        <button
-                          type="button"
-                          onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
-                          disabled={actionLoading === row.name || sendingId === row.name}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
-                          aria-label="Actions"
-                        >
-                          {actionLoading === row.name || sendingId === row.name ? (
-                            <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                            </svg>
-                          ) : (
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                            </svg>
+                {isNormal
+                  ? normalList.map((row) => {
+                      const key = normalRowKey(row)
+                      return (
+                        <tr key={row.name} className="hover:bg-slate-50">
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedKeys.has(key)}
+                              onChange={() => toggleRow(key)}
+                              aria-label={`Select ${row.patient_name}`}
+                              className="rounded border-slate-300"
+                            />
+                          </td>
+                          {!patient && (
+                            <td
+                              className="px-4 py-2 cursor-pointer"
+                              onClick={() => row.patient && onPatientClick?.(row.patient)}
+                            >
+                              <span className="font-medium text-primary hover:underline">
+                                {row.patient_name || row.patient}
+                              </span>
+                            </td>
                           )}
-                        </button>
-                        <PortalActionsMenu
-                          open={openActionRow === row.name}
-                          onClose={() => setOpenActionRow(null)}
-                          triggerRef={menuRef}
-                          placement="above-right"
-                          minWidth={200}
-                        >
-                          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                            Send Reminder
-                          </div>
-                          {CHANNEL_OPTIONS.map((ch) => (
-                            <button
-                              key={ch.value}
-                              type="button"
-                              onClick={() => handleRemind(row.name, ch.value)}
-                              disabled={sendingId === row.name}
-                              className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+                          <td className="px-4 py-2 text-slate-600">{row.follow_up_date}</td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClass(row.status)}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
+                          <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.remarks || ''}>
+                            {remarksPreview(row.remarks)}
+                          </td>
+                          <td className="px-4 py-2 text-right">
+                            <div
+                              className="relative inline-block"
+                              ref={openActionRow === row.name ? menuRef : undefined}
                             >
-                              <span>{ch.icon}</span> {ch.label}
-                            </button>
-                          ))}
-                          <div className="border-t border-slate-100 my-1" />
-                          {STATUS_ACTIONS.filter((a) => a.value !== row.status).map((action) => (
-                            <button
-                              key={action.value}
-                              type="button"
-                              onClick={() => handleStatusChange(row.name, action.value)}
-                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                              <button
+                                type="button"
+                                onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
+                                disabled={actionLoading === row.name || sendingId === row.name}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                aria-label="Actions"
+                              >
+                                ⋮
+                              </button>
+                              <PortalActionsMenu
+                                open={openActionRow === row.name}
+                                onClose={() => setOpenActionRow(null)}
+                                triggerRef={menuRef}
+                                placement="above-right"
+                                minWidth={200}
+                              >
+                                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                                  Send Reminder
+                                </div>
+                                {CHANNEL_OPTIONS.map((ch) => (
+                                  <button
+                                    key={ch.value}
+                                    type="button"
+                                    onClick={() => handleRemindFollowUp(row.name, ch.value)}
+                                    disabled={sendingId === row.name}
+                                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+                                  >
+                                    <span>{ch.icon}</span> {ch.label}
+                                  </button>
+                                ))}
+                                <div className="border-t border-slate-100 my-1" />
+                                <button
+                                  type="button"
+                                  onClick={() => setDetailName(row.name)}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  View details
+                                </button>
+                                {STATUS_ACTIONS.filter((a) => a.value !== row.status).map((action) => (
+                                  <button
+                                    key={action.value}
+                                    type="button"
+                                    onClick={() => handleStatusChange(row.name, action.value)}
+                                    className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                  >
+                                    {action.label}
+                                  </button>
+                                ))}
+                              </PortalActionsMenu>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  : candidateList.map((row) => {
+                      const key = candidateRowKey(row)
+                      const actionId = row.follow_up_name || key
+                      return (
+                        <tr key={key} className="hover:bg-slate-50">
+                          <td className="px-3 py-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedKeys.has(key)}
+                              onChange={() => toggleRow(key)}
+                              aria-label={`Select ${row.patient_name}`}
+                              className="rounded border-slate-300"
+                            />
+                          </td>
+                          {!patient && (
+                            <td
+                              className="px-4 py-2 cursor-pointer"
+                              onClick={() => row.patient && onPatientClick?.(row.patient)}
                             >
-                              {action.label}
-                            </button>
-                          ))}
-                        </PortalActionsMenu>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                              <span className="font-medium text-primary hover:underline">
+                                {row.patient_name || row.patient}
+                              </span>
+                            </td>
+                          )}
+                          <td className="px-4 py-2 text-slate-700 font-medium">{row.reference_name}</td>
+                          <td className="px-4 py-2 text-slate-600">{row.reference_date || '—'}</td>
+                          <td className="px-4 py-2 text-slate-600">{row.follow_up_date || '—'}</td>
+                          <td className="px-4 py-2">
+                            <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${statusBadgeClass(row.follow_up_status || row.reference_status)}`}>
+                              {row.follow_up_status || row.reference_status || '—'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-slate-600">{row.practitioner_name || '—'}</td>
+                          <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
+                          <td className="px-4 py-2 text-right">
+                            <div
+                              className="relative inline-block"
+                              ref={openActionRow === actionId ? menuRef : undefined}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setOpenActionRow((prev) => (prev === actionId ? null : actionId))}
+                                disabled={sendingId === key}
+                                className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                                aria-label="Actions"
+                              >
+                                ⋮
+                              </button>
+                              <PortalActionsMenu
+                                open={openActionRow === actionId}
+                                onClose={() => setOpenActionRow(null)}
+                                triggerRef={menuRef}
+                                placement="above-right"
+                                minWidth={200}
+                              >
+                                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                                  Send Reminder
+                                </div>
+                                {CHANNEL_OPTIONS.map((ch) => (
+                                  <button
+                                    key={ch.value}
+                                    type="button"
+                                    onClick={() => handleRemindCandidate(row, ch.value)}
+                                    disabled={sendingId === key}
+                                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
+                                  >
+                                    <span>{ch.icon}</span> {ch.label}
+                                  </button>
+                                ))}
+                                {row.follow_up_name && (
+                                  <>
+                                    <div className="border-t border-slate-100 my-1" />
+                                    <button
+                                      type="button"
+                                      onClick={() => setDetailName(row.follow_up_name!)}
+                                      className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                    >
+                                      View follow-up record
+                                    </button>
+                                  </>
+                                )}
+                              </PortalActionsMenu>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
               </tbody>
             </table>
           </div>

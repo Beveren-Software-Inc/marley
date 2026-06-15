@@ -425,7 +425,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
 
                     {/* Branch */}
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Cost Center</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
                       <div className="relative">
                         <input
                           type="text"

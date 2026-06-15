@@ -172,7 +172,6 @@ export const DoctorPage = () => {
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
-  const [morseFallCreateOpen, setMorseFallCreateOpen] = useState(false)
   const [envChecklistCreateOpen, setEnvChecklistCreateOpen] = useState(false)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
@@ -1010,13 +1009,12 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Morse Fall Scale" onAdd={() => setMorseFallCreateOpen(true)}>
+          <DashboardCard title="Morse Fall Scale">
             <MorseFallScaleList
               patient={selectedPatient}
               onPatientClick={handlePatientSelect}
               defaultAdmission={activeAdmission || undefined}
-              createModalOpen={morseFallCreateOpen}
-              onCreateModalOpenChange={setMorseFallCreateOpen}
+              allowCreate={false}
             />
           </DashboardCard>
         </div>
@@ -1992,7 +1990,7 @@ export const DoctorPage = () => {
           </DashboardCard>
         </div>
 
-        {/* Row 2: IP only — History form + Suicide risk assessment */}
+        {/* IP only — History form + Suicide risk assessment */}
         {mode === 'IP' && (
         <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
           <DashboardCard

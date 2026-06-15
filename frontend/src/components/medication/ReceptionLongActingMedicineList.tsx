@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine } from '../../services/longActingMedicine'
 import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 import { toast } from '../../hooks/useToast'
-import { Mail, MoreHorizontal } from 'lucide-react'
+import { Mail, MoreHorizontal, Check } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { isDoctorRole, isNurseRole } from '../../config/permissions'
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -18,6 +20,8 @@ interface ReceptionLongActingMedicineListProps {
 }
 
 export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatientClick }: ReceptionLongActingMedicineListProps) => {
+  const { userRole } = useCareContext()
+  const canRecordGiveOut = isDoctorRole(userRole) || isNurseRole(userRole)
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -44,6 +48,8 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [remarksModal, setRemarksModal] = useState<{ name: string; current: string } | null>(null)
   const [remarksText, setRemarksText] = useState('')
   const [remarksSaving, setRemarksSaving] = useState(false)
+  const [givingOutId, setGivingOutId] = useState<string | null>(null)
+  const [stoppingId, setStoppingId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     try {
@@ -131,16 +137,61 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
-  const getRowColorClass = (nextRunDate?: string) => {
-    if (!nextRunDate) return ''
+  const getRowColorClass = (row: LongActingMedicineRow) => {
+    if (row.status === 'Completed' || row.status === 'Paused') {
+      return 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+    }
+    if (row.is_given_out_for_current_run) return 'bg-white hover:bg-slate-50'
+    if (!row.next_run_date) return 'bg-white hover:bg-slate-50'
     const today = new Date()
     today.setHours(0, 0, 0, 0)
-    const next = new Date(nextRunDate)
+    const next = new Date(row.next_run_date)
     next.setHours(0, 0, 0, 0)
     const diffDays = Math.round((next.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
     if (diffDays < 0) return 'bg-red-100 hover:bg-red-200'
     if (diffDays === 0) return 'bg-green-100 hover:bg-green-200'
-    return 'hover:bg-slate-50'
+    return 'bg-white hover:bg-slate-50'
+  }
+
+  const handleGiveOut = async (e: React.MouseEvent, row: LongActingMedicineRow) => {
+    e.stopPropagation()
+    if (!row.can_give_out) return
+    setGivingOutId(row.name)
+    try {
+      const updated = await recordLongActingMedicineGiveOut(row.name)
+      setRows((prev) =>
+        prev.map((item) => (item.name === row.name ? { ...item, ...updated } : item)),
+      )
+      toast.success('Long acting medicine marked as given out')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record give-out')
+    } finally {
+      setGivingOutId(null)
+    }
+  }
+
+  const handleStop = async (e: React.MouseEvent, row: LongActingMedicineRow) => {
+    e.stopPropagation()
+    setOpenMenuRow(null)
+    if (!row.can_stop) return
+    const reason = window.prompt(
+      `Stop long acting medicine for ${row.patient_name || row.patient || row.name}?\n\nOptional reason:`,
+    )
+    if (reason === null) return
+    if (!window.confirm('Stop this long acting medicine? No further doses will be scheduled.')) return
+
+    setStoppingId(row.name)
+    try {
+      const updated = await stopLongActingMedicine(row.name, reason.trim() || undefined)
+      setRows((prev) =>
+        prev.map((item) => (item.name === row.name ? { ...item, ...updated } : item)),
+      )
+      toast.success('Long acting medicine stopped')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to stop long acting medicine')
+    } finally {
+      setStoppingId(null)
+    }
   }
 
   const handleRowClick = (row: LongActingMedicineRow) => {
@@ -324,6 +375,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Frequency</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Given Out</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -333,7 +385,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
               {formattedRows.map((row) => (
                 <tr
                   key={row.name}
-                  className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
+                  className={`cursor-pointer transition-colors ${getRowColorClass(row)}`}
                   onClick={() => handleRowClick(row)}
                 >
                   <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
@@ -351,6 +403,20 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                   <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
                   <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
+                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                    {row.is_given_out_for_current_run ? (
+                      <span className="inline-flex items-center justify-center gap-1 text-emerald-700" title="Given out for current run">
+                        <Check className="w-4 h-4" />
+                      </span>
+                    ) : row.last_give_out_date ? (
+                      <span className="inline-flex flex-col items-center text-slate-500" title={`Last given ${formatDate(row.last_give_out_date)}`}>
+                        <Check className="w-4 h-4 text-slate-400" />
+                        <span className="text-[10px]">{formatDate(row.last_give_out_date)}</span>
+                      </span>
+                    ) : (
+                      <span className="text-slate-300">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2 text-slate-700">
                     <span>{row.status || 'Draft'}</span>
                   </td>
@@ -360,6 +426,26 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                   {/* Actions column */}
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-center gap-1">
+                      {canRecordGiveOut && row.can_stop && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleStop(e, row)}
+                          disabled={stoppingId === row.name}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {stoppingId === row.name ? 'Stopping…' : 'Stop'}
+                        </button>
+                      )}
+                      {canRecordGiveOut && row.can_give_out && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleGiveOut(e, row)}
+                          disabled={givingOutId === row.name}
+                          className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-emerald-600 bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                        >
+                          {givingOutId === row.name ? 'Saving…' : 'Give out'}
+                        </button>
+                      )}
                       {/* Three-dot menu */}
                       <div className="relative" ref={openMenuRow === row.name ? menuRef : undefined}>
                         <button
@@ -405,6 +491,16 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                             <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
                           </button>
                           <div className="border-t border-slate-100 my-1" />
+                          {canRecordGiveOut && row.can_stop && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleStop(e, row)}
+                              disabled={stoppingId === row.name}
+                              className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <span className="text-red-500 text-base leading-none">⏹</span> Stop medicine
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={(e) => openRemarksModal(e, row)}

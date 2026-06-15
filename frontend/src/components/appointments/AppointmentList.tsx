@@ -670,6 +670,7 @@ import { MarkPatientCheckedOutModal } from './MarkPatientCheckedOutModal'
 import { AppointmentCreateSalesOrderModal } from './AppointmentCreateSalesOrderModal'
 import { AppointmentPaymentModal } from './AppointmentPaymentModal'
 import { AppointmentAdRemarkModal } from './AppointmentAdRemarkModal'
+import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
@@ -737,7 +738,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
     ['Type', apt.appointment_type],
     ['Doctor', apt.practitioner_name || apt.practitioner],
     ['Department', apt.department],
-    ['Cost center', apt.cost_center],
+    ['Branch', apt.cost_center],
     ['Service unit', apt.service_unit],
     ['Patient', apt.patient_name || apt.patient],
     ['Notes', apt.notes],
@@ -747,7 +748,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
   }
   if (apt.sales_order) fields.push(['Sales order', apt.sales_order])
   if (apt.ref_sales_invoice) fields.push(['Sales invoice', apt.ref_sales_invoice])
-  if (apt.remarks) fields.push(['AD remark', apt.remarks])
+  if (apt.remarks) fields.push(['Reception remarks', apt.remarks])
   return fields
 }
 
@@ -866,6 +867,7 @@ export const AppointmentList = ({
   const [billingTarget, setBillingTarget] = useState<Appointment | null>(null)
   const [paymentTarget, setPaymentTarget] = useState<Appointment | null>(null)
   const [adRemarkTarget, setAdRemarkTarget] = useState<Appointment | null>(null)
+  const [doctorNoteTarget, setDoctorNoteTarget] = useState<Appointment | null>(null)
   const [registerWalkInTarget, setRegisterWalkInTarget] = useState<Appointment | null>(null)
   /** After registration, auto mark arrived and create patient visit. */
   const [registerThenArrive, setRegisterThenArrive] = useState(false)
@@ -1630,7 +1632,7 @@ export const AppointmentList = ({
                   Type
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                  Cost Center
+                  Branch
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   Status
@@ -1924,7 +1926,7 @@ export const AppointmentList = ({
                               Reschedule
                             </button>
                           )}
-                          {showAll && (
+                          {showAll && receptionWalkInActions && (
                             <button
                               type="button"
                               onClick={() => {
@@ -1933,7 +1935,19 @@ export const AppointmentList = ({
                               }}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                             >
-                              AD remark{apt.remarks ? '…' : ''}
+                              Add Remarks{apt.remarks ? '…' : ''}
+                            </button>
+                          )}
+                          {(doctorScheduleMode || (showAll && !receptionWalkInActions)) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionRow(null)
+                                setDoctorNoteTarget(apt)
+                              }}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              {apt.notes ? "Edit doctor's note…" : "Add doctor's note"}
                             </button>
                           )}
                           {apt.patient && !isWalkInAppointment(apt) && (
@@ -2056,6 +2070,14 @@ export const AppointmentList = ({
         />
       )}
 
+      {doctorNoteTarget && (
+        <AppointmentDoctorNoteModal
+          appointment={doctorNoteTarget}
+          onClose={() => setDoctorNoteTarget(null)}
+          onSuccess={() => setRefreshTrigger((t) => t + 1)}
+        />
+      )}
+
       {rescheduleAppointment && (
         <RescheduleAppointmentModal
           appointment={rescheduleAppointment}
@@ -2099,7 +2121,22 @@ export const AppointmentList = ({
         >
           <AppointmentDetailPanel
             name={detailApt.name}
+            refreshKey={refreshTrigger}
             receptionWalkInActions={receptionWalkInActions}
+            onAddRemarks={
+              receptionWalkInActions
+                ? () => {
+                    setAdRemarkTarget(detailApt)
+                  }
+                : undefined
+            }
+            onAddDoctorNote={
+              doctorScheduleMode || !receptionWalkInActions
+                ? () => {
+                    setDoctorNoteTarget(detailApt)
+                  }
+                : undefined
+            }
             onRegisterWalkIn={
               receptionWalkInActions && isWalkInAppointment(detailApt)
                 ? () => {

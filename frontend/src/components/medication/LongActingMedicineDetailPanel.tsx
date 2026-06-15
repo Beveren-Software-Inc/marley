@@ -212,6 +212,36 @@ export function LongActingMedicineDetailPanel({
             </section>
           ) : null}
 
+          {(doc?.give_outs?.length ?? 0) > 0 ? (
+            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+              <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-emerald-900">Give Outs</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-left text-xs uppercase text-slate-500">
+                      <th className="py-2 pr-3">Date</th>
+                      <th className="py-2 pr-3">Time</th>
+                      <th className="py-2 pr-3">Scheduled Run</th>
+                      <th className="py-2 pr-3">Given By</th>
+                      <th className="py-2">Notes</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {doc!.give_outs!.map((row, idx) => (
+                      <tr key={row.name || `give-out-${idx}`} className="border-b border-slate-100">
+                        <td className="py-2 pr-3 text-slate-700">{formatDate(row.date)}</td>
+                        <td className="py-2 pr-3 text-slate-700">{row.time || '—'}</td>
+                        <td className="py-2 pr-3 text-slate-700">{formatDate(row.scheduled_run_date)}</td>
+                        <td className="py-2 pr-3 text-slate-700">{row.user || '—'}</td>
+                        <td className="py-2 text-slate-600">{row.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+          ) : null}
+
           <section className={MODAL_SECTION_CLASS}>
             <h3 className={MODAL_SECTION_TITLE_CLASS}>
               <ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />

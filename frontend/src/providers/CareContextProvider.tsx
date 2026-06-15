@@ -64,13 +64,13 @@ interface CareContextValue {
    */
   selectedPatient: string | undefined
   setSelectedPatient: (patient: string | undefined) => void
-  /** Current user's cost center */
+  /** Current user's branch */
   userCostCenter?: string
   /** ERPNext Company from the user's working cost centre (Cost Center.company) */
   costCenterCompany?: string
   /**
    * Cost Center.custom_patient_care_type — "IP Only" | "OP Only" | "Both IP & OP" or empty when unset / N/A.
-   * Drives OP vs IP UI (sidebar, header toggles). Exempt users with no mapped cost center get "" (both).
+   * Drives OP vs IP UI (sidebar, header toggles). Exempt users with no mapped branch get "" (both).
    */
   costCenterPatientCareType?: string
   /** Normalized scope derived from {@link costCenterPatientCareType} */
@@ -202,11 +202,11 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     [isActiveCareEpisodeClosed, activeCareBlockReason],
   )
 
-  // Load user cost center and roles when component mounts
+  // Load user branch and roles when component mounts
   useEffect(() => {
     const loadUserContext = async () => {
       try {
-        // Load cost center
+        // Load branch
         const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
         if (response.ok) {
           const data = await response.json()

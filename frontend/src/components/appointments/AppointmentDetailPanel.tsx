@@ -69,20 +69,26 @@ function Section({ title, icon, children, accent = 'border-slate-200' }: Section
 
 interface AppointmentDetailPanelProps {
   name: string
+  refreshKey?: string | number
   receptionWalkInActions?: boolean
   onRegisterWalkIn?: () => void
   onCreateVisit?: () => void
   onMarkArrived?: () => void
   onMarkCheckedOut?: () => void
+  onAddRemarks?: () => void
+  onAddDoctorNote?: () => void
 }
 
 export function AppointmentDetailPanel({
   name,
+  refreshKey,
   receptionWalkInActions = false,
   onRegisterWalkIn,
   onCreateVisit,
   onMarkArrived,
   onMarkCheckedOut,
+  onAddRemarks,
+  onAddDoctorNote,
 }: AppointmentDetailPanelProps) {
   const [doc, setDoc] = useState<AppointmentDoc | null>(null)
   const [loading, setLoading] = useState(true)
@@ -105,7 +111,7 @@ export function AppointmentDetailPanel({
     return () => {
       cancelled = true
     }
-  }, [name])
+  }, [name, refreshKey])
 
   if (loading) {
     return (
@@ -282,7 +288,7 @@ export function AppointmentDetailPanel({
         <InfoRow label="Type" value={str(doc.appointment_type)} />
         <InfoRow label="Status" value={status} />
         {!!doc.service_unit && <InfoRow label="Service Unit" value={str(doc.service_unit)} />}
-        {!!doc.cost_center && <InfoRow label="Cost Center" value={str(doc.cost_center)} />}
+        {!!doc.cost_center && <InfoRow label="Branch" value={str(doc.cost_center)} />}
         {!!doc.company && <InfoRow label="Company" value={str(doc.company)} />}
         {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
       </Section>
@@ -326,27 +332,58 @@ export function AppointmentDetailPanel({
         </Section>
       )}
 
-      {!!(doc.notes || doc.notes === '') && (
-        <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
-            <svg className="w-4 h-4 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <div className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+          <div className="flex items-center gap-2 min-w-0">
+            <svg className="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
               />
             </svg>
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Remarks / Notes</span>
+            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">Remarks &amp; Notes</span>
           </div>
-          <div className="px-4 py-3">
-            {doc.notes ? (
-              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{str(doc.notes)}</p>
-            ) : (
-              <p className="text-sm text-slate-400 italic">No remarks added.</p>
+          <div className="flex flex-wrap gap-1.5 shrink-0">
+            {onAddRemarks && (
+              <button
+                type="button"
+                onClick={onAddRemarks}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-semibold rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+              >
+                {doc.remarks ? 'Edit remarks' : 'Add remarks'}
+              </button>
+            )}
+            {onAddDoctorNote && (
+              <button
+                type="button"
+                onClick={onAddDoctorNote}
+                className="inline-flex items-center px-2 py-1 text-[11px] font-semibold rounded border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+              >
+                {doc.notes ? "Edit doctor's note" : "Add doctor's note"}
+              </button>
             )}
           </div>
         </div>
-      )}
+        <div className="px-4 py-3 space-y-4">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Reception remarks</p>
+            {doc.remarks ? (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{str(doc.remarks)}</p>
+            ) : (
+              <p className="text-sm text-slate-400 italic">No reception remarks added.</p>
+            )}
+          </div>
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-1">Doctor&apos;s note</p>
+            {doc.notes ? (
+              <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{str(doc.notes)}</p>
+            ) : (
+              <p className="text-sm text-slate-400 italic">No doctor&apos;s note added.</p>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

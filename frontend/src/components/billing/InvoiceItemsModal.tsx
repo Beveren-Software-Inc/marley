@@ -102,7 +102,7 @@ export const InvoiceItemsModal = ({ isOpen, onClose, invoiceName, onMakePayment 
                       <p className="text-sm text-slate-700">{invoiceDetails.due_date}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-500">Cost Center</p>
+                      <p className="text-xs text-slate-500">Branch</p>
                       <p className="text-sm text-slate-700">{invoiceDetails.cost_center || '-'}</p>
                     </div>
                   </div>

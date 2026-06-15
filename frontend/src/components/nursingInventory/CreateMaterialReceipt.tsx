@@ -132,7 +132,7 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
     e.preventDefault()
     
     if (!effectiveCostCenter) {
-      toast.error('No cost center assigned')
+      toast.error('No branch assigned')
       return
     }
 
@@ -223,7 +223,7 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
               <div className="space-y-5">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Cost Center <span className="text-red-500">*</span>
+                    Branch <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"

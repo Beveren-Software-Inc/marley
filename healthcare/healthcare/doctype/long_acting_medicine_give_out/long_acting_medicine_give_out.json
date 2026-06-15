@@ -1,0 +1,75 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-15 12:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "date",
+  "time",
+  "scheduled_run_date",
+  "column_break_1",
+  "user",
+  "notes"
+ ],
+ "fields": [
+  {
+   "allow_on_submit": 1,
+   "default": "Today",
+   "fieldname": "date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date Given",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "Now",
+   "fieldname": "time",
+   "fieldtype": "Time",
+   "in_list_view": 1,
+   "label": "Time Given"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "scheduled_run_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Scheduled Run Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "__user",
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Given By",
+   "options": "User",
+   "reqd": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-15 13:31:01.479622",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Long Acting Medicine Give Out",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

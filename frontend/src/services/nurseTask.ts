@@ -36,7 +36,7 @@ export interface CreateNurseTaskData {
   assigned_nurse?: string
   /** Shift Assignment name */
   shift?: string
-  /** Cost Center name */
+  /** Branch name */
   cost_center?: string
   due_time?: string
   medication?: string

@@ -270,7 +270,7 @@ export function GroomingChartDetailPanel({
               />
               <InfoTile
                 icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
-                label="Cost centre"
+                label="Branch"
                 value={displayValue(doc?.cost_center || preview?.cost_center)}
               />
               <InfoTile

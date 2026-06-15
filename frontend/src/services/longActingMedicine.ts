@@ -1,3 +1,12 @@
+export interface LongActingMedicineGiveOutRow {
+  name?: string
+  date?: string
+  time?: string
+  user?: string
+  scheduled_run_date?: string
+  notes?: string
+}
+
 export interface LongActingMedicineRow {
   name: string
   patient?: string
@@ -13,6 +22,13 @@ export interface LongActingMedicineRow {
   practitioner_name?: string
   doctors_remark?: string
   medications?: LongActingMedicineItem[]
+  give_outs?: LongActingMedicineGiveOutRow[]
+  last_give_out_date?: string
+  last_give_out_time?: string
+  last_give_out_by?: string
+  is_given_out_for_current_run?: boolean
+  can_give_out?: boolean
+  can_stop?: boolean
 }
 
 export interface LongActingMedicineItem {
@@ -90,4 +106,50 @@ export async function fetchLongActingMedicineList(
     throw new Error(data?.message || 'Failed to fetch long acting medicine list')
   }
   return Array.isArray(data?.message) ? (data.message as LongActingMedicineRow[]) : []
+}
+
+export async function recordLongActingMedicineGiveOut(
+  name: string,
+  notes?: string,
+): Promise<LongActingMedicineRow> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine.record_long_acting_medicine_give_out',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name, notes: notes || undefined }),
+      credentials: 'include',
+    },
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(data?.message || 'Failed to record give-out')
+  return (data?.message || {}) as LongActingMedicineRow
+}
+
+export async function stopLongActingMedicine(
+  name: string,
+  reason?: string,
+): Promise<LongActingMedicineRow> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine.stop_long_acting_medicine',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ name, reason: reason || undefined }),
+      credentials: 'include',
+    },
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(data?.message || 'Failed to stop long acting medicine')
+  return (data?.message || {}) as LongActingMedicineRow
 }

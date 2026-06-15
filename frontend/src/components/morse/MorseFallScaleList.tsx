@@ -22,6 +22,8 @@ interface MorseFallScaleListProps {
   refreshKey?: number
   onPatientClick?: (patient: string) => void
   defaultAdmission?: string
+  /** When false, hide create controls (e.g. doctor read-only view). Default true. */
+  allowCreate?: boolean
   createModalOpen?: boolean
   onCreateModalOpenChange?: (open: boolean) => void
   onRecordCreated?: () => void
@@ -75,6 +77,7 @@ export const MorseFallScaleList = ({
   refreshKey,
   onPatientClick,
   defaultAdmission,
+  allowCreate = true,
   createModalOpen,
   onCreateModalOpenChange,
   onRecordCreated,
@@ -201,14 +204,16 @@ export const MorseFallScaleList = ({
               active={Boolean(showFilters)}
               onClick={() => setShowFiltersInternal((prev) => !prev)}
             />
-            <button
-              type="button"
-              onClick={() => guardClinicalCreate(() => setShowCreateModal(true))}
-              className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-              title="Create Morse Fall Scale"
-            >
-              +
-            </button>
+            {allowCreate ? (
+              <button
+                type="button"
+                onClick={() => guardClinicalCreate(() => setShowCreateModal(true))}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                title="Create Morse Fall Scale"
+              >
+                +
+              </button>
+            ) : null}
           </div>
         </div>
       )}
@@ -312,8 +317,7 @@ export const MorseFallScaleList = ({
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Cost Center</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Company</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Risk</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
@@ -356,12 +360,6 @@ export const MorseFallScaleList = ({
                       onClick={() => handleView(row.name)}
                     >
                       {row.cost_center || '—'}
-                    </td>
-                    <td
-                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                      onClick={() => handleView(row.name)}
-                    >
-                      {row.company || '—'}
                     </td>
                     <td
                       className="px-4 py-3 text-sm font-semibold text-slate-800 cursor-pointer"
@@ -441,7 +439,7 @@ export const MorseFallScaleList = ({
         />
       )}
 
-      {showCreateModal && (
+      {allowCreate && showCreateModal && (
         <CreateMorseFallScaleModal
           patient={patient}
           patientName={patientName}

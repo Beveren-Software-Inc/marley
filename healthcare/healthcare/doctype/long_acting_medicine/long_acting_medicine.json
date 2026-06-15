@@ -20,6 +20,8 @@
   "status",
   "medications_section",
   "medications",
+  "give_outs_section",
+  "give_outs",
   "amended_from",
   "more_infor_section",
   "remarks",
@@ -94,6 +96,7 @@
    "label": "End Date"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "next_run_date",
    "fieldtype": "Date",
    "in_list_view": 1,
@@ -101,6 +104,7 @@
    "label": "Next Run Date"
   },
   {
+   "allow_on_submit": 1,
    "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
@@ -120,6 +124,18 @@
    "label": "Subscription Medications",
    "options": "Subscription Medication Plan Item",
    "reqd": 1
+  },
+  {
+   "fieldname": "give_outs_section",
+   "fieldtype": "Section Break",
+   "label": "Give Outs"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "give_outs",
+   "fieldtype": "Table",
+   "label": "Give Outs",
+   "options": "Long Acting Medicine Give Out"
   },
   {
    "fieldname": "amended_from",
@@ -147,6 +163,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "doctors_remark",
    "fieldtype": "Small Text",
    "label": "Doctors Remark"
@@ -166,7 +183,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-08 13:26:23.095133",
+ "modified": "2026-06-15 13:30:41.119189",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Long Acting Medicine",

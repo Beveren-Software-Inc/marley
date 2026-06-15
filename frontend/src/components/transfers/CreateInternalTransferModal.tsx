@@ -87,11 +87,11 @@ export const CreateInternalTransferModal = ({
       return
     }
     if (!toCostCenter) {
-      toast.error('Please select target cost center')
+      toast.error('Please select target branch')
       return
     }
     if (selectedAdmission?.cost_center && selectedAdmission.cost_center === toCostCenter) {
-      toast.error('Target cost center must be different from current')
+      toast.error('Target branch must be different from current')
       return
     }
 
@@ -198,7 +198,7 @@ export const CreateInternalTransferModal = ({
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Current Cost Center</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Current Branch</label>
               <input
                 value={selectedAdmission?.cost_center || ''}
                 readOnly
@@ -207,14 +207,14 @@ export const CreateInternalTransferModal = ({
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                To Cost Center <span className="text-red-500">*</span>
+                To Branch <span className="text-red-500">*</span>
               </label>
               <select
                 value={toCostCenter}
                 onChange={(e) => setToCostCenter(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="">Select target cost center...</option>
+                <option value="">Select target branch...</option>
                 {costCenters.map((cc) => (
                   <option key={cc.name} value={cc.name}>{cc.label || cc.name}</option>
                 ))}

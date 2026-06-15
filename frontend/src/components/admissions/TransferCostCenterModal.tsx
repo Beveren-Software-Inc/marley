@@ -29,7 +29,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load cost centers (same company, exclude current)
+  // Load branches (same company, exclude current)
   useEffect(() => {
     const load = async () => {
       try {
@@ -44,7 +44,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     return () => clearTimeout(t)
   }, [admission.company, admission.cost_center, toCostCenterQuery])
 
-  // Load service units (vacant, in selected cost center) when cost center is selected
+  // Load service units (vacant, in selected branch) when branch is selected
   useEffect(() => {
     if (!toCostCenter) {
       setServiceUnitOptions([])
@@ -74,7 +74,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     e.preventDefault()
     setError(null)
     if (!toCostCenter.trim()) {
-      setError('To Cost Center is required')
+      setError('To Branch is required')
       return
     }
     try {
@@ -107,7 +107,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Transfeto Another Cost Center</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Transfeto Another Branch</h2>
           <button
             type="button"
             onClick={onClose}
@@ -127,7 +127,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
 
           <div className="relative">
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              To Cost Center <span className="text-red-500">*</span>
+              To Branch <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
@@ -138,14 +138,14 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
                 setCostCenterOpen(true)
               }}
               onFocus={() => setCostCenterOpen(true)}
-              placeholder="Select cost center..."
+              placeholder="Select branch..."
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               required
             />
             {costCenterOpen && (
               <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                 {costCenterOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">No cost centers found</div>
+                  <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
                 ) : (
                   costCenterOptions.map((cc) => (
                     <button
@@ -177,14 +177,14 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
                 setServiceUnitOpen(true)
               }}
               onFocus={() => toCostCenter && setServiceUnitOpen(true)}
-              placeholder={!toCostCenter ? 'Select a cost center first' : 'Search bed/room...'}
+              placeholder={!toCostCenter ? 'Select a branch first' : 'Search bed/room...'}
               disabled={!toCostCenter}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
             />
             {serviceUnitOpen && toCostCenter && (
               <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                 {serviceUnitOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">No vacant units in this cost center</div>
+                  <div className="px-3 py-2 text-xs text-slate-500">No vacant units in this branch</div>
                 ) : (
                   serviceUnitOptions.map((su) => (
                     <button

@@ -42,7 +42,6 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import {
   canEditMainDischargeChecklist,
   getVisibleDischargeTabIds,
-  isDoctorRole,
   isNurseRole,
   type DischargeTabId,
 } from '../../config/permissions'
@@ -53,6 +52,7 @@ import {
   canSubmitDischargeWithChecklist,
   CHECKLIST_STATUS_LABELS,
 } from '../../utils/dischargeChecklistStatus'
+import { DischargeChecklistStatusCard } from '../discharges/DischargeChecklistStatusCard'
 import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
@@ -2056,7 +2056,7 @@ const loadDailyVisitSetup = async () => {
 
           {/* ── TAB: DETAILS ── */}
           {canViewDischargeTabPanel('details') && (
-            <div className={`p-6 ${isDoctorRole(userRole) && !visibleTabIds.includes('checklist') ? 'grid lg:grid-cols-[1fr_240px] gap-6' : ''}`}>
+            <div className="grid gap-6 p-6 lg:grid-cols-[1fr_280px]">
               <div className="space-y-6 min-w-0">
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Basic Information</h3>
@@ -2103,6 +2103,28 @@ const loadDailyVisitSetup = async () => {
                       onChange={(e) => setFormData({ ...formData, discharge_date: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge plan & instructions</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {[
+                    { key: 'discharge_treatment_plan', label: 'Discharge Treatment Plan' },
+                    { key: 'discharge_reason', label: 'Discharge Reason' },
+                    { key: 'discharge_conditions', label: 'Discharge Condition' },
+                    { key: 'discharge_instructions', label: 'Discharge Instructions' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                      <textarea
+                        rows={3}
+                        value={formData[key as keyof typeof formData]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  ))}
                 </div>
               </section>
 
@@ -2329,11 +2351,7 @@ const loadDailyVisitSetup = async () => {
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Medical Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { key: 'discharge_treatment_plan', label: 'Discharge Treatment Plan' },
-                    { key: 'discharge_reason', label: 'Discharge Reason' },
                     { key: 'discharge_diagnosis', label: 'Discharge Diagnosis' },
-                    { key: 'discharge_conditions', label: 'Discharge Conditions' },
-                    { key: 'discharge_instructions', label: 'Discharge Instructions' },
                     { key: 'final_exam_mental_status_summary', label: 'Final Exam Mental Status Summary' },
                     { key: 'management_in_hospital', label: 'Management In Hospital' },
                     { key: 'prognosis', label: 'Prognosis' },
@@ -2368,29 +2386,13 @@ const loadDailyVisitSetup = async () => {
               </section>
               </div>
 
-              {isDoctorRole(userRole) && !visibleTabIds.includes('checklist') && (
-                <aside className="space-y-3 lg:sticky lg:top-4 self-start">
-                  <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-3">
-                    <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Checklist status</h4>
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-700">Discharge checklist</span>
-                      <span className={`font-semibold ${allCompleted || financeOnlyPending ? 'text-green-700' : totalItems === 0 ? 'text-slate-500' : 'text-amber-700'}`}>
-                        {totalItems === 0
-                          ? 'Pending'
-                          : allCompleted || financeOnlyPending
-                            ? 'Done'
-                            : 'Pending'}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 text-sm">
-                      <span className="text-slate-700">Nursing checklist</span>
-                      <span className={`font-semibold ${nurseAllCompleted ? 'text-green-700' : nurseTotalItems === 0 ? 'text-slate-500' : 'text-amber-700'}`}>
-                        {nurseTotalItems === 0 ? 'Not done' : nurseAllCompleted ? 'Done' : 'Not done'}
-                      </span>
-                    </div>
-                  </div>
-                </aside>
-              )}
+              <aside className="space-y-3 lg:sticky lg:top-4 self-start">
+                <DischargeChecklistStatusCard
+                  dischargeChecklist={checklistItems}
+                  nursingChecklist={nurseChecklistItems}
+                  loading={checklistLoading || nurseChecklistLoading}
+                />
+              </aside>
             </div>
           )}
 

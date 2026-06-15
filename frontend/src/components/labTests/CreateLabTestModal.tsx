@@ -70,7 +70,7 @@ export const CreateLabTestModal = ({
   const [departmentQuery, setDepartmentQuery] = useState('')
   const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
 
-  // Cost Center dropdown state
+  // Branch dropdown state
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterOpen, setCostCenterOpen] = useState(false)
   const [costCenterQuery, setCostCenterQuery] = useState('')
@@ -127,7 +127,7 @@ export const CreateLabTestModal = ({
       return
     }
     if (!formData.cost_center) {
-      setError('Cost Center is required')
+      setError('Branch is required')
       return
     }
 
@@ -328,7 +328,7 @@ export const CreateLabTestModal = ({
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen])
 
-  // Search cost centers
+  // Search branches
   useEffect(() => {
     if (!costCenterOpen) return
 
@@ -337,7 +337,7 @@ export const CreateLabTestModal = ({
         const results = await fetchCostCenters(undefined, costCenterQuery)
         setCostCenterOptions(results)
       } catch (err) {
-        console.error('Failed to search cost centers:', err)
+        console.error('Failed to search branches:', err)
         setCostCenterOptions([])
       }
     }
@@ -489,7 +489,7 @@ export const CreateLabTestModal = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Cost Center <span className="text-red-500">*</span>
+                  Branch <span className="text-red-500">*</span>
                 </label>
                 <div className="relative">
                   <input
@@ -505,7 +505,7 @@ export const CreateLabTestModal = ({
                       setCostCenterOpen(true)
                     }}
                     onFocus={() => setCostCenterOpen(true)}
-                    placeholder="Search cost center..."
+                    placeholder="Search branch..."
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   {costCenterOpen && costCenterOptions.length > 0 && (

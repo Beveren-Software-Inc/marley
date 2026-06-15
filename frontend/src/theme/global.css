@@ -57,6 +57,10 @@
  * Healthcare modals & detail panels — uniform emerald focus/hover on fields
  * (Create Prescription / Clinical Suicide Risk Assessment style).
  */
+[data-healthcare-modal] {
+  color-scheme: light;
+}
+
 [data-healthcare-modal] input:not([type='checkbox']):not([type='radio']):not([type='hidden']):not([type='file']):not([type='button']):not([type='submit']):not([type='reset']),
 [data-healthcare-modal] select,
 [data-healthcare-modal] textarea {

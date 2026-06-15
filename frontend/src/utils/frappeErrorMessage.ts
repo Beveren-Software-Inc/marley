@@ -1,6 +1,6 @@
 /** Human-readable labels for common Frappe mandatory field names */
 const MANDATORY_FIELD_LABELS: Record<string, string> = {
-  cost_center: 'Cost center',
+  cost_center: 'Branch',
   practitioner: 'Practitioner',
   patient: 'Patient',
   patient_visit: 'Patient visit',

@@ -10,16 +10,22 @@ def get_service_invoices(
     status=None,
     from_date=None,
     to_date=None,
+    search=None,
     limit=50,
     offset=0
 ):
     """Get list of Sales Invoices for services"""
+    from healthcare.api.billing_search import billing_search_or_filters
+
     filters = {}
-    
-    if reference_type:
-        filters['custom_reference_type'] = reference_type
-    if reference_name:
-        filters['custom_reference_name'] = reference_name
+    search_term = (search or "").strip()
+    or_filters = billing_search_or_filters(search_term, patient) if search_term else None
+
+    if not search_term:
+        if reference_type:
+            filters['custom_reference_type'] = reference_type
+        if reference_name:
+            filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if status:
@@ -45,8 +51,8 @@ def get_service_invoices(
             return []
         filters['cost_center'] = ['in', permitted_cc]
     # frappe.throw(str(filters))
-    invoices = frappe.get_all(
-        'Sales Invoice',
+    list_kwargs = dict(
+        doctype='Sales Invoice',
         filters=filters,
         fields=[
             'name',
@@ -69,8 +75,11 @@ def get_service_invoices(
         ],
         limit=limit,
         limit_start=offset,
-        order_by='posting_date desc, creation desc'
+        order_by='posting_date desc, creation desc',
     )
+    if or_filters:
+        list_kwargs['or_filters'] = or_filters
+    invoices = frappe.get_all(**list_kwargs)
     
     # Get linked orders count for each invoice
     for inv in invoices:
@@ -95,14 +104,19 @@ def get_service_invoices(
 
 
 @frappe.whitelist()
-def get_invoice_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None):
+def get_invoice_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, search=None):
     """Get summary of invoices for a reference"""
-    filters = {}
+    from healthcare.api.billing_search import billing_search_or_filters
 
-    if reference_type:
-        filters['custom_reference_type'] = reference_type
-    if reference_name:
-        filters['custom_reference_name'] = reference_name
+    filters = {}
+    search_term = (search or "").strip()
+    or_filters = billing_search_or_filters(search_term, patient) if search_term else None
+
+    if not search_term:
+        if reference_type:
+            filters['custom_reference_type'] = reference_type
+        if reference_name:
+            filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if from_date and to_date:
@@ -128,11 +142,14 @@ def get_invoice_summary(reference_type=None, reference_name=None, patient=None, 
             }
         filters['cost_center'] = ['in', permitted_cc]
 
-    invoices = frappe.get_all(
-        'Sales Invoice',
+    summary_kwargs = dict(
+        doctype='Sales Invoice',
         filters=filters,
-        fields=['status', 'grand_total', 'outstanding_amount', 'paid_amount']
+        fields=['status', 'grand_total', 'outstanding_amount', 'paid_amount'],
     )
+    if or_filters:
+        summary_kwargs['or_filters'] = or_filters
+    invoices = frappe.get_all(**summary_kwargs)
     
     summary = {
         'total_invoices': len(invoices),

@@ -1,8 +1,14 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import {
+  CardRowMetaHint,
+  dashboardCardRowHoverClass,
+  formatDashboardDate,
+  type CardMetaField,
+} from '../ui/dashboardCardListing'
 import { PatientVisitDetails } from './PatientVisitDetails'
 import { cancelVisit, createInvoiceForVisit, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
@@ -57,6 +63,18 @@ interface PatientVisitListProps {
   hideLabPharmacyAmounts?: boolean
 }
 
+function patientVisitCardMetaFields(
+  visit: PatientVisitListRow,
+  opts: { patient?: string },
+): readonly CardMetaField[] {
+  const fields: CardMetaField[] = [['Visit No', visit.value]]
+  if (!opts.patient) {
+    fields.push(['Patient', visit.patient_name || visit.label?.split(' - ')[1]])
+  }
+  fields.push(['Practitioner', visit.practitioner_name])
+  return fields
+}
+
 export const PatientVisitList = ({
   onVisitSelect,
   onVisitActivate,
@@ -83,6 +101,7 @@ export const PatientVisitList = ({
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const cardFilters = useCardFilters()
+  const cardCompactLayout = useDashboardCompactClinical()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -335,11 +354,23 @@ export const PatientVisitList = ({
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
-  const tableColSpan =
-    8 +
-    (patient ? 0 : 1) +
-    (showAppointmentAmount ? 1 : 0) -
-    (hideLabPharmacyAmounts ? 2 : 0)
+  const tableColSpan = cardCompactLayout
+    ? 3
+    : 8 +
+      (patient ? 0 : 1) +
+      (showAppointmentAmount ? 1 : 0) -
+      (hideLabPharmacyAmounts ? 2 : 0)
+
+  const openVisitRow = (visit: PatientVisitListRow) => {
+    if (onVisitActivate) {
+      onVisitActivate(visit)
+    } else {
+      setDetailVisit(visit.value)
+      onVisitSelect?.(visit.value)
+    }
+  }
+
+  const visitMetaOptions = { patient }
 
   const exportFilteredCsv = () => {
     const headers = [
@@ -595,29 +626,51 @@ export const PatientVisitList = ({
             </div>
           </div>
         ) : (
-          <table className={`w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`}>
+          <table
+            className={
+              cardCompactLayout
+                ? 'w-full table-fixed'
+                : `w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`
+            }
+          >
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit No</th>
-                {!patient && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
-                )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
-                {showAppointmentAmount && (
-                  <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
-                    Appointment Amount
-                  </th>
-                )}
-                {!hideLabPharmacyAmounts && (
+                {cardCompactLayout ? (
                   <>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Lab Amount</th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Pharmacy Amount</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Visit No
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Encounter Date
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Status
+                    </th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit No</th>
+                    {!patient && (
+                      <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
+                    )}
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
+                    {showAppointmentAmount && (
+                      <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                        Appointment Amount
+                      </th>
+                    )}
+                    {!hideLabPharmacyAmounts && (
+                      <>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Lab Amount</th>
+                        <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Pharmacy Amount</th>
+                      </>
+                    )}
+                    <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Service Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide w-[100px]">Actions</th>
                   </>
                 )}
-                <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Service Amount</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide w-[100px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -627,18 +680,32 @@ export const PatientVisitList = ({
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
+              ) : cardCompactLayout ? (
+                visits.map((visit) => (
+                  <tr
+                    key={visit.value}
+                    className={dashboardCardRowHoverClass}
+                    onClick={() => openVisitRow(visit)}
+                  >
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                      <span className="inline-flex items-start text-primary font-medium break-words">
+                        {visit.value}
+                        <CardRowMetaHint fields={patientVisitCardMetaFields(visit, visitMetaOptions)} />
+                      </span>
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                      {formatDashboardDate(visit.encounter_date)}
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
+                    </td>
+                  </tr>
+                ))
               ) : visits.map(visit => (
                 <tr key={visit.value} className="hover:bg-slate-50 transition-colors">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => {
-                      if (onVisitActivate) {
-                        onVisitActivate(visit)
-                      } else {
-                        setDetailVisit(visit.value)
-                        onVisitSelect?.(visit.value)
-                      }
-                    }}
+                    onClick={() => openVisitRow(visit)}
                   >
                     {visit.value}
                   </td>

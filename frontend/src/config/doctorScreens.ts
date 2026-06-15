@@ -62,6 +62,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'warn', title: 'Warning Messages' },
       { id: 'mh', title: 'Past Medical History' },
       { id: 'physical-exam', title: 'Physical Examination' },
+      { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
       {id:'patients', title: 'Patients List'},
       // { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
     ],
@@ -135,7 +136,6 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'mood', title: 'Mood Disorder Assessment' },
       { id: 'gad7', title: 'GAD7 Assessment' },
       { id: 'phq9', title: 'PHQ9 Assessment' },
-      { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
       { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
       { id: 'ybocs', title: 'YBOCS Assessment' },
       { id: 'ymrs', title: 'YMRS Assessment' },

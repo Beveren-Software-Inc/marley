@@ -83,7 +83,7 @@ export interface MaterialReceipt {
   status: 'Draft' | 'Completed'
 }
 
-// Fetch stock ledger for a cost center
+// Fetch stock ledger for a branch
 export async function fetchStockLedger(
   costCenter: string,
   warehouseContext: WarehouseContext = 'nurse'
@@ -117,7 +117,7 @@ export async function createMaterialRequest(
   })
 }
 
-// Fetch material requests for a cost center
+// Fetch material requests for a branch
 export async function fetchMaterialRequests(
   costCenter: string,
   status?: string,
@@ -188,7 +188,7 @@ export async function fetchItemUomOptions(itemCode: string): Promise<{ name: str
   return data.message || []
 }
 
-// Fetch cost centers for the user
+// Fetch branches for the user
 export async function fetchUserCostCenters(): Promise<{ name: string; label: string }[]> {
   const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_user_cost_centers')
   const data = await response.json()

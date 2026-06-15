@@ -1,6 +1,6 @@
 /**
  * Shared styles for searchable link / item comboboxes (matches Create Service Request modal).
- * Use for practitioner, patient, template, item, cost center, and similar async search fields.
+ * Use for practitioner, patient, template, item, branch, and similar async search fields.
  */
 
 export const linkComboboxInputClass =
