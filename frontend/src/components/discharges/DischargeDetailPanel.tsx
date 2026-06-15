@@ -6,6 +6,7 @@ import {
   FileText,
   Link2,
   LogOut,
+  Pill,
   Stethoscope,
   User,
   Users,
@@ -16,6 +17,7 @@ import {
   type DischargeDoc,
   type DischargePatientDocument,
   type DischargePatientRelative,
+  type DischargeStoppedMedication,
 } from '../../services/discharges'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -181,6 +183,36 @@ function DocumentsSection({ documents }: { documents: DischargePatientDocument[]
   )
 }
 
+function StoppedMedicationsSection({ medications }: { medications: DischargeStoppedMedication[] }) {
+  if (medications.length === 0) return null
+
+  return (
+    <section className="rounded-xl border border-rose-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-rose-100/80 sm:px-5 sm:py-5">
+      <div className="mb-3 flex items-center gap-2 border-b border-rose-100 pb-3">
+        <Pill className="h-5 w-5 text-rose-600" strokeWidth={2} />
+        <h3 className="text-sm font-bold uppercase tracking-wide text-rose-900">Stopped medications</h3>
+      </div>
+      <ul className="space-y-2">
+        {medications.map((med, index) => (
+          <li
+            key={med.name || `${med.drug_name}-${index}`}
+            className="rounded-md border border-rose-100 bg-rose-50/40 px-3 py-2.5"
+          >
+            <p className="text-sm font-medium text-slate-900">{med.drug_name || med.drug || 'Medication'}</p>
+            <p className="mt-1 text-xs text-rose-800">
+              <span className="font-semibold uppercase tracking-wide text-rose-700/80">Reason stopped: </span>
+              {med.reason_stopped}
+            </p>
+            {med.prescription ? (
+              <p className="mt-1 text-[10px] text-slate-500">Prescription: {med.prescription}</p>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </section>
+  )
+}
+
 function RelativesSection({ relatives }: { relatives: DischargePatientRelative[] }) {
   if (relatives.length === 0) return null
 
@@ -283,6 +315,7 @@ export function DischargeDetailPanel({
   const nursingChecklist = doc?.nursing_checklist ?? []
   const documents = doc?.patient_documents ?? []
   const relatives = doc?.patient_relatives ?? []
+  const stoppedMedications = doc?.stopped_medications ?? []
   const hasFollowUp = Boolean(doc?.next_appointment_date || doc?.next_appointment_time)
 
   return (
@@ -370,6 +403,8 @@ export function DischargeDetailPanel({
               ))}
             </div>
           </section>
+
+          <StoppedMedicationsSection medications={stoppedMedications} />
 
           {hasOtherClinical ? (
             <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">

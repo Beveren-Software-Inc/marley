@@ -33,6 +33,7 @@
   "user_name",
   "receiving_doctors",
   "final_discharge_user_id",
+  "resident_doctor_2",
   "column_break_stpu",
   "final_discharger_username",
   "prescription",
@@ -75,6 +76,7 @@
   "ip_case_management_fee",
   "room_charges",
   "today_charge_obs",
+  "special_care",
   "section_break_zwbl",
   "remark",
   "more_infor_tab",
@@ -618,13 +620,24 @@
    "fieldtype": "Link",
    "label": "Discharge Receptionist",
    "options": "User"
+  },
+  {
+   "fieldname": "resident_doctor_2",
+   "fieldtype": "Link",
+   "label": "Resident Doctor 2",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "special_care",
+   "fieldtype": "Data",
+   "label": "Special Care"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-08 13:57:01.971946",
+ "modified": "2026-06-15 17:06:02.595384",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

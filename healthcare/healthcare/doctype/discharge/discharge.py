@@ -15,10 +15,10 @@ from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission impor
 )
 
 
-def get_discharge_stopped_medication_reasons_for_admission(admission: str) -> str:
-	"""Build discharge stopped-medication text from PMO line items with reason_stopped."""
+def _get_stopped_medication_entries_for_admission(admission: str) -> list[dict]:
+	"""Return PMO child rows for this admission that have reason_stopped set."""
 	if not admission:
-		return ""
+		return []
 
 	order_names = frappe.get_all(
 		"Patient Medication Order",
@@ -26,20 +26,43 @@ def get_discharge_stopped_medication_reasons_for_admission(admission: str) -> st
 		pluck="name",
 	)
 	if not order_names:
-		return ""
+		return []
 
-	entries = frappe.get_all(
+	return frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={
 			"parent": ["in", order_names],
 			"reason_stopped": ["!=", ""],
 		},
-		fields=["parent", "drug", "drug_name", "reason_stopped"],
+		fields=["name", "parent", "drug", "drug_name", "reason_stopped"],
 		order_by="parent asc, idx asc",
 	)
 
+
+def get_stopped_medications_for_admission(admission: str) -> list[dict]:
+	"""Structured stopped medications for portal discharge detail."""
+	rows = []
+	for entry in _get_stopped_medication_entries_for_admission(admission):
+		reason = (entry.get("reason_stopped") or "").strip()
+		if not reason:
+			continue
+		drug_name = (entry.get("drug_name") or entry.get("drug") or _("Medication")).strip()
+		rows.append(
+			{
+				"name": entry.get("name"),
+				"prescription": entry.get("parent") or "",
+				"drug": entry.get("drug") or "",
+				"drug_name": drug_name,
+				"reason_stopped": reason,
+			}
+		)
+	return rows
+
+
+def get_discharge_stopped_medication_reasons_for_admission(admission: str) -> str:
+	"""Build discharge stopped-medication text from PMO line items with reason_stopped."""
 	lines = []
-	for entry in entries:
+	for entry in _get_stopped_medication_entries_for_admission(admission):
 		reason = (entry.get("reason_stopped") or "").strip()
 		if not reason:
 			continue
