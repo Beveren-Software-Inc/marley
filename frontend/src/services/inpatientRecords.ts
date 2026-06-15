@@ -25,6 +25,8 @@ export interface InpatientRecord {
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
   scheduled_date: string
   admitted_datetime?: string
+  admission_date?: string
+  admission_time?: string
   expected_discharge?: string
   gender?: string
   blood_group?: string

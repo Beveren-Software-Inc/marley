@@ -39,6 +39,7 @@ import { Stethoscope } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
+import { formatAdmissionDate } from '../../utils/admissionDateTime'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -356,8 +357,13 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const exportFilteredCsv = () => {
-    const headers = ['Case No', 'Patient', 'Scheduled Date', 'Status']
-    const rows = records.map((r) => [r.name, r.patient_name || r.patient || '', r.scheduled_date || '', r.status || ''])
+    const headers = ['Case No', 'Patient', 'Admission Date', 'Status']
+    const rows = records.map((r) => [
+      r.name,
+      r.patient_name || r.patient || '',
+      formatAdmissionDate(r, { fallback: '' }),
+      r.status || '',
+    ])
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -371,8 +377,8 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const printFilteredList = () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
-    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${r.patient_name || r.patient || ''}</td><td>${r.scheduled_date || ''}</td><td>${r.status || ''}</td></tr>`).join('')
-    win.document.write(`<html><head><title>Inpatient Admission Listing</title></head><body><h3>Inpatient Admission Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Case No</th><th>Patient</th><th>Scheduled Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${r.patient_name || r.patient || ''}</td><td>${formatAdmissionDate(r, { fallback: '' })}</td><td>${r.status || ''}</td></tr>`).join('')
+    win.document.write(`<html><head><title>Inpatient Admission Listing</title></head><body><h3>Inpatient Admission Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Case No</th><th>Patient</th><th>Admission Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -567,7 +573,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                 {!patient && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Scheduled Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission Date</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 {onAdmissionSelect && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -609,7 +615,7 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                       </td>
                     )}
                     <td className="px-4 py-3 text-sm text-slate-700">
-                      {record.scheduled_date ? new Date(record.scheduled_date).toLocaleDateString() : '-'}
+                      {formatAdmissionDate(record)}
                     </td>
                     <td className="px-4 py-3">
                       <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />

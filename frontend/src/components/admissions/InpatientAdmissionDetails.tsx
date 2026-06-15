@@ -16,6 +16,7 @@ import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/lab
 import { fetchInpatientPrescriptions, type InpatientPrescription, type InpatientPrescriptionRow } from '../../services/prescriptions'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown } from 'lucide-react'
+import { formatAdmissionDate } from '../../utils/admissionDateTime'
 
 // Constants
 const STATUS_COLORS: Record<string, string> = {
@@ -277,14 +278,14 @@ const PatientInformation = ({ record }: { record: InpatientRecord }) => {
 }
 
 const AdmissionDetailsSection = ({ record }: { record: InpatientRecord }) => {
-  const { formatDate, formatDateTime } = useDateFormatter()
+  const { formatDate } = useDateFormatter()
 
   return (
     <div>
       <SectionTitle title="Admission Details" />
       <div className="space-y-1">
         <Field label="Scheduled Date" value={formatDate(record.scheduled_date)} />
-        <Field label="Admitted" value={formatDateTime(record.admitted_datetime)} />
+        <Field label="Admitted" value={formatAdmissionDate(record)} />
         <Field label="Expected Discharge" value={formatDate(record.expected_discharge)} />
         <Field label="Expected Length of Stay" value={record.expected_length_of_stay ? `${record.expected_length_of_stay} days` : undefined} />
         <Field label="Admission Ordered For" value={formatDate(record.admission_ordered_for)} />

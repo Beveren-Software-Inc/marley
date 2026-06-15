@@ -15,6 +15,7 @@ from healthcare.api.inpatient_admission import (
 def get_discharge(name=None):
 	"""Return one Discharge for the healthcare portal (bypasses DocPerm read for clinical roles)."""
 	from healthcare.healthcare.doctype.discharge.discharge import get_stopped_medications_for_admission
+	from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import resolve_admission_datetime
 
 	name = (name or "").strip()
 	if not name:
@@ -34,8 +35,19 @@ def get_discharge(name=None):
 
 	if doc.get("admission"):
 		doc["stopped_medications"] = get_stopped_medications_for_admission(doc["admission"])
+		if not (doc.get("duration") or "").strip():
+			admission_spend = frappe.db.get_value(
+				"Inpatient Admission", doc["admission"], "spend_daysduration"
+			)
+			if admission_spend:
+				doc["admission_spend_days"] = admission_spend
 	else:
 		doc["stopped_medications"] = []
+
+	if not doc.get("discharge_date") and doc.get("final_discharge_date"):
+		doc["display_discharge_date"] = doc["final_discharge_date"]
+	else:
+		doc["display_discharge_date"] = doc.get("discharge_date")
 
 	return doc
 
@@ -48,6 +60,7 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 	from frappe.utils import cint
 	from healthcare.api.common import get_permitted_cost_centers
 	from healthcare.healthcare.discharge_checklist_status import attach_checklist_status_to_discharges
+	from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import resolve_admission_datetime
 
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
@@ -107,6 +120,8 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 			'file_no',
 			'patient_name',
 			'discharge_date',
+			'final_discharge_date',
+			'duration',
 			'discharge_type',
 			'discharged_by_user',
 			'final_discharge_user_id',
@@ -153,9 +168,33 @@ def get_discharges(limit=20, offset=0, patient=None, admission=None, search=None
 		
 		# Get admission date from the linked Inpatient Record
 		if discharge.admission:
-			admission_date = frappe.db.get_value('Inpatient Admission', discharge.admission, 'admitted_datetime')
-			if admission_date:
-				discharge['admission_date'] = admission_date
+			admission_row = frappe.db.get_value(
+				'Inpatient Admission',
+				discharge.admission,
+				['admitted_datetime', 'admission_date', 'admission_time'],
+				as_dict=True,
+			)
+			if admission_row:
+				admission_dt = resolve_admission_datetime(
+					admission_row.get('admitted_datetime'),
+					admission_row.get('admission_date'),
+					admission_row.get('admission_time'),
+				)
+				if admission_dt:
+					discharge['admission_date'] = str(admission_dt)
+
+		if not discharge.get('discharge_date') and discharge.get('final_discharge_date'):
+			discharge['display_discharge_date'] = discharge['final_discharge_date']
+		else:
+			discharge['display_discharge_date'] = discharge.get('discharge_date')
+
+		spend_days = (discharge.get('duration') or '').strip()
+		if not spend_days and discharge.get('admission'):
+			spend_days = (
+				frappe.db.get_value('Inpatient Admission', discharge.admission, 'spend_daysduration') or ''
+			).strip()
+		if spend_days:
+			discharge['spend_days'] = spend_days
 
 	attach_checklist_status_to_discharges(discharges)
 	
