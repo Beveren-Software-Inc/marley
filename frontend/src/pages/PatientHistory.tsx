@@ -17,6 +17,7 @@ import { AppointmentList } from '../components/appointments/AppointmentList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { fetchPatientHistorySummary, type PatientHistorySummary } from '../services/patients'
+import { DashboardCard } from '../components/ui/DashboardCard'
 import {
   CalendarCheck,
   Building2,
@@ -186,98 +187,66 @@ export const PatientHistoryPage = () => {
           </section>
 
           {/* Content cards - show ALL history regardless of mode */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Warnings & Allergies</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard fixedHeight title="Warnings & Allergies">
+              <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Diagnosis Detail</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientDiagnosisList patient={selectedPatient} />
-              </div>
-            </section>
+            <DashboardCard fixedHeight title="Diagnosis Detail">
+              <PatientDiagnosisList patient={selectedPatient} />
+            </DashboardCard>
           </div>
 
           {/* Admissions and Patient Visits - always side by side */}
-          <div className="grid gap-4 md:grid-cols-2">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Admissions</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
-              </div>
-            </section>
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard fixedHeight title="Admissions">
+              <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
+            </DashboardCard>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Patient Visits</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
-              </div>
-            </section>
+            <DashboardCard fixedHeight title="Patient Visits">
+              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+            </DashboardCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Lab Test Reports</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard fixedHeight title="Lab Test Reports">
+              <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Discharge Form</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+            <DashboardCard fixedHeight title="Discharge Form">
+              <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Service Requests</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <ServiceRequestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard fixedHeight title="Service Requests">
+              <ServiceRequestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
 
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Appointments</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <AppointmentList patient={selectedPatient} showAll={true} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+            <DashboardCard fixedHeight title="Appointments">
+              <AppointmentList patient={selectedPatient} showAll={true} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-              <div className="font-semibold mb-4 flex-shrink-0">Vital Signs</div>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </div>
-            </section>
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+            <DashboardCard fixedHeight title="Vital Signs">
+              <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
 
             {observationsAllowedForMode(mode) && (
-              <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px]">
-                <div className="font-semibold mb-4 flex-shrink-0">Observation</div>
-                <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-                </div>
-              </section>
+              <DashboardCard fixedHeight title="Observation">
+                <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+              </DashboardCard>
             )}
           </div>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Medical History</div>
+          <DashboardCard noHeightLimit title="Medical History">
             <MedicalHistoryView patient={selectedPatient} />
-          </section>
+          </DashboardCard>
 
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Package Details</div>
+          <DashboardCard noHeightLimit title="Package Details">
             <PackageDetailsList patient={selectedPatient} />
-          </section>
+          </DashboardCard>
         </div>
       )}
     </div>

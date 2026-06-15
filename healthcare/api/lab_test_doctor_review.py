@@ -261,6 +261,11 @@ def submit_doctor_lab_test_review(
 			_("Save lab results first so the test is Pending Review before doctor review.")
 		)
 
+	if not doc.get("lab_technician"):
+		from healthcare.healthcare.doctype.lab_test.lab_test import _inherit_lab_technician_from_group
+
+		_inherit_lab_technician_from_group(doc)
+
 	results_entered = _results_entered_at(doc)
 	if not results_entered:
 		record_results_entered(doc.name)

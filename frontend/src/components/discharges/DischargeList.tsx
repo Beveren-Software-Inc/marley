@@ -281,7 +281,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   }
 
   return (
-    <div className="bg-white border border-slate-200 rounded-lg flex flex-col flex-1 min-h-0 h-full">
+    <div className={`flex flex-col flex-1 min-h-0 h-full ${isInsideCard ? '' : 'bg-white border border-slate-200 rounded-lg'}`}>
       {/* Global-context active admission banner */}
       {effectiveAdmission && mode === 'IP' && activeAdmission && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-t-lg bg-blue-50 border-b border-blue-200 text-blue-800 text-xs">

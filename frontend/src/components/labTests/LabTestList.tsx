@@ -1859,6 +1859,13 @@ const getLabTestResultFlag = (labTest: LabTest, getDisplayResult: (lt: LabTest) 
     labTest.max_range,
   ).flag
 
+/** Table display: collapse critical flags to High / Low only. */
+const simplifyResultFlagLabel = (flag: string): string => {
+  if (flag === 'Critically High' || flag === 'High') return 'High'
+  if (flag === 'Critically Low' || flag === 'Low') return 'Low'
+  return ''
+}
+
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
 
 const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
@@ -2082,10 +2089,11 @@ export const LabTestList = ({
 }) => {
   const { selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
+  const resultsReadOnly = doctorLabDefaults
   const canEditResults = canEditLabTestResults(userRole)
   const canEditResultRow = useCallback(
-    (labTest: LabTest) => canEditLabTestResultForRow(labTest, userRole),
-    [userRole]
+    (labTest: LabTest) => !resultsReadOnly && canEditLabTestResultForRow(labTest, userRole),
+    [resultsReadOnly, userRole]
   )
 
   // Pagination state
@@ -2423,13 +2431,30 @@ export const LabTestList = ({
   }, [])
 
   const [reviewModal, setReviewModal] = useState<{
-    name: string
+    name?: string
     outcome: 'Reviewed' | 'Rejected'
+    bulk?: {
+      serviceRequest: string
+      groupLabel: string
+      tests: LabTest[]
+    }
   } | null>(null)
 
   const openReviewModal = (name: string, outcome: 'Reviewed' | 'Rejected') => {
     setOpenActionRow(null)
     setReviewModal({ name, outcome })
+  }
+
+  const openBulkReviewModal = (serviceRequest: string, groupLabel: string, children: LabTest[]) => {
+    const eligible = children.filter((child) => child.status === 'Pending Review')
+    if (!eligible.length) {
+      toast.error('No tests in this group are pending review.')
+      return
+    }
+    setReviewModal({
+      outcome: 'Reviewed',
+      bulk: { serviceRequest, groupLabel, tests: children },
+    })
   }
 
   const handleFinishGroup = async (serviceRequest: string, groupKey: string) => {
@@ -2493,6 +2518,7 @@ export const LabTestList = ({
     } catch (e) { setDialogError(e instanceof Error ? e.message : 'Failed to load consumables') }
     finally { setDialogLoading(false) }
   }
+
   const closeRequestDialog = () => { setRequestingFor(null); setDialogItems([]); setDialogError(null); setDialogLoading(false) }
   const updateItem = (index: number, field: keyof LabConsumableRow, value: string) => {
     setDialogItems((prev) => prev.map((row, i) => i === index ? { ...row, [field]: field === 'qty' ? Number(value) || 0 : value } : row))
@@ -2642,6 +2668,35 @@ export const LabTestList = ({
 
   const rangeHeaders = getRangeHeaders(labTests)
 
+  const hasGroupedLabTests = useMemo(
+    () => labTests.some((lt) => lt.is_group_lab_test && lt.service_request),
+    [labTests]
+  )
+
+  const useDoctorCompactCard = compactClinical && Boolean(effectivePatient) && doctorLabDefaults
+  const useCompactCardTable = compactClinical && Boolean(effectivePatient) && !hasGroupedLabTests && !doctorLabDefaults
+
+  useEffect(() => {
+    if (!doctorLabDefaults || !hasGroupedLabTests) return
+    const groups = new Map<string, LabTest[]>()
+    for (const lt of labTests) {
+      if (lt.is_group_lab_test && lt.service_request) {
+        const arr = groups.get(lt.service_request) || []
+        arr.push(lt)
+        groups.set(lt.service_request, arr)
+      }
+    }
+    const toExpand: Record<string, boolean> = {}
+    for (const [serviceRequest, children] of groups.entries()) {
+      if (getGroupCompletionStatus(children).status === 'Partially Complete') {
+        toExpand[serviceRequest] = true
+      }
+    }
+    if (Object.keys(toExpand).length) {
+      setExpandedGroupKeys((prev) => ({ ...prev, ...toExpand }))
+    }
+  }, [doctorLabDefaults, hasGroupedLabTests, labTests])
+
   // Helper: render the result edit cell for a child/standalone test
   const renderResultCell = (labTest: LabTest) => {
     const displayResult = batch.getDisplayResult(labTest)
@@ -2669,7 +2724,9 @@ export const LabTestList = ({
         }}
           className={`min-h-[22px] min-w-[72px] rounded px-1.5 py-0.5 text-sm transition-colors ${
             !rowEditable
-              ? 'cursor-not-allowed border border-slate-200 bg-slate-50 text-slate-400'
+              ? displayResult
+                ? 'text-slate-800'
+                : 'text-slate-400'
               : dirty
                 ? 'cursor-pointer border border-amber-300 bg-amber-50 text-amber-900 font-medium hover:bg-amber-100/80'
                 : isEmpty
@@ -2678,7 +2735,9 @@ export const LabTestList = ({
           }`}
           title={
             !rowEditable
-              ? 'Results cannot be edited in this status'
+              ? resultsReadOnly
+                ? 'Results are read-only on the doctor view'
+                : 'Results cannot be edited in this status'
               : dirty
                 ? 'Unsaved — click Save in the header'
                 : isEmpty
@@ -2712,31 +2771,20 @@ export const LabTestList = ({
     }
 
     const Icon = isLow ? ArrowDown : ArrowUp
-    const colorClass =
-      flag === 'Critically Low' || flag === 'Critically High'
-        ? 'text-red-600'
-        : 'text-orange-600'
+    const colorClass = 'text-orange-600'
 
     return (
-      <td className="px-2 py-1.5 text-center" title={flag}>
-        <Icon className={`mx-auto h-4 w-4 ${colorClass}`} aria-label={flag} />
+      <td className="px-2 py-1.5 text-center" title={simplifyResultFlagLabel(flag)}>
+        <Icon className={`mx-auto h-4 w-4 ${colorClass}`} aria-label={simplifyResultFlagLabel(flag)} />
       </td>
     )
   }
 
   // Helper: render result flag cell
   const renderResultFlagCell = (labTest: LabTest) => {
-    const { flag, bgColor, textColor } = calculateResultFlag(
-      batch.getDisplayResult(labTest),
-      labTest.gender || labTest.patient_sex,
-      labTest.female_min_range,
-      labTest.female_max_range,
-      labTest.male_min_range,
-      labTest.male_max_range,
-      labTest.min_range,
-      labTest.max_range,
-    )
-    
+    const rawFlag = getLabTestResultFlag(labTest, batch.getDisplayResult)
+    const flag = simplifyResultFlagLabel(rawFlag)
+
     if (!flag) {
       return (
         <td className="px-3 py-1.5 text-sm text-slate-400">
@@ -2744,10 +2792,10 @@ export const LabTestList = ({
         </td>
       )
     }
-    
+
     return (
       <td className="px-3 py-1.5">
-        <span className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${bgColor} ${textColor}`}>
+        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-700">
           {flag}
         </span>
       </td>
@@ -3090,7 +3138,14 @@ export const LabTestList = ({
             <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
           ) : null}
         </div>
-      ) : compactClinical && effectivePatient ? (
+      ) : useDoctorCompactCard ? (
+        <LabTestDashboardCardTable
+          labTests={labTests}
+          variant="doctor"
+          onOpen={(name) => setSelectedLabTestForDetails(name)}
+          onReview={(name) => openReviewModal(name, 'Reviewed')}
+        />
+      ) : useCompactCardTable ? (
         <LabTestDashboardCardTable
           labTests={labTests}
           onOpen={(name) => setSelectedLabTestForDetails(name)}
@@ -3105,19 +3160,19 @@ export const LabTestList = ({
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 )}
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Test Name</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
-                {!hideAmount && <th className="px-3 py-1.5 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
                 {rangeHeaders.showFemale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Max</th></>}
                 {rangeHeaders.showMale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th></>}
                 {rangeHeaders.showGeneric && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Max</th></>}
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Result Flag</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600 uppercase w-10" title="Result trend">↑↓</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                {!hideAmount && <th className="px-3 py-1.5 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -3163,7 +3218,6 @@ export const LabTestList = ({
                           <span className="text-xs font-normal text-indigo-500">({children.length} tests)</span>
                         </button>
                        </td>
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
                       <td className="px-3 py-1.5">
                         <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
                           groupStatus.status === 'Complete' ? 'bg-green-100 text-green-700' :
@@ -3177,9 +3231,12 @@ export const LabTestList = ({
                           </span>
                         </span>
                        </td>
-                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
-                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
+                      {rangeHeaders.showFemale && <><td /><td /></>}
+                      {rangeHeaders.showMale && <><td /><td /></>}
+                      {rangeHeaders.showGeneric && <><td /><td /></>}
+                      <td className="px-3 py-1.5 text-xs text-indigo-400 italic">— group —</td>
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
                       <td className="px-3 py-1.5 text-sm text-slate-700">
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
@@ -3205,15 +3262,27 @@ export const LabTestList = ({
                           >
                             Print Group
                           </button>
+                          {children.some((child) => child.status === 'Pending Review') && (
+                            <button
+                              type="button"
+                              data-no-row-click
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openBulkReviewModal(serviceRequest, groupLabel, children)
+                              }}
+                              className="px-2 py-1 text-xs rounded-md border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
+                              title="Review all pending tests in this group with one note"
+                            >
+                              Bulk Review
+                            </button>
+                          )}
                         </div>
                        </td>
-                      {rangeHeaders.showFemale && <><td /><td /></>}
-                      {rangeHeaders.showMale && <><td /><td /></>}
-                      {rangeHeaders.showGeneric && <><td /><td /></>}
-                      <td className="px-3 py-1.5 text-xs text-indigo-400 italic">— group —</td>
+                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
+                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
                       <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
+                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
                     </tr>
 
                     {isExpanded && children.map((child) => (
@@ -3236,8 +3305,12 @@ export const LabTestList = ({
                           </td>
                         )}
                         <td className="px-3 py-1.5 text-sm text-slate-700 pl-6">{child.lab_test_name || child.template || '-'}</td>
-                        <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
                         <td className="px-3 py-1.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
+                        {renderRangeCells(child)}
+                        {renderResultCell(child)}
+                        {renderResultFlagCell(child)}
+                        {renderResultArrowCell(child)}
+                        {renderActionsCell(child)}
                         <td className="px-3 py-1.5">
                           {child.is_outsourced
                             ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
@@ -3246,15 +3319,11 @@ export const LabTestList = ({
                         <td className="px-3 py-1.5 text-sm text-slate-700">
                           {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
                         </td>
+                        {renderTechnicianCell(child)}
+                        <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
                         {!hideAmount && <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
                         </td>}
-                        {renderActionsCell(child)}
-                        {renderRangeCells(child)}
-                        {renderResultCell(child)}
-                        {renderResultFlagCell(child)}
-                        {renderTechnicianCell(child)}
-                        {renderResultArrowCell(child)}
                       </tr>
                     ))}
                   </Fragment>
@@ -3281,8 +3350,12 @@ export const LabTestList = ({
                     </td>
                   )}
                   <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
-                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
                   <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
+                  {renderRangeCells(labTest)}
+                  {renderResultCell(labTest)}
+                  {renderResultFlagCell(labTest)}
+                  {renderResultArrowCell(labTest)}
+                  {renderActionsCell(labTest)}
                   <td className="px-3 py-1.5">
                     {labTest.is_outsourced
                       ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
@@ -3291,15 +3364,11 @@ export const LabTestList = ({
                   <td className="px-3 py-1.5 text-sm text-slate-700">
                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString() : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString() : '-'}
                   </td>
+                  {renderTechnicianCell(labTest)}
+                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
                   {!hideAmount && <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
                   </td>}
-                  {renderActionsCell(labTest)}
-                  {renderRangeCells(labTest)}
-                  {renderResultCell(labTest)}
-                  {renderResultFlagCell(labTest)}
-                  {renderTechnicianCell(labTest)}
-                  {renderResultArrowCell(labTest)}
                 </tr>
                 )
               })}
@@ -3696,7 +3765,6 @@ export const LabTestList = ({
         </div>
       )}
 
-      {/* ── Consumables dialog ── */}
       {requestingFor && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
@@ -3950,6 +4018,9 @@ export const LabTestList = ({
       {reviewModal && (
         <LabTestReviewModal
           labTestName={reviewModal.name}
+          bulkTests={reviewModal.bulk?.tests}
+          groupLabel={reviewModal.bulk?.groupLabel}
+          serviceRequest={reviewModal.bulk?.serviceRequest}
           initialOutcome={reviewModal.outcome}
           onClose={() => setReviewModal(null)}
           onSuccess={() => {

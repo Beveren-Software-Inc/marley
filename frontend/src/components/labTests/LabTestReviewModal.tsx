@@ -1,13 +1,13 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ClipboardCheck } from 'lucide-react'
 import {
   fetchDoctorReviewFormOptions,
   fetchLabTest,
   submitDoctorLabTestReview,
-  type DoctorReviewFormOptions,
   type LabTest,
 } from '../../services/labTests'
 import { toast } from '../../hooks/useToast'
+import { StatusPill } from '../ui/StatusPill'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -17,44 +17,71 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { linkComboboxInputClassCompact } from '../ui/linkComboboxStyles'
+import { LabTestReviewFormBody } from './LabTestReviewFormBody'
+import {
+  bucketLabTestsForBulkReview,
+  labTestResultPreview,
+  reviewFormToPayload,
+  validateReviewForm,
+  type ReviewFormValues,
+} from './labTestReviewUtils'
 
 export interface LabTestReviewModalProps {
-  labTestName: string
+  /** Single-test review */
+  labTestName?: string
+  /** Bulk group review — same form, then confirmation list */
+  bulkTests?: LabTest[]
+  groupLabel?: string
+  serviceRequest?: string
   initialOutcome?: 'Reviewed' | 'Rejected'
   onClose: () => void
   onSuccess: () => void
 }
 
-const fieldClass = linkComboboxInputClassCompact
+const statusColors: Record<string, string> = {
+  Draft: 'default',
+  'Pending Review': 'warning',
+  Reviewed: 'success',
+  Rejected: 'danger',
+  Submitted: 'info',
+  Completed: 'success',
+}
 
-const checkboxClass =
-  'mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/25'
-
-const radioClass =
-  'mt-1 h-4 w-4 border-slate-300 text-emerald-600 focus:ring-2 focus:ring-emerald-500/25'
+const defaultFormValues = (): ReviewFormValues => ({
+  reportType: 'Pathology',
+  resultIndicator: 'Normal',
+  followUps: new Set(['Take no action']),
+  followUpOther: '',
+  comments: '',
+  prescriptionMessage: '',
+  patientInformed: true,
+  archiveReport: false,
+  createTask: false,
+})
 
 export const LabTestReviewModal = ({
   labTestName,
+  bulkTests,
+  groupLabel,
+  serviceRequest,
   initialOutcome = 'Reviewed',
   onClose,
   onSuccess,
 }: LabTestReviewModalProps) => {
+  const isBulk = Boolean(bulkTests?.length)
+  const [step, setStep] = useState<1 | 2>(1)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [failures, setFailures] = useState<Array<{ label: string; reason: string }>>([])
   const [labTest, setLabTest] = useState<LabTest | null>(null)
-  const [options, setOptions] = useState<DoctorReviewFormOptions | null>(null)
+  const [options, setOptions] = useState<Awaited<ReturnType<typeof fetchDoctorReviewFormOptions>> | null>(null)
+  const [formValues, setFormValues] = useState<ReviewFormValues>(defaultFormValues)
 
-  const [reportType, setReportType] = useState('Pathology')
-  const [resultIndicator, setResultIndicator] = useState('Normal')
-  const [followUps, setFollowUps] = useState<Set<string>>(() => new Set(['Take no action']))
-  const [followUpOther, setFollowUpOther] = useState('')
-  const [comments, setComments] = useState('')
-  const [prescriptionMessage, setPrescriptionMessage] = useState('')
-  const [patientInformed, setPatientInformed] = useState(true)
-  const [archiveReport, setArchiveReport] = useState(false)
-  const [createTask, setCreateTask] = useState(false)
+  const buckets = useMemo(
+    () => (bulkTests ? bucketLabTestsForBulkReview(bulkTests) : null),
+    [bulkTests]
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -62,35 +89,47 @@ export const LabTestReviewModal = ({
       try {
         setLoading(true)
         setError(null)
-        const [doc, opts] = await Promise.all([
-          fetchLabTest(labTestName),
-          fetchDoctorReviewFormOptions(),
-        ])
-        if (cancelled) return
-        setLabTest(doc)
-        setOptions(opts)
-        setReportType(doc.review_report_type || 'Pathology')
-        if (doc.review_result_indicator) setResultIndicator(doc.review_result_indicator)
-        if (doc.review_comments) setComments(doc.review_comments)
-        if (doc.review_prescription_message) setPrescriptionMessage(doc.review_prescription_message)
-        setPatientInformed(doc.patient_informed_of_report !== 0)
-        setArchiveReport(!!doc.archive_report_on_review)
-        setCreateTask(!!doc.create_task_on_review)
-        if (doc.review_follow_up_actions) {
-          const actions = Array.isArray(doc.review_follow_up_actions)
-            ? doc.review_follow_up_actions
-            : (() => {
-                try {
-                  const parsed = JSON.parse(doc.review_follow_up_actions as string)
-                  return Array.isArray(parsed) ? parsed : []
-                } catch {
-                  return []
-                }
-              })()
-          if (actions.length) setFollowUps(new Set(actions))
+        if (isBulk) {
+          const opts = await fetchDoctorReviewFormOptions()
+          if (cancelled) return
+          setOptions(opts)
+          setFormValues(defaultFormValues())
+        } else if (labTestName) {
+          const [doc, opts] = await Promise.all([
+            fetchLabTest(labTestName),
+            fetchDoctorReviewFormOptions(),
+          ])
+          if (cancelled) return
+          setLabTest(doc)
+          setOptions(opts)
+          const followUps = new Set(['Take no action'])
+          if (doc.review_follow_up_actions) {
+            const actions = Array.isArray(doc.review_follow_up_actions)
+              ? doc.review_follow_up_actions
+              : (() => {
+                  try {
+                    const parsed = JSON.parse(doc.review_follow_up_actions as string)
+                    return Array.isArray(parsed) ? parsed : []
+                  } catch {
+                    return []
+                  }
+                })()
+            if (actions.length) actions.forEach((a) => followUps.add(a))
+          }
+          setFormValues({
+            reportType: doc.review_report_type || 'Pathology',
+            resultIndicator: doc.review_result_indicator || 'Normal',
+            followUps,
+            followUpOther: '',
+            comments: doc.review_comments || '',
+            prescriptionMessage: doc.review_prescription_message || '',
+            patientInformed: doc.patient_informed_of_report !== 0,
+            archiveReport: !!doc.archive_report_on_review,
+            createTask: !!doc.create_task_on_review,
+          })
         }
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load lab test')
+        if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load review form')
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -98,49 +137,34 @@ export const LabTestReviewModal = ({
     return () => {
       cancelled = true
     }
-  }, [labTestName])
+  }, [isBulk, labTestName])
+
+  const patchForm = (patch: Partial<ReviewFormValues>) => {
+    setFormValues((prev) => ({ ...prev, ...patch }))
+  }
 
   const toggleFollowUp = (action: string) => {
-    setFollowUps((prev) => {
-      const next = new Set(prev)
+    setFormValues((prev) => {
+      const next = new Set(prev.followUps)
       if (next.has(action)) next.delete(action)
       else next.add(action)
-      return next
+      return { ...prev, followUps: next }
     })
   }
 
-  const saveReview = async (selectedOutcome: 'Reviewed' | 'Rejected') => {
-    setError(null)
-
-    if (!resultIndicator) {
-      setError('Please select a result indicator.')
-      return
-    }
-    if (selectedOutcome === 'Reviewed' && followUps.size === 0) {
-      setError('Select at least one follow-up action.')
-      return
-    }
-    if (followUps.has('Other') && !followUpOther.trim()) {
-      setError('Please describe the other follow-up action.')
+  const saveSingleReview = async (outcome: 'Reviewed' | 'Rejected') => {
+    if (!labTestName) return
+    const validationError = validateReviewForm(formValues, outcome)
+    if (validationError) {
+      setError(validationError)
       return
     }
 
     setSubmitting(true)
+    setError(null)
     try {
-      await submitDoctorLabTestReview({
-        lab_test_name: labTestName,
-        new_status: selectedOutcome,
-        review_report_type: reportType,
-        review_result_indicator: resultIndicator,
-        review_follow_up_actions: Array.from(followUps),
-        review_follow_up_other: followUpOther,
-        review_comments: comments,
-        review_prescription_message: prescriptionMessage,
-        patient_informed_of_report: patientInformed ? 1 : 0,
-        archive_report_on_review: archiveReport ? 1 : 0,
-        create_task_on_review: createTask ? 1 : 0,
-      })
-      toast.success(selectedOutcome === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
+      await submitDoctorLabTestReview(reviewFormToPayload(labTestName, formValues, outcome))
+      toast.success(outcome === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
       onSuccess()
       onClose()
     } catch (err) {
@@ -152,19 +176,182 @@ export const LabTestReviewModal = ({
     }
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    void saveReview(initialOutcome)
+  const saveBulkReview = async (outcome: 'Reviewed' | 'Rejected') => {
+    if (!buckets) return
+    const validationError = validateReviewForm(formValues, outcome)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    if (!buckets.toReview.length) {
+      setError('No tests in this group are pending review.')
+      return
+    }
+
+    setSubmitting(true)
+    setError(null)
+    setFailures([])
+    const reviewed: string[] = []
+    const failed: Array<{ label: string; reason: string }> = []
+
+    try {
+      for (const test of buckets.toReview) {
+        const label = test.lab_test_name || test.template || test.name
+        try {
+          await submitDoctorLabTestReview(reviewFormToPayload(test.name, formValues, outcome))
+          reviewed.push(label)
+        } catch (err) {
+          failed.push({
+            label,
+            reason: err instanceof Error ? err.message : 'Review failed',
+          })
+        }
+      }
+
+      if (reviewed.length) {
+        toast.success(
+          outcome === 'Reviewed'
+            ? `${reviewed.length} lab test${reviewed.length !== 1 ? 's' : ''} reviewed`
+            : `${reviewed.length} lab test${reviewed.length !== 1 ? 's' : ''} rejected`
+        )
+        onSuccess()
+      }
+
+      if (failed.length) {
+        setFailures(failed)
+        setError(`${failed.length} test${failed.length !== 1 ? 's' : ''} could not be updated.`)
+        toast.error(`${failed.length} test${failed.length !== 1 ? 's' : ''} failed`)
+      } else {
+        onClose()
+      }
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const goToConfirmStep = () => {
+    const validationError = validateReviewForm(formValues, initialOutcome)
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+    if (isBulk && !buckets?.toReview.length) {
+      setError('No tests in this group are pending review.')
+      return
+    }
+    setError(null)
+    setStep(2)
   }
 
   const formatDt = (d?: string) => (d ? new Date(d).toLocaleString() : '—')
 
-  const subtitle = (
+  const subtitle = isBulk ? (
+    <>
+      {groupLabel || 'Group review'}
+      {serviceRequest ? ` · ${serviceRequest}` : ''}
+    </>
+  ) : (
     <>
       {labTest?.lab_test_name || labTestName}
       {labTest?.patient_name ? ` · ${labTest.patient_name}` : ''}
     </>
   )
+
+  const singleMeta = !isBulk ? (
+    <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-100/80 bg-white/70 p-4 text-sm shadow-sm sm:grid-cols-2">
+      <div>
+        <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
+          Sample / investigation
+        </span>
+        <p className="mt-1 font-medium text-emerald-950">
+          {formatDt(labTest?.result_date || labTest?.submitted_date)}
+        </p>
+      </div>
+      <div>
+        <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
+          Results entered
+        </span>
+        <p className="mt-1 font-medium text-emerald-950">
+          {formatDt(labTest?.results_entered_datetime || labTest?.submitted_date)}
+        </p>
+      </div>
+    </div>
+  ) : step === 1 ? (
+    <p className="rounded-xl border border-emerald-100/80 bg-white/70 px-4 py-3 text-sm text-slate-600">
+      Complete the review details below. On the next step you will confirm which group tests
+      will be marked as reviewed. Tests without results yet are not changed.
+    </p>
+  ) : null
+
+  const renderBulkConfirmList = () => {
+    if (!buckets || !bulkTests) return null
+
+    const renderSection = (
+      title: string,
+      items: LabTest[],
+      tone: 'emerald' | 'slate' | 'amber'
+    ) => {
+      if (!items.length) return null
+      const toneClass =
+        tone === 'emerald'
+          ? 'border-emerald-200 bg-emerald-50/50'
+          : tone === 'amber'
+            ? 'border-amber-200 bg-amber-50/40'
+            : 'border-slate-200 bg-slate-50/50'
+      return (
+        <div className={`rounded-xl border ${toneClass} overflow-hidden`}>
+          <div className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-slate-600 border-b border-inherit">
+            {title} ({items.length})
+          </div>
+          <table className="w-full text-sm">
+            <tbody className="divide-y divide-white/80">
+              {items.map((test) => (
+                <tr key={test.name}>
+                  <td className="px-3 py-2 align-top">
+                    <div className="font-medium text-slate-800">
+                      {test.lab_test_name || test.template || test.name}
+                    </div>
+                    <div className="text-xs text-slate-500">{test.name}</div>
+                  </td>
+                  <td className="px-3 py-2 align-top text-slate-700 max-w-[180px]">
+                    <span className="line-clamp-2">{labTestResultPreview(test)}</span>
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    <StatusPill
+                      status={test.status || 'Draft'}
+                      color={statusColors[test.status || 'Draft'] || 'default'}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )
+    }
+
+    return (
+      <div className="space-y-4">
+        <p className="text-sm text-slate-600">
+          Your review answers will be applied to{' '}
+          <span className="font-medium text-emerald-800">{buckets.toReview.length}</span> test
+          {buckets.toReview.length !== 1 ? 's' : ''} with status Pending Review.
+        </p>
+        {renderSection('Will be marked reviewed', buckets.toReview, 'emerald')}
+        {renderSection('Skipped — awaiting results', buckets.awaitingResults, 'amber')}
+        {renderSection('Skipped — already reviewed', buckets.alreadyReviewed, 'slate')}
+        {failures.length > 0 && (
+          <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 space-y-1">
+            {failures.map((f) => (
+              <div key={f.label}>
+                <span className="font-medium">{f.label}:</span> {f.reason}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    )
+  }
 
   return (
     <div className={CREATE_MODAL_OVERLAY} onClick={onClose}>
@@ -173,7 +360,7 @@ export const LabTestReviewModal = ({
         onClick={(e) => e.stopPropagation()}
       >
         <CreateModalHeader
-          title="File pathology / radiology report"
+          title={isBulk ? 'Bulk review group' : 'File pathology / radiology report'}
           subtitle={subtitle}
           icon={<ClipboardCheck className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           onClose={onClose}
@@ -184,9 +371,17 @@ export const LabTestReviewModal = ({
             Loading…
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              if (isBulk && step === 1) goToConfirmStep()
+              else if (isBulk) void saveBulkReview(initialOutcome)
+              else void saveSingleReview(initialOutcome)
+            }}
+            className="flex min-h-0 flex-1 flex-col"
+          >
             <div
-              className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 space-y-5 px-6 py-5`}
+              className={`${CREATE_MODAL_BODY_GRADIENT} flex-1 space-y-5 overflow-y-auto px-6 py-5`}
               style={{ scrollbarWidth: 'thin' }}
             >
               {error && (
@@ -195,164 +390,73 @@ export const LabTestReviewModal = ({
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-4 rounded-xl border border-emerald-100/80 bg-white/70 p-4 text-sm shadow-sm sm:grid-cols-2">
-                <div>
-                  <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
-                    Sample / investigation
-                  </span>
-                  <p className="mt-1 font-medium text-emerald-950">
-                    {formatDt(labTest?.result_date || labTest?.submitted_date)}
-                  </p>
+              {isBulk && (
+                <div className="flex items-center gap-2 text-xs font-medium text-slate-500">
+                  <span className={step === 1 ? 'text-emerald-700' : ''}>1. Review details</span>
+                  <span>→</span>
+                  <span className={step === 2 ? 'text-emerald-700' : ''}>2. Confirm tests</span>
                 </div>
-                <div>
-                  <span className="text-xs font-medium uppercase tracking-wide text-emerald-800/60">
-                    Results entered
-                  </span>
-                  <p className="mt-1 font-medium text-emerald-950">
-                    {formatDt(labTest?.results_entered_datetime || labTest?.submitted_date)}
-                  </p>
-                </div>
-              </div>
+              )}
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">Type</label>
-                <select
-                  className={fieldClass}
-                  value={reportType}
-                  onChange={(e) => setReportType(e.target.value)}
-                >
-                  {(options?.report_types || ['Pathology']).map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <p className="mb-2 text-sm font-semibold text-slate-700">Result indicator</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {(options?.result_indicators || []).map((opt) => (
-                    <label
-                      key={opt}
-                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50/60"
-                    >
-                      <input
-                        type="radio"
-                        name="result_indicator"
-                        className={radioClass}
-                        checked={resultIndicator === opt}
-                        onChange={() => setResultIndicator(opt)}
-                      />
-                      <span>{opt}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-sm font-semibold text-slate-700">Follow-up action</p>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {(options?.follow_up_actions || []).map((action) => (
-                    <label
-                      key={action}
-                      className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200/80 bg-white/80 px-3 py-2 text-sm text-slate-700 transition hover:border-emerald-200 hover:bg-emerald-50/50 has-[:checked]:border-emerald-300 has-[:checked]:bg-emerald-50/60"
-                    >
-                      <input
-                        type="checkbox"
-                        className={checkboxClass}
-                        checked={followUps.has(action)}
-                        onChange={() => toggleFollowUp(action)}
-                      />
-                      <span>{action}</span>
-                    </label>
-                  ))}
-                </div>
-                {followUps.has('Other') && (
-                  <input
-                    type="text"
-                    className={`${fieldClass} mt-2`}
-                    placeholder="Describe other action…"
-                    value={followUpOther}
-                    onChange={(e) => setFollowUpOther(e.target.value)}
-                  />
-                )}
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Comments / patient message
-                </label>
-                <textarea
-                  className={`${fieldClass} min-h-[80px] resize-y`}
-                  value={comments}
-                  onChange={(e) => setComments(e.target.value)}
-                  rows={3}
+              {step === 1 ? (
+                <LabTestReviewFormBody
+                  options={options}
+                  values={formValues}
+                  onChange={patchForm}
+                  onToggleFollowUp={toggleFollowUp}
+                  meta={singleMeta}
                 />
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-700">
-                  Message for patient&apos;s next prescription
-                </label>
-                <textarea
-                  className={`${fieldClass} min-h-[60px] resize-y`}
-                  value={prescriptionMessage}
-                  onChange={(e) => setPrescriptionMessage(e.target.value)}
-                  rows={2}
-                />
-              </div>
-
-              <div className="flex flex-wrap gap-4 rounded-xl border border-emerald-100/80 bg-white/60 px-4 py-3 text-sm">
-                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
-                  <input
-                    type="checkbox"
-                    className={checkboxClass}
-                    checked={patientInformed}
-                    onChange={(e) => setPatientInformed(e.target.checked)}
-                  />
-                  Patient to be informed of this report
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
-                  <input
-                    type="checkbox"
-                    className={checkboxClass}
-                    checked={archiveReport}
-                    onChange={(e) => setArchiveReport(e.target.checked)}
-                  />
-                  Archive report
-                </label>
-                <label className="flex cursor-pointer items-center gap-2 text-slate-700">
-                  <input
-                    type="checkbox"
-                    className={checkboxClass}
-                    checked={createTask}
-                    onChange={(e) => setCreateTask(e.target.checked)}
-                  />
-                  Create a task
-                </label>
-              </div>
+              ) : (
+                renderBulkConfirmList()
+              )}
             </div>
 
             <div className={`${CREATE_MODAL_FOOTER_STICKY} justify-end`}>
               <button type="button" onClick={onClose} className={CM_BTN_CANCEL} disabled={submitting}>
                 Cancel
               </button>
-              <button
-                type="button"
-                disabled={submitting}
-                onClick={() => void saveReview('Rejected')}
-                className="rounded-lg border border-red-200/80 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
-              >
-                Reject
-              </button>
-              <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
-                {submitting
-                  ? 'Saving…'
-                  : initialOutcome === 'Rejected'
-                    ? 'Confirm rejection'
-                    : 'Confirm review'}
-              </button>
+
+              {isBulk && step === 2 && (
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => {
+                    setStep(1)
+                    setError(null)
+                  }}
+                  className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+                >
+                  Back
+                </button>
+              )}
+
+              {isBulk && step === 1 ? (
+                <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
+                  Next — confirm tests
+                </button>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    disabled={submitting}
+                    onClick={() =>
+                      void (isBulk ? saveBulkReview('Rejected') : saveSingleReview('Rejected'))
+                    }
+                    className="rounded-lg border border-red-200/80 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
+                  >
+                    Reject
+                  </button>
+                  <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
+                    {submitting
+                      ? 'Saving…'
+                      : isBulk
+                        ? `Confirm review (${buckets?.toReview.length ?? 0})`
+                        : initialOutcome === 'Rejected'
+                          ? 'Confirm rejection'
+                          : 'Confirm review'}
+                  </button>
+                </>
+              )}
             </div>
           </form>
         )}
