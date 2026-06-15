@@ -69,6 +69,7 @@
   "residents_doctor_no",
   "resident_doctor_name",
   "reference_by",
+  "resident_doctor_2",
   "admission_charges_section",
   "charges",
   "section_break_uxsd",
@@ -100,6 +101,7 @@
   "column_break_ljch",
   "case_gl_code",
   "mode_of_admission",
+  "spend_daysduration",
   "section_break_mlta",
   "management",
   "column_break_pofw",
@@ -107,6 +109,12 @@
   "management_in_hospital",
   "section_break_ogpv",
   "remark",
+  "section_break_ytmx",
+  "cr_id",
+  "cr_date",
+  "column_break_fgdg",
+  "up_id",
+  "up_date",
   "medical_details_tab",
   "sb_discharge_details",
   "discharge_ordered_date",
@@ -331,14 +339,14 @@
    "bold": 1,
    "fieldname": "contact_mobile",
    "fieldtype": "Data",
-   "label": "Contact No",
+   "label": "Relation Contact No",
    "no_copy": 1
   },
   {
    "fieldname": "contact_phone",
    "fieldtype": "Data",
    "in_filter": 1,
-   "label": "Emergency Phone",
+   "label": "Relation Emergency Phone",
    "no_copy": 1
   },
   {
@@ -354,7 +362,7 @@
    "bold": 1,
    "fieldname": "contact_email",
    "fieldtype": "Data",
-   "label": "Email",
+   "label": "Relation Email",
    "no_copy": 1
   },
   {
@@ -965,6 +973,45 @@
    "fieldname": "emergency_mobile_no",
    "fieldtype": "Data",
    "label": "Emergency Mobile No"
+  },
+  {
+   "fieldname": "spend_daysduration",
+   "fieldtype": "Data",
+   "label": "Spend Days(Duration)"
+  },
+  {
+   "fieldname": "section_break_ytmx",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_fgdg",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "resident_doctor_2",
+   "fieldtype": "Link",
+   "label": "Resident Doctor 2",
+   "options": "Healthcare Practitioner"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -978,7 +1025,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-06-10 01:37:56.391669",
+ "modified": "2026-06-15 17:08:41.894051",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

@@ -56,6 +56,14 @@ export interface DischargePatientRelative {
   any_remarks?: string
 }
 
+export interface DischargeStoppedMedication {
+  name?: string
+  prescription?: string
+  drug?: string
+  drug_name: string
+  reason_stopped: string
+}
+
 export interface DischargeDoc extends Discharge {
   discharge_time?: string
   final_discharge_date?: string
@@ -66,6 +74,7 @@ export interface DischargeDoc extends Discharge {
   discharge_diagnosis?: string
   discharge_conditions?: string
   discharge_instructions?: string
+  discharge_medic_stopped_reason?: string
   final_exam_mental_status_summary?: string
   management_in_hospital?: string
   prognosis?: string
@@ -81,6 +90,7 @@ export interface DischargeDoc extends Discharge {
   nursing_checklist?: DischargeChecklistRow[]
   patient_documents?: DischargePatientDocument[]
   patient_relatives?: DischargePatientRelative[]
+  stopped_medications?: DischargeStoppedMedication[]
   creation?: string
   modified?: string
 }

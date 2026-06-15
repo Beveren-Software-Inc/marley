@@ -14,6 +14,8 @@ from healthcare.api.inpatient_admission import (
 @frappe.whitelist()
 def get_discharge(name=None):
 	"""Return one Discharge for the healthcare portal (bypasses DocPerm read for clinical roles)."""
+	from healthcare.healthcare.doctype.discharge.discharge import get_stopped_medications_for_admission
+
 	name = (name or "").strip()
 	if not name:
 		frappe.throw(_("Discharge is required"))
@@ -21,16 +23,21 @@ def get_discharge(name=None):
 		frappe.throw(_("Discharge {0} not found").format(name))
 
 	if frappe.has_permission("Discharge", "read", name):
-		return frappe.get_doc("Discharge", name).as_dict()
-
-	if not _user_can_access_discharge_portal():
+		doc = frappe.get_doc("Discharge", name).as_dict()
+	elif not _user_can_access_discharge_portal():
 		frappe.throw(_("Not permitted to read Discharge"), frappe.PermissionError)
+	else:
+		admission = frappe.db.get_value("Discharge", name, "admission")
+		if admission:
+			_ensure_discharge_admission_access(admission)
+		doc = frappe.get_doc("Discharge", name).as_dict()
 
-	admission = frappe.db.get_value("Discharge", name, "admission")
-	if admission:
-		_ensure_discharge_admission_access(admission)
+	if doc.get("admission"):
+		doc["stopped_medications"] = get_stopped_medications_for_admission(doc["admission"])
+	else:
+		doc["stopped_medications"] = []
 
-	return frappe.get_doc("Discharge", name).as_dict()
+	return doc
 
 
 @frappe.whitelist()
