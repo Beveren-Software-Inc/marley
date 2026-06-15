@@ -2089,10 +2089,11 @@ export const LabTestList = ({
 }) => {
   const { selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
+  const resultsReadOnly = doctorLabDefaults
   const canEditResults = canEditLabTestResults(userRole)
   const canEditResultRow = useCallback(
-    (labTest: LabTest) => canEditLabTestResultForRow(labTest, userRole),
-    [userRole]
+    (labTest: LabTest) => !resultsReadOnly && canEditLabTestResultForRow(labTest, userRole),
+    [resultsReadOnly, userRole]
   )
 
   // Pagination state
@@ -2672,6 +2673,7 @@ export const LabTestList = ({
     [labTests]
   )
 
+  const useDoctorCompactCard = compactClinical && Boolean(effectivePatient) && doctorLabDefaults
   const useCompactCardTable = compactClinical && Boolean(effectivePatient) && !hasGroupedLabTests && !doctorLabDefaults
 
   useEffect(() => {
@@ -2722,7 +2724,9 @@ export const LabTestList = ({
         }}
           className={`min-h-[22px] min-w-[72px] rounded px-1.5 py-0.5 text-sm transition-colors ${
             !rowEditable
-              ? 'cursor-not-allowed border border-slate-200 bg-slate-50 text-slate-400'
+              ? displayResult
+                ? 'text-slate-800'
+                : 'text-slate-400'
               : dirty
                 ? 'cursor-pointer border border-amber-300 bg-amber-50 text-amber-900 font-medium hover:bg-amber-100/80'
                 : isEmpty
@@ -2731,7 +2735,9 @@ export const LabTestList = ({
           }`}
           title={
             !rowEditable
-              ? 'Results cannot be edited in this status'
+              ? resultsReadOnly
+                ? 'Results are read-only on the doctor view'
+                : 'Results cannot be edited in this status'
               : dirty
                 ? 'Unsaved — click Save in the header'
                 : isEmpty
@@ -3132,6 +3138,13 @@ export const LabTestList = ({
             <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
           ) : null}
         </div>
+      ) : useDoctorCompactCard ? (
+        <LabTestDashboardCardTable
+          labTests={labTests}
+          variant="doctor"
+          onOpen={(name) => setSelectedLabTestForDetails(name)}
+          onReview={(name) => openReviewModal(name, 'Reviewed')}
+        />
       ) : useCompactCardTable ? (
         <LabTestDashboardCardTable
           labTests={labTests}

@@ -3,6 +3,17 @@ import { stripHtmlToText } from '../ui/dashboardCardListing'
 
 export type BulkReviewBucket = 'toReview' | 'awaitingResults' | 'alreadyReviewed'
 
+export function simplifyResultFlagLabel(flag?: string | null): string {
+  if (!flag) return ''
+  if (flag === 'Critically High' || flag === 'High') return 'High'
+  if (flag === 'Critically Low' || flag === 'Low') return 'Low'
+  return ''
+}
+
+export function displayResultFlag(lt: LabTest): string {
+  return simplifyResultFlagLabel(lt.result_flag) || ''
+}
+
 export function labTestResultPreview(lt: LabTest): string {
   const raw =
     lt.custom_result ||
