@@ -6,6 +6,7 @@ import {
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
 import { displayResultFlag, labTestResultPreview } from './labTestReviewUtils'
+import { isLegacyHistoryLabRow, resolveLabTestDocName } from './labTestDisplayUtils'
 
 const statusColors: Record<string, string> = {
   Draft: 'default',
@@ -22,6 +23,7 @@ interface Props {
   labTests: LabTest[]
   onOpen: (name: string) => void
   onReview?: (name: string) => void
+  resolveDocName?: (lt: LabTest) => string
   /** Compact doctor dashboard: test, status, result, flag, action only */
   variant?: 'default' | 'doctor'
 }
@@ -30,6 +32,7 @@ export function LabTestDashboardCardTable({
   labTests,
   onOpen,
   onReview,
+  resolveDocName = resolveLabTestDocName,
   variant = 'default',
 }: Props) {
   const isDoctor = variant === 'doctor'
@@ -60,14 +63,15 @@ export function LabTestDashboardCardTable({
         <tbody className="divide-y divide-slate-100">
           {labTests.map((lt) => {
             const flag = displayResultFlag(lt)
+            const docName = resolveDocName(lt)
             const metaFields = [
-              ['Lab Test ID', lt.name],
+              ['Lab Test ID', docName],
               ['Practitioner', lt.practitioner_name || lt.practitioner],
               ['Department', lt.department],
               ['Service request', lt.service_request],
               ['Outsourced', lt.is_outsourced ? 'Yes' : ''],
               ['Lab technician', lt.lab_technician_name || lt.lab_technician],
-              ['Date', formatDashboardDate(lt.result_date || lt.submitted_date || lt.date)],
+              ['Date', formatDashboardDate(lt.result_date || lt.date || lt.submitted_date)],
               ['Group', lt.lab_test_group],
             ] as const
             return (
@@ -75,6 +79,11 @@ export function LabTestDashboardCardTable({
                 <td className="px-2 py-2 text-slate-800 font-medium align-top">
                   <div className="flex items-start gap-1 min-w-0">
                     <span className="line-clamp-2 min-w-0 flex-1">
+                      {isLegacyHistoryLabRow(lt) && (
+                        <span className="mr-1 inline-flex items-center rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-800">
+                          History
+                        </span>
+                      )}
                       {lt.lab_test_name || lt.template || '—'}
                     </span>
                     <CardRowMetaHint fields={metaFields} />
@@ -102,17 +111,17 @@ export function LabTestDashboardCardTable({
                 )}
                 {!isDoctor && (
                   <td className="px-2 py-2 text-slate-500 whitespace-nowrap align-top text-xs">
-                    {formatDashboardDate(lt.result_date || lt.submitted_date || lt.date)}
+                    {formatDashboardDate(lt.result_date || lt.date || lt.submitted_date)}
                   </td>
                 )}
                 {isDoctor && (
                   <td className="px-2 py-2 align-top text-right">
-                    {lt.status === 'Pending Review' && onReview ? (
+                    {lt.status === 'Pending Review' && onReview && !isLegacyHistoryLabRow(lt) ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onReview(lt.name)
+                          onReview(docName)
                         }}
                         className="rounded border border-emerald-600 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-50"
                       >
@@ -123,7 +132,7 @@ export function LabTestDashboardCardTable({
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation()
-                          onOpen(lt.name)
+                          onOpen(docName)
                         }}
                         className="rounded border border-slate-300 px-2 py-0.5 text-[10px] font-medium text-slate-600 hover:bg-slate-50"
                       >

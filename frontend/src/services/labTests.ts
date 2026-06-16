@@ -1,3 +1,22 @@
+export interface LabTestLine {
+  sr_num?: string
+  lab_group_num?: string
+  group_name?: string
+  lab_sub_num?: string
+  lab_sub_template_name?: string
+  lab_result_value?: string
+  lab_amt_book?: number
+  lab_amt_add?: number
+  lab_amt_disc?: number
+  lab_amt_net?: number
+  sta_flg?: number | boolean
+  cr_id?: string
+  cr_date?: string
+  up_id?: string
+  up_date?: string
+  lab_04_remarks?: string
+}
+
 export interface LabTest {
   name: string
   docstatus?: number
@@ -84,6 +103,14 @@ export interface LabTest {
   rule_warnings?: Array<{ message: string; type?: string; ok?: boolean }>
   rule_errors?: Array<{ message: string; type?: string; block_save?: boolean }>
   calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
+  /** Oracle LAB 00-03 legacy header import */
+  is_legacy_import?: number | boolean
+  /** Oracle LAB 00-04 child rows (attached on list + detail APIs) */
+  lab_test_lines?: LabTestLine[]
+  /** UI-only: flattened child row from a legacy import */
+  is_legacy_line_row?: boolean
+  legacy_parent_name?: string
+  legacy_line_key?: string
 }
 
 export interface LabConsumableRow {
@@ -644,6 +671,7 @@ export interface LabHistoryMatrixColumn {
 export interface LabHistoryMatrixCell {
   value: string
   flag: 'normal' | 'abnormal' | 'neutral'
+  direction?: 'high' | 'low' | null
   lab_test?: string
 }
 

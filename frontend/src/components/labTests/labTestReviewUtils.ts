@@ -15,6 +15,27 @@ export function displayResultFlag(lt: LabTest): string {
 }
 
 export function labTestResultPreview(lt: LabTest): string {
+  const lines = lt.lab_test_lines || []
+  if (lt.is_legacy_line_row || lt.is_legacy_import) {
+    if (lines.length === 1) {
+      const single = (lines[0].lab_result_value || '').trim()
+      if (single) return single
+    }
+    if (lines.length > 1) {
+      const parts = lines
+        .map((line) => {
+          const code = (line.lab_sub_num || line.group_name || '').trim()
+          const value = (line.lab_result_value || '').trim()
+          if (!value) return ''
+          return code ? `${code}: ${value}` : value
+        })
+        .filter(Boolean)
+      if (parts.length) return parts.join(', ')
+    }
+    const plainResults = (typeof lt.results === 'string' ? lt.results : '').trim()
+    if (plainResults && !plainResults.includes('<')) return plainResults
+  }
+
   const raw =
     lt.custom_result ||
     lt.descriptive_result ||

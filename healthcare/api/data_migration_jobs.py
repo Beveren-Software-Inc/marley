@@ -2064,6 +2064,110 @@ def process_discharge_checklist_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── Legacy lab test Excel import (Oracle C LAB_00_03 + C-I LAB_00_04) ─────────
+
+
+@frappe.whitelist()
+def start_legacy_lab_import_migration(header_file_url: str, detail_file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.lab_test_legacy_import import parse_and_cache_excel
+
+	if not (header_file_url or "").strip():
+		frappe.throw(_("Please upload the lab header Excel file (C LAB_00_03)."))
+	if not (detail_file_url or "").strip():
+		frappe.throw(_("Please upload the lab detail Excel file (C-I LAB_00_04)."))
+
+	job = "legacy_lab_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(header_file_url, detail_file_url)
+	_set_progress(
+		job,
+		0,
+		total_transactions=summary.get("transactions"),
+		resolvable_patient=summary.get("resolvable_patient"),
+		resolvable_template=summary.get("resolvable_template"),
+		standalone_transactions=summary.get("standalone_transactions"),
+		header_rows=summary.get("header_rows"),
+		detail_rows=summary.get("detail_rows"),
+		batch_id=summary.get("batch_id"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_legacy_lab_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_legacy_lab_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Legacy lab import started ({0} transactions: {1} with header/patient, {2} standalone from detail only, {3} with matching template)."
+		).format(
+			summary.get("transactions") or 0,
+			summary.get("resolvable_patient") or 0,
+			summary.get("standalone_transactions") or 0,
+			summary.get("resolvable_template") or 0,
+		),
+	}
+
+
+def process_legacy_lab_import_batch(offset: int = 0) -> None:
+	from healthcare.api.lab_test_legacy_import import run_legacy_lab_import_batch
+
+	job = "legacy_lab_import"
+	try:
+		result = run_legacy_lab_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			standalone_ok=cint(prev.get("standalone_ok", 0)) + cint(result.get("standalone_ok", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_no_template=cint(prev.get("skip_no_template", 0))
+			+ cint(result.get("skip_no_template", 0)),
+			skip_no_header=cint(prev.get("skip_no_header", 0))
+			+ cint(result.get("skip_no_header", 0)),
+			skip_existing_non_legacy=cint(prev.get("skip_existing_non_legacy", 0))
+			+ cint(result.get("skip_existing_non_legacy", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_transactions=prev.get("total_transactions"),
+			batch_id=prev.get("batch_id"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_legacy_lab_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_legacy_lab_import_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "error": None, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			from healthcare.api.lab_test_legacy_import import build_legacy_lab_import_summary, log_legacy_lab_import_completion
+
+			summary = log_legacy_lab_import_completion(final)
+			final.update(
+				{
+					"in_database": summary.get("in_database"),
+					"missing_from_database": summary.get("missing_from_database"),
+					"failure_count": summary.get("failure_count"),
+				}
+			)
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── Nursing discharge checklist Excel import (Oracle IP_ADMISSION_04_NUR) ─────
 
 

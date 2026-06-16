@@ -1712,6 +1712,11 @@ import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import {
+  expandLegacyLabTestsForDisplay,
+  isLegacyHistoryLabRow,
+  resolveLabTestDocName,
+} from './labTestDisplayUtils'
 
 export type LabTestListBatchSaveRef = {
   savePendingChanges: () => Promise<void>
@@ -2092,7 +2097,10 @@ export const LabTestList = ({
   const resultsReadOnly = doctorLabDefaults
   const canEditResults = canEditLabTestResults(userRole)
   const canEditResultRow = useCallback(
-    (labTest: LabTest) => !resultsReadOnly && canEditLabTestResultForRow(labTest, userRole),
+    (labTest: LabTest) =>
+      !isLegacyHistoryLabRow(labTest) &&
+      !resultsReadOnly &&
+      canEditLabTestResultForRow(labTest, userRole),
     [resultsReadOnly, userRole]
   )
 
@@ -2183,6 +2191,12 @@ export const LabTestList = ({
     filters.fromDate || undefined, filters.toDate || undefined,
     filters.template || undefined, filters.practitioner || undefined, byNurse,
     pageSize, (page - 1) * pageSize, defaultsReady
+  )
+
+  /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI. */
+  const displayLabTests = useMemo(
+    () => expandLegacyLabTestsForDisplay(labTests),
+    [labTests]
   )
 
   const batch = useBatchLabTestResults(
@@ -2637,7 +2651,7 @@ export const LabTestList = ({
     const groups = new Map<string, LabTest[]>()
     const standalone: LabTest[] = []
 
-    for (const lt of labTests) {
+    for (const lt of displayLabTests) {
       if (lt.is_group_lab_test && lt.service_request) {
         const arr = groups.get(lt.service_request) || []
         arr.push(lt)
@@ -2664,13 +2678,13 @@ export const LabTestList = ({
     return rows.sort((a, b) => b.sortMs - a.sortMs || (a.kind === 'group' ? a.serviceRequest : a.labTest.name).localeCompare(
       b.kind === 'group' ? b.serviceRequest : b.labTest.name
     ))
-  }, [labTests])
+  }, [displayLabTests])
 
-  const rangeHeaders = getRangeHeaders(labTests)
+  const rangeHeaders = getRangeHeaders(displayLabTests)
 
   const hasGroupedLabTests = useMemo(
-    () => labTests.some((lt) => lt.is_group_lab_test && lt.service_request),
-    [labTests]
+    () => displayLabTests.some((lt) => lt.is_group_lab_test && lt.service_request),
+    [displayLabTests]
   )
 
   const useDoctorCompactCard = compactClinical && Boolean(effectivePatient) && doctorLabDefaults
@@ -2679,7 +2693,7 @@ export const LabTestList = ({
   useEffect(() => {
     if (!doctorLabDefaults || !hasGroupedLabTests) return
     const groups = new Map<string, LabTest[]>()
-    for (const lt of labTests) {
+    for (const lt of displayLabTests) {
       if (lt.is_group_lab_test && lt.service_request) {
         const arr = groups.get(lt.service_request) || []
         arr.push(lt)
@@ -2695,7 +2709,7 @@ export const LabTestList = ({
     if (Object.keys(toExpand).length) {
       setExpandedGroupKeys((prev) => ({ ...prev, ...toExpand }))
     }
-  }, [doctorLabDefaults, hasGroupedLabTests, labTests])
+  }, [doctorLabDefaults, hasGroupedLabTests, displayLabTests])
 
   // Helper: render the result edit cell for a child/standalone test
   const renderResultCell = (labTest: LabTest) => {
@@ -2920,10 +2934,12 @@ export const LabTestList = ({
             </svg>
           </button>
           <PortalActionsMenu open={openActionRow === labTest.name} onClose={() => setOpenActionRow(null)} triggerRef={actionMenuRef} minWidth={160}>
-            <button type="button" onClick={() => { setOpenActionRow(null); setSelectedLabTestForDetails(labTest.name) }}
+            <button type="button" onClick={() => { setOpenActionRow(null); setSelectedLabTestForDetails(resolveLabTestDocName(labTest)) }}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">View Details</button>
+            {!isLegacyHistoryLabRow(labTest) && (
             <button type="button" onClick={() => handleOpenSampleCollection(labTest)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Sample Collection</button>
+            )}
             {canEditResultRow(labTest) && (
               <button type="button" onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
                 className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results</button>
@@ -3140,15 +3156,17 @@ export const LabTestList = ({
         </div>
       ) : useDoctorCompactCard ? (
         <LabTestDashboardCardTable
-          labTests={labTests}
+          labTests={displayLabTests}
           variant="doctor"
           onOpen={(name) => setSelectedLabTestForDetails(name)}
+          resolveDocName={resolveLabTestDocName}
           onReview={(name) => openReviewModal(name, 'Reviewed')}
         />
       ) : useCompactCardTable ? (
         <LabTestDashboardCardTable
-          labTests={labTests}
+          labTests={displayLabTests}
           onOpen={(name) => setSelectedLabTestForDetails(name)}
+          resolveDocName={resolveLabTestDocName}
         />
       ) : (
         <div className="overflow-x-auto">
@@ -3330,16 +3348,22 @@ export const LabTestList = ({
                 )
                 }
                 const labTest = row.labTest
+                const detailsName = resolveLabTestDocName(labTest)
                 return (
-                <tr key={labTest.name} className="hover:bg-slate-50">
+                <tr key={labTest.name} className={isLegacyHistoryLabRow(labTest) ? 'hover:bg-slate-50 bg-amber-50/30' : 'hover:bg-slate-50'}>
                   <td 
                     className="px-3 py-1.5 text-sm font-medium text-slate-900 cursor-pointer hover:text-primary"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedLabTestForDetails(labTest.name);
+                      setSelectedLabTestForDetails(detailsName);
                     }}
                   >
-                    {labTest.name}
+                    <div className="flex flex-col gap-0.5">
+                      <span>{detailsName}</span>
+                      {isLegacyHistoryLabRow(labTest) && labTest.lab_test_group && (
+                        <span className="text-[10px] font-normal text-slate-500">{labTest.lab_test_group}</span>
+                      )}
+                    </div>
                   </td>
                   {!patient && (
                     <td
@@ -3349,7 +3373,16 @@ export const LabTestList = ({
                       <span className="font-medium text-primary hover:underline">{labTest.patient_name || labTest.patient || '-'}</span>
                     </td>
                   )}
-                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
+                  <td className="px-3 py-1.5 text-sm text-slate-700">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isLegacyHistoryLabRow(labTest) && (
+                        <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
+                          History
+                        </span>
+                      )}
+                      <span className="truncate">{labTest.lab_test_name || labTest.template || '-'}</span>
+                    </div>
+                  </td>
                   <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
                   {renderRangeCells(labTest)}
                   {renderResultCell(labTest)}
@@ -3362,7 +3395,13 @@ export const LabTestList = ({
                       : <span className="text-slate-400 text-xs">—</span>}
                   </td>
                   <td className="px-3 py-1.5 text-sm text-slate-700">
-                    {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString() : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString() : '-'}
+                    {labTest.result_date
+                      ? new Date(labTest.result_date).toLocaleDateString()
+                      : labTest.date
+                        ? new Date(labTest.date).toLocaleDateString()
+                        : labTest.submitted_date
+                          ? new Date(labTest.submitted_date).toLocaleDateString()
+                          : '-'}
                   </td>
                   {renderTechnicianCell(labTest)}
                   <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>

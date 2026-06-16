@@ -206,6 +206,95 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Upload Legacy Lab Header Excel'), () => {
+			new frappe.ui.FileUploader({
+				dialog_title: __('Select Lab Header Excel (C LAB_00_03)'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frm._legacy_lab_header_file_url = file.file_url;
+					frappe.show_alert({
+						message: __('Lab header file uploaded. Now upload the detail Excel.'),
+						indicator: 'green',
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Import Legacy Lab Detail Excel'), () => {
+			if (!frm._legacy_lab_header_file_url) {
+				frappe.msgprint({
+					title: __('Header file required'),
+					message: __(
+						'Upload the lab header Excel first using “Upload Legacy Lab Header Excel” (C LAB_00_03), then upload the detail file here (C-I LAB_00_04).'
+					),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			new frappe.ui.FileUploader({
+				dialog_title: __('Select Lab Detail Excel (C-I LAB_00_04)'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(detailFile) {
+					const headerFileUrl = frm._legacy_lab_header_file_url;
+					frappe.call({
+						method: 'healthcare.api.lab_test_legacy_import.preview_legacy_lab_import',
+						args: {
+							header_file_url: headerFileUrl,
+							detail_file_url: detailFile.file_url,
+						},
+						freeze: true,
+						freeze_message: __('Reading Excel files…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Import legacy lab tests into Lab Test records?\n\nHeader rows: {0}\nDetail rows: {1}\nTransactions: {2}\nWith header (003): {3}\nWith result lines: {4}\nResolvable patient (header rows): {5}\nMatching lab template: {6}\nStandalone (detail only, no 003 header): {7}\n\nHeader rows link patient via Patient Visit / Inpatient Admission (or file number). Standalone rows are created from LAB 00-04 using TRANS_NUM only (no patient on header). No billing is created. Continue?',
+									[
+										counts.header_rows || 0,
+										counts.detail_rows || 0,
+										counts.transactions || 0,
+										counts.transactions_with_header || counts.header_rows || 0,
+										counts.transactions_with_results || 0,
+										counts.resolvable_patient || 0,
+										counts.resolvable_template || 0,
+										counts.standalone_transactions || counts.detail_without_header || 0,
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_legacy_lab_import_migration',
+										args: {
+											header_file_url: headerFileUrl,
+											detail_file_url: detailFile.file_url,
+										},
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('legacy_lab_import');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Import Nursing Checklist from Excel'), () => {
 			const uploader = new frappe.ui.FileUploader({
 				dialog_title: __('Import Nursing Checklist'),
@@ -437,12 +526,33 @@ function poll_migration_status(jobKey) {
 					}
 					setTimeout(poll, 15000);
 				} else if (s.done && !s.error) {
+					const missing = s.missing_from_database || 0;
+					const ok = s.ok != null ? s.ok : s.processed;
+					const errN = s.errors || 0;
+					const skipped =
+						(s.skip_no_patient || 0) +
+						(s.skip_no_header || 0) +
+						(s.skip_existing_non_legacy || 0);
+					let msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [
+						jobKey,
+						ok,
+						skipped,
+						errN,
+					]);
+					if (s.in_database != null) {
+						msg += __('. {0} legacy Lab Tests in database.', [s.in_database]);
+					}
+					if (missing > 0) {
+						msg += __(
+							' {0} Excel TRANS_NUM still missing — search Error Log for "Legacy lab import".',
+							[missing]
+						);
+					} else {
+						msg += __(' See Error Log for the full summary.');
+					}
 					frappe.show_alert({
-						message: __('{0} finished ({1} records). See Error Log for summary.', [
-							jobKey,
-							s.processed || 0,
-						]),
-						indicator: 'green',
+						message: msg,
+						indicator: missing > 0 ? 'orange' : 'green',
 					});
 				} else if (s.error) {
 					frappe.msgprint({

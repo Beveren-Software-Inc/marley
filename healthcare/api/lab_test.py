@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
@@ -234,7 +235,67 @@ _LAB_TEST_LIST_FIELDS = [
 	"results",
 	"gender",
 	"result_flag",
+	"is_legacy_import",
+	"date",
 ]
+
+_LAB_TEST_LINE_LIST_FIELDS = [
+	"parent",
+	"sr_num",
+	"lab_group_num",
+	"group_name",
+	"lab_sub_num",
+	"lab_result_value",
+	"lab_amt_book",
+	"lab_amt_add",
+	"lab_amt_disc",
+	"lab_amt_net",
+	"sta_flg",
+	"field1",
+	"field2",
+	"field3",
+	"field4",
+	"field5",
+	"field6",
+	"field7",
+	"field8",
+	"field9",
+	"field10",
+	"cr_id",
+	"cr_date",
+	"up_id",
+	"up_date",
+	"lab_04_remarks",
+]
+
+
+def _attach_legacy_lab_test_lines(lab_tests):
+	"""Attach LAB 00-04 child rows for legacy imports (list API)."""
+	legacy_names = [lt.name for lt in lab_tests if cint(lt.get("is_legacy_import"))]
+	if not legacy_names:
+		return lab_tests
+
+	line_rows = frappe.get_all(
+		"Lab Test Line",
+		filters={"parent": ["in", legacy_names], "parenttype": "Lab Test"},
+		fields=_LAB_TEST_LINE_LIST_FIELDS,
+		order_by="parent asc, sr_num asc, idx asc",
+	)
+	by_parent: dict[str, list] = {}
+	template_info_cache: dict[str, dict] = {}
+	for row in line_rows:
+		parent = row.pop("parent", None)
+		if not parent:
+			continue
+		sub_template = (row.get("lab_sub_num") or "").strip()
+		if sub_template:
+			row["lab_sub_template_name"] = _lab_test_template_name(sub_template, template_info_cache)
+		by_parent.setdefault(parent, []).append(row)
+
+	for lab_test in lab_tests:
+		if cint(lab_test.get("is_legacy_import")):
+			lab_test["lab_test_lines"] = by_parent.get(lab_test.name, [])
+	return lab_tests
 
 
 def _enrich_lab_test_rows(lab_tests, template_cache=None):
@@ -369,7 +430,7 @@ def get_lab_tests(
 
 	if practitioner:
 		filters["practitioner"] = practitioner
-
+	
 	# Date range filter — apply on result_date
 	if from_date or to_date:
 		if from_date and to_date:
@@ -400,6 +461,7 @@ def get_lab_tests(
 	lab_tests = _expand_grouped_lab_test_siblings(lab_tests, filters)
 	template_cache = {}
 	_enrich_lab_test_rows(lab_tests, template_cache)
+	_attach_legacy_lab_test_lines(lab_tests)
 	return {"data": lab_tests, "total_count": total_count}
 
 # def _calculate_result_flag(result_value, patient_gender, female_min_range=None, female_max_range=None, 
@@ -511,20 +573,233 @@ def _parse_normal_range_text(normal_range):
 		return None, None
 
 
-def _matrix_cell_flag(result_value, normal_range=None):
-	"""Return normal | abnormal | neutral for matrix cell colouring."""
+def _to_float_range(val):
+	if val is None or val == "":
+		return None
+	try:
+		return float(val)
+	except (TypeError, ValueError):
+		return None
+
+
+def _reference_range_bounds(
+	patient_gender=None,
+	*,
+	female_min_range=None,
+	female_max_range=None,
+	male_min_range=None,
+	male_max_range=None,
+	min_range=None,
+	max_range=None,
+	normal_range=None,
+):
+	"""Resolve min/max reference bounds from template fields and/or normal_range text."""
+	gender = (patient_gender or "").strip()
+	if gender == "Female":
+		min_val = _to_float_range(female_min_range) or _to_float_range(min_range)
+		max_val = _to_float_range(female_max_range) or _to_float_range(max_range)
+	elif gender == "Male":
+		min_val = _to_float_range(male_min_range) or _to_float_range(min_range)
+		max_val = _to_float_range(male_max_range) or _to_float_range(max_range)
+	else:
+		min_val = _to_float_range(min_range)
+		max_val = _to_float_range(max_range)
+
+	if min_val is None or max_val is None:
+		parsed_min, parsed_max = _parse_normal_range_text(normal_range)
+		if min_val is None:
+			min_val = parsed_min
+		if max_val is None:
+			max_val = parsed_max
+	return min_val, max_val
+
+
+def _matrix_cell_eval(
+	result_value,
+	normal_range=None,
+	*,
+	patient_gender=None,
+	female_min_range=None,
+	female_max_range=None,
+	male_min_range=None,
+	male_max_range=None,
+	min_range=None,
+	max_range=None,
+):
+	"""Return flag + optional direction for matrix cell colouring."""
+	neutral = {"flag": "neutral", "direction": None}
 	if result_value is None or str(result_value).strip() == "":
-		return "neutral"
+		return neutral
 	try:
 		val = float(result_value)
 	except (TypeError, ValueError):
-		return "neutral"
-	min_val, max_val = _parse_normal_range_text(normal_range)
+		# Non-numeric text (e.g. "Positive") — leave uncoloured.
+		return neutral
+	min_val, max_val = _reference_range_bounds(
+		patient_gender,
+		female_min_range=female_min_range,
+		female_max_range=female_max_range,
+		male_min_range=male_min_range,
+		male_max_range=male_max_range,
+		min_range=min_range,
+		max_range=max_range,
+		normal_range=normal_range,
+	)
 	if min_val is None or max_val is None:
-		return "neutral"
-	if val < min_val or val > max_val:
-		return "abnormal"
-	return "normal"
+		return neutral
+	if val < min_val:
+		return {"flag": "abnormal", "direction": "low"}
+	if val > max_val:
+		return {"flag": "abnormal", "direction": "high"}
+	return {"flag": "normal", "direction": None}
+
+
+def _matrix_cell_eval_from_template_info(result_value, patient_gender, tpl_info, normal_range=None):
+	return _matrix_cell_eval(
+		result_value,
+		normal_range,
+		patient_gender=patient_gender,
+		female_min_range=tpl_info.get("female_min_range"),
+		female_max_range=tpl_info.get("female_max_range"),
+		male_min_range=tpl_info.get("male_min_range"),
+		male_max_range=tpl_info.get("male_max_range"),
+		min_range=tpl_info.get("min_range"),
+		max_range=tpl_info.get("max_range"),
+	)
+
+
+def _matrix_cell_from_result_flag(result_flag: str):
+	flag_text = (result_flag or "").strip()
+	if not flag_text or flag_text == "Normal":
+		return {"flag": "normal", "direction": None}
+	direction = None
+	if flag_text in ("High", "Critically High"):
+		direction = "high"
+	elif flag_text in ("Low", "Critically Low"):
+		direction = "low"
+	return {"flag": "abnormal", "direction": direction}
+
+
+def _matrix_history_cell(value, lab_test_name, cell_eval: dict):
+	return {
+		"value": value,
+		"flag": cell_eval.get("flag") or "neutral",
+		"direction": cell_eval.get("direction"),
+		"lab_test": lab_test_name,
+	}
+
+
+def _template_analyte_cache(template_name: str, cache: dict) -> dict:
+	"""Map template + event codes to human-readable analyte / panel names."""
+	key = (template_name or "").strip()
+	if not key:
+		return {"panel_name": "", "events": {}}
+	if key in cache:
+		return cache[key]
+
+	panel_name = (
+		frappe.db.get_value("Lab Test Template", key, "lab_test_name")
+		or frappe.db.get_value("Lab Test Template", key, "lab_test_code")
+		or key
+	)
+	events: dict[str, str] = {}
+	if frappe.db.exists("Lab Test Template", key):
+		for row in frappe.get_all(
+			"Normal Test Template",
+			filters={"parent": key, "parenttype": "Lab Test Template"},
+			fields=["lab_test_event"],
+			order_by="idx asc",
+		):
+			event = (row.lab_test_event or "").strip()
+			if not event:
+				continue
+			# lab_test_event is the stored analyte label (e.g. WBC) when configured on the template
+			events[event.lower()] = event
+
+	cache[key] = {"panel_name": panel_name, "events": events}
+	return cache[key]
+
+
+def _lab_test_template_info(template_id: str, cache: dict) -> dict:
+	"""Resolve Lab Test Template display name and reference ranges (legacy lab_sub_num)."""
+	empty = {
+		"name": "",
+		"female_min_range": None,
+		"female_max_range": None,
+		"male_min_range": None,
+		"male_max_range": None,
+		"min_range": None,
+		"max_range": None,
+	}
+	key = (template_id or "").strip()
+	if not key:
+		return empty
+	if key in cache:
+		return cache[key]
+
+	info = {**empty, "name": key}
+	if frappe.db.exists("Lab Test Template", key):
+		row = frappe.db.get_value(
+			"Lab Test Template",
+			key,
+			[
+				"lab_test_name",
+				"lab_test_code",
+				"female_min_range",
+				"female_max_range",
+				"male_min_range",
+				"male_max_range",
+				"min_range",
+				"max_range",
+			],
+			as_dict=True,
+		)
+		if row:
+			info["name"] = row.lab_test_name or row.lab_test_code or key
+			info["female_min_range"] = row.female_min_range
+			info["female_max_range"] = row.female_max_range
+			info["male_min_range"] = row.male_min_range
+			info["male_max_range"] = row.male_max_range
+			info["min_range"] = row.min_range
+			info["max_range"] = row.max_range
+	cache[key] = info
+	return info
+
+
+def _lab_test_template_name(template_id: str, cache: dict) -> str:
+	return (_lab_test_template_info(template_id, cache).get("name") or "").strip()
+
+
+def _history_analyte_label(
+	template_name: str,
+	event_code: str,
+	*,
+	fallback_name: str = "",
+	template_cache: dict,
+) -> str:
+	"""Prefer Lab Test Template analyte / panel name (e.g. WBC) over Oracle codes."""
+	info = _template_analyte_cache(template_name, template_cache)
+	code = (event_code or "").strip()
+	fallback = (fallback_name or "").strip()
+
+	if code:
+		resolved = info["events"].get(code.lower())
+		if resolved and resolved.lower() != code.lower():
+			return resolved
+		# Oracle-style codes (LAB-013-001) — use template panel name or Excel group name
+		if code.upper().startswith("LAB-") and "-" in code[4:]:
+			panel = (info.get("panel_name") or "").strip()
+			if panel and panel.lower() != code.lower():
+				return panel
+			if fallback and fallback.lower() != code.lower():
+				return fallback
+
+	panel = (info.get("panel_name") or "").strip()
+	if panel and (not code or panel.lower() != code.lower()):
+		return panel
+	if fallback:
+		return fallback
+	return code or panel or (template_name or "")
 
 
 @frappe.whitelist()
@@ -570,11 +845,33 @@ def get_lab_test_history_matrix(
 			"custom_result",
 			"results",
 			"result_flag",
+			"is_legacy_import",
 		],
 		order_by="result_date asc, creation asc",
 	)
 
+	legacy_names = [lt.name for lt in lab_tests if cint(lt.get("is_legacy_import"))]
+	legacy_lines_by_parent: dict[str, list] = {}
+	if legacy_names:
+		for row in frappe.get_all(
+			"Lab Test Line",
+			filters={"parent": ["in", legacy_names], "parenttype": "Lab Test"},
+			fields=[
+				"parent",
+				"lab_group_num",
+				"group_name",
+				"lab_sub_num",
+				"lab_result_value",
+				"sr_num",
+			],
+			order_by="parent asc, sr_num asc, idx asc",
+		):
+			parent = row.pop("parent", None)
+			if parent:
+				legacy_lines_by_parent.setdefault(parent, []).append(row)
+
 	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
+	patient_gender = frappe.db.get_value("Patient", patient, "sex") or ""
 	search_term = (test_search or "").strip().lower()
 
 	def _format_time(value):
@@ -613,6 +910,8 @@ def get_lab_test_history_matrix(
 
 	columns = []
 	rows_map = {}
+	template_cache: dict[str, dict] = {}
+	template_info_cache: dict[str, dict] = {}
 
 	for lt in lab_tests:
 		col_key = lt.name
@@ -641,13 +940,54 @@ def get_lab_test_history_matrix(
 			order_by="idx asc",
 		)
 
-		if items:
+		legacy_lines = legacy_lines_by_parent.get(lt.name) or []
+
+		if legacy_lines:
+			for line in legacy_lines:
+				sub_template = (line.get("lab_sub_num") or "").strip()
+				tpl_info = _lab_test_template_info(sub_template, template_info_cache)
+				label = (tpl_info.get("name") or sub_template).strip()
+				if not label:
+					continue
+				if search_term and search_term not in label.lower():
+					if sub_template and search_term in sub_template.lower():
+						pass
+					else:
+						continue
+				# One history row per child line (lab_sub_num = Lab Test Template).
+				sr_num = line.get("sr_num")
+				if sub_template:
+					row_key = sub_template.lower()
+				elif sr_num is not None and sr_num != "":
+					row_key = f"{lt.name}::sr::{sr_num}".lower()
+				else:
+					row_key = f"{lt.name}::line::{len(rows_map)}".lower()
+				if row_key not in rows_map:
+					rows_map[row_key] = {"key": row_key, "label": label, "uom": "", "cells": {}}
+				value = (line.get("lab_result_value") or "").strip()
+				if value:
+					cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
+					rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
+		elif items:
 			for item in items:
-				label_base = (item.lab_test_event or item.lab_test_name or "").strip()
+				tpl_key = (lt.template or "").strip()
+				tpl_info = _lab_test_template_info(tpl_key, template_info_cache) if tpl_key else {}
+				event_code = (item.lab_test_event or "").strip()
+				label_base = _history_analyte_label(
+					tpl_key,
+					event_code,
+					fallback_name=item.lab_test_name or "",
+					template_cache=template_cache,
+				)
 				if not label_base:
 					continue
 				if search_term and search_term not in label_base.lower():
-					continue
+					if event_code and search_term in event_code.lower():
+						pass
+					elif tpl_key and search_term in tpl_key.lower():
+						pass
+					else:
+						continue
 				uom = (item.lab_test_uom or "").strip()
 				row_key = label_base.lower()
 				label = f"{label_base} ({uom})" if uom else label_base
@@ -655,13 +995,21 @@ def get_lab_test_history_matrix(
 					rows_map[row_key] = {"key": row_key, "label": label, "uom": uom, "cells": {}}
 				value = (item.result_value or "").strip()
 				if value:
-					rows_map[row_key]["cells"][col_key] = {
-						"value": value,
-						"flag": _matrix_cell_flag(value, item.normal_range),
-						"lab_test": lt.name,
-					}
+					cell_eval = _matrix_cell_eval_from_template_info(
+						value, patient_gender, tpl_info, item.normal_range
+					)
+					rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 		else:
-			label_base = (lt.lab_test_name or lt.template or lt.name or "").strip()
+			tpl_key = (lt.template or "").strip()
+			tpl_info = _lab_test_template_info(tpl_key, template_info_cache) if tpl_key else {}
+			label_base = _history_analyte_label(
+				tpl_key,
+				"",
+				fallback_name=lt.lab_test_name or "",
+				template_cache=template_cache,
+			)
+			if not label_base:
+				label_base = (lt.lab_test_name or lt.template or lt.name or "").strip()
 			if not label_base:
 				continue
 			if search_term and search_term not in label_base.lower():
@@ -671,14 +1019,14 @@ def get_lab_test_history_matrix(
 				rows_map[row_key] = {"key": row_key, "label": label_base, "uom": "", "cells": {}}
 			value = (lt.custom_result or lt.results or "").strip()
 			if value:
-				flag = "neutral"
-				if lt.result_flag:
-					flag = "normal" if lt.result_flag == "Normal" else "abnormal"
-				rows_map[row_key]["cells"][col_key] = {
-					"value": value,
-					"flag": flag,
-					"lab_test": lt.name,
-				}
+				cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
+				if cell_eval["flag"] == "neutral" and lt.result_flag:
+					try:
+						float(value)
+						cell_eval = _matrix_cell_from_result_flag(lt.result_flag)
+					except (TypeError, ValueError):
+						pass
+				rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 
 	rows = sorted(rows_map.values(), key=lambda r: r["label"].lower())
 
@@ -782,6 +1130,28 @@ def get_lab_test(name):
 			'template': getattr(r, 'template', None) or '',
 		}
 		for r in normal_items
+	]
+	out['is_legacy_import'] = cint(getattr(lab_test, 'is_legacy_import', 0))
+	line_rows = getattr(lab_test, 'lab_test_lines', None) or []
+	out['lab_test_lines'] = [
+		{
+			'sr_num': getattr(r, 'sr_num', None) or '',
+			'lab_group_num': getattr(r, 'lab_group_num', None) or '',
+			'group_name': getattr(r, 'group_name', None) or '',
+			'lab_sub_num': getattr(r, 'lab_sub_num', None) or '',
+			'lab_result_value': getattr(r, 'lab_result_value', None) or '',
+			'lab_amt_book': getattr(r, 'lab_amt_book', None),
+			'lab_amt_add': getattr(r, 'lab_amt_add', None),
+			'lab_amt_disc': getattr(r, 'lab_amt_disc', None),
+			'lab_amt_net': getattr(r, 'lab_amt_net', None),
+			'sta_flg': getattr(r, 'sta_flg', None),
+			'cr_id': getattr(r, 'cr_id', None) or '',
+			'cr_date': getattr(r, 'cr_date', None) or '',
+			'up_id': getattr(r, 'up_id', None) or '',
+			'up_date': getattr(r, 'up_date', None) or '',
+			'lab_04_remarks': getattr(r, 'lab_04_remarks', None) or '',
+		}
+		for r in line_rows
 	]
 	return out
 
