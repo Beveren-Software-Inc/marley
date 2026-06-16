@@ -20,6 +20,7 @@
   "enable_free_follow_ups",
   "max_visits",
   "valid_days",
+  "block_clinical_records_on_completed_visit",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
@@ -122,6 +123,13 @@
    "fieldtype": "Int",
    "label": "Valid Number of Days",
    "mandatory_depends_on": "eval:doc.enable_free_follow_ups == 1"
+  },
+  {
+   "default": "1",
+   "description": "When enabled, users cannot add clinical records (prescriptions, lab tests, given medicine, etc.) linked to a completed or cancelled patient visit. Disable to allow adding records after the visit is completed.",
+   "fieldname": "block_clinical_records_on_completed_visit",
+   "fieldtype": "Check",
+   "label": "Block Clinical Records on Completed OP Visits"
   },
   {
    "description": "You can configure default Items for billing consultation charges, procedure consumption items and inpatient visits",

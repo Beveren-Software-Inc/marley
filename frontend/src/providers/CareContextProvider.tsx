@@ -171,6 +171,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
   const blockDischargedIp =
     careEpisodeStatus?.block_clinical_records_on_discharged_ip ?? true
+  const blockCompletedVisit =
+    careEpisodeStatus?.block_clinical_records_on_completed_visit ?? true
 
   const isActiveCareEpisodeClosed = careEpisodeStatus
     ? careEpisodeStatus.blocks_create
@@ -180,12 +182,13 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
         activeAdmission,
         activeVisitStatus,
         activeAdmissionStatus,
-        { blockDischargedIp },
+        { blockDischargedIp, blockCompletedVisit },
       )
 
   const activeCareBlockReason = careEpisodeStatus?.block_reason
     ?? getActiveCareBlockReason(mode, activeVisitStatus, activeAdmissionStatus, {
       blockDischargedIp,
+      blockCompletedVisit,
     })
 
   const guardClinicalCreate = useCallback(

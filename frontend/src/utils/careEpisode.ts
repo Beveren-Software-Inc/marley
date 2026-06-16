@@ -13,6 +13,8 @@ export function isInpatientAdmissionClosedForCreate(status?: string | null): boo
 export type CareEpisodeGuardOptions = {
   /** Healthcare Settings: block clinical records on discharged IP (default true). */
   blockDischargedIp?: boolean
+  /** Healthcare Settings: block clinical records on completed OP visit (default true). */
+  blockCompletedVisit?: boolean
 }
 
 export function getActiveCareBlockReason(
@@ -22,7 +24,8 @@ export function getActiveCareBlockReason(
   options?: CareEpisodeGuardOptions,
 ): string | undefined {
   const blockDischargedIp = options?.blockDischargedIp ?? true
-  if (mode === 'OP' && isPatientVisitClosedForCreate(visitStatus)) {
+  const blockCompletedVisit = options?.blockCompletedVisit ?? true
+  if (blockCompletedVisit && mode === 'OP' && isPatientVisitClosedForCreate(visitStatus)) {
     return `This patient visit is ${visitStatus}. Select or create an open OP visit to add records.`
   }
   if (
@@ -44,7 +47,13 @@ export function isActiveCareEpisodeClosedForCreate(
   options?: CareEpisodeGuardOptions,
 ): boolean {
   const blockDischargedIp = options?.blockDischargedIp ?? true
-  if (mode === 'OP' && activeVisit && isPatientVisitClosedForCreate(visitStatus)) {
+  const blockCompletedVisit = options?.blockCompletedVisit ?? true
+  if (
+    blockCompletedVisit &&
+    mode === 'OP' &&
+    activeVisit &&
+    isPatientVisitClosedForCreate(visitStatus)
+  ) {
     return true
   }
   if (
