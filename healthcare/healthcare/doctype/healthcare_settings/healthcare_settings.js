@@ -129,6 +129,32 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Backfill PMO Inpatient Admission from Written'), () => {
+			frappe.call({
+				method:
+					'healthcare.api.patient_medication_order_admission_backfill.preview_pmo_written_admission_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Backfill Patient Medication Orders that have Written Inpatient Admission?\n\nOrders with written admission: {0}\nNeed update (sampled): {1}\nUnresolved admission (sampled): {2}\n\nSets Inpatient Admission (inpatient_record), patient, patient name/age/nationality, company, and practitioner from the linked admission. Submitted orders are updated via db_set. Continue?',
+							[
+								counts.candidates || 0,
+								counts.needs_update_sampled || 0,
+								counts.unresolved_sampled || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_pmo_written_admission_backfill_migration',
+								'pmo_admission_backfill'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Link IP Admission Medicine to PMO'), () => {
 			frappe.confirm(
 				__(

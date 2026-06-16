@@ -85,22 +85,27 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.care_context=='Patient Visit'",
    "fieldname": "patient_encounter",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "label": "Patient Visit",
    "options": "Patient Visit"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "patient_encounter.patient",
    "fieldname": "patient",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Patient",
    "options": "Patient",
    "read_only_depends_on": "patient_encounter"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "patient.patient_name",
    "fieldname": "patient_name",
    "fieldtype": "Data",
@@ -108,6 +113,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "patient_age",
    "fieldtype": "Data",
    "label": "Patient Age",
@@ -118,9 +124,11 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "depends_on": "eval:doc.care_context=='Inpatient Admission'",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inpatient Admission",
@@ -218,9 +226,11 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "patient.nationality",
    "fieldname": "nationality",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Nationality",
    "options": "Nationality"
   },
@@ -407,7 +417,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-08 13:14:22.738710",
+ "modified": "2026-06-16 17:22:48.395031",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",
