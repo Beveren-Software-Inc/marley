@@ -76,6 +76,19 @@
   "ip_case_management_fee",
   "room_charges",
   "today_charge_obs",
+  "discharge_to_observation",
+  "charge_observation_today",
+  "observation_level",
+  "column_break_dobs",
+  "observation_room",
+  "observation_start_date",
+  "observation_practitioner",
+  "observation_department",
+  "observation_designated_security_personel",
+  "observation_amount",
+  "observation_duration",
+  "observation_note",
+  "observation_record",
   "special_care",
   "section_break_zwbl",
   "remark",
@@ -430,7 +443,7 @@
   {
    "fieldname": "addons_section",
    "fieldtype": "Section Break",
-   "label": "Addons"
+   "label": "Charges"
   },
   {
    "fieldname": "append_date",
@@ -493,7 +506,91 @@
   {
    "fieldname": "today_charge_obs",
    "fieldtype": "Currency",
-   "label": "Today Charge OBS"
+   "label": "Observation Charge Amount",
+   "depends_on": "eval:doc.charge_observation_today"
+  },
+  {
+   "default": "0",
+   "fieldname": "discharge_to_observation",
+   "fieldtype": "Check",
+   "label": "Discharge to Observation"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "charge_observation_today",
+   "fieldtype": "Check",
+   "label": "Charge Observation Today"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_level",
+   "fieldtype": "Link",
+   "label": "Observation Level",
+   "options": "Observation Level"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "column_break_dobs",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_room",
+   "fieldtype": "Link",
+   "label": "Observation Room",
+   "options": "Healthcare Service Unit"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_start_date",
+   "fieldtype": "Date",
+   "label": "Observation Start Date"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_practitioner",
+   "fieldtype": "Link",
+   "label": "Observation Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_department",
+   "fieldtype": "Link",
+   "label": "Observation Department",
+   "options": "Medical Department"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_designated_security_personel",
+   "fieldtype": "Data",
+   "label": "Designated Security Personnel"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_amount",
+   "fieldtype": "Currency",
+   "label": "Observation Amount"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_duration",
+   "fieldtype": "Data",
+   "label": "Observation Duration"
+  },
+  {
+   "depends_on": "eval:doc.discharge_to_observation",
+   "fieldname": "observation_note",
+   "fieldtype": "Small Text",
+   "label": "Observation Note"
+  },
+  {
+   "fieldname": "observation_record",
+   "fieldtype": "Link",
+   "label": "Observation Record",
+   "options": "Observation",
+   "read_only": 1
   },
   {
    "fieldname": "discharge_responsibility",

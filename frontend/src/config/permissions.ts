@@ -163,6 +163,8 @@ export const DISCHARGE_TAB_IDS = [
   'checklist',
   'nursing',
   'transfer',
+  'charges',
+  'observation',
   'medicine-sales',
   'reconcile',
   'daily-visit',
@@ -173,7 +175,7 @@ export const DISCHARGE_TAB_IDS = [
 export type DischargeTabId = (typeof DISCHARGE_TAB_IDS)[number]
 
 const DISCHARGE_TABS_BY_ROLE: Record<'Reception' | 'Doctor' | 'Nurse', readonly DischargeTabId[]> = {
-  Reception: ['details', 'checklist', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
+  Reception: ['details', 'checklist', 'charges', 'observation', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
   Doctor: ['details', 'checklist', 'transfer', 'documents'],
   Nurse: ['details', 'checklist', 'nursing', 'reconcile'],
 }
@@ -236,7 +238,7 @@ export function getVisibleDischargeTabIds(roles: string[] | undefined): Discharg
   if (allowed.size === 0) {
     return ['details', 'checklist']
   }
-  // Checklist tab is viewable by every discharge role; line edits use department permissions.
+  // Checklist is viewable by every discharge role; extra charges + observation are reception-only.
   allowed.add('checklist')
   return DISCHARGE_TAB_IDS.filter((t) => allowed.has(t))
 }

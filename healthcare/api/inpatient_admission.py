@@ -884,7 +884,36 @@ DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"next_appointment_date",
 	"next_appointment_time",
 	"nurse_discharge_template",
+	"today_charge",
+	"room_charges",
+	"ip_case_management",
+	"ip_case_management_fee",
+	"today_charge_obs",
+	"discharge_to_observation",
+	"charge_observation_today",
+	"observation_level",
+	"observation_room",
+	"observation_start_date",
+	"observation_practitioner",
+	"observation_department",
+	"observation_designated_security_personel",
+	"observation_amount",
+	"observation_duration",
+	"observation_note",
+	"observation_record",
 )
+
+DISCHARGE_PORTAL_CHECK_FIELDS = frozenset(
+	{
+		"today_charge",
+		"ip_case_management",
+		"ip_case_management_fee",
+		"discharge_to_observation",
+		"charge_observation_today",
+	}
+)
+
+DISCHARGE_PORTAL_CURRENCY_FIELDS = frozenset({"room_charges", "today_charge_obs", "observation_amount"})
 
 
 def _get_submitted_discharge_name(admission_name: str) -> str | None:
@@ -912,7 +941,15 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 	for key, value in discharge_data.items():
 		if key in DISCHARGE_CHILD_TABLE_KEYS:
 			continue
-		if hasattr(discharge_doc, key) and value not in (None, ""):
+		if not hasattr(discharge_doc, key):
+			continue
+		if key in DISCHARGE_PORTAL_CHECK_FIELDS:
+			discharge_doc.set(key, cint(value))
+			continue
+		if key in DISCHARGE_PORTAL_CURRENCY_FIELDS:
+			discharge_doc.set(key, flt(value) if value not in (None, "") else 0)
+			continue
+		if value not in (None, ""):
 			discharge_doc.set(key, value)
 
 	# Only replace child tables when the portal sends them. Doctors/reception do not
@@ -939,17 +976,18 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 					continue
 				child = {
 					"idx": idx,
-					"action_required": (row.get("action_required") or "").strip() or None,
-					"department": (row.get("department") or "").strip() or None,
-					"user": (row.get("user") or "").strip() or None,
-					"name1": (row.get("name1") or "").strip() or None,
-					"date_time": (row.get("date_time") or "").strip() or None,
+					"action_required": _checklist_string_value(row.get("action_required")),
+					"department": _checklist_string_value(row.get("department")),
+					"user": _checklist_string_value(row.get("user")),
+					"name1": _checklist_string_value(row.get("name1")),
+					"date_time": _checklist_datetime_value(row.get("date_time")),
 					"click": cint(row.get("click") or 0),
-					"description": (row.get("description") or "").strip() or None,
-					"sr_num": (row.get("sr_num") or "").strip() or None,
+					"description": _checklist_string_value(row.get("description")),
+					"sr_num": _checklist_string_value(row.get("sr_num")),
 				}
-				if (row.get("department_2") or "").strip():
-					child["department_2"] = (row.get("department_2") or "").strip()
+				dept_2 = _checklist_string_value(row.get("department_2"))
+				if dept_2:
+					child["department_2"] = dept_2
 				discharge_doc.append("discharge_checklist", child)
 
 	if "nursing_checklist" in discharge_data:
@@ -959,25 +997,27 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 			for idx, row in enumerate(nursing_checklist, start=1):
 				if not isinstance(row, dict):
 					continue
+				dept_name = _checklist_string_value(
+					row.get("department_name") or row.get("department_label")
+				)
 				discharge_doc.append(
 					"nursing_checklist",
 					{
 						"idx": idx,
-						"action_required": (row.get("action_required") or "").strip() or None,
-						"department": (row.get("department") or "").strip() or None,
-						"department_name": (row.get("department_name") or row.get("department_label") or "Nursing").strip()
-						or "Nursing",
-						"user": (row.get("user") or "").strip() or None,
-						"name1": (row.get("name1") or "").strip() or None,
-						"date_time": (row.get("date_time") or "").strip() or None,
+						"action_required": _checklist_string_value(row.get("action_required")),
+						"department": _checklist_string_value(row.get("department")),
+						"department_name": dept_name or "Nursing",
+						"user": _checklist_string_value(row.get("user")),
+						"name1": _checklist_string_value(row.get("name1")),
+						"date_time": _checklist_datetime_value(row.get("date_time")),
 						"click": cint(row.get("click") or 0),
-						"description": (row.get("description") or "").strip() or None,
-						"sr_num": (row.get("sr_num") or "").strip() or str(idx),
-						"cr_id": (row.get("cr_id") or "").strip() or None,
-						"cr_date": (row.get("cr_date") or "").strip() or None,
-						"up_id": (row.get("up_id") or "").strip() or None,
-						"up_date": (row.get("up_date") or "").strip() or None,
-						"auto_create": (row.get("auto_create") or "").strip() or None,
+						"description": _checklist_string_value(row.get("description")),
+						"sr_num": _checklist_string_value(row.get("sr_num")) or str(idx),
+						"cr_id": _checklist_string_value(row.get("cr_id")),
+						"cr_date": _checklist_datetime_value(row.get("cr_date")),
+						"up_id": _checklist_string_value(row.get("up_id")),
+						"up_date": _checklist_datetime_value(row.get("up_date")),
+						"auto_create": _checklist_string_value(row.get("auto_create")),
 					},
 				)
 
@@ -1058,6 +1098,29 @@ def _portal_scalar_string(value) -> str:
 	return str(value)
 
 
+def _checklist_string_value(value) -> str | None:
+	if value is None or value == "":
+		return None
+	if isinstance(value, str):
+		text = value.strip()
+		return text or None
+	return str(value).strip() or None
+
+
+def _checklist_datetime_value(value):
+	"""Normalize checklist datetimes from portal JSON or existing draft rows."""
+	if not value:
+		return None
+	if isinstance(value, str):
+		text = value.strip()
+		return text or None
+	try:
+		return get_datetime(value)
+	except Exception:
+		text = str(value).strip()
+		return text or None
+
+
 def _serialize_checklist_row(row, default_department: str = "") -> dict:
 	"""Map discharge or nursing checklist child row for the portal."""
 	from healthcare.healthcare.discharge_checklist_permissions import resolve_department_link_label
@@ -1103,7 +1166,11 @@ def _serialize_discharge_draft_for_portal(discharge_doc) -> dict:
 			# Portal uses datetime-local; append midnight when doctype stores Date only.
 			d = _portal_date_string(val)
 			form_data[field] = f"{d}T00:00" if d else ""
-		elif field in ("final_discharge_date", "next_appointment_date"):
+		elif field in DISCHARGE_PORTAL_CHECK_FIELDS:
+			form_data[field] = cint(val)
+		elif field in DISCHARGE_PORTAL_CURRENCY_FIELDS:
+			form_data[field] = flt(val) if val not in (None, "") else 0
+		elif field in ("final_discharge_date", "next_appointment_date", "observation_start_date"):
 			form_data[field] = _portal_date_string(val)
 		elif field == "final_discharge_time":
 			form_data[field] = _portal_time_string(val)
@@ -1208,11 +1275,136 @@ def save_discharge_draft(admission_name, discharge_data):
 	# Nursing Checklist Template names may be stored in nurse_discharge_template (Link → DNT).
 	discharge_doc.flags.ignore_links = True
 	discharge_doc.save(ignore_permissions=True)
+	discharge_doc.reload()
+
+	observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+
 	frappe.db.commit()
 
-	return {
+	response = {
 		"name": discharge_doc.name,
 		"message": _("Discharge draft saved"),
+	}
+	if observation_result:
+		response["observation"] = observation_result.get("name")
+		response["observation_trans_no"] = observation_result.get("trans_no")
+		if observation_result.get("sales_order"):
+			response["sales_order"] = observation_result.get("sales_order")
+		if observation_result.get("existing"):
+			response["message"] = _(
+				"Discharge draft saved. Observation {0} already linked."
+			).format(observation_result.get("name"))
+		else:
+			response["message"] = _(
+				"Discharge draft saved. Observation {0} created."
+			).format(observation_result.get("name"))
+			if observation_result.get("sales_order"):
+				response["message"] = _(
+					"Discharge draft saved. Observation {0} and Sales Order {1} created."
+				).format(observation_result.get("name"), observation_result.get("sales_order"))
+
+	return response
+
+
+def _ensure_observation_sales_order(observation_name: str) -> dict:
+	"""Create a Sales Order for an observation when missing."""
+	from healthcare.api.observation import create_sales_order_from_observation
+
+	order_created = frappe.db.get_value("Observation", observation_name, "order_created")
+	if order_created and frappe.db.exists("Sales Order", order_created):
+		return {"sales_order": order_created, "existing": True}
+
+	so_result = create_sales_order_from_observation(observation_name)
+	return {
+		"sales_order": (so_result or {}).get("sales_order"),
+		"existing": bool((so_result or {}).get("existing")),
+	}
+
+
+def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: str) -> dict | None:
+	"""When discharge is to observation, create the Observation record and Sales Order."""
+	if not cint(discharge_doc.get("discharge_to_observation")):
+		return None
+
+	existing = (discharge_doc.get("observation_record") or "").strip()
+	if existing and frappe.db.exists("Observation", existing):
+		from healthcare.api.observation import _submit_observation_if_draft
+
+		_submit_observation_if_draft(existing)
+		so_info = _ensure_observation_sales_order(existing)
+		return {
+			"name": existing,
+			"trans_no": frappe.db.get_value("Observation", existing, "trans_no"),
+			"sales_order": so_info.get("sales_order"),
+			"existing": True,
+		}
+
+	level = (discharge_doc.get("observation_level") or "").strip()
+	room = (discharge_doc.get("observation_room") or "").strip()
+	if not level:
+		frappe.throw(_("Observation Level is required when discharging to observation"))
+	if not room:
+		frappe.throw(_("Observation Room is required when discharging to observation"))
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	patient = discharge_doc.file_no or admission.patient
+	if not patient:
+		frappe.throw(_("Patient is required to create an observation"))
+
+	from healthcare.api.observation import create_observation
+
+	start_date = discharge_doc.get("observation_start_date") or discharge_doc.discharge_date or frappe.utils.today()
+	if hasattr(start_date, "date"):
+		start_date = start_date.date()
+	start_date = frappe.utils.getdate(start_date)
+
+	amount = flt(discharge_doc.get("observation_amount")) or flt(discharge_doc.get("today_charge_obs"))
+
+	obs_payload = {
+		"patient": patient,
+		"admission_no": admission_name,
+		"company": admission.company or frappe.defaults.get_user_default("Company"),
+		"practitioner": (
+			discharge_doc.get("observation_practitioner")
+			or discharge_doc.discharge_doctor
+			or admission.primary_practitioner
+		),
+		"department": discharge_doc.get("observation_department") or admission.medical_department,
+		"observation_level": level,
+		"designated_security_personel": discharge_doc.get("observation_designated_security_personel") or "",
+		"note": discharge_doc.get("observation_note") or "",
+		"duration": discharge_doc.get("observation_duration") or "",
+		"room": room,
+		"start_date": start_date,
+		"amount": amount,
+	}
+	created = create_observation(obs_payload)
+	if not created or not created.get("name"):
+		frappe.throw(_("Failed to create observation for this discharge"))
+
+	observation_name = created["name"]
+	try:
+		so_info = _ensure_observation_sales_order(observation_name)
+	except Exception as exc:
+		frappe.log_error(
+			title=f"Observation sales order failed for {observation_name}",
+			message=frappe.get_traceback(),
+		)
+		frappe.throw(
+			_("Observation {0} was created but Sales Order could not be created: {1}").format(
+				observation_name, exc
+			)
+		)
+
+	if discharge_doc.get("observation_record") != observation_name:
+		discharge_doc.observation_record = observation_name
+		discharge_doc.flags.ignore_links = True
+		discharge_doc.save(ignore_permissions=True)
+
+	return {
+		**created,
+		"sales_order": so_info.get("sales_order"),
+		"existing": False,
 	}
 
 
@@ -1230,14 +1422,28 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		_apply_discharge_payload(discharge_doc, discharge_data)
 		discharge_doc.flags.ignore_links = True
 		discharge_doc.save(ignore_permissions=True)
+		discharge_doc.reload()
+
+		observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.flags.ignore_permissions = True
 			discharge_doc.submit()
 
-		return {
+		response = {
 			"name": discharge_doc.name,
 			"message": _("Discharge created and submitted successfully"),
 		}
+		if observation_result:
+			response["observation"] = observation_result.get("name")
+			response["observation_trans_no"] = observation_result.get("trans_no")
+			if observation_result.get("sales_order"):
+				response["sales_order"] = observation_result.get("sales_order")
+				response["message"] = _(
+					"Discharge submitted. Observation {0} and Sales Order {1} created."
+				).format(observation_result.get("name"), observation_result.get("sales_order"))
+
+		return response
 
 	except Exception as e:
 		import traceback
