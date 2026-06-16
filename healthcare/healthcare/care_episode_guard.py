@@ -41,6 +41,16 @@ def block_clinical_records_on_discharged_ip() -> bool:
 	)
 
 
+def block_clinical_records_on_completed_visit() -> bool:
+	"""Healthcare Settings: when True, completed/cancelled OP visits cannot receive new clinical records."""
+	return bool(
+		frappe.db.get_single_value(
+			"Healthcare Settings",
+			"block_clinical_records_on_completed_visit",
+		)
+	)
+
+
 def _visit_status(visit_name: str) -> str | None:
 	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
 		return None
@@ -54,6 +64,8 @@ def _admission_status(admission_name: str) -> str | None:
 
 
 def assert_patient_visit_open_for_create(visit_name: str) -> None:
+	if not block_clinical_records_on_completed_visit():
+		return
 	status = _visit_status(visit_name)
 	if status in CLOSED_PATIENT_VISIT_STATUSES:
 		frappe.throw(

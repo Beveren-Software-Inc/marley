@@ -204,8 +204,7 @@
    "ignore_user_permissions": 1,
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient",
-   "set_only_once": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "patient.patient_name",
@@ -231,8 +230,7 @@
    "options": "Gender",
    "print_hide": 1,
    "read_only": 1,
-   "report_hide": 1,
-   "set_only_once": 1
+   "report_hide": 1
   },
   {
    "fieldname": "practitioner",
@@ -415,7 +413,6 @@
    "label": "Test Name",
    "no_copy": 1,
    "print_hide": 1,
-   "read_only": 1,
    "report_hide": 1,
    "search_index": 1
   },
@@ -1022,8 +1019,7 @@
    "default": "0",
    "fieldname": "is_legacy_import",
    "fieldtype": "Check",
-   "label": "Legacy Import",
-   "read_only": 1
+   "label": "Legacy Import"
   },
   {
    "fieldname": "legacy_import_batch",
@@ -1265,7 +1261,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-06-09 12:59:00.041869",
+ "modified": "2026-06-16 16:52:04.401618",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",

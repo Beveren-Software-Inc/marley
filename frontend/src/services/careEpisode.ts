@@ -5,6 +5,8 @@ export type ActiveCareEpisodeStatus = {
   block_reason: string | null
   /** Mirrors Healthcare Settings; default true until loaded from API. */
   block_clinical_records_on_discharged_ip: boolean
+  /** Mirrors Healthcare Settings; default true until loaded from API. */
+  block_clinical_records_on_completed_visit: boolean
 }
 
 export async function fetchActiveCareEpisodeStatus(

@@ -266,6 +266,95 @@ def start_ip_admission_medicine_link_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_pmo_written_admission_backfill_migration() -> dict:
+	"""Fill inpatient_record + patient on PMO from written_inpatient_admission."""
+	_require_admin()
+	from healthcare.api.patient_medication_order_admission_backfill import (
+		cache_pmo_admission_backfill_names,
+	)
+
+	job = "pmo_admission_backfill"
+	_acquire_lock(job)
+	total = cache_pmo_admission_backfill_names()
+	_set_progress(job, 0, total_orders=total)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_pmo_admission_backfill_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_pmo_admission_backfill",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Medication Order admission backfill started ({0} orders with written admission)."
+		).format(total),
+	}
+
+
+def process_pmo_admission_backfill_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_medication_order_admission_backfill import (
+		PMO_ADMISSION_BACKFILL_BATCH_SIZE,
+		load_cached_pmo_admission_backfill_names,
+		run_pmo_admission_backfill_batch,
+	)
+
+	job = "pmo_admission_backfill"
+	try:
+		names = load_cached_pmo_admission_backfill_names()
+		batch = names[offset : offset + PMO_ADMISSION_BACKFILL_BATCH_SIZE]
+		if not batch:
+			_set_progress(job, offset, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="PMO written admission backfill complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+			return
+
+		result = run_pmo_admission_backfill_batch(batch)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = offset + len(batch)
+		error_samples = list(prev.get("error_samples") or [])
+		for sample in result.get("error_samples") or []:
+			if len(error_samples) >= 10:
+				break
+			error_samples.append(sample)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip=cint(prev.get("skip", 0)) + cint(result.get("skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			error_samples=error_samples,
+			total_orders=prev.get("total_orders"),
+		)
+
+		if processed < len(names):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_pmo_admission_backfill_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_pmo_admission_backfill_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			final.update({"processed": processed, "done": True, "updated_at": str(now_datetime())})
+			frappe.cache().set_value(_job_progress_key(job), final, expires_in_sec=JOB_LOCK_SECONDS)
+			_release_lock(job)
+			frappe.log_error(
+				title="PMO written admission backfill complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
 def start_ip_admission_medicine_sheet_map_migration() -> dict:
 	"""Map IP Admission Medicine Sheet rows into Admission Detail child tables."""
 	_require_admin()
