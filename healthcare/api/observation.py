@@ -181,9 +181,18 @@ def get_observation_level_details(name):
 	return row
 
 
+def _submit_observation_if_draft(observation) -> None:
+	"""Submit an observation document when it is still a draft."""
+	if isinstance(observation, str):
+		observation = frappe.get_doc("Observation", observation)
+	if cint(observation.docstatus) == 0:
+		observation.flags.ignore_permissions = True
+		observation.submit()
+
+
 @frappe.whitelist()
 def create_observation(data):
-	"""Create a new Observation"""
+	"""Create and submit a new Observation."""
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
@@ -256,11 +265,13 @@ def create_observation(data):
 		frappe.throw(_("Patient is required"))
 
 	observation.insert(ignore_permissions=True)
+	_submit_observation_if_draft(observation)
 	
 	# Return the created observation
 	return {
 		'name': observation.name,
 		'trans_no': observation.trans_no,
+		'docstatus': observation.docstatus,
 		'patient': observation.patient,
 		'patient_name': frappe.db.get_value('Patient', observation.patient, 'patient_name') or observation.patient,
 		'observation_level': observation.observation_level,
@@ -336,7 +347,7 @@ def update_observation(data):
 
 @frappe.whitelist()
 def create_sales_order_from_observation(observation_name):
-	"""Create a Draft Sales Order for an Observation (or return existing linked on order_created).
+	"""Create and submit a Sales Order for an Observation (or return existing linked on order_created).
 
 	Sets custom_reference_type / custom_reference_name to Patient Visit or Inpatient Admission,
 	and custom_base_reference to Observation — same billing convention as Service Request / PMO.
@@ -351,6 +362,9 @@ def create_sales_order_from_observation(observation_name):
 
 	if getattr(obs, "order_created", None) and frappe.db.exists("Sales Order", obs.order_created):
 		so = frappe.get_doc("Sales Order", obs.order_created)
+		if cint(so.docstatus) == 0:
+			so.flags.ignore_permissions = True
+			so.submit()
 		return {"sales_order": so.name, "status": so.status, "existing": True}
 
 	if not obs.company:
@@ -443,6 +457,8 @@ def create_sales_order_from_observation(observation_name):
 	apply_cost_center_to_sales_order(so, cc)
 
 	so.insert(ignore_permissions=True)
+	so.flags.ignore_permissions = True
+	so.submit()
 	frappe.db.set_value("Observation", observation_name, "order_created", so.name)
 
 	return {"sales_order": so.name, "status": so.status, "existing": False}

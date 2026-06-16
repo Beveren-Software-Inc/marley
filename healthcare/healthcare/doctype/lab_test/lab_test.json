@@ -10,6 +10,10 @@
  "field_order": [
   "naming_series",
   "trans_num",
+  "is_legacy_import",
+  "legacy_import_batch",
+  "legacy_visit_num",
+  "legacy_admission_num",
   "template",
   "lab_test_name",
   "lab_test_group",
@@ -109,6 +113,21 @@
   "trans_source",
   "section_break_jhxk",
   "transfer_remark",
+  "legacy_oracle_tab",
+  "legacy_oracle_audit_section",
+  "cr_id",
+  "cr_date",
+  "column_break_legacy_audit",
+  "up_id",
+  "up_date",
+  "legacy_oracle_header_section",
+  "branch_num",
+  "oracle_field7",
+  "oracle_field8",
+  "oracle_field9",
+  "oracle_field10",
+  "lab_test_lines_tab",
+  "lab_test_lines",
   "sample_collection_tab",
   "sample_instances",
   "medical_coding_section",
@@ -1000,6 +1019,29 @@
    "unique": 1
   },
   {
+   "default": "0",
+   "fieldname": "is_legacy_import",
+   "fieldtype": "Check",
+   "label": "Legacy Import",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_import_batch",
+   "fieldtype": "Data",
+   "label": "Legacy Import Batch",
+   "read_only": 1
+  },
+  {
+   "fieldname": "legacy_visit_num",
+   "fieldtype": "Data",
+   "label": "Legacy Visit Num"
+  },
+  {
+   "fieldname": "legacy_admission_num",
+   "fieldtype": "Data",
+   "label": "Legacy Admission Num"
+  },
+  {
    "fieldname": "sr_num",
    "fieldtype": "Data",
    "label": "Sr Num"
@@ -1089,6 +1131,81 @@
    "fieldname": "transfer_remark",
    "fieldtype": "Small Text",
    "label": "Transfer Remark"
+  },
+  {
+   "fieldname": "legacy_oracle_tab",
+   "fieldtype": "Tab Break",
+   "label": "Oracle Header (LAB 00-03)"
+  },
+  {
+   "fieldname": "legacy_oracle_audit_section",
+   "fieldtype": "Section Break",
+   "label": "Oracle Audit"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_legacy_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "legacy_oracle_header_section",
+   "fieldtype": "Section Break",
+   "label": "Oracle Header Fields"
+  },
+  {
+   "fieldname": "branch_num",
+   "fieldtype": "Data",
+   "label": "Branch Num"
+  },
+  {
+   "fieldname": "oracle_field7",
+   "fieldtype": "Data",
+   "label": "Oracle Field 7"
+  },
+  {
+   "fieldname": "oracle_field8",
+   "fieldtype": "Data",
+   "label": "Oracle Field 8"
+  },
+  {
+   "fieldname": "oracle_field9",
+   "fieldtype": "Data",
+   "label": "Oracle Field 9"
+  },
+  {
+   "fieldname": "oracle_field10",
+   "fieldtype": "Data",
+   "label": "Oracle Field 10"
+  },
+  {
+   "fieldname": "lab_test_lines_tab",
+   "fieldtype": "Tab Break",
+   "label": "Lab Test Lines"
+  },
+  {
+   "fieldname": "lab_test_lines",
+   "fieldtype": "Table",
+   "label": "Lab Test Lines (LAB 00-04)",
+   "options": "Lab Test Line"
   },
   {
    "fieldname": "sample_collect_id",

@@ -45,6 +45,9 @@ class LabTest(Document):
 		# 	self.set_secondary_uom_result()
 
 	def before_submit(self):
+		if self.get("is_legacy_import"):
+			return
+
 		if getattr(self.flags, "via_doctor_review", False):
 			# Doctor review may submit draft results the lab saved without a per-row technician.
 			# Inherit from a grouped sibling when possible; do not block the doctor review step.
@@ -73,6 +76,16 @@ class LabTest(Document):
 			)
 
 	def on_submit(self):
+		if self.get("is_legacy_import"):
+			now = now_datetime()
+			if not self.submitted_date:
+				self.db_set("submitted_date", now)
+			if not self.results_entered_datetime:
+				self.db_set("results_entered_datetime", now)
+			if self.status not in ("Reviewed", "Rejected", "Completed"):
+				self.db_set("status", "Completed")
+			return
+
 		from healthcare.healthcare.utils import validate_nursing_tasks
 
 		validate_nursing_tasks(self)
@@ -112,7 +125,7 @@ class LabTest(Document):
 				item.idx = i + 1
 			self.sensitivity_test_items = sensitivity
    
-		if self.patient_visit:
+		if self.patient_visit and not self.get("is_legacy_import"):
 			update_patient_visit_status(
 				visit_name=self.patient_visit,
 				action="lab_test_created",
@@ -128,6 +141,9 @@ class LabTest(Document):
 		# 		NursingTask.create_nursing_tasks_from_template(template, self, start_time=now_datetime())
 
 	def after_insert(self):
+		if self.get("is_legacy_import"):
+			return
+
 		if self.service_request:
 			update_service_request_status(self.service_request, self.doctype, self.name)
 			billing_status = frappe.db.get_value("Service Request", self.service_request, "billing_status")

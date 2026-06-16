@@ -57,6 +57,24 @@ function formatColumnHeader(col: LabHistoryMatrixColumn): { dateLine: string; ti
   return { dateLine, timeLine }
 }
 
+const MIN_DATE_COLUMNS = 20
+const TEST_COLUMN_WIDTH_PX = 220
+
+function padHistoryColumns(columns: LabHistoryMatrixColumn[]): LabHistoryMatrixColumn[] {
+  if (columns.length >= MIN_DATE_COLUMNS) return columns
+  const padded = [...columns]
+  while (padded.length < MIN_DATE_COLUMNS) {
+    const i = padded.length
+    padded.push({
+      key: `__pad_${i}`,
+      date: '',
+      time: '',
+      lab_test: '',
+    })
+  }
+  return padded
+}
+
 function cellClass(flag?: string) {
   switch (flag) {
     case 'normal':
@@ -66,6 +84,16 @@ function cellClass(flag?: string) {
     default:
       return 'bg-white text-slate-800'
   }
+}
+
+function cellDirectionArrow(direction?: 'high' | 'low' | null) {
+  if (direction === 'high') {
+    return <span className="shrink-0 text-[10px] font-bold leading-none text-red-800" aria-label="High">↑</span>
+  }
+  if (direction === 'low') {
+    return <span className="shrink-0 text-[10px] font-bold leading-none text-red-800" aria-label="Low">↓</span>
+  }
+  return null
 }
 
 const FilterBar = ({
@@ -360,7 +388,7 @@ export const LabTestHistory = ({
             Retry
           </button>
         </div>
-      ) : columns.length === 0 ? (
+      ) : columns.length === 0 && rows.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-slate-400">
           <Search className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm">
@@ -374,6 +402,10 @@ export const LabTestHistory = ({
         </div>
       ) : (
         <>
+          {(() => {
+            const displayColumns = padHistoryColumns(columns)
+            return (
+              <>
           <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2">
             <span>
               {rows.length} test{rows.length !== 1 ? 's' : ''} × {columns.length} date
@@ -387,56 +419,108 @@ export const LabTestHistory = ({
               <span className="inline-flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Abnormal
               </span>
+              <span className="inline-flex items-center gap-1 text-slate-500">
+                <span className="text-red-800 font-bold">↑</span> High
+                <span className="text-red-800 font-bold ml-2">↓</span> Low
+              </span>
             </span>
           </div>
 
           <div className="overflow-auto max-h-[520px]" style={{ scrollbarWidth: 'thin' }}>
-            <table className="w-full border-collapse min-w-max">
+            <table className="border-collapse w-auto table-fixed">
+              <colgroup>
+                <col style={{ width: `${TEST_COLUMN_WIDTH_PX}px` }} />
+                {displayColumns.map((col) => (
+                  <col key={col.key} className="w-[58px]" />
+                ))}
+              </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-50">
                 <tr>
-                  <th className="sticky left-0 z-20 bg-slate-50 border-b border-r border-slate-200 px-4 py-2 text-left text-xs font-semibold text-slate-600 uppercase min-w-[240px] max-w-[320px]">
+                  <th
+                    className="sticky left-0 z-20 bg-slate-50 border-b border-r border-slate-200 px-2 py-1.5 text-left text-xs font-semibold text-slate-600 uppercase truncate"
+                    style={{ width: `${TEST_COLUMN_WIDTH_PX}px`, maxWidth: `${TEST_COLUMN_WIDTH_PX}px` }}
+                  >
                     Test
                   </th>
-                  {columns.map((col) => {
+                  {displayColumns.map((col) => {
                     const { dateLine, timeLine } = formatColumnHeader(col)
+                    const isPad = col.key.startsWith('__pad_')
                     return (
                       <th
                         key={col.key}
-                        className="border-b border-slate-200 px-3 py-2 text-center text-xs font-semibold text-slate-600 min-w-[88px]"
-                        title={col.lab_test_name || col.lab_test}
+                        className={`border-b border-slate-200 px-1.5 py-1.5 text-center text-[10px] font-semibold w-[58px] min-w-[58px] max-w-[72px] ${
+                          isPad ? 'text-slate-300 border-slate-100' : 'text-slate-600'
+                        }`}
+                        title={isPad ? undefined : col.lab_test_name || col.lab_test}
                       >
-                        <div>{dateLine}</div>
-                        {timeLine ? (
-                          <div className="text-[10px] font-normal text-slate-400 mt-0.5">{timeLine}</div>
-                        ) : null}
+                        {isPad ? (
+                          <div className="leading-tight">—</div>
+                        ) : (
+                          <>
+                            <div className="leading-tight">{dateLine}</div>
+                            {timeLine ? (
+                              <div className="text-[9px] font-normal text-slate-400 mt-0.5 truncate">{timeLine}</div>
+                            ) : null}
+                          </>
+                        )}
                       </th>
                     )
                   })}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((row) => (
+                {rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={displayColumns.length + 1}
+                      className="px-4 py-8 text-center text-sm text-slate-400"
+                    >
+                      No test rows match the current filters.
+                    </td>
+                  </tr>
+                ) : (
+                  rows.map((row) => (
                   <tr key={row.key} className="hover:bg-slate-50/50">
-                    <td className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-4 py-2 text-sm text-slate-800 font-medium whitespace-nowrap">
+                    <td
+                      className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-2 py-1.5 text-xs text-slate-800 font-medium truncate"
+                      style={{ width: `${TEST_COLUMN_WIDTH_PX}px`, maxWidth: `${TEST_COLUMN_WIDTH_PX}px` }}
+                      title={row.label}
+                    >
                       {row.label}
                     </td>
-                    {columns.map((col) => {
+                    {displayColumns.map((col) => {
                       const cell = row.cells[col.key]
+                      const isPad = col.key.startsWith('__pad_')
                       return (
                         <td
                           key={col.key}
-                          className={`px-3 py-2 text-center text-sm border-l border-slate-100 ${cellClass(cell?.flag)}`}
-                          title={cell?.lab_test ? `Lab Test: ${cell.lab_test}` : undefined}
+                          className={`px-1.5 py-1 text-center text-xs border-l w-[58px] min-w-[58px] max-w-[72px] ${
+                            isPad ? 'border-slate-50 bg-slate-50/30' : `border-slate-100 ${cellClass(cell?.flag)}`
+                          }`}
+                          title={
+                            cell?.value
+                              ? `${cell.value}${cell.direction === 'high' ? ' (High)' : cell.direction === 'low' ? ' (Low)' : ''}`
+                              : cell?.lab_test
+                                ? `Lab Test: ${cell.lab_test}`
+                                : undefined
+                          }
                         >
-                          {cell?.value ?? ''}
+                          <span className="inline-flex items-center justify-center gap-0.5 max-w-full">
+                            <span className="truncate">{cell?.value ?? ''}</span>
+                            {cellDirectionArrow(cell?.direction)}
+                          </span>
                         </td>
                       )
                     })}
                   </tr>
-                ))}
+                  ))
+                )}
               </tbody>
             </table>
           </div>
+              </>
+            )
+          })()}
         </>
       )}
     </div>

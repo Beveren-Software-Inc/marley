@@ -6,8 +6,10 @@ import {
   createDischarge,
   fetchDischargeDraftForAdmission,
   fetchInpatientRecord,
+  fetchServiceUnits,
   saveDischargeDraftToServer,
   UnbilledServicesError,
+  type ServiceUnit,
 } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
@@ -25,10 +27,13 @@ import {
   fetchDischargeChecklist,
   fetchDepartments,
   fetchDocumentTypes,
+  fetchMedicalDepartments,
+  fetchHealthcarePractitioners,
   fetchNursingDischargeTemplates,
   fetchNursingTemplateDisplayLabel,
   type LinkFieldOption,
   fetchNursingDischargeChecklist,
+  fetchCurrentUserDepartments,
   pickDefaultLinkOption,
   type NursingDischargeTemplateOption,
   type NursingDischargeTemplateSource,
@@ -36,6 +41,8 @@ import {
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions } from '../../services/prescriptions'
+import { fetchObservationLevels } from '../../services/common'
+import { fetchObservationLevelDetails } from '../../services/observations'
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -43,6 +50,7 @@ import {
   canEditMainDischargeChecklist,
   getVisibleDischargeTabIds,
   isNurseRole,
+  isReceptionRole,
   type DischargeTabId,
 } from '../../config/permissions'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -52,8 +60,13 @@ import {
   canSubmitDischargeWithChecklist,
   CHECKLIST_STATUS_LABELS,
 } from '../../utils/dischargeChecklistStatus'
+import {
+  canUserEditDischargeChecklistItem,
+  checklistItemDepartmentLabel,
+  mergeChecklistWithTemplateDepartments,
+} from '../../utils/dischargeChecklistPermissions'
 import { DischargeChecklistStatusCard } from '../discharges/DischargeChecklistStatusCard'
-import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
+import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, Lock, Eye, type LucideIcon } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -62,11 +75,14 @@ interface ChecklistItem {
   action_required: string
   department: string
   department_label?: string
+  department_2?: string
+  department_2_label?: string
   user: string
   name1: string
   date_time: string
   click: boolean
   description?: string
+  sr_num?: string
 }
 
 interface DischargePatientFormProps {
@@ -158,6 +174,25 @@ const DISCHARGE_TAB_DEFINITIONS: {
     iconColor: 'text-violet-600',
   },
   {
+    id: 'charges',
+    label: 'Extra Charges',
+    shortLabel: 'Extra',
+    Icon: Receipt,
+    borderColor: 'border-amber-500',
+    activeBg: 'bg-amber-50/80',
+    hoverBg: 'hover:bg-amber-50/50',
+    iconColor: 'text-amber-700',
+  },
+  {
+    id: 'observation',
+    label: 'Observation',
+    Icon: Eye,
+    borderColor: 'border-cyan-400',
+    activeBg: 'bg-cyan-50/80',
+    hoverBg: 'hover:bg-cyan-50/50',
+    iconColor: 'text-cyan-600',
+  },
+  {
     id: 'medicine-sales',
     label: 'Sales of Medicine',
     shortLabel: 'Med Sales',
@@ -232,6 +267,50 @@ function toFrappeDateTime(value?: string): string {
   if (s.length > 19) s = s.slice(0, 19)
   if (s.length === 16) s += ':00'
   return s
+}
+
+function checkToYesNo(value: unknown): 'Yes' | 'No' {
+  return Number(value) ? 'Yes' : 'No'
+}
+
+function YesNoField({
+  label,
+  value,
+  onChange,
+  required,
+}: {
+  label: string
+  value: 'Yes' | 'No'
+  onChange: (v: 'Yes' | 'No') => void
+  required?: boolean
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-2">
+        {label} {required ? <span className="text-red-500">*</span> : null}
+      </label>
+      <div className="flex items-center gap-4">
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'Yes'}
+            onChange={() => onChange('Yes')}
+          />
+          Yes
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'No'}
+            onChange={() => onChange('No')}
+          />
+          No
+        </label>
+      </div>
+    </div>
+  )
 }
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
@@ -682,23 +761,31 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
   const [sectionScroll, setSectionScroll] = useState({ left: false, right: false })
 
-  const { userRole } = useCareContext()
+  const { userRole, user: currentUser } = useCareContext()
   const formatMedicineMoney = useFormatMoney()
-  const visibleTabIds = useMemo(() => getVisibleDischargeTabIds(userRole), [userRole])
-  const tabs = useMemo(
-    () => DISCHARGE_TAB_DEFINITIONS.filter((t) => visibleTabIds.includes(t.id)),
-    [visibleTabIds]
-  )
+  const isReceptionUser = useMemo(() => isReceptionRole(userRole), [userRole])
+  const roleVisibleTabIds = useMemo(() => getVisibleDischargeTabIds(userRole), [userRole])
   const canEditMainChecklist = useMemo(() => canEditMainDischargeChecklist(userRole), [userRole])
   const nursePrimaryUser = useMemo(() => isNurseRole(userRole) && !canEditMainChecklist, [userRole, canEditMainChecklist])
-  const canViewDischargeTabPanel = (tabId: DischargeTabId) =>
-    visibleTabIds.includes(tabId) && activeTab === tabId
+  const [userDepartments, setUserDepartments] = useState<string[]>([])
+  const canEditChecklistRow = useCallback(
+    (item: ChecklistItem) => canUserEditDischargeChecklistItem(item, userDepartments, userRole),
+    [userDepartments, userRole],
+  )
 
   useEffect(() => {
-    if (!visibleTabIds.includes(activeTab)) {
-      setActiveTab(visibleTabIds[0] ?? 'details')
+    let cancelled = false
+    fetchCurrentUserDepartments()
+      .then((depts) => {
+        if (!cancelled) setUserDepartments(depts)
+      })
+      .catch(() => {
+        if (!cancelled) setUserDepartments([])
+      })
+    return () => {
+      cancelled = true
     }
-  }, [visibleTabIds, activeTab])
+  }, [])
 
   const [transferRows, setTransferRows] = useState<DischargeTransferRow[]>([])
   const [transferLoading, setTransferLoading] = useState(false)
@@ -807,8 +894,172 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
     management_in_hospital: '',
     prognosis: '',
     next_appointment_date: '',
-    next_appointment_time: ''
+    next_appointment_time: '',
+    today_charge: 0,
+    room_charges: 0,
+    ip_case_management: 0,
+    ip_case_management_fee: 0,
+    today_charge_obs: 0,
+    discharge_to_observation: 0,
+    charge_observation_today: 0,
+    observation_level: '',
+    observation_room: '',
+    observation_start_date: new Date().toISOString().split('T')[0],
+    observation_practitioner: '',
+    observation_department: '',
+    observation_designated_security_personel: '',
+    observation_amount: 0,
+    observation_duration: '',
+    observation_note: '',
+    observation_record: '',
   })
+
+  const [observationLevelOptions, setObservationLevelOptions] = useState<LinkFieldOption[]>([])
+  const [observationLevelOpen, setObservationLevelOpen] = useState(false)
+  const [observationLevelQuery, setObservationLevelQuery] = useState('')
+  const [selectedObservationLevel, setSelectedObservationLevel] = useState<LinkFieldOption | null>(null)
+  const [observationLevelLoading, setObservationLevelLoading] = useState(false)
+  const [obsRoomOptions, setObsRoomOptions] = useState<ServiceUnit[]>([])
+  const [obsRoomOpen, setObsRoomOpen] = useState(false)
+  const [obsRoomQuery, setObsRoomQuery] = useState('')
+  const [selectedObsRoom, setSelectedObsRoom] = useState<ServiceUnit | null>(null)
+  const [obsRoomLoading, setObsRoomLoading] = useState(false)
+  const [obsDepartmentOptions, setObsDepartmentOptions] = useState<LinkFieldOption[]>([])
+  const [obsDepartmentOpen, setObsDepartmentOpen] = useState(false)
+  const [obsDepartmentQuery, setObsDepartmentQuery] = useState('')
+  const [selectedObsDepartment, setSelectedObsDepartment] = useState<LinkFieldOption | null>(null)
+  const [obsPractitionerOptions, setObsPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [obsPractitionerOpen, setObsPractitionerOpen] = useState(false)
+  const [obsPractitionerQuery, setObsPractitionerQuery] = useState('')
+  const [selectedObsPractitioner, setSelectedObsPractitioner] = useState<LinkFieldOption | null>(null)
+  const [admissionMedicalDepartment, setAdmissionMedicalDepartment] = useState('')
+
+  const visibleTabIds = useMemo(() => {
+    return roleVisibleTabIds.filter((id) => {
+      if (id === 'observation') {
+        return isReceptionUser && Number(formData.discharge_to_observation) === 1
+      }
+      return true
+    })
+  }, [roleVisibleTabIds, isReceptionUser, formData.discharge_to_observation])
+
+  const tabs = useMemo(
+    () => DISCHARGE_TAB_DEFINITIONS.filter((t) => visibleTabIds.includes(t.id)),
+    [visibleTabIds]
+  )
+
+  const canViewDischargeTabPanel = (tabId: DischargeTabId) =>
+    visibleTabIds.includes(tabId) && activeTab === tabId
+
+  useEffect(() => {
+    if (!visibleTabIds.includes(activeTab)) {
+      setActiveTab(visibleTabIds[0] ?? 'details')
+    }
+  }, [visibleTabIds, activeTab])
+
+  const clearObservationFields = useCallback(() => {
+    setFormData((prev) => ({
+      ...prev,
+      discharge_to_observation: 0,
+      charge_observation_today: 0,
+      observation_level: '',
+      observation_room: '',
+      observation_start_date: new Date().toISOString().split('T')[0],
+      observation_practitioner: '',
+      observation_department: '',
+      observation_designated_security_personel: '',
+      observation_amount: 0,
+      observation_duration: '',
+      observation_note: '',
+      today_charge_obs: 0,
+      // Keep observation_record — the observation document already exists on the server.
+    }))
+    setSelectedObservationLevel(null)
+    setObservationLevelQuery('')
+    setSelectedObsRoom(null)
+    setObsRoomQuery('')
+    setSelectedObsDepartment(null)
+    setObsDepartmentQuery('')
+    setSelectedObsPractitioner(null)
+    setObsPractitionerQuery('')
+  }, [])
+
+  const handleObservationLevelSelect = async (obsLevel: LinkFieldOption) => {
+    setSelectedObservationLevel(obsLevel)
+    setObservationLevelQuery(obsLevel.label)
+    setObservationLevelOpen(false)
+
+    let rateFromLevel: number | undefined
+    let intervalFromLevel: string | undefined
+    try {
+      const details = await fetchObservationLevelDetails(obsLevel.name)
+      if (details?.rate != null && Number(details.rate) > 0) {
+        rateFromLevel = Number(details.rate)
+      }
+      if (details?.interval) {
+        intervalFromLevel = details.interval
+      }
+    } catch {
+      /* keep manual values */
+    }
+
+    setFormData((prev) => {
+      const next = {
+        ...prev,
+        observation_level: obsLevel.name,
+      }
+      if (rateFromLevel != null && (!prev.observation_amount || Number(prev.observation_amount) === 0)) {
+        next.observation_amount = rateFromLevel
+        if (Number(prev.charge_observation_today)) {
+          next.today_charge_obs = rateFromLevel
+        }
+      }
+      if (intervalFromLevel) {
+        next.observation_duration = intervalFromLevel
+      }
+      return next
+    })
+  }
+
+  const handleNeedObservationChange = (yes: boolean) => {
+    if (yes) {
+      const today = new Date().toISOString().split('T')[0]
+      setFormData((prev) => ({
+        ...prev,
+        discharge_to_observation: 1,
+        charge_observation_today: prev.charge_observation_today || 1,
+        observation_practitioner:
+          prev.observation_practitioner ||
+          prev.discharge_doctor ||
+          admission.discharge_practitioner ||
+          admission.primary_practitioner ||
+          '',
+        observation_department: prev.observation_department || admissionMedicalDepartment || '',
+        observation_start_date:
+          prev.observation_start_date ||
+          (prev.discharge_date ? String(prev.discharge_date).slice(0, 10) : today),
+        today_charge_obs: prev.today_charge_obs || prev.observation_amount || 0,
+      }))
+      if (!selectedObsPractitioner) {
+        const practId =
+          selectedDischargeDoctor?.name ||
+          admission.discharge_practitioner ||
+          admission.primary_practitioner
+        if (practId) {
+          setObsPractitionerQuery(selectedDischargeDoctor?.label || practId)
+        }
+      }
+      if (!selectedObsDepartment && admissionMedicalDepartment) {
+        setObsDepartmentQuery(admissionMedicalDepartment)
+      }
+      setActiveTab('observation')
+      return
+    }
+    clearObservationFields()
+    if (activeTab === 'observation') {
+      setActiveTab('details')
+    }
+  }
 
   // ─── Load Medicine Sales ───────────────────────────────────────────────────
 const loadMedicineSales = async () => {
@@ -974,25 +1225,61 @@ const loadDailyVisitSetup = async () => {
         }
 
         const applyDraftForm = async (
-          fd: Record<string, string>,
+          fd: Record<string, string | number | undefined>,
           checklist: ChecklistItem[] | undefined,
           nursing: ChecklistItem[] | undefined,
           docs: PatientDocumentRow[] | undefined,
           rels: typeof relatives | undefined
         ) => {
+          const fdStr = (key: string) => String(fd[key] ?? '')
           setFormData((prev) => ({ ...prev, ...fd }))
 
-          const receptionist = pickLink(fd.discharge_receptionist, users)
+          const obsLevel = fdStr('observation_level')
+          if (obsLevel) {
+            setSelectedObservationLevel({ name: obsLevel, label: obsLevel })
+            setObservationLevelQuery(obsLevel)
+          }
+          const obsRoom = fdStr('observation_room')
+          if (obsRoom) {
+            setSelectedObsRoom({ name: obsRoom, healthcare_service_unit_name: obsRoom } as ServiceUnit)
+            setObsRoomQuery(obsRoom)
+          }
+
+          const obsPractitioner = fdStr('observation_practitioner')
+          if (obsPractitioner) {
+            const pract = pickLink(obsPractitioner, doctors)
+            if (pract) {
+              setSelectedObsPractitioner(pract)
+              setObsPractitionerQuery(pract.label)
+            } else {
+              setSelectedObsPractitioner({ name: obsPractitioner, label: obsPractitioner })
+              setObsPractitionerQuery(obsPractitioner)
+            }
+          }
+
+          const obsDepartment = fdStr('observation_department')
+          if (obsDepartment) {
+            setSelectedObsDepartment({ name: obsDepartment, label: obsDepartment })
+            setObsDepartmentQuery(obsDepartment)
+          }
+
+          const obsAmount = Number(fd.observation_amount ?? 0)
+          const legacyCharge = Number(fd.today_charge_obs ?? 0)
+          if (!obsAmount && legacyCharge > 0) {
+            setFormData((prev) => ({ ...prev, observation_amount: legacyCharge }))
+          }
+
+          const receptionist = pickLink(fdStr('discharge_receptionist') || undefined, users)
           if (receptionist) {
             setSelectedDischargeReceptionist(receptionist)
             setDischargeReceptionistQuery(receptionist.label)
           }
 
-          const doctor = pickLink(fd.discharge_doctor, doctors)
+          const doctor = pickLink(fdStr('discharge_doctor') || undefined, doctors)
           if (doctor) {
             setSelectedDischargeDoctor(doctor)
             setDischargeDoctorQuery(doctor.label)
-          } else if (!fd.discharge_doctor) {
+          } else if (!fdStr('discharge_doctor')) {
             const defaultDoctorId = admission.discharge_practitioner || admission.primary_practitioner
             const defaultDoctor = defaultDoctorId ? doctors.find((d) => d.name === defaultDoctorId) : null
             if (defaultDoctor) {
@@ -1002,19 +1289,19 @@ const loadDailyVisitSetup = async () => {
             }
           }
 
-          const nurse = pickLink(fd.discharge_nurse, nurses)
+          const nurse = pickLink(fdStr('discharge_nurse') || undefined, nurses)
           if (nurse) {
             setSelectedDischargeNurse(nurse)
             setDischargeNurseQuery(nurse.label)
           }
 
-          const template = pickLink(fd.discharge_template, templates)
+          const template = pickLink(fdStr('discharge_template') || undefined, templates)
           if (template) {
             setSelectedDischargeTemplate(template)
             setDischargeTemplateQuery(template.label)
           }
 
-          const nurseTpl = (fd.nurse_discharge_template || '').trim()
+          const nurseTpl = fdStr('nurse_discharge_template').trim()
           let nurseSrc = nursingTemplateSourceForName(nurseTpl, nurseTemplates)
 
           if (nurseTpl) {
@@ -1032,9 +1319,19 @@ const loadDailyVisitSetup = async () => {
           }
 
           if (checklist?.length) {
-            setChecklistItems(checklist)
-          } else if (fd.discharge_template) {
-            await loadChecklist(fd.discharge_template)
+            const templateName = fdStr('discharge_template')
+            if (templateName) {
+              try {
+                const templateItems = await fetchDischargeChecklist(templateName)
+                setChecklistItems(mergeChecklistWithTemplateDepartments(checklist, templateItems))
+              } catch {
+                setChecklistItems(checklist)
+              }
+            } else {
+              setChecklistItems(checklist)
+            }
+          } else if (fdStr('discharge_template')) {
+            await loadChecklist(fdStr('discharge_template'))
           } else if (!nursePrimaryUser) {
             const defaultTemplate = pickDefaultLinkOption(templates)
             if (defaultTemplate) {
@@ -1229,6 +1526,9 @@ const loadDailyVisitSetup = async () => {
 
         try {
           const ipRecord = await fetchInpatientRecord(admission.name)
+          if (ipRecord?.medical_department) {
+            setAdmissionMedicalDepartment(String(ipRecord.medical_department))
+          }
           const admissionNursingTemplate = ipRecord?.discharge_nursing_checklist_template as string | undefined
           if (admissionNursingTemplate) {
             const nctOpt = nurseTemplates.find((t) => t.name === admissionNursingTemplate)
@@ -1466,6 +1766,100 @@ const loadDailyVisitSetup = async () => {
   }, [nurseTemplateQuery, nurseTemplateOpen])
 
   useEffect(() => {
+    if (!observationLevelOpen) return
+    const search = async () => {
+      setObservationLevelLoading(true)
+      try {
+        const results = await fetchObservationLevels(observationLevelQuery.trim() || undefined)
+        setObservationLevelOptions(results)
+      } catch {
+        setObservationLevelOptions([])
+      } finally {
+        setObservationLevelLoading(false)
+      }
+    }
+    const id = setTimeout(search, observationLevelQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [observationLevelQuery, observationLevelOpen])
+
+  useEffect(() => {
+    if (!obsRoomOpen || !Number(formData.discharge_to_observation)) return
+    const search = async () => {
+      setObsRoomLoading(true)
+      try {
+        const results = await fetchServiceUnits(obsRoomQuery.trim() || undefined, 'Vacant')
+        setObsRoomOptions(results)
+      } catch {
+        setObsRoomOptions([])
+      } finally {
+        setObsRoomLoading(false)
+      }
+    }
+    const id = setTimeout(search, obsRoomQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [obsRoomQuery, obsRoomOpen, formData.discharge_to_observation])
+
+  useEffect(() => {
+    if (!obsDepartmentOpen || !Number(formData.discharge_to_observation)) return
+    const search = async () => {
+      try {
+        const results = await fetchMedicalDepartments(obsDepartmentQuery.trim() || undefined)
+        setObsDepartmentOptions(results)
+      } catch {
+        setObsDepartmentOptions([])
+      }
+    }
+    const id = setTimeout(search, obsDepartmentQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [obsDepartmentQuery, obsDepartmentOpen, formData.discharge_to_observation])
+
+  useEffect(() => {
+    if (!obsPractitionerOpen || !Number(formData.discharge_to_observation)) return
+    const search = async () => {
+      try {
+        const results = await fetchHealthcarePractitioners(
+          obsPractitionerQuery.trim() || undefined,
+          formData.observation_department || admissionMedicalDepartment || undefined
+        )
+        setObsPractitionerOptions(results)
+      } catch {
+        setObsPractitionerOptions([])
+      }
+    }
+    const id = setTimeout(search, obsPractitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [
+    obsPractitionerQuery,
+    obsPractitionerOpen,
+    formData.discharge_to_observation,
+    formData.observation_department,
+    admissionMedicalDepartment,
+  ])
+
+  useEffect(() => {
+    if (activeTab !== 'observation' || !Number(formData.discharge_to_observation)) return
+    setFormData((prev) => {
+      const today = new Date().toISOString().split('T')[0]
+      const next = { ...prev }
+      if (!prev.observation_practitioner) {
+        next.observation_practitioner =
+          prev.discharge_doctor ||
+          admission.discharge_practitioner ||
+          admission.primary_practitioner ||
+          ''
+      }
+      if (!prev.observation_department && admissionMedicalDepartment) {
+        next.observation_department = admissionMedicalDepartment
+      }
+      if (!prev.observation_start_date) {
+        next.observation_start_date =
+          prev.discharge_date ? String(prev.discharge_date).slice(0, 10) : today
+      }
+      return next
+    })
+  }, [activeTab, formData.discharge_to_observation, admission.discharge_practitioner, admission.primary_practitioner, admissionMedicalDepartment])
+
+  useEffect(() => {
     if (!departmentOpenForItem) return
     const search = async () => {
       try { const results = await fetchDepartments(departmentQuery || undefined); setDepartmentOptions(results) }
@@ -1541,20 +1935,30 @@ const loadDailyVisitSetup = async () => {
   }
 
   const toggleCheck = (itemName: string) => {
-    if (!canEditMainChecklist) return
+    const item = checklistItems.find((row) => row.name === itemName)
+    if (!item || !canEditChecklistRow(item)) return
+    const checking = !item.click
+    const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
     setChecklistItems(prev =>
-      prev.map(item =>
-        item.name === itemName
-          ? { ...item, click: !item.click, date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '' }
-          : item
+      prev.map(row =>
+        row.name === itemName
+          ? {
+              ...row,
+              click: checking,
+              date_time: checking ? toFrappeDateTime(new Date().toISOString()) : '',
+              user: checking ? loggedInUser || row.user : '',
+            }
+          : row
       )
     )
   }
 
   const updateChecklistItem = (itemName: string, field: keyof ChecklistItem, value: string) => {
-    if (!canEditMainChecklist) return
+    const item = checklistItems.find((row) => row.name === itemName)
+    if (!item || !canEditChecklistRow(item)) return
+    if (field === 'department' || field === 'department_2') return
     setChecklistItems(prev =>
-      prev.map(item => item.name === itemName ? { ...item, [field]: value } : item)
+      prev.map(row => row.name === itemName ? { ...row, [field]: value } : row)
     )
   }
 
@@ -1563,10 +1967,16 @@ const loadDailyVisitSetup = async () => {
   const toggleNurseItem = (itemName: string) => setExpandedNurseItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
 
   const toggleNurseCheck = (itemName: string) => {
+    const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
     setNurseChecklistItems(prev =>
       prev.map(item =>
         item.name === itemName
-          ? { ...item, click: !item.click, date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '' }
+          ? {
+              ...item,
+              click: !item.click,
+              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '',
+              user: !item.click ? loggedInUser || item.user : '',
+            }
           : item
       )
     )
@@ -1641,17 +2051,22 @@ const loadDailyVisitSetup = async () => {
         })),
       patient_relatives: patientRelatives,
     }
+    // observation_record is server-owned once created; never send from the portal.
+    delete payload.observation_record
 
     // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
     if (visibleTabIds.includes('checklist')) {
       payload.discharge_checklist = checklistItems.map((item) => ({
+        name: item.name,
         action_required: item.action_required,
         department: item.department,
+        department_2: item.department_2 || '',
         user: item.user,
         name1: item.name1,
         date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
         click: item.click ? 1 : 0,
         description: item.description || '',
+        sr_num: item.sr_num || '',
       }))
     }
     if (visibleTabIds.includes('nursing')) {
@@ -1682,15 +2097,37 @@ const loadDailyVisitSetup = async () => {
       return
     }
 
+    if (Number(formData.discharge_to_observation)) {
+      if (!formData.observation_level) {
+        setError('Observation Level is required when discharging to observation')
+        setActiveTab('observation')
+        return
+      }
+      if (!formData.observation_room) {
+        setError('Observation Room is required when discharging to observation')
+        setActiveTab('observation')
+        return
+      }
+    }
+
     try {
       setSubmitting(true)
-      await createDischarge(admission.name, buildDischargePayload())
-      clearDischargeDraft(admission.name)
-      if (financeOnlyPending) {
-        toast.success('Patient discharged. Finance checklist items remain open on the discharge dashboard.', 5000)
-      } else {
-        toast.success('Patient discharged successfully!', 3000)
+      const result = await createDischarge(admission.name, buildDischargePayload()) as {
+        message?: string
+        observation?: string
+        sales_order?: string
       }
+      clearDischargeDraft(admission.name)
+      const successMsg =
+        result?.message ||
+        (result?.observation && result?.sales_order
+          ? `Patient discharged. Observation ${result.observation} and Sales Order ${result.sales_order} created.`
+          : result?.observation
+            ? `Patient discharged. Observation ${result.observation} created.`
+            : financeOnlyPending
+              ? 'Patient discharged. Finance checklist items remain open on the discharge dashboard.'
+              : 'Patient discharged successfully!')
+      toast.success(successMsg, 5000)
       onSuccess()
     } catch (err) {
       if (err instanceof UnbilledServicesError) {
@@ -1708,9 +2145,29 @@ const loadDailyVisitSetup = async () => {
 
   const handleSaveAndClose = async () => {
     setError(null)
+
+    if (Number(formData.discharge_to_observation)) {
+      if (!formData.observation_level) {
+        setError('Observation Level is required when observation is enabled')
+        setActiveTab('observation')
+        return
+      }
+      if (!formData.observation_room) {
+        setError('Observation Room is required when observation is enabled')
+        setActiveTab('observation')
+        return
+      }
+    }
+
     try {
       setSavingDraft(true)
-      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload())
+      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload()) as {
+        message?: string
+        name?: string
+        observation?: string
+        observation_record?: string
+        sales_order?: string
+      }
       saveDischargeDraft(admission.name, {
         formData,
         selectedOptions: {
@@ -1733,11 +2190,18 @@ const loadDailyVisitSetup = async () => {
         transferPrescription,
       })
       toast.success(
-        result?.message
-          ? `${result.message} (${result.name})`
-          : 'Discharge draft saved on server. You can continue later.',
-        4000
+        result?.message ||
+          (result?.observation
+            ? `Discharge draft saved. Observation ${result.observation}${result.sales_order ? ` and Sales Order ${result.sales_order}` : ''} created.`
+            : `Discharge draft saved${result?.name ? ` (${result.name})` : ''}.`),
+        5000
       )
+      if (result?.observation || result?.observation_record) {
+        setFormData((prev) => ({
+          ...prev,
+          observation_record: result.observation_record || result.observation || prev.observation_record,
+        }))
+      }
       onClose()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save discharge draft'
@@ -2106,6 +2570,22 @@ const loadDailyVisitSetup = async () => {
                 </div>
               </section>
 
+              {isReceptionUser && (
+                <section>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Observation</h3>
+                  <YesNoField
+                    label="Need Observation?"
+                    value={checkToYesNo(formData.discharge_to_observation)}
+                    onChange={(v) => handleNeedObservationChange(v === 'Yes')}
+                  />
+                  {Number(formData.discharge_to_observation) ? (
+                    <p className="mt-2 text-sm text-slate-600">
+                      Complete observation level, room, and charges in the Observation tab.
+                    </p>
+                  ) : null}
+                </section>
+              )}
+
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge plan & instructions</h3>
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -2399,10 +2879,15 @@ const loadDailyVisitSetup = async () => {
           {/* ── TAB: CHECKLIST ── */}
           {canViewDischargeTabPanel('checklist') && (
             <div className="p-6">
-              {!canEditMainChecklist && (
-                <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                  This is the hospital discharge checklist (reception / doctor). You can view progress here; complete
-                  your tasks on the <strong>Nursing</strong> tab.
+              {userDepartments.length > 0 ? (
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  You can view the full discharge checklist. You may only complete lines assigned to your employee
+                  department; other lines are read-only.
+                </div>
+              ) : (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Your user account is not linked to an active Employee department, so checklist lines with a
+                  department cannot be updated. Ask an administrator to set Employee → Department for your user.
                 </div>
               )}
               {totalItems > 0 && (
@@ -2441,7 +2926,7 @@ const loadDailyVisitSetup = async () => {
                   <Circle className="w-10 h-10 mb-3 opacity-30" />
                   <p className="text-sm">
                     {nursePrimaryUser
-                      ? 'No hospital checklist loaded yet. Reception or doctor will complete the main checklist.'
+                      ? 'No hospital checklist loaded yet.'
                       : 'No checklist items found for the selected template.'}
                   </p>
                 </div>
@@ -2469,29 +2954,47 @@ const loadDailyVisitSetup = async () => {
                           <div className="divide-y divide-slate-100">
                             {items.map((item) => {
                               const isItemExpanded = expandedItems[item.name]
+                              const rowEditable = canEditChecklistRow(item)
+                              const assignedDeptLabel = checklistItemDepartmentLabel(item)
                               return (
-                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
+                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : rowEditable ? 'bg-white' : 'bg-slate-50'}`}>
                                   <div className="px-4 py-3">
                                     <div className="flex items-start gap-3">
                                       <button
                                         type="button"
                                         onClick={() => toggleCheck(item.name)}
-                                        disabled={!canEditMainChecklist}
-                                        className={`mt-0.5 shrink-0 focus:outline-none ${!canEditMainChecklist ? 'cursor-default opacity-80' : ''}`}
+                                        disabled={!rowEditable}
+                                        title={
+                                          rowEditable
+                                            ? undefined
+                                            : `Assigned to ${assignedDeptLabel}. Only staff in that department can update this line.`
+                                        }
+                                        className={`mt-0.5 shrink-0 focus:outline-none ${!rowEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                                       >
                                         {item.click ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />}
                                       </button>
                                       <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                          {item.action_required}
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                            {item.action_required}
+                                          </p>
+                                          {assignedDeptLabel !== 'Unassigned' && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                              {!rowEditable && <Lock className="h-3 w-3" />}
+                                              {assignedDeptLabel}
+                                            </span>
+                                          )}
+                                        </div>
                                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                                           {item.name1 && <span className="text-xs text-slate-500"><span className="font-medium">Contact:</span> {item.name1}</span>}
                                           {item.click && item.date_time && (
                                             <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString()}</span>
                                           )}
+                                          {!rowEditable && !item.click && (
+                                            <span className="text-xs text-slate-500">Waiting for {assignedDeptLabel}</span>
+                                          )}
                                         </div>
-                                        {item.click && (
+                                        {item.click && rowEditable && (
                                           <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
@@ -2517,19 +3020,9 @@ const loadDailyVisitSetup = async () => {
                                             </div>
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                              <input
-                                                type="text"
-                                                ref={departmentOpenForItem === item.name ? departmentTriggerRef : undefined}
-                                                value={item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : (departmentOpenForItem === item.name ? departmentQuery : '')}
-                                                onChange={(e) => {
-                                                  updateChecklistItem(item.name, 'department', '')
-                                                  setDepartmentQuery(e.target.value)
-                                                  setDepartmentOpenForItem(item.name)
-                                                }}
-                                                onFocus={() => { setDepartmentOpenForItem(item.name); setDepartmentQuery(item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : '') }}
-                                                placeholder="Select Department..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                              <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                                                {assignedDeptLabel}
+                                              </p>
                                             </div>
                                           </div>
                                         )}
@@ -2861,6 +3354,332 @@ const loadDailyVisitSetup = async () => {
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── TAB: CHARGES ── */}
+          {canViewDischargeTabPanel('charges') && (
+            <div className="p-6 space-y-6">
+              <p className="text-sm text-slate-600">
+                Reception only — confirm extra charges for today and any additional inpatient fees.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <YesNoField
+                  label="Charge for today?"
+                  value={checkToYesNo(formData.today_charge)}
+                  onChange={(v) => setFormData((prev) => ({ ...prev, today_charge: v === 'Yes' ? 1 : 0 }))}
+                  required
+                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Room Charges</label>
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={formData.room_charges || ''}
+                    onChange={(e) =>
+                      setFormData((prev) => ({ ...prev, room_charges: Number(e.target.value) || 0 }))
+                    }
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <YesNoField
+                  label="IP Case Management?"
+                  value={checkToYesNo(formData.ip_case_management)}
+                  onChange={(v) =>
+                    setFormData((prev) => ({ ...prev, ip_case_management: v === 'Yes' ? 1 : 0 }))
+                  }
+                />
+                <YesNoField
+                  label="IP Case Management Fee?"
+                  value={checkToYesNo(formData.ip_case_management_fee)}
+                  onChange={(v) =>
+                    setFormData((prev) => ({ ...prev, ip_case_management_fee: v === 'Yes' ? 1 : 0 }))
+                  }
+                />
+              </div>
+            </div>
+          )}
+
+          {/* ── TAB: OBSERVATION ── */}
+          {canViewDischargeTabPanel('observation') && (
+            <div className="p-6 space-y-6">
+              <p className="text-sm text-slate-600">
+                Complete observation details below. The first save creates one Observation and Sales Order;
+                later saves update the discharge only and reuse the linked observation.
+              </p>
+              {formData.observation_record ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                  Linked observation: <span className="font-medium">{formData.observation_record}</span>
+                  {' '}— saving again will not create a duplicate.
+                </div>
+              ) : null}
+              <div className="space-y-4 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <YesNoField
+                  label="Charge observation today?"
+                  value={checkToYesNo(formData.charge_observation_today)}
+                  onChange={(v) => {
+                    const yes = v === 'Yes'
+                    const today = new Date().toISOString().split('T')[0]
+                    setFormData((prev) => ({
+                      ...prev,
+                      charge_observation_today: yes ? 1 : 0,
+                      today_charge_obs: yes ? prev.observation_amount || prev.today_charge_obs : 0,
+                      observation_start_date: yes ? today : prev.observation_start_date,
+                    }))
+                  }}
+                  required
+                />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Observation Level <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObservationLevel ? selectedObservationLevel.label : observationLevelQuery}
+                          onChange={(e) => {
+                            setObservationLevelQuery(e.target.value)
+                            setObservationLevelOpen(true)
+                            setSelectedObservationLevel(null)
+                            setFormData((prev) => ({ ...prev, observation_level: '' }))
+                          }}
+                          onFocus={() => setObservationLevelOpen(true)}
+                          placeholder="Search observation level..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {observationLevelOpen && (
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {observationLevelLoading ? (
+                              <div className="px-3 py-2 text-sm text-slate-500">Loading...</div>
+                            ) : observationLevelOptions.length > 0 ? (
+                              observationLevelOptions.map((obsLevel) => (
+                                <button
+                                  key={obsLevel.name}
+                                  type="button"
+                                  onClick={() => handleObservationLevelSelect(obsLevel)}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                >
+                                  {obsLevel.label}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">No observation levels found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Room / Service Unit <span className="text-red-500">*</span>
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={
+                            selectedObsRoom
+                              ? selectedObsRoom.healthcare_service_unit_name || selectedObsRoom.name
+                              : obsRoomQuery
+                          }
+                          onChange={(e) => {
+                            setObsRoomQuery(e.target.value)
+                            setObsRoomOpen(true)
+                            setSelectedObsRoom(null)
+                            setFormData((prev) => ({ ...prev, observation_room: '' }))
+                          }}
+                          onFocus={() => setObsRoomOpen(true)}
+                          placeholder="Search vacant rooms..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsRoomOpen && (
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsRoomLoading ? (
+                              <div className="px-3 py-2 text-sm text-slate-500">Loading rooms...</div>
+                            ) : obsRoomOptions.length > 0 ? (
+                              obsRoomOptions.map((unit) => (
+                                <button
+                                  key={unit.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedObsRoom(unit)
+                                    setObsRoomQuery(unit.healthcare_service_unit_name || unit.name)
+                                    setFormData((prev) => ({ ...prev, observation_room: unit.name }))
+                                    setObsRoomOpen(false)
+                                  }}
+                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                >
+                                  {unit.healthcare_service_unit_name || unit.name}
+                                </button>
+                              ))
+                            ) : (
+                              <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-500 mt-1">
+                        Patient is placed here during observation; room becomes vacant on observation discharge.
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                      <input
+                        type="date"
+                        value={
+                          Number(formData.charge_observation_today)
+                            ? new Date().toISOString().split('T')[0]
+                            : formData.observation_start_date
+                        }
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, observation_start_date: e.target.value }))
+                        }
+                        disabled={Number(formData.charge_observation_today) === 1}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-500"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObsDepartment ? selectedObsDepartment.label : obsDepartmentQuery}
+                          onChange={(e) => {
+                            setObsDepartmentQuery(e.target.value)
+                            setObsDepartmentOpen(true)
+                            setSelectedObsDepartment(null)
+                            setFormData((prev) => ({ ...prev, observation_department: '' }))
+                          }}
+                          onFocus={() => setObsDepartmentOpen(true)}
+                          placeholder="Search department..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsDepartmentOpen && obsDepartmentOptions.length > 0 && (
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsDepartmentOptions.map((dept) => (
+                              <button
+                                key={dept.name}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedObsDepartment(dept)
+                                  setObsDepartmentQuery(dept.label)
+                                  setObsDepartmentOpen(false)
+                                  setFormData((prev) => ({ ...prev, observation_department: dept.name }))
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                              >
+                                {dept.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={selectedObsPractitioner ? selectedObsPractitioner.label : obsPractitionerQuery}
+                          onChange={(e) => {
+                            setObsPractitionerQuery(e.target.value)
+                            setObsPractitionerOpen(true)
+                            setSelectedObsPractitioner(null)
+                            setFormData((prev) => ({ ...prev, observation_practitioner: '' }))
+                          }}
+                          onFocus={() => setObsPractitionerOpen(true)}
+                          placeholder="Search practitioner..."
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                        {obsPractitionerOpen && obsPractitionerOptions.length > 0 && (
+                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                            {obsPractitionerOptions.map((pract) => (
+                              <button
+                                key={pract.name}
+                                type="button"
+                                onClick={() => {
+                                  setSelectedObsPractitioner(pract)
+                                  setObsPractitionerQuery(pract.label)
+                                  setObsPractitionerOpen(false)
+                                  setFormData((prev) => ({ ...prev, observation_practitioner: pract.name }))
+                                }}
+                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                              >
+                                <div className="font-medium">{pract.label}</div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Designated Security Personnel</label>
+                      <input
+                        type="text"
+                        value={formData.observation_designated_security_personel}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            observation_designated_security_personel: e.target.value,
+                          }))
+                        }
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={formData.observation_amount || ''}
+                        onChange={(e) => {
+                          const amount = Number(e.target.value) || 0
+                          setFormData((prev) => ({
+                            ...prev,
+                            observation_amount: amount,
+                            today_charge_obs: Number(prev.charge_observation_today) ? amount : prev.today_charge_obs,
+                          }))
+                        }}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+                      <input
+                        type="text"
+                        value={formData.observation_duration}
+                        onChange={(e) =>
+                          setFormData((prev) => ({ ...prev, observation_duration: e.target.value }))
+                        }
+                        placeholder="e.g. 60M, 24H"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                    <textarea
+                      rows={3}
+                      value={formData.observation_note}
+                      onChange={(e) =>
+                        setFormData((prev) => ({ ...prev, observation_note: e.target.value }))
+                      }
+                      placeholder="Observation notes..."
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                </div>
             </div>
           )}
 

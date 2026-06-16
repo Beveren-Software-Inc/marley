@@ -29,7 +29,7 @@ export interface DischargeSelectedOptions {
 }
 
 export interface DischargeDraftData {
-  formData: Record<string, string>
+  formData: Record<string, string | number>
   selectedOptions: DischargeSelectedOptions
   checklistItems: unknown[]
   nurseChecklistItems?: unknown[]  // Add this (optional for backward compatibility)

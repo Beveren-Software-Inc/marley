@@ -1,0 +1,216 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-06-16 00:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_num",
+  "sr_num",
+  "lab_group_num",
+  "group_name",
+  "lab_sub_num",
+  "lab_result_value",
+  "column_break_amounts",
+  "lab_amt_book",
+  "lab_amt_add",
+  "lab_amt_disc",
+  "lab_amt_net",
+  "sta_flg",
+  "oracle_fields_section",
+  "field1",
+  "field2",
+  "field3",
+  "field4",
+  "field5",
+  "column_break_oracle2",
+  "field6",
+  "field7",
+  "field8",
+  "field9",
+  "field10",
+  "audit_section",
+  "cr_id",
+  "cr_date",
+  "column_break_audit",
+  "up_id",
+  "up_date",
+  "lab_04_remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Trans Num",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "SR Num"
+  },
+  {
+   "fieldname": "lab_group_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Lab Group Num"
+  },
+  {
+   "fieldname": "group_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Group Name"
+  },
+  {
+   "fieldname": "lab_sub_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Lab Sub Num"
+  },
+  {
+   "fieldname": "lab_result_value",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Result Value"
+  },
+  {
+   "fieldname": "column_break_amounts",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "lab_amt_book",
+   "fieldtype": "Currency",
+   "label": "Book Amount"
+  },
+  {
+   "fieldname": "lab_amt_add",
+   "fieldtype": "Currency",
+   "label": "Addition Amount"
+  },
+  {
+   "fieldname": "lab_amt_disc",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "lab_amt_net",
+   "fieldtype": "Currency",
+   "label": "Net Amount"
+  },
+  {
+   "default": "0",
+   "fieldname": "sta_flg",
+   "fieldtype": "Check",
+   "label": "STA FLG"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "oracle_fields_section",
+   "fieldtype": "Section Break",
+   "label": "Oracle Fields"
+  },
+  {
+   "fieldname": "field1",
+   "fieldtype": "Data",
+   "label": "Field 1"
+  },
+  {
+   "fieldname": "field2",
+   "fieldtype": "Data",
+   "label": "Field 2"
+  },
+  {
+   "fieldname": "field3",
+   "fieldtype": "Data",
+   "label": "Field 3"
+  },
+  {
+   "fieldname": "field4",
+   "fieldtype": "Data",
+   "label": "Field 4"
+  },
+  {
+   "fieldname": "field5",
+   "fieldtype": "Data",
+   "label": "Field 5"
+  },
+  {
+   "fieldname": "column_break_oracle2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "field6",
+   "fieldtype": "Data",
+   "label": "Field 6"
+  },
+  {
+   "fieldname": "field7",
+   "fieldtype": "Data",
+   "label": "Field 7"
+  },
+  {
+   "fieldname": "field8",
+   "fieldtype": "Data",
+   "label": "Field 8"
+  },
+  {
+   "fieldname": "field9",
+   "fieldtype": "Data",
+   "label": "Field 9"
+  },
+  {
+   "fieldname": "field10",
+   "fieldtype": "Data",
+   "label": "Field 10"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "audit_section",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "lab_04_remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-16 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Lab Test Line",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

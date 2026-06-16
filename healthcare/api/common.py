@@ -3647,31 +3647,23 @@ def save_patient_diagnosis(parent_doctype, parent_name, rows):
 	return save_for_context(parent_doctype, parent_name, rows)
 
 
+@frappe.whitelist()
+def get_current_user_departments():
+	"""Department link names for the logged-in user (Employee.department)."""
+	from healthcare.healthcare.discharge_checklist_permissions import get_user_department_ids
+
+	return get_user_department_ids()
+
+
+def _resolve_department_link_label(dept_id):
+	from healthcare.healthcare.discharge_checklist_permissions import resolve_department_link_label
+
+	return resolve_department_link_label(dept_id)
+
+
 def _portal_checklist_item_from_row(row, idx, department_label=None):
 	"""Shape template / draft rows for the discharge portal checklist UI."""
-	dept = department_label
-	if dept is None:
-		dept = getattr(row, "department", None) or row.get("department") if isinstance(row, dict) else None
-		dept_label = dept
-		if dept and frappe.db.exists("Medical Department", dept):
-			dept_label = frappe.db.get_value("Medical Department", dept, "department") or dept
-		else:
-			dept_label = dept or "General"
-	else:
-		dept_label = department_label
-
-	action = getattr(row, "action_required", None)
-	if action is None and isinstance(row, dict):
-		action = row.get("action_required")
-	if not action:
-		activity = getattr(row, "activity", None) or (row.get("activity") if isinstance(row, dict) else None)
-		desc = getattr(row, "description", None) or (row.get("description") if isinstance(row, dict) else None)
-		if activity:
-			action = frappe.db.get_value("Healthcare Activity", activity, "description") or activity
-		else:
-			action = desc or _("Task")
-
-	row_name = getattr(row, "name", None) or (row.get("name") if isinstance(row, dict) else None)
+	from healthcare.healthcare.discharge_checklist_permissions import resolve_department_link
 
 	def _val(field):
 		v = getattr(row, field, None)
@@ -3679,16 +3671,40 @@ def _portal_checklist_item_from_row(row, idx, department_label=None):
 			v = row.get(field)
 		return v
 
+	dept = department_label if department_label is not None else _val("department")
+	if not dept:
+		dept_name = _val("department_name")
+		if dept_name:
+			dept = resolve_department_link(dept_name) or dept_name
+	dept_label = department_label if department_label is not None else (_resolve_department_link_label(dept) or "General")
+
+	dept_2 = _val("department_2")
+	dept_2_label = _resolve_department_link_label(dept_2) if dept_2 else ""
+
+	action = _val("action_required")
+	if not action:
+		activity = _val("activity")
+		desc = _val("description")
+		if activity:
+			action = frappe.db.get_value("Healthcare Activity", activity, "description") or activity
+		else:
+			action = desc or _("Task")
+
+	row_name = _val("name")
+
 	return {
 		"name": row_name or f"row-{idx}",
 		"action_required": action,
 		"department": dept if isinstance(dept, str) else (dept or ""),
 		"department_label": dept_label,
+		"department_2": dept_2 or "",
+		"department_2_label": dept_2_label,
 		"user": _val("user") or "",
 		"name1": _val("name1") or "",
 		"date_time": _val("date_time") or "",
 		"click": bool(_val("click")),
 		"description": _val("description") or "",
+		"sr_num": _val("sr_num") or "",
 	}
 
 
