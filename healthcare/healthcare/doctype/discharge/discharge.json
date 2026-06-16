@@ -406,12 +406,16 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "nurse_discharge_template",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Nurse Discharge Template",
    "options": "Nursing Checklist Template"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "nursing_checklist",
    "fieldtype": "Table",
    "label": "Nursing checklist",
@@ -637,7 +641,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-15 17:06:02.595384",
+ "modified": "2026-06-16 09:20:34.775638",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

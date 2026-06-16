@@ -920,24 +920,37 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 	# rows nurses already completed on the same draft.
 	if "discharge_checklist" in discharge_data:
 		checklist = frappe.parse_json(discharge_data.get("discharge_checklist") or [])
+		from healthcare.healthcare.discharge_checklist_permissions import (
+			enrich_checklist_rows_with_template_departments,
+			merge_checklist_rows_with_department_permissions,
+		)
+
+		template_name = discharge_data.get("discharge_template") or discharge_doc.get("discharge_template")
+		if isinstance(checklist, list):
+			checklist = enrich_checklist_rows_with_template_departments(checklist, template_name)
+			checklist = merge_checklist_rows_with_department_permissions(
+				checklist,
+				discharge_doc.get("discharge_checklist"),
+			)
 		discharge_doc.set("discharge_checklist", [])
 		if isinstance(checklist, list):
 			for idx, row in enumerate(checklist, start=1):
 				if not isinstance(row, dict):
 					continue
-				discharge_doc.append(
-					"discharge_checklist",
-					{
-						"idx": idx,
-						"action_required": (row.get("action_required") or "").strip() or None,
-						"department": (row.get("department") or "").strip() or None,
-						"user": (row.get("user") or "").strip() or None,
-						"name1": (row.get("name1") or "").strip() or None,
-						"date_time": (row.get("date_time") or "").strip() or None,
-						"click": cint(row.get("click") or 0),
-						"description": (row.get("description") or "").strip() or None,
-					},
-				)
+				child = {
+					"idx": idx,
+					"action_required": (row.get("action_required") or "").strip() or None,
+					"department": (row.get("department") or "").strip() or None,
+					"user": (row.get("user") or "").strip() or None,
+					"name1": (row.get("name1") or "").strip() or None,
+					"date_time": (row.get("date_time") or "").strip() or None,
+					"click": cint(row.get("click") or 0),
+					"description": (row.get("description") or "").strip() or None,
+					"sr_num": (row.get("sr_num") or "").strip() or None,
+				}
+				if (row.get("department_2") or "").strip():
+					child["department_2"] = (row.get("department_2") or "").strip()
+				discharge_doc.append("discharge_checklist", child)
 
 	if "nursing_checklist" in discharge_data:
 		nursing_checklist = frappe.parse_json(discharge_data.get("nursing_checklist") or [])
@@ -1047,7 +1060,16 @@ def _portal_scalar_string(value) -> str:
 
 def _serialize_checklist_row(row, default_department: str = "") -> dict:
 	"""Map discharge or nursing checklist child row for the portal."""
+	from healthcare.healthcare.discharge_checklist_permissions import resolve_department_link_label
+
 	dept = (getattr(row, "department", None) or "") or default_department
+	if not dept:
+		dept_name = getattr(row, "department_name", None) or ""
+		if dept_name:
+			from healthcare.healthcare.discharge_checklist_permissions import resolve_department_link
+
+			dept = resolve_department_link(dept_name) or dept_name
+	dept_2 = getattr(row, "department_2", None) or ""
 	raw_dt = getattr(row, "date_time", None)
 	if raw_dt:
 		date_time = _portal_dt_string(raw_dt)
@@ -1057,12 +1079,15 @@ def _serialize_checklist_row(row, default_department: str = "") -> dict:
 		"name": row.name or f"row-{getattr(row, 'idx', 0)}",
 		"action_required": getattr(row, "action_required", None) or "",
 		"department": dept,
-		"department_label": dept or default_department,
+		"department_label": resolve_department_link_label(dept) or dept or default_department,
+		"department_2": dept_2,
+		"department_2_label": resolve_department_link_label(dept_2) if dept_2 else "",
 		"user": getattr(row, "user", None) or "",
 		"name1": getattr(row, "name1", None) or "",
 		"date_time": date_time,
 		"click": bool(getattr(row, "click", 0)),
 		"description": getattr(row, "description", None) or "",
+		"sr_num": getattr(row, "sr_num", None) or "",
 	}
 
 
@@ -1084,11 +1109,28 @@ def _serialize_discharge_draft_for_portal(discharge_doc) -> dict:
 			form_data[field] = _portal_time_string(val)
 		else:
 			form_data[field] = _portal_scalar_string(val)
+
+	template_name = discharge_doc.get("discharge_template")
+	checklist_rows = _serialize_checklist_rows(discharge_doc.get("discharge_checklist"))
+	if template_name:
+		from healthcare.healthcare.discharge_checklist_permissions import (
+			enrich_checklist_rows_with_template_departments,
+		)
+
+		if not checklist_rows:
+			from healthcare.api.common import get_discharge_checklist_from_template
+
+			checklist_rows = get_discharge_checklist_from_template(template_name)
+		else:
+			checklist_rows = enrich_checklist_rows_with_template_departments(
+				checklist_rows, template_name
+			)
+
 	return {
 		"name": discharge_doc.name,
 		"docstatus": discharge_doc.docstatus,
 		"form_data": form_data,
-		"discharge_checklist": _serialize_checklist_rows(discharge_doc.get("discharge_checklist")),
+		"discharge_checklist": checklist_rows,
 		"nursing_checklist": _serialize_checklist_rows(
 			discharge_doc.get("nursing_checklist"), default_department="Nursing"
 		),

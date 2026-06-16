@@ -30,11 +30,14 @@ export interface ChecklistItem {
   action_required: string
   department: string
   department_label?: string
+  department_2?: string
+  department_2_label?: string
   user: string
   name1: string
   date_time: string
   click: boolean
   description?: string
+  sr_num?: string
 }
 
 export async function fetchPrintFormats(doctype: string): Promise<string[]> {
@@ -1087,6 +1090,16 @@ export const fetchDischargeChecklist = async (templateName: string): Promise<Che
     {
       method: 'POST',
       body: JSON.stringify({ template_name: templateName }),
+    }
+  )
+  return Array.isArray(result) ? result : []
+}
+
+export async function fetchCurrentUserDepartments(): Promise<string[]> {
+  const result = await apiRequest<string[]>(
+    '/api/method/healthcare.api.common.get_current_user_departments',
+    {
+      method: 'GET',
     }
   )
   return Array.isArray(result) ? result : []

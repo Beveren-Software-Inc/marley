@@ -174,7 +174,7 @@ export type DischargeTabId = (typeof DISCHARGE_TAB_IDS)[number]
 
 const DISCHARGE_TABS_BY_ROLE: Record<'Reception' | 'Doctor' | 'Nurse', readonly DischargeTabId[]> = {
   Reception: ['details', 'checklist', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
-  Doctor: ['details', 'transfer', 'documents'],
+  Doctor: ['details', 'checklist', 'transfer', 'documents'],
   Nurse: ['details', 'checklist', 'nursing', 'reconcile'],
 }
 
@@ -205,11 +205,16 @@ export function isNurseRole(roles: string[] | undefined): boolean {
   return hasExactRole(roles, ['Nurse']) || roleMatches(roles, (r) => r.includes('nurse') || r.includes('nursing'))
 }
 
-/** Main inpatient discharge checklist (reception/doctor); nurses usually view read-only. */
-export function canEditMainDischargeChecklist(roles: string[] | undefined): boolean {
-  if (!roles?.length) return true
+/** Lines without a department on the checklist master (e.g. billing). */
+export function canEditUnassignedDischargeChecklistLine(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
   if (isAdmin(roles)) return true
-  return isReceptionRole(roles) || isDoctorRole(roles)
+  return isReceptionRole(roles)
+}
+
+/** @deprecated Use department-scoped row checks; kept for legacy UI flags. */
+export function canEditMainDischargeChecklist(roles: string[] | undefined): boolean {
+  return canEditUnassignedDischargeChecklistLine(roles)
 }
 
 /** Which discharge modal tabs the user may open (union when multiple roles). */
@@ -231,6 +236,8 @@ export function getVisibleDischargeTabIds(roles: string[] | undefined): Discharg
   if (allowed.size === 0) {
     return ['details', 'checklist']
   }
+  // Checklist tab is viewable by every discharge role; line edits use department permissions.
+  allowed.add('checklist')
   return DISCHARGE_TAB_IDS.filter((t) => allowed.has(t))
 }
 

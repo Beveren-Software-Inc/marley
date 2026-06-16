@@ -29,6 +29,7 @@ import {
   fetchNursingTemplateDisplayLabel,
   type LinkFieldOption,
   fetchNursingDischargeChecklist,
+  fetchCurrentUserDepartments,
   pickDefaultLinkOption,
   type NursingDischargeTemplateOption,
   type NursingDischargeTemplateSource,
@@ -52,8 +53,13 @@ import {
   canSubmitDischargeWithChecklist,
   CHECKLIST_STATUS_LABELS,
 } from '../../utils/dischargeChecklistStatus'
+import {
+  canUserEditDischargeChecklistItem,
+  checklistItemDepartmentLabel,
+  mergeChecklistWithTemplateDepartments,
+} from '../../utils/dischargeChecklistPermissions'
 import { DischargeChecklistStatusCard } from '../discharges/DischargeChecklistStatusCard'
-import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, type LucideIcon } from 'lucide-react'
+import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, Lock, type LucideIcon } from 'lucide-react'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -62,11 +68,14 @@ interface ChecklistItem {
   action_required: string
   department: string
   department_label?: string
+  department_2?: string
+  department_2_label?: string
   user: string
   name1: string
   date_time: string
   click: boolean
   description?: string
+  sr_num?: string
 }
 
 interface DischargePatientFormProps {
@@ -682,7 +691,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
   const [sectionScroll, setSectionScroll] = useState({ left: false, right: false })
 
-  const { userRole } = useCareContext()
+  const { userRole, user: currentUser } = useCareContext()
   const formatMedicineMoney = useFormatMoney()
   const visibleTabIds = useMemo(() => getVisibleDischargeTabIds(userRole), [userRole])
   const tabs = useMemo(
@@ -691,6 +700,11 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   )
   const canEditMainChecklist = useMemo(() => canEditMainDischargeChecklist(userRole), [userRole])
   const nursePrimaryUser = useMemo(() => isNurseRole(userRole) && !canEditMainChecklist, [userRole, canEditMainChecklist])
+  const [userDepartments, setUserDepartments] = useState<string[]>([])
+  const canEditChecklistRow = useCallback(
+    (item: ChecklistItem) => canUserEditDischargeChecklistItem(item, userDepartments, userRole),
+    [userDepartments, userRole],
+  )
   const canViewDischargeTabPanel = (tabId: DischargeTabId) =>
     visibleTabIds.includes(tabId) && activeTab === tabId
 
@@ -699,6 +713,20 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
       setActiveTab(visibleTabIds[0] ?? 'details')
     }
   }, [visibleTabIds, activeTab])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchCurrentUserDepartments()
+      .then((depts) => {
+        if (!cancelled) setUserDepartments(depts)
+      })
+      .catch(() => {
+        if (!cancelled) setUserDepartments([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const [transferRows, setTransferRows] = useState<DischargeTransferRow[]>([])
   const [transferLoading, setTransferLoading] = useState(false)
@@ -1032,7 +1060,17 @@ const loadDailyVisitSetup = async () => {
           }
 
           if (checklist?.length) {
-            setChecklistItems(checklist)
+            const templateName = fd.discharge_template
+            if (templateName) {
+              try {
+                const templateItems = await fetchDischargeChecklist(templateName)
+                setChecklistItems(mergeChecklistWithTemplateDepartments(checklist, templateItems))
+              } catch {
+                setChecklistItems(checklist)
+              }
+            } else {
+              setChecklistItems(checklist)
+            }
           } else if (fd.discharge_template) {
             await loadChecklist(fd.discharge_template)
           } else if (!nursePrimaryUser) {
@@ -1541,20 +1579,30 @@ const loadDailyVisitSetup = async () => {
   }
 
   const toggleCheck = (itemName: string) => {
-    if (!canEditMainChecklist) return
+    const item = checklistItems.find((row) => row.name === itemName)
+    if (!item || !canEditChecklistRow(item)) return
+    const checking = !item.click
+    const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
     setChecklistItems(prev =>
-      prev.map(item =>
-        item.name === itemName
-          ? { ...item, click: !item.click, date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '' }
-          : item
+      prev.map(row =>
+        row.name === itemName
+          ? {
+              ...row,
+              click: checking,
+              date_time: checking ? toFrappeDateTime(new Date().toISOString()) : '',
+              user: checking ? loggedInUser || row.user : '',
+            }
+          : row
       )
     )
   }
 
   const updateChecklistItem = (itemName: string, field: keyof ChecklistItem, value: string) => {
-    if (!canEditMainChecklist) return
+    const item = checklistItems.find((row) => row.name === itemName)
+    if (!item || !canEditChecklistRow(item)) return
+    if (field === 'department' || field === 'department_2') return
     setChecklistItems(prev =>
-      prev.map(item => item.name === itemName ? { ...item, [field]: value } : item)
+      prev.map(row => row.name === itemName ? { ...row, [field]: value } : row)
     )
   }
 
@@ -1563,10 +1611,16 @@ const loadDailyVisitSetup = async () => {
   const toggleNurseItem = (itemName: string) => setExpandedNurseItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
 
   const toggleNurseCheck = (itemName: string) => {
+    const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
     setNurseChecklistItems(prev =>
       prev.map(item =>
         item.name === itemName
-          ? { ...item, click: !item.click, date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '' }
+          ? {
+              ...item,
+              click: !item.click,
+              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '',
+              user: !item.click ? loggedInUser || item.user : '',
+            }
           : item
       )
     )
@@ -1645,13 +1699,16 @@ const loadDailyVisitSetup = async () => {
     // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
     if (visibleTabIds.includes('checklist')) {
       payload.discharge_checklist = checklistItems.map((item) => ({
+        name: item.name,
         action_required: item.action_required,
         department: item.department,
+        department_2: item.department_2 || '',
         user: item.user,
         name1: item.name1,
         date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
         click: item.click ? 1 : 0,
         description: item.description || '',
+        sr_num: item.sr_num || '',
       }))
     }
     if (visibleTabIds.includes('nursing')) {
@@ -2399,10 +2456,15 @@ const loadDailyVisitSetup = async () => {
           {/* ── TAB: CHECKLIST ── */}
           {canViewDischargeTabPanel('checklist') && (
             <div className="p-6">
-              {!canEditMainChecklist && (
-                <div className="mb-4 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3 text-sm text-sky-900">
-                  This is the hospital discharge checklist (reception / doctor). You can view progress here; complete
-                  your tasks on the <strong>Nursing</strong> tab.
+              {userDepartments.length > 0 ? (
+                <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+                  You can view the full discharge checklist. You may only complete lines assigned to your employee
+                  department; other lines are read-only.
+                </div>
+              ) : (
+                <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                  Your user account is not linked to an active Employee department, so checklist lines with a
+                  department cannot be updated. Ask an administrator to set Employee → Department for your user.
                 </div>
               )}
               {totalItems > 0 && (
@@ -2441,7 +2503,7 @@ const loadDailyVisitSetup = async () => {
                   <Circle className="w-10 h-10 mb-3 opacity-30" />
                   <p className="text-sm">
                     {nursePrimaryUser
-                      ? 'No hospital checklist loaded yet. Reception or doctor will complete the main checklist.'
+                      ? 'No hospital checklist loaded yet.'
                       : 'No checklist items found for the selected template.'}
                   </p>
                 </div>
@@ -2469,29 +2531,47 @@ const loadDailyVisitSetup = async () => {
                           <div className="divide-y divide-slate-100">
                             {items.map((item) => {
                               const isItemExpanded = expandedItems[item.name]
+                              const rowEditable = canEditChecklistRow(item)
+                              const assignedDeptLabel = checklistItemDepartmentLabel(item)
                               return (
-                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
+                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : rowEditable ? 'bg-white' : 'bg-slate-50'}`}>
                                   <div className="px-4 py-3">
                                     <div className="flex items-start gap-3">
                                       <button
                                         type="button"
                                         onClick={() => toggleCheck(item.name)}
-                                        disabled={!canEditMainChecklist}
-                                        className={`mt-0.5 shrink-0 focus:outline-none ${!canEditMainChecklist ? 'cursor-default opacity-80' : ''}`}
+                                        disabled={!rowEditable}
+                                        title={
+                                          rowEditable
+                                            ? undefined
+                                            : `Assigned to ${assignedDeptLabel}. Only staff in that department can update this line.`
+                                        }
+                                        className={`mt-0.5 shrink-0 focus:outline-none ${!rowEditable ? 'cursor-not-allowed opacity-60' : ''}`}
                                       >
                                         {item.click ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />}
                                       </button>
                                       <div className="flex-1 min-w-0">
-                                        <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                          {item.action_required}
-                                        </p>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
+                                            {item.action_required}
+                                          </p>
+                                          {assignedDeptLabel !== 'Unassigned' && (
+                                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                              {!rowEditable && <Lock className="h-3 w-3" />}
+                                              {assignedDeptLabel}
+                                            </span>
+                                          )}
+                                        </div>
                                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                                           {item.name1 && <span className="text-xs text-slate-500"><span className="font-medium">Contact:</span> {item.name1}</span>}
                                           {item.click && item.date_time && (
                                             <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString()}</span>
                                           )}
+                                          {!rowEditable && !item.click && (
+                                            <span className="text-xs text-slate-500">Waiting for {assignedDeptLabel}</span>
+                                          )}
                                         </div>
-                                        {item.click && (
+                                        {item.click && rowEditable && (
                                           <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
@@ -2517,19 +2597,9 @@ const loadDailyVisitSetup = async () => {
                                             </div>
                                             <div>
                                               <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                              <input
-                                                type="text"
-                                                ref={departmentOpenForItem === item.name ? departmentTriggerRef : undefined}
-                                                value={item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : (departmentOpenForItem === item.name ? departmentQuery : '')}
-                                                onChange={(e) => {
-                                                  updateChecklistItem(item.name, 'department', '')
-                                                  setDepartmentQuery(e.target.value)
-                                                  setDepartmentOpenForItem(item.name)
-                                                }}
-                                                onFocus={() => { setDepartmentOpenForItem(item.name); setDepartmentQuery(item.department ? departmentOptions.find(d => d.name === item.department)?.label || item.department : '') }}
-                                                placeholder="Select Department..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                              <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                                                {assignedDeptLabel}
+                                              </p>
                                             </div>
                                           </div>
                                         )}
