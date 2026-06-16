@@ -972,6 +972,7 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
       observation_duration: '',
       observation_note: '',
       today_charge_obs: 0,
+      // Keep observation_record — the observation document already exists on the server.
     }))
     setSelectedObservationLevel(null)
     setObservationLevelQuery('')
@@ -2050,6 +2051,8 @@ const loadDailyVisitSetup = async () => {
         })),
       patient_relatives: patientRelatives,
     }
+    // observation_record is server-owned once created; never send from the portal.
+    delete payload.observation_record
 
     // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
     if (visibleTabIds.includes('checklist')) {
@@ -2162,6 +2165,7 @@ const loadDailyVisitSetup = async () => {
         message?: string
         name?: string
         observation?: string
+        observation_record?: string
         sales_order?: string
       }
       saveDischargeDraft(admission.name, {
@@ -2192,8 +2196,11 @@ const loadDailyVisitSetup = async () => {
             : `Discharge draft saved${result?.name ? ` (${result.name})` : ''}.`),
         5000
       )
-      if (result?.observation) {
-        setFormData((prev) => ({ ...prev, observation_record: result.observation! }))
+      if (result?.observation || result?.observation_record) {
+        setFormData((prev) => ({
+          ...prev,
+          observation_record: result.observation_record || result.observation || prev.observation_record,
+        }))
       }
       onClose()
     } catch (err) {
@@ -3398,9 +3405,15 @@ const loadDailyVisitSetup = async () => {
           {canViewDischargeTabPanel('observation') && (
             <div className="p-6 space-y-6">
               <p className="text-sm text-slate-600">
-                Complete observation details below. On discharge submit, an Observation record and Sales Order
-                will be created automatically.
+                Complete observation details below. The first save creates one Observation and Sales Order;
+                later saves update the discharge only and reuse the linked observation.
               </p>
+              {formData.observation_record ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                  Linked observation: <span className="font-medium">{formData.observation_record}</span>
+                  {' '}— saving again will not create a duplicate.
+                </div>
+              ) : null}
               <div className="space-y-4 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
                 <YesNoField
                   label="Charge observation today?"

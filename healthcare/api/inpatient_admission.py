@@ -858,6 +858,9 @@ DISCHARGE_CHILD_TABLE_KEYS = frozenset(
 	}
 )
 
+# Set only on the server when an observation is first created — never from portal JSON.
+DISCHARGE_SERVER_OWNED_FIELDS = frozenset({"observation_record"})
+
 DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"discharge_type",
 	"ama_type",
@@ -940,6 +943,8 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 
 	for key, value in discharge_data.items():
 		if key in DISCHARGE_CHILD_TABLE_KEYS:
+			continue
+		if key in DISCHARGE_SERVER_OWNED_FIELDS:
 			continue
 		if not hasattr(discharge_doc, key):
 			continue
@@ -1278,6 +1283,7 @@ def save_discharge_draft(admission_name, discharge_data):
 	discharge_doc.reload()
 
 	observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+	discharge_doc.reload()
 
 	frappe.db.commit()
 
@@ -1285,6 +1291,8 @@ def save_discharge_draft(admission_name, discharge_data):
 		"name": discharge_doc.name,
 		"message": _("Discharge draft saved"),
 	}
+	if discharge_doc.get("observation_record"):
+		response["observation_record"] = discharge_doc.observation_record
 	if observation_result:
 		response["observation"] = observation_result.get("name")
 		response["observation_trans_no"] = observation_result.get("trans_no")
@@ -1306,6 +1314,59 @@ def save_discharge_draft(admission_name, discharge_data):
 	return response
 
 
+def _persist_discharge_observation_link(discharge_doc, observation_name: str) -> None:
+	"""Store the one observation document created for this discharge draft."""
+	observation_name = (observation_name or "").strip()
+	if not observation_name or not discharge_doc.name:
+		return
+	if discharge_doc.get("observation_record") == observation_name:
+		return
+	frappe.db.set_value(
+		"Discharge",
+		discharge_doc.name,
+		"observation_record",
+		observation_name,
+		update_modified=False,
+	)
+	discharge_doc.observation_record = observation_name
+
+
+def _resolve_discharge_observation_link(discharge_doc, admission_name: str) -> str | None:
+	"""Return the observation already linked to this discharge, if any."""
+	linked = (discharge_doc.get("observation_record") or "").strip()
+	if linked and frappe.db.exists("Observation", linked):
+		return linked
+
+	# Backfill link when an observation was created earlier but observation_record was not stored.
+	filters = {"admission_no": admission_name, "dc_date": ["is", "not set"]}
+	rows = frappe.get_all(
+		"Observation",
+		filters=filters,
+		fields=["name"],
+		order_by="creation desc",
+		limit=1,
+	)
+	if not rows:
+		patient = discharge_doc.file_no or frappe.db.get_value(
+			"Inpatient Admission", admission_name, "patient"
+		)
+		if patient:
+			rows = frappe.get_all(
+				"Observation",
+				filters={"patient": patient, "dc_date": ["is", "not set"]},
+				fields=["name"],
+				order_by="creation desc",
+				limit=1,
+			)
+
+	if rows:
+		observation_name = rows[0].name
+		_persist_discharge_observation_link(discharge_doc, observation_name)
+		return observation_name
+
+	return None
+
+
 def _ensure_observation_sales_order(observation_name: str) -> dict:
 	"""Create a Sales Order for an observation when missing."""
 	from healthcare.api.observation import create_sales_order_from_observation
@@ -1322,12 +1383,12 @@ def _ensure_observation_sales_order(observation_name: str) -> dict:
 
 
 def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: str) -> dict | None:
-	"""When discharge is to observation, create the Observation record and Sales Order."""
+	"""When discharge is to observation, create the Observation record and Sales Order once."""
 	if not cint(discharge_doc.get("discharge_to_observation")):
 		return None
 
-	existing = (discharge_doc.get("observation_record") or "").strip()
-	if existing and frappe.db.exists("Observation", existing):
+	existing = _resolve_discharge_observation_link(discharge_doc, admission_name)
+	if existing:
 		from healthcare.api.observation import _submit_observation_if_draft
 
 		_submit_observation_if_draft(existing)
@@ -1397,9 +1458,7 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 		)
 
 	if discharge_doc.get("observation_record") != observation_name:
-		discharge_doc.observation_record = observation_name
-		discharge_doc.flags.ignore_links = True
-		discharge_doc.save(ignore_permissions=True)
+		_persist_discharge_observation_link(discharge_doc, observation_name)
 
 	return {
 		**created,
