@@ -1,6 +1,17 @@
 import { useState, useEffect } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugCode,
+  displayMedicationDrugName,
+  displayMedicationEndDate,
+  displayMedicationFrequency,
+  displayMedicationInstructions,
+  displayMedicationRoute,
+  displayMedicationStartDate,
+  isLegacyMedicationOrderRow,
+} from '../../utils/medicationOrderDisplayUtils'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -129,20 +140,27 @@ const TypeFilterCard = ({
 }
 
 // ─── Table row ────────────────────────────────────────────────────────────────
-const MedicationRow = ({ order }: { order: any }) => {
+const MedicationRow = ({
+  order,
+  parentStartDate,
+  parentEndDate,
+}: {
+  order: any
+  parentStartDate?: string
+  parentEndDate?: string
+}) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle: React.CSSProperties = isHex(color)
     ? hexRowStyle(color)
     : order.is_pink ? {} : {}
-  const isLegacyRow = !order.drug && (order.old_medicine_code || order.old_medicine_name || order.trans_num)
-  const displayDrugName = order.drug_name?.trim() || order.old_medicine_name || '-'
-  const displayDrugCode = order.drug || order.old_medicine_code || '-'
-  const displayDosage = isLegacyRow
-    ? (order.dose_notes || order.instructions || order.dosage || order.strength || '-')
-    : (order.dosage || order.dose_notes || order.strength || '-')
-  const displayRoute = order.route_of_administration || '-'
-  const displayStartDate = order.date || '-'
-  const displayEndDate = order.end_date || '-'
+  const isLegacyRow = isLegacyMedicationOrderRow(order)
+  const displayDrugName = displayMedicationDrugName(order)
+  const displayDrugCode = displayMedicationDrugCode(order)
+  const displayDosage = displayMedicationDosage(order)
+  const displayFrequency = displayMedicationFrequency(order)
+  const displayRoute = displayMedicationRoute(order)
+  const displayStartDate = displayMedicationStartDate(order, parentStartDate)
+  const displayEndDate = displayMedicationEndDate(order, parentEndDate)
 
   return (
     <tr
@@ -171,7 +189,7 @@ const MedicationRow = ({ order }: { order: any }) => {
       </td>
       <td className="px-3 py-2.5 text-slate-600 text-sm">{order.dosage_form}</td>
       <td className="px-3 py-2.5">
-        <SmallBadge cls="bg-blue-100 text-blue-700">{order.patient_frequency}</SmallBadge>
+        <SmallBadge cls="bg-blue-100 text-blue-700">{displayFrequency}</SmallBadge>
         {order.frequency_in_a_day > 0 && (
           <div className="text-xs text-slate-400 mt-0.5">{order.frequency_in_a_day}×/day</div>
         )}
@@ -182,7 +200,7 @@ const MedicationRow = ({ order }: { order: any }) => {
         <div className="text-slate-400">→ {displayEndDate}</div>
       </td>
       <td className="px-3 py-2.5">
-        {order.is_completed
+        {order.is_completed || isLegacyRow
           ? <SmallBadge cls="bg-green-100 text-green-700">Completed</SmallBadge>
           : <SmallBadge cls="bg-amber-100 text-amber-700">Pending</SmallBadge>}
         {order.returned_to_store && (
@@ -194,9 +212,10 @@ const MedicationRow = ({ order }: { order: any }) => {
 }
 
 // ─── Detail card ──────────────────────────────────────────────────────────────
-const MedicationDetailCard = ({ order }: { order: any }) => {
+const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentStartDate?: string }) => {
   const color = getTypeColor(order.medication_type)
   const cardStyle: React.CSSProperties = isHex(color) ? hexRowStyle(color) : {}
+  const instructions = displayMedicationInstructions(order)
 
   return (
     <div
@@ -210,11 +229,13 @@ const MedicationDetailCard = ({ order }: { order: any }) => {
       style={!order.is_pink && isHex(color) ? cardStyle : undefined}
     >
       <div className="flex items-center justify-between flex-wrap gap-1">
-        <span className="font-semibold text-slate-800">{order.drug_name?.trim()}</span>
+        <span className="font-semibold text-slate-800">{displayMedicationDrugName(order)}</span>
         <span className="text-xs text-slate-400">{order.medication_type}</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs">
-        {order.instructions && <div><span className="font-medium text-slate-700">Instructions:</span> <span className="text-slate-600">{order.instructions}</span></div>}
+        {instructions && <div><span className="font-medium text-slate-700">Instructions:</span> <span className="text-slate-600">{instructions}</span></div>}
+        <div><span className="font-medium text-slate-700">Frequency:</span> <span className="text-slate-600">{displayMedicationFrequency(order)}</span></div>
+        <div><span className="font-medium text-slate-700">Start:</span> <span className="text-slate-600">{displayMedicationStartDate(order, parentStartDate)}</span></div>
         {order.reference_no  && <div><span className="font-medium text-slate-700">Ref No:</span> <span className="text-slate-600">{order.reference_no}</span></div>}
         <div><span className="font-medium text-slate-700">Qty:</span> <span className="text-slate-600">{order.quantity} {order.uom}</span></div>
         <div><span className="font-medium text-slate-700">Days:</span> <span className="text-slate-600">{order.no_of_days}</span></div>
@@ -413,14 +434,23 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {filteredOrders.map((order: any) => (
-                      <MedicationRow key={order.name} order={order} />
+                      <MedicationRow
+                        key={order.name}
+                        order={order}
+                        parentStartDate={prescription.start_date}
+                        parentEndDate={prescription.end_date}
+                      />
                     ))}
                   </tbody>
                 </table>
               </div>
               <div className="space-y-2">
                 {filteredOrders.map((order: any) => (
-                  <MedicationDetailCard key={order.name} order={order} />
+                  <MedicationDetailCard
+                    key={order.name}
+                    order={order}
+                    parentStartDate={prescription.start_date}
+                  />
                 ))}
               </div>
             </>

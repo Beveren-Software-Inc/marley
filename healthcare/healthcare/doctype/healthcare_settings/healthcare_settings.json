@@ -48,6 +48,7 @@
   "healthcare_service_items",
   "inpatient_visit_charge_item",
   "op_consulting_charge_item",
+  "file_no_charge_item",
   "column_break_13",
   "clinical_procedure_consumable_item",
   "default_patient_appointment_item",
@@ -604,11 +605,17 @@
    "fieldtype": "Table MultiSelect",
    "label": "Phamarcy Give Out",
    "options": "Nurse Give Out Medicine"
+  },
+  {
+   "fieldname": "file_no_charge_item",
+   "fieldtype": "Link",
+   "label": "File No Charge Item",
+   "options": "Healthcare Service Template"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-14 17:02:01.374511",
+ "modified": "2026-06-17 11:07:57.591835",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -17,6 +17,13 @@ import { fetchInpatientPrescriptions, type InpatientPrescription, type Inpatient
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown } from 'lucide-react'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugName,
+  displayMedicationFrequency,
+  displayMedicationInstructions,
+  displayMedicationStartDate,
+} from '../../utils/medicationOrderDisplayUtils'
 
 // Constants
 const STATUS_COLORS: Record<string, string> = {
@@ -913,9 +920,9 @@ const PrescriptionsTab = ({
                         >
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             <span className="text-sm font-medium text-slate-800">
-                              {med.drug_name || med.drug}
+                              {displayMedicationDrugName(med)}
                             </span>
-                            <span className="text-xs text-slate-500">{med.dosage}</span>
+                            <span className="text-xs text-slate-500">{displayMedicationDosage(med)}</span>
                             {med.dosage_form && (
                               <span className="text-xs text-slate-400">({med.dosage_form})</span>
                             )}
@@ -923,7 +930,11 @@ const PrescriptionsTab = ({
                           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
                             <div>
                               <span className="font-medium text-slate-500">Frequency:</span>{' '}
-                              <span className="text-slate-600">{med.frequency}</span>
+                              <span className="text-slate-600">{displayMedicationFrequency(med)}</span>
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-500">Start:</span>{' '}
+                              <span className="text-slate-600">{displayMedicationStartDate(med)}</span>
                             </div>
                             {med.period && (
                               <div>
@@ -938,9 +949,10 @@ const PrescriptionsTab = ({
                               </div>
                             )}
                           </div>
-                          {med.instructions && (
+                          {displayMedicationInstructions(med) && (
                             <p className="text-xs text-slate-500 mt-2 pt-1 border-t border-slate-100">
-                              <span className="font-medium">Instructions:</span> {med.instructions}
+                              <span className="font-medium">Instructions:</span>{' '}
+                              {displayMedicationInstructions(med)}
                             </p>
                           )}
                         </div>

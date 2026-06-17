@@ -26,11 +26,10 @@ def get_service_orders(
     search_term = (search or "").strip()
     or_filters = billing_search_or_filters(search_term, patient) if search_term else None
 
-    if not search_term:
+    if not search_term and reference_name:
         if reference_type:
             filters['custom_reference_type'] = reference_type
-        if reference_name:
-            filters['custom_reference_name'] = reference_name
+        filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if status:
@@ -77,7 +76,18 @@ def get_service_orders(
     if or_filters:
         list_kwargs['or_filters'] = or_filters
     sales_orders = frappe.get_all(**list_kwargs)
-    
+
+    if patient and reference_name and not search_term:
+        from healthcare.api.patient_file_no_charge import file_no_charge_sales_orders_for_list
+
+        extra_rows = file_no_charge_sales_orders_for_list(patient)
+        seen = {row.name for row in sales_orders}
+        for row in extra_rows:
+            row_name = row.get("name")
+            if row_name and row_name not in seen:
+                sales_orders.append(frappe._dict(row))
+                seen.add(row_name)
+
     # Check if invoice exists for each sales order
     for so in sales_orders:
         # Find linked Sales Invoice
@@ -123,11 +133,10 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     search_term = (search or "").strip()
     or_filters = billing_search_or_filters(search_term, patient) if search_term else None
 
-    if not search_term:
+    if not search_term and reference_name:
         if reference_type:
             filters['custom_reference_type'] = reference_type
-        if reference_name:
-            filters['custom_reference_name'] = reference_name
+        filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if from_date and to_date:
@@ -161,6 +170,21 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     if or_filters:
         summary_kwargs['or_filters'] = or_filters
     sales_orders = frappe.get_all(**summary_kwargs)
+
+    if patient and reference_name and not search_term:
+        from healthcare.api.patient_file_no_charge import file_no_charge_sales_orders_for_list
+
+        seen = {so.name for so in sales_orders}
+        for row in file_no_charge_sales_orders_for_list(patient):
+            if row.get("name") not in seen:
+                sales_orders.append(
+                    frappe._dict(
+                        name=row["name"],
+                        status=row["status"],
+                        grand_total=row["grand_total"],
+                    )
+                )
+                seen.add(row["name"])
     
     summary = {
         'total_orders': len(sales_orders),
@@ -397,6 +421,13 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 			if not frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
 				names.append(row.name)
 
+		if patient:
+			from healthcare.api.patient_file_no_charge import pending_file_no_charge_sales_orders
+
+			for name in pending_file_no_charge_sales_orders(patient):
+				if name not in names:
+					names.append(name)
+
 		if not names:
 			all_orders = frappe.get_all(
 				"Sales Order",
@@ -422,6 +453,20 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 			sales_orders,
 			reference_type=reference_type,
 			reference_name=reference_name,
+			patient=patient,
+		)
+
+	if patient:
+		from healthcare.api.patient_file_no_charge import pending_file_no_charge_sales_orders
+
+		names = pending_file_no_charge_sales_orders(patient)
+		if not names:
+			frappe.throw(frappe._("No pending sales orders found for patient {0}.").format(patient))
+		sales_orders = _load_billable_sales_orders_by_names(names)
+		return _create_invoice_from_sales_orders(
+			sales_orders,
+			reference_type="Patient",
+			reference_name=patient,
 			patient=patient,
 		)
 

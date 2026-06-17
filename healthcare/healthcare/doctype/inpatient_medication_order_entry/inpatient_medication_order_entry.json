@@ -41,6 +41,7 @@
   "dc",
   "written_frequency",
   "duration",
+  "username",
   "section_break_oruo",
   "rate",
   "column_break_ugjx",
@@ -48,7 +49,10 @@
   "section_break_vfoy",
   "trans_num",
   "old_medicine_code",
-  "old_medicine_name"
+  "old_medicine_name",
+  "section_break_omaf",
+  "cr_id",
+  "cr_date"
  ],
  "fields": [
   {
@@ -304,12 +308,31 @@
    "fieldtype": "Link",
    "label": "Trans Num",
    "options": "IP Admission Medicine"
+  },
+  {
+   "fieldname": "username",
+   "fieldtype": "Data",
+   "label": "Username"
+  },
+  {
+   "fieldname": "section_break_omaf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-11 13:27:20.278727",
+ "modified": "2026-06-17 10:23:23.038533",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

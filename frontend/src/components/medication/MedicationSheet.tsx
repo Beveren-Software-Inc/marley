@@ -8,6 +8,11 @@ import {
   type MedicationSheetMedicineRow,
 } from '../../services/medicineGiven'
 import { getMedicationTypeColor, isHexColor, medicationRowStyle } from '../../utils/medicationTypeColors'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugName,
+  displayMedicationFrequency,
+} from '../../utils/medicationOrderDisplayUtils'
 
 interface MedicationSheetProps {
   patient?: string
@@ -251,11 +256,13 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                         <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
                       )}
                       <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-slate-900">{med.drug_name}</span>
+                        <span className="block text-sm font-semibold text-slate-900">
+                          {displayMedicationDrugName(med)}
+                        </span>
                         <span className="block text-[11px] text-slate-500">
-                          {med.dosage}
+                          {displayMedicationDosage(med)}
                           {med.dosage_form ? ` · ${med.dosage_form}` : ''}
-                          {med.patient_frequency ? ` · ${med.patient_frequency}` : ''}
+                          {displayMedicationFrequency(med) !== '-' ? ` · ${displayMedicationFrequency(med)}` : ''}
                           {med.route_of_administration ? ` · ${med.route_of_administration}` : ''}
                         </span>
                       </span>

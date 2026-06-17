@@ -570,10 +570,10 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
     if patient:
         conditions.append("si.patient = %(patient)s")
         params["patient"] = patient
-    if reference_type:
-        conditions.append("si.custom_reference_type = %(reference_type)s")
-        params["reference_type"] = reference_type
     if reference_name:
+        if reference_type:
+            conditions.append("si.custom_reference_type = %(reference_type)s")
+            params["reference_type"] = reference_type
         conditions.append("si.custom_reference_name = %(reference_name)s")
         params["reference_name"] = reference_name
 
@@ -1064,6 +1064,15 @@ def _order_kind_label(so_row, sr_by_name):
         return _("OP visit charges")
     if ref_t == "Inpatient Admission":
         return _("Admission charges")
+
+    if ref_t == "Patient" and base_ref == "Patient":
+        from healthcare.api.patient_file_no_charge import get_file_no_charge_config
+
+        item_code = (get_file_no_charge_config().get("item_code") or "").strip()
+        items = so_row.get("items") or []
+        if item_code and any((it.get("item_code") == item_code for it in items)):
+            return _("File number charge")
+        return _("Patient charges")
 
     if base_ref:
         return base_ref + (f" — {base_name}" if base_name else "")

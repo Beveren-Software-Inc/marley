@@ -167,6 +167,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
+  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
+  const scopedReferenceName = effectiveReferenceName || undefined
 
   // Save view to localStorage
   const handleViewChange = (view: DashboardView) => {
@@ -305,10 +307,10 @@ const handleMakePayment = async (
     try {
       setLoading(true)
       const [ordersSummary, invSummary, recentOrdersData, recentInvoicesData] = await Promise.all([
-        fetchServiceOrderSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
-        fetchInvoiceSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
-        fetchServiceOrders(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
-        fetchServiceInvoices(effectiveReferenceType, effectiveReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
+        fetchServiceOrderSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+        fetchInvoiceSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+        fetchServiceOrders(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
+        fetchServiceInvoices(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
       ])
 
       setOrderSummary(ordersSummary)
@@ -320,12 +322,12 @@ const handleMakePayment = async (
         const [ccScope, ccBreakdownRes, paymentRows, paySummary] = await Promise.all([
           fetchBillingCostCenterScope(),
           fetchPatientBillingCostCenterBreakdown(
-            effectiveReferenceType,
-            effectiveReferenceName,
+            scopedReferenceType,
+            scopedReferenceName,
             effectivePatient
           ),
-          fetchPaymentEntries(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
-          fetchPaymentSummary(effectiveReferenceType, effectiveReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
         ])
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
