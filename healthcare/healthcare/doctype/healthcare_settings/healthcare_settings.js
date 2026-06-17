@@ -129,6 +129,28 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Delete Orphaned Patient History'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_history_orphan_cleanup.run_patient_history_orphan_cleanup_preview',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || []).join(', ');
+					frappe.confirm(
+						__(
+							'Run in background: delete Patient History records whose Inpatient Admission no longer exists (deleted or missing).\n\nOrphaned records: {0}\nSample: {1}\n\nThis cannot be undone. Continue?',
+							[counts.orphaned_count || 0, sample || __('(none)')]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_history_orphan_cleanup_migration',
+								'patient_history_orphan_cleanup'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Backfill PMO Inpatient Admission from Written'), () => {
 			frappe.call({
 				method:
