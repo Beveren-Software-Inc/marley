@@ -505,7 +505,7 @@ def start_patient_history_import_migration() -> dict:
 
 @frappe.whitelist()
 def start_patient_history_orphan_cleanup_migration() -> dict:
-	"""Delete Patient History rows linked to a missing Inpatient Admission."""
+	"""Clean Patient History orphans/duplicates and duplicate Inpatient Admissions."""
 	_require_admin()
 	from healthcare.api.patient_history_orphan_cleanup import run_patient_history_orphan_cleanup_preview
 
@@ -515,6 +515,8 @@ def start_patient_history_orphan_cleanup_migration() -> dict:
 		"patient_history_orphan_cleanup",
 		0,
 		orphaned_count=preview.get("orphaned_count") or 0,
+		duplicate_patient_history_count=preview.get("duplicate_patient_history_count") or 0,
+		duplicate_admission_groups=preview.get("duplicate_admission_groups") or 0,
 	)
 	frappe.enqueue(
 		"healthcare.api.data_migration_jobs.process_patient_history_orphan_cleanup_batch",
@@ -523,11 +525,22 @@ def start_patient_history_orphan_cleanup_migration() -> dict:
 		timeout=3600,
 		job_name="healthcare_patient_history_orphan_cleanup",
 	)
+	total_work = (
+		cint(preview.get("orphaned_count") or 0)
+		+ cint(preview.get("duplicate_patient_history_count") or 0)
+		+ cint(preview.get("duplicate_admissions_to_remove") or 0)
+	)
 	return {
 		"ok": True,
 		"message": _(
-			"Patient History orphan cleanup started in the background ({0} record(s) to delete)."
-		).format(preview.get("orphaned_count") or 0),
+			"Patient History / admission cleanup started in the background "
+			"({0} orphan history, {1} duplicate history, {2} duplicate admission(s) to remove)."
+		).format(
+			preview.get("orphaned_count") or 0,
+			preview.get("duplicate_patient_history_count") or 0,
+			preview.get("duplicate_admissions_to_remove") or 0,
+		),
+		"total_work": total_work,
 	}
 
 

@@ -135,10 +135,28 @@ frappe.ui.form.on('Healthcare Settings', {
 				callback(preview) {
 					const counts = preview.message || {};
 					const sample = (counts.sample || []).join(', ');
+					const dupPhSample = (counts.sample_duplicate_patient_history || []).join(', ');
+					const dupAdmSample = (counts.sample_duplicate_admission_case_nos || []).join(', ');
 					frappe.confirm(
 						__(
-							'Run in background: delete Patient History records whose Inpatient Admission no longer exists (deleted or missing).\n\nOrphaned records: {0}\nSample: {1}\n\nThis cannot be undone. Continue?',
-							[counts.orphaned_count || 0, sample || __('(none)')]
+							'Run in background: clean Patient History and duplicate Inpatient Admissions.\n\n'
+							+ '1) Orphan Patient History (no linked admission): {0}\n'
+							+ '   Sample: {1}\n'
+							+ '2) Duplicate Patient History (extra per admission): {2}\n'
+							+ '   Sample: {3}\n'
+							+ '3) Duplicate Inpatient Admissions ({4} group(s), {5} record(s) to remove)\n'
+							+ '   Sample case nos: {6}\n\n'
+							+ 'Keeps the best admission per duplicate group (prefers Admitted, linked history). '
+							+ 'This cannot be undone. Continue?',
+							[
+								counts.orphaned_count || 0,
+								sample || __('(none)'),
+								counts.duplicate_patient_history_count || 0,
+								dupPhSample || __('(none)'),
+								counts.duplicate_admission_groups || 0,
+								counts.duplicate_admissions_to_remove || 0,
+								dupAdmSample || __('(none)'),
+							]
 						),
 						() =>
 							run_migration_job(
