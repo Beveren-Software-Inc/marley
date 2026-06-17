@@ -504,6 +504,34 @@ def start_patient_history_import_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_patient_history_orphan_cleanup_migration() -> dict:
+	"""Delete Patient History rows linked to a missing Inpatient Admission."""
+	_require_admin()
+	from healthcare.api.patient_history_orphan_cleanup import run_patient_history_orphan_cleanup_preview
+
+	preview = run_patient_history_orphan_cleanup_preview()
+	_acquire_lock("patient_history_orphan_cleanup")
+	_set_progress(
+		"patient_history_orphan_cleanup",
+		0,
+		orphaned_count=preview.get("orphaned_count") or 0,
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_history_orphan_cleanup_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_history_orphan_cleanup",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient History orphan cleanup started in the background ({0} record(s) to delete)."
+		).format(preview.get("orphaned_count") or 0),
+	}
+
+
+@frappe.whitelist()
 def start_patient_history_date_backfill_migration() -> dict:
 	"""Set Patient History.date from Patient History Import CR Date (matched by admission)."""
 	_require_admin()
@@ -1100,6 +1128,52 @@ def process_patient_history_import_batch(offset: int = 0) -> None:
 		_release_lock(job)
 		frappe.cache().delete_value(_patient_history_import_admissions_cache_key())
 		frappe.cache().delete_value(_patient_history_import_grouped_cache_key())
+		raise
+
+
+def process_patient_history_orphan_cleanup_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_history_orphan_cleanup import run_patient_history_orphan_cleanup_batch
+
+	job = "patient_history_orphan_cleanup"
+	try:
+		result = run_patient_history_orphan_cleanup_batch(offset=offset)
+		processed = cint(result.get("processed") or 0)
+		stats = result.get("stats") or {}
+		_set_progress(
+			job,
+			processed,
+			ok=processed,
+			errors=stats.get("errors") or 0,
+			remaining=result.get("remaining"),
+			stats=stats,
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_history_orphan_cleanup_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_history_orphan_cleanup_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				ok=processed,
+				errors=stats.get("errors") or 0,
+				stats=stats,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Healthcare Patient History orphan cleanup complete",
+				message=frappe.as_json(stats),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
 		raise
 
 
