@@ -21,11 +21,10 @@ def get_service_invoices(
     search_term = (search or "").strip()
     or_filters = billing_search_or_filters(search_term, patient) if search_term else None
 
-    if not search_term:
+    if not search_term and reference_name:
         if reference_type:
             filters['custom_reference_type'] = reference_type
-        if reference_name:
-            filters['custom_reference_name'] = reference_name
+        filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if status:
@@ -80,7 +79,17 @@ def get_service_invoices(
     if or_filters:
         list_kwargs['or_filters'] = or_filters
     invoices = frappe.get_all(**list_kwargs)
-    
+
+    if patient and reference_name and not search_term:
+        from healthcare.api.patient_file_no_charge import file_no_charge_invoices_for_list
+
+        seen = {inv.name for inv in invoices}
+        for row in file_no_charge_invoices_for_list(patient):
+            row_name = row.get("name")
+            if row_name and row_name not in seen:
+                invoices.append(frappe._dict(row))
+                seen.add(row_name)
+
     # Get linked orders count for each invoice
     for inv in invoices:
         orders = frappe.get_all(
@@ -112,11 +121,10 @@ def get_invoice_summary(reference_type=None, reference_name=None, patient=None, 
     search_term = (search or "").strip()
     or_filters = billing_search_or_filters(search_term, patient) if search_term else None
 
-    if not search_term:
+    if not search_term and reference_name:
         if reference_type:
             filters['custom_reference_type'] = reference_type
-        if reference_name:
-            filters['custom_reference_name'] = reference_name
+        filters['custom_reference_name'] = reference_name
     if patient:
         filters['patient'] = patient
     if from_date and to_date:
@@ -150,6 +158,24 @@ def get_invoice_summary(reference_type=None, reference_name=None, patient=None, 
     if or_filters:
         summary_kwargs['or_filters'] = or_filters
     invoices = frappe.get_all(**summary_kwargs)
+
+    if patient and reference_name and not search_term:
+        from healthcare.api.patient_file_no_charge import file_no_charge_invoices_for_list
+
+        seen = {inv.name for inv in invoices if getattr(inv, "name", None)}
+        for row in file_no_charge_invoices_for_list(patient):
+            row_name = row.get("name")
+            if not row_name or row_name in seen:
+                continue
+            inv = frappe.db.get_value(
+                "Sales Invoice",
+                row_name,
+                ["name", "status", "grand_total", "outstanding_amount", "paid_amount"],
+                as_dict=True,
+            )
+            if inv:
+                invoices.append(frappe._dict(inv))
+                seen.add(row_name)
     
     summary = {
         'total_invoices': len(invoices),
@@ -195,10 +221,10 @@ def get_patient_billing_cost_center_breakdown(reference_type=None, reference_nam
 
     base_so = {}
     base_inv = {}
-    if reference_type:
-        base_so['custom_reference_type'] = reference_type
-        base_inv['custom_reference_type'] = reference_type
     if reference_name:
+        if reference_type:
+            base_so['custom_reference_type'] = reference_type
+            base_inv['custom_reference_type'] = reference_type
         base_so['custom_reference_name'] = reference_name
         base_inv['custom_reference_name'] = reference_name
     if patient:

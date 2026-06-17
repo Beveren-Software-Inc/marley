@@ -369,11 +369,26 @@ def create_patient(data):
 	_setup_patient_links(patient, data)
 	_add_patient_documents(patient, data)
 
-	return {
+	result = {
 		"name": patient.name,
 		"patient_name": patient.patient_name,
-		"file_no": patient.name,
+		"file_no": patient.file_no or patient.name,
 	}
+	charge_file_no = data.get("charge_file_no")
+	if charge_file_no is None:
+		charge_file_no = 1
+	if frappe.utils.cint(charge_file_no):
+		try:
+			from healthcare.api.patient_file_no_charge import create_patient_file_no_sales_order
+
+			so_info = create_patient_file_no_sales_order(patient.name)
+			result["sales_order"] = so_info.get("sales_order")
+			result["file_no_charge_rate"] = so_info.get("rate")
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), f"File no charge SO failed for {patient.name}")
+			result["file_no_charge_error"] = _("File number charge order could not be created. Patient was saved.")
+
+	return result
 
 def _validate_patient_payload(data):
 

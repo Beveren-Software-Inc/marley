@@ -21,6 +21,17 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
 import {
+  displayMedicationDosage,
+  displayMedicationDrugCode,
+  displayMedicationDrugName,
+  displayMedicationEndDate,
+  displayMedicationFrequency,
+  displayMedicationInstructions,
+  displayMedicationRoute,
+  displayMedicationStartDate,
+  isLegacyMedicationOrderRow,
+} from '../../utils/medicationOrderDisplayUtils'
+import {
   linkComboboxInputWithClearClass,
   linkComboboxDropdownClass,
   linkComboboxOptionClassCompact,
@@ -986,6 +997,8 @@ const MedicationRow = ({
   onEdit,
   readOnly = false,
   givenInfo,
+  parentStartDate,
+  parentEndDate,
 }: {
   order: any
   prescriptionName: string
@@ -993,21 +1006,22 @@ const MedicationRow = ({
   onEdit: () => void
   readOnly?: boolean
   givenInfo?: { has_given: boolean; count: number }
+  parentStartDate?: string
+  parentEndDate?: string
 }) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
   const reasonStopped = String(order.reason_stopped || '').trim()
   const isStopped = Boolean(reasonStopped)
-  const isLegacyRow = !order.drug && (order.old_medicine_code || order.old_medicine_name || order.trans_num)
-  const displayDrugName = order.drug_name?.trim() || order.old_medicine_name || '-'
-  const displayDrugCode = order.drug || order.old_medicine_code || '-'
-  const displayDosage = isLegacyRow
-    ? (order.dose_notes || order.instructions || order.dosage || order.strength || '-')
-    : (order.dosage || order.dose_notes || order.strength || '-')
-  const displayInstructions = order.instructions || order.dose_notes || ''
-  const displayRoute = order.route_of_administration || '-'
-  const displayStartDate = order.date || '-'
-  const displayEndDate = order.end_date || '-'
+  const isLegacyRow = isLegacyMedicationOrderRow(order)
+  const displayDrugName = displayMedicationDrugName(order)
+  const displayDrugCode = displayMedicationDrugCode(order)
+  const displayDosage = displayMedicationDosage(order)
+  const displayFrequency = displayMedicationFrequency(order)
+  const displayInstructions = displayMedicationInstructions(order)
+  const displayRoute = displayMedicationRoute(order)
+  const displayStartDate = displayMedicationStartDate(order, parentStartDate)
+  const displayEndDate = displayMedicationEndDate(order, parentEndDate)
 
   const [menuOpen, setMenuOpen] = useState(false)
   const [stopModalOpen, setStopModalOpen] = useState(false)
@@ -1149,7 +1163,7 @@ const MedicationRow = ({
         </td>
         <td className="px-3 py-2.5 text-slate-600 text-sm">{order.dosage_form}</td>
         <td className="px-3 py-2.5">
-          <SmallBadge cls="bg-blue-100 text-blue-700">{order.patient_frequency}</SmallBadge>
+          <SmallBadge cls="bg-blue-100 text-blue-700">{displayFrequency}</SmallBadge>
           {order.frequency_in_a_day > 0 && (
             <div className="text-xs text-slate-400 mt-0.5">{order.frequency_in_a_day}×/day</div>
           )}
@@ -1162,7 +1176,7 @@ const MedicationRow = ({
         <td className="px-3 py-2.5">
           {isStopped ? (
             <SmallBadge cls="bg-rose-100 text-rose-800">Stopped</SmallBadge>
-          ) : givenInfo?.has_given ? (
+          ) : isLegacyRow || givenInfo?.has_given ? (
             <SmallBadge cls="bg-green-100 text-green-700">Given</SmallBadge>
           ) : (
             <SmallBadge cls="bg-amber-100 text-amber-700">Not Given</SmallBadge>
@@ -1567,6 +1581,8 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     onEdit={() => setEditingOrder(order)}
                     readOnly={readOnly}
                     givenInfo={givenStatus[order.name]}
+                    parentStartDate={prescription.start_date}
+                    parentEndDate={prescription.end_date}
                   />
                 ))}
               </tbody>

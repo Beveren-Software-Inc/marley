@@ -9,6 +9,11 @@ import {
 } from '../../services/medicineGiven'
 import { CreateMedicineGivenModal } from './CreateMedicineGivenModal'
 import { toast } from '../../hooks/useToast'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugName,
+  displayMedicationFrequency,
+} from '../../utils/medicationOrderDisplayUtils'
 
 interface DailyMedicationChartProps {
   patient?: string
@@ -200,12 +205,12 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
               {data.rows.map((row) => (
                 <tr key={row.order_entry} className="hover:bg-slate-50">
                   <td className="px-3 py-2 text-slate-900">
-                    {row.drug_name || row.drug}
+                    {displayMedicationDrugName(row)}
                     <div className="text-[11px] text-slate-500">{row.prescription}</div>
                   </td>
-                  <td className="px-3 py-2 text-slate-800">{row.dosage || '-'}</td>
+                  <td className="px-3 py-2 text-slate-800">{displayMedicationDosage(row)}</td>
                   <td className="px-3 py-2 text-slate-800">{row.dosage_form || '-'}</td>
-                  <td className="px-3 py-2 text-slate-800">{row.patient_frequency || '-'}</td>
+                  <td className="px-3 py-2 text-slate-800">{displayMedicationFrequency(row)}</td>
                   {data.sessions
                     .slice()
                     .sort((a, b) => a.order - b.order)

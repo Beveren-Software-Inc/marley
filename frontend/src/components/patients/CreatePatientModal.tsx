@@ -13,13 +13,16 @@ import {
   createPatient,
   uploadPatientFile,
   fetchNextPatientFileNo,
+  fetchFileNoChargePreview,
   type PatientDocumentRow,
+  type FileNoChargePreview,
 } from '../../services/patients'
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, fetchPatientCategories, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PenLine, Trash2, Check } from 'lucide-react'
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
@@ -235,6 +238,7 @@ interface CreatePatientModalProps {
 type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 
 export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMobile, initialNationalId, initialInsurance, initialInsuranceRegister }: CreatePatientModalProps) => {
+  const formatMoney = useFormatMoney()
   const [activeTab, setActiveTab] = useState<Tab>(initialInsurance ? 'insurance' : 'details')
 
   const [formData, setFormData] = useState({
@@ -279,6 +283,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [chargeFileNo, setChargeFileNo] = useState(true)
+  const [fileNoCharge, setFileNoCharge] = useState<FileNoChargePreview>({ configured: false, rate: 0 })
 
   // Source dropdown state
   const [sourceOptions, setSourceOptions] = useState<LinkFieldOption[]>([])
@@ -475,6 +481,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       const payload = {
         // Map full name into both patient_name and first_name for compatibility
         ...formData,
+        charge_file_no: chargeFileNo && fileNoCharge.configured,
         patient_name: (formData.patient_name || '').trim(),
         first_name: (formData.patient_name || '').trim(),
         middle_name: undefined,
@@ -503,7 +510,12 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
           })),
       }
       const patient = await createPatient(payload)
-      const successMsg = patient.server_message || 'Patient created'
+      let successMsg = patient.server_message || 'Patient created'
+      if (patient.sales_order) {
+        successMsg += ` · File no charge order ${patient.sales_order} created`
+      } else if (patient.file_no_charge_error) {
+        successMsg += ` · ${patient.file_no_charge_error}`
+      }
       toast.success(successMsg)
       if (onSuccess) {
         onSuccess(patient.name || patient.patient_name || '')
@@ -574,19 +586,21 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [sources, nationalities, countryList, docTypes, categories, nextFileNo] = await Promise.all([
+        const [sources, nationalities, countryList, docTypes, categories, nextFileNo, chargePreview] = await Promise.all([
           fetchLeadSources(),
           fetchNationalities(),
           fetchCountries(),
           fetchDocumentTypes(),
           fetchPatientCategories(),
           fetchNextPatientFileNo(),
+          fetchFileNoChargePreview(),
         ])
         setSourceOptions(sources)
         setNationalityOptions(nationalities)
         setCountries(countryList)
         setDocumentTypes(docTypes)
         setCategoryOptions(categories)
+        setFileNoCharge(chargePreview)
         if (nextFileNo) {
           setFormData(prev => prev.file_no === '' ? { ...prev, file_no: nextFileNo } : prev)
         }
@@ -765,6 +779,33 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                       </label>
                       <input type="text" value={formData.file_no} onChange={(e) => handleChange('file_no', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
+                      {fileNoCharge.configured ? (
+                        <div className="mt-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                          <label className="flex items-start gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                              checked={chargeFileNo}
+                              onChange={(e) => setChargeFileNo(e.target.checked)}
+                            />
+                            <span className="text-sm text-slate-700">
+                              <span className="font-medium">Charge file number</span>
+                              <span className="block text-xs text-slate-500 mt-0.5">
+                                {fileNoCharge.service_name || 'File number fee'}
+                                {fileNoCharge.item_name ? ` · ${fileNoCharge.item_name}` : ''}
+                                {' · '}
+                                <span className="font-semibold text-slate-800">
+                                  {formatMoney(fileNoCharge.rate || 0)}
+                                </span>
+                              </span>
+                            </span>
+                          </label>
+                        </div>
+                      ) : (
+                        <p className="mt-1 text-xs text-amber-700">
+                          File number charge is not configured in Healthcare Settings.
+                        </p>
+                      )}
                     </div>
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">

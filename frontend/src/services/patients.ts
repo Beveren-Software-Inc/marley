@@ -189,6 +189,9 @@ export interface CreatePatientData {
   state?: string
   country?: string
   pincode?: string
+  file_no?: string
+  /** When true (default), create a Sales Order for the file number charge from Healthcare Settings. */
+  charge_file_no?: boolean
   patient_document?: PatientDocumentRow[]
 }
 
@@ -269,7 +272,40 @@ export async function uploadPatientFile(file: File): Promise<string> {
   throw new Error('Upload failed: no file URL in response')
 }
 
-export type CreatePatientResult = { name: string; patient_name: string; file_no: string; server_message?: string }
+export type CreatePatientResult = {
+  name: string
+  patient_name: string
+  file_no: string
+  server_message?: string
+  sales_order?: string
+  file_no_charge_rate?: number
+  file_no_charge_error?: string
+}
+
+export interface FileNoChargePreview {
+  configured: boolean
+  template?: string | null
+  service_name?: string | null
+  item_code?: string | null
+  item_name?: string | null
+  rate?: number
+}
+
+export async function fetchFileNoChargePreview(): Promise<FileNoChargePreview> {
+  try {
+    const response = await fetch(
+      '/api/method/healthcare.api.patient_file_no_charge.get_file_no_charge_preview',
+      { credentials: 'include' },
+    )
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'object') {
+      return resData.message as FileNoChargePreview
+    }
+  } catch {
+    /* ignore */
+  }
+  return { configured: false, rate: 0 }
+}
 
 export interface PatientDuplicateCheck {
   duplicate: boolean

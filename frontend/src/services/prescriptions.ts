@@ -253,11 +253,17 @@ export const LONG_ACTING_FREQUENCY_OPTIONS: LongActingFrequency[] = [
 export interface MedicationOrderRow {
   drug: string
   drug_name?: string
+  medication?: string
+  old_medicine_code?: string
+  old_medicine_name?: string
+  medicine_no?: string
+  written_frequency?: string
   dosage: string
   uom?: string
   no_of_days?: number
   dosage_form: string
   instructions?: string
+  dose_notes?: string
   date: string
   end_date?: string
   time: string

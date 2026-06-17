@@ -295,12 +295,22 @@ def get_medication_sheet_detail(
 
 	current_prescription = latest_pmo.name
 	pmo_by_name = {latest_pmo.name: latest_pmo}
-	print("Nova fold", current_prescription)
+	from healthcare.api.medication_order_display import (
+		medication_entry_display_fields,
+		medication_entry_drug_key,
+	)
+
 	entry_fields = [
 		"name",
 		"parent",
 		"drug",
 		"drug_name",
+		"medication",
+		"old_medicine_code",
+		"old_medicine_name",
+		"medicine_no",
+		"written_frequency",
+		"instructions",
 		"dosage",
 		"dosage_form",
 		"patient_frequency",
@@ -329,6 +339,7 @@ def get_medication_sheet_detail(
 			"time",
 			"medicine_code",
 			"medicine_name",
+			"old_medicine_code",
 			"qty",
 			"unit",
 			"frequency",
@@ -348,6 +359,7 @@ def get_medication_sheet_detail(
 			"time",
 			"medicine_code",
 			"medicine_name",
+			"old_medicine_code",
 			"medication_order",
 			"qty",
 			"unit",
@@ -362,10 +374,11 @@ def get_medication_sheet_detail(
 			order_by="date desc, medicine_given_timing desc, modified desc",
 		)
 
-	def _rows_for_drug(drug: str, prescription: str) -> list[dict]:
+	def _rows_for_drug(drug_key: str, prescription: str) -> list[dict]:
 		admins: list[dict] = []
 		for row in given_rows:
-			if row.get("medicine_code") != drug:
+			med_code = row.get("medicine_code") or row.get("old_medicine_code")
+			if med_code != drug_key:
 				continue
 			mo = row.get("medication_order")
 			if mo and mo != prescription:
@@ -388,7 +401,8 @@ def get_medication_sheet_detail(
 				}
 			)
 		for row in missed_rows:
-			if row.get("medicine_code") != drug:
+			med_code = row.get("medicine_code") or row.get("old_medicine_code")
+			if med_code != drug_key:
 				continue
 			mo = row.get("medication_order")
 			if mo and mo != prescription:
@@ -422,34 +436,43 @@ def get_medication_sheet_detail(
 	for entry in order_entries:
 		if cint(entry.get("stopped")):
 			continue
-		drug = entry.get("drug")
-		if not drug:
+		drug_key = medication_entry_drug_key(entry)
+		if not drug_key:
 			continue
 		prescription = entry.get("parent")
-		key = (prescription, drug)
+		key = (prescription, drug_key)
 		if key in seen_drugs:
 			continue
 		seen_drugs.add(key)
 
 		pmo = pmo_by_name.get(prescription)
-		start_date = entry.get("date") or (pmo.start_date if pmo else None)
-		end_date = entry.get("end_date") or (pmo.end_date if pmo else None)
+		display = medication_entry_display_fields(
+			entry,
+			parent_start_date=pmo.start_date if pmo else None,
+			parent_end_date=pmo.end_date if pmo else None,
+		)
 
 		medicines_out.append(
 			{
 				"order_entry": entry.name,
 				"prescription": prescription,
-				"drug": drug,
-				"drug_name": entry.get("drug_name") or drug,
-				"dosage": entry.get("dosage"),
+				"drug": drug_key,
+				"drug_name": display["display_drug_name"],
+				"dosage": display["display_dosage"],
 				"dosage_form": entry.get("dosage_form"),
-				"patient_frequency": entry.get("patient_frequency"),
+				"patient_frequency": display["display_frequency"],
 				"medication_type": entry.get("medication_type") or "",
 				"is_pink": cint(entry.get("is_pink")),
 				"route_of_administration": entry.get("route_of_administration"),
-				"start_date": str(start_date) if start_date else None,
-				"end_date": str(end_date) if end_date else None,
-				"administrations": _rows_for_drug(drug, prescription),
+				"start_date": display["display_start_date"],
+				"end_date": display["display_end_date"],
+				"instructions": entry.get("instructions"),
+				"written_frequency": entry.get("written_frequency"),
+				"old_medicine_code": entry.get("old_medicine_code"),
+				"old_medicine_name": entry.get("old_medicine_name"),
+				"medication": entry.get("medication"),
+				"is_legacy": display["is_legacy"],
+				"administrations": _rows_for_drug(drug_key, prescription),
 			}
 		)
 

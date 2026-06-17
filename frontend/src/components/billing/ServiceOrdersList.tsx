@@ -42,6 +42,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
+  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
+  const scopedReferenceName = effectiveReferenceName || undefined
   const hasCaseSearch = Boolean(debouncedCaseSearch)
 
   const loadData = async () => {
@@ -56,8 +58,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
       setLoading(true)
       const [ordersData, summaryData] = await Promise.all([
         fetchServiceOrders(
-          hasCaseSearch ? undefined : effectiveReferenceType,
-          hasCaseSearch ? undefined : effectiveReferenceName,
+          hasCaseSearch ? undefined : scopedReferenceType,
+          hasCaseSearch ? undefined : scopedReferenceName,
           effectivePatient,
           statusFilter,
           fromDate,
@@ -65,8 +67,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
           debouncedCaseSearch || undefined
         ),
         fetchServiceOrderSummary(
-          hasCaseSearch ? undefined : effectiveReferenceType,
-          hasCaseSearch ? undefined : effectiveReferenceName,
+          hasCaseSearch ? undefined : scopedReferenceType,
+          hasCaseSearch ? undefined : scopedReferenceName,
           effectivePatient,
           fromDate,
           toDate,
@@ -261,8 +263,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
         <BulkInvoiceModal
           orders={orders}
           patient={effectivePatient}
-          referenceType={effectiveReferenceName ? effectiveReferenceType : undefined}
-          referenceName={effectiveReferenceName || undefined}
+          referenceType={scopedReferenceType}
+          referenceName={scopedReferenceName}
           onClose={() => setShowBulkInvoiceModal(false)}
           onSuccess={() => {
             setShowBulkInvoiceModal(false)

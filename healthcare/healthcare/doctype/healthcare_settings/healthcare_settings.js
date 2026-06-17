@@ -182,6 +182,57 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Import Patient Medication Orders from CSV/Excel'), () => {
+			const uploader = new frappe.ui.FileUploader({
+				dialog_title: __('Import Patient Medication Orders'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.csv', '.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frappe.call({
+						method: 'healthcare.api.patient_medication_order_import.preview_patient_medication_order_import',
+						args: { file_url: file.file_url },
+						freeze: true,
+						freeze_message: __('Reading file…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Import legacy Patient Medication Orders?\n\nFile rows: {0}\nDistinct admissions: {1}\nMedicine lines to import: {2}\nAdmissions matched in system: {3}\nRows with blank admission number: {4}\n\nRows with the same admission number are grouped into one Patient Medication Order (multiple child lines). Each order is submitted and marked Completed. Continue?',
+									[
+										counts.file_rows || 0,
+										counts.admissions || 0,
+										counts.medicine_lines || 0,
+										counts.resolvable_admissions || 0,
+										counts.unresolved_rows || 0,
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_patient_medication_order_import_migration',
+										args: { file_url: file.file_url },
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('patient_medication_order_import');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Import Discharge Checklist from Excel'), () => {
 			const uploader = new frappe.ui.FileUploader({
 				dialog_title: __('Import Discharge Checklist'),

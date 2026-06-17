@@ -73,6 +73,8 @@ export const ServiceInvoicesList = ({
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
   const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
+  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
+  const scopedReferenceName = effectiveReferenceName || undefined
   const hasCaseSearch = Boolean(debouncedCaseSearch)
 
   const loadData = async () => {
@@ -86,8 +88,8 @@ export const ServiceInvoicesList = ({
       setLoading(true)
       const [invoicesData, summaryData] = await Promise.all([
         fetchServiceInvoices(
-          hasCaseSearch ? undefined : effectiveReferenceType,
-          hasCaseSearch ? undefined : effectiveReferenceName,
+          hasCaseSearch ? undefined : scopedReferenceType,
+          hasCaseSearch ? undefined : scopedReferenceName,
           effectivePatient,
           statusFilter,
           fromDate,
@@ -95,8 +97,8 @@ export const ServiceInvoicesList = ({
           debouncedCaseSearch || undefined
         ),
         fetchInvoiceSummary(
-          hasCaseSearch ? undefined : effectiveReferenceType,
-          hasCaseSearch ? undefined : effectiveReferenceName,
+          hasCaseSearch ? undefined : scopedReferenceType,
+          hasCaseSearch ? undefined : scopedReferenceName,
           effectivePatient,
           fromDate,
           toDate,

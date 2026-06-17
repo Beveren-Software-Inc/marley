@@ -1108,16 +1108,34 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
         doc = frappe.get_doc("Patient Medication Order", pres.name)
         medications = []
         for item in doc.medication_orders:
+            from healthcare.api.medication_order_display import medication_entry_display_fields
+
+            display = medication_entry_display_fields(
+                item,
+                parent_start_date=doc.start_date,
+                parent_end_date=doc.end_date,
+            )
             medications.append({
                 "name": item.name,
                 "drug": item.drug,
                 "drug_name": frappe.get_cached_value("Item", item.drug, "item_name") if item.drug else "",
+                "medication": getattr(item, "medication", None),
+                "old_medicine_code": getattr(item, "old_medicine_code", None),
+                "old_medicine_name": getattr(item, "old_medicine_name", None),
+                "medicine_no": getattr(item, "medicine_no", None),
+                "written_frequency": getattr(item, "written_frequency", None),
                 "dosage": item.dosage,
                 "dosage_form": item.dosage_form,
-                "frequency": item.patient_frequency,
+                "frequency": display["display_frequency"],
+                "patient_frequency": item.patient_frequency,
                 "period": item.no_of_days,
                 "instructions": item.instructions,
-                "status": item.status if hasattr(item, 'status') else "Active"
+                "date": item.date,
+                "start_date": display["display_start_date"],
+                "status": item.status if hasattr(item, 'status') else "Active",
+                "display_drug_name": display["display_drug_name"],
+                "display_dosage": display["display_dosage"],
+                "is_legacy": display["is_legacy"],
             })
         
         result.append({

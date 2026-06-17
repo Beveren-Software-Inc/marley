@@ -154,7 +154,7 @@
   }
  ],
  "links": [],
- "modified": "2026-04-27 15:53:37.834565",
+ "modified": "2026-06-17 11:26:49.608049",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
@@ -205,6 +205,7 @@
   }
  ],
  "row_format": "Dynamic",
+ "search_fields": "service_name",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
