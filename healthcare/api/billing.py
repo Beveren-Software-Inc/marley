@@ -706,17 +706,76 @@ def get_invoice_details(invoice_name):
         "patient": getattr(invoice, "patient", None),
         "items": [
             {
+                "name": item.name,
                 "item_code": item.item_code,
                 "item_name": item.item_name,
                 "description": item.description,
                 "qty": item.qty,
                 "rate": item.rate,
                 "amount": item.amount,
+                "discount_amount": flt(getattr(item, "discount_amount", 0)),
+                "discount_percentage": flt(getattr(item, "discount_percentage", 0)),
                 "net_amount": item.net_amount,
+                "cost_center": getattr(item, "cost_center", None),
             }
             for item in invoice.items
         ],
     }
+
+
+@frappe.whitelist()
+def update_sales_invoice_items(invoice_name, items):
+    """Update qty, rate, discount, and cost center on draft Sales Invoice lines."""
+    if not invoice_name:
+        frappe.throw(_("Invoice name is required"))
+
+    if isinstance(items, str):
+        items = json.loads(items)
+    if not isinstance(items, list) or not items:
+        frappe.throw(_("At least one invoice line is required"))
+
+    doc = frappe.get_doc("Sales Invoice", invoice_name)
+    frappe.has_permission("Sales Invoice", "write", doc=doc, throw=True)
+    if doc.docstatus != 0:
+        frappe.throw(_("Only draft invoices can be edited"))
+
+    by_name = {line.name: line for line in doc.items}
+    updated = 0
+    for row in items:
+        if not isinstance(row, dict):
+            continue
+        row_name = (row.get("name") or "").strip()
+        if not row_name or row_name not in by_name:
+            frappe.throw(_("Invoice line not found: {0}").format(row_name or "—"))
+
+        line = by_name[row_name]
+        if row.get("qty") is not None:
+            qty = flt(row.get("qty"))
+            if qty <= 0:
+                frappe.throw(_("Quantity must be greater than zero for {0}").format(line.item_code))
+            line.qty = qty
+        if row.get("rate") is not None:
+            line.rate = flt(row.get("rate"))
+        if row.get("discount_amount") is not None:
+            line.discount_amount = flt(row.get("discount_amount"))
+            if line.discount_amount:
+                line.discount_percentage = 0
+        if row.get("discount_percentage") is not None:
+            line.discount_percentage = flt(row.get("discount_percentage"))
+            if line.discount_percentage:
+                line.discount_amount = 0
+        cc = row.get("cost_center")
+        if cc is not None and hasattr(line, "cost_center"):
+            line.cost_center = (cc or "").strip() or line.cost_center
+        updated += 1
+
+    if not updated:
+        frappe.throw(_("No invoice lines were updated"))
+
+    doc.run_method("calculate_taxes_and_totals")
+    doc.save(ignore_permissions=True)
+    frappe.db.commit()
+    return get_invoice_details(invoice_name)
 
 
 @frappe.whitelist()

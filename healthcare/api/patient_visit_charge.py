@@ -1,0 +1,394 @@
+"""Patient Visit registration charge: Sales Order on new Patient Visit creation."""
+
+from __future__ import annotations
+
+from collections import Counter
+
+import frappe
+from frappe import _
+from frappe.utils import cint, flt, nowdate
+
+from healthcare.api.patient_file_no_charge import _ensure_patient_customer
+from healthcare.api.sales_order_cost_center import apply_cost_center_to_sales_order
+
+
+def _template_to_config(template_name: str | None) -> dict:
+	template_name = (template_name or "").strip()
+	if not template_name:
+		return {
+			"configured": False,
+			"template": None,
+			"service_name": None,
+			"item_code": None,
+			"item_name": None,
+			"rate": 0,
+			"source": None,
+		}
+
+	if not frappe.db.exists("Healthcare Service Template", template_name):
+		return {
+			"configured": False,
+			"template": template_name,
+			"service_name": None,
+			"item_code": None,
+			"item_name": None,
+			"rate": 0,
+			"source": None,
+		}
+
+	tpl = frappe.get_doc("Healthcare Service Template", template_name)
+	item_code = (tpl.item_code or "").strip()
+	rate = flt(tpl.rate)
+	item_name = frappe.db.get_value("Item", item_code, "item_name") if item_code else None
+
+	return {
+		"configured": bool(item_code),
+		"template": template_name,
+		"service_name": tpl.service_name or template_name,
+		"item_code": item_code,
+		"item_name": item_name,
+		"rate": rate,
+		"source": "template",
+	}
+
+
+def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
+	"""Resolve charge from Patient Visit Type.service_charge, else Healthcare Settings default."""
+	visit_type = (visit_type or "").strip()
+	template_name = None
+	source = None
+
+	if visit_type and frappe.db.exists("Patient Visit Type", visit_type):
+		template_name = frappe.db.get_value("Patient Visit Type", visit_type, "service_charge")
+		if template_name:
+			source = "visit_type"
+
+	if not template_name:
+		template_name = frappe.db.get_single_value(
+			"Healthcare Settings", "normal_patient_visit_charge_item"
+		)
+		if template_name:
+			source = "default"
+
+	config = _template_to_config(template_name)
+	config["source"] = source
+	config["visit_type"] = visit_type or None
+	return config
+
+
+@frappe.whitelist()
+def get_patient_visit_charge_preview(visit_type: str | None = None) -> dict:
+	"""API for create-visit UI: show configured charge amount for a visit type."""
+	return resolve_visit_charge_config(visit_type)
+
+
+def _visit_charge_sales_order_names(
+	visit_name: str,
+	*,
+	item_code: str | None = None,
+	docstatus: list | int | None = None,
+) -> list[str]:
+	item_code = (item_code or "").strip()
+	if not item_code or not visit_name:
+		return []
+
+	filters: dict = {
+		"custom_reference_type": "Patient Visit",
+		"custom_reference_name": visit_name,
+	}
+	if docstatus is not None:
+		filters["docstatus"] = docstatus
+
+	candidates = frappe.get_all("Sales Order", filters=filters, pluck="name", order_by="creation desc")
+	matched: list[str] = []
+	for so_name in candidates:
+		if frappe.db.exists("Sales Order Item", {"parent": so_name, "item_code": item_code}):
+			matched.append(so_name)
+	return matched
+
+
+def _existing_visit_charge_sales_order(visit_name: str, item_code: str) -> str | None:
+	names = _visit_charge_sales_order_names(visit_name, item_code=item_code, docstatus=["!=", 2])
+	return names[0] if names else None
+
+
+def create_patient_visit_charge_sales_order(
+	visit_name: str,
+	*,
+	visit_type: str | None = None,
+	cost_center: str | None = None,
+	submit: bool = True,
+) -> dict:
+	"""Create (or return) a Sales Order for a patient visit registration charge."""
+	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
+		frappe.throw(_("Patient Visit not found"))
+
+	visit = frappe.get_doc("Patient Visit", visit_name)
+	visit_type = visit_type or visit.visit_type
+	config = resolve_visit_charge_config(visit_type)
+	if not config.get("configured"):
+		frappe.throw(
+			_(
+				"Patient visit charge is not configured for visit type {0}. "
+				"Set Service Charge on Patient Visit Type or Normal Patient Visit Charge Item in Healthcare Settings."
+			).format(visit_type or _("(default)"))
+		)
+
+	item_code = config["item_code"]
+	existing = _existing_visit_charge_sales_order(visit.name, item_code)
+	if existing:
+		so = frappe.get_doc("Sales Order", existing)
+		if submit and so.docstatus == 0:
+			so.flags.ignore_permissions = True
+			so.submit()
+		return {
+			"sales_order": so.name,
+			"status": so.status,
+			"existing": True,
+			"rate": config.get("rate"),
+		}
+
+	customer = _ensure_patient_customer(visit.patient)
+	company = visit.company or frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
+	if not company:
+		frappe.throw(_("Default Company is not set"))
+
+	service_name = config.get("service_name") or _("Patient Visit Charge")
+	rate = flt(config.get("rate"))
+	visit_label = visit.case_no or visit.name
+
+	so = frappe.new_doc("Sales Order")
+	so.company = company
+	so.customer = customer
+	so.patient = visit.patient
+	if hasattr(so, "custom_patient"):
+		so.custom_patient = visit.patient
+	if hasattr(so, "custom_patient_name"):
+		so.custom_patient_name = visit.patient_name
+
+	so.custom_reference_type = "Patient Visit"
+	so.custom_reference_name = visit.name
+	so.custom_base_reference = "Patient Visit"
+	so.custom_base_reference_name = visit.name
+	so.transaction_date = visit.encounter_date or nowdate()
+	so.delivery_date = visit.encounter_date or nowdate()
+	so.ignore_pricing_rule = 1
+
+	so.append(
+		"items",
+		{
+			"item_code": item_code,
+			"item_name": config.get("item_name") or service_name,
+			"description": _("Visit charge: {0}").format(visit_label),
+			"qty": 1,
+			"rate": rate,
+			"price_list_rate": rate,
+		},
+	)
+
+	cc = (cost_center or visit.cost_center or "").strip() or None
+	apply_cost_center_to_sales_order(so, cc)
+	so.insert(ignore_permissions=True)
+
+	if submit:
+		so.flags.ignore_permissions = True
+		so.submit()
+
+	return {
+		"sales_order": so.name,
+		"status": so.status,
+		"existing": False,
+		"rate": rate,
+	}
+
+
+def maybe_create_patient_visit_charge_sales_order(
+	visit_name: str,
+	*,
+	charge_visit: bool | int | None = None,
+	visit_type: str | None = None,
+	cost_center: str | None = None,
+) -> dict | None:
+	"""Create visit charge SO when requested; return None when skipped."""
+	if charge_visit is None:
+		charge_visit = True
+	if not cint(charge_visit):
+		return None
+
+	try:
+		return create_patient_visit_charge_sales_order(
+			visit_name,
+			visit_type=visit_type,
+			cost_center=cost_center,
+			submit=True,
+		)
+	except Exception:
+		frappe.log_error(title=f"Patient visit charge failed: {visit_name}")
+		return {"error": True}
+
+
+def _resolve_iop_enrollment_charge_lines(enrollment_doc) -> list[dict]:
+	"""One line per Healthcare Service Template on the enrollment (qty aggregated)."""
+	templates = [
+		(row.session_type or "").strip()
+		for row in (enrollment_doc.get("iop_session") or [])
+		if (row.session_type or "").strip()
+	]
+	lines: list[dict] = []
+	for template_name, qty in Counter(templates).items():
+		config = _template_to_config(template_name)
+		if config.get("configured"):
+			lines.append({**config, "qty": qty})
+	return lines
+
+
+def _iop_enrollment_charge_fallback_lines() -> list[dict]:
+	"""Healthcare Settings IOP charge, else Patient Visit Type IOP service charge."""
+	template_name = frappe.db.get_single_value("Healthcare Settings", "iop_charge_item")
+	if template_name:
+		config = _template_to_config(template_name)
+		if config.get("configured"):
+			return [{**config, "qty": 1}]
+
+	config = resolve_visit_charge_config("IOP")
+	if config.get("configured"):
+		return [{**config, "qty": 1}]
+	return []
+
+
+def _existing_visit_charge_sales_orders(
+	visit_name: str,
+	*,
+	docstatus: list | int | None = None,
+) -> list[str]:
+	filters: dict = {
+		"custom_reference_type": "Patient Visit",
+		"custom_reference_name": visit_name,
+	}
+	if docstatus is not None:
+		filters["docstatus"] = docstatus
+	return frappe.get_all("Sales Order", filters=filters, pluck="name", order_by="creation desc")
+
+
+def create_iop_enrollment_visit_charge_sales_order(
+	visit_name: str,
+	enrollment_doc,
+	*,
+	cost_center: str | None = None,
+	submit: bool = True,
+) -> dict:
+	"""Create visit charge SO from IOP enrollment Healthcare Service Templates."""
+	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
+		frappe.throw(_("Patient Visit not found"))
+
+	existing_names = _existing_visit_charge_sales_orders(visit_name, docstatus=["!=", 2])
+	if existing_names:
+		so = frappe.get_doc("Sales Order", existing_names[0])
+		if submit and so.docstatus == 0:
+			so.flags.ignore_permissions = True
+			so.submit()
+		total_rate = sum(flt(row.rate) * flt(row.qty) for row in so.items)
+		return {
+			"sales_order": so.name,
+			"status": so.status,
+			"existing": True,
+			"rate": total_rate,
+		}
+
+	lines = _resolve_iop_enrollment_charge_lines(enrollment_doc)
+	if not lines:
+		lines = _iop_enrollment_charge_fallback_lines()
+	if not lines:
+		frappe.throw(
+			_(
+				"IOP visit charge is not configured. Add Healthcare Service Templates to the "
+				"enrollment sessions, or set IOP Charge Item / IOP Patient Visit Type service charge "
+				"in Healthcare Settings."
+			)
+		)
+
+	visit = frappe.get_doc("Patient Visit", visit_name)
+	customer = _ensure_patient_customer(visit.patient)
+	company = visit.company or frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
+	if not company:
+		frappe.throw(_("Default Company is not set"))
+
+	visit_label = visit.case_no or visit.name
+	so = frappe.new_doc("Sales Order")
+	so.company = company
+	so.customer = customer
+	so.patient = visit.patient
+	if hasattr(so, "custom_patient"):
+		so.custom_patient = visit.patient
+	if hasattr(so, "custom_patient_name"):
+		so.custom_patient_name = visit.patient_name
+
+	so.custom_reference_type = "Patient Visit"
+	so.custom_reference_name = visit.name
+	so.custom_base_reference = "Patient Visit"
+	so.custom_base_reference_name = visit.name
+	so.transaction_date = visit.encounter_date or nowdate()
+	so.delivery_date = visit.encounter_date or nowdate()
+	so.ignore_pricing_rule = 1
+
+	total_rate = 0.0
+	for line in lines:
+		qty = flt(line.get("qty") or 1)
+		rate = flt(line.get("rate"))
+		total_rate += rate * qty
+		service_name = line.get("service_name") or _("IOP Session")
+		so.append(
+			"items",
+			{
+				"item_code": line["item_code"],
+				"item_name": line.get("item_name") or service_name,
+				"description": _("IOP visit charge ({0}): {1}").format(service_name, visit_label),
+				"qty": qty,
+				"rate": rate,
+				"price_list_rate": rate,
+			},
+		)
+
+	cc = (cost_center or visit.cost_center or "").strip() or None
+	apply_cost_center_to_sales_order(so, cc)
+	so.insert(ignore_permissions=True)
+
+	if submit:
+		so.flags.ignore_permissions = True
+		so.submit()
+
+	return {
+		"sales_order": so.name,
+		"status": so.status,
+		"existing": False,
+		"rate": total_rate,
+	}
+
+
+def maybe_create_iop_enrollment_visit_charge_sales_order(
+	visit_name: str,
+	enrollment_doc,
+	*,
+	charge_visit: bool | int | None = None,
+	cost_center: str | None = None,
+) -> dict | None:
+	"""Create IOP enrollment visit charge SO when requested; return None when skipped."""
+	if charge_visit is None:
+		charge_visit = True
+	if not cint(charge_visit):
+		return None
+
+	try:
+		return create_iop_enrollment_visit_charge_sales_order(
+			visit_name,
+			enrollment_doc,
+			cost_center=cost_center,
+			submit=True,
+		)
+	except Exception:
+		frappe.log_error(title=f"IOP enrollment visit charge failed: {visit_name}")
+		return {"error": True}

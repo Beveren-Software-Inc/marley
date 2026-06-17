@@ -7,14 +7,14 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import { IOPHealthcareServiceTemplateSelect } from '../ui/IOPHealthcareServiceTemplateSelect'
 import {
   createIOPEnrollment,
   fetchIOPDayWithSessions,
   fetchIOPDays,
-  fetchIOPSessionTypes,
+  fetchIOPHealthcareServiceTemplates,
   type IOPDay,
-  type IOPSessionType,
+  type IOPHealthcareServiceTemplate,
   type IOPEnrollmentSessionRow,
 } from '../../services/iop'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -45,14 +45,14 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
 
   const [status, setStatus] = useState('Scheduled')
   const [notes, setNotes] = useState('')
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
+  const [sessionTemplates, setSessionTemplates] = useState<IOPHealthcareServiceTemplate[]>([])
   const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([{ session_type: '', notes: '' }])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     fetchIOPDays(100, 0).then(setIopDays).catch(() => setIopDays([]))
-    fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
+    fetchIOPHealthcareServiceTemplates().then(setSessionTemplates).catch(() => setSessionTemplates([]))
   }, [])
 
   useEffect(() => {
@@ -351,13 +351,13 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
             <div className="space-y-2">
               {sessions.map((row, idx) => (
                 <div key={idx} className="flex flex-wrap items-start gap-2 p-2 border border-slate-200 rounded-md">
-                  <IOPSessionTypeSelect
+                  <IOPHealthcareServiceTemplateSelect
                     value={row.session_type}
                     onChange={(value) => updateSession(idx, 'session_type', value)}
-                    types={sessionTypes}
-                    onTypesUpdated={setSessionTypes}
+                    templates={sessionTemplates}
+                    onTemplatesUpdated={setSessionTemplates}
                     className="flex-1 min-w-[140px]"
-                    placeholder="Select session type..."
+                    placeholder="Select healthcare service..."
                   />
                   <textarea
                     value={row.notes || ''}

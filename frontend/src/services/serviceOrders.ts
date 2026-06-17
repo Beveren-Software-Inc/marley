@@ -272,7 +272,28 @@ export interface CreateBulkInvoiceOptions {
   patient?: string
 }
 
-export async function createBulkInvoice(options: CreateBulkInvoiceOptions): Promise<string> {
+export interface BulkInvoiceSplitResult {
+  split_by_cost_center: true
+  invoices: string[]
+  details?: Array<{ invoice: string; cost_center?: string | null }>
+}
+
+export type BulkInvoiceResult = string | BulkInvoiceSplitResult
+
+function parseBulkInvoiceMessage(message: unknown): BulkInvoiceResult {
+  if (typeof message === 'string' && message) return message
+  if (
+    message &&
+    typeof message === 'object' &&
+    (message as BulkInvoiceSplitResult).split_by_cost_center &&
+    Array.isArray((message as BulkInvoiceSplitResult).invoices)
+  ) {
+    return message as BulkInvoiceSplitResult
+  }
+  throw new Error('Failed to create bulk invoice')
+}
+
+export async function createBulkInvoice(options: CreateBulkInvoiceOptions): Promise<BulkInvoiceResult> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
 
@@ -310,10 +331,7 @@ export async function createBulkInvoice(options: CreateBulkInvoiceOptions): Prom
           : undefined
     throw new Error(msg || data.exc || 'Failed to create bulk invoice')
   }
-  if (typeof data.message === 'string' && data.message) {
-    return data.message
-  }
-  throw new Error('Failed to create bulk invoice')
+  return parseBulkInvoiceMessage(data.message)
 }
 
 export async function createServiceOrder(data: any): Promise<string> {

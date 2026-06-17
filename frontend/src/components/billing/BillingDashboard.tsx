@@ -153,6 +153,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   } | null>(null)
   const [loadingInvoices, setLoadingInvoices] = useState<string | null>(null)
   const [salesInvoiceDetailName, setSalesInvoiceDetailName] = useState<string | null>(null)
+  const [salesInvoiceEditMode, setSalesInvoiceEditMode] = useState(false)
   const [invoiceListRefreshKey, setInvoiceListRefreshKey] = useState(0)
   const [billingCcRestricted, setBillingCcRestricted] = useState<boolean | null>(null)
   const [ccBreakdown, setCcBreakdown] = useState<PatientBillingCcRow[]>([])
@@ -272,6 +273,11 @@ const handleMakePayment = async (
     } else {
       loadDashboardData()
     }
+  }
+
+  const openInvoiceDetail = (name: string, options?: { edit?: boolean }) => {
+    setSalesInvoiceDetailName(name)
+    setSalesInvoiceEditMode(Boolean(options?.edit))
   }
 
   const notifyInvoiceDataChanged = () => {
@@ -609,7 +615,11 @@ const handleMakePayment = async (
 
       <SpecialtySalesInvoiceSlideOver
         invoiceName={salesInvoiceDetailName}
-        onClose={() => setSalesInvoiceDetailName(null)}
+        initialEditMode={salesInvoiceEditMode}
+        onClose={() => {
+          setSalesInvoiceDetailName(null)
+          setSalesInvoiceEditMode(false)
+        }}
         onUpdated={notifyInvoiceDataChanged}
       />
 
@@ -676,7 +686,7 @@ const handleMakePayment = async (
           patient={effectivePatient}
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
-          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          onOpenInvoiceDetail={openInvoiceDetail}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
@@ -702,7 +712,7 @@ const handleMakePayment = async (
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Unpaid,Overdue"
-          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          onOpenInvoiceDetail={openInvoiceDetail}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
@@ -728,7 +738,7 @@ const handleMakePayment = async (
           admission={effectiveReferenceName}
           visit={effectiveReferenceType === 'Patient Visit' ? effectiveReferenceName : undefined}
           statusFilter="Paid"
-          onOpenInvoiceDetail={(name) => setSalesInvoiceDetailName(name)}
+          onOpenInvoiceDetail={openInvoiceDetail}
           invoiceRefreshKey={invoiceListRefreshKey}
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
@@ -1313,7 +1323,7 @@ const handleMakePayment = async (
                     <div>
                       <button
                         type="button"
-                        onClick={() => setSalesInvoiceDetailName(invoice.name)}
+                        onClick={() => openInvoiceDetail(invoice.name)}
                         className="font-mono text-[11px] font-medium text-primary hover:underline text-left"
                       >
                         {invoice.name}

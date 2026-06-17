@@ -11,8 +11,10 @@ import { searchPatients, fetchPatients, type PatientListItem, uploadPatientFile,
 import {
   checkCanCreatePatientVisit,
   fetchPatientVisitTypes,
+  fetchPatientVisitChargePreview,
   type OpenPatientVisitRow,
   type PatientVisitTypeOption,
+  type PatientVisitChargePreview,
   createPatientVisit,
 } from '../../services/patientVisits'
 import { 
@@ -27,6 +29,7 @@ import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { fetchIOPEnrollment } from '../../services/iop'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { toast } from '../../hooks/useToast'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PenLine } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -200,6 +203,7 @@ export const CreatePatientVisitModal = ({
   initialPractitioner,
 }: CreatePatientVisitModalProps) => {
   const { userCostCenter, costCenterCompany } = useCareContext()
+  const formatMoney = useFormatMoney()
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
@@ -245,6 +249,8 @@ export const CreatePatientVisitModal = ({
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+  const [chargeVisit, setChargeVisit] = useState(true)
+  const [visitCharge, setVisitCharge] = useState<PatientVisitChargePreview>({ configured: false, rate: 0 })
 
   // When opening from IOP enrollment, default visit type to IOP
   useEffect(() => {
@@ -279,6 +285,23 @@ export const CreatePatientVisitModal = ({
     }
     loadOptions()
   }, [initialPractitioner])
+
+  useEffect(() => {
+    let cancelled = false
+    const loadCharge = async () => {
+      const preview = await fetchPatientVisitChargePreview(formData.visit_type || undefined)
+      if (!cancelled) {
+        setVisitCharge(preview)
+        if (!preview.configured) {
+          setChargeVisit(false)
+        }
+      }
+    }
+    void loadCharge()
+    return () => {
+      cancelled = true
+    }
+  }, [formData.visit_type])
 
   useEffect(() => {
     if (userCostCenter && !costCenter) {
@@ -608,9 +631,19 @@ export const CreatePatientVisitModal = ({
         iop_enrollment: initialIOPEnrollment || undefined,
         cost_center: costCenter || undefined,
         status: 'Open',
+        charge_visit: chargeVisit && visitCharge.configured,
       })
 
       if (createdVisit?.name) {
+        if (createdVisit.sales_order) {
+          toast.success(
+            `Visit ${createdVisit.name} created · charge order ${createdVisit.sales_order}`,
+          )
+        } else if (createdVisit.visit_charge_error) {
+          toast.success(`Visit ${createdVisit.name} created · ${createdVisit.visit_charge_error}`)
+        } else {
+          toast.success(`Visit ${createdVisit.name} created`)
+        }
         onSuccess(createdVisit.name)
       } else {
         throw new Error('Visit created but no name returned')
@@ -914,6 +947,36 @@ export const CreatePatientVisitModal = ({
                 </div>
               )}
             </div>
+
+            {visitCharge.configured ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    checked={chargeVisit}
+                    onChange={(e) => setChargeVisit(e.target.checked)}
+                  />
+                  <span className="text-sm text-slate-700">
+                    <span className="font-medium">Charge visit</span>
+                    <span className="block text-xs text-slate-500 mt-0.5">
+                      {visitCharge.service_name || 'Visit fee'}
+                      {visitCharge.item_name ? ` · ${visitCharge.item_name}` : ''}
+                      {visitCharge.source === 'visit_type' ? ' · visit type rate' : ' · default rate'}
+                      {' · '}
+                      <span className="font-semibold text-slate-800">
+                        {formatMoney(visitCharge.rate || 0)}
+                      </span>
+                    </span>
+                  </span>
+                </label>
+              </div>
+            ) : (
+              <p className="text-xs text-amber-700">
+                Visit charge is not configured for this visit type. Set Service Charge on the Patient
+                Visit Type or Normal Patient Visit Charge Item in Healthcare Settings.
+              </p>
+            )}
 
             {/* Branch */}
             <div className="relative">

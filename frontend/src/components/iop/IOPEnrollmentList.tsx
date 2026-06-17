@@ -122,7 +122,7 @@ export const IOPEnrollmentList = ({
                     {(e.total_cost ?? 0) > 0 ? (
                       <span title={
                         e.session_costs?.length
-                          ? e.session_costs.map((s) => `${s.session_type}: ${formatMoney(s.rate)}`).join(', ')
+                          ? e.session_costs.map((s) => `${s.service_name || s.session_type}: ${formatMoney(s.rate)}`).join(', ')
                           : undefined
                       }>
                         {formatMoney(e.total_cost ?? 0)}

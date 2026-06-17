@@ -20,6 +20,52 @@ def apply_cost_center_to_sales_order(so, cost_center):
 			row.cost_center = cc
 
 
+def cost_center_from_sales_order(so) -> str | None:
+	"""Resolve branch/cost center from a Sales Order header or line items."""
+	raw = getattr(so, "cost_center", None)
+	if raw:
+		return raw.strip() if isinstance(raw, str) else raw
+	for row in so.get("items") or []:
+		cc = getattr(row, "cost_center", None)
+		if cc:
+			return cc.strip() if isinstance(cc, str) else cc
+	return None
+
+
+def apply_cost_center_to_sales_invoice(invoice, cost_center):
+	"""Set header + line cost centers on a Sales Invoice (incl. custom_created_at branch)."""
+	if not cost_center:
+		return
+	cc = cost_center.strip() if isinstance(cost_center, str) else cost_center
+	if not cc:
+		return
+	if hasattr(invoice, "cost_center"):
+		invoice.cost_center = cc
+	if hasattr(invoice, "custom_created_at"):
+		invoice.custom_created_at = cc
+	for row in invoice.get("items") or []:
+		if hasattr(row, "cost_center"):
+			row.cost_center = cc
+
+
+def sales_invoice_item_from_sales_order_item(so, item):
+	"""Map a Sales Order Item row to a Sales Invoice Item dict (incl. cost center)."""
+	so_cc = cost_center_from_sales_order(so)
+	item_cc = getattr(item, "cost_center", None) or so_cc
+	line = {
+		"item_code": item.item_code,
+		"item_name": item.item_name or item.item_code,
+		"qty": item.qty,
+		"rate": item.rate,
+		"amount": item.amount,
+		"description": item.description or frappe._("Order: {0}").format(so.name),
+		"sales_order": so.name,
+	}
+	if item_cc:
+		line["cost_center"] = item_cc
+	return line
+
+
 def cost_center_from_service_request(sr):
 	"""Prefer SR cost center, then order-reference doc, then visit/admission."""
 	raw = getattr(sr, "cost_center", None)

@@ -17,9 +17,24 @@ export interface IOPDay {
 }
 
 export interface IOPDayWithSessions extends IOPDay {
-  sessions: { session_type: string; from_time?: string; to_time?: string }[]
+  sessions: {
+    session_type: string
+    service_name?: string
+    rate?: number
+    item_code?: string
+    from_time?: string
+    to_time?: string
+  }[]
 }
 
+export interface IOPHealthcareServiceTemplate {
+  name: string
+  service_name?: string
+  category?: string
+  rate?: number
+}
+
+/** @deprecated IOP Session Type — only used by Daily Auto Visit setup. */
 export interface IOPSessionType {
   name: string
   session_type_name?: string
@@ -39,13 +54,18 @@ export interface IOPEnrollment {
   doctor?: string
   /** Linked Patient Visit when one was created from this enrollment. */
   patient_visit?: string
-  /** Sum of IOP Session Type rates on this enrollment. */
+  /** Sum of Healthcare Service Template rates on this enrollment. */
   session_total?: number
   /** Linked visit Sales Order total when billed. */
   visit_amount?: number
   /** session_total or visit_amount — whichever is available. */
   total_cost?: number
-  session_costs?: Array<{ session_type: string; rate: number }>
+  session_costs?: Array<{
+    session_type: string
+    service_name?: string
+    item_code?: string
+    rate: number
+  }>
 }
 
 /** One row of IOP Session child table (type, from, to, notes). */
@@ -122,6 +142,20 @@ export async function fetchCostCenters(): Promise<{ name: string }[]> {
   const res = await fetch('/api/resource/Cost%20Center?fields=["name"]&limit_page_length=200')
   const data = await res.json()
   return Array.isArray(data?.data) ? data.data : []
+}
+
+export async function fetchIOPHealthcareServiceTemplates(
+  search?: string,
+): Promise<IOPHealthcareServiceTemplate[]> {
+  const params = new URLSearchParams()
+  params.set('limit', '200')
+  if (search?.trim()) params.set('search', search.trim())
+  const res = await fetch(
+    `/api/method/healthcare.api.ip_service.get_ip_service_types?${params}`,
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(data.exc_type ? `${data.exc_type}: ${data.exc}` : data.exc)
+  return Array.isArray(data?.message) ? data.message : []
 }
 
 export async function fetchIOPSessionTypes(): Promise<IOPSessionType[]> {

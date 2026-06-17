@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, getdate, nowdate
+from frappe.utils import add_days, cint, flt, getdate, nowdate
 
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
@@ -346,11 +346,10 @@ def update_observation(data):
 
 
 @frappe.whitelist()
-def create_sales_order_from_observation(observation_name):
-	"""Create and submit a Sales Order for an Observation (or return existing linked on order_created).
+def create_sales_order_from_observation(observation_name, billing_date=None):
+	"""Create and submit a Sales Order for an Observation for a given billing day.
 
-	Sets custom_reference_type / custom_reference_name to Patient Visit or Inpatient Admission,
-	and custom_base_reference to Observation — same billing convention as Service Request / PMO.
+	Returns an existing order when one already exists for the same observation and date.
 	"""
 	if not observation_name:
 		frappe.throw(_("Observation name is required"))
@@ -359,36 +358,77 @@ def create_sales_order_from_observation(observation_name):
 		frappe.throw(_("Observation {0} does not exist").format(observation_name))
 
 	obs = frappe.get_doc("Observation", observation_name)
+	return _create_observation_sales_order(obs, billing_date=billing_date or nowdate())
 
-	if getattr(obs, "order_created", None) and frappe.db.exists("Sales Order", obs.order_created):
-		so = frappe.get_doc("Sales Order", obs.order_created)
-		if cint(so.docstatus) == 0:
-			so.flags.ignore_permissions = True
-			so.submit()
-		return {"sales_order": so.name, "status": so.status, "existing": True}
 
-	if not obs.company:
-		frappe.throw(_("Company is required on Observation {0}").format(observation_name))
-	if not obs.patient:
-		frappe.throw(_("Patient is required on Observation {0}").format(observation_name))
+def _observation_end_date(obs) -> object:
+	"""Last calendar day observation charges apply (date or None when open-ended)."""
+	start = getdate(obs.start_date) if obs.get("start_date") else None
+	if not start:
+		return None
+
+	candidates = []
+	if obs.get("dc_date"):
+		candidates.append(getdate(obs.dc_date))
+
+	duration = (obs.get("duration") or "").strip()
+	if duration.isdigit() and int(duration) > 0:
+		candidates.append(add_days(start, int(duration) - 1))
+
+	if not candidates:
+		return None
+	return min(candidates)
+
+
+def _observation_is_billable_on_date(obs, billing_date) -> bool:
+	billing_date = getdate(billing_date)
+	if not obs.get("start_date"):
+		return False
+
+	start = getdate(obs.start_date)
+	if billing_date < start:
+		return False
+
+	end = _observation_end_date(obs)
+	if end and billing_date > end:
+		return False
+
+	if obs.get("dc_date") and billing_date > getdate(obs.dc_date):
+		return False
+
+	status = (obs.get("status") or "").strip()
+	if status in ("Cancelled", "Entered in Error", "Rejected"):
+		return False
+
+	if not obs.get("observation_level"):
+		return False
+
+	if not cint(frappe.db.get_value("Observation Level", obs.observation_level, "is_billable")):
+		return False
 
 	ref_dt, ref_name = _observation_visit_admission_refs(obs)
-	if not ref_dt or not ref_name:
-		frappe.throw(
-			_(
-				"Observation {0} must be linked to an Inpatient Admission or a Patient Visit "
-				"(set Admission on IP, or Visit on OP) before creating a Sales Order."
-			).format(observation_name)
-		)
+	return bool(ref_dt and ref_name)
 
-	if not obs.observation_level:
-		frappe.throw(_("Observation Level is required to bill observation {0}").format(observation_name))
 
-	lvl = frappe.get_doc("Observation Level", obs.observation_level)
+def _existing_observation_sales_order_for_date(observation_name: str, billing_date) -> str | None:
+	billing_date = getdate(billing_date)
+	rows = frappe.db.sql(
+		"""
+		SELECT so.name
+		FROM `tabSales Order` so
+		WHERE so.custom_base_reference = 'Observation'
+			AND so.custom_base_reference_name = %s
+			AND so.transaction_date = %s
+			AND so.docstatus < 2
+		ORDER BY so.creation DESC
+		LIMIT 1
+		""",
+		(observation_name, billing_date),
+	)
+	return rows[0][0] if rows else None
 
-	if not cint(lvl.is_billable):
-		frappe.throw(_("Observation Level {0} must be billable to create a Sales Order").format(lvl.name))
 
+def _resolve_observation_billing_item(obs, lvl):
 	def _level_has_resolved_item(doc):
 		code = (getattr(doc, "item_code", None) or "").strip()
 		link = (getattr(doc, "item", None) or "").strip()
@@ -420,14 +460,55 @@ def create_sales_order_from_observation(observation_name):
 	if billing_rate <= 0:
 		billing_rate = flt(getattr(lvl, "rate", None)) or 0
 
+	desc = getattr(lvl, "observation_level", None) or obs.observation_level or obs.name
+	return item_code, billing_rate, desc
+
+
+def _create_observation_sales_order(obs, billing_date=None) -> dict:
+	"""Create (or return) a submitted Sales Order for one observation billing day."""
+	billing_date = getdate(billing_date or nowdate())
+	observation_name = obs.name
+
+	existing = _existing_observation_sales_order_for_date(observation_name, billing_date)
+	if existing:
+		so = frappe.get_doc("Sales Order", existing)
+		if cint(so.docstatus) == 0:
+			so.flags.ignore_permissions = True
+			so.submit()
+		return {"sales_order": so.name, "status": so.status, "existing": True, "billing_date": str(billing_date)}
+
+	if not _observation_is_billable_on_date(obs, billing_date):
+		frappe.throw(
+			_("Observation {0} is not billable on {1}").format(observation_name, billing_date)
+		)
+
+	if not obs.company:
+		frappe.throw(_("Company is required on Observation {0}").format(observation_name))
+	if not obs.patient:
+		frappe.throw(_("Patient is required on Observation {0}").format(observation_name))
+
+	ref_dt, ref_name = _observation_visit_admission_refs(obs)
+	if not ref_dt or not ref_name:
+		frappe.throw(
+			_(
+				"Observation {0} must be linked to an Inpatient Admission or a Patient Visit "
+				"(set Admission on IP, or Visit on OP) before creating a Sales Order."
+			).format(observation_name)
+		)
+
+	lvl = frappe.get_doc("Observation Level", obs.observation_level)
+	if not cint(lvl.is_billable):
+		frappe.throw(_("Observation Level {0} must be billable to create a Sales Order").format(lvl.name))
+
+	item_code, billing_rate, desc = _resolve_observation_billing_item(obs, lvl)
 	customer = frappe.db.get_value("Patient", obs.patient, "customer") or obs.patient
 
 	so = frappe.new_doc("Sales Order")
 	so.company = obs.company
 	so.patient = obs.patient
 	so.customer = customer
-	so.transaction_date = nowdate()
-	so.delivery_date = nowdate()
+	so.transaction_date = billing_date
+	so.delivery_date = billing_date
 	so.ignore_pricing_rule = 1
 
 	pname = getattr(obs, "patient_name", None) or frappe.db.get_value("Patient", obs.patient, "patient_name")
@@ -441,7 +522,6 @@ def create_sales_order_from_observation(observation_name):
 	so.custom_base_reference = "Observation"
 	so.custom_base_reference_name = obs.name
 
-	desc = getattr(lvl, "observation_level", None) or obs.observation_level or obs.name
 	so.append(
 		"items",
 		{
@@ -449,7 +529,7 @@ def create_sales_order_from_observation(observation_name):
 			"qty": 1,
 			"rate": billing_rate,
 			"price_list_rate": billing_rate,
-			"description": _("Observation {0}: {1}").format(obs.name, desc),
+			"description": _("Observation {0} ({1}): {2}").format(obs.name, billing_date, desc),
 		},
 	)
 
@@ -459,8 +539,66 @@ def create_sales_order_from_observation(observation_name):
 	so.insert(ignore_permissions=True)
 	so.flags.ignore_permissions = True
 	so.submit()
-	frappe.db.set_value("Observation", observation_name, "order_created", so.name)
 
-	return {"sales_order": so.name, "status": so.status, "existing": False}
+	if not obs.get("order_created"):
+		frappe.db.set_value("Observation", observation_name, "order_created", so.name, update_modified=False)
 
+	return {
+		"sales_order": so.name,
+		"status": so.status,
+		"existing": False,
+		"billing_date": str(billing_date),
+	}
+
+
+def create_daily_observation_sales_orders(billing_date=None):
+	"""Scheduled job: bill active observations once per calendar day (default: today at 11:59 PM)."""
+	billing_date = getdate(billing_date or nowdate())
+
+	observations = frappe.get_all(
+		"Observation",
+		filters={
+			"docstatus": 1,
+			"status": ["not in", ["Cancelled", "Entered in Error", "Rejected"]],
+			"start_date": ["<=", billing_date],
+		},
+		fields=["name"],
+	)
+
+	created = []
+	skipped = []
+	failed = []
+
+	for row in observations:
+		obs = frappe.get_doc("Observation", row.name)
+		if not _observation_is_billable_on_date(obs, billing_date):
+			skipped.append(row.name)
+			continue
+
+		if _existing_observation_sales_order_for_date(row.name, billing_date):
+			skipped.append(row.name)
+			continue
+
+		try:
+			result = _create_observation_sales_order(obs, billing_date=billing_date)
+			created.append(result)
+			frappe.logger().info(
+				f"Created observation sales order {result['sales_order']} for {row.name} on {billing_date}"
+			)
+		except Exception as exc:
+			failed.append({"observation": row.name, "error": str(exc)})
+			frappe.log_error(
+				title=f"Daily observation sales order failed: {row.name}",
+				message=frappe.get_traceback(),
+			)
+
+	if created:
+		frappe.db.commit()
+
+	return {
+		"billing_date": str(billing_date),
+		"created": created,
+		"skipped": len(skipped),
+		"failed": failed,
+	}
 

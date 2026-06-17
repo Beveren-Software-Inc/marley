@@ -39,15 +39,20 @@ def get_iop_days(limit=50, offset=0, from_date=None, to_date=None):
 def get_iop_day_with_sessions(name):
 	"""Get one IOP Day with its sessions (for display/edit)."""
 	doc = frappe.get_doc("IOP Day", name)
+	sessions = [
+		{
+			"session_type": s.session_type,
+			"from_time": str(s.from_time) if s.from_time else None,
+			"to_time": str(s.to_time) if s.to_time else None,
+		}
+		for s in (doc.sessions or [])
+	]
 	return {
 		"name": doc.name,
 		"posting_date": doc.posting_date,
 		"company": doc.company,
 		"cost_center": doc.cost_center,
-		"sessions": [
-			{"session_type": s.session_type, "from_time": str(s.from_time) if s.from_time else None, "to_time": str(s.to_time) if s.to_time else None}
-			for s in (doc.sessions or [])
-		],
+		"sessions": _enrich_sessions_with_template_details(sessions),
 	}
 
 
@@ -149,18 +154,37 @@ def _linked_patient_visits_by_enrollment(enrollment_names):
 	return linked
 
 
-def _session_type_rates(session_types):
-	"""Map IOP Session Type name -> rate."""
-	if not session_types:
+def _healthcare_service_template_rates(template_names):
+	"""Map Healthcare Service Template name -> service_name, item_code, rate."""
+	if not template_names:
 		return {}
 	rates = {}
 	for row in frappe.get_all(
-		"IOP Session Type",
-		filters={"name": ["in", list(set(session_types))]},
-		fields=["name", "rate"],
+		"Healthcare Service Template",
+		filters={"name": ["in", list(set(template_names))]},
+		fields=["name", "service_name", "item_code", "rate"],
 	):
-		rates[row.name] = flt(row.get("rate"))
+		rates[row.name] = {
+			"service_name": row.service_name or row.name,
+			"item_code": row.item_code,
+			"rate": flt(row.get("rate")),
+		}
 	return rates
+
+
+def _enrich_sessions_with_template_details(sessions):
+	"""Add service_name and rate to session rows for the portal."""
+	if not sessions:
+		return sessions
+	rates = _healthcare_service_template_rates(
+		[s.get("session_type") for s in sessions if s.get("session_type")]
+	)
+	for session in sessions:
+		details = rates.get(session.get("session_type"), {})
+		session["service_name"] = details.get("service_name")
+		session["rate"] = details.get("rate")
+		session["item_code"] = details.get("item_code")
+	return sessions
 
 
 def _enrollment_cost_details(enrollment_name):
@@ -171,16 +195,24 @@ def _enrollment_cost_details(enrollment_name):
 		fields=["session_type"],
 	)
 	session_types = [s.session_type for s in sessions if s.session_type]
-	rates = _session_type_rates(session_types)
+	rates = _healthcare_service_template_rates(session_types)
 	session_costs = []
 	session_total = 0.0
 	for row in sessions:
 		st = row.session_type
 		if not st:
 			continue
-		amount = flt(rates.get(st))
+		details = rates.get(st, {})
+		amount = flt(details.get("rate"))
 		session_total += amount
-		session_costs.append({"session_type": st, "rate": amount})
+		session_costs.append(
+			{
+				"session_type": st,
+				"service_name": details.get("service_name"),
+				"item_code": details.get("item_code"),
+				"rate": amount,
+			}
+		)
 
 	visit_amount = 0.0
 	visit_name = frappe.db.get_value(

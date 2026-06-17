@@ -28,7 +28,7 @@ interface ServiceInvoicesListProps {
   toDate?: string
   statusFilter?: string
   /** Open Sales Invoice detail slide-over (same as specialty billing). */
-  onOpenInvoiceDetail: (invoiceName: string) => void
+  onOpenInvoiceDetail: (invoiceName: string, options?: { edit?: boolean }) => void
   /** Increment from parent to refetch after mutations elsewhere. */
   invoiceRefreshKey?: number
   /** After payment / cancel from this list. */
@@ -379,11 +379,11 @@ export const ServiceInvoicesList = ({
                                   type="button"
                                   onClick={() => {
                                     setOpenActionRow(null)
-                                    toast.info('Edit the draft in Desk or discard below.')
+                                    onOpenInvoiceDetail(invoice.name, { edit: true })
                                   }}
                                   className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                                 >
-                                  Edit
+                                  Edit items
                                 </button>
                               </>
                             )}
