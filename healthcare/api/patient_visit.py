@@ -589,9 +589,20 @@ def create_invoice(reference_doctype: str, reference_name: str):
             invoice.custom_patient_name = reference_doc.patient_name
     
     # Combine items from all Sales Orders
+    from healthcare.api.sales_order_cost_center import (
+        apply_cost_center_to_sales_invoice,
+        cost_center_from_sales_order,
+        cost_center_from_visit_or_admission,
+        sales_invoice_item_from_sales_order_item,
+    )
+
+    header_cc = None
     for so in sales_orders:
         sales_order_doc = frappe.get_doc("Sales Order", so.name)
-        
+        so_cc = cost_center_from_sales_order(sales_order_doc)
+        if not header_cc and so_cc:
+            header_cc = so_cc
+
         # Add items from this Sales Order
         for item in sales_order_doc.items:
             # Check if item already exists in invoice
@@ -600,19 +611,12 @@ def create_invoice(reference_doctype: str, reference_name: str):
                 if inv_item.item_code == item.item_code and inv_item.description == item.description:
                     existing_item = inv_item
                     break
-            
+
             if existing_item:
                 # Combine quantities
                 existing_item.qty += item.qty
             else:
-                # Add new item
-                invoice.append("items", {
-                    "item_code": item.item_code,
-                    "qty": item.qty,
-                    "rate": item.rate,
-                    "description": item.description,
-                    "sales_order": so.name  # Link back to Sales Order
-                })
+                invoice.append("items", sales_invoice_item_from_sales_order_item(sales_order_doc, item))
         
         # Combine taxes from all Sales Orders
         for tax in sales_order_doc.taxes:
@@ -634,7 +638,14 @@ def create_invoice(reference_doctype: str, reference_name: str):
     
     if not invoice.items:
         frappe.throw(_("No items found to create invoice"))
-    
+
+    if header_cc:
+        apply_cost_center_to_sales_invoice(invoice, header_cc)
+    else:
+        visit_cc = cost_center_from_visit_or_admission(reference_doctype, reference_name)
+        if visit_cc:
+            apply_cost_center_to_sales_invoice(invoice, visit_cc)
+
     # Insert invoice (draft)
     invoice.insert(ignore_permissions=True)
     
@@ -732,6 +743,18 @@ def try_create_patient_visit_for_iop_enrollment(enrollment_doc):
 		}
 	)
 	visit_doc.insert(ignore_permissions=True)
+	from healthcare.api.patient_visit_charge import maybe_create_iop_enrollment_visit_charge_sales_order
+
+	cost_center = None
+	if enrollment_doc.iop_day:
+		cost_center = frappe.db.get_value("IOP Day", enrollment_doc.iop_day, "cost_center")
+
+	maybe_create_iop_enrollment_visit_charge_sales_order(
+		visit_doc.name,
+		enrollment_doc,
+		charge_visit=True,
+		cost_center=cost_center,
+	)
 	return visit_doc.name
 
 
@@ -791,9 +814,36 @@ def create_patient_visit(data):
 		visit_doc.cost_center = cost_center
 
 	visit_doc.insert(ignore_permissions=True)
+
+	charge_result = None
+	charge_error = None
+	if iop_enrollment:
+		from healthcare.api.patient_visit_charge import maybe_create_iop_enrollment_visit_charge_sales_order
+
+		enrollment_doc = frappe.get_doc("IOP Enrollment", iop_enrollment)
+		charge_info = maybe_create_iop_enrollment_visit_charge_sales_order(
+			visit_doc.name,
+			enrollment_doc,
+			charge_visit=data.get("charge_visit"),
+			cost_center=cost_center,
+		)
+	else:
+		from healthcare.api.patient_visit_charge import maybe_create_patient_visit_charge_sales_order
+
+		charge_info = maybe_create_patient_visit_charge_sales_order(
+			visit_doc.name,
+			charge_visit=data.get("charge_visit"),
+			visit_type=visit_doc.visit_type,
+			cost_center=cost_center,
+		)
+	if charge_info and charge_info.get("error"):
+		charge_error = _("Visit charge order could not be created. Visit was saved.")
+	elif charge_info:
+		charge_result = charge_info
+
 	frappe.db.commit()
 
-	return {
+	result = {
 		"name": visit_doc.name,
 		"patient": visit_doc.patient,
 		"patient_name": visit_doc.patient_name,
@@ -808,8 +858,15 @@ def create_patient_visit(data):
 		"inpatient_record": visit_doc.inpatient_record,
 		"inpatient_status": visit_doc.inpatient_status,
 		"appointment": visit_doc.appointment,
-		"company": visit_doc.company
+		"company": visit_doc.company,
 	}
+	if charge_result:
+		result["sales_order"] = charge_result.get("sales_order")
+		result["visit_charge_rate"] = charge_result.get("rate")
+	if charge_error:
+		result["visit_charge_error"] = charge_error
+
+	return result
 
 
 def _apply_patient_visit_documents(doc, documents_data):

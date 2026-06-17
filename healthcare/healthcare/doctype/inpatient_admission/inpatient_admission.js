@@ -330,8 +330,12 @@ let transfer_to_cost_center_dialog = function(frm) {
 					if (!r.exc && r.message) {
 						dialog.hide();
 						frm.reload_doc();
+						let alert_msg = __('Transferred to {0}', [r.message.cost_center]);
+						if (r.message.billing && !r.message.billing.skipped && r.message.billing.invoices && r.message.billing.invoices.length) {
+							alert_msg += '. ' + __('Invoices: {0}', [r.message.billing.invoices.join(', ')]);
+						}
 						frappe.show_alert({
-							message: __('Transferred to {0}', [r.message.cost_center]),
+							message: alert_msg,
 							indicator: 'green',
 						});
 					}

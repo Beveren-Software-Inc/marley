@@ -79,11 +79,22 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     }
     try {
       setSubmitting(true)
-      await transferToAnotherCostCenter(admission.name, toCostCenter.trim(), {
+      const result = await transferToAnotherCostCenter(admission.name, toCostCenter.trim(), {
         toServiceUnit: toServiceUnit || undefined,
         reason: reason.trim() || undefined,
       })
-      toast.success(`Transferred to ${toCostCenter}`)
+      const billing = result.billing
+      if (billing && !billing.skipped && billing.invoices && billing.invoices.length > 0) {
+        if (billing.invoices.length === 1) {
+          toast.success(`Transferred to ${toCostCenter}. Invoice ${billing.invoices[0]} created.`)
+        } else {
+          toast.success(
+            `Transferred to ${toCostCenter}. Created ${billing.invoices.length} branch invoices: ${billing.invoices.join(', ')}`,
+          )
+        }
+      } else {
+        toast.success(`Transferred to ${toCostCenter}`)
+      }
       onSuccess()
       onClose()
     } catch (err) {

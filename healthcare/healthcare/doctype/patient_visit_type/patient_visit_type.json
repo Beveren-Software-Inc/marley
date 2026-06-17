@@ -6,7 +6,8 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "visit_type"
+  "visit_type",
+  "service_charge"
  ],
  "fields": [
   {
@@ -16,12 +17,18 @@
    "in_standard_filter": 1,
    "label": "Visit Type",
    "unique": 1
+  },
+  {
+   "fieldname": "service_charge",
+   "fieldtype": "Link",
+   "label": "Service Charge",
+   "options": "Healthcare Service Template"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 11:07:52.168111",
+ "modified": "2026-06-17 14:52:33.762723",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",

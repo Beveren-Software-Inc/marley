@@ -17,6 +17,9 @@ export interface PatientVisit {
   inpatient_status?: string
   appointment?: string
   company?: string
+  sales_order?: string
+  visit_charge_rate?: number
+  visit_charge_error?: string
   /** Optional uploaded documents from Patient Visit.documents child table */
   documents?: (PatientDocumentRow & { name?: string })[]
 }
@@ -205,6 +208,38 @@ export interface CreatePatientVisitData {
   cost_center?: string
   documents?: Record<string, unknown>[]
   status?: 'Open' | 'Ordered' | 'Completed' | 'Cancelled'
+  charge_visit?: boolean
+}
+
+export interface PatientVisitChargePreview {
+  configured: boolean
+  template?: string | null
+  service_name?: string | null
+  item_code?: string | null
+  item_name?: string | null
+  rate?: number
+  source?: 'visit_type' | 'default' | 'template' | null
+  visit_type?: string | null
+}
+
+export async function fetchPatientVisitChargePreview(
+  visitType?: string,
+): Promise<PatientVisitChargePreview> {
+  try {
+    const params = new URLSearchParams()
+    if (visitType) params.append('visit_type', visitType)
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_visit_charge.get_patient_visit_charge_preview?${params.toString()}`,
+      { credentials: 'include' },
+    )
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'object') {
+      return resData.message as PatientVisitChargePreview
+    }
+  } catch {
+    /* ignore */
+  }
+  return { configured: false, rate: 0 }
 }
 
 

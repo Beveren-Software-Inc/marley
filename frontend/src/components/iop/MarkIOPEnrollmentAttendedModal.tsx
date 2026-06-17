@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react'
-import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import { IOPHealthcareServiceTemplateSelect } from '../ui/IOPHealthcareServiceTemplateSelect'
 import {
   fetchIOPEnrollment,
   updateIOPEnrollment,
-  fetchIOPSessionTypes,
+  fetchIOPHealthcareServiceTemplates,
   type IOPEnrollmentWithSessions,
-  type IOPSessionType,
+  type IOPHealthcareServiceTemplate,
   type IOPEnrollmentSessionRow,
 } from '../../services/iop'
 import { toast } from '../../hooks/useToast'
@@ -25,7 +25,7 @@ export const MarkIOPEnrollmentAttendedModal = ({
   const [enrollment, setEnrollment] = useState<IOPEnrollmentWithSessions | null>(null)
   const [notes, setNotes] = useState('')
   const [sessions, setSessions] = useState<IOPEnrollmentSessionRow[]>([])
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
+  const [sessionTemplates, setSessionTemplates] = useState<IOPHealthcareServiceTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -34,12 +34,12 @@ export const MarkIOPEnrollmentAttendedModal = ({
     let cancelled = false
     setLoading(true)
     setError(null)
-    Promise.all([fetchIOPEnrollment(enrollmentName), fetchIOPSessionTypes()])
-      .then(([enr, types]) => {
+    Promise.all([fetchIOPEnrollment(enrollmentName), fetchIOPHealthcareServiceTemplates()])
+      .then(([enr, templates]) => {
         if (cancelled) return
         setEnrollment(enr)
         setNotes(enr.notes || '')
-        setSessionTypes(types)
+        setSessionTemplates(templates)
         const rows = enr.iop_session?.length
           ? enr.iop_session.map((s) => ({ session_type: s.session_type, notes: s.notes || '' }))
           : [{ session_type: '', notes: '' }]
@@ -142,13 +142,13 @@ export const MarkIOPEnrollmentAttendedModal = ({
               <div className="space-y-2">
                 {sessions.map((row, idx) => (
                   <div key={idx} className="flex flex-wrap items-start gap-2 p-2 border border-slate-200 rounded-md">
-                    <IOPSessionTypeSelect
+                    <IOPHealthcareServiceTemplateSelect
                       value={row.session_type}
                       onChange={(value) => updateSession(idx, 'session_type', value)}
-                      types={sessionTypes}
-                      onTypesUpdated={setSessionTypes}
+                      templates={sessionTemplates}
+                      onTemplatesUpdated={setSessionTemplates}
                       className="flex-1 min-w-[140px]"
-                      placeholder="Select session type..."
+                      placeholder="Select healthcare service..."
                     />
                     <textarea
                       value={row.notes || ''}

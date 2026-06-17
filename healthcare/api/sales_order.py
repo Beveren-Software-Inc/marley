@@ -1,10 +1,13 @@
 import frappe
-from frappe.utils import today, getdate
+from frappe.utils import cint, today, getdate
 
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
+	apply_cost_center_to_sales_invoice,
 	cost_center_from_base_reference,
+	cost_center_from_sales_order,
 	cost_center_from_visit_or_admission,
+	sales_invoice_item_from_sales_order_item,
 )
 
 @frappe.whitelist()
@@ -326,6 +329,150 @@ def _load_billable_sales_orders_by_names(names):
 	return docs
 
 
+def close_all_cost_before_patient_transfer_enabled() -> bool:
+	return cint(
+		frappe.db.get_single_value(
+			"Healthcare Settings", "close_all_cost_before_patient_transfer"
+		)
+	)
+
+
+def _group_sales_orders_by_cost_center(sales_orders):
+	groups: dict[str, list] = {}
+	for so in sales_orders:
+		cc = cost_center_from_sales_order(so) or ""
+		groups.setdefault(cc, []).append(so)
+	return groups
+
+
+def _create_invoices_from_sales_orders_by_cost_center(
+	sales_orders,
+	reference_type=None,
+	reference_name=None,
+	patient=None,
+):
+	"""Create one Sales Invoice per distinct cost center on the selected orders."""
+	invoices = []
+	for cc, group in _group_sales_orders_by_cost_center(sales_orders).items():
+		invoice_name = _create_invoice_from_sales_orders(
+			group,
+			reference_type=reference_type,
+			reference_name=reference_name,
+			patient=patient,
+		)
+		invoices.append({"invoice": invoice_name, "cost_center": cc or None})
+	return invoices
+
+
+def _invoice_sales_orders(
+	sales_orders,
+	reference_type=None,
+	reference_name=None,
+	patient=None,
+):
+	"""Create invoice(s), splitting by cost center when Healthcare Settings requires it."""
+	if not sales_orders:
+		frappe.throw(frappe._("Select at least one sales order to invoice."))
+
+	if close_all_cost_before_patient_transfer_enabled():
+		details = _create_invoices_from_sales_orders_by_cost_center(
+			sales_orders,
+			reference_type=reference_type,
+			reference_name=reference_name,
+			patient=patient,
+		)
+		if len(details) == 1:
+			return details[0]["invoice"]
+		return {
+			"split_by_cost_center": True,
+			"invoices": [row["invoice"] for row in details],
+			"details": details,
+		}
+
+	return _create_invoice_from_sales_orders(
+		sales_orders,
+		reference_type=reference_type,
+		reference_name=reference_name,
+		patient=patient,
+	)
+
+
+def _pending_billable_sales_order_names(
+	reference_type=None,
+	reference_name=None,
+	patient=None,
+):
+	"""Submitted, not-yet-invoiced Sales Order names for a reference or patient."""
+	names: list[str] = []
+
+	if reference_type and reference_name:
+		filters = {
+			"custom_reference_type": reference_type,
+			"custom_reference_name": reference_name,
+			"docstatus": 1,
+		}
+		from healthcare.api.common import get_permitted_cost_centers
+
+		permitted_cc = get_permitted_cost_centers()
+		if permitted_cc is not None:
+			if not permitted_cc:
+				return []
+			filters["cost_center"] = ["in", permitted_cc]
+
+		for row in frappe.get_all("Sales Order", filters=filters, fields=["name"]):
+			if not frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
+				names.append(row.name)
+
+	if patient:
+		from healthcare.api.patient_file_no_charge import pending_file_no_charge_sales_orders
+
+		for name in pending_file_no_charge_sales_orders(patient):
+			if name not in names:
+				names.append(name)
+
+	return names
+
+
+def close_pending_costs_for_admission(inpatient_admission: str) -> dict:
+	"""Invoice pending admission sales orders before a cost-center transfer (when setting enabled)."""
+	if not close_all_cost_before_patient_transfer_enabled():
+		return {"skipped": True, "invoices": [], "details": []}
+
+	if not inpatient_admission or not frappe.db.exists("Inpatient Admission", inpatient_admission):
+		frappe.throw(frappe._("Inpatient Admission not found"))
+
+	patient = frappe.db.get_value("Inpatient Admission", inpatient_admission, "patient")
+	names = _pending_billable_sales_order_names(
+		"Inpatient Admission",
+		inpatient_admission,
+		patient=patient,
+	)
+	if not names:
+		return {"skipped": False, "invoices": [], "details": [], "message": "No pending sales orders"}
+
+	sales_orders = _load_billable_sales_orders_by_names(names)
+	result = _invoice_sales_orders(
+		sales_orders,
+		reference_type="Inpatient Admission",
+		reference_name=inpatient_admission,
+		patient=patient,
+	)
+
+	if isinstance(result, str):
+		return {
+			"skipped": False,
+			"invoices": [result],
+			"details": [{"invoice": result, "cost_center": None}],
+		}
+
+	return {
+		"skipped": False,
+		"invoices": result.get("invoices") or [],
+		"details": result.get("details") or [],
+		"split_by_cost_center": True,
+	}
+
+
 def _create_invoice_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
 	"""Build one Sales Invoice from one or more submitted Sales Orders."""
 	first = sales_orders[0]
@@ -335,6 +482,8 @@ def _create_invoice_from_sales_orders(sales_orders, reference_type=None, referen
 
 	invoice = frappe.new_doc("Sales Invoice")
 	invoice.customer = first.customer
+	if getattr(first, "company", None):
+		invoice.company = first.company
 	if ref_type:
 		invoice.custom_reference_type = ref_type
 	if ref_name:
@@ -348,29 +497,24 @@ def _create_invoice_from_sales_orders(sales_orders, reference_type=None, referen
 	invoice.due_date = frappe.utils.add_days(today(), 30)
 
 	items_added = 0
+	header_cc = None
 	for so in sales_orders:
-		so_items = frappe.get_all(
-			"Sales Order Item",
-			filters={"parent": so.name},
-			fields=["item_code", "item_name", "qty", "rate", "amount", "description"],
-		)
-		for item in so_items:
-			invoice.append(
-				"items",
-				{
-					"item_code": item.item_code,
-					"item_name": item.item_name or item.item_code,
-					"qty": item.qty,
-					"rate": item.rate,
-					"amount": item.amount,
-					"description": item.description or frappe._("Order: {0}").format(so.name),
-					"sales_order": so.name,
-				},
-			)
+		so_cc = cost_center_from_sales_order(so)
+		if not header_cc and so_cc:
+			header_cc = so_cc
+		for item in so.items:
+			invoice.append("items", sales_invoice_item_from_sales_order_item(so, item))
 			items_added += 1
 
 	if items_added == 0:
 		frappe.throw(frappe._("No items found in the sales orders to invoice"))
+
+	if header_cc:
+		apply_cost_center_to_sales_invoice(invoice, header_cc)
+	elif ref_type and ref_name:
+		visit_cc = cost_center_from_visit_or_admission(ref_type, ref_name)
+		if visit_cc:
+			apply_cost_center_to_sales_invoice(invoice, visit_cc)
 
 	invoice.save()
 	frappe.db.commit()
@@ -390,7 +534,7 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 
 	if sales_order_names:
 		sales_orders = _load_billable_sales_orders_by_names(sales_order_names)
-		return _create_invoice_from_sales_orders(
+		return _invoice_sales_orders(
 			sales_orders,
 			reference_type=reference_type,
 			reference_name=reference_name,
@@ -398,35 +542,11 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 		)
 
 	if reference_type and reference_name:
-		filters = {
-			"custom_reference_type": reference_type,
-			"custom_reference_name": reference_name,
-			"docstatus": 1,
-		}
-		from healthcare.api.common import get_permitted_cost_centers
-
-		permitted_cc = get_permitted_cost_centers()
-		if permitted_cc is not None:
-			if not permitted_cc:
-				frappe.throw(frappe._("You do not have permission to bill these orders."))
-			filters["cost_center"] = ["in", permitted_cc]
-
-		order_rows = frappe.get_all(
-			"Sales Order",
-			filters=filters,
-			fields=["name"],
+		names = _pending_billable_sales_order_names(
+			reference_type,
+			reference_name,
+			patient=patient,
 		)
-		names = []
-		for row in order_rows:
-			if not frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
-				names.append(row.name)
-
-		if patient:
-			from healthcare.api.patient_file_no_charge import pending_file_no_charge_sales_orders
-
-			for name in pending_file_no_charge_sales_orders(patient):
-				if name not in names:
-					names.append(name)
 
 		if not names:
 			all_orders = frappe.get_all(
@@ -449,7 +569,7 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 			)
 
 		sales_orders = _load_billable_sales_orders_by_names(names)
-		return _create_invoice_from_sales_orders(
+		return _invoice_sales_orders(
 			sales_orders,
 			reference_type=reference_type,
 			reference_name=reference_name,
@@ -457,13 +577,11 @@ def create_bulk_invoice(reference_type=None, reference_name=None, sales_order_na
 		)
 
 	if patient:
-		from healthcare.api.patient_file_no_charge import pending_file_no_charge_sales_orders
-
-		names = pending_file_no_charge_sales_orders(patient)
+		names = _pending_billable_sales_order_names(patient=patient)
 		if not names:
 			frappe.throw(frappe._("No pending sales orders found for patient {0}.").format(patient))
 		sales_orders = _load_billable_sales_orders_by_names(names)
-		return _create_invoice_from_sales_orders(
+		return _invoice_sales_orders(
 			sales_orders,
 			reference_type="Patient",
 			reference_name=patient,

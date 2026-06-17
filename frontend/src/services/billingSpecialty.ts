@@ -37,13 +37,17 @@ export interface SalesInvoiceDetail {
   custom_reference_name?: string | null
   patient?: string | null
   items: Array<{
+    name?: string
     item_code: string
     item_name?: string
     description?: string
     qty: number
     rate?: number
     amount?: number
+    discount_amount?: number
+    discount_percentage?: number
     net_amount?: number
+    cost_center?: string | null
   }>
 }
 
@@ -105,6 +109,41 @@ export async function cancelOrDeleteSalesInvoice(invoiceName: string): Promise<v
   })
   const data = await res.json()
   if (!res.ok) throw new Error(data?.message || 'Cancel failed')
+}
+
+export type SalesInvoiceItemUpdate = {
+  name: string
+  qty?: number
+  rate?: number
+  discount_amount?: number
+  discount_percentage?: number
+  cost_center?: string
+}
+
+export async function updateSalesInvoiceItems(
+  invoiceName: string,
+  items: SalesInvoiceItemUpdate[],
+): Promise<SalesInvoiceDetail> {
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.billing.update_sales_invoice_items', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ invoice_name: invoiceName, items }),
+  })
+  const data = await res.json()
+  if (!res.ok) {
+    const msg =
+      typeof data?.message === 'string'
+        ? data.message
+        : data?.exc || data?._server_messages || 'Failed to save invoice'
+    throw new Error(typeof msg === 'string' ? msg : 'Failed to save invoice')
+  }
+  if (!data.message) throw new Error('Failed to save invoice')
+  return data.message as SalesInvoiceDetail
 }
 
 export interface InternalBillingSummary {

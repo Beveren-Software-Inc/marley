@@ -382,6 +382,13 @@ export interface TransferToCostCenterResult {
   inpatient_admission: string
   cost_center: string
   to_service_unit?: string
+  billing?: {
+    skipped?: boolean
+    invoices?: string[]
+    details?: Array<{ invoice: string; cost_center?: string | null }>
+    split_by_cost_center?: boolean
+    message?: string
+  }
 }
 
 export interface PatientVisitorInput {

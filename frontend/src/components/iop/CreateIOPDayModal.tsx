@@ -7,12 +7,12 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import { IOPHealthcareServiceTemplateSelect } from '../ui/IOPHealthcareServiceTemplateSelect'
 import {
   createIOPDay,
-  fetchIOPSessionTypes,
+  fetchIOPHealthcareServiceTemplates,
   fetchCompanies,
-  type IOPSessionType,
+  type IOPHealthcareServiceTemplate,
 } from '../../services/iop'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
@@ -28,12 +28,12 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
   const [posting_date, setPostingDate] = useState(() => new Date().toISOString().split('T')[0])
   const [defaultCompany, setDefaultCompany] = useState('')
   const [sessions, setSessions] = useState<SessionRow[]>([{ session_type: '' }])
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
+  const [sessionTemplates, setSessionTemplates] = useState<IOPHealthcareServiceTemplate[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
+    fetchIOPHealthcareServiceTemplates().then(setSessionTemplates).catch(() => setSessionTemplates([]))
     fetchCompanies()
       .then((companies) => {
         if (companies.length > 0) setDefaultCompany(companies[0].name)
@@ -66,7 +66,7 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
     }
     const validSessions = sessions.filter((s) => s.session_type)
     if (validSessions.length === 0) {
-      setError('Add at least one session with Session Type')
+      setError('Add at least one session with a Healthcare Service')
       return
     }
     try {
@@ -116,13 +116,13 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
             <div className="space-y-2">
               {sessions.map((row, idx) => (
                 <div key={idx} className="flex items-center gap-2 p-2 border border-slate-200 rounded-md">
-                  <IOPSessionTypeSelect
+                  <IOPHealthcareServiceTemplateSelect
                     value={row.session_type}
                     onChange={(value) => updateSession(idx, value)}
-                    types={sessionTypes}
-                    onTypesUpdated={setSessionTypes}
+                    templates={sessionTemplates}
+                    onTemplatesUpdated={setSessionTemplates}
                     className="flex-1 min-w-0"
-                    placeholder="Select session type..."
+                    placeholder="Select healthcare service..."
                   />
                   <button
                     type="button"

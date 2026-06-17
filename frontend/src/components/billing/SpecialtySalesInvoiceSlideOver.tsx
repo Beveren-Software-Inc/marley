@@ -1,11 +1,30 @@
 import { useState, useEffect } from 'react'
-import { Loader2, ExternalLink } from 'lucide-react'
-import { fetchSalesInvoiceDetail, submitSalesInvoiceDoc, cancelOrDeleteSalesInvoice, type SalesInvoiceDetail } from '../../services/billingSpecialty'
+import { Loader2, ExternalLink, Receipt } from 'lucide-react'
+import {
+  fetchSalesInvoiceDetail,
+  submitSalesInvoiceDoc,
+  cancelOrDeleteSalesInvoice,
+  updateSalesInvoiceItems,
+  type SalesInvoiceDetail,
+} from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaymentModal } from './PaymentModal'
 import { canRecordPaymentAgainstSalesInvoice } from '../../utils/specialtyInvoiceActions'
+import {
+  DraftSalesInvoiceItemsEditor,
+  invoiceDetailToEditableLines,
+  type DraftInvoiceLineEdit,
+} from './DraftSalesInvoiceItemsEditor'
+import {
+  CM_BTN_CANCEL,
+  CM_BTN_PRIMARY,
+  DetailSlideOver,
+  MODAL_ERROR_BOX_CLASS,
+  MODAL_SECTION_CLASS,
+  MODAL_SECTION_TITLE_CLASS,
+} from '../ui/CreateModalChrome'
 
 /** API / JSON may send docstatus as string; strict === 0 fails in TS otherwise. */
 function normalizeDocstatus(ds: unknown): number | undefined {
@@ -39,18 +58,23 @@ interface SpecialtySalesInvoiceSlideOverProps {
   invoiceName: string | null
   onClose: () => void
   onUpdated?: () => void
+  /** Open directly in line-edit mode (draft invoices only). */
+  initialEditMode?: boolean
 }
 
 export function SpecialtySalesInvoiceSlideOver({
   invoiceName,
   onClose,
   onUpdated,
+  initialEditMode = false,
 }: SpecialtySalesInvoiceSlideOverProps) {
   const [detail, setDetail] = useState<SalesInvoiceDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [actionBusy, setActionBusy] = useState<'submit' | 'cancel' | null>(null)
+  const [actionBusy, setActionBusy] = useState<'submit' | 'cancel' | 'save' | null>(null)
   const [showPayment, setShowPayment] = useState(false)
+  const [editing, setEditing] = useState(initialEditMode)
+  const [editLines, setEditLines] = useState<DraftInvoiceLineEdit[]>([])
   const formatMoney = useFormatMoney(detail?.company ?? null)
 
   const load = async () => {
@@ -72,10 +96,55 @@ export function SpecialtySalesInvoiceSlideOver({
       setDetail(null)
       setError(null)
       setShowPayment(false)
+      setEditing(false)
+      setEditLines([])
       return
     }
+    setEditing(initialEditMode)
     void load()
-  }, [invoiceName])
+  }, [invoiceName, initialEditMode])
+
+  useEffect(() => {
+    if (detail && editing) {
+      setEditLines(invoiceDetailToEditableLines(detail))
+    }
+  }, [detail, editing])
+
+  const startEditing = () => {
+    if (!detail) return
+    setEditLines(invoiceDetailToEditableLines(detail))
+    setEditing(true)
+  }
+
+  const cancelEditing = () => {
+    setEditing(false)
+    if (detail) setEditLines(invoiceDetailToEditableLines(detail))
+  }
+
+  const handleSaveItems = async () => {
+    if (!invoiceName || !editLines.length) return
+    try {
+      setActionBusy('save')
+      const updated = await updateSalesInvoiceItems(
+        invoiceName,
+        editLines.map((line) => ({
+          name: line.name,
+          qty: line.qty,
+          rate: line.rate,
+          discount_amount: line.discount_amount,
+          cost_center: line.cost_center || undefined,
+        })),
+      )
+      setDetail(updated)
+      setEditing(false)
+      toast.success('Invoice updated')
+      onUpdated?.()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Save failed')
+    } finally {
+      setActionBusy(null)
+    }
+  }
 
   if (!invoiceName) return null
 
@@ -114,100 +183,169 @@ export function SpecialtySalesInvoiceSlideOver({
     }
   }
 
-  return (
+  const headerActions = (
     <>
-    <div className="fixed inset-0 z-[70] flex items-start justify-end" onClick={onClose}>
-      <div className="absolute inset-0 bg-black/30" />
-      <div
-        className="relative z-10 flex h-screen min-h-0 w-full max-w-2xl flex-col bg-white shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+      <a
+        href={deskUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-800 hover:bg-emerald-50"
+        title="Open in Desk"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 bg-slate-50 shrink-0 gap-3">
-          <div className="min-w-0">
-            <p className="text-[11px] text-slate-500 uppercase tracking-wide">Sales Invoice</p>
-            <p className="text-sm font-semibold text-slate-900 font-mono truncate">{invoiceName}</p>
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
+        <ExternalLink className="w-4 h-4" />
+      </a>
+      <PrintFormatDropdown
+        doctype="Sales Invoice"
+        docName={invoiceName}
+        noLetterhead={0}
+        triggerPrint={1}
+        className="inline-flex items-center justify-center w-9 h-9 rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-800 hover:bg-emerald-50"
+      />
+    </>
+  )
+
+  const footer =
+    detail && (isDraftInvoiceDetail(detail) || isSubmittedInvoiceDetail(detail)) ? (
+      <div className="flex flex-wrap items-center justify-end gap-2 w-full">
+        {isDraftInvoiceDetail(detail) && editing ? (
+          <>
+            <button type="button" disabled={!!actionBusy} onClick={cancelEditing} className={CM_BTN_CANCEL}>
+              Cancel edit
+            </button>
+            <button
+              type="button"
+              disabled={!!actionBusy}
+              onClick={() => void handleSaveItems()}
+              className={`${CM_BTN_PRIMARY} inline-flex items-center gap-2`}
+            >
+              {actionBusy === 'save' && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save changes
+            </button>
+          </>
+        ) : (
+          <>
             <a
               href={deskUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
-              title="Open in Desk"
+              className={`${CM_BTN_CANCEL} inline-flex items-center gap-1.5`}
             >
               <ExternalLink className="w-4 h-4" />
+              Open in Desk
             </a>
-            <PrintFormatDropdown
-              doctype="Sales Invoice"
-              docName={invoiceName}
-              noLetterhead={0}
-              triggerPrint={1}
-            />
-            <button
-              type="button"
-              onClick={onClose}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
-              aria-label="Close"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            {isDraftInvoiceDetail(detail) && (
+              <button type="button" onClick={startEditing} className={CM_BTN_CANCEL}>
+                Edit items
+              </button>
+            )}
+            {isDraftInvoiceDetail(detail) && (
+              <button
+                type="button"
+                disabled={!!actionBusy}
+                onClick={() => void handleSubmit()}
+                className={`${CM_BTN_PRIMARY} inline-flex items-center gap-2`}
+              >
+                {actionBusy === 'submit' && <Loader2 className="w-4 h-4 animate-spin" />}
+                Submit invoice
+              </button>
+            )}
+            {isSubmittedInvoiceDetail(detail) && canRecordPaymentAgainstSalesInvoice(detail) && (
+              <button
+                type="button"
+                disabled={!!actionBusy}
+                onClick={() => setShowPayment(true)}
+                className={CM_BTN_PRIMARY}
+              >
+                Record payment
+              </button>
+            )}
+            {isDraftInvoiceDetail(detail) && (
+              <button
+                type="button"
+                disabled={!!actionBusy}
+                onClick={() => void handleCancel()}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+                Discard draft
+              </button>
+            )}
+            {isSubmittedInvoiceDetail(detail) && (
+              <button
+                type="button"
+                disabled={!!actionBusy}
+                onClick={() => void handleCancel()}
+                className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+                Cancel invoice
+              </button>
+            )}
+          </>
+        )}
+      </div>
+    ) : null
+
+  return (
+    <>
+      <DetailSlideOver
+        title="Sales Invoice"
+        subtitle={<span className="font-mono text-xs">{invoiceName}</span>}
+        icon={<Receipt className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+        headerActions={headerActions}
+        onClose={onClose}
+        footer={footer}
+        maxWidthClass="max-w-2xl"
+      >
+        {loading && (
+          <div className="flex items-center justify-center gap-2 py-16 text-sm text-emerald-800/70">
+            <Loader2 className="w-5 h-5 animate-spin" />
+            Loading invoice…
           </div>
-        </div>
-
-        {/* Scrollable Content */}
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          {loading && (
-            <div className="flex items-center gap-2 text-sm text-slate-500 py-12 justify-center">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Loading invoice…
+        )}
+        {!loading && error && <div className={MODAL_ERROR_BOX_CLASS}>{error}</div>}
+        {!loading && detail && (
+          <div className="space-y-4">
+            <div className={`${MODAL_SECTION_CLASS} flex flex-wrap items-center gap-2`}>
+              <span
+                className={`inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+                  normalizeDocstatus(detail.docstatus) === 0
+                    ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-200/80'
+                    : normalizeDocstatus(detail.docstatus) === 1
+                      ? 'bg-emerald-100 text-emerald-900 ring-1 ring-emerald-200/80'
+                      : 'bg-slate-100 text-slate-600'
+                }`}
+              >
+                {docstatusLabel(detail.docstatus)}
+              </span>
+              <span className="inline-flex px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-800 ring-1 ring-emerald-100">
+                {detail.status}
+              </span>
             </div>
-          )}
-          {!loading && error && (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
-          )}
-          {!loading && detail && (
-            <div className="space-y-5 pb-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${
-                    normalizeDocstatus(detail.docstatus) === 0
-                      ? 'bg-amber-100 text-amber-900'
-                      : normalizeDocstatus(detail.docstatus) === 1
-                        ? 'bg-emerald-100 text-emerald-900'
-                        : 'bg-slate-100 text-slate-600'
-                  }`}
-                >
-                  {docstatusLabel(detail.docstatus)}
-                </span>
-                <span className="inline-flex px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700">
-                  {detail.status}
-                </span>
-              </div>
 
+            <div className={MODAL_SECTION_CLASS}>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>Invoice details</h3>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div>
-                  <dt className="text-[11px] font-medium text-slate-500 uppercase">Customer</dt>
-                  <dd className="text-slate-900">{detail.customer_name || detail.customer}</dd>
+                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Customer</dt>
+                  <dd className="text-emerald-950">{detail.customer_name || detail.customer}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-medium text-slate-500 uppercase">Company</dt>
-                  <dd className="text-slate-900">{detail.company || '—'}</dd>
+                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Company</dt>
+                  <dd className="text-emerald-950">{detail.company || '—'}</dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-medium text-slate-500 uppercase">Posting / Due</dt>
-                  <dd className="text-slate-900">
+                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Posting / Due</dt>
+                  <dd className="text-emerald-950">
                     {detail.posting_date || '—'}
                     {detail.due_date ? ` · Due ${detail.due_date}` : ''}
                   </dd>
                 </div>
                 <div>
-                  <dt className="text-[11px] font-medium text-slate-500 uppercase">Totals</dt>
-                  <dd className="text-slate-900 font-medium tabular-nums">
+                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Totals</dt>
+                  <dd className="text-emerald-950 font-semibold tabular-nums">
                     {formatMoney(detail.grand_total)}
-                    <span className="text-slate-500 font-normal">
+                    <span className="text-emerald-800/60 font-normal">
                       {' '}
                       · Outst. {formatMoney(detail.outstanding_amount)}
                     </span>
@@ -215,14 +353,16 @@ export function SpecialtySalesInvoiceSlideOver({
                 </div>
                 {(detail.collection_cost_center_name || detail.custom_created_at) && (
                   <div className="sm:col-span-2">
-                    <dt className="text-[11px] font-medium text-slate-500 uppercase">Collection branch</dt>
-                    <dd className="text-slate-900">{detail.collection_cost_center_name || detail.custom_created_at}</dd>
+                    <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Collection branch</dt>
+                    <dd className="text-emerald-950">
+                      {detail.collection_cost_center_name || detail.custom_created_at}
+                    </dd>
                   </div>
                 )}
                 {(detail.custom_reference_name || detail.patient) && (
                   <div className="sm:col-span-2">
-                    <dt className="text-[11px] font-medium text-slate-500 uppercase">Reference / Patient</dt>
-                    <dd className="text-slate-900 text-xs">
+                    <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Reference / Patient</dt>
+                    <dd className="text-emerald-950 text-xs">
                       {detail.custom_reference_type && detail.custom_reference_name
                         ? `${detail.custom_reference_type} ${detail.custom_reference_name}`
                         : '—'}
@@ -231,32 +371,61 @@ export function SpecialtySalesInvoiceSlideOver({
                   </div>
                 )}
               </dl>
+            </div>
 
-              <div>
-                <h3 className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Items</h3>
-                <div className="rounded-lg border border-slate-200 overflow-hidden">
+            <div className={MODAL_SECTION_CLASS}>
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <h3 className={MODAL_SECTION_TITLE_CLASS}>Items</h3>
+                {isDraftInvoiceDetail(detail) && !editing ? (
+                  <button
+                    type="button"
+                    onClick={startEditing}
+                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-900 hover:underline"
+                  >
+                    Edit items
+                  </button>
+                ) : null}
+              </div>
+              {isDraftInvoiceDetail(detail) && editing ? (
+                <DraftSalesInvoiceItemsEditor
+                  lines={editLines}
+                  onChange={setEditLines}
+                  company={detail.company}
+                  disabled={actionBusy === 'save'}
+                />
+              ) : (
+                <div className="rounded-xl border border-emerald-100 overflow-hidden">
                   <table className="min-w-full text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200">
+                    <thead className="bg-emerald-50/80 border-b border-emerald-100">
                       <tr>
-                        <th className="text-left px-3 py-2 font-medium text-slate-600">Item</th>
-                        <th className="text-right px-3 py-2 font-medium text-slate-600">Qty</th>
-                        <th className="text-right px-3 py-2 font-medium text-slate-600">Rate</th>
-                        <th className="text-right px-3 py-2 font-medium text-slate-600">Amount</th>
+                        <th className="text-left px-3 py-2 font-medium text-emerald-900/80">Item</th>
+                        <th className="text-right px-3 py-2 font-medium text-emerald-900/80">Qty</th>
+                        <th className="text-right px-3 py-2 font-medium text-emerald-900/80">Rate</th>
+                        <th className="text-right px-3 py-2 font-medium text-emerald-900/80">Discount</th>
+                        <th className="text-right px-3 py-2 font-medium text-emerald-900/80">Amount</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100">
+                    <tbody className="divide-y divide-emerald-50 bg-white">
                       {detail.items?.length ? (
                         detail.items.map((line, i) => (
-                          <tr key={`${line.item_code}-${i}`}>
-                            <td className="px-3 py-2 text-slate-800">
+                          <tr key={`${line.name || line.item_code}-${i}`} className="hover:bg-emerald-50/30">
+                            <td className="px-3 py-2 text-emerald-950">
                               <div className="font-medium">{line.item_name || line.item_code}</div>
-                              <div className="text-[10px] font-mono text-slate-500">{line.item_code}</div>
+                              <div className="text-[10px] font-mono text-emerald-800/50">{line.item_code}</div>
                               {line.description ? (
-                                <div className="text-[11px] text-slate-500 mt-0.5">{line.description}</div>
+                                <div className="text-[11px] text-emerald-800/60 mt-0.5">{line.description}</div>
+                              ) : null}
+                              {line.cost_center ? (
+                                <div className="text-[10px] text-emerald-700/60 mt-0.5">Branch: {line.cost_center}</div>
                               ) : null}
                             </td>
                             <td className="px-3 py-2 text-right tabular-nums">{line.qty}</td>
-                            <td className="px-3 py-2 text-right tabular-nums">{formatMoney(Number(line.rate || 0))}</td>
+                            <td className="px-3 py-2 text-right tabular-nums">
+                              {formatMoney(Number(line.rate || 0))}
+                            </td>
+                            <td className="px-3 py-2 text-right tabular-nums text-emerald-800/70">
+                              {line.discount_amount ? formatMoney(Number(line.discount_amount)) : '—'}
+                            </td>
                             <td className="px-3 py-2 text-right tabular-nums font-medium">
                               {formatMoney(Number(line.amount ?? line.net_amount ?? 0))}
                             </td>
@@ -264,7 +433,7 @@ export function SpecialtySalesInvoiceSlideOver({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={4} className="px-3 py-6 text-center text-slate-400">
+                          <td colSpan={5} className="px-3 py-8 text-center text-emerald-800/40">
                             No lines
                           </td>
                         </tr>
@@ -272,73 +441,11 @@ export function SpecialtySalesInvoiceSlideOver({
                     </tbody>
                   </table>
                 </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Fixed Footer with Buttons */}
-        {detail && (isDraftInvoiceDetail(detail) || isSubmittedInvoiceDetail(detail)) && (
-          <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-4 shadow-lg">
-            <div className="flex flex-wrap gap-2 justify-end">
-              <a
-                href={deskUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-sm font-semibold hover:bg-slate-50 inline-flex items-center gap-1.5 transition-colors"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Edit in Desk
-              </a>
-              {isDraftInvoiceDetail(detail) && (
-                <button
-                  type="button"
-                  disabled={!!actionBusy}
-                  onClick={() => void handleSubmit()}
-                  className="px-4 py-2 rounded-lg bg-primary text-white text-sm font-semibold hover:bg-primary/90 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
-                >
-                  {actionBusy === 'submit' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Submit invoice
-                </button>
-              )}
-              {isSubmittedInvoiceDetail(detail) && canRecordPaymentAgainstSalesInvoice(detail) && (
-                <button
-                  type="button"
-                  disabled={!!actionBusy}
-                  onClick={() => setShowPayment(true)}
-                  className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 disabled:opacity-50 transition-colors"
-                >
-                  Record payment
-                </button>
-              )}
-              {isDraftInvoiceDetail(detail) && (
-                <button
-                  type="button"
-                  disabled={!!actionBusy}
-                  onClick={() => void handleCancel()}
-                  className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
-                >
-                  {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Discard draft
-                </button>
-              )}
-              {isSubmittedInvoiceDetail(detail) && (
-                <button
-                  type="button"
-                  disabled={!!actionBusy}
-                  onClick={() => void handleCancel()}
-                  className="px-4 py-2 rounded-lg border border-red-300 text-red-700 text-sm font-semibold hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2 transition-colors"
-                >
-                  {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
-                  Cancel invoice
-                </button>
               )}
             </div>
           </div>
         )}
-      </div>
-
-    </div>
+      </DetailSlideOver>
 
       <PaymentModal
         isOpen={showPayment}

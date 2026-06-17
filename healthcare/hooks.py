@@ -399,7 +399,10 @@ scheduler_events = {
 	"cron": {
 		"0 */2 * * *": [
 			"healthcare.api.medicine_given.create_missed_medicine_for_active_admissions",
-		]
+		],
+		"59 23 * * *": [
+			"healthcare.api.observation.create_daily_observation_sales_orders",
+		],
 	},
 	"daily": [
 		"healthcare.healthcare.doctype.patient_appointment.patient_appointment.update_appointment_status",

@@ -62,14 +62,21 @@ export const BulkInvoiceModal = ({
     }
     try {
       setSaving(true)
-      const invoiceName = await createBulkInvoice({
+      const result = await createBulkInvoice({
         salesOrderNames: [...selected],
         referenceType,
         referenceName,
         patient,
       })
-      toast.success(`Invoice ${invoiceName} created`)
-      onSuccess(invoiceName)
+      if (typeof result === 'string') {
+        toast.success(`Invoice ${result} created`)
+        onSuccess(result)
+      } else {
+        toast.success(
+          `Created ${result.invoices.length} invoices (one per branch): ${result.invoices.join(', ')}`,
+        )
+        onSuccess(result.invoices[0])
+      }
       onClose()
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Failed to create invoice'

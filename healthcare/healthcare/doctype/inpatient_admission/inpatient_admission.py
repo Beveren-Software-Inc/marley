@@ -670,8 +670,10 @@ def transfer_to_another_cost_center(
 	Transfer an inpatient admission from current cost center (hospital) to another.
 	Creates a Transfer Admission Event for audit trail, checks out from current bed,
 	updates admission cost_center, and optionally checks in to a bed in the new cost center.
+
+	When Healthcare Settings → Close All Cost Before Patient Transfer is enabled,
+	pending sales orders on this admission are invoiced first (one invoice per branch).
 	"""
-	print("Are you at home")
 	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_admission)
 	if inpatient_record.status != "Admitted":
 		frappe.throw(
@@ -720,6 +722,10 @@ def transfer_to_another_cost_center(
 
 	transfer_dt = get_datetime(transfer_datetime) if transfer_datetime else now_datetime()
 
+	from healthcare.api.sales_order import close_pending_costs_for_admission
+
+	billing_result = close_pending_costs_for_admission(inpatient_admission)
+
 	# 1) Check out from current bed(s) – leave all current occupancies
 	if inpatient_record.inpatient_occupancies:
 		for occ in inpatient_record.inpatient_occupancies:
@@ -742,7 +748,6 @@ def transfer_to_another_cost_center(
 	if to_service_unit:
 		transfer_patient(inpatient_record, to_service_unit, transfer_dt)
 	trans_no = get_next_transaction_number("Transfer Admission Event", fieldname='transfer_num')
-	print("Huku ndio nagonga", trans_no)
 	# 4) Create audit trail
 	event = frappe.get_doc(
 		{
@@ -769,6 +774,7 @@ def transfer_to_another_cost_center(
 		"inpatient_admission": inpatient_admission,
 		"cost_center": to_cost_center,
 		"to_service_unit": to_service_unit,
+		"billing": billing_result,
 	}
 
 
