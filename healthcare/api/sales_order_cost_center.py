@@ -43,9 +43,100 @@ def apply_cost_center_to_sales_invoice(invoice, cost_center):
 		invoice.cost_center = cc
 	if hasattr(invoice, "custom_created_at"):
 		invoice.custom_created_at = cc
-	for row in invoice.get("items") or []:
-		if hasattr(row, "cost_center"):
-			row.cost_center = cc
+	for table_field in ("items", "taxes"):
+		for row in invoice.get(table_field) or []:
+			if hasattr(row, "cost_center"):
+				row.cost_center = cc
+
+
+def _accounting_dimension_fieldnames():
+	"""Configured accounting dimensions plus standard cost_center and project."""
+	fields = []
+	try:
+		from erpnext.accounts.doctype.accounting_dimension.accounting_dimension import (
+			get_accounting_dimensions,
+		)
+
+		fields.extend(get_accounting_dimensions() or [])
+	except Exception:
+		pass
+	for name in ("cost_center", "project"):
+		if name not in fields:
+			fields.append(name)
+	return fields
+
+
+def _copy_accounting_dimensions(source_row, target_row, fallback_row=None):
+	"""Copy accounting dimension values onto a header or child row when target is blank."""
+	if not source_row or target_row is None:
+		return
+
+	is_dict = isinstance(target_row, dict)
+	target_doctype = "Sales Invoice Item" if is_dict else getattr(target_row, "doctype", None)
+	if not target_doctype:
+		return
+
+	target_meta = frappe.get_meta(target_doctype)
+
+	for fieldname in _accounting_dimension_fieldnames():
+		if not target_meta.has_field(fieldname):
+			continue
+
+		val = source_row.get(fieldname) if isinstance(source_row, dict) else getattr(source_row, fieldname, None)
+		if not val and fallback_row is not None:
+			val = (
+				fallback_row.get(fieldname)
+				if isinstance(fallback_row, dict)
+				else getattr(fallback_row, fieldname, None)
+			)
+		if not val:
+			continue
+
+		if is_dict:
+			if not target_row.get(fieldname):
+				target_row[fieldname] = val
+		elif not target_row.get(fieldname):
+			target_row.set(fieldname, val)
+
+
+def apply_accounting_dimensions_from_sales_order_to_sales_invoice(so, invoice):
+	"""Propagate cost center and other accounting dimensions from Sales Order to Sales Invoice."""
+	so_cc = cost_center_from_sales_order(so)
+	if so_cc:
+		apply_cost_center_to_sales_invoice(invoice, so_cc)
+
+	invoice_meta = frappe.get_meta(invoice.doctype)
+	for fieldname in _accounting_dimension_fieldnames():
+		if fieldname == "cost_center":
+			continue
+		if not invoice_meta.has_field(fieldname):
+			continue
+		val = getattr(so, fieldname, None)
+		if val and not invoice.get(fieldname):
+			invoice.set(fieldname, val)
+
+
+def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
+	"""Ensure header, item, and tax rows have cost center before save/submit."""
+	cc = cost_center or getattr(invoice, "cost_center", None) or getattr(invoice, "custom_created_at", None)
+	if not cc:
+		for row in invoice.get("items") or []:
+			if getattr(row, "cost_center", None):
+				cc = row.cost_center
+				break
+	if not cc and getattr(invoice, "company", None):
+		try:
+			import erpnext
+
+			cc = erpnext.get_default_cost_center(invoice.company)
+		except Exception:
+			cc = None
+	if not cc:
+		return
+
+	invoice.set_missing_values()
+	invoice.run_method("calculate_taxes_and_totals")
+	apply_cost_center_to_sales_invoice(invoice, cc)
 
 
 def sales_invoice_item_from_sales_order_item(so, item):
@@ -60,9 +151,15 @@ def sales_invoice_item_from_sales_order_item(so, item):
 		"amount": item.amount,
 		"description": item.description or frappe._("Order: {0}").format(so.name),
 		"sales_order": so.name,
+		"so_detail": item.name,
 	}
+	if getattr(item, "uom", None):
+		line["uom"] = item.uom
+	if getattr(item, "warehouse", None) and frappe.get_meta("Sales Invoice Item").has_field("warehouse"):
+		line["warehouse"] = item.warehouse
 	if item_cc:
 		line["cost_center"] = item_cc
+	_copy_accounting_dimensions(item, line, fallback_row=so)
 	return line
 
 

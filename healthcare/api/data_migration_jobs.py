@@ -209,6 +209,54 @@ def start_appointment_close_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_appointment_old_status_migration(file_url: str | None = None) -> dict:
+	"""Backfill doc_code/practitioner from Oracle Excel, then set status from old_status (S/V)."""
+	_require_admin()
+	from healthcare.api.patient_appointment_old_status_backfill import (
+		cache_appointments_excel_for_migration,
+		run_patient_appointment_old_status_backfill_preview,
+	)
+
+	if not file_url:
+		frappe.throw(_("Upload the Oracle appointments Excel file (all sheets) before starting."))
+
+	preview = run_patient_appointment_old_status_backfill_preview(file_url=file_url)
+	cache_appointments_excel_for_migration(file_url)
+	_acquire_lock("appointment_old_status")
+	_set_progress(
+		"appointment_old_status",
+		0,
+		phase="doc_code",
+		pending_doc_code=preview.get("pending_doc_code_updates") or 0,
+		total_needing_update=preview.get("total_needing_update") or 0,
+		to_closed=preview.get("to_closed") or 0,
+		to_no_show=preview.get("to_no_show") or 0,
+		to_scheduled=preview.get("to_scheduled") or 0,
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_appointment_old_status_batch",
+		offset=0,
+		phase="doc_code",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_appointment_old_status",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Appointment Oracle backfill started in the background "
+			"({0} doc_code/practitioner, then {1} status: {2} Closed, {3} No Show, {4} Scheduled)."
+		).format(
+			preview.get("pending_doc_code_updates") or 0,
+			preview.get("total_needing_update") or 0,
+			preview.get("to_closed") or 0,
+			preview.get("to_no_show") or 0,
+			preview.get("to_scheduled") or 0,
+		),
+	}
+
+
+@frappe.whitelist()
 def start_medication_order_complete_migration() -> dict:
 	_require_admin()
 	_acquire_lock("medication_orders")
@@ -863,6 +911,95 @@ def process_patient_visit_migration_batch(offset: int = 0) -> None:
 		_set_progress("patient_visits", cint(offset), done=True, error=frappe.get_traceback())
 		_release_lock("patient_visits")
 		_clear_failed_visits()
+		raise
+
+
+def process_appointment_old_status_batch(offset: int = 0, phase: str = "doc_code") -> None:
+	from healthcare.api.patient_appointment_old_status_backfill import (
+		clear_appointments_excel_cache,
+		run_patient_appointment_doc_code_backfill_batch,
+		run_patient_appointment_old_status_backfill_batch,
+	)
+
+	job = "appointment_old_status"
+	try:
+		if phase == "doc_code":
+			result = run_patient_appointment_doc_code_backfill_batch(offset=offset)
+			processed = cint(result.get("processed") or 0)
+			stats = result.get("stats") or {}
+			_set_progress(
+				job,
+				processed,
+				phase="doc_code",
+				ok=processed,
+				errors=stats.get("errors") or 0,
+				remaining=result.get("remaining"),
+				stats=stats,
+			)
+
+			if not result.get("done"):
+				frappe.enqueue(
+					"healthcare.api.data_migration_jobs.process_appointment_old_status_batch",
+					offset=processed,
+					phase="doc_code",
+					queue="long",
+					timeout=3600,
+					job_name=f"healthcare_appointment_doc_code_{processed}",
+				)
+				return
+
+			clear_appointments_excel_cache()
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_appointment_old_status_batch",
+				offset=0,
+				phase="status",
+				queue="long",
+				timeout=3600,
+				job_name="healthcare_appointment_old_status",
+			)
+			return
+
+		result = run_patient_appointment_old_status_backfill_batch(offset=offset)
+		processed = cint(result.get("processed") or 0)
+		stats = result.get("stats") or {}
+		_set_progress(
+			job,
+			processed,
+			phase="status",
+			ok=processed,
+			errors=stats.get("errors") or 0,
+			remaining=stats.get("remaining"),
+			stats=stats,
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_appointment_old_status_batch",
+				offset=processed,
+				phase="status",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_appointment_old_status_{processed}",
+			)
+		else:
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				phase="status",
+				ok=processed,
+				errors=stats.get("errors") or 0,
+				stats=stats,
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Healthcare appointment Oracle backfill complete",
+				message=frappe.as_json(stats),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
 		raise
 
 

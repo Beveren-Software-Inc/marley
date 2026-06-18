@@ -152,6 +152,54 @@ export interface InternalBillingSummary {
   total_outstanding: number
 }
 
+export interface DispatchedEmployeeMedicationRow {
+  name: string
+  transaction_date: string
+  customer: string
+  customer_name?: string | null
+  employee_name?: string | null
+  grand_total: number
+  company?: string
+  status: string
+  cost_center?: string | null
+  collection_cost_center_name?: string | null
+  delivery_note?: string | null
+}
+
+export async function fetchDispatchedEmployeeMedication(): Promise<DispatchedEmployeeMedicationRow[]> {
+  const params = new URLSearchParams()
+  params.append('limit_page_length', '200')
+
+  const res = await fetch(
+    `/api/method/healthcare.api.billing.list_dispatched_employee_medication?${params.toString()}`
+  )
+
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.message || 'Failed to load dispatched medication')
+  return (data.message || []) as DispatchedEmployeeMedicationRow[]
+}
+
+export async function createInternalEmployeeInvoiceFromSalesOrder(
+  salesOrderName: string,
+): Promise<{ name: string; customer: string; grand_total: number; sales_order: string }> {
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.api.billing.create_internal_employee_invoice_from_sales_order',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ sales_order_name: salesOrderName }),
+    },
+  )
+  const data = await res.json()
+  if (!res.ok) throw new Error(data?.message || 'Failed to create invoice from sales order')
+  return data.message
+}
+
 
 
 export async function fetchAdditionalCollectionInvoices(): Promise<SpecialtyInvoiceRow[]> {

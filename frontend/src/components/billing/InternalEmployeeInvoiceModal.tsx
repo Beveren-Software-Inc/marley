@@ -129,16 +129,16 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
       toast.error('Search and select an employee')
       return
     }
-    const employee_name = (selectedEmployee.label || selectedEmployee.name || '').trim()
-    if (!employee_name) {
-      toast.error('Employee name is missing')
+    const employee_id = (selectedEmployee.name || '').trim()
+    if (!employee_id) {
+      toast.error('Employee is missing')
       return
     }
 
     try {
       setSaving(true)
       const created = await createInternalEmployeeInvoice({
-        employee_name,
+        employee: employee_id,
         company,
         created_at_cost_center: createdAtCostCenter,
         posting_date: postingDate || undefined,
@@ -167,7 +167,7 @@ export function InternalEmployeeInvoiceModal({ isOpen, onClose, onSuccess }: Int
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight text-emerald-950">Internal employee invoice</h2>
             <p className="text-xs text-emerald-900/80 mt-0.5">
-              Creates Customer from employee name if needed; sets{' '}
+              Employee ID links to the ERPNext Customer record; display name is the employee name. Sets{' '}
               <strong className="font-medium text-emerald-900">Internal Employee</strong>.
             </p>
           </div>

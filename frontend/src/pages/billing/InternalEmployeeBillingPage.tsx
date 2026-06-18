@@ -1,14 +1,17 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Loader2, RefreshCw } from 'lucide-react'
+import { Loader2, RefreshCw, Package, ChevronDown, ChevronUp } from 'lucide-react'
 import { BillingSpecialtyNavCards } from '../../components/billing/BillingSpecialtyNavCards'
 import { InternalEmployeeInvoiceModal } from '../../components/billing/InternalEmployeeInvoiceModal'
 import { SpecialtySalesInvoiceSlideOver } from '../../components/billing/SpecialtySalesInvoiceSlideOver'
 import {
   fetchInternalEmployeeInvoices,
   fetchInternalEmployeeBillingSummary,
+  fetchDispatchedEmployeeMedication,
+  createInternalEmployeeInvoiceFromSalesOrder,
   cancelOrDeleteSalesInvoice,
   type SpecialtyInvoiceRow,
   type InternalBillingSummary,
+  type DispatchedEmployeeMedicationRow,
 } from '../../services/billingSpecialty'
 import { PaymentModal } from '../../components/billing/PaymentModal'
 import {
@@ -40,12 +43,15 @@ interface InternalEmployeeBillingPageProps {
 export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBillingPageProps) {
   const formatMoney = useFormatMoney()
   const [rows, setRows] = useState<SpecialtyInvoiceRow[]>([])
+  const [dispatched, setDispatched] = useState<DispatchedEmployeeMedicationRow[]>([])
   const [summary, setSummary] = useState<InternalBillingSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [invoicingOrder, setInvoicingOrder] = useState<string | null>(null)
   const [showCreate, setShowCreate] = useState(false)
   const [detailInvoice, setDetailInvoice] = useState<string | null>(null)
   const [paymentFor, setPaymentFor] = useState<SpecialtyInvoiceRow | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [dispatchedExpanded, setDispatchedExpanded] = useState(false)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   // Close action menu when clicking outside
@@ -65,12 +71,14 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
   const load = useCallback(async () => {
     try {
       setLoading(true)
-      const [inv, sum] = await Promise.all([
+      const [inv, sum, pending] = await Promise.all([
         fetchInternalEmployeeInvoices(),
         fetchInternalEmployeeBillingSummary(),
+        fetchDispatchedEmployeeMedication(),
       ])
       setRows(inv)
       setSummary(sum)
+      setDispatched(pending)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load')
     } finally {
@@ -87,6 +95,20 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
     setOpenActionRow(null)
     await action()
     await load()
+  }
+
+  const handleCreateInvoiceFromOrder = async (salesOrderName: string) => {
+    setInvoicingOrder(salesOrderName)
+    try {
+      const created = await createInternalEmployeeInvoiceFromSalesOrder(salesOrderName)
+      toast.success(`Invoice ${created.name} created from ${salesOrderName}`)
+      setDetailInvoice(created.name)
+      await load()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to create invoice')
+    } finally {
+      setInvoicingOrder(null)
+    }
   }
 
   const cancelOrDiscardInvoice = async (name: string, mode: 'submitted' | 'draft') => {
@@ -115,7 +137,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Internal employee billing</h1>
           <p className="text-slate-600 text-xs mt-1 max-w-xl">
-            Staff invoices flagged internal employee. Create new invoices from the button below.
+            Staff invoices flagged internal employee. Dispatched POS orders appear above; create invoices from the + button for ad-hoc billing.
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
@@ -154,6 +176,99 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         </div>
       )}
 
+      <div className="rounded-xl border border-amber-200 bg-amber-50/40 shadow-sm mb-5 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setDispatchedExpanded((open) => !open)}
+          className={`w-full flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 hover:bg-amber-100/60 transition-colors text-left ${
+            dispatchedExpanded ? 'border-b border-amber-200/80' : ''
+          }`}
+          aria-expanded={dispatchedExpanded}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="rounded-lg p-2 bg-amber-100 text-amber-800 shrink-0">
+              <Package className="w-4 h-4" />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-sm font-semibold text-slate-900">Dispatched medication</h2>
+              <p className="text-xs text-slate-600 mt-0.5">
+                POS employee dispenses (stock already delivered). Create an internal employee invoice for each order.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-xs font-medium text-amber-900 bg-amber-100 px-2 py-1 rounded-full">
+              {dispatched.length} pending
+            </span>
+            {dispatchedExpanded ? (
+              <ChevronUp className="w-4 h-4 text-amber-800" aria-hidden />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-amber-800" aria-hidden />
+            )}
+          </div>
+        </button>
+
+        {dispatchedExpanded && (
+          <>
+            {loading && dispatched.length === 0 ? (
+              <div className="flex justify-center py-8 text-slate-500">
+                <Loader2 className="w-5 h-5 animate-spin" />
+              </div>
+            ) : dispatched.length === 0 ? (
+              <div className="py-8 text-center text-slate-500 text-xs bg-white">
+                No dispatched employee medication awaiting invoice.
+              </div>
+            ) : (
+              <div className="overflow-x-auto bg-white">
+                <table className="min-w-full text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-medium text-slate-600">Sales Order</th>
+                      <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
+                      <th className="text-left px-3 py-2 font-medium text-slate-600">Employee</th>
+                      <th className="text-left px-3 py-2 font-medium text-slate-600">Branch</th>
+                      <th className="text-left px-3 py-2 font-medium text-slate-600">Delivery Note</th>
+                      <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
+                      <th className="text-center px-3 py-2 font-medium text-slate-600 w-[120px]">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {dispatched.map((order) => (
+                      <tr key={order.name} className="hover:bg-slate-50/80">
+                        <td className="px-3 py-2 font-mono text-[11px] text-slate-800">{order.name}</td>
+                        <td className="px-3 py-2 text-slate-700">{order.transaction_date}</td>
+                        <td className="px-3 py-2 text-slate-800">
+                          <div>{order.employee_name || order.customer_name || order.customer}</div>
+                          <div className="text-[10px] text-slate-500 font-mono">{order.customer}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {order.collection_cost_center_name || order.cost_center || '—'}
+                        </td>
+                        <td className="px-3 py-2 font-mono text-[11px] text-slate-700">{order.delivery_note || '—'}</td>
+                        <td className="px-3 py-2 text-right font-medium">{formatMoney(order.grand_total)}</td>
+                        <td className="px-3 py-2 text-center">
+                          <button
+                            type="button"
+                            onClick={() => void handleCreateInvoiceFromOrder(order.name)}
+                            disabled={invoicingOrder === order.name}
+                            className="inline-flex items-center justify-center gap-1 px-2.5 py-1.5 rounded-md bg-primary text-white text-[11px] font-medium hover:bg-primary/90 disabled:opacity-50"
+                          >
+                            {invoicingOrder === order.name ? (
+                              <Loader2 className="w-3 h-3 animate-spin" />
+                            ) : null}
+                            Create invoice
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         {loading && rows.length === 0 ? (
           <div className="flex justify-center py-12 text-slate-500">
@@ -168,7 +283,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
                 <tr>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Invoice</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
-                  <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
+                  <th className="text-left px-3 py-2 font-medium text-slate-600">Employee</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Collection Branch</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Total</th>
                   <th className="text-right px-3 py-2 font-medium text-slate-600">Outstanding</th>
@@ -349,6 +464,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         invoiceName={detailInvoice}
         onClose={() => setDetailInvoice(null)}
         onUpdated={() => void load()}
+        partyLabel="Employee"
       />
 
       <PaymentModal
@@ -356,6 +472,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
         onClose={() => setPaymentFor(null)}
         invoiceName={paymentFor?.name || ''}
         customerName={paymentFor?.customer_name || paymentFor?.customer || ''}
+        partyLabel="Employee"
         outstandingAmount={paymentFor?.outstanding_amount ?? 0}
         defaultCompany={paymentFor?.company}
         defaultCostCenter={paymentFor?.custom_created_at || undefined}

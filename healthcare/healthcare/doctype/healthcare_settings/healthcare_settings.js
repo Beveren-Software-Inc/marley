@@ -66,6 +66,90 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Update Appointments from Oracle Excel'), () => {
+			const uploader = new frappe.ui.FileUploader({
+				dialog_title: __('Oracle Appointments Excel'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frappe.call({
+						method:
+							'healthcare.api.patient_appointment_old_status_backfill.run_patient_appointment_old_status_backfill_preview',
+						args: { file_url: file.file_url },
+						freeze: true,
+						freeze_message: __('Reading Excel (all sheets)…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							const docSample = (counts.sample_doc_code || [])
+								.map(
+									(row) =>
+										`${row.app_num}: doc_code ${row.current_doc_code || '(empty)'} → ${row.target_doc_code}`
+										+ (row.will_set_practitioner
+											? `, practitioner → ${row.target_doc_code}`
+											: '')
+								)
+								.join('\n');
+							const statusSample = (counts.sample || [])
+								.map(
+									(row) =>
+										`${row.name}: ${row.old_status} → ${row.target_status} (was ${row.current_status})`
+								)
+								.join('\n');
+							frappe.confirm(
+								__(
+									'Run in background from Oracle appointments Excel (all sheets).\n\n'
+									+ '1) Match APP_NUM to Patient Appointment trans_no\n'
+									+ '2) Set doc_code from DOC_CODE\n'
+									+ '3) Set practitioner only when empty (create Healthcare Practitioner with doctors_id = doc_code if missing)\n'
+									+ '4) Set status from old_status / APP_STATUS:\n'
+									+ '   V → Closed, S → Scheduled or No Show by date\n\n'
+									+ 'Excel rows: {0}\n'
+									+ 'Matched appointments: {1}\n'
+									+ 'Doc code / practitioner to update: {2} ({3} doc_code, {4} practitioner)\n'
+									+ 'Status to update: {5} ({6} Closed, {7} No Show, {8} Scheduled)\n\n'
+									+ 'Doc code sample:\n{9}\n\n'
+									+ 'Status sample:\n{10}\n\nContinue?',
+									[
+										counts.excel_rows || 0,
+										counts.matched_appointments || 0,
+										counts.pending_doc_code_updates || 0,
+										counts.doc_code_to_set || 0,
+										counts.practitioner_to_set || 0,
+										counts.total_needing_update || 0,
+										counts.to_closed || 0,
+										counts.to_no_show || 0,
+										counts.to_scheduled || 0,
+										docSample || __('(none)'),
+										statusSample || __('(none)'),
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_appointment_old_status_migration',
+										args: { file_url: file.file_url },
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('appointment_old_status');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Complete All Medication Orders'), () => {
 			frappe.confirm(
 				__(

@@ -60,6 +60,8 @@ interface SpecialtySalesInvoiceSlideOverProps {
   onUpdated?: () => void
   /** Open directly in line-edit mode (draft invoices only). */
   initialEditMode?: boolean
+  /** Label for the billed party on invoice details (default: Customer). */
+  partyLabel?: string
 }
 
 export function SpecialtySalesInvoiceSlideOver({
@@ -67,6 +69,7 @@ export function SpecialtySalesInvoiceSlideOver({
   onClose,
   onUpdated,
   initialEditMode = false,
+  partyLabel = 'Customer',
 }: SpecialtySalesInvoiceSlideOverProps) {
   const [detail, setDetail] = useState<SalesInvoiceDetail | null>(null)
   const [loading, setLoading] = useState(false)
@@ -327,7 +330,7 @@ export function SpecialtySalesInvoiceSlideOver({
               <h3 className={MODAL_SECTION_TITLE_CLASS}>Invoice details</h3>
               <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3 text-sm">
                 <div>
-                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">Customer</dt>
+                  <dt className="text-[11px] font-medium text-emerald-800/60 uppercase">{partyLabel}</dt>
                   <dd className="text-emerald-950">{detail.customer_name || detail.customer}</dd>
                 </div>
                 <div>
@@ -452,6 +455,7 @@ export function SpecialtySalesInvoiceSlideOver({
         onClose={() => setShowPayment(false)}
         invoiceName={invoiceName}
         customerName={detail?.customer_name || detail?.customer || ''}
+        partyLabel={partyLabel}
         outstandingAmount={detail?.outstanding_amount ?? 0}
         defaultCompany={detail?.company}
         defaultCostCenter={detail?.custom_created_at || undefined}
