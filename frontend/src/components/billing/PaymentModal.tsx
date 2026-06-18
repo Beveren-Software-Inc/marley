@@ -18,6 +18,8 @@ interface PaymentModalProps {
   onClose: () => void
   invoiceName: string
   customerName: string
+  /** Label for the billed party field (default: Customer). */
+  partyLabel?: string
   outstandingAmount: number
   defaultCompany?: string
   defaultCostCenter?: string
@@ -35,6 +37,7 @@ export const PaymentModal = ({
   onClose,
   invoiceName,
   customerName,
+  partyLabel = 'Customer',
   outstandingAmount,
   defaultCompany,
   defaultCostCenter,
@@ -272,7 +275,7 @@ export const PaymentModal = ({
           <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1 overflow-y-auto px-5 py-4`}>
             <div className="space-y-4 pb-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900/90">Customer</label>
+                <label className="mb-1 block text-sm font-medium text-emerald-900/90">{partyLabel}</label>
                 <input
                   type="text"
                   value={customerName}

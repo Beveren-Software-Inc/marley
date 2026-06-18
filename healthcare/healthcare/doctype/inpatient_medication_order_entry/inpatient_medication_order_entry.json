@@ -21,6 +21,8 @@
   "stopped_date",
   "stop_by",
   "medicine_no",
+  "alternative_medicine",
+  "alternative_medicine_name",
   "column_break_4",
   "date",
   "end_date",
@@ -327,12 +329,27 @@
    "fieldname": "cr_date",
    "fieldtype": "Data",
    "label": "CR Date"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "alternative_medicine",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Alternative Medicine",
+   "options": "Item"
+  },
+  {
+   "allow_on_submit": 1,
+   "fetch_from": "alternative_medicine.item_name",
+   "fieldname": "alternative_medicine_name",
+   "fieldtype": "Data",
+   "label": "Alternative Medicine Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-17 10:23:23.038533",
+ "modified": "2026-06-18 17:13:41.945325",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

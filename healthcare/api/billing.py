@@ -789,6 +789,10 @@ def submit_sales_invoice_doc(invoice_name):
     if doc.docstatus != 0:
         frappe.throw(_("Only draft invoices can be submitted"))
 
+    from healthcare.api.sales_order_cost_center import finalize_sales_invoice_cost_centers
+
+    finalize_sales_invoice_cost_centers(doc)
+    doc.save(ignore_permissions=True)
     doc.submit()
     frappe.db.commit()
     return {"name": doc.name, "docstatus": doc.docstatus, "status": doc.status}
@@ -995,15 +999,34 @@ def _load_payload_list(payload):
     return payload or []
 
 
-def _get_or_create_employee_customer(employee_name):
-    customer = frappe.db.get_value("Customer", {"customer_name": employee_name}, "name")
-    if customer:
-        return customer
+def _get_or_create_employee_customer(employee_id):
+    """Customer.name = Employee ID; Customer.customer_name = Employee display name."""
+    employee_id = (employee_id or "").strip()
+    if not employee_id:
+        frappe.throw(_("Employee is required"))
+    if not frappe.db.exists("Employee", employee_id):
+        frappe.throw(_("Employee {0} not found").format(employee_id))
+
+    employee = frappe.get_cached_doc("Employee", employee_id)
+    display_name = (employee.employee_name or employee_id).strip()
+
+    if frappe.db.exists("Customer", employee_id):
+        current_name = frappe.db.get_value("Customer", employee_id, "customer_name")
+        if current_name != display_name:
+            frappe.db.set_value(
+                "Customer", employee_id, "customer_name", display_name, update_modified=False
+            )
+        return employee_id
+
+    legacy_name = frappe.db.get_value("Customer", {"customer_name": display_name}, "name")
+    if legacy_name and legacy_name != employee_id:
+        frappe.rename_doc("Customer", legacy_name, employee_id, force=True, merge=False)
+        return employee_id
 
     customer_doc = frappe.get_doc(
         {
             "doctype": "Customer",
-            "customer_name": employee_name,
+            "customer_name": display_name,
             "customer_type": "Individual",
             "customer_group": frappe.db.get_single_value("Selling Settings", "customer_group")
             or "Individual",
@@ -1012,7 +1035,11 @@ def _get_or_create_employee_customer(employee_name):
         }
     )
     customer_doc.insert(ignore_permissions=True)
-    return customer_doc.name
+
+    if customer_doc.name != employee_id:
+        frappe.rename_doc("Customer", customer_doc.name, employee_id, force=True, merge=False)
+
+    return employee_id
 
 
 def _template_display_name(template_dt, template_dn):
@@ -1357,16 +1384,18 @@ def create_additional_collection_invoice(
 
 @frappe.whitelist()
 def create_internal_employee_invoice(
-    employee_name,
-    company,
-    created_at_cost_center,
-    items,
+    employee_name=None,
+    employee=None,
+    company=None,
+    created_at_cost_center=None,
+    items=None,
     posting_date=None,
     due_date=None,
     patient=None,
 ):
-    if not employee_name:
-        frappe.throw(_("Employee name is required"))
+    employee_id = (employee or employee_name or "").strip()
+    if not employee_id:
+        frappe.throw(_("Employee is required"))
     if not company:
         frappe.throw(_("Company is required"))
     if not created_at_cost_center:
@@ -1376,7 +1405,7 @@ def create_internal_employee_invoice(
     if not items:
         frappe.throw(_("Please add at least one item"))
 
-    customer = _get_or_create_employee_customer(employee_name)
+    customer = _get_or_create_employee_customer(employee_id)
 
     invoice = frappe.new_doc("Sales Invoice")
     invoice.company = company
@@ -1411,8 +1440,126 @@ def create_internal_employee_invoice(
     if not invoice.items:
         frappe.throw(_("Please add at least one valid item"))
 
+    from healthcare.api.sales_order_cost_center import finalize_sales_invoice_cost_centers
+
+    finalize_sales_invoice_cost_centers(invoice, created_at_cost_center)
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "customer": invoice.customer, "grand_total": invoice.grand_total}
+
+
+@frappe.whitelist()
+def list_dispatched_employee_medication(limit_start=0, limit_page_length=100):
+    """POS employee medicine dispatches (SO + DN) awaiting internal employee invoice."""
+    limit_start = int(limit_start or 0)
+    limit_page_length = min(int(limit_page_length or 100), 500)
+
+    if not frappe.db.has_column("Sales Order", "custom_internal_employee_dispensing"):
+        return []
+
+    rows = frappe.db.sql(
+        """
+        SELECT
+            so.name,
+            so.transaction_date,
+            so.customer,
+            so.customer_name,
+            so.grand_total,
+            so.company,
+            so.status,
+            so.cost_center
+        FROM `tabSales Order` so
+        WHERE so.docstatus = 1
+          AND IFNULL(so.custom_is_pos, 0) = 1
+          AND IFNULL(so.custom_internal_employee_dispensing, 0) = 1
+          AND NOT EXISTS (
+            SELECT 1
+            FROM `tabSales Invoice Item` sii
+            INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+            WHERE sii.sales_order = so.name
+              AND si.docstatus != 2
+          )
+        ORDER BY so.creation DESC
+        LIMIT %(limit)s OFFSET %(start)s
+        """,
+        {"start": limit_start, "limit": limit_page_length},
+        as_dict=True,
+    )
+
+    for row in rows:
+        cc = row.get("cost_center")
+        row["collection_cost_center_name"] = (
+            frappe.db.get_value("Cost Center", cc, "cost_center_name") if cc else None
+        ) or cc
+        row["employee_name"] = row.get("customer_name") or row.get("customer")
+        dn = frappe.db.sql(
+            """
+            SELECT dn.name
+            FROM `tabDelivery Note Item` dni
+            INNER JOIN `tabDelivery Note` dn ON dn.name = dni.parent
+            WHERE dni.against_sales_order = %s AND dn.docstatus = 1
+            ORDER BY dn.creation DESC
+            LIMIT 1
+            """,
+            row.name,
+            as_dict=True,
+        )
+        row["delivery_note"] = dn[0].name if dn else None
+
+    return rows
+
+
+@frappe.whitelist()
+def create_internal_employee_invoice_from_sales_order(sales_order_name):
+    """Create draft internal-employee Sales Invoice from a dispatched POS sales order."""
+    from healthcare.api.sales_order import _load_billable_sales_orders_by_names
+    from healthcare.api.sales_order_cost_center import (
+        apply_accounting_dimensions_from_sales_order_to_sales_invoice,
+        cost_center_from_sales_order,
+        finalize_sales_invoice_cost_centers,
+        sales_invoice_item_from_sales_order_item,
+    )
+
+    sales_order_name = (sales_order_name or "").strip()
+    if not sales_order_name:
+        frappe.throw(_("Sales Order is required"))
+
+    if not frappe.db.has_column("Sales Order", "custom_internal_employee_dispensing"):
+        frappe.throw(_("Internal employee dispensing is not configured on Sales Order"))
+
+    sales_orders = _load_billable_sales_orders_by_names([sales_order_name])
+    so = sales_orders[0]
+
+    if not int(getattr(so, "custom_internal_employee_dispensing", 0) or 0):
+        frappe.throw(_("Sales Order {0} is not an internal employee dispensing order").format(sales_order_name))
+
+    invoice = frappe.new_doc("Sales Invoice")
+    invoice.customer = so.customer
+    if so.company:
+        invoice.company = so.company
+    invoice.posting_date = nowdate()
+    invoice.due_date = invoice.posting_date
+    invoice.custom_internal_employee = 1
+    if getattr(so, "patient", None) and frappe.db.exists("Patient", so.patient):
+        invoice.patient = so.patient
+
+    apply_accounting_dimensions_from_sales_order_to_sales_invoice(so, invoice)
+
+    items_added = 0
+    for item in so.items:
+        invoice.append("items", sales_invoice_item_from_sales_order_item(so, item))
+        items_added += 1
+
+    if not items_added:
+        frappe.throw(_("No items found on Sales Order {0}").format(sales_order_name))
+
+    finalize_sales_invoice_cost_centers(invoice, cost_center_from_sales_order(so))
+    invoice.insert(ignore_permissions=True)
+    return {
+        "name": invoice.name,
+        "customer": invoice.customer,
+        "grand_total": invoice.grand_total,
+        "sales_order": so.name,
+    }
 
 
 @frappe.whitelist()

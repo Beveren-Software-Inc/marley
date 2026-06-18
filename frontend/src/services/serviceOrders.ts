@@ -762,7 +762,8 @@ export async function createAdditionalCollectionInvoice(payload: {
 }
 
 export async function createInternalEmployeeInvoice(payload: {
-  employee_name: string
+  employee?: string
+  employee_name?: string
   company: string
   created_at_cost_center: string
   items: BillingInvoiceItemInput[]
