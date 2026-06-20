@@ -85,6 +85,7 @@ export const PatientSearch = ({
     activeAdmission,
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
+    isIOPVisit,
   } = useCareContext()
   const { selectOp, selectIp } = useCareModeSelection()
   const isMobileHeader = Boolean(leadingSlot)
@@ -579,7 +580,7 @@ export const PatientSearch = ({
               : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
           }`}
         >
-          OP
+          OP{mode === 'OP' && isIOPVisit ? ' · IOP' : ''}
         </button>
       )}
       {costCenterCareScope !== 'op_only' && (

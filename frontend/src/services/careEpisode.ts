@@ -1,5 +1,8 @@
 export type ActiveCareEpisodeStatus = {
   patient_visit_status: string | null
+  patient_visit_type?: string | null
+  patient_visit_type_label?: string | null
+  is_iop_visit?: boolean
   inpatient_admission_status: string | null
   blocks_create: boolean
   block_reason: string | null

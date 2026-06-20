@@ -610,6 +610,8 @@ import {
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { CareModeBadges, careModeVisitLabel } from '../ui/CareModeBadges'
+import { fetchActiveCareEpisodeStatus } from '../../services/careEpisode'
 
 interface CreateClinicalNoteModalProps {
   onClose: () => void
@@ -633,20 +635,29 @@ export const CreateClinicalNoteModal = ({
   defaultVisit,
 }: CreateClinicalNoteModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter, costCenterCompany } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter, costCenterCompany, isIOPVisit: contextIsIOPVisit } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
-  const isOPMode = mode === 'OP'
-  
+  const [formVisitIsIOP, setFormVisitIsIOP] = useState(false)
+
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     note: '',
     admission_no: (isIPMode && activeAdmission) ? activeAdmission : (defaultAdmission || ''),
-    patient_visit: (isOPMode && activeVisit) ? activeVisit : (defaultVisit || ''),
+    patient_visit: (mode === 'OP' && activeVisit) ? activeVisit : (defaultVisit || ''),
   })
+
+  const effectiveVisit = formData.patient_visit || activeVisit || ''
+  const isIOPVisit =
+    effectiveVisit && effectiveVisit === activeVisit
+      ? contextIsIOPVisit
+      : formVisitIsIOP
+  const isOPMode = mode === 'OP' && !isIOPVisit
+  const isIOPMode = mode === 'OP' && isIOPVisit
+  const isVisitMode = mode === 'OP'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
@@ -689,6 +700,29 @@ export const CreateClinicalNoteModal = ({
     }
   }, [formData.patient])
 
+  useEffect(() => {
+    const visitName = formData.patient_visit
+    if (!visitName) {
+      setFormVisitIsIOP(false)
+      return
+    }
+    if (visitName === activeVisit) {
+      setFormVisitIsIOP(contextIsIOPVisit)
+      return
+    }
+    let cancelled = false
+    fetchActiveCareEpisodeStatus(visitName)
+      .then((status) => {
+        if (!cancelled) setFormVisitIsIOP(Boolean(status.is_iop_visit))
+      })
+      .catch(() => {
+        if (!cancelled) setFormVisitIsIOP(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.patient_visit, activeVisit, contextIsIOPVisit])
+
   // Auto-fetch patient name if context patient exists
   useEffect(() => {
     if (contextPatient && !initialPatient) {
@@ -723,8 +757,8 @@ export const CreateClinicalNoteModal = ({
       setError('Please select an inpatient admission (IP mode active)')
       return
     }
-    if (isOPMode && !formData.patient_visit) {
-      setError('Please select a patient visit (OP mode active)')
+    if (mode === 'OP' && !formData.patient_visit) {
+      setError(`Please select a patient visit (${careModeVisitLabel(mode, isIOPVisit)} mode active)`)
       return
     }
 
@@ -745,7 +779,7 @@ export const CreateClinicalNoteModal = ({
       // Add the appropriate care context based on global mode
       if (isIPMode && formData.admission_no) {
         payload.admission_no = formData.admission_no
-      } else if (isOPMode && formData.patient_visit) {
+      } else if (isVisitMode && formData.patient_visit) {
         payload.patient_visit = formData.patient_visit
       }
 
@@ -877,7 +911,7 @@ export const CreateClinicalNoteModal = ({
   }, [patientQuery, patientOpen])
 
   useEffect(() => {
-    if (!isOPMode || !formData.patient || visitOptions.length === 0) return
+    if (!isVisitMode || !formData.patient || visitOptions.length === 0) return
     setFormData((prev) => {
       const hasVisit = (id: string) => visitOptions.some((v) => v.name === id)
       let next = prev.patient_visit
@@ -887,7 +921,7 @@ export const CreateClinicalNoteModal = ({
       else next = visitOptions[0]?.name || ''
       return next === prev.patient_visit ? prev : { ...prev, patient_visit: next }
     })
-  }, [isOPMode, formData.patient, activeVisit, defaultVisit, visitOptions])
+  }, [isVisitMode, formData.patient, activeVisit, defaultVisit, visitOptions])
 
   useEffect(() => {
     if (userCostCenter && !costCenter) {
@@ -897,8 +931,8 @@ export const CreateClinicalNoteModal = ({
   }, [userCostCenter, costCenter])
 
   useEffect(() => {
-    const refDoctype = isIPMode ? 'Inpatient Admission' : isOPMode ? 'Patient Visit' : null
-    const refName = isIPMode ? formData.admission_no : isOPMode ? formData.patient_visit : null
+    const refDoctype = isIPMode ? 'Inpatient Admission' : isVisitMode ? 'Patient Visit' : null
+    const refName = isIPMode ? formData.admission_no : isVisitMode ? formData.patient_visit : null
     if (!refDoctype || !refName) return
 
     fetch(`/api/resource/${refDoctype}/${encodeURIComponent(refName)}?fields=["cost_center"]`)
@@ -911,7 +945,7 @@ export const CreateClinicalNoteModal = ({
         }
       })
       .catch(() => {})
-  }, [isIPMode, isOPMode, formData.admission_no, formData.patient_visit])
+  }, [isIPMode, isVisitMode, formData.admission_no, formData.patient_visit])
 
   useEffect(() => {
     if (!costCenterOpen) return
@@ -942,6 +976,9 @@ export const CreateClinicalNoteModal = ({
     if (isIPMode) {
       return `Creating clinical note for IP admission: ${formData.admission_no || 'not selected yet'}`
     }
+    if (isIOPMode) {
+      return `Creating clinical note for IOP visit: ${formData.patient_visit || 'not selected yet'}`
+    }
     if (isOPMode) {
       return `Creating clinical note for OP visit: ${formData.patient_visit || 'not selected yet'}`
     }
@@ -956,8 +993,7 @@ export const CreateClinicalNoteModal = ({
           icon={<NotebookPen className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           subtitle={
             <>
-              {isIPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">IP Mode Active</span> : null}
-              {isOPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP Mode Active</span> : null}
+              <CareModeBadges mode={mode} isIOPVisit={isIOPVisit} className="mr-2" />
               {getModeHelpText()}
             </>
           }
@@ -1118,7 +1154,7 @@ export const CreateClinicalNoteModal = ({
                 </div>
               )}
 
-              {isOPMode && formData.patient && (
+              {isVisitMode && formData.patient && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Patient Visit <span className="text-red-500">*</span>
@@ -1131,7 +1167,9 @@ export const CreateClinicalNoteModal = ({
                         readOnly
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
                       />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
+                      <p className="text-xs text-slate-400 mt-1">
+                        Auto-selected from {isIOPVisit ? 'IOP' : 'OP'} context
+                      </p>
                     </div>
                   ) : (
                     <select
@@ -1226,7 +1264,7 @@ export const CreateClinicalNoteModal = ({
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
             <button
               type="submit"
-              disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.admission_no) || (isOPMode && !formData.patient_visit)}
+              disabled={loading || (!isIPMode && !isVisitMode) || (isIPMode && !formData.admission_no) || (isVisitMode && !formData.patient_visit)}
               className={CM_BTN_PRIMARY}
             >
               {loading ? 'Saving...' : 'Save Note'}
