@@ -52,7 +52,7 @@ export const ClinicalNotesList = ({
 }: ClinicalNotesListProps) => {
   const listTitle = resolveListTitle(clinicalNoteType, title)
   const resolvedAddTitle = addButtonTitle ?? `Add ${clinicalNoteType || 'Clinical Note'}`
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit, activeAdmission, isIOPVisit } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [pendingEncounters, setPendingEncounters] = useState<PendingDoctorProgressEncounter[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
@@ -227,6 +227,9 @@ export const ClinicalNotesList = ({
   }
 
   const getContextLabel = () => {
+    if (mode === 'OP' && activeVisit && isIOPVisit) {
+      return `Showing notes for IOP Visit: ${activeVisit}`
+    }
     if (mode === 'OP' && activeVisit) {
       return `Showing notes for OP Visit: ${activeVisit}`
     }

@@ -6,6 +6,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, nowdate
 
+from healthcare.api.care_episode import patient_visit_type_info
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.clinical_note.clinical_note import (
 	assign_clinical_note_trans_no,
@@ -340,14 +341,17 @@ def get_encounters_pending_doctor_progress_note(clinical_note_type='Doctor Progr
 
 	for v in visits:
 		pname = frappe.db.get_value('Patient', v.patient, 'patient_name') or v.patient
+		visit_info = patient_visit_type_info(v.reference_document)
+		context_label = 'IOP (today)' if visit_info.get('is_iop_visit') else 'Outpatient (today)'
 		rows.append({
 			'patient': v.patient,
 			'patient_name': pname,
 			'reference_doctype': 'Patient Visit',
 			'reference_document': v.reference_document,
-			'context_label': 'Outpatient (today)',
+			'context_label': context_label,
 			'context_status': v.context_status,
 			'encounter_date': v.encounter_date,
+			'is_iop_visit': visit_info.get('is_iop_visit'),
 		})
 
 	# De-duplicate by patient + reference (same patient could appear twice if multiple visits — keep all visits)

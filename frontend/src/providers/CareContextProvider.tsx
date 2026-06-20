@@ -83,6 +83,12 @@ interface CareContextValue {
   companyCurrency?: string
   /** Status of the focused OP visit, when {@link activeVisit} is set. */
   activeVisitStatus?: string
+  /** Patient Visit Type link on the focused visit, when loaded. */
+  activeVisitType?: string
+  /** Display label for {@link activeVisitType}. */
+  activeVisitTypeLabel?: string
+  /** True when the focused OP visit is an IOP visit (visit type or IOP enrollment). */
+  isIOPVisit: boolean
   /** Status of the focused IP admission, when {@link activeAdmission} is set. */
   activeAdmissionStatus?: string
   /** True when the selected OP visit or IP admission is closed for new records. */
@@ -324,6 +330,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       user,
       companyCurrency,
       activeVisitStatus,
+      activeVisitType: careEpisodeStatus?.patient_visit_type ?? undefined,
+      activeVisitTypeLabel: careEpisodeStatus?.patient_visit_type_label ?? undefined,
+      isIOPVisit: Boolean(careEpisodeStatus?.is_iop_visit),
       activeAdmissionStatus,
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
@@ -342,6 +351,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       user,
       companyCurrency,
       activeVisitStatus,
+      careEpisodeStatus,
       activeAdmissionStatus,
       isActiveCareEpisodeClosed,
       activeCareBlockReason,

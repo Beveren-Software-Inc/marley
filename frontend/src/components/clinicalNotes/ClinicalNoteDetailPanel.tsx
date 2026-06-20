@@ -10,7 +10,10 @@ import {
   User,
 } from 'lucide-react'
 import { fetchClinicalNote, type ClinicalNote } from '../../services/clinicalNotes'
+import { fetchActiveCareEpisodeStatus } from '../../services/careEpisode'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
+import { CareModeBadges } from '../ui/CareModeBadges'
+import type { CareMode } from '../../providers/CareContextProvider'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
@@ -47,12 +50,12 @@ function formatDateTime(value?: string): string {
   }
 }
 
-function careContextLabel(doc: ClinicalNoteDoc): string {
+function careContextLabel(doc: ClinicalNoteDoc, visitIsIOP = false): string {
   if (doc.inpatient_admission) {
     return `Inpatient · ${doc.inpatient_admission}`
   }
   if (doc.reference_doctype === 'Patient Visit' && doc.reference_document) {
-    return `Outpatient visit · ${doc.reference_document}`
+    return `${visitIsIOP ? 'IOP visit' : 'Outpatient visit'} · ${doc.reference_document}`
   }
   if (doc.reference_doctype && doc.reference_document) {
     return `${doc.reference_doctype} · ${doc.reference_document}`
@@ -141,6 +144,7 @@ export function ClinicalNoteDetailPanel({
   const [doc, setDoc] = useState<ClinicalNoteDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [visitIsIOP, setVisitIsIOP] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -163,6 +167,32 @@ export function ClinicalNoteDetailPanel({
     }
   }, [name])
 
+  useEffect(() => {
+    const source = doc ?? preview
+    const visitName =
+      source?.reference_doctype === 'Patient Visit' ? source.reference_document : undefined
+    if (!visitName) {
+      setVisitIsIOP(false)
+      return
+    }
+    let cancelled = false
+    fetchActiveCareEpisodeStatus(visitName)
+      .then((status) => {
+        if (!cancelled) setVisitIsIOP(Boolean(status.is_iop_visit))
+      })
+      .catch(() => {
+        if (!cancelled) setVisitIsIOP(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    doc?.reference_doctype,
+    doc?.reference_document,
+    preview?.reference_doctype,
+    preview?.reference_document,
+  ])
+
   const headerSubtitle = useMemo(() => {
     const source = doc ?? preview
     if (!source) return name
@@ -183,10 +213,34 @@ export function ClinicalNoteDetailPanel({
 
   const noteBody = doc?.note ?? preview?.note
 
+  const careMode: CareMode | null = useMemo(() => {
+    const source = doc ?? preview
+    if (!source) return null
+    if ((source as ClinicalNoteDoc).inpatient_admission) return 'IP'
+    if (
+      (source as ClinicalNoteDoc).reference_doctype === 'Patient Visit' &&
+      (source as ClinicalNoteDoc).reference_document
+    ) {
+      return 'OP'
+    }
+    return null
+  }, [doc, preview])
+
   return (
     <DetailSlideOver
       title={title}
-      subtitle={headerSubtitle}
+      subtitle={
+        <>
+          {careMode ? (
+            <CareModeBadges
+              mode={careMode}
+              isIOPVisit={careMode === 'OP' && visitIsIOP}
+              className="mr-2"
+            />
+          ) : null}
+          {headerSubtitle}
+        </>
+      }
       icon={<NotebookPen className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
@@ -273,7 +327,7 @@ export function ClinicalNoteDetailPanel({
               <InfoTile
                 icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
                 label="Care context"
-                value={doc ? careContextLabel(doc) : careContextLabel((preview ?? {}) as ClinicalNoteDoc)}
+                value={doc ? careContextLabel(doc, visitIsIOP) : careContextLabel((preview ?? {}) as ClinicalNoteDoc, visitIsIOP)}
               />
               {doc?.clinical_note_type || preview?.clinical_note_type ? (
                 <InfoTile

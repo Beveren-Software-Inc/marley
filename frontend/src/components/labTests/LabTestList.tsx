@@ -1687,6 +1687,8 @@ import {
   type ObservationSampleCollectionRow,
   type LabTestTemplateDetails,
 } from '../../services/labTests'
+import { cancelLabSampleHandling, deleteRequestedLabTest } from '../../services/labRequestActions'
+import { ConfirmActionModal } from '../ui/ConfirmActionModal'
 import {
   fetchItems,
   fetchWarehouses,
@@ -1706,12 +1708,13 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import { canEditLabTestResults, canEditLabTestResultForRow } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { stripHtmlToText } from '../ui/dashboardCardListing'
 import {
   expandLegacyLabTestsForDisplay,
   isLegacyHistoryLabRow,
@@ -1736,6 +1739,35 @@ const statusColors: Record<string, string> = {
   'Draft': 'warning', 'Pending': 'warning', 'Requested': 'info',
   'Awaiting sample collection': 'warning', 'Sample Collection in Progress': 'info',
   'Sample Collected': 'info', 'Testing in progress': 'info',
+}
+
+const LAB_POST_SAMPLE_REVIEW_STATUSES = new Set([
+  'Partial Result Enter',
+  'Testing in Progress',
+  'Testing in progress',
+  'Completed',
+  'Pending Review',
+  'Reviewed',
+  'Approved',
+  'Rejected',
+])
+
+function canCancelSampleHandlingForLabTest(labTest: LabTest): boolean {
+  const status = (labTest.status || '').trim()
+  if ((labTest.docstatus ?? 0) >= 1) return false
+  if (LAB_POST_SAMPLE_REVIEW_STATUSES.has(status)) return false
+  if (!canEditLabTestSampleCollection(status)) return false
+  return (
+    status === 'Sample Collected' ||
+    status === 'Sample Collection in Progress' ||
+    status === 'Sample collection in progress'
+  )
+}
+
+function canDeleteRequestedLabTest(labTest: LabTest): boolean {
+  if (isLegacyHistoryLabRow(labTest)) return false
+  if ((labTest.docstatus ?? 0) !== 0) return false
+  return (labTest.status || '').trim() === 'Requested'
 }
 
 const escapeHtml = (value: unknown): string =>
@@ -2345,7 +2377,7 @@ export const LabTestList = ({
     try {
       const data = await getSampleCollectionForLabSample(sampleModalLabTest.name, idx)
       setSampleFormQty(data.sample_qty != null ? String(data.sample_qty) : '')
-      setSampleFormDetails(data.sample_details || row.sample_details || '')
+      setSampleFormDetails(stripHtmlToText(data.sample_details || row.sample_details || ''))
       setSampleFormCollectionPoint(data.collection_point || '')
       setSampleFormRefPractitioner(data.referring_practitioner || '')
       setRefPractitionerQuery(data.referring_practitioner_name || data.referring_practitioner || '')
@@ -2480,6 +2512,55 @@ export const LabTestList = ({
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to finish grouped lab request')
     } finally { setFinishingGroupKey(null) }
+  }
+
+  const [sampleCancelLabTest, setSampleCancelLabTest] = useState<LabTest | null>(null)
+  const [sampleCancelLoading, setSampleCancelLoading] = useState(false)
+  const [deleteLabTestTarget, setDeleteLabTestTarget] = useState<LabTest | null>(null)
+  const [deleteLabTestLoading, setDeleteLabTestLoading] = useState(false)
+
+  const handleCancelSampleHandlingForLabTest = (labTest: LabTest) => {
+    setOpenActionRow(null)
+    setSampleCancelLabTest(labTest)
+  }
+
+  const confirmCancelSampleHandling = async () => {
+    if (!sampleCancelLabTest) return
+    setSampleCancelLoading(true)
+    try {
+      await cancelLabSampleHandling({ labTestName: sampleCancelLabTest.name })
+      toast.success('Sample handling cancelled')
+      setSampleCancelLabTest(null)
+      await refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to cancel sample handling')
+    } finally {
+      setSampleCancelLoading(false)
+    }
+  }
+
+  const handleDeleteRequestedLabTest = (labTest: LabTest) => {
+    setOpenActionRow(null)
+    setDeleteLabTestTarget(labTest)
+  }
+
+  const confirmDeleteRequestedLabTest = async () => {
+    if (!deleteLabTestTarget) return
+    setDeleteLabTestLoading(true)
+    try {
+      const result = await deleteRequestedLabTest(deleteLabTestTarget.name)
+      if (result.deleted_service_request && result.service_request) {
+        toast.success(`Lab test deleted. Lab request ${result.service_request} was also removed.`)
+      } else {
+        toast.success('Lab test deleted')
+      }
+      setDeleteLabTestTarget(null)
+      await refetch()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to delete lab test')
+    } finally {
+      setDeleteLabTestLoading(false)
+    }
   }
 
   const handleOpenSampleCollection = (labTest: LabTest) => {
@@ -2939,6 +3020,24 @@ export const LabTestList = ({
             {!isLegacyHistoryLabRow(labTest) && (
             <button type="button" onClick={() => handleOpenSampleCollection(labTest)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Sample Collection</button>
+            )}
+            {canCancelSampleHandlingForLabTest(labTest) && (
+              <button
+                type="button"
+                onClick={() => handleCancelSampleHandlingForLabTest(labTest)}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50"
+              >
+                Cancel Sample Handling
+              </button>
+            )}
+            {canDeleteRequestedLabTest(labTest) && (
+              <button
+                type="button"
+                onClick={() => handleDeleteRequestedLabTest(labTest)}
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50"
+              >
+                Delete Lab Test
+              </button>
             )}
             {canEditResultRow(labTest) && (
               <button type="button" onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
@@ -3574,7 +3673,7 @@ export const LabTestList = ({
                                   <button type="button" onClick={async () => {
                                     setSampleFormError(null)
                                     setSampleFormQty(row.sample_qty != null ? String(row.sample_qty) : '')
-                                    setSampleFormDetails(row.sample_details || '')
+                                    setSampleFormDetails(stripHtmlToText(row.sample_details || ''))
                                     setSampleObsRows(
                                       row.sample
                                         ? [{ sample: row.sample, sample_qty: row.sample_qty, collection_date_time: new Date().toISOString().slice(0, 16).replace('T', ' ') }]
@@ -4068,6 +4167,52 @@ export const LabTestList = ({
           }}
         />
       )}
+
+      <ConfirmActionModal
+        open={!!sampleCancelLabTest}
+        title="Cancel sample handling?"
+        subtitle={sampleCancelLabTest?.name}
+        icon={<AlertTriangle className="h-5 w-5" />}
+        tone="warning"
+        loading={sampleCancelLoading}
+        confirmLabel="Cancel sample handling"
+        onClose={() => {
+          if (!sampleCancelLoading) setSampleCancelLabTest(null)
+        }}
+        onConfirm={() => void confirmCancelSampleHandling()}
+      >
+        <p className="text-sm leading-relaxed text-slate-600">
+          Linked sample collection records will be reversed. The lab test itself is not deleted.
+        </p>
+      </ConfirmActionModal>
+
+      <ConfirmActionModal
+        open={!!deleteLabTestTarget}
+        title="Delete lab test?"
+        subtitle={deleteLabTestTarget?.name}
+        icon={<Trash2 className="h-5 w-5" />}
+        tone="danger"
+        loading={deleteLabTestLoading}
+        confirmLabel="Delete permanently"
+        cancelLabel="Keep test"
+        onClose={() => {
+          if (!deleteLabTestLoading) setDeleteLabTestTarget(null)
+        }}
+        onConfirm={() => void confirmDeleteRequestedLabTest()}
+      >
+        <div className="rounded-xl border border-red-200/80 bg-red-50/80 px-4 py-3 text-sm text-red-900">
+          This lab test is in <span className="font-semibold">Requested</span> status and will be permanently
+          removed. This cannot be undone.
+        </div>
+        {deleteLabTestTarget?.service_request ? (
+          <p className="text-sm leading-relaxed text-slate-600">
+            If this is the only test on lab request{' '}
+            <span className="font-semibold text-slate-800">{deleteLabTestTarget.service_request}</span>, the lab
+            request and linked billing will also be removed. Patient credit is recorded only when payment was
+            actually received for the order.
+          </p>
+        ) : null}
+      </ConfirmActionModal>
     </div>
   )
 }

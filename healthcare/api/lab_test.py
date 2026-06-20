@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
@@ -19,6 +19,14 @@ LAB_RESULT_EDIT_ROLES = frozenset(
 		"Administrator",
 	)
 )
+
+
+def _plain_sample_details(value: str | None) -> str | None:
+	"""Store collection notes as plain text, not rich-text HTML."""
+	if value is None:
+		return None
+	text = strip_html(value).strip()
+	return text or None
 
 
 def _ensure_lab_result_edit_permission():
@@ -2062,7 +2070,9 @@ def get_sample_collection_for_lab_sample(lab_test_name: str, row_index: int):
 		"sample_collection": sample_doc.name,
 		"sample": sample_doc.sample or getattr(row, "sample", None),
 		"sample_qty": sample_doc.sample_qty if sample_doc.sample_qty is not None else getattr(row, "sample_qty", None),
-		"sample_details": sample_doc.sample_details or getattr(row, "sample_details", None),
+		"sample_details": _plain_sample_details(
+			sample_doc.sample_details or getattr(row, "sample_details", None)
+		),
 		"collection_point": sample_doc.collection_point,
 		"referring_practitioner": sample_doc.referring_practitioner,
 		"referring_practitioner_name": referring_practitioner_name,
@@ -2123,6 +2133,7 @@ def update_sample_collection_for_lab_sample(
 		row.sample_qty = sample_qty_value
 
 	if sample_details is not None:
+		sample_details = _plain_sample_details(sample_details)
 		sample_doc.sample_details = sample_details
 		row.sample_details = sample_details
 
@@ -2183,7 +2194,7 @@ def create_sample_collection_for_lab_sample(
 		if sample_qty_value is not None:
 			child.sample_qty = sample_qty_value
 		if sample_details:
-			child.sample_details = sample_details
+			child.sample_details = _plain_sample_details(sample_details)
 		doc.save(ignore_permissions=True)
 		rows = doc.get("sample_instances") or []
 		row_index = 0
@@ -2200,9 +2211,10 @@ def create_sample_collection_for_lab_sample(
 	if sample_qty_value is not None:
 		row.sample_qty = sample_qty_value
 	if sample_details:
+		sample_details = _plain_sample_details(sample_details)
 		row.sample_details = sample_details
 
-	row_details = sample_details or getattr(row, "sample_details", None)
+	row_details = sample_details or _plain_sample_details(getattr(row, "sample_details", None))
 	if not getattr(row, "sample", None) and not row_details:
 		frappe.throw(_("Sample or collection details is required on the selected row"))
 
@@ -2222,8 +2234,8 @@ def create_sample_collection_for_lab_sample(
 		if uom:
 			sample_doc.sample_uom = uom
 	sample_doc.sample_qty = frappe.utils.flt(getattr(row, "sample_qty", 0) or 0)
-	# Prefer explicit sample_details from caller, fall back to row
-	sample_doc.sample_details = sample_details or getattr(row, "sample_details", None)
+	# Prefer explicit sample_details from caller, fall back to row (plain text only)
+	sample_doc.sample_details = sample_details or _plain_sample_details(getattr(row, "sample_details", None))
 	if doc.company:
 		sample_doc.company = doc.company
 	if collection_point:

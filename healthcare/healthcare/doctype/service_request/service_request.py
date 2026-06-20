@@ -591,6 +591,16 @@ def book_lab_and_forward(service_request_name):
 	if not sr.patient_accepted_cost:
 		frappe.throw(_("Patient must accept cost before using Booked Lab."))
 	if sr.booked:
+		if sr.docstatus == 0:
+			sr.flags.ignore_permissions = True
+			sr.submit()
+			frappe.db.commit()
+			return {
+				"ok": True,
+				"already_booked": True,
+				"submitted": True,
+				"service_request": sr.name,
+			}
 		frappe.throw(_("This request has already been forwarded to the laboratory."))
 
 	existing = frappe.get_all(
@@ -692,7 +702,14 @@ def book_lab_and_forward(service_request_name):
 	if not created_names:
 		frappe.throw(_("Failed to create any lab tests. Errors: {0}").format(", ".join(errors)))
 
-	sr.db_set("booked", 1)
+	sr.reload()
+	sr.booked = 1
+	if sr.docstatus == 0:
+		sr.flags.ignore_permissions = True
+		sr.submit()
+	else:
+		sr.save(ignore_permissions=True)
+
 	frappe.db.commit()
 	if len(created_names) == 1:
 		return {

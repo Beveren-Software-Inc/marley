@@ -8,6 +8,13 @@ import {
   type ServiceRequest
 } from '../../services/serviceRequests'
 import {
+  fetchLabRequestActions,
+  deleteDraftLabRequest,
+  cancelBookedLabRequest,
+  cancelLabSampleHandling,
+  type LabRequestActions,
+} from '../../services/labRequestActions'
+import {
   fetchServiceRequestTemplateTypes,
   fetchHealthcarePractitioners,
   getCurrentUserPractitioner,
@@ -18,6 +25,7 @@ import { StatusPill } from '../ui/StatusPill'
 import { EditServiceRequestModal } from './EditServiceRequestModal'
 import { ServiceRequestDetailPanel } from './ServiceRequestDetailPanel'
 import { BookConsultationSessionModal } from './BookConsultationSessionModal'
+import { LabRequestActionModal, type LabRequestModalAction } from './LabRequestActionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { Search, X } from 'lucide-react'
@@ -144,6 +152,11 @@ export const ServiceRequestList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [editServiceRequestName, setEditServiceRequestName] = useState<string | null>(null)
   const [bookingSessionSR, setBookingSessionSR] = useState<ServiceRequest | null>(null)
+  const [labActionsBySr, setLabActionsBySr] = useState<Record<string, LabRequestActions>>({})
+  const [labRequestModal, setLabRequestModal] = useState<{
+    action: LabRequestModalAction
+    sr: ServiceRequest
+  } | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   // Pagination state
@@ -217,6 +230,31 @@ export const ServiceRequestList = ({
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  useEffect(() => {
+    if (!openActionRow) return
+    const sr = serviceRequests.find((row) => row.name === openActionRow)
+    if (!sr || sr.template_dt !== 'Lab Test Template') return
+    fetchLabRequestActions(sr.name)
+      .then((actions) => {
+        setLabActionsBySr((prev) => ({ ...prev, [sr.name]: actions }))
+      })
+      .catch(() => {
+        setLabActionsBySr((prev) => ({
+          ...prev,
+          [sr.name]: {
+            service_request: sr.name,
+            phase: 'post_sample',
+            can_delete: false,
+            can_cancel_with_settlement: false,
+            can_cancel_sample_handling: false,
+            can_delete_lab_tests: false,
+            can_delete_lab_request: false,
+            lab_tests: [],
+          },
+        }))
+      })
+  }, [openActionRow, serviceRequests])
 
   // Reset page when filters change
   useEffect(() => {
@@ -301,6 +339,75 @@ export const ServiceRequestList = ({
       doRefetch()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to confirm payment')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleDeleteDraftLabRequest = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      await deleteDraftLabRequest(sr.name)
+      toast.success('Lab request deleted')
+      setLabRequestModal(null)
+      setLabActionsBySr((prev) => {
+        const next = { ...prev }
+        delete next[sr.name]
+        return next
+      })
+      doRefetch()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete lab request')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleCancelBookedLabRequest = async (
+    sr: ServiceRequest,
+    settlementMode: 'refund' | 'patient_credit'
+  ) => {
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      const result = await cancelBookedLabRequest(sr.name, settlementMode)
+      toast.success(
+        settlementMode === 'patient_credit'
+          ? `Lab request cancelled. Patient credit recorded${result.payment_entry ? ` (${result.payment_entry})` : ''}.`
+          : 'Lab request cancelled. Refund the patient at reception if cash was collected.'
+      )
+      setLabRequestModal(null)
+      setLabActionsBySr((prev) => {
+        const next = { ...prev }
+        delete next[sr.name]
+        return next
+      })
+      doRefetch()
+      onLabTestCreated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel lab request')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleCancelLabSampleHandling = async (sr: ServiceRequest) => {
+    setOpenActionRow(null)
+    setActionLoading(sr.name)
+    try {
+      await cancelLabSampleHandling({ serviceRequestName: sr.name })
+      toast.success('Sample handling cancelled')
+      setLabRequestModal(null)
+      setLabActionsBySr((prev) => {
+        const next = { ...prev }
+        delete next[sr.name]
+        return next
+      })
+      doRefetch()
+      onLabTestCreated?.()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel sample handling')
     } finally {
       setActionLoading(null)
     }
@@ -640,6 +747,7 @@ export const ServiceRequestList = ({
             const accepted = !!sr.patient_accepted_cost
             const booked = !!sr.booked
             const loadingThis = actionLoading === sr.name
+            const labActions = isLab ? labActionsBySr[sr.name] : undefined
             
             // Determine what action button to show after payment confirmation
             const shouldShowBookingAction = accepted && !booked
@@ -790,6 +898,48 @@ export const ServiceRequestList = ({
                           </button>
                         )}
 
+                        {isLab && labActions?.can_delete && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              setLabRequestModal({ action: 'delete', sr })
+                            }}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Delete Lab Request
+                          </button>
+                        )}
+
+                        {isLab && labActions?.can_cancel_with_settlement && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              setLabRequestModal({ action: 'settlement', sr })
+                            }}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                          >
+                            Cancel Lab Request…
+                          </button>
+                        )}
+
+                        {isLab && labActions?.can_cancel_sample_handling && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              setLabRequestModal({ action: 'sample_handling', sr })
+                            }}
+                            disabled={loadingThis}
+                            className="block w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50 disabled:opacity-50"
+                          >
+                            Cancel Sample Handling
+                          </button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => handleEdit(sr)}
@@ -847,6 +997,21 @@ export const ServiceRequestList = ({
           serviceRequest={bookingSessionSR}
           onClose={() => setBookingSessionSR(null)}
           onSuccess={() => { setBookingSessionSR(null); doRefetch() }}
+        />
+      )}
+
+      {labRequestModal && (
+        <LabRequestActionModal
+          action={labRequestModal.action}
+          serviceRequest={labRequestModal.sr}
+          loading={actionLoading === labRequestModal.sr.name}
+          onClose={() => {
+            if (actionLoading === labRequestModal.sr.name) return
+            setLabRequestModal(null)
+          }}
+          onDeleteConfirm={() => handleDeleteDraftLabRequest(labRequestModal.sr)}
+          onSampleHandlingConfirm={() => handleCancelLabSampleHandling(labRequestModal.sr)}
+          onSettlementChoice={(mode) => handleCancelBookedLabRequest(labRequestModal.sr, mode)}
         />
       )}
     </div>
