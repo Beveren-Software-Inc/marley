@@ -6,6 +6,7 @@
    {
     "action_required": "1",
     "department": "Psychology - SPH",
+    "department_2": null,
     "sr_num": null
    }
   ],
@@ -22,6 +23,7 @@
    {
     "action_required": "Discharge Medication Entered ",
     "department": null,
+    "department_2": null,
     "sr_num": null
    }
   ],
@@ -38,36 +40,43 @@
    {
     "action_required": "Discharge Medication Entered ",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Session Data Entered",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "IP Service and Other services",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Billing Finalisation",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Patient Exit From Hospital",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Discharge Notes",
     "department": null,
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Final Financial Check",
     "department": null,
+    "department_2": null,
     "sr_num": null
    }
   ],
@@ -84,46 +93,55 @@
    {
     "action_required": "Request Of Discharged",
     "department": "Reception - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Discharged Medication Entered",
     "department": "Doctor - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Sessions Entered",
     "department": "Doctor - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "IP Services And Other Services",
     "department": "Nursing - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Sales Of Medicines",
     "department": "Rose Pharmacy - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Billing Finalization",
     "department": "Reception - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Patient Exit From The Hospital",
     "department": "Nursing - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Discharged Notes",
     "department": "Doctor - SPH",
+    "department_2": null,
     "sr_num": null
    },
    {
     "action_required": "Final Financial Check",
     "department": "Admin - SPH",
+    "department_2": null,
     "sr_num": null
    }
   ],

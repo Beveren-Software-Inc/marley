@@ -8,10 +8,13 @@ import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatient
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   createMedicineGiven,
+  extractDoseNumeric,
   fetchMedicineGivenStockOptions,
   fetchMedicineGivenLots,
   fetchMedicineGivenItemLots,
   fetchMedicineGivenDispensingLots,
+  previewMedicineGivenDoseValidation,
+  type MedicineGivenDoseValidationPreview,
   type MedicineGivenStockOptions,
   type MedicineGivenDispensingLotOption,
 } from '../../services/medicineGiven'
@@ -165,6 +168,7 @@ export const CreateMedicineGivenModal = ({
   const [uomQuery, setUomQuery] = useState('')
   const [loadingUoms, setLoadingUoms] = useState(false)
   const [qty, setQty] = useState<string>('1')
+  const [dose, setDose] = useState<string>('')
   const [uom, setUom] = useState<string>('')
   const [date, setDate] = useState<string>('')
   const [time, setTime] = useState<string>('')
@@ -173,6 +177,8 @@ export const CreateMedicineGivenModal = ({
   const [error, setError] = useState<string | null>(null)
   const [overrideChecked, setOverrideChecked] = useState(false)
   const [overrideReason, setOverrideReason] = useState('')
+  const [doseWarning, setDoseWarning] = useState<MedicineGivenDoseValidationPreview | null>(null)
+  const [checkingDose, setCheckingDose] = useState(false)
   const [isPrn, setIsPrn] = useState(false)
   const [stockOptions, setStockOptions] = useState<MedicineGivenStockOptions | null>(null)
   const [loadingStock, setLoadingStock] = useState(false)
@@ -317,6 +323,9 @@ export const CreateMedicineGivenModal = ({
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
     setUom((selected?.uom || '').trim())
     setUomQuery((selected?.uom || '').trim())
+    setDose((selected?.dosage || '').trim())
+    const orderQty = selected?.quantity
+    setQty(orderQty != null && orderQty > 0 ? String(orderQty) : '1')
   }, [selectedOrder, prescriptionOrders])
 
   useEffect(() => {
@@ -369,6 +378,46 @@ export const CreateMedicineGivenModal = ({
       cancelled = true
     }
   }, [selectedOrder, prescriptionOrders, admission?.name])
+
+  useEffect(() => {
+    const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
+    const drugCode = (selected?.drug || '').trim()
+    const admissionName = admission?.name
+    const parsedDose = extractDoseNumeric(dose)
+
+    if (!admissionName || !drugCode || !dose.trim() || parsedDose == null || parsedDose <= 0 || !date) {
+      setDoseWarning(null)
+      return
+    }
+
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setCheckingDose(true)
+      previewMedicineGivenDoseValidation({
+        admission: admissionName,
+        medicine_code: drugCode,
+        dose,
+        date,
+        time,
+      })
+        .then((preview) => {
+          if (!cancelled) {
+            setDoseWarning(preview.has_limit && !preview.ok ? preview : null)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setDoseWarning(null)
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingDose(false)
+        })
+    }, 350)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [dose, date, time, selectedOrder, prescriptionOrders, admission?.name])
 
   const handleBatchChange = async (batchName: string) => {
     setBatchNo(batchName)
@@ -477,9 +526,26 @@ export const CreateMedicineGivenModal = ({
       toast.error('Select a medicine from the prescription')
       return
     }
-    const parsedQty = parseFloat(qty)
+    const parsedDose = extractDoseNumeric(dose)
+    if (!dose.trim() || parsedDose == null || parsedDose <= 0) {
+      toast.error('Enter a valid dose (e.g. 50 or 50mg)')
+      return
+    }
+
+    const parsedQty = Number(qty)
     if (!qty.trim() || Number.isNaN(parsedQty) || parsedQty <= 0) {
       toast.error('Enter a valid quantity')
+      return
+    }
+
+    if (doseWarning && !overrideChecked) {
+      const proceed = window.confirm(
+        `${doseWarning.message || 'This dose exceeds the configured maximum dose limit.'}\n\n`
+          + 'To continue, enable Override below and enter a mandatory reason. Open override section now?'
+      )
+      if (proceed) {
+        setOverrideChecked(true)
+      }
       return
     }
 
@@ -505,7 +571,8 @@ export const CreateMedicineGivenModal = ({
       setError(null)
 
       if (overrideChecked && !overrideReason.trim()) {
-        const msg = 'Please enter a justification for overriding the prescribed frequency.'
+        const msg =
+          'Please enter a justification for overriding the prescribed frequency or maximum dose limit.'
         setError(msg)
         toast.error(msg)
         return
@@ -521,6 +588,7 @@ export const CreateMedicineGivenModal = ({
         unit: uom || undefined,
         allow_override: overrideChecked || undefined,
         override_reason: overrideChecked ? overrideReason.trim() : undefined,
+        dose: dose.trim(),
         qty: parsedQty,
         date,
         time,
@@ -592,11 +660,11 @@ export const CreateMedicineGivenModal = ({
                 <svg className="h-4 w-4 text-amber-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                   <path d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="font-semibold text-amber-800">Override prescribed frequency (optional)</span>
+                <span className="font-semibold text-amber-800">Override limits (optional)</span>
               </div>
               <p className="text-xs text-amber-700">
-                Use this only when an extra dose is clinically justified (e.g. ICU, high-risk treatment, explicit
-                consultant order). All overrides are logged with user and reason.
+                Use when an extra dose, higher dose, or dose above the 24-hour ceiling is clinically justified
+                (e.g. ICU, consultant order). All overrides are logged with user, reason, and timestamp.
               </p>
               <label className="flex items-center gap-2 text-sm text-amber-800">
                 <input
@@ -605,7 +673,7 @@ export const CreateMedicineGivenModal = ({
                   checked={overrideChecked}
                   onChange={(e) => setOverrideChecked(e.target.checked)}
                 />
-                I need to override the prescribed daily frequency for this dose.
+                I need to override the prescribed frequency or maximum dose limit for this dose.
               </label>
               {overrideChecked && (
                 <div className="space-y-2">
@@ -693,7 +761,24 @@ export const CreateMedicineGivenModal = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Dose</label>
+              <input
+                type="text"
+                value={dose}
+                onChange={(e) => setDose(e.target.value)}
+                placeholder="e.g. 50mg"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+              />
+              {checkingDose ? (
+                <p className="text-xs text-slate-500">Checking dose limit…</p>
+              ) : doseWarning ? (
+                <div className="rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 whitespace-pre-line">
+                  {doseWarning.message}
+                </div>
+              ) : null}
+            </div>
             <div className="space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Quantity</label>
               <input

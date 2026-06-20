@@ -164,6 +164,8 @@
    "label": "Medication Orders"
   },
   {
+   "allow_bulk_edit": 1,
+   "allow_on_submit": 1,
    "fieldname": "medication_orders",
    "fieldtype": "Table",
    "label": "Medication Orders",
@@ -417,7 +419,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-16 17:22:48.395031",
+ "modified": "2026-06-20 09:22:51.182054",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",

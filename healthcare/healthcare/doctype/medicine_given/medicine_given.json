@@ -11,6 +11,7 @@
   "medicine_code",
   "medicine_name",
   "medication_order",
+  "dose",
   "qty",
   "unit",
   "state_date",
@@ -36,6 +37,8 @@
   "patient_medication_order",
   "override_section",
   "override_exceeded_frequency",
+  "override_exceeded_dose_limit",
+  "override_exceeded_cumulative_24h",
   "override_reason",
   "override_user",
   "override_timestamp"
@@ -67,6 +70,12 @@
    "fieldtype": "Link",
    "label": "Patient Medication Order",
    "options": "Patient Medication Order"
+  },
+  {
+   "fieldname": "dose",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Dose"
   },
   {
    "fieldname": "qty",
@@ -133,6 +142,18 @@
    "fieldname": "override_exceeded_frequency",
    "fieldtype": "Check",
    "label": "Exceeded Prescribed Daily Frequency"
+  },
+  {
+   "default": "0",
+   "fieldname": "override_exceeded_dose_limit",
+   "fieldtype": "Check",
+   "label": "Exceeded Maximum Dose Limit"
+  },
+  {
+   "default": "0",
+   "fieldname": "override_exceeded_cumulative_24h",
+   "fieldtype": "Check",
+   "label": "Exceeded 24-Hour Cumulative Dose"
   },
   {
    "fieldname": "override_reason",

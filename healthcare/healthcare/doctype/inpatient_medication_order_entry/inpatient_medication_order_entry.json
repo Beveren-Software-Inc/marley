@@ -58,6 +58,7 @@
  ],
  "fields": [
   {
+   "allow_on_submit": 1,
    "fieldname": "drug",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -65,6 +66,7 @@
    "options": "Item"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "drug.item_name",
    "fieldname": "drug_name",
    "fieldtype": "Data",
@@ -72,6 +74,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "dosage",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -103,12 +106,14 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Start Date"
   },
   {
+   "allow_on_submit": 1,
    "default": "Now",
    "fieldname": "time",
    "fieldtype": "Time",
@@ -124,19 +129,23 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "instructions",
    "fieldtype": "Small Text",
    "label": "Instructions"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "patient_frequency",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Prescription Frequency",
    "options": "Prescription Frequency"
   },
   {
+   "allow_on_submit": 1,
    "fetch_from": "patient_frequency.frequency_in_a_day",
    "fieldname": "frequency_in_a_day",
    "fieldtype": "Int",
@@ -144,6 +153,7 @@
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "uom",
    "fieldtype": "Link",
    "label": "UOM",
@@ -163,6 +173,7 @@
    "label": "Reference No"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "end_date",
    "fieldtype": "Date",
    "label": "End Date"
@@ -170,16 +181,19 @@
   {
    "fieldname": "route_of_administration",
    "fieldtype": "Link",
+   "ignore_user_permissions": 1,
    "label": "Route of Administration",
    "options": "Route of Administration"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "is_long_acting_medicine",
    "fieldtype": "Check",
    "label": "Is Long Acting Medicine"
   },
   {
+   "allow_on_submit": 1,
    "description": "Set when this order entry is transferred to a follow-up visit prescription on discharge reconciliation.",
    "fieldname": "transferred_to_visit",
    "fieldtype": "Link",
@@ -216,11 +230,13 @@
    "fieldtype": "Section Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "rate",
    "fieldtype": "Currency",
    "label": "Rate"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "amount",
    "fieldtype": "Currency",
    "label": "Amount"
@@ -230,6 +246,7 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "medication",
    "fieldtype": "Data",
    "label": "Medication"
@@ -240,26 +257,31 @@
    "label": "Dose Term"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "defined_quantity",
    "fieldtype": "Data",
    "label": "Defined Quantity"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "trans_type",
    "fieldtype": "Data",
    "label": "Trans Type"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "stopped_date",
    "fieldtype": "Date",
    "label": "Stopped Date"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "stop_by",
    "fieldtype": "Data",
    "label": "Stop By"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "redundancy_type",
    "fieldtype": "Data",
    "label": "Redundancy Type"
@@ -349,7 +371,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-18 17:13:41.945325",
+ "modified": "2026-06-20 09:24:01.884421",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

@@ -106,7 +106,9 @@ fixtures = [
                    "Material Request-custom_notes",
                    "Material Request-custom_section_break_gmmp2",
                    "Material Request-custom_nurse_inventory",
-                   "Material Request-custom_lab_inventory"
+                   "Material Request-custom_lab_inventory",
+                   
+                   "Item-custom_maximum_dose_limit",
                     
                 ),
             ]

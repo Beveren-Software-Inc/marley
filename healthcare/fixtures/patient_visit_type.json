@@ -4,6 +4,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:01.854770",
   "name": "ECT Session,",
+  "service_charge": null,
   "visit_type": "ECT Session,"
  },
  {
@@ -11,6 +12,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:31:33.653408",
   "name": "Medical Report,",
+  "service_charge": null,
   "visit_type": "Medical Report,"
  },
  {
@@ -18,6 +20,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:55:48.892265",
   "name": "Online-New Visit",
+  "service_charge": null,
   "visit_type": "Online-New Visit"
  },
  {
@@ -25,6 +28,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:32:43.693711",
   "name": "Nutritionist",
+  "service_charge": null,
   "visit_type": "Nutritionist"
  },
  {
@@ -32,6 +36,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:28:40.311983",
   "name": "ECG Session",
+  "service_charge": null,
   "visit_type": "ECG Session"
  },
  {
@@ -39,6 +44,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:01.854770",
   "name": "ECT Session",
+  "service_charge": null,
   "visit_type": "ECT Session"
  },
  {
@@ -46,6 +52,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:12.566133",
   "name": "EEG Session",
+  "service_charge": null,
   "visit_type": "EEG Session"
  },
  {
@@ -53,6 +60,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:33.984939",
   "name": "Follow-up for the Psychiatrist",
+  "service_charge": null,
   "visit_type": "Follow-up for the Psychiatrist"
  },
  {
@@ -60,6 +68,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:29:51.802169",
   "name": "Home Visit",
+  "service_charge": null,
   "visit_type": "Home Visit"
  },
  {
@@ -67,6 +76,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:30:03.702775",
   "name": "IOP",
+  "service_charge": null,
   "visit_type": "IOP"
  },
  {
@@ -74,6 +84,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:30:23.230593",
   "name": "Lab Visit",
+  "service_charge": null,
   "visit_type": "Lab Visit"
  },
  {
@@ -81,6 +92,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:30:41.370100",
   "name": "Pharmacy",
+  "service_charge": null,
   "visit_type": "Pharmacy"
  },
  {
@@ -88,6 +100,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:31:33.653408",
   "name": "Medical Report",
+  "service_charge": null,
   "visit_type": "Medical Report"
  },
  {
@@ -95,6 +108,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-02-15 10:32:00.583598",
   "name": "Psychologist",
+  "service_charge": null,
   "visit_type": "Psychologist"
  },
  {
@@ -102,6 +116,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:53:27.196279",
   "name": "New Visit",
+  "service_charge": null,
   "visit_type": "New Visit"
  },
  {
@@ -109,6 +124,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:54:06.115895",
   "name": "EEG Request",
+  "service_charge": null,
   "visit_type": "EEG Request"
  },
  {
@@ -116,6 +132,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:54:54.754930",
   "name": "Child Psychiatry Visit",
+  "service_charge": null,
   "visit_type": "Child Psychiatry Visit"
  },
  {
@@ -123,6 +140,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:55:11.472859",
   "name": "ECT Request",
+  "service_charge": null,
   "visit_type": "ECT Request"
  },
  {
@@ -130,6 +148,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:55:39.406727",
   "name": "Online-Followup",
+  "service_charge": null,
   "visit_type": "Online-Followup"
  },
  {
@@ -137,6 +156,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:55:48.892265",
   "name": "Online-New Visist",
+  "service_charge": null,
   "visit_type": "Online-New Visist"
  },
  {
@@ -144,6 +164,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:55:58.493538",
   "name": "Day Case",
+  "service_charge": null,
   "visit_type": "Day Case"
  },
  {
@@ -151,6 +172,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:56:07.642305",
   "name": "Payment Only",
+  "service_charge": null,
   "visit_type": "Payment Only"
  },
  {
@@ -158,6 +180,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:56:27.174606",
   "name": "Online Psychology",
+  "service_charge": null,
   "visit_type": "Online Psychology"
  },
  {
@@ -165,6 +188,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:57:04.728797",
   "name": "Renew Medicine Prescription",
+  "service_charge": null,
   "visit_type": "Renew Medicine Prescription"
  },
  {
@@ -172,6 +196,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:57:45.785491",
   "name": "Nutrition (New Visit)",
+  "service_charge": null,
   "visit_type": "Nutrition (New Visit)"
  },
  {
@@ -179,6 +204,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 17:58:02.056635",
   "name": "Nutrition (Followup)",
+  "service_charge": null,
   "visit_type": "Nutrition (Followup)"
  },
  {
@@ -186,6 +212,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-23 18:00:44.351582",
   "name": "Daily Auto Visit",
+  "service_charge": null,
   "visit_type": "Daily Auto Visit"
  },
  {
@@ -193,6 +220,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-26 10:12:33.140406",
   "name": "Followup",
+  "service_charge": null,
   "visit_type": "Followup"
  },
  {
@@ -200,6 +228,7 @@
   "doctype": "Patient Visit Type",
   "modified": "2026-04-26 10:14:36.959734",
   "name": "Psychology",
+  "service_charge": null,
   "visit_type": "Psychology"
  }
 ]
