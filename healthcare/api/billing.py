@@ -557,7 +557,7 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
 def get_payment_entries(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
     conditions = ["pe.docstatus = 1"]
     params = {}
-    print("Hapa ndio tuko")
+
     if from_date:
         conditions.append("pe.posting_date >= %(from_date)s")
         params["from_date"] = from_date
@@ -567,23 +567,51 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
     if mode_of_payment:
         conditions.append("pe.mode_of_payment = %(mode_of_payment)s")
         params["mode_of_payment"] = mode_of_payment
+
+    patient_customer = None
     if patient:
-        conditions.append("si.patient = %(patient)s")
+        patient_customer = frappe.db.get_value("Patient", patient, "customer")
         params["patient"] = patient
+        if patient_customer:
+            params["customer"] = patient_customer
+
     if reference_name:
         if reference_type:
             conditions.append("si.custom_reference_type = %(reference_type)s")
             params["reference_type"] = reference_type
-        conditions.append("si.custom_reference_name = %(reference_name)s")
         params["reference_name"] = reference_name
+        if patient_customer:
+            conditions.append(
+                "(si.custom_reference_name = %(reference_name)s "
+                "OR (per.reference_name IS NULL AND pe.party = %(customer)s))"
+            )
+        elif patient:
+            conditions.append("si.patient = %(patient)s")
+            conditions.append("si.custom_reference_name = %(reference_name)s")
+        else:
+            conditions.append("si.custom_reference_name = %(reference_name)s")
+    elif patient:
+        if patient_customer:
+            conditions.append(
+                "(si.patient = %(patient)s OR (per.reference_name IS NULL AND pe.party = %(customer)s))"
+            )
+        else:
+            conditions.append("si.patient = %(patient)s")
 
     from healthcare.api.common import get_permitted_cost_centers
+
     permitted_cc = get_permitted_cost_centers()
     if permitted_cc is not None:
         if not permitted_cc:
             return []
-        conditions.append("IFNULL(pe.cost_center, '') IN %(permitted_cc)s")
         params["permitted_cc"] = tuple(permitted_cc)
+        if patient_customer:
+            conditions.append(
+                "(IFNULL(pe.cost_center, '') IN %(permitted_cc)s "
+                "OR (IFNULL(pe.cost_center, '') = '' AND pe.party = %(customer)s))"
+            )
+        else:
+            conditions.append("IFNULL(pe.cost_center, '') IN %(permitted_cc)s")
 
     where_sql = " AND ".join(conditions)
     rows = frappe.db.sql(
@@ -591,14 +619,16 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
         SELECT
             pe.name,
             pe.posting_date,
+            pe.payment_type,
             pe.mode_of_payment,
             pe.paid_amount,
             pe.party_name,
             pe.reference_no,
             pe.cost_center,
-            per.reference_name AS invoice_name,
-            si.custom_reference_type AS invoice_reference_type,
-            si.custom_reference_name AS invoice_reference_name
+            pe.remarks,
+            GROUP_CONCAT(DISTINCT per.reference_name ORDER BY per.reference_name SEPARATOR ', ') AS invoice_name,
+            MAX(si.custom_reference_type) AS invoice_reference_type,
+            MAX(si.custom_reference_name) AS invoice_reference_name
         FROM `tabPayment Entry` pe
         LEFT JOIN `tabPayment Entry Reference` per
             ON per.parent = pe.name
@@ -606,6 +636,7 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
         LEFT JOIN `tabSales Invoice` si
             ON si.name = per.reference_name
         WHERE {where_sql}
+        GROUP BY pe.name
         ORDER BY pe.posting_date DESC, pe.creation DESC
         """,
         params,
@@ -624,14 +655,18 @@ def get_payment_summary(reference_type=None, reference_name=None, patient=None, 
         to_date=to_date,
         mode_of_payment=mode_of_payment,
     )
-    total_paid = sum(flt(r.get("paid_amount")) for r in rows)
+    total_paid = sum(
+        -flt(r.get("paid_amount")) if r.get("payment_type") == "Pay" else flt(r.get("paid_amount"))
+        for r in rows
+    )
     by_mode = {}
     for r in rows:
         mode = (r.get("mode_of_payment") or "Unknown").strip() or "Unknown"
+        signed = -flt(r.get("paid_amount")) if r.get("payment_type") == "Pay" else flt(r.get("paid_amount"))
         if mode not in by_mode:
             by_mode[mode] = {"mode_of_payment": mode, "count": 0, "amount": 0.0}
         by_mode[mode]["count"] += 1
-        by_mode[mode]["amount"] += flt(r.get("paid_amount"))
+        by_mode[mode]["amount"] += signed
 
     modes = sorted(by_mode.values(), key=lambda x: (-x["amount"], x["mode_of_payment"]))
     return {
@@ -845,11 +880,6 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
             return {"success": False, "message": _("This invoice has no outstanding balance.")}
         if pay_amt <= 0:
             return {"success": False, "message": _("Payment amount must be greater than zero.")}
-        if pay_amt > outstanding:
-            return {
-                "success": False,
-                "message": _("Payment amount cannot exceed the outstanding amount ({0}).").format(outstanding),
-            }
 
         if not payment_mode or not cstr(payment_mode).strip():
             return {"success": False, "message": _("Mode of payment is required.")}
@@ -910,13 +940,14 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
         # Set currency (single currency - no exchange rate needed)
         payment_entry.currency = company.default_currency
         
-        # Add reference to the invoice
+        # Add reference to the invoice (overpayment remainder becomes unallocated credit)
+        allocated = min(pay_amt, outstanding) if outstanding > 0 else pay_amt
         payment_entry.append("references", {
             "reference_doctype": "Sales Invoice",
             "reference_name": invoice_name,
-            "total_amount": invoice.outstanding_amount,
-            "outstanding_amount": invoice.outstanding_amount,
-            "allocated_amount": pay_amt
+            "total_amount": flt(invoice.grand_total),
+            "outstanding_amount": outstanding,
+            "allocated_amount": allocated,
         })
         
         # Insert and submit

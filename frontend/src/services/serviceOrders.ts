@@ -99,11 +99,13 @@ export interface InvoiceSummary {
 export interface PaymentEntryRow {
   name: string
   posting_date: string
+  payment_type?: string
   mode_of_payment: string
   paid_amount: number
   party_name?: string
   reference_no?: string
   cost_center?: string | null
+  remarks?: string | null
   invoice_name?: string | null
   invoice_reference_type?: string | null
   invoice_reference_name?: string | null

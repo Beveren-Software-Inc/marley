@@ -166,13 +166,6 @@ export const PaymentModal = ({
       return
     }
 
-    if (paymentAmount > outstandingAmount) {
-      toast.error(
-        `Payment amount cannot exceed outstanding amount of ${formatCurrency(outstandingAmount)}`
-      )
-      return
-    }
-
     if (!company && !isSingleCompany) {
       toast.error('Please select a company')
       return
@@ -503,9 +496,12 @@ export const PaymentModal = ({
               </div>
 
               {paymentAmount > outstandingAmount && (
-                <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50/90 p-3 text-sm text-red-800">
+                <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/90 p-3 text-sm text-emerald-800">
                   <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>Payment amount exceeds outstanding amount</span>
+                  <span>
+                    {formatCurrency(paymentAmount - outstandingAmount)} exceeds the invoice
+                    outstanding and will be saved as patient credit for future bills.
+                  </span>
                 </div>
               )}
             </div>
@@ -522,7 +518,6 @@ export const PaymentModal = ({
               disabled={
                 loading ||
                 paymentAmount <= 0 ||
-                paymentAmount > outstandingAmount ||
                 (!company && !isSingleCompany) ||
                 !costCenter ||
                 !department
