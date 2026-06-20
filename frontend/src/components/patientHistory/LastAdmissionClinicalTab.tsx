@@ -35,6 +35,9 @@ function formatDateTime(val?: string | null): string {
   }
 }
 
+/** Fixed card height — content scrolls inside; rows stay aligned. */
+const CLINICAL_CARD_HEIGHT_CLASS = 'h-[min(420px,55vh)] max-h-[420px]'
+
 function Section({
   icon,
   title,
@@ -49,12 +52,17 @@ function Section({
   emptyMessage?: string
 }) {
   return (
-    <section className="flex h-full min-h-[260px] flex-col overflow-hidden rounded-xl border border-emerald-200/80 bg-white shadow-sm ring-1 ring-emerald-100/80">
+    <section
+      className={`flex ${CLINICAL_CARD_HEIGHT_CLASS} w-full flex-col overflow-hidden rounded-xl border border-emerald-200/80 bg-white shadow-sm ring-1 ring-emerald-100/80`}
+    >
       <div className="flex shrink-0 items-center gap-2 border-b border-emerald-100 px-4 py-3 sm:px-5">
         <span className="text-emerald-600">{icon}</span>
         <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">{title}</h3>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5 sm:py-5">
+      <div
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5 sm:py-5"
+        style={{ scrollbarWidth: 'thin' }}
+      >
         {empty ? (
           <p className="text-sm italic text-slate-400">{emptyMessage}</p>
         ) : (
@@ -67,9 +75,9 @@ function Section({
 
 function ClinicalRow({ left, right }: { left: ReactNode; right: ReactNode }) {
   return (
-    <div className="grid grid-cols-1 items-stretch gap-4 md:grid-cols-2">
-      <div className="min-h-[260px]">{left}</div>
-      <div className="min-h-[260px]">{right}</div>
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className={`${CLINICAL_CARD_HEIGHT_CLASS} min-h-0`}>{left}</div>
+      <div className={`${CLINICAL_CARD_HEIGHT_CLASS} min-h-0`}>{right}</div>
     </div>
   )
 }
