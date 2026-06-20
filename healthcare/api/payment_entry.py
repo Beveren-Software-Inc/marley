@@ -370,11 +370,380 @@ def create_payment_entry(data: dict) -> dict:
 
     # Skipping pe.set_missing_values() — fails when Payment Entry controller
     # is overridden (e.g. EmployeePaymentEntry). All fields set explicitly.
-    pe.insert(ignore_permissions=True)
-    pe.submit()
-    frappe.db.commit()
+    return _submit_payment_entry(pe)
 
-    return {
-        "name": pe.name,
-        "server_message": f"Payment Entry {pe.name} created successfully",
-    }
+
+def _patient_customer(patient: str) -> str:
+	customer = frappe.db.get_value("Patient", patient, "customer")
+	if not customer:
+		frappe.throw(_("Patient {0} is not linked to a Customer for billing.").format(frappe.bold(patient)))
+	return customer
+
+
+def _resolve_company_for_patient(patient: str, company: str | None = None) -> str:
+	if company:
+		return company
+	company = frappe.defaults.get_user_default("Company") or frappe.defaults.get_global_default("company")
+	if not company:
+		frappe.throw(_("Company is required for patient billing."))
+	return company
+
+
+def _get_patient_credit_balance(customer: str, company: str) -> float:
+	"""Net patient credit available for refund or future invoices."""
+	unallocated_received = flt(
+		frappe.db.sql(
+			"""
+			SELECT COALESCE(SUM(unallocated_amount), 0)
+			FROM `tabPayment Entry`
+			WHERE docstatus = 1
+			  AND party_type = 'Customer'
+			  AND party = %(party)s
+			  AND company = %(company)s
+			  AND payment_type = 'Receive'
+			  AND unallocated_amount > 0
+			""",
+			{"party": customer, "company": company},
+		)[0][0]
+	)
+
+	# Pay entries without invoice references are refunds / payouts of patient credit.
+	# They do not reduce unallocated_amount on the original Receive entries in ERPNext.
+	refunded = flt(
+		frappe.db.sql(
+			"""
+			SELECT COALESCE(SUM(pe.paid_amount), 0)
+			FROM `tabPayment Entry` pe
+			WHERE pe.docstatus = 1
+			  AND pe.party_type = 'Customer'
+			  AND pe.party = %(party)s
+			  AND pe.company = %(company)s
+			  AND pe.payment_type = 'Pay'
+			  AND NOT EXISTS (
+				  SELECT 1
+				  FROM `tabPayment Entry Reference` ref
+				  WHERE ref.parenttype = 'Payment Entry'
+				    AND ref.parent = pe.name
+			  )
+			""",
+			{"party": customer, "company": company},
+		)[0][0]
+	)
+
+	return max(0, flt(unallocated_received - refunded))
+
+
+def _parse_allocations(raw) -> list[dict]:
+	if not raw:
+		return []
+	if isinstance(raw, str):
+		import json
+
+		raw = json.loads(raw)
+	if not isinstance(raw, list):
+		frappe.throw(_("Allocations must be a list of invoice amounts"))
+	return raw
+
+
+def _new_receive_payment_entry(
+	customer: str,
+	company: str,
+	mode_of_payment: str,
+	paid_amount: float,
+	remarks: str,
+	reference_no: str | None = None,
+	reference_date: str | None = None,
+) -> "frappe.model.document.Document":
+	paid_from, paid_to = _resolve_accounts(company, mode_of_payment)
+	currency = frappe.get_cached_value("Company", company, "default_currency") or frappe.defaults.get_global_default(
+		"currency"
+	)
+	pe = frappe.new_doc("Payment Entry")
+	pe.payment_type = "Receive"
+	pe.company = company
+	pe.posting_date = frappe.utils.today()
+	pe.mode_of_payment = mode_of_payment
+	pe.party_type = "Customer"
+	pe.party = customer
+	pe.party_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
+	pe.paid_from = paid_from
+	pe.paid_to = paid_to
+	pe.paid_from_account_currency = currency
+	pe.paid_to_account_currency = currency
+	pe.paid_amount = paid_amount
+	pe.received_amount = paid_amount
+	pe.source_exchange_rate = 1
+	pe.target_exchange_rate = 1
+	pe.difference_amount = 0
+	pe.remarks = remarks
+	pe.reference_no = (reference_no or "").strip() or remarks[:140]
+	pe.reference_date = reference_date or frappe.utils.today()
+	return pe
+
+
+def _submit_payment_entry(pe) -> dict:
+	pe.insert(ignore_permissions=True)
+	pe.submit()
+	frappe.db.commit()
+	msg = f"Payment Entry {pe.name} created successfully"
+	unallocated = flt(getattr(pe, "unallocated_amount", 0))
+	if unallocated > 0:
+		msg += f". Unallocated credit: {unallocated:.2f}"
+	return {
+		"name": pe.name,
+		"server_message": msg,
+		"unallocated_amount": unallocated,
+	}
+
+
+@frappe.whitelist()
+def get_patient_billing_balance(patient: str, company: str | None = None) -> dict:
+	"""Outstanding invoice total and unallocated patient credit for reception refunds."""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	customer = _patient_customer(patient)
+	company = _resolve_company_for_patient(patient, company)
+
+	outstanding_invoices = flt(
+		frappe.db.sql(
+			"""
+			SELECT COALESCE(SUM(outstanding_amount), 0)
+			FROM `tabSales Invoice`
+			WHERE docstatus = 1 AND patient = %(patient)s AND outstanding_amount > 0
+			""",
+			{"patient": patient},
+		)[0][0]
+	)
+	credit_balance = _get_patient_credit_balance(customer, company)
+
+	return {
+		"patient": patient,
+		"customer": customer,
+		"company": company,
+		"outstanding_invoices": outstanding_invoices,
+		"credit_balance": credit_balance,
+	}
+
+
+@frappe.whitelist()
+def list_patient_outstanding_invoices(patient: str, limit=50):
+	"""All payable invoices for a patient (multi-invoice payment UI)."""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	limit = min(cint(limit) or 50, 100)
+	filters = {
+		"docstatus": 1,
+		"patient": patient,
+		"outstanding_amount": [">", 0],
+	}
+	if not _payment_search_cost_center_filter(filters):
+		return []
+
+	rows = frappe.get_all(
+		"Sales Invoice",
+		filters=filters,
+		fields=[
+			"name",
+			"customer_name",
+			"patient_name",
+			"outstanding_amount",
+			"grand_total",
+			"posting_date",
+			"custom_reference_type",
+			"custom_reference_name",
+		],
+		limit=limit,
+		order_by="posting_date desc, modified desc",
+	)
+	return [
+		{
+			"name": row.name,
+			"label": _format_invoice_payment_label(row),
+			"outstanding_amount": flt(row.outstanding_amount),
+			"grand_total": flt(row.grand_total),
+			"posting_date": row.posting_date,
+		}
+		for row in rows
+	]
+
+
+@frappe.whitelist()
+def create_patient_advance_payment(data: dict) -> dict:
+	"""
+	Record a patient payment without an invoice. The full amount is kept as unallocated credit
+	for future invoices.
+	"""
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	patient = data.get("patient")
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	paid_amount = flt(data.get("paid_amount"))
+	if paid_amount <= 0:
+		frappe.throw(_("Paid Amount must be greater than zero"))
+	mode_of_payment = data.get("mode_of_payment")
+	if not mode_of_payment:
+		frappe.throw(_("Mode of Payment is required"))
+
+	customer = _patient_customer(patient)
+	company = _resolve_company_for_patient(patient, data.get("company"))
+	remarks_parts = [f"Patient advance payment — {patient}"]
+	if data.get("remarks"):
+		remarks_parts.append(data["remarks"])
+	remarks = " | ".join(remarks_parts)
+
+	pe = _new_receive_payment_entry(
+		customer,
+		company,
+		mode_of_payment,
+		paid_amount,
+		remarks,
+		data.get("reference_no"),
+		data.get("reference_date"),
+	)
+	return _submit_payment_entry(pe)
+
+
+@frappe.whitelist()
+def create_multi_invoice_payment(data: dict) -> dict:
+	"""
+	Single payment allocated across multiple sales invoices. Any amount above total allocations
+	is kept as unallocated patient credit.
+	"""
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	patient = data.get("patient")
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	paid_amount = flt(data.get("paid_amount"))
+	if paid_amount <= 0:
+		frappe.throw(_("Paid Amount must be greater than zero"))
+	mode_of_payment = data.get("mode_of_payment")
+	if not mode_of_payment:
+		frappe.throw(_("Mode of Payment is required"))
+
+	allocations = _parse_allocations(data.get("allocations"))
+	if not allocations:
+		frappe.throw(_("Select at least one invoice to allocate"))
+
+	total_allocated = sum(flt(row.get("allocated_amount")) for row in allocations)
+	if total_allocated <= 0:
+		frappe.throw(_("Total allocated amount must be greater than zero"))
+	if total_allocated > paid_amount:
+		frappe.throw(_("Total allocated amount cannot exceed the payment amount"))
+
+	customer = _patient_customer(patient)
+	company = _resolve_company_for_patient(patient, data.get("company"))
+	invoice_names = []
+	remarks_parts = [f"Multi-invoice payment — Patient: {patient}"]
+
+	pe = _new_receive_payment_entry(
+		customer,
+		company,
+		mode_of_payment,
+		paid_amount,
+		" | ".join(remarks_parts),
+		data.get("reference_no"),
+		data.get("reference_date"),
+	)
+
+	for row in allocations:
+		invoice_name = row.get("reference_name") or row.get("invoice")
+		allocated = flt(row.get("allocated_amount"))
+		if not invoice_name or allocated <= 0:
+			continue
+		inv = _get_reference_doc("Sales Invoice", invoice_name)
+		if inv.get("patient") and inv.patient != patient:
+			frappe.throw(_("Invoice {0} does not belong to patient {1}").format(invoice_name, patient))
+		outstanding = flt(inv.outstanding_amount)
+		if allocated > outstanding:
+			frappe.throw(
+				_("Allocation for {0} ({1}) exceeds outstanding amount ({2})").format(
+					invoice_name, allocated, outstanding
+				)
+			)
+		pe.append(
+			"references",
+			{
+				"reference_doctype": "Sales Invoice",
+				"reference_name": invoice_name,
+				"bill_no": inv.get("bill_no") or "",
+				"due_date": inv.get("due_date"),
+				"total_amount": flt(inv.grand_total),
+				"outstanding_amount": outstanding,
+				"allocated_amount": allocated,
+			},
+		)
+		invoice_names.append(invoice_name)
+
+	if not pe.references:
+		frappe.throw(_("No valid invoice allocations were provided"))
+
+	if data.get("remarks"):
+		pe.remarks += f" | {data['remarks']}"
+	if invoice_names:
+		pe.remarks += f" | Invoices: {', '.join(invoice_names)}"
+
+	return _submit_payment_entry(pe)
+
+
+@frappe.whitelist()
+def create_patient_refund(data: dict) -> dict:
+	"""Refund unallocated patient credit (Pay Payment Entry)."""
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	patient = data.get("patient")
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	refund_amount = flt(data.get("refund_amount") or data.get("paid_amount"))
+	if refund_amount <= 0:
+		frappe.throw(_("Refund amount must be greater than zero"))
+	mode_of_payment = data.get("mode_of_payment")
+	if not mode_of_payment:
+		frappe.throw(_("Mode of Payment is required"))
+
+	customer = _patient_customer(patient)
+	company = _resolve_company_for_patient(patient, data.get("company"))
+	credit_balance = _get_patient_credit_balance(customer, company)
+	if refund_amount > credit_balance:
+		frappe.throw(
+			_("Refund amount ({0}) exceeds available patient credit ({1})").format(refund_amount, credit_balance)
+		)
+
+	receivable, bank_or_cash = _resolve_accounts(company, mode_of_payment)
+	currency = frappe.get_cached_value("Company", company, "default_currency") or frappe.defaults.get_global_default(
+		"currency"
+	)
+	remarks_parts = [f"Patient credit refund — {patient}"]
+	if data.get("remarks"):
+		remarks_parts.append(data["remarks"])
+	remarks = " | ".join(remarks_parts)
+
+	pe = frappe.new_doc("Payment Entry")
+	pe.payment_type = "Pay"
+	pe.company = company
+	pe.posting_date = frappe.utils.today()
+	pe.mode_of_payment = mode_of_payment
+	pe.party_type = "Customer"
+	pe.party = customer
+	pe.party_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
+	pe.paid_from = bank_or_cash
+	pe.paid_to = receivable
+	pe.paid_from_account_currency = currency
+	pe.paid_to_account_currency = currency
+	pe.paid_amount = refund_amount
+	pe.received_amount = refund_amount
+	pe.source_exchange_rate = 1
+	pe.target_exchange_rate = 1
+	pe.difference_amount = 0
+	pe.remarks = remarks
+	pe.reference_no = (data.get("reference_no") or "").strip() or f"REFUND-{patient}"[:140]
+	pe.reference_date = data.get("reference_date") or frappe.utils.today()
+
+	return _submit_payment_entry(pe)

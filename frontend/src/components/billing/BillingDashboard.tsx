@@ -830,21 +830,44 @@ const handleMakePayment = async (
             <table className="w-full text-sm">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
-                  <th className="px-3 py-2 text-left">Payment</th><th className="px-3 py-2 text-left">Date</th><th className="px-3 py-2 text-left">Mode</th><th className="px-3 py-2 text-right">Amount</th><th className="px-3 py-2 text-left">Invoice</th>
+                  <th className="px-3 py-2 text-left">Payment</th>
+                  <th className="px-3 py-2 text-left">Date</th>
+                  <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-left">Mode</th>
+                  <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-left">Invoice</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {payments.map((p) => (
+                {payments.map((p) => {
+                  const isRefund = p.payment_type === 'Pay'
+                  const signedAmount = isRefund ? -(p.paid_amount || 0) : p.paid_amount || 0
+                  const typeLabel = isRefund ? 'Refund' : p.invoice_name ? 'Invoice payment' : 'Advance'
+                  return (
                   <tr key={p.name}>
                     <td className="px-3 py-2 font-mono text-xs">{p.name}</td>
                     <td className="px-3 py-2">{p.posting_date || '-'}</td>
+                    <td className="px-3 py-2">
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                        isRefund
+                          ? 'bg-amber-100 text-amber-800'
+                          : p.invoice_name
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-blue-100 text-blue-800'
+                      }`}>
+                        {typeLabel}
+                      </span>
+                    </td>
                     <td className="px-3 py-2">{p.mode_of_payment || '-'}</td>
-                    <td className="px-3 py-2 text-right">{formatCurrency(p.paid_amount || 0)}</td>
-                    <td className="px-3 py-2">{p.invoice_name || '-'}</td>
+                    <td className={`px-3 py-2 text-right font-medium ${isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
+                      {formatCurrency(signedAmount)}
+                    </td>
+                    <td className="px-3 py-2">{p.invoice_name || '—'}</td>
                   </tr>
-                ))}
+                  )
+                })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={5} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
+                  <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
                 )}
               </tbody>
             </table>

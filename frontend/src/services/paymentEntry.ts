@@ -21,6 +21,20 @@ export interface SalesInvoiceSummary {
 export interface CreatePaymentEntryResult {
   name: string
   server_message?: string
+  unallocated_amount?: number
+}
+
+export interface PatientBillingBalance {
+  patient: string
+  customer: string
+  company: string
+  outstanding_invoices: number
+  credit_balance: number
+}
+
+export interface InvoiceAllocationRow {
+  reference_name: string
+  allocated_amount: number
 }
 
 export interface PaymentReferenceOption {
@@ -140,4 +154,59 @@ export async function fetchModeOfPayments(): Promise<string[]> {
   )
   const data = await res.json()
   return (data?.message ?? []).map((r: { name: string }) => r.name)
+}
+
+export async function fetchPatientBillingBalance(patient: string): Promise<PatientBillingBalance> {
+  const msg = await paymentApiRequest<PatientBillingBalance>(
+    'healthcare.api.payment_entry.get_patient_billing_balance',
+    { patient }
+  )
+  return msg
+}
+
+export async function fetchPatientOutstandingInvoices(
+  patient: string
+): Promise<PaymentReferenceOption[]> {
+  const rows = await paymentApiRequest<PaymentReferenceOption[]>(
+    'healthcare.api.payment_entry.list_patient_outstanding_invoices',
+    { patient, limit: 50 }
+  )
+  return Array.isArray(rows) ? rows : []
+}
+
+export async function createPatientAdvancePayment(data: {
+  patient: string
+  paid_amount: number
+  mode_of_payment: string
+  remarks?: string
+}): Promise<CreatePaymentEntryResult> {
+  return paymentApiRequest<CreatePaymentEntryResult>(
+    'healthcare.api.payment_entry.create_patient_advance_payment',
+    { data }
+  )
+}
+
+export async function createMultiInvoicePayment(data: {
+  patient: string
+  paid_amount: number
+  mode_of_payment: string
+  allocations: InvoiceAllocationRow[]
+  remarks?: string
+}): Promise<CreatePaymentEntryResult> {
+  return paymentApiRequest<CreatePaymentEntryResult>(
+    'healthcare.api.payment_entry.create_multi_invoice_payment',
+    { data }
+  )
+}
+
+export async function createPatientRefund(data: {
+  patient: string
+  refund_amount: number
+  mode_of_payment: string
+  remarks?: string
+}): Promise<CreatePaymentEntryResult> {
+  return paymentApiRequest<CreatePaymentEntryResult>(
+    'healthcare.api.payment_entry.create_patient_refund',
+    { data }
+  )
 }
