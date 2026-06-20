@@ -328,25 +328,6 @@
   "name": "TID"
  },
  {
-  "daily": 1,
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "BID",
-  "dosage_strength": [
-   {
-    "strength": 1.0,
-    "strength_time": "8:00:00"
-   },
-   {
-    "strength": 1.0,
-    "strength_time": "20:00:00"
-   }
-  ],
-  "frequency_in_a_day": 2,
-  "modified": "2026-06-08 10:58:20.913490",
-  "name": "BID"
- },
- {
   "daily": 0,
   "docstatus": 0,
   "doctype": "Prescription Frequency",
@@ -449,5 +430,24 @@
   "frequency_in_a_day": 2,
   "modified": "2026-06-08 10:58:20.907686",
   "name": "BD"
+ },
+ {
+  "daily": 1,
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
+  "dosage": "BID",
+  "dosage_strength": [
+   {
+    "strength": 1.0,
+    "strength_time": "8:00:00"
+   },
+   {
+    "strength": 1.0,
+    "strength_time": "20:00:00"
+   }
+  ],
+  "frequency_in_a_day": 2,
+  "modified": "2026-06-08 10:58:20.913490",
+  "name": "BID"
  }
 ]

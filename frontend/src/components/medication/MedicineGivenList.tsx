@@ -79,6 +79,7 @@ function MedicineGivenDetailPanel({
             <DetailField label="Date" value={row.date} />
             <DetailField label="Time given" value={formatDisplayTime(row.time)} />
             <DetailField label="Scheduled timing" value={formatScheduleTime(row.medicine_given_timing) || row.medicine_given_timing} />
+            <DetailField label="Dose" value={row.dose} />
             <DetailField label="Quantity" value={row.qty != null ? `${row.qty} ${row.unit || ''}`.trim() : undefined} />
             <DetailField label="Given by" value={row.user} />
             <DetailField label="Frequency" value={row.frequency != null ? String(row.frequency) : undefined} />
@@ -118,9 +119,20 @@ function MedicineGivenDetailPanel({
               <p className="mt-1 text-sm text-slate-800 whitespace-pre-wrap">{row.dose_notes}</p>
             </div>
           ) : null}
-          {row.override_exceeded_frequency ? (
+          {(row.override_exceeded_frequency ||
+            row.override_exceeded_dose_limit ||
+            row.override_exceeded_cumulative_24h) ? (
             <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
-              <p className="text-xs font-semibold text-amber-900">Frequency override recorded</p>
+              <p className="text-xs font-semibold text-amber-900">Override recorded</p>
+              {row.override_exceeded_frequency ? (
+                <p className="text-xs text-amber-800">Exceeded prescribed daily frequency</p>
+              ) : null}
+              {row.override_exceeded_dose_limit ? (
+                <p className="text-xs text-amber-800">Exceeded maximum dose limit</p>
+              ) : null}
+              {row.override_exceeded_cumulative_24h ? (
+                <p className="text-xs text-amber-800">Exceeded 24-hour cumulative dose</p>
+              ) : null}
               <DetailField label="Reason" value={row.override_reason} />
               <DetailField label="Override user" value={row.override_user} />
               <DetailField label="Override time" value={row.override_timestamp} />

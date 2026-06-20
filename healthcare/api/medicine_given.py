@@ -6,6 +6,65 @@ from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 
 
+def _medicine_given_has_column(column: str) -> bool:
+	return frappe.db.has_column("Medicine Given", column)
+
+
+def _medicine_given_list_fields() -> list[str]:
+	"""Return Medicine Given fields that exist in the database (safe before migrate)."""
+	fields = [
+		"name",
+		"date",
+		"time",
+		"medicine_code",
+		"medicine_name",
+		"medication_order",
+		"medicine_given_timing",
+	]
+	if _medicine_given_has_column("dose"):
+		fields.append("dose")
+	fields.extend(
+		[
+			"qty",
+			"unit",
+			"frequency",
+			"dose_notes",
+			"user",
+			"is_prn",
+			"prescription_type",
+			"sales_order",
+			"delivery_note",
+			"batch_no",
+			"lot_no",
+			"dispensing_lot",
+			"override_exceeded_frequency",
+		]
+	)
+	if _medicine_given_has_column("override_exceeded_dose_limit"):
+		fields.append("override_exceeded_dose_limit")
+	if _medicine_given_has_column("override_exceeded_cumulative_24h"):
+		fields.append("override_exceeded_cumulative_24h")
+	fields.extend(
+		[
+			"override_reason",
+			"override_user",
+			"override_timestamp",
+			"old_medicine_code",
+			"old_medicine_name",
+			"ip_admission_medicine",
+			"ip_admission_medicine_sheet",
+			"patient_medication_order",
+			"modified",
+		]
+	)
+	return fields
+
+
+def _set_medicine_given_dose(row, dose_text: str) -> None:
+	if _medicine_given_has_column("dose"):
+		row.dose = dose_text
+
+
 def _get_or_create_admission_detail(admission: str):
 	"""Return Admission Detail doc for an Inpatient Admission, creating it if missing."""
 	if not admission:
@@ -685,12 +744,59 @@ def check_missed_medicine_now(admission: str, grace_minutes: int = 60) -> dict:
 
 
 @frappe.whitelist()
+def preview_medicine_given_dose_validation(
+	admission: str,
+	medicine_code: str,
+	dose,
+	date: str | None = None,
+	time: str | None = None,
+) -> dict:
+	"""Preview single-dose and 24-hour cumulative dose checks for Record Given."""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+	if not medicine_code:
+		frappe.throw(_("Medicine code is required"))
+	if dose is None or str(dose).strip() == "":
+		frappe.throw(_("Dose is required for dose-limit validation."))
+
+	from healthcare.api.dose_limit_validation import (
+		dose_limit_validation_message,
+		evaluate_medicine_given_dose,
+		extract_dose_numeric,
+		get_item_maximum_dose_limit,
+	)
+
+	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+	if not admission_detail_name:
+		return {
+			"ok": True,
+			"has_limit": False,
+			"message": "",
+		}
+
+	evaluation = evaluate_medicine_given_dose(
+		admission_detail_name=admission_detail_name,
+		medicine_code=medicine_code,
+		dose=dose,
+		date_value=date or nowdate(),
+		time_value=time,
+	)
+	return {
+		**evaluation,
+		"parsed_dose": extract_dose_numeric(dose),
+		"maximum_dose_limit": get_item_maximum_dose_limit(medicine_code),
+		"message": dose_limit_validation_message(evaluation),
+	}
+
+
+@frappe.whitelist()
 def create_medicine_given(
 	admission: str,
 	medication_order: str | None = None,
 	order_entry: str | None = None,
 	item_code: str | None = None,
 	unit: str | None = None,
+	dose: str | None = None,
 	qty: float | int | None = None,
 	date: str | None = None,
 	time: str | None = None,
@@ -735,11 +841,16 @@ def create_medicine_given(
 				).format(frappe.bold(pmo.name), frappe.bold(pmo.inpatient_record), frappe.bold(admission))
 			)
 
-	# Derive a sensible default quantity:
-	# - if caller passed qty, use it
-	# - otherwise fall back to 1
+	# Derive defaults: quantity is units given; dose is the clinical amount (e.g. 50mg).
 	if qty is None:
 		qty = 1
+
+	parsed_qty = flt(qty)
+	if parsed_qty <= 0:
+		frappe.throw(_("Quantity must be greater than zero."))
+	qty = parsed_qty
+
+	dose_text = (dose or "").strip()
 
 	# Resolve date / time defaults
 	date = date or nowdate()
@@ -750,6 +861,7 @@ def create_medicine_given(
 	row = admission_detail.append("table_yrwe", {})
 	row.date = date
 	row.time = time
+	_set_medicine_given_dose(row, dose_text)
 	row.qty = qty
 	row.unit = (unit or "").strip() or None
 	row.frequency = frequency
@@ -787,6 +899,9 @@ def create_medicine_given(
 			drug_name = child.drug_name
 			prescription_frequency = child.patient_frequency or getattr(child, "long_acting_frequency", None)
 			prescription_type = _prescription_type_from_order_entry(order_entry_name=order_entry)
+			if not dose_text and getattr(child, "dosage", None):
+				dose_text = (child.dosage or "").strip()
+				_set_medicine_given_dose(row, dose_text)
 			if hasattr(child, "uom") and not row.unit:
 				row.unit = child.uom
 			if hasattr(row, "is_prn") and not cint(is_prn):
@@ -797,6 +912,9 @@ def create_medicine_given(
 			drug_name = getattr(first, "drug_name", None)
 			prescription_frequency = getattr(first, "patient_frequency", None)
 			prescription_type = _prescription_type_from_order_entry(pmo=pmo, drug_code=drug_code)
+			if not dose_text and getattr(first, "dosage", None):
+				dose_text = (first.dosage or "").strip()
+				_set_medicine_given_dose(row, dose_text)
 
 		if not drug_code:
 			frappe.throw(
@@ -804,6 +922,15 @@ def create_medicine_given(
 					"Please select a medicine (either from prescription or direct item)."
 				)
 			)
+
+		if not dose_text:
+			frappe.throw(_("Dose is required (e.g. 50mg)."))
+
+		from healthcare.api.dose_limit_validation import extract_dose_numeric
+
+		if extract_dose_numeric(dose_text) is None:
+			frappe.throw(_("Enter a valid dose (numeric value only, e.g. 50 or 50mg)."))
+		_set_medicine_given_dose(row, dose_text)
 
 		_validate_medicine_given_batch_lot(drug_code, admission, batch_no, lot_no, dispensing_lot)
 
@@ -865,6 +992,23 @@ def create_medicine_given(
 					if hasattr(row, "override_timestamp"):
 						row.override_timestamp = now_datetime()
 
+		from healthcare.api.dose_limit_validation import (
+			apply_dose_limit_override_audit,
+			validate_medicine_given_dose_or_throw,
+		)
+
+		dose_evaluation = validate_medicine_given_dose_or_throw(
+			admission_detail_name=admission_detail.name,
+			medicine_code=drug_code,
+			dose=dose_text,
+			date_value=row.date,
+			time_value=row.time,
+			allow_override=allow_override,
+			override_reason=override_reason,
+		)
+		if dose_evaluation.get("override_required"):
+			apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())
+
 	admission_detail.save()
 
 	return {
@@ -889,37 +1033,7 @@ def get_medicine_given(admission: str, limit: int | None = 50, offset: int | Non
 	rows = frappe.get_all(
 		"Medicine Given",
 		filters={"parent": admission_detail_name, "parenttype": "Admission Detail"},
-		fields=[
-			"name",
-			"date",
-			"time",
-			"medicine_code",
-			"medicine_name",
-			"medication_order",
-			"medicine_given_timing",
-			"qty",
-			"unit",
-			"frequency",
-			"dose_notes",
-			"user",
-			"is_prn",
-			"prescription_type",
-			"sales_order",
-			"delivery_note",
-			"batch_no",
-			"lot_no",
-			"dispensing_lot",
-			"override_exceeded_frequency",
-			"override_reason",
-			"override_user",
-			"override_timestamp",
-			"old_medicine_code",
-			"old_medicine_name",
-			"ip_admission_medicine",
-			"ip_admission_medicine_sheet",
-			"patient_medication_order",
-			"modified",
-		],
+		fields=_medicine_given_list_fields(),
 		order_by="date desc, time desc, modified desc",
 		limit=limit,
 		start=offset,

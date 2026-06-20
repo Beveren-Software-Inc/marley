@@ -9,7 +9,8 @@ export interface CreateMedicineGivenData {
   allow_override?: boolean
   override_reason?: string
   item_code?: string
-  qty?: number
+  dose?: string
+  qty?: number | string
   date?: string
   time?: string
   frequency?: number
@@ -19,6 +20,48 @@ export interface CreateMedicineGivenData {
   batch_no?: string
   lot_no?: string
   dispensing_lot?: string
+}
+
+export interface MedicineGivenDoseValidationPreview {
+  ok: boolean
+  has_limit?: boolean
+  ceiling?: number | null
+  entered_dose?: number | null
+  parsed_dose?: number | null
+  maximum_dose_limit?: number | null
+  exceeds_single_dose?: boolean
+  exceeds_cumulative_24h?: boolean
+  prior_24h_dose?: number
+  cumulative_24h_with_new_dose?: number
+  message?: string
+}
+
+/** Extract numeric dose from values like `50`, `50mg`, or `50 ml`. */
+export function extractDoseNumeric(value: string | number | null | undefined): number | null {
+  if (value == null || value === '') return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  const text = String(value).trim()
+  if (!text) return null
+  const direct = Number(text)
+  if (!Number.isNaN(direct)) return direct
+  const match = text.replace(/,/g, '').match(/\d+(?:\.\d+)?/)
+  return match ? Number(match[0]) : null
+}
+
+export async function previewMedicineGivenDoseValidation(args: {
+  admission: string
+  medicine_code: string
+  dose: string
+  date?: string
+  time?: string
+}): Promise<MedicineGivenDoseValidationPreview> {
+  return apiRequest<MedicineGivenDoseValidationPreview>(
+    '/api/method/healthcare.api.medicine_given.preview_medicine_given_dose_validation',
+    {
+      method: 'POST',
+      body: JSON.stringify(args),
+    }
+  )
 }
 
 export interface CreateMedicineGivenResponse {
@@ -46,6 +89,7 @@ export interface MedicineGivenRow {
   medicine_name?: string
   medication_order?: string
   medicine_given_timing?: string
+  dose?: string
   qty?: number
   unit?: string
   frequency?: number
@@ -61,6 +105,8 @@ export interface MedicineGivenRow {
   lot_no?: string
   dispensing_lot?: string
   override_exceeded_frequency?: number | boolean
+  override_exceeded_dose_limit?: number | boolean
+  override_exceeded_cumulative_24h?: number | boolean
   override_reason?: string
   override_user?: string
   override_timestamp?: string
