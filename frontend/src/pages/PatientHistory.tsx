@@ -16,6 +16,7 @@ import { ServiceRequestList } from '../components/serviceRequests/ServiceRequest
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { LastAdmissionClinicalTab } from '../components/patientHistory/LastAdmissionClinicalTab'
 import { fetchPatientHistorySummary, type PatientHistorySummary } from '../services/patients'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import {
@@ -36,6 +37,7 @@ export const PatientHistoryPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [summary, setSummary] = useState<PatientHistorySummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'general' | 'admission'>('general')
 
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -97,6 +99,35 @@ export const PatientHistoryPage = () => {
         </div>
       ) : (
         <div className="flex-1 p-4 space-y-6">
+          <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1 w-fit">
+            <button
+              type="button"
+              onClick={() => setActiveTab('general')}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                activeTab === 'general'
+                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              General
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('admission')}
+              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                activeTab === 'admission'
+                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Clinical summary
+            </button>
+          </div>
+
+          {activeTab === 'admission' ? (
+            <LastAdmissionClinicalTab patient={selectedPatient} />
+          ) : (
+            <>
           {/* Demographics */}
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <h2 className="font-semibold text-slate-900 mb-3">Patient Demographics</h2>
@@ -247,6 +278,8 @@ export const PatientHistoryPage = () => {
           <DashboardCard noHeightLimit title="Package Details">
             <PackageDetailsList patient={selectedPatient} />
           </DashboardCard>
+            </>
+          )}
         </div>
       )}
     </div>
