@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, get_datetime
 
 from healthcare.api.clinical_note import _enrich_clinical_note_row
 from healthcare.api.diagnosis import get_inpatient_diagnoses
@@ -84,14 +84,37 @@ def _pick_default_admission(patient: str) -> str | None:
 	return fallback[0].name if fallback else None
 
 
-def _admission_sort_ts(row: dict):
-	return (
-		row.get("discharge_datetime")
-		or row.get("discharge_ordered_date")
-		or row.get("admitted_datetime")
-		or row.get("admission_date")
-		or row.get("modified")
+def _sortable_ts(value) -> float:
+	"""Normalize date/datetime/str to a comparable timestamp for sorting."""
+	if not value:
+		return 0.0
+	try:
+		return float(get_datetime(value).timestamp())
+	except Exception:
+		return 0.0
+
+
+def _admission_sort_ts(row: dict) -> float:
+	for key in (
+		"discharge_datetime",
+		"discharge_ordered_date",
+		"admitted_datetime",
+		"admission_date",
+		"modified",
+	):
+		val = row.get(key)
+		if val:
+			ts = _sortable_ts(val)
+			if ts:
+				return ts
+	admitted = resolve_admission_datetime(
+		row.get("admitted_datetime"),
+		row.get("admission_date"),
+		row.get("admission_time"),
 	)
+	if admitted:
+		return _sortable_ts(admitted)
+	return 0.0
 
 
 def _admission_options_for_patient(patient: str) -> list[dict]:
@@ -211,7 +234,9 @@ def _serialize_discharge(admission_name: str) -> dict | None:
 	if not rows:
 		return None
 	rows.sort(
-		key=lambda r: r.discharge_date or r.final_discharge_date or r.creation or r.modified,
+		key=lambda r: _sortable_ts(
+			r.discharge_date or r.final_discharge_date or r.creation or r.modified
+		),
 		reverse=True,
 	)
 	doc = rows[0]
