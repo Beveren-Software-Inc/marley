@@ -119,6 +119,11 @@ const nurseScreenGroups: ScreenGroup[] = [
 
 // ─── Other role screens ───────────────────────────────────────────────────────
 
+const pharmacyScreens = [
+  { id: 'p-stock',     title: 'Stock' },
+  { id: 'p-discharge', title: 'Pending Discharge' },
+]
+
 const labScreens = [
   // { id: 'l-pending', title: 'Pending Samples / Tests' },
   // { id: 'l-history', title: 'Patient History (Medical)' },
@@ -222,7 +227,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
   { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
   { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },
-  { to: '/pharmacy',         label: 'Pharmacy',         screens: [],                          prefix: '/pharmacy' },
+  { to: '/pharmacy',         label: 'Pharmacy',         screens: pharmacyScreens,           prefix: '/pharmacy' },
   { to: '/patient',          label: 'Patients',         screens: [],                          prefix: '/patient' },
   { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
   { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },

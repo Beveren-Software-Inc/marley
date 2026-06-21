@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { NotificationBell } from '../components/notifications/NotificationBell'
 import { UserMenu } from '../components/user/UserMenu'
 import { ItemSearch } from '../components/pharmacy/ItemSearch'
@@ -11,19 +12,28 @@ import {
   type LowStockRow,
   type PharmacyWarehouseOption,
 } from '../services/pharmacy'
-import { ChevronRight, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
 import { CreateMaterialRequestModal } from '../components/pharmacy/CreateMaterialRequestModal'
+import { PharmacyDischargePage } from './PharmacyDischargePage'
 
 const PHARM_POS_URL = '/klik_pos/pos'
 
-const CARD_MAX = 20
 const DEFAULT_EXPIRY_DAYS = 7
 const DEFAULT_LOW_STOCK_THRESHOLD = 20
 
-type FullScreenView = 'expiry' | 'low-stock' | null
-
 export const PharmacyPage = () => {
+  const [searchParams] = useSearchParams()
+  const screen = searchParams.get('screen')
+
+  if (screen === 'p-discharge') {
+    return <PharmacyDischargePage />
+  }
+
+  return <PharmacyStockPage />
+}
+
+function PharmacyStockPage() {
   const [expiryRows, setExpiryRows] = useState<BatchRow[]>([])
   const [lowStock, setLowStock] = useState<LowStockRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -39,8 +49,6 @@ export const PharmacyPage = () => {
   const [lowStockThreshold, setLowStockThreshold] = useState(DEFAULT_LOW_STOCK_THRESHOLD)
 
   const [searchQuery, setSearchQuery] = useState('')
-
-  const [fullScreenView, setFullScreenView] = useState<FullScreenView>(null)
   const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false)
 
   useEffect(() => {
@@ -73,7 +81,7 @@ export const PharmacyPage = () => {
     const warehouse = selectedWarehouse || undefined
     Promise.all([
       getBatchesExpiringInDays(expiryDays, 200, warehouse),
-      getLowStockItems(100, lowStockThreshold, warehouse)
+      getLowStockItems(100, lowStockThreshold, warehouse),
     ])
       .then(([e, l]) => {
         if (!cancelled) {
@@ -100,30 +108,29 @@ export const PharmacyPage = () => {
     }
   }
 
-  const handleItemSearch = (query: string) => {
-    setSearchQuery(query)
-  }
+  const filteredExpiryRows = searchQuery
+    ? expiryRows.filter(
+        (row) =>
+          row.item?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          row.item_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          row.name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : expiryRows
 
-  const filteredExpiryRows = searchQuery ? expiryRows.filter(row => 
-    row.item?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.item_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) : expiryRows
-
-  const filteredLowStock = searchQuery ? lowStock.filter(row => 
-    row.item_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    row.item_name?.toLowerCase().includes(searchQuery.toLowerCase())
-  ) : lowStock
-
-  const showCards = fullScreenView === null
-  const showFullScreen = fullScreenView !== null
+  const filteredLowStock = searchQuery
+    ? lowStock.filter(
+        (row) =>
+          row.item_code?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+          row.item_name?.toLowerCase().includes(searchQuery.toLowerCase())
+      )
+    : lowStock
 
   return (
     <div className="flex flex-col min-h-0">
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20 flex-shrink-0">
         <MobileNavMenuButton />
         <div className="flex-1 min-w-0">
-          <ItemSearch onSearch={handleItemSearch} warehouse={selectedWarehouse || undefined} />
+          <ItemSearch onSearch={setSearchQuery} warehouse={selectedWarehouse || undefined} />
         </div>
         {hasPosProfiles && warehouseOptions.length > 0 && (
           <div className="hidden md:flex flex-shrink-0 max-w-[220px]">
@@ -193,23 +200,11 @@ export const PharmacyPage = () => {
           </div>
         )}
 
-        {showFullScreen && (
-          <FullScreenList
-            view={fullScreenView}
-            expiryRows={filteredExpiryRows}
-            lowStock={filteredLowStock}
-            expiryDays={expiryDays}
-            onBack={() => setFullScreenView(null)}
-          />
-        )}
-
-        {showCards && loading && (
+        {loading ? (
           <div className="flex items-center justify-center py-12 text-slate-500">Loading...</div>
-        )}
-
-        {showCards && !loading && (
+        ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card
+            <StockCard
               title="Expiry"
               count={filteredExpiryRows.length}
               emptyMessage={`No batches expiring within ${expiryDays} days.`}
@@ -232,15 +227,11 @@ export const PharmacyPage = () => {
                   />
                 </div>
               }
-              onArrowClick={() => setFullScreenView('expiry')}
             >
-              <ExpiryTable rows={filteredExpiryRows.slice(0, CARD_MAX)} />
-              {filteredExpiryRows.length > CARD_MAX && (
-                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {filteredExpiryRows.length}. Click arrow to see all.</p>
-              )}
-            </Card>
+              <ExpiryTable rows={filteredExpiryRows} />
+            </StockCard>
 
-            <Card
+            <StockCard
               title="Low stock"
               count={filteredLowStock.length}
               emptyMessage="No low stock items."
@@ -263,14 +254,10 @@ export const PharmacyPage = () => {
                   />
                 </div>
               }
-              onArrowClick={() => setFullScreenView('low-stock')}
               onAddClick={() => setShowMaterialRequestModal(true)}
             >
-              <LowStockTable rows={filteredLowStock.slice(0, CARD_MAX)} />
-              {filteredLowStock.length > CARD_MAX && (
-                <p className="text-slate-500 text-xs mt-2">Showing {CARD_MAX} of {filteredLowStock.length}. Click arrow to see all (lowest first).</p>
-              )}
-            </Card>
+              <LowStockTable rows={filteredLowStock} />
+            </StockCard>
           </div>
         )}
       </div>
@@ -286,66 +273,65 @@ export const PharmacyPage = () => {
   )
 }
 
-function FullScreenList({
-  view,
-  expiryRows,
-  lowStock,
-  expiryDays,
-  onBack
+function StockCard({
+  title,
+  count,
+  emptyMessage,
+  headerRight,
+  onAddClick,
+  children,
 }: {
-  view: FullScreenView
-  expiryRows: BatchRow[]
-  lowStock: LowStockRow[]
-  expiryDays: number
-  onBack: () => void
+  title: string
+  count: number
+  emptyMessage: string
+  headerRight?: React.ReactNode
+  onAddClick?: () => void
+  children: React.ReactNode
 }) {
-  if (view === 'expiry') {
-    return (
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-          <button type="button" onClick={onBack} className="text-primary font-medium hover:underline">
-            ← Back
-          </button>
-          <h2 className="font-semibold text-slate-800">Expiry – full list (within {expiryDays} days)</h2>
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto bg-white border border-slate-200 rounded-lg shadow-sm">
-          <ExpiryTable rows={expiryRows} full />
-        </div>
-      </div>
-    )
-  }
-  if (view === 'low-stock') {
-    return (
-      <div className="flex flex-col h-full min-h-0">
-        <div className="flex items-center gap-3 mb-4 flex-shrink-0">
-          <button type="button" onClick={onBack} className="text-primary font-medium hover:underline">
-            ← Back
-          </button>
-          <h2 className="font-semibold text-slate-800">Low stock – full list (lowest on top)</h2>
-        </div>
-        <div className="flex-1 min-h-0 overflow-auto bg-white border border-slate-200 rounded-lg shadow-sm">
-          <LowStockTable rows={lowStock} full />
+  return (
+    <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[280px]">
+      <div className="px-4 py-3 bg-primary/20 border-b border-slate-100 flex items-center justify-between gap-2 flex-shrink-0">
+        <h2 className="font-semibold text-slate-800 flex items-center gap-1.5">
+          {title}
+          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium">
+            {count}
+          </span>
+        </h2>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {headerRight}
+          {onAddClick && (
+            <button
+              type="button"
+              onClick={onAddClick}
+              className="p-1.5 rounded-md text-slate-600 hover:bg-primary/20 hover:text-primary transition-colors"
+              title="Create Material Request"
+            >
+              <Plus className="w-5 h-5" />
+            </button>
+          )}
         </div>
       </div>
-    )
-  }
-  return null
+      <div className="p-4 flex-1 overflow-y-auto min-h-0">
+        {count === 0 ? (
+          <p className="text-slate-500 text-sm">{emptyMessage}</p>
+        ) : (
+          children
+        )}
+      </div>
+    </section>
+  )
 }
 
-function ExpiryTable({ rows, full }: { rows: BatchRow[]; full?: boolean }) {
-  const headerRowClass = full
-    ? 'text-left text-slate-700 bg-primary/15 border-b-2 border-primary/30'
-    : 'text-left text-slate-600 border-b border-slate-200'
-  const headerCellClass = full ? 'py-3 pr-2 font-semibold text-sm uppercase tracking-wide' : 'py-2 pr-2 font-medium'
+function ExpiryTable({ rows }: { rows: BatchRow[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full text-sm border-collapse ${full ? '' : 'table-fixed'}`}>
+      <table className="w-full text-sm border-collapse table-fixed">
         <thead>
-          <tr className={headerRowClass}>
-            <th className={`${headerCellClass} w-[30%]`}>Item</th>
-            <th className={`${headerCellClass} w-[25%]`}>Batch</th>
-            <th className={`${headerCellClass.replace('pr-2', 'pr-6')} text-right w-[20%]`}>Qty</th>
-            <th className={`${headerCellClass} pl-4 w-[25%]`}>Expiry Date</th>
+          <tr className="text-left text-slate-600 border-b border-slate-200">
+            <th className="py-2 pr-2 font-medium w-[30%]">Item</th>
+            <th className="py-2 pr-2 font-medium w-[25%]">Batch</th>
+            <th className="py-2 pr-6 font-medium text-right w-[20%]">Qty</th>
+            <th className="py-2 pl-4 font-medium w-[25%]">Expiry Date</th>
           </tr>
         </thead>
         <tbody>
@@ -369,19 +355,15 @@ function ExpiryTable({ rows, full }: { rows: BatchRow[]; full?: boolean }) {
   )
 }
 
-function LowStockTable({ rows, full }: { rows: LowStockRow[]; full?: boolean }) {
-  const headerRowClass = full
-    ? 'text-left text-slate-700 bg-primary/15 border-b-2 border-primary/30'
-    : 'text-left text-slate-600 border-b border-slate-200'
-  const headerCellClass = full ? 'py-3 pr-2 font-semibold text-sm uppercase tracking-wide' : 'py-2 pr-2 font-medium'
+function LowStockTable({ rows }: { rows: LowStockRow[] }) {
   return (
     <div className="overflow-x-auto">
-      <table className={`w-full text-sm border-collapse ${full ? '' : 'table-fixed'}`}>
+      <table className="w-full text-sm border-collapse table-fixed">
         <thead>
-          <tr className={headerRowClass}>
-            <th className={`${headerCellClass} w-[40%]`}>Item</th>
-            <th className={`${headerCellClass.replace('pr-2', 'pr-6')} text-right w-[20%]`}>Qty</th>
-            <th className={`${headerCellClass} pl-4 w-[40%]`}>Warehouse</th>
+          <tr className="text-left text-slate-600 border-b border-slate-200">
+            <th className="py-2 pr-2 font-medium w-[40%]">Item</th>
+            <th className="py-2 pr-6 font-medium text-right w-[20%]">Qty</th>
+            <th className="py-2 pl-4 font-medium w-[40%]">Warehouse</th>
           </tr>
         </thead>
         <tbody>
@@ -399,66 +381,5 @@ function LowStockTable({ rows, full }: { rows: LowStockRow[]; full?: boolean }) 
         </tbody>
       </table>
     </div>
-  )
-}
-
-function Card({
-  title,
-  count,
-  emptyMessage,
-  headerRight,
-  onArrowClick,
-  onAddClick,
-  children
-}: {
-  title: string
-  count: number
-  emptyMessage: string
-  headerRight?: React.ReactNode
-  onArrowClick?: () => void
-  onAddClick?: () => void
-  children: React.ReactNode
-}) {
-  return (
-    <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[200px]">
-      <div className="px-4 py-3 bg-primary/20 border-b border-slate-100 flex items-center justify-between gap-2 flex-shrink-0">
-        <h2 className="font-semibold text-slate-800 flex items-center gap-1.5">
-          {title}
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium">
-            {count}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          {headerRight}
-          {onArrowClick && (
-            <button
-              type="button"
-              onClick={onArrowClick}
-              className="p-1.5 rounded-md text-slate-600 hover:bg-primary/20 hover:text-primary transition-colors"
-              title="View full list"
-            >
-              <ChevronRight className="w-5 h-5" />
-            </button>
-          )}
-          {onAddClick && (
-            <button
-              type="button"
-              onClick={onAddClick}
-              className="p-1.5 rounded-md text-slate-600 hover:bg-primary/20 hover:text-primary transition-colors"
-              title="Create Material Request"
-            >
-              <Plus className="w-5 h-5" />
-            </button>
-          )}
-        </div>
-      </div>
-      <div className="p-4 flex-1 overflow-y-auto min-h-0">
-        {count === 0 ? (
-          <p className="text-slate-500 text-sm">{emptyMessage}</p>
-        ) : (
-          children
-        )}
-      </div>
-    </section>
   )
 }

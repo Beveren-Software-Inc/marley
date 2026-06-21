@@ -804,6 +804,8 @@ DISCHARGE_PORTAL_ROLES = frozenset(
 		"Anesthesiologist",
 		"Therapist",
 		"Nutritionist",
+		"Pharmacist",
+		"Pharmacy User",
 	}
 )
 
@@ -811,7 +813,11 @@ DISCHARGE_PORTAL_ROLES = frozenset(
 def _user_can_access_discharge_portal() -> bool:
 	if frappe.session.user in ("Guest", ""):
 		return False
-	return bool(DISCHARGE_PORTAL_ROLES & set(frappe.get_roles(frappe.session.user)))
+	roles = set(frappe.get_roles(frappe.session.user))
+	if DISCHARGE_PORTAL_ROLES & roles:
+		return True
+	lower = {r.lower() for r in roles}
+	return any("pharmacist" in r or "pharmacy" in r for r in lower)
 
 
 def _ensure_discharge_admission_access(admission_name: str) -> None:

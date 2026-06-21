@@ -22,6 +22,8 @@ interface PatientSearchProps {
   showAlertsBanner?: boolean
   /** Mobile nav menu button — header is menu + patient only; OP/IP lives in sidebar. */
   leadingSlot?: ReactNode
+  /** Do not re-select patient from localStorage on mount (e.g. pharmacy discharge queue). */
+  skipStoredPatientRestore?: boolean
 }
 
 const STORAGE_KEYS = {
@@ -75,6 +77,7 @@ export const PatientSearch = ({
   onPatientSelect,
   showAlertsBanner = true,
   leadingSlot,
+  skipStoredPatientRestore = false,
 }: PatientSearchProps) => {
   const {
     mode,
@@ -149,7 +152,7 @@ export const PatientSearch = ({
     const storedVisitLabel = getStoredValue(STORAGE_KEYS.ACTIVE_VISIT_LABEL)
     const storedAdmissionLabel = getStoredValue(STORAGE_KEYS.ACTIVE_ADMISSION_LABEL)
 
-    if (!selectedPatient && storedPatient) {
+    if (!skipStoredPatientRestore && !selectedPatient && storedPatient) {
       onPatientSelect(storedPatient)
       setSelectedPatientName(storedPatientName)
       setPatientQuery(storedPatientName)
