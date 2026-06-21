@@ -6,6 +6,7 @@ type PatientCareHeaderProps = {
   onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
   showAlertsBanner?: boolean
+  skipStoredPatientRestore?: boolean
 }
 
 /** Primary navbar + closed-care-episode notice directly underneath (above page cards). */
@@ -14,6 +15,7 @@ export function PatientCareHeader({
   onPatientSelect,
   patients = [],
   showAlertsBanner,
+  skipStoredPatientRestore,
 }: PatientCareHeaderProps) {
   return (
     <div className="sticky top-0 z-20 flex flex-col flex-shrink-0">
@@ -22,6 +24,7 @@ export function PatientCareHeader({
         onPatientSelect={onPatientSelect}
         patients={patients}
         showAlertsBanner={showAlertsBanner}
+        skipStoredPatientRestore={skipStoredPatientRestore}
       />
       <ClosedCareEpisodeBanner />
     </div>

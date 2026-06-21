@@ -563,3 +563,140 @@ def create_material_request(
 		raise
 	frappe.db.commit()
 	return {"name": doc.name}
+
+
+# ─── Pharmacy discharge checklist (standalone verify) ─────────────────────────
+
+
+def _pharmacy_discharge_checklist_rows(discharge_doc) -> list[dict]:
+	from healthcare.api.inpatient_admission import _serialize_discharge_draft_for_portal
+	from healthcare.healthcare.discharge_checklist_permissions import user_can_edit_checklist_row
+
+	draft = _serialize_discharge_draft_for_portal(discharge_doc)
+	return [row for row in (draft.get("discharge_checklist") or []) if user_can_edit_checklist_row(row)]
+
+
+@frappe.whitelist()
+def list_pharmacy_discharge_pending(limit=25):
+	"""Draft discharges with pending checklist lines for the logged-in user's department."""
+	from healthcare.api.inpatient_admission import _ensure_discharge_admission_access
+
+	limit = min(cint(limit) or 25, 50)
+	rows = frappe.get_all(
+		"Discharge",
+		filters={"docstatus": 0},
+		fields=["name", "admission", "file_no", "patient_name", "modified"],
+		order_by="modified desc",
+		limit=limit * 4,
+	)
+	out = []
+	for row in rows:
+		if not row.admission:
+			continue
+		try:
+			_ensure_discharge_admission_access(row.admission)
+		except Exception:
+			continue
+		adm_status = frappe.db.get_value("Inpatient Admission", row.admission, "status")
+		if adm_status not in ("Admitted", "Discharge Scheduled"):
+			continue
+		discharge_doc = frappe.get_doc("Discharge", row.name, ignore_permissions=True)
+		my_rows = _pharmacy_discharge_checklist_rows(discharge_doc)
+		if not my_rows:
+			continue
+		pending = sum(1 for r in my_rows if not r.get("click"))
+		out.append(
+			{
+				"admission": row.admission,
+				"discharge_name": row.name,
+				"patient": row.file_no,
+				"patient_name": row.patient_name,
+				"pending_count": pending,
+				"total_count": len(my_rows),
+			}
+		)
+		if len(out) >= limit:
+			break
+	return out
+
+
+@frappe.whitelist()
+def get_pharmacy_discharge_checklist(admission_name):
+	"""Checklist lines assigned to the pharmacist's department only."""
+	from healthcare.api.inpatient_admission import (
+		_ensure_discharge_admission_access,
+		_get_or_create_draft_discharge,
+	)
+
+	admission_name = (admission_name or "").strip()
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	_ensure_discharge_admission_access(admission_name)
+	discharge_doc = _get_or_create_draft_discharge(admission_name)
+	my_rows = _pharmacy_discharge_checklist_rows(discharge_doc)
+
+	admission = frappe.db.get_value(
+		"Inpatient Admission",
+		admission_name,
+		["patient", "patient_name", "status"],
+		as_dict=True,
+	) or {}
+
+	pending = sum(1 for r in my_rows if not r.get("click"))
+	completed = sum(1 for r in my_rows if r.get("click"))
+
+	return {
+		"admission": admission_name,
+		"patient": admission.get("patient"),
+		"patient_name": admission.get("patient_name"),
+		"admission_status": admission.get("status"),
+		"discharge_name": discharge_doc.name,
+		"checklist_items": my_rows,
+		"pending_count": pending,
+		"completed_count": completed,
+	}
+
+
+@frappe.whitelist()
+def save_pharmacy_discharge_checklist(admission_name, checklist):
+	"""Save checklist ticks for rows the pharmacist may edit."""
+	from healthcare.api.inpatient_admission import (
+		_apply_discharge_payload,
+		_ensure_discharge_admission_access,
+		_get_or_create_draft_discharge,
+		_serialize_discharge_draft_for_portal,
+	)
+	from healthcare.healthcare.discharge_checklist_permissions import user_can_edit_checklist_row
+
+	admission_name = (admission_name or "").strip()
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	_ensure_discharge_admission_access(admission_name)
+	discharge_doc = _get_or_create_draft_discharge(admission_name)
+	current = _serialize_discharge_draft_for_portal(discharge_doc)
+	all_rows = list(current.get("discharge_checklist") or [])
+
+	updates = frappe.parse_json(checklist) if isinstance(checklist, str) else (checklist or [])
+	update_by_name = {str(r.get("name")): r for r in updates if isinstance(r, dict) and r.get("name")}
+
+	merged = []
+	for row in all_rows:
+		row_name = str(row.get("name") or "")
+		if row_name in update_by_name and user_can_edit_checklist_row(row):
+			updated = dict(row)
+			patch = update_by_name[row_name]
+			for field in ("click", "user", "name1", "date_time", "description"):
+				if field in patch:
+					updated[field] = patch[field]
+			merged.append(updated)
+		else:
+			merged.append(row)
+
+	_apply_discharge_payload(discharge_doc, {"discharge_checklist": merged})
+	discharge_doc.flags.ignore_links = True
+	discharge_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return get_pharmacy_discharge_checklist(admission_name)
