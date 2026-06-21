@@ -43,16 +43,25 @@ def _open_pos_profile_for_user(user=None):
 	)
 
 
-def _saved_pharmacy_warehouse(user=None):
+PHARMACY_WAREHOUSE_DEFAULT_KEY = "pharmacy_warehouse"
+
+
+def _clear_legacy_pharmacy_warehouse_permissions(user=None):
+	"""Remove old Warehouse User Permissions created by an earlier pharmacy build."""
 	user = user or frappe.session.user
 	if not frappe.db.exists("DocType", "User Permission"):
-		return ""
-	row = frappe.db.get_value(
+		return
+	for perm in frappe.get_all(
 		"User Permission",
-		{"user": user, "allow": "Warehouse"},
-		"for_value",
-	)
-	return row or ""
+		filters={"user": user, "allow": "Warehouse"},
+		fields=["name"],
+	):
+		frappe.delete_doc("User Permission", perm["name"], ignore_permissions=True, force=True)
+
+
+def _saved_pharmacy_warehouse(user=None):
+	user = user or frappe.session.user
+	return frappe.defaults.get_user_default(PHARMACY_WAREHOUSE_DEFAULT_KEY, user) or ""
 
 
 def _allowed_pharmacy_warehouses(user=None):
@@ -106,21 +115,14 @@ def _effective_pharmacy_warehouse(user=None, warehouse=None, auto_save=False):
 
 	default_wh = _resolve_default_pharmacy_warehouse(user)
 	if auto_save and default_wh and default_wh != saved:
-		_set_pharmacy_warehouse_permission(default_wh, user=user, allowed=allowed)
+		_set_pharmacy_warehouse_preference(default_wh, user=user, allowed=allowed)
 	return default_wh
 
 
-def _set_pharmacy_warehouse_permission(warehouse, user=None, allowed=None):
+def _set_pharmacy_warehouse_preference(warehouse, user=None, allowed=None):
 	user = user or frappe.session.user
 	allowed = allowed or {w["warehouse"] for w in _allowed_pharmacy_warehouses(user)}
-
-	old_perms = frappe.get_all(
-		"User Permission",
-		filters={"user": user, "allow": "Warehouse"},
-		fields=["name"],
-	)
-	for perm in old_perms:
-		frappe.delete_doc("User Permission", perm["name"], ignore_permissions=True, force=True)
+	_clear_legacy_pharmacy_warehouse_permissions(user)
 
 	if warehouse and warehouse.strip():
 		warehouse = warehouse.strip()
@@ -128,21 +130,16 @@ def _set_pharmacy_warehouse_permission(warehouse, user=None, allowed=None):
 			frappe.throw(_("Warehouse {0} is not linked to your POS profile(s).").format(frappe.bold(warehouse)))
 		if not frappe.db.exists("Warehouse", warehouse):
 			frappe.throw(_("Warehouse {0} does not exist.").format(warehouse))
-		frappe.get_doc(
-			{
-				"doctype": "User Permission",
-				"user": user,
-				"allow": "Warehouse",
-				"for_value": warehouse,
-				"apply_to_all_doctypes": 1,
-			}
-		).insert(ignore_permissions=True)
+		frappe.defaults.set_user_default(PHARMACY_WAREHOUSE_DEFAULT_KEY, warehouse, user)
+	else:
+		frappe.defaults.clear_user_default(PHARMACY_WAREHOUSE_DEFAULT_KEY, user)
 
 
 @frappe.whitelist()
 def get_pharmacy_warehouse_context(auto_save=1):
 	"""POS-linked warehouses for the logged-in pharmacist and active selection."""
 	user = frappe.session.user
+	_clear_legacy_pharmacy_warehouse_permissions(user)
 	profiles = _user_pos_profile_rows(user)
 	warehouses = _allowed_pharmacy_warehouses(user)
 	open_pos = _open_pos_profile_for_user(user)
@@ -166,18 +163,18 @@ def get_pharmacy_warehouse_context(auto_save=1):
 
 @frappe.whitelist()
 def set_pharmacy_warehouse_preference(warehouse=None):
-	"""Persist pharmacist warehouse preference (User Permission)."""
+	"""Persist pharmacist warehouse filter (user default only — not a permission)."""
 	user = frappe.session.user
 	allowed = {w["warehouse"] for w in _allowed_pharmacy_warehouses(user)}
 	if not allowed:
 		frappe.throw(_("No POS profile warehouse is assigned to your user account."))
 
 	if warehouse and str(warehouse).strip():
-		_set_pharmacy_warehouse_permission(str(warehouse).strip(), user=user, allowed=allowed)
+		_set_pharmacy_warehouse_preference(str(warehouse).strip(), user=user, allowed=allowed)
 		frappe.db.commit()
 		return {"status": "set", "warehouse": str(warehouse).strip()}
 
-	_set_pharmacy_warehouse_permission("", user=user, allowed=allowed)
+	_set_pharmacy_warehouse_preference("", user=user, allowed=allowed)
 	frappe.db.commit()
 	return {"status": "cleared", "warehouse": ""}
 
