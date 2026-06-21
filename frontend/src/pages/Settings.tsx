@@ -16,7 +16,13 @@ import {
   X,
   ShieldCheck,
   Info,
+  Package,
 } from "lucide-react"
+import {
+  fetchPharmacyWarehouseContext,
+  setPharmacyWarehousePreference,
+  type PharmacyWarehouseOption,
+} from "../services/pharmacy"
 
 // ─── Cost-centre combobox ────────────────────────────────────────────────────
 
@@ -168,6 +174,13 @@ const PreferencesSection = () => {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
+  const [pharmacyWarehouses, setPharmacyWarehouses] = useState<PharmacyWarehouseOption[]>([])
+  const [pharmacyWarehouse, setPharmacyWarehouse] = useState("")
+  const [savedPharmacyWarehouse, setSavedPharmacyWarehouse] = useState("")
+  const [openPosProfile, setOpenPosProfile] = useState<string | null>(null)
+  const [pharmacyLoading, setPharmacyLoading] = useState(true)
+  const [pharmacySaving, setPharmacySaving] = useState(false)
+
   useEffect(() => {
     const load = async () => {
       try {
@@ -182,6 +195,23 @@ const PreferencesSection = () => {
       }
     }
     load()
+  }, [])
+
+  useEffect(() => {
+    const loadPharmacy = async () => {
+      try {
+        const ctx = await fetchPharmacyWarehouseContext(false)
+        setPharmacyWarehouses(ctx.warehouses || [])
+        setPharmacyWarehouse(ctx.selected_warehouse || ctx.saved_warehouse || "")
+        setSavedPharmacyWarehouse(ctx.saved_warehouse || ctx.selected_warehouse || "")
+        setOpenPosProfile(ctx.open_pos_profile || null)
+      } catch {
+        setPharmacyWarehouses([])
+      } finally {
+        setPharmacyLoading(false)
+      }
+    }
+    loadPharmacy()
   }, [])
 
   const handleSave = async () => {
@@ -205,6 +235,25 @@ const PreferencesSection = () => {
   }
 
   const isDirty = costCenter !== savedCostCenter
+  const pharmacyDirty = pharmacyWarehouse !== savedPharmacyWarehouse
+
+  const handleSavePharmacyWarehouse = async () => {
+    setPharmacySaving(true)
+    try {
+      const result = await setPharmacyWarehousePreference(pharmacyWarehouse)
+      if (result.status === "cleared") {
+        toast.success("Pharmacy warehouse preference cleared.")
+        setSavedPharmacyWarehouse("")
+      } else {
+        toast.success(`Pharmacy warehouse set to "${result.warehouse}".`)
+        setSavedPharmacyWarehouse(result.warehouse)
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save pharmacy warehouse.")
+    } finally {
+      setPharmacySaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -267,6 +316,70 @@ const PreferencesSection = () => {
           )}
         </div>
       </div>
+
+      {!pharmacyLoading && pharmacyWarehouses.length > 0 && (
+        <div className="pt-8 border-t border-gray-200 dark:border-gray-700">
+          <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Pharmacy Warehouse</h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
+            Stock on the Pharmacy page (low stock, expiry, search) is filtered to this warehouse.
+            Options come from POS profiles assigned to your user account.
+            {openPosProfile ? (
+              <> Your open POS profile is <strong>{openPosProfile}</strong>.</>
+            ) : null}
+          </p>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
+                <Package className="w-4 h-4 text-gray-400" />
+                Warehouse
+              </label>
+              <select
+                value={pharmacyWarehouse}
+                onChange={(e) => setPharmacyWarehouse(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                {pharmacyWarehouses.map((opt) => (
+                  <option key={opt.warehouse} value={opt.warehouse}>
+                    {opt.warehouse}
+                    {opt.pos_profile ? ` (${opt.pos_profile})` : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {savedPharmacyWarehouse && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">
+                  Active pharmacy warehouse
+                </label>
+                <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary font-medium">
+                  <Package className="w-4 h-4 shrink-0" />
+                  {savedPharmacyWarehouse}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="pt-4 mt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
+            <div className="text-xs text-gray-400 dark:text-gray-500">
+              {pharmacyDirty
+                ? <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
+                : savedPharmacyWarehouse
+                  ? <span>Active warehouse: <strong>{savedPharmacyWarehouse}</strong></span>
+                  : "No pharmacy warehouse saved yet."}
+            </div>
+            <button
+              type="button"
+              onClick={handleSavePharmacyWarehouse}
+              disabled={pharmacySaving || !pharmacyDirty || !pharmacyWarehouse}
+              className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {pharmacySaving ? "Saving…" : "Save Warehouse"}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
         <div className="text-xs text-gray-400 dark:text-gray-500">

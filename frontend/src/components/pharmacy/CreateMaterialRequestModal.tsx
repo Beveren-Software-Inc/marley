@@ -160,9 +160,14 @@ function ItemCodeDropdown({
 interface CreateMaterialRequestModalProps {
   onClose: () => void
   onSuccess?: (name: string) => void
+  defaultWarehouse?: string
 }
 
-export const CreateMaterialRequestModal = ({ onClose, onSuccess }: CreateMaterialRequestModalProps) => {
+export const CreateMaterialRequestModal = ({
+  onClose,
+  onSuccess,
+  defaultWarehouse: initialWarehouse,
+}: CreateMaterialRequestModalProps) => {
   const [company, setCompany] = useState('')
   const [materialRequestType, setMaterialRequestType] = useState('Purchase')
   const [defaultWarehouse, setDefaultWarehouse] = useState('')
@@ -187,10 +192,15 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess }: CreateMateria
         setWarehouses(opts.warehouses)
         setCostCenters(opts.cost_centers ?? [])
         if (opts.companies.length && !company) setCompany(opts.companies[0])
-        if (opts.warehouses.length && !defaultWarehouse) setDefaultWarehouse(opts.warehouses[0])
+        const preferred =
+          initialWarehouse || opts.default_warehouse || opts.warehouses[0] || ''
+        if (preferred) {
+          setDefaultWarehouse(preferred)
+          setItems([{ item_code: '', qty: 0, warehouse: preferred }])
+        }
       })
       .finally(() => setOptionsLoading(false))
-  }, [])
+  }, [initialWarehouse])
 
   const addRow = () => {
     setItems((prev) => [...prev, { item_code: '', qty: 0, warehouse: defaultWarehouse }])
