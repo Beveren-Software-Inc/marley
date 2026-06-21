@@ -5,8 +5,11 @@ import { ItemSearch } from '../components/pharmacy/ItemSearch'
 import {
   getBatchesExpiringInDays,
   getLowStockItems,
+  fetchPharmacyWarehouseContext,
+  setPharmacyWarehousePreference,
   type BatchRow,
-  type LowStockRow
+  type LowStockRow,
+  type PharmacyWarehouseOption,
 } from '../services/pharmacy'
 import { ChevronRight, Plus } from 'lucide-react'
 import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
@@ -26,6 +29,12 @@ export const PharmacyPage = () => {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const [warehouseOptions, setWarehouseOptions] = useState<PharmacyWarehouseOption[]>([])
+  const [selectedWarehouse, setSelectedWarehouse] = useState('')
+  const [hasPosProfiles, setHasPosProfiles] = useState(false)
+  const [openPosProfile, setOpenPosProfile] = useState<string | null>(null)
+  const [warehouseReady, setWarehouseReady] = useState(false)
+
   const [expiryDays, setExpiryDays] = useState(DEFAULT_EXPIRY_DAYS)
   const [lowStockThreshold, setLowStockThreshold] = useState(DEFAULT_LOW_STOCK_THRESHOLD)
 
@@ -36,11 +45,35 @@ export const PharmacyPage = () => {
 
   useEffect(() => {
     let cancelled = false
+    fetchPharmacyWarehouseContext(true)
+      .then((ctx) => {
+        if (cancelled) return
+        setHasPosProfiles(ctx.has_pos_profiles)
+        setWarehouseOptions(ctx.warehouses || [])
+        setSelectedWarehouse(ctx.selected_warehouse || '')
+        setOpenPosProfile(ctx.open_pos_profile || null)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHasPosProfiles(false)
+          setWarehouseOptions([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setWarehouseReady(true)
+      })
+    return () => { cancelled = true }
+  }, [])
+
+  useEffect(() => {
+    if (!warehouseReady) return
+    let cancelled = false
     setLoading(true)
     setError(null)
+    const warehouse = selectedWarehouse || undefined
     Promise.all([
-      getBatchesExpiringInDays(expiryDays),
-      getLowStockItems(100, lowStockThreshold)
+      getBatchesExpiringInDays(expiryDays, 200, warehouse),
+      getLowStockItems(100, lowStockThreshold, warehouse)
     ])
       .then(([e, l]) => {
         if (!cancelled) {
@@ -55,7 +88,17 @@ export const PharmacyPage = () => {
         if (!cancelled) setLoading(false)
       })
     return () => { cancelled = true }
-  }, [expiryDays, lowStockThreshold])
+  }, [expiryDays, lowStockThreshold, selectedWarehouse, warehouseReady])
+
+  const handleWarehouseChange = async (warehouse: string) => {
+    setSelectedWarehouse(warehouse)
+    if (!warehouse) return
+    try {
+      await setPharmacyWarehousePreference(warehouse)
+    } catch {
+      // Preference save failed — stock still filters by selection for this session
+    }
+  }
 
   const handleItemSearch = (query: string) => {
     setSearchQuery(query)
@@ -80,8 +123,24 @@ export const PharmacyPage = () => {
       <header className="sticky top-0 z-10 flex items-center gap-2 md:gap-3 bg-primary text-white px-3 md:px-4 py-2 md:py-3 border-b border-white/20 flex-shrink-0">
         <MobileNavMenuButton />
         <div className="flex-1 min-w-0">
-          <ItemSearch onSearch={handleItemSearch} />
+          <ItemSearch onSearch={handleItemSearch} warehouse={selectedWarehouse || undefined} />
         </div>
+        {hasPosProfiles && warehouseOptions.length > 0 && (
+          <div className="hidden md:flex flex-shrink-0 max-w-[220px]">
+            <select
+              value={selectedWarehouse}
+              onChange={(e) => handleWarehouseChange(e.target.value)}
+              className="rounded-md border border-white/30 bg-white/10 text-white text-xs px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/50"
+              title={openPosProfile ? `Open POS: ${openPosProfile}` : undefined}
+            >
+              {warehouseOptions.map((opt) => (
+                <option key={opt.warehouse} value={opt.warehouse} className="text-slate-900">
+                  {opt.warehouse}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="hidden md:flex items-center gap-3 flex-shrink-0">
           <a
             href={PHARM_POS_URL}
@@ -103,6 +162,29 @@ export const PharmacyPage = () => {
           POS
         </a>
       </header>
+
+      {hasPosProfiles && warehouseOptions.length > 0 && (
+        <div className="md:hidden px-3 py-2 bg-slate-50 border-b border-slate-200">
+          <select
+            value={selectedWarehouse}
+            onChange={(e) => handleWarehouseChange(e.target.value)}
+            className="w-full rounded-md border border-slate-300 bg-white text-slate-800 text-xs px-2 py-1.5"
+          >
+            {warehouseOptions.map((opt) => (
+              <option key={opt.warehouse} value={opt.warehouse}>
+                {opt.warehouse}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {selectedWarehouse && (
+        <div className="px-3 md:px-4 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-200">
+          Showing stock for <span className="font-medium text-slate-800">{selectedWarehouse}</span>
+          {openPosProfile ? <> · Open POS: {openPosProfile}</> : null}
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto p-4">
         {error && (
@@ -195,6 +277,7 @@ export const PharmacyPage = () => {
 
       {showMaterialRequestModal && (
         <CreateMaterialRequestModal
+          defaultWarehouse={selectedWarehouse || undefined}
           onClose={() => setShowMaterialRequestModal(false)}
           onSuccess={() => setShowMaterialRequestModal(false)}
         />

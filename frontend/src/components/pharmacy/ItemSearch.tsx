@@ -3,9 +3,10 @@ import { searchItemOrBatch, type ItemBatchSearchRow } from '../../services/pharm
 
 interface ItemSearchProps {
   onSearch: (query: string) => void
+  warehouse?: string
 }
 
-export const ItemSearch = ({ onSearch }: ItemSearchProps) => {
+export const ItemSearch = ({ onSearch, warehouse }: ItemSearchProps) => {
   const [query, setQuery] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const [suggestions, setSuggestions] = useState<ItemBatchSearchRow[]>([])
@@ -21,7 +22,7 @@ export const ItemSearch = ({ onSearch }: ItemSearchProps) => {
         if (query.trim() === '') {
           setSuggestions([])
         } else {
-          const results = await searchItemOrBatch(query.trim(), 20)
+          const results = await searchItemOrBatch(query.trim(), 20, warehouse)
           setSuggestions(results)
         }
       } catch (error) {
@@ -37,7 +38,7 @@ export const ItemSearch = ({ onSearch }: ItemSearchProps) => {
     }, query.trim() === '' ? 0 : 300)
 
     return () => clearTimeout(timeoutId)
-  }, [query, dropdownOpen])
+  }, [query, dropdownOpen, warehouse])
 
   const handleSelect = (itemName: string, batch?: string | null) => {
     const searchText = batch ? `${itemName} (${batch})` : itemName
