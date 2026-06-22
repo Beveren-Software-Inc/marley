@@ -34,7 +34,7 @@ interface DischargeListProps {
 export const DischargeList = ({ patient, admission, onPatientClick }: DischargeListProps) => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeAdmission, selectedPatient: contextPatient, applyIpCareContext } = useCareContext()
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -175,6 +175,20 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     setDischargeIdFilter(opt.value)
     setDischargeIdQuery('')
     setDischargeIdOpen(false)
+    void fetchDischarges(1, 0, effectivePatient, undefined, opt.value)
+      .then((response) => {
+        if (response.data[0]) setDetailRow(response.data[0])
+      })
+      .catch(() => {})
+  }
+
+  const handleAdmissionLinkClick = (discharge: Discharge) => {
+    if (!discharge.admission) return
+    applyIpCareContext({
+      patient: discharge.file_no || effectivePatient,
+      admission: discharge.admission,
+      admissionLabel: discharge.admission,
+    })
   }
 
   const handleAdmissionSelect = (opt: { value: string; label: string }) => {
@@ -509,11 +523,15 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
               <tbody className="divide-y divide-slate-200">
                 {discharges.map((discharge) => (
                   <tr key={discharge.name} className={`hover:bg-slate-50 ${getChecklistRowClass(discharge)}`}>
-                    <td
-                      className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                      onClick={() => setDetailRow(discharge)}
-                    >
-                      {discharge.name}
+                    <td className="px-4 py-3 text-sm font-medium">
+                      <button
+                        type="button"
+                        onClick={() => setDetailRow(discharge)}
+                        className="text-primary hover:underline text-left focus:outline-none"
+                        title="View discharge details"
+                      >
+                        {discharge.name}
+                      </button>
                     </td>
                     {!patient && (
                       <td
@@ -523,8 +541,19 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
                         <span className="font-medium text-primary hover:underline">{discharge.patient_name || discharge.file_no || '-'}</span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm text-slate-700">
-                      {discharge.admission || '-'}
+                    <td className="px-4 py-3 text-sm font-medium">
+                      {discharge.admission ? (
+                        <button
+                          type="button"
+                          onClick={() => handleAdmissionLinkClick(discharge)}
+                          className="text-primary hover:underline text-left focus:outline-none"
+                          title="Select this admission in header"
+                        >
+                          {discharge.admission}
+                        </button>
+                      ) : (
+                        '-'
+                      )}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">
                       {formatDate(discharge.admission_date)}

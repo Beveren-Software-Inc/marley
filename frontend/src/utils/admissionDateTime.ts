@@ -66,14 +66,23 @@ export interface AdmissionSpanFields extends AdmissionDateFields {
   discharge_datetime?: string | null
 }
 
-/** Admission date, or admission → discharge when discharged. */
+/** Format date only (no time) for display. */
+export function formatDateOnlyDisplay(value?: string | null, fallback = '—'): string {
+  const raw = (value || '').trim()
+  if (!raw) return fallback
+  const dt = parseDate(raw)
+  if (!dt) return raw
+  return dt.toLocaleDateString(undefined, DATE_OPTS)
+}
+
+/** Admission date, or admission → discharge when discharged (dates only, no time). */
 export function formatAdmissionDateSpan(record: AdmissionSpanFields): string {
   const start = formatAdmissionDate(record, { includeTime: false, fallback: '' })
   if (!start) return ''
 
   const discharge = (record.discharge_datetime || '').trim()
   if (discharge) {
-    const end = formatDateTimeDisplay(discharge, '')
+    const end = formatDateOnlyDisplay(discharge, '')
     if (end) return `${start} → ${end}`
   }
 

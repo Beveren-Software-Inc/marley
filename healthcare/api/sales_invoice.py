@@ -12,7 +12,9 @@ def get_service_invoices(
     to_date=None,
     search=None,
     limit=50,
-    offset=0
+    offset=0,
+    receptionist_shift=None,
+    filter_by_open_shift=None,
 ):
     """Get list of Sales Invoices for services"""
     from healthcare.api.billing_search import billing_search_or_filters
@@ -42,6 +44,19 @@ def get_service_invoices(
         filters['posting_date'] = ['>=', from_date]
     elif to_date:
         filters['posting_date'] = ['<=', to_date]
+
+    from healthcare.api.receptionist_shift import resolve_receptionist_shift_filter, SHIFT_LINK_FIELD
+
+    shift_filter = resolve_receptionist_shift_filter(
+        receptionist_shift=receptionist_shift,
+        filter_by_open_shift=filter_by_open_shift,
+    )
+    if shift_filter is not None:
+        if not shift_filter:
+            return []
+        if frappe.get_meta("Sales Invoice").has_field(SHIFT_LINK_FIELD):
+            filters[SHIFT_LINK_FIELD] = shift_filter
+
     # Get permitted cost centers
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()
@@ -113,7 +128,16 @@ def get_service_invoices(
 
 
 @frappe.whitelist()
-def get_invoice_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, search=None):
+def get_invoice_summary(
+    reference_type=None,
+    reference_name=None,
+    patient=None,
+    from_date=None,
+    to_date=None,
+    search=None,
+    receptionist_shift=None,
+    filter_by_open_shift=None,
+):
     """Get summary of invoices for a reference"""
     from healthcare.api.billing_search import billing_search_or_filters
 
@@ -133,6 +157,27 @@ def get_invoice_summary(reference_type=None, reference_name=None, patient=None, 
         filters['posting_date'] = ['>=', from_date]
     elif to_date:
         filters['posting_date'] = ['<=', to_date]
+
+    from healthcare.api.receptionist_shift import resolve_receptionist_shift_filter, SHIFT_LINK_FIELD
+
+    shift_filter = resolve_receptionist_shift_filter(
+        receptionist_shift=receptionist_shift,
+        filter_by_open_shift=filter_by_open_shift,
+    )
+    if shift_filter is not None:
+        if not shift_filter:
+            return {
+                'total_invoices': 0,
+                'total_amount': 0,
+                'total_paid': 0,
+                'total_outstanding': 0,
+                'paid': {'count': 0, 'amount': 0},
+                'unpaid': {'count': 0, 'amount': 0},
+                'overdue': {'count': 0, 'amount': 0},
+                'partially_paid': {'count': 0, 'amount': 0},
+            }
+        if frappe.get_meta("Sales Invoice").has_field(SHIFT_LINK_FIELD):
+            filters[SHIFT_LINK_FIELD] = shift_filter
 
     from healthcare.api.common import get_permitted_cost_centers
     permitted_cc = get_permitted_cost_centers()

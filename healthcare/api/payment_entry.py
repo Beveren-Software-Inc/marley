@@ -482,6 +482,9 @@ def _new_receive_payment_entry(
 
 
 def _submit_payment_entry(pe) -> dict:
+	from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+	stamp_receptionist_shift_on_doc(pe)
 	pe.insert(ignore_permissions=True)
 	pe.submit()
 	frappe.db.commit()

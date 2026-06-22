@@ -28,6 +28,7 @@ interface ServiceInvoicesListProps {
   toDate?: string
   statusFilter?: string
   /** Open Sales Invoice detail slide-over (same as specialty billing). */
+  filterByOpenShift?: boolean
   onOpenInvoiceDetail: (invoiceName: string, options?: { edit?: boolean }) => void
   /** Increment from parent to refetch after mutations elsewhere. */
   invoiceRefreshKey?: number
@@ -41,6 +42,7 @@ export const ServiceInvoicesList = ({
   visit,
   fromDate,
   toDate,
+  filterByOpenShift,
   statusFilter: propStatusFilter,
   onOpenInvoiceDetail,
   invoiceRefreshKey = 0,
@@ -94,7 +96,8 @@ export const ServiceInvoicesList = ({
           statusFilter,
           fromDate,
           toDate,
-          debouncedCaseSearch || undefined
+          debouncedCaseSearch || undefined,
+          filterByOpenShift
         ),
         fetchInvoiceSummary(
           hasCaseSearch ? undefined : scopedReferenceType,
@@ -102,7 +105,8 @@ export const ServiceInvoicesList = ({
           effectivePatient,
           fromDate,
           toDate,
-          debouncedCaseSearch || undefined
+          debouncedCaseSearch || undefined,
+          filterByOpenShift
         ),
       ])
       setInvoices(invoicesData)
@@ -117,7 +121,7 @@ export const ServiceInvoicesList = ({
 
   useEffect(() => {
     void loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType])
+  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType, filterByOpenShift])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
