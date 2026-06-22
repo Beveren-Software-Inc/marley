@@ -2122,6 +2122,7 @@ export const AppointmentList = ({
           <AppointmentDetailPanel
             name={detailApt.name}
             refreshKey={refreshTrigger}
+            onPatientSelect={onPatientClick}
             receptionWalkInActions={receptionWalkInActions}
             onAddRemarks={
               receptionWalkInActions

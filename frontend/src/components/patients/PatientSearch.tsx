@@ -11,9 +11,13 @@ import {
 } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCareModeSelection } from '../../hooks/useCareModeSelection'
+import { useAuth } from '../../providers/AuthProvider'
+import { isDoctorRole } from '../../config/permissions'
+import { toast } from '../../hooks/useToast'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
-import { formatAdmissionDate } from '../../utils/admissionDateTime'
+import { formatAdmissionDateSpan } from '../../utils/admissionDateTime'
+import { IpAdmissionDateBadge } from '../layout/IpAdmissionDateBadge'
 
 interface PatientSearchProps {
   selectedPatient: string
@@ -113,6 +117,27 @@ export const PatientSearch = ({
 
   /** Hidden until the user explicitly picks a patient (not when restoring from localStorage on refresh). */
   const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(true)
+  const [alertsCanDismiss, setAlertsCanDismiss] = useState(true)
+
+  const { user } = useAuth()
+  const userRoles =
+    user?.roles && user.roles.length > 0
+      ? user.roles
+      : user?.role
+        ? [user.role]
+        : []
+  const isDoctor = isDoctorRole(userRoles)
+  const hasActiveCareEpisode =
+    (mode === 'OP' && Boolean(activeVisit)) || (mode === 'IP' && Boolean(activeAdmission))
+  const enforceDoctorWarnings = isDoctor && hasActiveCareEpisode
+
+  const tryDismissAlerts = () => {
+    if (!alertsCanDismiss) {
+      toast.error('Record at least one warning or allergy before closing.')
+      return
+    }
+    setAlertsBannerDismissed(true)
+  }
 
   const showPatientAlertsFromUserAction = () => {
     if (!showAlertsBanner) return
@@ -368,13 +393,16 @@ export const PatientSearch = ({
           )
           const admissions = admissionsResponse.data
           setSecondaryResults(
-            admissions.slice(0, 30).map((a) => ({
-              value: a.name,
-              label: a.name,
-              patient: a.patient,
-              patient_name: a.patient_name,
-              meta: [formatAdmissionDate(a, { fallback: '' }), a.status].filter(Boolean).join(' • '),
-            }))
+            admissions.slice(0, 30).map((a) => {
+              const dateSpan = formatAdmissionDateSpan(a)
+              return {
+                value: a.name,
+                label: a.name,
+                patient: a.patient,
+                patient_name: a.patient_name,
+                meta: [dateSpan, a.status].filter(Boolean).join(' • '),
+              }
+            })
           )
         } else {
           setSecondaryResults([])
@@ -422,10 +450,10 @@ export const PatientSearch = ({
           <>
             <button
               type="button"
-              className="fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 cursor-default focus:outline-none"
-              onClick={() => {
-                setAlertsBannerDismissed(true)
-              }}
+              className={`fixed inset-0 top-14 left-0 right-0 bottom-0 z-30 md:left-[240px] backdrop-blur-md bg-slate-900/10 focus:outline-none ${
+                alertsCanDismiss ? 'cursor-default' : 'cursor-not-allowed'
+              }`}
+              onClick={tryDismissAlerts}
               aria-label="Close patient alerts"
             />
             <div className="relative z-40">
@@ -433,10 +461,10 @@ export const PatientSearch = ({
                 patient={selectedPatient}
                 patientName={selectedPatientName || undefined}
                 dismissed={alertsBannerDismissed}
-                onDismiss={() => {
-                  setAlertsBannerDismissed(true)
-                }}
+                onDismiss={() => setAlertsBannerDismissed(true)}
                 visible={Boolean(selectedPatient)}
+                enforceWarnings={enforceDoctorWarnings}
+                onDismissabilityChange={setAlertsCanDismiss}
               />
             </div>
           </>,
@@ -603,6 +631,13 @@ export const PatientSearch = ({
     </>
   )
 
+  const ipDateRow =
+    mode === 'IP' && activeAdmission ? (
+      <div className="flex justify-end w-full">
+        <IpAdmissionDateBadge />
+      </div>
+    ) : null
+
   // ✅ Full clear: resets local state, context (patient + visit + admission), and localStorage
   const handleClearPatient = () => {
     setAlertsBannerDismissed(true)
@@ -754,19 +789,23 @@ export const PatientSearch = ({
       {alertsPortal}
       <div className="w-full max-w-full md:max-w-xl">
         {isMobileHeader ? (
-          <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-2 w-full">
+          <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-1 w-full">
             <div className="col-start-1 row-start-1 flex items-center">{leadingSlot}</div>
             <div className="col-start-2 row-start-1 min-w-0">{patientField}</div>
             {secondarySearchField ? (
               <div className="col-start-2 row-start-2 min-w-0">{secondarySearchField}</div>
             ) : null}
+            {ipDateRow ? <div className="col-span-2 row-start-3">{ipDateRow}</div> : null}
           </div>
         ) : (
-          <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
-            <div className="min-w-0 flex-1">{patientField}</div>
-            <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:shrink-0">
-              {desktopCareModeControls}
+          <div className="flex flex-col gap-1 w-full">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
+              <div className="min-w-0 flex-1">{patientField}</div>
+              <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:shrink-0">
+                {desktopCareModeControls}
+              </div>
             </div>
+            {ipDateRow}
           </div>
         )}
       </div>

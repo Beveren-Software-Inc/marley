@@ -316,7 +316,9 @@ export function ClinicalNoteDetailPanel({
                   doc?.practitioner_name ||
                     doc?.practitioner ||
                     preview?.practitioner_name ||
-                    preview?.practitioner,
+                    preview?.practitioner ||
+                    doc?.user ||
+                    preview?.user,
                 )}
               />
               <InfoTile

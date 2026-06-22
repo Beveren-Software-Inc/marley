@@ -585,6 +585,44 @@ export interface DischargeTransferRow {
   medication_type?: string
 }
 
+export interface DischargePrescriptionMedication {
+  name?: string
+  prescription?: string
+  drug?: string
+  drug_name: string
+  dosage?: string
+  frequency?: string
+  start_date?: string | null
+  reason_stopped?: string
+  patient_visit?: string
+}
+
+export interface DischargePrescriptionSections {
+  current_medications: DischargePrescriptionMedication[]
+  discharged_medications: DischargePrescriptionMedication[]
+  stopped_medications: DischargePrescriptionMedication[]
+}
+
+export async function getDischargePrescriptionSections(
+  admission: string
+): Promise<DischargePrescriptionSections> {
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  const res = await fetch(
+    `/api/method/healthcare.api.medicine_given.get_discharge_prescription_sections?${params.toString()}`
+  )
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.exc || data?.message || 'Failed to load prescription sections')
+  }
+  const message = (data?.message || {}) as DischargePrescriptionSections
+  return {
+    current_medications: message.current_medications || [],
+    discharged_medications: message.discharged_medications || [],
+    stopped_medications: message.stopped_medications || [],
+  }
+}
+
 export async function getDischargeTransferRows(
   admission: string
 ): Promise<DischargeTransferRow[]> {
@@ -646,6 +684,7 @@ export async function createVisitAndPrescriptionOnDischarge(
   patientEncounter?: string,
   afterDischarge?: boolean,
   doctorsSignature?: string,
+  orderEntryNames?: string[],
 ): Promise<{ patient_visit: string; patient_medication_order: string }> {
   return apiRequest('/api/method/healthcare.api.medicine_given.create_visit_and_prescription_on_discharge', {
     method: 'POST',
@@ -655,6 +694,7 @@ export async function createVisitAndPrescriptionOnDischarge(
       patient_encounter: patientEncounter,
       after_discharge: afterDischarge ?? false,
       doctors_signature: doctorsSignature || undefined,
+      order_entry_names: orderEntryNames?.length ? orderEntryNames : undefined,
     }),
   })
 }

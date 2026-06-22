@@ -577,3 +577,30 @@ export async function createNursingPharmacyGiveOut(input: {
     }
   )
 }
+
+export interface PrescriptionDrugStockCheck {
+  warn: boolean
+  level?: 'out_of_stock' | 'low_stock'
+  message?: string
+  item_code?: string
+  item_name?: string
+  actual_qty?: number
+  minimum_qty?: number
+  warehouse?: string | null
+  scope?: string
+  is_stock_item?: boolean
+}
+
+export async function checkPrescriptionDrugStock(
+  itemCode: string,
+  costCenter?: string,
+  company?: string,
+): Promise<PrescriptionDrugStockCheck> {
+  const { apiRequest } = await import('./apiClient')
+  const params = new URLSearchParams({ item_code: itemCode })
+  if (costCenter) params.set('cost_center', costCenter)
+  if (company) params.set('company', company)
+  return apiRequest<PrescriptionDrugStockCheck>(
+    `/api/method/healthcare.api.prescription_stock.check_prescription_drug_stock?${params.toString()}`,
+  )
+}

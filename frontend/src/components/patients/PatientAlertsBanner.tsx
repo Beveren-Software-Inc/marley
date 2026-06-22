@@ -1,10 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { X, AlertTriangle, FileText, Plus } from 'lucide-react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../services/patients'
 import { CreateWarningMessageModal } from '../warnings/CreateWarningMessageModal'
 import { CreatePatientMedicalHistoryModal } from '../medicalHistory/CreatePatientMedicalHistoryModal'
 import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHistoryUtils'
+import { toast } from '../../hooks/useToast'
 
 const stripHtml = (html: string | undefined): string => {
   if (!html) return '-'
@@ -20,6 +21,9 @@ interface PatientAlertsBannerProps {
   dismissed: boolean
   onDismiss: () => void
   visible: boolean
+  /** Doctors with an active visit/admission must record warnings before closing. */
+  enforceWarnings?: boolean
+  onDismissabilityChange?: (canDismiss: boolean) => void
 }
 
 export const PatientAlertsBanner = ({
@@ -28,6 +32,8 @@ export const PatientAlertsBanner = ({
   dismissed,
   onDismiss,
   visible,
+  enforceWarnings = false,
+  onDismissabilityChange,
 }: PatientAlertsBannerProps) => {
   const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(patient)
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistory | null>(null)
@@ -54,9 +60,22 @@ export const PatientAlertsBanner = ({
     load()
   }, [patient])
 
-  if (!patient || !visible || dismissed) return null
-
   const hasWarnings = warnings.length > 0
+  const canDismiss = enforceWarnings ? !warningsLoading && hasWarnings : true
+
+  useEffect(() => {
+    onDismissabilityChange?.(canDismiss)
+  }, [canDismiss, onDismissabilityChange])
+
+  const handleDismissAttempt = useCallback(() => {
+    if (!canDismiss) {
+      toast.error('Record at least one warning or allergy before closing.')
+      return
+    }
+    onDismiss()
+  }, [canDismiss, onDismiss])
+
+  if (!patient || !visible || dismissed) return null
 
   const hasMedicalHistory = Boolean(
     medicalHistory?.name &&
@@ -86,12 +105,22 @@ export const PatientAlertsBanner = ({
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-600" />
                 <span>Patient alerts — {patientName || patient}</span>
               </div>
+              {enforceWarnings && !canDismiss && !warningsLoading && (
+                <p className="mt-1 text-xs font-medium text-amber-800">
+                  Warnings &amp; allergies are required for this visit. Use &ldquo;Create one&rdquo; below, then close.
+                </p>
+              )}
             </div>
             <button
               type="button"
-              onClick={onDismiss}
-              className="flex-shrink-0 rounded-lg p-1.5 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-              aria-label="Close alerts"
+              onClick={handleDismissAttempt}
+              disabled={!canDismiss}
+              className={`flex-shrink-0 rounded-lg p-1.5 transition-colors ${
+                canDismiss
+                  ? 'text-slate-400 hover:bg-slate-200 hover:text-slate-700'
+                  : 'cursor-not-allowed text-slate-300'
+              }`}
+              aria-label={canDismiss ? 'Close alerts' : 'Close alerts — warnings required'}
             >
               <X className="h-5 w-5" />
             </button>

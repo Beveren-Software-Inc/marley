@@ -46,7 +46,9 @@ function persistCareMode(mode: CareMode) {
 // stay in sync without double-writing.
 const PATIENT_STORAGE_KEY = 'patientSearch_selectedPatient'
 const VISIT_STORAGE_KEY = 'patientSearch_activeVisit'
+const VISIT_LABEL_STORAGE_KEY = 'patientSearch_activeVisitLabel'
 const ADMISSION_STORAGE_KEY = 'patientSearch_activeAdmission'
+const ADMISSION_LABEL_STORAGE_KEY = 'patientSearch_activeAdmissionLabel'
 
 interface CareContextValue {
   mode: CareMode
@@ -101,6 +103,8 @@ interface CareContextValue {
    * Pass `{ allowOnClosed: true }` only for starting a new OP visit or IP admission.
    */
   guardClinicalCreate: (open: () => void, options?: { allowOnClosed?: boolean }) => void
+  /** Select OP mode with patient + visit in the header (shared by visit/appointment links). */
+  applyOpCareContext: (opts: { patient?: string; visit: string; visitLabel?: string }) => void
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -312,6 +316,29 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     }
   }, [costCenterCareScope])
 
+  const applyOpCareContext = useCallback(
+    ({ patient, visit, visitLabel }: { patient?: string; visit: string; visitLabel?: string }) => {
+      const visitId = visit.trim()
+      if (!visitId) return
+
+      if (patient) {
+        setSelectedPatient(patient)
+      }
+
+      setMode('OP')
+      setActiveAdmission(undefined)
+      writeStorage(ADMISSION_STORAGE_KEY, undefined)
+      writeStorage(ADMISSION_LABEL_STORAGE_KEY, undefined)
+
+      setActiveVisit(visitId)
+      const label = (visitLabel || visitId).trim()
+      writeStorage(VISIT_LABEL_STORAGE_KEY, label)
+
+      toast.success(`OP visit ${visitId} selected in header`)
+    },
+    [setMode, setActiveAdmission, setActiveVisit, setSelectedPatient],
+  )
+
   const contextValue = useMemo(
     () => ({
       mode,
@@ -337,6 +364,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
       guardClinicalCreate,
+      applyOpCareContext,
     }),
     [
       mode,
@@ -356,6 +384,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
       guardClinicalCreate,
+      applyOpCareContext,
     ],
   )
 

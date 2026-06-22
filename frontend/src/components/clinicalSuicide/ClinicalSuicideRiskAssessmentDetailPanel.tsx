@@ -264,6 +264,9 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
               </>
             ) : null}
             <FieldRow label="Taking more risks lately" value={yesNo(detail?.risk_behavior)} />
+            {isTruthy(detail?.risk_behavior) && detail?.risk_behavior_details ? (
+              <FieldRow label="Risk behavior details" value={displayValue(detail.risk_behavior_details)} />
+            ) : null}
           </AssessmentSection>
 
           <AssessmentSection
@@ -281,6 +284,12 @@ export function ClinicalSuicideRiskAssessmentDetailPanel({
               label="Prior diagnosis or psychiatric episode"
               value={displayValue(detail?.psychiatric_history)}
             />
+            {detail?.psychiatric_history === 'Yes' && detail?.prior_psychiatric_diagnosis ? (
+              <FieldRow
+                label="Prior psychiatric diagnosis"
+                value={displayValue(detail.prior_psychiatric_diagnosis)}
+              />
+            ) : null}
           </AssessmentSection>
 
           <AssessmentSection

@@ -14,9 +14,10 @@ import {
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { MedicineGivenList } from '../medication/MedicineGivenList'
 import { MedicineReconciliationList } from '../medication/MedicineReconciliationList'
+import { DischargePrescriptionCardsEditable, DischargePrescriptionCardsReadonly } from '../discharges/DischargePrescriptionCards'
 import {
-  getDischargeTransferRows,
-  type DischargeTransferRow,
+  getDischargePrescriptionSections,
+  type DischargePrescriptionSections,
 } from '../../services/medicineGiven'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import {
@@ -39,8 +40,7 @@ import {
   type NursingDischargeTemplateSource,
 } from '../../services/common'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
-import { fetchDischargeTransferPrescriptions, fetchAfterDischargePrescriptions } from '../../services/prescriptions'
+import { fetchAfterDischargePrescriptions } from '../../services/prescriptions'
 import { fetchObservationLevels } from '../../services/common'
 import { fetchObservationLevelDetails } from '../../services/observations'
 import { fetchMedicineGiven } from '../../services/medicineGiven'
@@ -165,8 +165,8 @@ const DISCHARGE_TAB_DEFINITIONS: {
   },
   {
     id: 'transfer',
-    label: 'Medicine Transfer',
-    shortLabel: 'Transfer',
+    label: 'Prescription',
+    shortLabel: 'Prescription',
     Icon: ArrowRightLeft,
     borderColor: 'border-violet-400',
     activeBg: 'bg-violet-50/80',
@@ -249,12 +249,6 @@ const groupByDepartment = (items: ChecklistItem[]) => {
     acc[dept].push(item)
     return acc
   }, {} as Record<string, ChecklistItem[]>)
-}
-
-function addDaysToIsoDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().split('T')[0]
 }
 
 function toFrappeDateTime(value?: string): string {
@@ -787,15 +781,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     }
   }, [])
 
-  const [transferRows, setTransferRows] = useState<DischargeTransferRow[]>([])
-  const [transferLoading, setTransferLoading] = useState(false)
-  const [transferError, setTransferError] = useState<string | null>(null)
-  const [transferModalOpen, setTransferModalOpen] = useState(false)
-  const [transferSelected, setTransferSelected] = useState<Set<string>>(new Set())
-  const [transferPrescription, setTransferPrescription] = useState<{ name: string; patient_visit?: string } | undefined>(undefined)
-
-  // Medicine Sales state
-const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
+  const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
   prescriptions: [],
   given_medicines: [],
   prescription_total: 0,
@@ -803,6 +789,30 @@ const [medicineSales, setMedicineSales] = useState<MedicineSalesData>({
   grand_total: 0
 })
   const [salesLoading, setSalesLoading] = useState(false)
+
+  const [prescriptionSections, setPrescriptionSections] = useState<DischargePrescriptionSections>({
+    current_medications: [],
+    discharged_medications: [],
+    stopped_medications: [],
+  })
+  const [prescriptionSectionsLoading, setPrescriptionSectionsLoading] = useState(false)
+
+  const loadPrescriptionSections = useCallback(async () => {
+    if (!admission?.name) return
+    setPrescriptionSectionsLoading(true)
+    try {
+      const sections = await getDischargePrescriptionSections(admission.name)
+      setPrescriptionSections(sections)
+    } catch {
+      setPrescriptionSections({
+        current_medications: [],
+        discharged_medications: [],
+        stopped_medications: [],
+      })
+    } finally {
+      setPrescriptionSectionsLoading(false)
+    }
+  }, [admission?.name])
 
   // Daily Visit Setup state
   const [dailyVisitSetup, setDailyVisitSetup] = useState<DailyPatientVisitSetup | null>(null)
@@ -1444,18 +1454,6 @@ const loadDailyVisitSetup = async () => {
         }
 
         if (resumed) {
-          try {
-            const existingTransfers = await fetchDischargeTransferPrescriptions(admission.patient)
-            if (existingTransfers.length > 0) {
-              const latestTransfer = existingTransfers[0]
-              setTransferPrescription({
-                name: latestTransfer.name,
-                patient_visit: latestTransfer.patient_encounter,
-              })
-            }
-          } catch {
-            /* ignore */
-          }
           return
         }
 
@@ -1506,9 +1504,6 @@ const loadDailyVisitSetup = async () => {
                 nurse_discharge_template: lt.name,
               }))
             }
-          }
-          if (draft.transferPrescription) {
-            setTransferPrescription(draft.transferPrescription)
           }
           toast.info('Resumed from saved draft', 3000)
           return
@@ -1568,18 +1563,6 @@ const loadDailyVisitSetup = async () => {
           }
         }
 
-        try {
-          const existingTransfers = await fetchDischargeTransferPrescriptions(admission.patient)
-          if (existingTransfers.length > 0) {
-            const latestTransfer = existingTransfers[0]
-            setTransferPrescription({
-              name: latestTransfer.name,
-              patient_visit: latestTransfer.patient_encounter,
-            })
-          }
-        } catch (error) {
-          console.error('Failed to check for existing transfer prescriptions:', error)
-        }
       } catch (err) {
         console.error('Failed to load data:', err)
       }
@@ -1596,6 +1579,12 @@ const loadDailyVisitSetup = async () => {
       loadDailyVisitSetup()
     }
   }, [activeTab, admission?.patient, admission?.name])
+
+  useEffect(() => {
+    if (activeTab === 'details' || activeTab === 'transfer') {
+      void loadPrescriptionSections()
+    }
+  }, [activeTab, loadPrescriptionSections])
 
   const loadChecklist = async (templateName: string) => {
     if (!templateName) return
@@ -1876,63 +1865,9 @@ const loadDailyVisitSetup = async () => {
     }
   }, [activeTab])
 
-  useEffect(() => {
-    const loadTransferRows = async () => {
-      if (activeTab !== 'transfer' || !admission?.name) {
-        return
-      }
-      setTransferLoading(true)
-      setTransferError(null)
-      try {
-        const rows = await getDischargeTransferRows(admission.name)
-        setTransferRows(rows)
-        setTransferSelected(new Set(rows.map((row) => row.name)))
-      } catch (err) {
-        setTransferError(err instanceof Error ? err.message : 'Failed to load prescribed medicines')
-        setTransferRows([])
-        setTransferSelected(new Set())
-      } finally {
-        setTransferLoading(false)
-      }
-    }
-    loadTransferRows()
-  }, [activeTab, admission?.name])
-
   // Checklist helpers
   const toggleDept = (dept: string) => setExpandedDepts(prev => ({ ...prev, [dept]: !prev[dept] }))
   const toggleItem = (itemName: string) => setExpandedItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
-
-  const toggleTransferSelection = (rowName: string) => {
-    setTransferSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(rowName)) next.delete(rowName)
-      else next.add(rowName)
-      return next
-    })
-  }
-
-  const refreshTransferRows = async () => {
-    try {
-      const rows = await getDischargeTransferRows(admission.name)
-      setTransferRows(rows)
-      setTransferSelected(new Set(rows.map((row) => row.name)))
-    } catch {
-      // ignore refresh failures
-    }
-  }
-
-  const handleTransferCreated = async (result?: { patient_visit: string; patient_medication_order: string }) => {
-    setTransferModalOpen(false)
-    setTransferSelected(new Set())
-    if (result?.patient_medication_order) {
-      setTransferPrescription({
-        name: result.patient_medication_order,
-        patient_visit: result.patient_visit,
-      })
-    }
-    await refreshTransferRows()
-    onSuccess()
-  }
 
   const toggleCheck = (itemName: string) => {
     const item = checklistItems.find((row) => row.name === itemName)
@@ -2187,7 +2122,6 @@ const loadDailyVisitSetup = async () => {
         nurseChecklistItems,
         documents,
         relatives,
-        transferPrescription,
       })
       toast.success(
         result?.message ||
@@ -2587,28 +2521,6 @@ const loadDailyVisitSetup = async () => {
               )}
 
               <section>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge plan & instructions</h3>
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                  {[
-                    { key: 'discharge_treatment_plan', label: 'Discharge Treatment Plan' },
-                    { key: 'discharge_reason', label: 'Discharge Reason' },
-                    { key: 'discharge_conditions', label: 'Discharge Condition' },
-                    { key: 'discharge_instructions', label: 'Discharge Instructions' },
-                  ].map(({ key, label }) => (
-                    <div key={key}>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
-                      <textarea
-                        rows={3}
-                        value={formData[key as keyof typeof formData]}
-                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-                  ))}
-                </div>
-              </section>
-
-              <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharged By</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="relative dropdown-container">
@@ -2828,6 +2740,28 @@ const loadDailyVisitSetup = async () => {
               </section>
 
               <section>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Discharge plan & instructions</h3>
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  {[
+                    { key: 'discharge_treatment_plan', label: 'Discharge Treatment Plan' },
+                    { key: 'discharge_reason', label: 'Discharge Reason' },
+                    { key: 'discharge_conditions', label: 'Discharge Condition' },
+                    { key: 'discharge_instructions', label: 'Discharge Instructions' },
+                  ].map(({ key, label }) => (
+                    <div key={key}>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+                      <textarea
+                        rows={3}
+                        value={formData[key as keyof typeof formData]}
+                        onChange={(e) => setFormData({ ...formData, [key]: e.target.value })}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+              <section>
                 <h3 className="text-sm font-semibold text-slate-700 mb-3">Medical Information</h3>
                 <div className="grid grid-cols-2 gap-4">
                   {[
@@ -2863,6 +2797,23 @@ const loadDailyVisitSetup = async () => {
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                 </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-700 mb-3">Prescription</h3>
+                <p className="text-xs text-slate-500 mb-4">
+                  Summary of current, discharged, and stopped medicines for this admission.
+                </p>
+                {prescriptionSectionsLoading ? (
+                  <div className="text-sm text-slate-600">Loading prescriptions…</div>
+                ) : (
+                  <DischargePrescriptionCardsReadonly
+                    alwaysShow
+                    currentMedications={prescriptionSections.current_medications}
+                    dischargedMedications={prescriptionSections.discharged_medications}
+                    stoppedMedications={prescriptionSections.stopped_medications}
+                  />
+                )}
               </section>
               </div>
 
@@ -3274,86 +3225,23 @@ const loadDailyVisitSetup = async () => {
             </div>
           )}
 
-          {/* ── TAB: MEDICINE TRANSFER ── */}
+          {/* ── TAB: PRESCRIPTION ── */}
           {canViewDischargeTabPanel('transfer') && (
-            <div className="p-6 space-y-6">
-              <h3 className="text-sm font-semibold text-slate-700 mb-1">Medicine Transfer</h3>
-              <p className="text-xs text-slate-600 mb-2">
-                Transfer prescribed medicines into a follow-up prescription. This creates a Patient Visit and a new prescription for the patient to continue at home.
-              </p>
-
-              {transferError && (
-                <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
-                  {transferError}
-                </div>
-              )}
-
-              {transferLoading ? (
-                <div className="text-sm text-slate-600">Loading prescribed discharge medicines…</div>
-              ) : transferRows.length === 0 ? (
-                <div className="text-sm text-slate-500">No prescribed discharge medicines are available for transfer.</div>
-              ) : (
-                <div className="space-y-4">
-                  {transferPrescription && (
-                    <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-                      Transfer prescription created: <strong>{transferPrescription.name}</strong>
-                      {transferPrescription.patient_visit ? ` for visit ${transferPrescription.patient_visit}` : ''}.
-                    </div>
-                  )}
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                    <div className="text-sm text-slate-600">
-                      Select which prescribed medicines to transfer into the follow-up prescription.
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setTransferModalOpen(true)}
-                      disabled={!!transferPrescription || transferSelected.size === 0}
-                      className="inline-flex items-center gap-2 px-4 py-2 rounded bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {transferPrescription ? 'Transfer completed' : `Transfer medicine (${transferSelected.size})`}
-                    </button>
-                  </div>
-
-                  <div className="bg-white border border-slate-200 rounded-lg overflow-auto max-h-[340px]">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                          <th className="px-3 py-2 text-left w-10"></th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Drug</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Prescribed</th>
-                          <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Stopped Reason</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-200">
-                        {transferRows.map((row) => (
-                          <tr key={row.name} className="hover:bg-slate-50">
-                            <td className="px-3 py-2">
-                              <button
-                                type="button"
-                                onClick={() => toggleTransferSelection(row.name)}
-                                className="text-slate-500 hover:text-slate-700"
-                              >
-                                {transferSelected.has(row.name) ? '✓' : '○'}
-                              </button>
-                            </td>
-                            <td className="px-3 py-2 text-slate-800">{row.drug_name || row.drug}</td>
-                            <td className="px-3 py-2 text-slate-700">{row.quantity}</td>
-                            <td className="px-3 py-2 text-slate-700">
-                              {row.reason_stopped ? (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
-                                  {row.reason_stopped}
-                                </span>
-                              ) : (
-                                <span className="text-slate-400">-</span>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              )}
+            <div className="p-6 space-y-4">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-700 mb-1">Prescription</h3>
+                <p className="text-xs text-slate-600">
+                  Manage current medicines, create discharged prescriptions for home use, and record stopped medicines.
+                </p>
+              </div>
+              <DischargePrescriptionCardsEditable
+                admission={admission.name}
+                patient={admission.patient}
+                onChanged={() => {
+                  void loadPrescriptionSections()
+                  onSuccess()
+                }}
+              />
             </div>
           )}
 
@@ -4311,37 +4199,6 @@ const loadDailyVisitSetup = async () => {
             </div>
           </div>
         </form>
-
-        {transferModalOpen && (
-          <CreatePrescriptionModal
-            onClose={() => setTransferModalOpen(false)}
-            onSuccess={handleTransferCreated}
-            initialPatient={admission.patient}
-            initialCareContext="Patient Visit"
-            initialMedications={transferRows
-              .filter((row) => transferSelected.has(row.name))
-              .map((row) => ({
-                drug: row.drug,
-                drug_name: row.drug_name,
-                dosage: row.dosage || '',
-                no_of_days: row.no_of_days || 1,
-                dosage_form: row.dosage_form || '',
-                instructions: row.instructions || '',
-                date: row.date || new Date().toISOString().split('T')[0],
-                end_date: row.end_date || addDaysToIsoDate(row.date || new Date().toISOString().split('T')[0], row.no_of_days || 1),
-                time: row.time || '08:00:00',
-                patient_frequency: row.patient_frequency || '',
-                is_pink: Boolean(row.is_pink),
-                is_prn: false,
-                reference_no: row.reference_no || '',
-                route_of_administration: row.route_of_administration || '',
-                is_long_acting: Boolean(row.is_long_acting_medicine),
-                long_acting_frequency: 'Weekly',
-                medication_type: row.medication_type || '',
-              }))}
-            transferAdmission={admission.name}
-          />
-        )}
     </div>
   )
 }

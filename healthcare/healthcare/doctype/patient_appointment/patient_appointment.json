@@ -27,6 +27,7 @@
   "patient",
   "patient_name",
   "inpatient_record",
+  "patient_visit",
   "temporary_patient_name",
   "temporary_mobile_no",
   "column_break_4pp7",
@@ -88,6 +89,13 @@
    "fieldtype": "Link",
    "label": "Inpatient Admission",
    "options": "Inpatient Admission",
+   "read_only": 1
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit",
    "read_only": 1
   },
   {

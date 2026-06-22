@@ -32,11 +32,29 @@ export function canEditLabTestResults(roles: string[] | undefined): boolean {
   )
 }
 
+/** Whether a grouped lab request was explicitly finished (Finish Group). */
+export const GROUP_FINISHED_SERVICE_REQUEST_STATUS = 'completed-Request Status'
+
+export function isGroupedLabRequestFinished(
+  labTest: { is_group_lab_test?: number; service_request_status?: string }
+): boolean {
+  return Boolean(labTest.is_group_lab_test) && labTest.service_request_status === GROUP_FINISHED_SERVICE_REQUEST_STATUS
+}
+
 /** Whether this lab test row allows inline / batch result editing. */
 export function canEditLabTestResultForRow(
-  labTest: { docstatus?: number; status?: string },
+  labTest: {
+    docstatus?: number
+    status?: string
+    is_group_lab_test?: number
+    service_request_status?: string
+  },
   roles: string[] | undefined
 ): boolean {
+  if (isGroupedLabRequestFinished(labTest)) {
+    return isCEO(roles)
+  }
+
   if (!canEditLabTestResults(roles)) return false
   const status = (labTest.status || '').trim()
   if (status === 'Rejected' || status === 'Cancelled') return false

@@ -897,6 +897,7 @@ def get_or_create_encounter_from_appointment(appointment_id):
 	"""Return an existing Patient Visit for the appointment, or create one."""
 	existing = frappe.db.get_value("Patient Visit", {"appointment": appointment_id}, "name")
 	if existing:
+		_link_appointment_patient_visit(appointment_id, existing)
 		return existing
 
 	appointment = frappe.get_doc("Patient Appointment", appointment_id)
@@ -909,7 +910,40 @@ def get_or_create_encounter_from_appointment(appointment_id):
 	_prepare_patient_visit_from_appointment(doc, appointment)
 	doc.insert()
 	frappe.db.commit()
+	_link_appointment_patient_visit(appointment_id, doc.name)
 	return doc.name
+
+
+def _link_appointment_patient_visit(appointment_id, patient_visit):
+	if not appointment_id or not patient_visit:
+		return
+	current = frappe.db.get_value("Patient Appointment", appointment_id, "patient_visit")
+	if current == patient_visit:
+		return
+	frappe.db.set_value(
+		"Patient Appointment",
+		appointment_id,
+		"patient_visit",
+		patient_visit,
+		update_modified=False,
+	)
+
+
+@frappe.whitelist()
+def get_patient_visit_for_appointment(appointment_id):
+	"""Resolve linked Patient Visit for an appointment (field or reverse lookup)."""
+	appointment_id = cstr(appointment_id).strip()
+	if not appointment_id:
+		return None
+
+	visit = frappe.db.get_value("Patient Appointment", appointment_id, "patient_visit")
+	if visit:
+		return visit
+
+	visit = frappe.db.get_value("Patient Visit", {"appointment": appointment_id}, "name")
+	if visit:
+		_link_appointment_patient_visit(appointment_id, visit)
+	return visit
 
 
 @frappe.whitelist()

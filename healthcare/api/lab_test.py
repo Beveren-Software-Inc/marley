@@ -20,6 +20,23 @@ LAB_RESULT_EDIT_ROLES = frozenset(
 	)
 )
 
+CEO_ROLE = "CEO"
+GROUP_FINISHED_SR_STATUS = "completed-Request Status"
+
+
+def _is_ceo_user() -> bool:
+	return CEO_ROLE in frappe.get_roles(frappe.session.user)
+
+
+def _is_group_lab_finished(doc) -> bool:
+	if not cint(getattr(doc, "is_group_lab_test", 0)):
+		return False
+	service_request = getattr(doc, "service_request", None)
+	if not service_request:
+		return False
+	sr_status = frappe.db.get_value("Service Request", service_request, "status")
+	return sr_status == GROUP_FINISHED_SR_STATUS
+
 
 def _plain_sample_details(value: str | None) -> str | None:
 	"""Store collection notes as plain text, not rich-text HTML."""
@@ -29,8 +46,11 @@ def _plain_sample_details(value: str | None) -> str | None:
 	return text or None
 
 
-def _ensure_lab_result_edit_permission():
+def _ensure_lab_result_edit_permission(doc=None):
 	"""Laboratory User, LabTest Approver, or administrators may enter/adjust results."""
+	if doc and _is_group_lab_finished(doc) and _is_ceo_user():
+		return
+
 	roles = set(frappe.get_roles(frappe.session.user))
 	if roles & LAB_RESULT_EDIT_ROLES:
 		return
@@ -48,6 +68,14 @@ def _ensure_lab_result_save_allowed(doc):
 	"""Draft tests and reviewed (submitted) tests may have results updated."""
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot update a cancelled Lab Test"))
+	if _is_group_lab_finished(doc) and not _is_ceo_user():
+		frappe.throw(
+			_(
+				"This grouped lab request has been finished. Only users with the CEO role "
+				"may edit lab results."
+			),
+			frappe.PermissionError,
+		)
 	if doc.docstatus == 0:
 		return
 	if doc.docstatus == 1 and doc.status == "Reviewed":
@@ -344,6 +372,24 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
 				or lab_test.lab_technician
 			)
+
+	service_requests = {
+		lt.service_request
+		for lt in lab_tests
+		if cint(lt.get("is_group_lab_test") or 0) and lt.get("service_request")
+	}
+	if service_requests:
+		sr_status_map = {
+			row.name: row.status
+			for row in frappe.get_all(
+				"Service Request",
+				filters={"name": ["in", list(service_requests)]},
+				fields=["name", "status"],
+			)
+		}
+		for lab_test in lab_tests:
+			if cint(lab_test.get("is_group_lab_test") or 0) and lab_test.get("service_request"):
+				lab_test["service_request_status"] = sr_status_map.get(lab_test.service_request)
 
 	return lab_tests
 
@@ -1302,6 +1348,23 @@ def _lab_test_has_entered_results(doc) -> bool:
 	return False
 
 
+def _lab_test_results_snapshot(doc) -> dict:
+	"""Comparable snapshot of entered result fields (for change detection)."""
+	normal = {}
+	for row in doc.normal_test_items or []:
+		key = (getattr(row, "lab_test_event", None) or getattr(row, "lab_test_name", None) or "").strip()
+		normal[key] = {
+			"result_value": (getattr(row, "result_value", None) or "").strip(),
+			"lab_test_comment": (getattr(row, "lab_test_comment", None) or "").strip(),
+		}
+	return {
+		"custom_result": (getattr(doc, "custom_result", None) or "").strip(),
+		"results": (getattr(doc, "results", None) or "").strip(),
+		"lab_test_comment": (getattr(doc, "lab_test_comment", None) or "").strip(),
+		"normal_test_items": normal,
+	}
+
+
 # @frappe.whitelist()
 # def save_and_submit_lab_test(
 # 	name,
@@ -1433,13 +1496,19 @@ def save_and_submit_lab_test(
     submit: bool = False,
 ):
     """Save lab results on a draft Lab Test. Submit happens only on doctor review (submit arg is ignored)."""
-    _ensure_lab_result_edit_permission()
-
     if not name:
         frappe.throw(_("Lab Test name is required"))
 
     doc = frappe.get_doc("Lab Test", name)
+    _ensure_lab_result_edit_permission(doc)
     _ensure_lab_result_save_allowed(doc)
+
+    prior_status = doc.status
+    results_before = (
+        _lab_test_results_snapshot(doc)
+        if doc.docstatus == 1 and prior_status == "Reviewed"
+        else None
+    )
     if doc.docstatus == 1:
         doc.flags.ignore_validate_update_after_submit = True
 
@@ -1635,6 +1704,22 @@ def save_and_submit_lab_test(
                 update_modified=True,
             )
             doc.status = "Pending Review"
+        record_results_entered(doc.name)
+
+    if (
+        doc.docstatus == 1
+        and prior_status == "Reviewed"
+        and results_before is not None
+        and _lab_test_results_snapshot(doc) != results_before
+    ):
+        frappe.db.set_value(
+            "Lab Test",
+            doc.name,
+            "status",
+            "Pending Review",
+            update_modified=True,
+        )
+        doc.status = "Pending Review"
         record_results_entered(doc.name)
 
     if submit and doc.docstatus == 0:
@@ -2394,6 +2479,15 @@ def finish_group_lab_tests(service_request_name: str):
 	grouped = [lt for lt in lab_tests if int(lt.get("is_group_lab_test") or 0) == 1]
 	if not grouped:
 		frappe.throw(_("This Service Request is not a grouped lab request"))
+
+	current_sr_status = frappe.db.get_value("Service Request", service_request_name, "status")
+	if current_sr_status == GROUP_FINISHED_SR_STATUS:
+		return {
+			"ok": True,
+			"service_request": service_request_name,
+			"finished": True,
+			"already_finished": True,
+		}
 
 	done_statuses = {"Completed", "Pending Review", "Reviewed", "Rejected"}
 	incomplete = [
