@@ -21,12 +21,18 @@ LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 	"Administrator",
 }
 
-def _get_template_base_rate(template_dt: str, template_dn: str) -> float:
-    """Resolve base rate from template document safely."""
+def _get_template_base_rate(template_dt: str, template_dn: str, patient_care_type: str | None = None) -> float:
+    """Resolve base rate from template document safely.
+
+    OP lab requests prefer ``op_rate`` when it is set (> 0). Otherwise they
+    fall back to the existing ``lab_test_rate`` / ``rate`` / ``amount`` chain.
+    IP and all non-lab templates keep the existing behavior.
+    """
 
     meta = frappe.get_meta(template_dt)
+    is_op_lab = template_dt == "Lab Test Template" and (patient_care_type or "").strip().upper() == "OP"
 
-    possible_fields = ["lab_test_rate", "rate", "amount"]
+    possible_fields = (["op_rate"] if is_op_lab else []) + ["lab_test_rate", "rate", "amount"]
     existing_fields = [f for f in possible_fields if meta.has_field(f)]
 
     base = {}
@@ -104,10 +110,9 @@ def _get_patient_category_multipliers():
 	return rows
 
 
-def _build_pricing_rows_for_template(template_dt: str, template_dn: str):
-	base_rate = _get_template_base_rate(template_dt, template_dn)
+def _build_pricing_rows_for_template(template_dt: str, template_dn: str, patient_care_type: str | None = None):
+	base_rate = _get_template_base_rate(template_dt, template_dn, patient_care_type)
 	rows = []
-	print("Hapa pia nafika")
 	for row in _get_patient_category_multipliers():
 		rows.append(
 			{
@@ -192,7 +197,7 @@ def get_lab_test_template_info(template):
 
 
 @frappe.whitelist(allow_guest=False)
-def get_multi_lab_request_pricing(items, patient=None):
+def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 	"""Return pricing breakdown for a multi-line lab basket."""
 	from healthcare.healthcare.lab_request_items import (
 		expand_lab_test_specs,
@@ -210,7 +215,7 @@ def get_multi_lab_request_pricing(items, patient=None):
 	if not patient:
 		return {"lines": [], "subtotal": 0, "summary": ""}
 
-	specs = expand_lab_test_specs(items, patient)
+	specs = expand_lab_test_specs(items, patient, patient_care_type=patient_care_type)
 	lines = []
 	subtotal = 0.0
 	for spec in specs:
@@ -289,7 +294,7 @@ def get_multi_lab_request_pricing(items, patient=None):
 # 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 @frappe.whitelist(allow_guest=False)
-def get_service_request_template_pricing(template_dt, template_dn):
+def get_service_request_template_pricing(template_dt, template_dn, patient_care_type=None):
 	"""
 	Return computed pricing rows for any service request template type.
 	Price is derived as: template_base_rate * Healthcare Settings category multiplier.
@@ -325,16 +330,16 @@ def get_service_request_template_pricing(template_dt, template_dn):
 				group_templates.append({
 					'template_dn': child.name,
 					'template_label': label,
-					'pricing': _build_pricing_rows_for_template('Lab Test Template', child.name),
+					'pricing': _build_pricing_rows_for_template('Lab Test Template', child.name, patient_care_type),
 				})
 			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
 		else:
 			# Regular lab test template (not a group)
-			pricing = _build_pricing_rows_for_template(template_dt, template_dn)
+			pricing = _build_pricing_rows_for_template(template_dt, template_dn, patient_care_type)
 			return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 	# Regular / all other template types
-	pricing = _build_pricing_rows_for_template(template_dt, template_dn)
+	pricing = _build_pricing_rows_for_template(template_dt, template_dn, patient_care_type)
 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 
@@ -597,7 +602,11 @@ def create_service_request(data):
 
 	if lab_request_items and data.get("template_dt") == "Lab Test Template":
 		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
-		specs = expand_lab_test_specs(lab_request_items, data.get("patient"))
+		specs = expand_lab_test_specs(
+			lab_request_items,
+			data.get("patient"),
+			patient_care_type="OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None,
+		)
 		if specs and not data.get("cost"):
 			data["cost"] = sum(float(s.get("amount") or 0) for s in specs)
 

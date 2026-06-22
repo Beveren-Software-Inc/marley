@@ -209,7 +209,7 @@ export const CreateServiceRequestModal = ({
       setBasketPricingSubtotal(0)
       return
     }
-    getMultiLabRequestPricing(labBasket, form.patient)
+    getMultiLabRequestPricing(labBasket, form.patient, mode === 'OP' ? 'OP' : 'IP')
       .then((p) => setBasketPricingSubtotal(p.subtotal || 0))
       .catch(() => setBasketPricingSubtotal(0))
   }, [useLabBasket, form.patient, labBasket])
@@ -349,7 +349,7 @@ export const CreateServiceRequestModal = ({
     fetch(
       `/api/method/healthcare.api.service_request.get_service_request_template_pricing?template_dt=${encodeURIComponent(
         form.template_dt
-      )}&template_dn=${encodeURIComponent(templateDn)}`
+      )}&template_dn=${encodeURIComponent(templateDn)}&patient_care_type=${encodeURIComponent(mode === 'OP' ? 'OP' : 'IP')}`
     )
       .then((res) => res.json())
       .then((data) => {
