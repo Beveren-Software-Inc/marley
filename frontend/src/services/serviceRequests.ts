@@ -217,11 +217,13 @@ export interface MultiLabRequestPricing {
 
 export async function getMultiLabRequestPricing(
   items: LabRequestItem[],
-  patient: string
+  patient: string,
+  patientCareType?: 'OP' | 'IP'
 ): Promise<MultiLabRequestPricing> {
   const params = new URLSearchParams()
   params.append('items', JSON.stringify(items))
   params.append('patient', patient)
+  if (patientCareType) params.append('patient_care_type', patientCareType)
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_multi_lab_request_pricing?${params.toString()}`
   )

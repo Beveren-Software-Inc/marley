@@ -27,13 +27,19 @@ from healthcare.healthcare.lab_request_items import (
 )
 
 
-def _get_lab_template_base_rate(template_name):
+def _get_lab_template_base_rate(template_name, patient_care_type=None):
 	template_doc = frappe.get_doc("Lab Test Template", template_name)
-	base = (
-		getattr(template_doc, "lab_test_rate", None)
-		or getattr(template_doc, "rate", None)
-		or getattr(template_doc, "amount", None)
-	)
+	base = None
+	if (patient_care_type or "").strip().upper() == "OP":
+		op_rate = getattr(template_doc, "op_rate", None)
+		if flt(op_rate) > 0:
+			base = op_rate
+	if base in (None, ""):
+		base = (
+			getattr(template_doc, "lab_test_rate", None)
+			or getattr(template_doc, "rate", None)
+			or getattr(template_doc, "amount", None)
+		)
 	if base:
 		return flt(base)
 

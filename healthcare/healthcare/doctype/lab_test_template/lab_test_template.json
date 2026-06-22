@@ -32,6 +32,7 @@
   "column_break_buub",
   "is_billable",
   "lab_test_rate",
+  "op_rate",
   "pricing",
   "price",
   "inventory_section",
@@ -624,6 +625,11 @@
    "options": "Item Group",
    "read_only_depends_on": "eval:doc.link_existing_item && !doc.is_group",
    "search_index": 1
+  },
+  {
+   "fieldname": "op_rate",
+   "fieldtype": "Currency",
+   "label": "OP Rate"
   }
  ],
  "grid_page_length": 50,
@@ -634,7 +640,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-06-09 12:59:24.233450",
+ "modified": "2026-06-22 09:15:06.452552",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

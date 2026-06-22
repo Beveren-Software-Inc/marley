@@ -19,12 +19,12 @@ def _get_patient_category_multiplier(patient: str) -> tuple[float, str | None]:
 	return _sr_multiplier(patient)
 
 
-def _get_lab_template_base_rate(template_dn: str) -> float:
+def _get_lab_template_base_rate(template_dn: str, patient_care_type: str | None = None) -> float:
 	from healthcare.healthcare.doctype.service_request.service_request import (
 		_get_lab_template_base_rate as _sr_rate,
 	)
 
-	return _sr_rate(template_dn)
+	return _sr_rate(template_dn, patient_care_type)
 
 
 def parse_lab_request_items(doc) -> list[dict[str, Any]]:
@@ -61,7 +61,11 @@ def parse_lab_request_items(doc) -> list[dict[str, Any]]:
 	return [{"kind": "single", "template": template_dn}]
 
 
-def expand_lab_test_specs(items: list[dict[str, Any]], patient: str) -> list[dict[str, Any]]:
+def expand_lab_test_specs(
+	items: list[dict[str, Any]],
+	patient: str,
+	patient_care_type: str | None = None,
+) -> list[dict[str, Any]]:
 	"""Expand basket lines into concrete lab tests to create."""
 	multiplier, _ = _get_patient_category_multiplier(patient)
 	specs: list[dict[str, Any]] = []
@@ -74,7 +78,7 @@ def expand_lab_test_specs(items: list[dict[str, Any]], patient: str) -> list[dic
 			if not tpl or tpl in seen_templates:
 				continue
 			seen_templates.add(tpl)
-			base_rate = _get_lab_template_base_rate(tpl)
+			base_rate = _get_lab_template_base_rate(tpl, patient_care_type)
 			specs.append(
 				{
 					"template": tpl,
@@ -109,7 +113,7 @@ def expand_lab_test_specs(items: list[dict[str, Any]], patient: str) -> list[dic
 				if not tpl or tpl in seen_templates:
 					continue
 				seen_templates.add(tpl)
-				base_rate = _get_lab_template_base_rate(tpl)
+				base_rate = _get_lab_template_base_rate(tpl, patient_care_type)
 				specs.append(
 					{
 						"template": tpl,
