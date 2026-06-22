@@ -37,15 +37,13 @@
    "in_standard_filter": 1,
    "label": "Patient",
    "options": "Patient",
-   "read_only": 1,
    "reqd": 1
   },
   {
    "fetch_from": "patient.blood_group",
    "fieldname": "blood_group",
    "fieldtype": "Data",
-   "label": "Blood Group",
-   "read_only": 1
+   "label": "Blood Group"
   },
   {
    "fieldname": "column_break_jw2e",
@@ -149,7 +147,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-13 14:33:58.700617",
+ "modified": "2026-06-22 11:48:37.741023",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Doctor Medication Plan",

@@ -15,8 +15,6 @@ import {
 } from '../../services/doctorMedicationPlan'
 import {
   fetchHealthcarePractitioners,
-  fetchMedicalRoles,
-  getPractitionerMedicalRole,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -61,7 +59,6 @@ export const EditDoctorMedicationPlanModal = ({
   const [formData, setFormData] = useState({
     practitioner: '',
     posting_date: '',
-    medical_role: '',
     plan: '',
     recommendation: '',
     reception_note: '',
@@ -73,23 +70,19 @@ export const EditDoctorMedicationPlanModal = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
 
-  const [medicalRoleOptions, setMedicalRoleOptions] = useState<LinkFieldOption[]>([])
-
   useEffect(() => {
     let cancelled = false
     const load = async () => {
       setLoadingDoc(true)
       setError(null)
       try {
-        const [doc, practs, roles] = await Promise.all([
+        const [doc, practs] = await Promise.all([
           fetchDoctorMedicationPlan(planName),
           fetchHealthcarePractitioners(),
-          fetchMedicalRoles(),
         ])
         if (cancelled) return
         setPractitionerOptions(practs)
         setFilteredPractitionerOptions(practs)
-        setMedicalRoleOptions(roles)
 
         setPatientId(doc.patient || '')
         setVisitRef(doc.reference_document || doc.reference_name || '')
@@ -101,7 +94,6 @@ export const EditDoctorMedicationPlanModal = ({
         setFormData({
           practitioner: pr,
           posting_date: postingDateForInput(doc.posting_date),
-          medical_role: doc.medical_role || '',
           plan: stripHtml(doc.plan || ''),
           recommendation: stripHtml(doc.recommendation || ''),
           reception_note: stripHtml(doc.reception_note || ''),
@@ -139,24 +131,14 @@ export const EditDoctorMedicationPlanModal = ({
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  const handlePractitionerSelect = async (pr: LinkFieldOption) => {
+  const handlePractitionerSelect = (pr: LinkFieldOption) => {
     setFormData((prev) => ({ ...prev, practitioner: pr.name }))
     setPractitionerQuery(pr.label)
     setPractitionerOpen(false)
-    try {
-      const role = await getPractitionerMedicalRole(pr.name)
-      if (role) setFormData((prev) => ({ ...prev, medical_role: role }))
-    } catch {
-      /* ignore */
-    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.medical_role) {
-      setError('Medical role is required')
-      return
-    }
     if (!formData.plan.trim()) {
       setError('Plan is required')
       return
@@ -166,7 +148,6 @@ export const EditDoctorMedicationPlanModal = ({
       setError(null)
       await updateDoctorMedicationPlan(planName, {
         practitioner: formData.practitioner || undefined,
-        medical_role: formData.medical_role,
         posting_date: formData.posting_date || undefined,
         plan: formData.plan.trim(),
         recommendation: formData.recommendation.trim() || undefined,
@@ -185,7 +166,7 @@ export const EditDoctorMedicationPlanModal = ({
   }
 
   const submitDisabled =
-    saving || loadingDoc || !formData.medical_role || !formData.plan.trim()
+    saving || loadingDoc || !formData.plan.trim()
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -274,25 +255,6 @@ export const EditDoctorMedicationPlanModal = ({
                     </div>
                   )}
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Medical Role <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={formData.medical_role}
-                  onChange={(e) => handleChange('medical_role', e.target.value)}
-                  required
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">— Select medical role —</option>
-                  {medicalRoleOptions.map((r) => (
-                    <option key={r.name} value={r.name}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               <div>

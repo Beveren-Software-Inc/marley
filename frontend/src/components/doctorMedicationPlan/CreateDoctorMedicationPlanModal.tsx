@@ -14,9 +14,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import {
   fetchHealthcarePractitioners,
   fetchPatientVisits as fetchPatientVisitOptions,
-  fetchMedicalRoles,
   getCurrentUserPractitioner,
-  getPractitionerMedicalRole,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -48,7 +46,6 @@ export const CreateDoctorMedicationPlanModal = ({
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     patient_visit: isOPMode && activeVisit ? activeVisit : '',
-    medical_role: '',
     plan: '',
     recommendation: '',
     reception_note: '',
@@ -69,7 +66,6 @@ export const CreateDoctorMedicationPlanModal = ({
   const [practitionerLoading, setPractitionerLoading] = useState(false)
 
   const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
-  const [medicalRoleOptions, setMedicalRoleOptions] = useState<LinkFieldOption[]>([])
 
   useEffect(() => {
     if (formData.patient) {
@@ -102,11 +98,9 @@ export const CreateDoctorMedicationPlanModal = ({
         const me = await getCurrentUserPractitioner()
         if (me) {
           const opt = results.find((p) => p.name === me)
-          const role = await getPractitionerMedicalRole(me)
           setFormData((prev) => ({
             ...prev,
             practitioner: me,
-            medical_role: role || prev.medical_role,
           }))
           if (opt) setPractitionerQuery(opt.label)
         }
@@ -118,12 +112,6 @@ export const CreateDoctorMedicationPlanModal = ({
       }
     }
     loadPractitioners()
-  }, [])
-
-  useEffect(() => {
-    fetchMedicalRoles()
-      .then(setMedicalRoleOptions)
-      .catch(() => setMedicalRoleOptions([]))
   }, [])
 
   useEffect(() => {
@@ -140,19 +128,6 @@ export const CreateDoctorMedicationPlanModal = ({
     }, 300)
     return () => clearTimeout(timeoutId)
   }, [practitionerQuery, practitionerOpen, practitionerOptions])
-
-  useEffect(() => {
-    if (!formData.practitioner) return
-    let cancelled = false
-    getPractitionerMedicalRole(formData.practitioner)
-      .then((role) => {
-        if (!cancelled && role) setFormData((prev) => ({ ...prev, medical_role: role }))
-      })
-      .catch(() => {})
-    return () => {
-      cancelled = true
-    }
-  }, [formData.practitioner])
 
   useEffect(() => {
     if (!patientOpen || contextPatient) return
@@ -216,10 +191,6 @@ export const CreateDoctorMedicationPlanModal = ({
       setError('Please select a patient visit')
       return
     }
-    if (!formData.medical_role) {
-      setError('Medical role is required')
-      return
-    }
     if (!formData.plan.trim()) {
       setError('Plan is required')
       return
@@ -230,7 +201,6 @@ export const CreateDoctorMedicationPlanModal = ({
       setError(null)
       await createDoctorMedicationPlan({
         patient: formData.patient,
-        medical_role: formData.medical_role,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
         patient_visit: formData.patient_visit,
@@ -255,7 +225,6 @@ export const CreateDoctorMedicationPlanModal = ({
     !isOPMode ||
     !formData.patient ||
     !formData.patient_visit ||
-    !formData.medical_role ||
     !formData.plan.trim()
 
   return (
@@ -410,25 +379,6 @@ export const CreateDoctorMedicationPlanModal = ({
                   </div>
                 )}
               </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Medical Role <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={formData.medical_role}
-                onChange={(e) => handleChange('medical_role', e.target.value)}
-                required
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              >
-                <option value="">— Select medical role —</option>
-                {medicalRoleOptions.map((r) => (
-                  <option key={r.name} value={r.name}>
-                    {r.label}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>
