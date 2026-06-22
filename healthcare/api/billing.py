@@ -554,9 +554,31 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
 
 
 @frappe.whitelist()
-def get_payment_entries(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
+def get_payment_entries(
+    reference_type=None,
+    reference_name=None,
+    patient=None,
+    from_date=None,
+    to_date=None,
+    mode_of_payment=None,
+    receptionist_shift=None,
+    filter_by_open_shift=None,
+):
+    from healthcare.api.receptionist_shift import resolve_receptionist_shift_filter, SHIFT_LINK_FIELD
+
+    shift_filter = resolve_receptionist_shift_filter(
+        receptionist_shift=receptionist_shift,
+        filter_by_open_shift=filter_by_open_shift,
+    )
+    if shift_filter is not None and not shift_filter:
+        return []
+
     conditions = ["pe.docstatus = 1"]
     params = {}
+
+    if shift_filter and frappe.get_meta("Payment Entry").has_field(SHIFT_LINK_FIELD):
+        conditions.append(f"IFNULL(pe.{SHIFT_LINK_FIELD}, '') = %(receptionist_shift)s")
+        params["receptionist_shift"] = shift_filter
 
     if from_date:
         conditions.append("pe.posting_date >= %(from_date)s")
@@ -646,7 +668,16 @@ def get_payment_entries(reference_type=None, reference_name=None, patient=None, 
 
 
 @frappe.whitelist()
-def get_payment_summary(reference_type=None, reference_name=None, patient=None, from_date=None, to_date=None, mode_of_payment=None):
+def get_payment_summary(
+    reference_type=None,
+    reference_name=None,
+    patient=None,
+    from_date=None,
+    to_date=None,
+    mode_of_payment=None,
+    receptionist_shift=None,
+    filter_by_open_shift=None,
+):
     rows = get_payment_entries(
         reference_type=reference_type,
         reference_name=reference_name,
@@ -654,6 +685,8 @@ def get_payment_summary(reference_type=None, reference_name=None, patient=None, 
         from_date=from_date,
         to_date=to_date,
         mode_of_payment=mode_of_payment,
+        receptionist_shift=receptionist_shift,
+        filter_by_open_shift=filter_by_open_shift,
     )
     total_paid = sum(
         -flt(r.get("paid_amount")) if r.get("payment_type") == "Pay" else flt(r.get("paid_amount"))
@@ -949,6 +982,10 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
             "outstanding_amount": outstanding,
             "allocated_amount": allocated,
         })
+
+        from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+        stamp_receptionist_shift_on_doc(payment_entry)
         
         # Insert and submit
         payment_entry.insert()
@@ -1409,6 +1446,9 @@ def create_additional_collection_invoice(
     if not invoice.items:
         frappe.throw(_("Please add at least one item or sales order"))
 
+    from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+    stamp_receptionist_shift_on_doc(invoice)
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "grand_total": invoice.grand_total, "customer": invoice.customer}
 
@@ -1474,6 +1514,9 @@ def create_internal_employee_invoice(
     from healthcare.api.sales_order_cost_center import finalize_sales_invoice_cost_centers
 
     finalize_sales_invoice_cost_centers(invoice, created_at_cost_center)
+    from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+    stamp_receptionist_shift_on_doc(invoice)
     invoice.insert(ignore_permissions=True)
     return {"name": invoice.name, "customer": invoice.customer, "grand_total": invoice.grand_total}
 
@@ -1584,6 +1627,9 @@ def create_internal_employee_invoice_from_sales_order(sales_order_name):
         frappe.throw(_("No items found on Sales Order {0}").format(sales_order_name))
 
     finalize_sales_invoice_cost_centers(invoice, cost_center_from_sales_order(so))
+    from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+    stamp_receptionist_shift_on_doc(invoice)
     invoice.insert(ignore_permissions=True)
     return {
         "name": invoice.name,

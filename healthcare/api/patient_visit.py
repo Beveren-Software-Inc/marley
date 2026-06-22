@@ -646,6 +646,9 @@ def create_invoice(reference_doctype: str, reference_name: str):
         if visit_cc:
             apply_cost_center_to_sales_invoice(invoice, visit_cc)
 
+    from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
+
+    stamp_receptionist_shift_on_doc(invoice)
     # Insert invoice (draft)
     invoice.insert(ignore_permissions=True)
     

@@ -27,6 +27,7 @@ import {
 } from '../../services/serviceOrders'
 import { fetchModeOfPayments } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useReceptionistShift } from '../../providers/ReceptionistShiftProvider'
 import { 
   Receipt, 
   CreditCard, 
@@ -116,6 +117,7 @@ interface BillingDashboardProps {
 
 export const BillingDashboard = ({ patient, admission, visit }: BillingDashboardProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient, costCenterCareScope } = useCareContext()
+  const shiftContext = useReceptionistShift()
   const formatCurrency = useFormatMoney()
 
   // Load saved view from localStorage
@@ -164,6 +166,10 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [toDate, setToDate] = useState('')
   const [paymentModeFilter, setPaymentModeFilter] = useState('')
   const [paymentModes, setPaymentModes] = useState<Array<{ name: string; label: string }>>([])
+  const [filterByOpenShift, setFilterByOpenShift] = useState(true)
+
+  const shiftFilterActive = Boolean(shiftContext?.shiftRequired && filterByOpenShift)
+  const openShiftName = shiftContext?.context?.open_shift?.name
 
   const effectivePatient = patient ?? selectedPatient
   const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
@@ -290,8 +296,8 @@ const handleMakePayment = async (
       try {
         setLoading(true)
         const [paymentRows, paySummary] = await Promise.all([
-          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
-          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
+          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
         ])
         setPayments(paymentRows)
         setPaymentSummary(paySummary)
@@ -314,9 +320,9 @@ const handleMakePayment = async (
       setLoading(true)
       const [ordersSummary, invSummary, recentOrdersData, recentInvoicesData] = await Promise.all([
         fetchServiceOrderSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
-        fetchInvoiceSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
+        fetchInvoiceSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, undefined, shiftFilterActive),
         fetchServiceOrders(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
-        fetchServiceInvoices(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
+        fetchServiceInvoices(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined, undefined, shiftFilterActive),
       ])
 
       setOrderSummary(ordersSummary)
@@ -332,8 +338,8 @@ const handleMakePayment = async (
             scopedReferenceName,
             effectivePatient
           ),
-          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
-          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined),
+          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
+          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
         ])
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
@@ -389,7 +395,7 @@ const handleMakePayment = async (
     } else {
       loadDashboardData()
     }
-  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate, paymentModeFilter])
+  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate, paymentModeFilter, shiftFilterActive])
 
   useEffect(() => {
     fetchModeOfPayments()
@@ -580,14 +586,31 @@ const handleMakePayment = async (
           onClick={() => handleViewChange('payments')}
           count={payments.length}
         />
-        <button
-          type="button"
-          onClick={() => setShowDateFilters((v) => !v)}
-          className="ml-auto inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
-        >
-          <CalendarRange className="w-4 h-4 text-primary" />
-          <span className="text-sm font-medium">Date Filters</span>
-        </button>
+        <div className="ml-auto flex items-center gap-2">
+          {shiftContext?.shiftRequired && (
+            <button
+              type="button"
+              onClick={() => setFilterByOpenShift((v) => !v)}
+              className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg transition-all ${
+                filterByOpenShift
+                  ? 'bg-primary text-white shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              title={openShiftName ? `Open shift: ${openShiftName}` : 'Filter by open shift'}
+            >
+              <Filter className="w-4 h-4" />
+              <span className="text-sm font-medium">Open Shift: {filterByOpenShift ? 'On' : 'Off'}</span>
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowDateFilters((v) => !v)}
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200"
+          >
+            <CalendarRange className="w-4 h-4 text-primary" />
+            <span className="text-sm font-medium">Date Filters</span>
+          </button>
+        </div>
       </div>
     )
   }
@@ -691,6 +714,7 @@ const handleMakePayment = async (
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
           toDate={toDate || undefined}
+          filterByOpenShift={shiftFilterActive}
         />
         <SharedModals />
       </div>
@@ -717,6 +741,7 @@ const handleMakePayment = async (
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
           toDate={toDate || undefined}
+          filterByOpenShift={shiftFilterActive}
         />
         <SharedModals />
       </div>
@@ -743,6 +768,7 @@ const handleMakePayment = async (
           onAfterInvoiceMutation={notifyInvoiceDataChanged}
           fromDate={fromDate || undefined}
           toDate={toDate || undefined}
+          filterByOpenShift={shiftFilterActive}
         />
         <SharedModals />
       </div>

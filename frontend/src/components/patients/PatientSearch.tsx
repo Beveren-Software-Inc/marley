@@ -627,14 +627,16 @@ export const PatientSearch = ({
           IP
         </button>
       )}
-      {secondarySearchField}
     </>
   )
 
-  const ipDateRow =
-    mode === 'IP' && activeAdmission ? (
-      <div className="flex justify-end w-full">
-        <IpAdmissionDateBadge />
+  const secondaryWithDates =
+    mode === 'OP' || mode === 'IP' ? (
+      <div className="flex w-full min-w-0 items-center gap-2 md:w-auto md:shrink-0">
+        <div className="min-w-0 flex-1 md:w-44 md:flex-none md:shrink-0">
+          {secondarySearchField}
+        </div>
+        {mode === 'IP' && activeAdmission ? <IpAdmissionDateBadge /> : null}
       </div>
     ) : null
 
@@ -787,25 +789,20 @@ export const PatientSearch = ({
   return (
     <>
       {alertsPortal}
-      <div className="w-full max-w-full md:max-w-xl">
+      <div className="w-full max-w-full">
         {isMobileHeader ? (
           <div className="grid grid-cols-[2.5rem_1fr] gap-x-2 gap-y-1 w-full">
             <div className="col-start-1 row-start-1 flex items-center">{leadingSlot}</div>
             <div className="col-start-2 row-start-1 min-w-0">{patientField}</div>
-            {secondarySearchField ? (
-              <div className="col-start-2 row-start-2 min-w-0">{secondarySearchField}</div>
+            {secondaryWithDates ? (
+              <div className="col-start-2 row-start-2 min-w-0">{secondaryWithDates}</div>
             ) : null}
-            {ipDateRow ? <div className="col-span-2 row-start-3">{ipDateRow}</div> : null}
           </div>
         ) : (
-          <div className="flex flex-col gap-1 w-full">
-            <div className="flex flex-col gap-2 md:flex-row md:items-center md:gap-2">
-              <div className="min-w-0 flex-1">{patientField}</div>
-              <div className="flex w-full min-w-0 items-center gap-1.5 md:w-auto md:shrink-0">
-                {desktopCareModeControls}
-              </div>
-            </div>
-            {ipDateRow}
+          <div className="flex w-full min-w-0 items-center gap-2">
+            <div className="min-w-0 flex-1 max-w-md">{patientField}</div>
+            <div className="flex shrink-0 items-center gap-1.5">{desktopCareModeControls}</div>
+            {secondaryWithDates}
           </div>
         )}
       </div>

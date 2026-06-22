@@ -105,6 +105,8 @@ interface CareContextValue {
   guardClinicalCreate: (open: () => void, options?: { allowOnClosed?: boolean }) => void
   /** Select OP mode with patient + visit in the header (shared by visit/appointment links). */
   applyOpCareContext: (opts: { patient?: string; visit: string; visitLabel?: string }) => void
+  /** Select IP mode with patient + admission in the header (shared by admission/discharge links). */
+  applyIpCareContext: (opts: { patient?: string; admission: string; admissionLabel?: string }) => void
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -339,6 +341,29 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     [setMode, setActiveAdmission, setActiveVisit, setSelectedPatient],
   )
 
+  const applyIpCareContext = useCallback(
+    ({ patient, admission, admissionLabel }: { patient?: string; admission: string; admissionLabel?: string }) => {
+      const admissionId = admission.trim()
+      if (!admissionId) return
+
+      if (patient) {
+        setSelectedPatient(patient)
+      }
+
+      setMode('IP')
+      setActiveVisit(undefined)
+      writeStorage(VISIT_STORAGE_KEY, undefined)
+      writeStorage(VISIT_LABEL_STORAGE_KEY, undefined)
+
+      setActiveAdmission(admissionId)
+      const label = (admissionLabel || admissionId).trim()
+      writeStorage(ADMISSION_LABEL_STORAGE_KEY, label)
+
+      toast.success(`IP admission ${admissionId} selected in header`)
+    },
+    [setMode, setActiveAdmission, setActiveVisit, setSelectedPatient],
+  )
+
   const contextValue = useMemo(
     () => ({
       mode,
@@ -365,6 +390,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeCareBlockReason,
       guardClinicalCreate,
       applyOpCareContext,
+      applyIpCareContext,
     }),
     [
       mode,
@@ -385,6 +411,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeCareBlockReason,
       guardClinicalCreate,
       applyOpCareContext,
+      applyIpCareContext,
     ],
   )
 

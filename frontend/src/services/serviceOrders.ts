@@ -197,7 +197,8 @@ export async function fetchServiceInvoices(
   status?: string,
   fromDate?: string,
   toDate?: string,
-  search?: string
+  search?: string,
+  filterByOpenShift?: boolean
 ): Promise<ServiceInvoice[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -207,6 +208,7 @@ export async function fetchServiceInvoices(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (search?.trim()) params.append('search', search.trim())
+  if (filterByOpenShift) params.append('filter_by_open_shift', '1')
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_service_invoices?${params.toString()}`
@@ -223,7 +225,8 @@ export async function fetchInvoiceSummary(
   patient?: string,
   fromDate?: string,
   toDate?: string,
-  search?: string
+  search?: string,
+  filterByOpenShift?: boolean
 ): Promise<InvoiceSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -232,6 +235,7 @@ export async function fetchInvoiceSummary(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (search?.trim()) params.append('search', search.trim())
+  if (filterByOpenShift) params.append('filter_by_open_shift', '1')
 
   const response = await fetch(
     `/api/method/healthcare.api.sales_invoice.get_invoice_summary?${params.toString()}`
@@ -532,7 +536,8 @@ export async function fetchPaymentEntries(
   patient?: string,
   fromDate?: string,
   toDate?: string,
-  modeOfPayment?: string
+  modeOfPayment?: string,
+  filterByOpenShift?: boolean
 ): Promise<PaymentEntryRow[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -541,6 +546,7 @@ export async function fetchPaymentEntries(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
+  if (filterByOpenShift) params.append('filter_by_open_shift', '1')
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_entries?${params.toString()}`)
   const data = await response.json()
   return data.message || []
@@ -552,7 +558,8 @@ export async function fetchPaymentSummary(
   patient?: string,
   fromDate?: string,
   toDate?: string,
-  modeOfPayment?: string
+  modeOfPayment?: string,
+  filterByOpenShift?: boolean
 ): Promise<PaymentSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -561,6 +568,7 @@ export async function fetchPaymentSummary(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
+  if (filterByOpenShift) params.append('filter_by_open_shift', '1')
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_summary?${params.toString()}`)
   const data = await response.json()
   return data.message || { payment_count: 0, total_paid: 0, modes: [] }
