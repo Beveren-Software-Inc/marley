@@ -465,10 +465,14 @@ def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
 		return
 	text = str(formatted).strip() if formatted is not None else ""
 	lt = frappe.get_doc("Lab Test", lt_name)
+	old_result = (lt.custom_result or "").strip()
+	was_reviewed = lt.status == "Reviewed"
 	lt.custom_result = text
 	if lt.meta.has_field("results"):
 		lt.results = text
-	if text and (lt.status or "") in ("", "Requested"):
+	if text and was_reviewed and text != old_result:
+		lt.status = "Pending Review"
+	elif text and (lt.status or "") in ("", "Requested"):
 		lt.status = "Pending Review"
 	if text:
 		try:
@@ -498,7 +502,7 @@ def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
 	if lt.docstatus == 1:
 		lt.flags.ignore_validate_update_after_submit = True
 	lt.save(ignore_permissions=True)
-	if text and lt.docstatus == 0:
+	if text and (lt.docstatus == 0 or was_reviewed and text != old_result):
 		try:
 			from healthcare.api.lab_test_doctor_review import record_results_entered
 

@@ -1528,6 +1528,140 @@ def get_discharge_transfer_rows(admission: str) -> list[dict]:
 	return result
 
 
+def _inpatient_medication_entry_fields() -> list[str]:
+	fields = [
+		"name",
+		"parent",
+		"drug",
+		"drug_name",
+		"dosage",
+		"instructions",
+		"patient_frequency",
+		"written_frequency",
+		"date",
+		"end_date",
+		"reason_stopped",
+		"quantity",
+		"creation",
+	]
+	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+		fields.append("transferred_to_visit")
+	return fields
+
+
+def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) -> dict:
+	from healthcare.api.medication_order_display import medication_entry_display_fields
+
+	display = medication_entry_display_fields(entry, parent_start_date=parent_start_date)
+	reason = (entry.get("reason_stopped") or "").strip()
+	return {
+		"name": entry.get("name"),
+		"prescription": entry.get("parent") or "",
+		"drug": entry.get("drug") or "",
+		"drug_name": display.get("display_drug_name") or "-",
+		"dosage": display.get("display_dosage") or "-",
+		"frequency": display.get("display_frequency") or "-",
+		"start_date": display.get("display_start_date"),
+		"reason_stopped": reason,
+	}
+
+
+def _inpatient_admission_pmo_names(admission: str) -> list[str]:
+	return frappe.get_all(
+		"Patient Medication Order",
+		filters={
+			"inpatient_record": admission,
+			"patient_encounter": ["is", "not set"],
+			"docstatus": ["!=", 2],
+		},
+		pluck="name",
+	)
+
+
+@frappe.whitelist()
+def get_discharge_prescription_sections(admission: str) -> dict:
+	"""Current, discharged, and stopped medications for discharge prescription UI."""
+	if not admission:
+		frappe.throw(_("Admission (Inpatient Admission) is required"))
+
+	order_names = _inpatient_admission_pmo_names(admission)
+	pmo_start_dates = {}
+	if order_names:
+		for row in frappe.get_all(
+			"Patient Medication Order",
+			filters={"name": ["in", order_names]},
+			fields=["name", "start_date"],
+		):
+			pmo_start_dates[row.name] = row.get("start_date")
+
+	current_medications: list[dict] = []
+	stopped_medications: list[dict] = []
+
+	if order_names:
+		entry_filters: dict = {"parent": ["in", order_names]}
+		entries = frappe.get_all(
+			"Inpatient Medication Order Entry",
+			filters=entry_filters,
+			fields=_inpatient_medication_entry_fields(),
+			order_by="date asc, creation asc",
+		)
+		for entry in entries:
+			formatted = _format_discharge_prescription_entry(
+				entry, parent_start_date=pmo_start_dates.get(entry.get("parent"))
+			)
+			reason = formatted.get("reason_stopped") or ""
+			transferred = (entry.get("transferred_to_visit") or "").strip()
+			if reason:
+				stopped_medications.append(formatted)
+			elif not transferred:
+				current_medications.append(formatted)
+
+	discharged_medications: list[dict] = []
+	visit_names = frappe.get_all(
+		"Patient Visit",
+		filters={"inpatient_record": admission},
+		pluck="name",
+	)
+	if visit_names:
+		discharge_pmo_names = frappe.get_all(
+			"Patient Medication Order",
+			filters={
+				"after_discharge": 1,
+				"patient_encounter": ["in", visit_names],
+				"docstatus": ["!=", 2],
+			},
+			pluck="name",
+		)
+		if discharge_pmo_names:
+			pmo_meta = {
+				row.name: row
+				for row in frappe.get_all(
+					"Patient Medication Order",
+					filters={"name": ["in", discharge_pmo_names]},
+					fields=["name", "start_date", "patient_encounter"],
+				)
+			}
+			discharge_entries = frappe.get_all(
+				"Inpatient Medication Order Entry",
+				filters={"parent": ["in", discharge_pmo_names]},
+				fields=_inpatient_medication_entry_fields(),
+				order_by="date asc, creation asc",
+			)
+			for entry in discharge_entries:
+				parent = entry.get("parent")
+				formatted = _format_discharge_prescription_entry(
+					entry, parent_start_date=(pmo_meta.get(parent) or {}).get("start_date")
+				)
+				formatted["patient_visit"] = (pmo_meta.get(parent) or {}).get("patient_encounter")
+				discharged_medications.append(formatted)
+
+	return {
+		"current_medications": current_medications,
+		"discharged_medications": discharged_medications,
+		"stopped_medications": stopped_medications,
+	}
+
+
 def _get_warehouse_for_admission(admission: str):
 	admission_doc = frappe.get_doc("Inpatient Admission", admission)
 	company = admission_doc.company or frappe.defaults.get_user_default("Company")
@@ -1815,6 +1949,7 @@ def create_visit_and_prescription_on_discharge(
 	patient_encounter: str | None = None,
 	after_discharge: bool | str | None = None,
 	doctors_signature: str | None = None,
+	order_entry_names: str | list | None = None,
 ) -> dict:
 	"""Create a Patient Visit and a Patient Medication Order from discharge transfer medicines."""
 	if not admission:
@@ -1867,6 +2002,19 @@ def create_visit_and_prescription_on_discharge(
 		after_discharge=bool(str(after_discharge).lower() in ['1', 'true', 'yes']),
 		doctors_signature=doctors_signature,
 	)
+
+	if order_entry_names is not None:
+		names = order_entry_names if isinstance(order_entry_names, list) else json.loads(order_entry_names or "[]")
+		if names and frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
+			for entry_name in names:
+				frappe.db.set_value(
+					"Inpatient Medication Order Entry",
+					entry_name,
+					"transferred_to_visit",
+					pv.name,
+				)
+			frappe.db.commit()
+
 	return {
 		"patient_visit": pv.name,
 		"patient_medication_order": result.get("name"),

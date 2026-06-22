@@ -27,6 +27,7 @@ export interface Appointment {
   invoiced?: number
   ref_sales_invoice?: string
   sales_order?: string
+  patient_visit?: string
 }
 
 function hasAppointmentTime(time?: string | null): boolean {
@@ -230,6 +231,28 @@ export async function createAppointment(data: CreateAppointmentData): Promise<Ap
 
 export interface UpdateAppointmentStatusResult {
   patient_visit?: string
+}
+
+/** Resolve Patient Visit linked to an appointment (stored link or reverse lookup). */
+export async function getPatientVisitForAppointment(appointmentId: string): Promise<string | null> {
+  const csrf = (window as any).csrf_token
+  const params = new URLSearchParams({ appointment_id: appointmentId })
+  const response = await fetch(
+    `/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_patient_visit_for_appointment?${params}`,
+    {
+      credentials: 'include',
+      headers: {
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+    },
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+  }
+  const visit = resData?.message
+  return typeof visit === 'string' && visit.trim() ? visit.trim() : null
 }
 
 /** Update appointment status; optional `notes` appends to the appointment Notes field (e.g. reception arrival). */

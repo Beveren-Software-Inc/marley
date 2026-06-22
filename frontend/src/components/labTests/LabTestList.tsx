@@ -1707,7 +1707,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
-import { canEditLabTestResults, canEditLabTestResultForRow } from '../../config/permissions'
+import { canEditLabTestResults, canEditLabTestResultForRow, isGroupedLabRequestFinished } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -2999,10 +2999,14 @@ export const LabTestList = ({
       <div className="flex items-center gap-1 flex-wrap">
         {isGroupRow && labTest.service_request && (
           <button type="button" data-no-row-click
-            disabled={finishingGroupKey === labTest.service_request}
+            disabled={isGroupedLabRequestFinished(labTest) || finishingGroupKey === labTest.service_request}
             onClick={(e) => { e.stopPropagation(); handleFinishGroup(labTest.service_request!, labTest.service_request!) }}
-            className="px-2 py-1 text-xs rounded-md border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">
-            {finishingGroupKey === labTest.service_request ? 'Finishing…' : 'Finish Group'}
+            className="px-2 py-1 text-xs rounded-md border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed">
+            {isGroupedLabRequestFinished(labTest)
+              ? 'Finished'
+              : finishingGroupKey === labTest.service_request
+                ? 'Finishing…'
+                : 'Finish Group'}
           </button>
         )}
         <div className="relative inline-block" ref={openActionRow === labTest.name ? actionMenuRef : undefined}>
@@ -3308,6 +3312,7 @@ export const LabTestList = ({
                 }, '')
                 
                 const groupStatus = getGroupCompletionStatus(children)
+                const groupFinished = isGroupedLabRequestFinished(representativeChild)
 
                 return (
                   <Fragment key={`group-${serviceRequest}`}>
@@ -3336,17 +3341,24 @@ export const LabTestList = ({
                         </button>
                        </td>
                       <td className="px-3 py-1.5">
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
-                          groupStatus.status === 'Complete' ? 'bg-green-100 text-green-700' :
-                          groupStatus.status === 'Partially Complete' ? 'bg-blue-100 text-blue-700' :
-                          'bg-amber-100 text-amber-700'
-                        }`}>
-                          <span>{groupStatus.icon}</span>
-                          <span>{groupStatus.status}</span>
-                          <span className="font-normal opacity-80">
-                            ({children.filter(labTestHasResultsEntered).length}/{children.length})
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
+                            groupStatus.status === 'Complete' ? 'bg-green-100 text-green-700' :
+                            groupStatus.status === 'Partially Complete' ? 'bg-blue-100 text-blue-700' :
+                            'bg-amber-100 text-amber-700'
+                          }`}>
+                            <span>{groupStatus.icon}</span>
+                            <span>{groupStatus.status}</span>
+                            <span className="font-normal opacity-80">
+                              ({children.filter(labTestHasResultsEntered).length}/{children.length})
+                            </span>
                           </span>
-                        </span>
+                          {groupFinished && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-200 text-slate-700">
+                              Finished
+                            </span>
+                          )}
+                        </div>
                        </td>
                       {rangeHeaders.showFemale && <><td /><td /></>}
                       {rangeHeaders.showMale && <><td /><td /></>}
@@ -3357,15 +3369,21 @@ export const LabTestList = ({
                       <td className="px-3 py-1.5 text-sm text-slate-700">
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
-                            disabled={groupStatus.status !== 'Complete' || finishingGroupKey === serviceRequest}
+                            disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === serviceRequest}
                             onClick={(e) => { e.stopPropagation(); handleFinishGroup(serviceRequest, serviceRequest) }}
                             className={`px-2 py-1 text-xs rounded-md border transition-colors ${
-                              groupStatus.status === 'Complete'
+                              !groupFinished && groupStatus.status === 'Complete'
                                 ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
                                 : 'border-slate-300 text-slate-400 cursor-not-allowed'
                             }`}
-                            title={groupStatus.status === 'Complete' ? 'Finish this grouped request' : 'All tests must be submitted first'}>
-                            {finishingGroupKey === serviceRequest ? 'Finishing…' : 'Finish Group'}
+                            title={
+                              groupFinished
+                                ? 'This grouped request is already finished'
+                                : groupStatus.status === 'Complete'
+                                  ? 'Finish this grouped request'
+                                  : 'All tests must have results entered first'
+                            }>
+                            {groupFinished ? 'Finished' : finishingGroupKey === serviceRequest ? 'Finishing…' : 'Finish Group'}
                           </button>
                           <button
                             type="button"

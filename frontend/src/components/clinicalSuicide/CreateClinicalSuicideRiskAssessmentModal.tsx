@@ -78,12 +78,14 @@ export const CreateSuicideRiskAssessmentModal = ({
   const [planImmediacy, setPlanImmediacy] = useState('')
   const [accessLethalMeans, setAccessLethalMeans] = useState(false)
   const [riskBehavior, setRiskBehavior] = useState(false)
+  const [riskBehaviorDetails, setRiskBehaviorDetails] = useState('')
 
   // Section 3: History
   const [hasHistory, setHasHistory] = useState(false)
   const [attemptCount, setAttemptCount] = useState('')
   const [lastAttempt, setLastAttempt] = useState('')
   const [psychiatricHistory, setPsychiatricHistory] = useState('')
+  const [priorPsychiatricDiagnosis, setPriorPsychiatricDiagnosis] = useState('')
 
   // Section 4: Stressors
   const [hasStressors, setHasStressors] = useState(false)
@@ -209,12 +211,15 @@ export const CreateSuicideRiskAssessmentModal = ({
         plan_immediacy: planImmediacy || undefined,
         access_lethal_means: accessLethalMeans || undefined,
         risk_behavior: riskBehavior || undefined,
+        risk_behavior_details: riskBehavior ? riskBehaviorDetails.trim() || undefined : undefined,
         
         has_history: hasHistory,
         attempt_count:
           attemptCount.trim() === '' ? undefined : parseInt(attemptCount, 10) || undefined,
         last_attempt: lastAttempt || undefined,
         psychiatric_history: psychiatricHistory || undefined,
+        prior_psychiatric_diagnosis:
+          psychiatricHistory === 'Yes' ? priorPsychiatricDiagnosis.trim() || undefined : undefined,
         
         has_stressors: hasStressors,
         stressors_description: stressorsDescription || undefined,
@@ -530,11 +535,23 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <input
                     type="checkbox"
                     checked={riskBehavior}
-                    onChange={(e) => setRiskBehavior(e.target.checked)}
+                    onChange={(e) => {
+                      setRiskBehavior(e.target.checked)
+                      if (!e.target.checked) setRiskBehaviorDetails('')
+                    }}
                     className="rounded border-slate-300 text-primary focus:ring-primary"
                   />
                   <span className="text-sm text-slate-600">Taking more risks lately (substance use, reckless behavior)</span>
                 </label>
+                {riskBehavior && (
+                  <input
+                    type="text"
+                    value={riskBehaviorDetails}
+                    onChange={(e) => setRiskBehaviorDetails(e.target.value)}
+                    placeholder="Brief details (substance use, reckless behavior…)"
+                    className="w-full rounded-md border border-slate-300 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                )}
               </div>
             </div>
 
@@ -581,18 +598,35 @@ export const CreateSuicideRiskAssessmentModal = ({
                 </div>
               )}
               
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-slate-700 mb-1">Prior diagnosis or psychiatric episode</label>
-                <select
-                  value={psychiatricHistory}
-                  onChange={(e) => setPsychiatricHistory(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                >
-                  <option value="">Select...</option>
-                  <option value="Yes">Yes</option>
-                  <option value="No">No</option>
-                  <option value="Unsure">Unsure</option>
-                </select>
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Prior diagnosis or psychiatric episode</label>
+                  <select
+                    value={psychiatricHistory}
+                    onChange={(e) => {
+                      setPsychiatricHistory(e.target.value)
+                      if (e.target.value !== 'Yes') setPriorPsychiatricDiagnosis('')
+                    }}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">Select...</option>
+                    <option value="Yes">Yes</option>
+                    <option value="No">No</option>
+                    <option value="Unsure">Unsure</option>
+                  </select>
+                </div>
+                {psychiatricHistory === 'Yes' && (
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Prior diagnosis</label>
+                    <input
+                      type="text"
+                      value={priorPsychiatricDiagnosis}
+                      onChange={(e) => setPriorPsychiatricDiagnosis(e.target.value)}
+                      placeholder="e.g. Major depression, bipolar disorder…"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                  </div>
+                )}
               </div>
             </div>
 

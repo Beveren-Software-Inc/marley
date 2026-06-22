@@ -6,7 +6,6 @@ import {
   FileText,
   Link2,
   LogOut,
-  Pill,
   Stethoscope,
   User,
   Users,
@@ -17,12 +16,12 @@ import {
   type DischargeDoc,
   type DischargePatientDocument,
   type DischargePatientRelative,
-  type DischargeStoppedMedication,
 } from '../../services/discharges'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { DischargeChecklistStatusCard } from './DischargeChecklistStatusCard'
+import { DischargePrescriptionCardsReadonly } from './DischargePrescriptionCards'
 import { RichTextContent } from '../ui/RichTextContent'
 import { formatDateTimeDisplay } from '../../utils/admissionDateTime'
 import { resolveDischargeDisplayDate, resolveSpendDays } from '../../utils/dischargeDisplay'
@@ -185,36 +184,6 @@ function DocumentsSection({ documents }: { documents: DischargePatientDocument[]
   )
 }
 
-function StoppedMedicationsSection({ medications }: { medications: DischargeStoppedMedication[] }) {
-  if (medications.length === 0) return null
-
-  return (
-    <section className="rounded-xl border border-rose-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-rose-100/80 sm:px-5 sm:py-5">
-      <div className="mb-3 flex items-center gap-2 border-b border-rose-100 pb-3">
-        <Pill className="h-5 w-5 text-rose-600" strokeWidth={2} />
-        <h3 className="text-sm font-bold uppercase tracking-wide text-rose-900">Stopped medications</h3>
-      </div>
-      <ul className="space-y-2">
-        {medications.map((med, index) => (
-          <li
-            key={med.name || `${med.drug_name}-${index}`}
-            className="rounded-md border border-rose-100 bg-rose-50/40 px-3 py-2.5"
-          >
-            <p className="text-sm font-medium text-slate-900">{med.drug_name || med.drug || 'Medication'}</p>
-            <p className="mt-1 text-xs text-rose-800">
-              <span className="font-semibold uppercase tracking-wide text-rose-700/80">Reason stopped: </span>
-              {med.reason_stopped}
-            </p>
-            {med.prescription ? (
-              <p className="mt-1 text-[10px] text-slate-500">Prescription: {med.prescription}</p>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-    </section>
-  )
-}
-
 function RelativesSection({ relatives }: { relatives: DischargePatientRelative[] }) {
   if (relatives.length === 0) return null
 
@@ -318,14 +287,10 @@ export function DischargeDetailPanel({
   const nursingChecklist = doc?.nursing_checklist ?? []
   const documents = doc?.patient_documents ?? []
   const relatives = doc?.patient_relatives ?? []
+  const currentMedications = doc?.current_medications ?? []
+  const dischargedMedications = doc?.discharged_medications ?? []
   const stoppedMedications = doc?.stopped_medications ?? []
   const hasFollowUp = Boolean(doc?.next_appointment_date || doc?.next_appointment_time)
-  const effectiveDischargeDate =
-    doc?.display_discharge_date ||
-    resolveDischargeDisplayDate(doc || preview || {})
-  const effectiveDischargeTime = doc?.discharge_date
-    ? doc?.discharge_time
-    : doc?.final_discharge_time
   const spendDays = resolveSpendDays(doc || preview || {})
 
   return (
@@ -379,91 +344,8 @@ export function DischargeDetailPanel({
                   <p className="mt-0.5 text-sm font-medium text-slate-900">{doc.ama_type}</p>
                 </div>
               ) : null}
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Discharge date</p>
-                <p className="mt-0.5 text-sm font-medium text-slate-900">
-                  {formatDateTimeDisplay(effectiveDischargeDate)}
-                  {effectiveDischargeTime ? ` · ${formatTime(effectiveDischargeTime)}` : ''}
-                </p>
-              </div>
-              {doc?.discharge_date && doc?.final_discharge_date ? (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Final discharge</p>
-                  <p className="mt-0.5 text-sm font-medium text-slate-900">
-                    {formatDateTimeDisplay(doc.final_discharge_date)}
-                    {doc.final_discharge_time ? ` · ${formatTime(doc.final_discharge_time)}` : ''}
-                  </p>
-                </div>
-              ) : null}
-              {spendDays ? (
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Spend days</p>
-                  <p className="mt-0.5 text-sm font-medium text-slate-900">{spendDays}</p>
-                </div>
-              ) : null}
             </div>
           </section>
-
-          <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-            <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
-              <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
-              <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Discharge plan & instructions</h3>
-            </div>
-            <div className="space-y-3">
-              {dischargePlanFields.map((field) => (
-                <ClinicalBlock
-                  key={field.title}
-                  title={field.title}
-                  value={field.value?.trim() ? field.value : '—'}
-                />
-              ))}
-            </div>
-          </section>
-
-          <StoppedMedicationsSection medications={stoppedMedications} />
-
-          {hasOtherClinical ? (
-            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-              <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
-                <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
-                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Clinical information</h3>
-              </div>
-              <div className="space-y-3">
-                {otherClinicalFields.map((field) => (
-                  <ClinicalBlock key={field.title} title={field.title} value={field.value} />
-                ))}
-              </div>
-            </section>
-          ) : null}
-
-          <DischargeChecklistStatusCard
-            dischargeChecklist={dischargeChecklist}
-            nursingChecklist={nursingChecklist}
-            loading={loading}
-            className="border-emerald-200/80 bg-white shadow-sm ring-1 ring-emerald-100/80"
-          />
-
-          <DocumentsSection documents={documents} />
-
-          <RelativesSection relatives={relatives} />
-
-          {hasFollowUp ? (
-            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-              <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
-                <Calendar className="h-5 w-5 text-emerald-600" strokeWidth={2} />
-                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Follow-up</h3>
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Next appointment</p>
-                  <p className="mt-0.5 text-sm font-medium text-slate-900">
-                    {formatDate(doc?.next_appointment_date)}
-                    {doc?.next_appointment_time ? ` · ${formatTime(doc.next_appointment_time)}` : ''}
-                  </p>
-                </div>
-              </div>
-            </section>
-          ) : null}
 
           <section className={MODAL_SECTION_CLASS}>
             <h3 className={MODAL_SECTION_TITLE_CLASS}>
@@ -472,21 +354,6 @@ export function DischargeDetailPanel({
             </h3>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <InfoTile
-                icon={<User className="h-4 w-4" strokeWidth={2} />}
-                label="Patient"
-                value={displayValue(doc?.patient_name || doc?.file_no || preview?.patient_name || preview?.file_no)}
-                onClick={
-                  (doc?.file_no || preview?.file_no) && onPatientClick
-                    ? () => onPatientClick((doc?.file_no || preview?.file_no)!)
-                    : undefined
-                }
-              />
-              <InfoTile
-                icon={<Link2 className="h-4 w-4" strokeWidth={2} />}
-                label="Admission"
-                value={displayValue(doc?.admission || preview?.admission)}
-              />
-              <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Discharge date"
                 value={formatDateTimeDisplay(
@@ -494,11 +361,36 @@ export function DischargeDetailPanel({
                     resolveDischargeDisplayDate(doc || preview || {})
                 )}
               />
-              <InfoTile
-                icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                label="Discharge type"
-                value={displayValue(doc?.discharge_type || preview?.discharge_type)}
-              />
+              {doc?.discharge_date && doc?.final_discharge_date ? (
+                <InfoTile
+                  icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
+                  label="Final discharge"
+                  value={`${formatDateTimeDisplay(doc.final_discharge_date)}${doc.final_discharge_time ? ` · ${formatTime(doc.final_discharge_time)}` : ''}`}
+                />
+              ) : null}
+              {spendDays ? (
+                <InfoTile
+                  icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
+                  label="Spend days"
+                  value={spendDays}
+                />
+              ) : null}
+              {doc?.discharge_template || preview?.discharge_template ? (
+                <InfoTile
+                  icon={<FileText className="h-4 w-4" strokeWidth={2} />}
+                  label="Discharge template"
+                  value={displayValue(
+                    doc?.template_name || doc?.discharge_template || preview?.template_name || preview?.discharge_template
+                  )}
+                />
+              ) : null}
+              {doc?.nurse_discharge_template ? (
+                <InfoTile
+                  icon={<FileText className="h-4 w-4" strokeWidth={2} />}
+                  label="Nursing template"
+                  value={displayValue(doc.nurse_discharge_template)}
+                />
+              ) : null}
               <InfoTile
                 icon={<User className="h-4 w-4" strokeWidth={2} />}
                 label="Discharged by"
@@ -552,22 +444,21 @@ export function DischargeDetailPanel({
                   value={displayValue(doc.discharge_receptionist)}
                 />
               ) : null}
-              {doc?.discharge_template || preview?.discharge_template ? (
-                <InfoTile
-                  icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                  label="Discharge template"
-                  value={displayValue(
-                    doc?.template_name || doc?.discharge_template || preview?.template_name || preview?.discharge_template
-                  )}
-                />
-              ) : null}
-              {doc?.nurse_discharge_template ? (
-                <InfoTile
-                  icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                  label="Nursing template"
-                  value={displayValue(doc.nurse_discharge_template)}
-                />
-              ) : null}
+              <InfoTile
+                icon={<User className="h-4 w-4" strokeWidth={2} />}
+                label="Patient"
+                value={displayValue(doc?.patient_name || doc?.file_no || preview?.patient_name || preview?.file_no)}
+                onClick={
+                  (doc?.file_no || preview?.file_no) && onPatientClick
+                    ? () => onPatientClick((doc?.file_no || preview?.file_no)!)
+                    : undefined
+                }
+              />
+              <InfoTile
+                icon={<Link2 className="h-4 w-4" strokeWidth={2} />}
+                label="Admission"
+                value={displayValue(doc?.admission || preview?.admission)}
+              />
               {doc?.cost_center || preview?.cost_center ? (
                 <InfoTile
                   icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
@@ -581,7 +472,74 @@ export function DischargeDetailPanel({
                 value={displayValue(doc?.name || preview?.name || name)}
               />
             </div>
+
+            <div className="mt-5 border-t border-slate-200 pt-5">
+              <DischargePrescriptionCardsReadonly
+                currentMedications={currentMedications}
+                dischargedMedications={dischargedMedications}
+                stoppedMedications={stoppedMedications}
+              />
+            </div>
           </section>
+
+          <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+            <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
+              <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
+              <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Discharge plan & instructions</h3>
+            </div>
+            <div className="space-y-3">
+              {dischargePlanFields.map((field) => (
+                <ClinicalBlock
+                  key={field.title}
+                  title={field.title}
+                  value={field.value?.trim() ? field.value : '—'}
+                />
+              ))}
+            </div>
+          </section>
+
+          {hasOtherClinical ? (
+            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+              <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
+                <ClipboardList className="h-5 w-5 text-emerald-600" strokeWidth={2} />
+                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Clinical information</h3>
+              </div>
+              <div className="space-y-3">
+                {otherClinicalFields.map((field) => (
+                  <ClinicalBlock key={field.title} title={field.title} value={field.value} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          <DischargeChecklistStatusCard
+            dischargeChecklist={dischargeChecklist}
+            nursingChecklist={nursingChecklist}
+            loading={loading}
+            className="border-emerald-200/80 bg-white shadow-sm ring-1 ring-emerald-100/80"
+          />
+
+          <DocumentsSection documents={documents} />
+
+          <RelativesSection relatives={relatives} />
+
+          {hasFollowUp ? (
+            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+              <div className="mb-3 flex items-center gap-2 border-b border-emerald-100 pb-3">
+                <Calendar className="h-5 w-5 text-emerald-600" strokeWidth={2} />
+                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Follow-up</h3>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Next appointment</p>
+                  <p className="mt-0.5 text-sm font-medium text-slate-900">
+                    {formatDate(doc?.next_appointment_date)}
+                    {doc?.next_appointment_time ? ` · ${formatTime(doc.next_appointment_time)}` : ''}
+                  </p>
+                </div>
+              </div>
+            </section>
+          ) : null}
 
           {doc?.creation ? (
             <p className="text-center text-xs text-slate-400">

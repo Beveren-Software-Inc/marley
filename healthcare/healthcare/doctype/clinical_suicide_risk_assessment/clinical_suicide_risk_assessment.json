@@ -30,6 +30,7 @@
   "plan_immediacy",
   "access_lethal_means",
   "risk_behavior",
+  "risk_behavior_details",
   "section_history",
   "has_history",
   "history_details",
@@ -37,6 +38,7 @@
   "last_attempt",
   "column_break_gqso",
   "psychiatric_history",
+  "prior_psychiatric_diagnosis",
   "section_stressors",
   "has_stressors",
   "stressors_details",
@@ -170,6 +172,12 @@
    "label": "Taking more risks lately (substance use, reckless behavior)"
   },
   {
+   "depends_on": "risk_behavior",
+   "fieldname": "risk_behavior_details",
+   "fieldtype": "Small Text",
+   "label": "Risk behavior details"
+  },
+  {
    "fieldname": "section_history",
    "fieldtype": "Section Break",
    "label": "3. History / Previous Attempts"
@@ -201,6 +209,12 @@
    "fieldtype": "Select",
    "label": "Prior diagnosis or psychiatric episode",
    "options": "Yes\nNo\nUnsure"
+  },
+  {
+   "depends_on": "eval:doc.psychiatric_history=='Yes'",
+   "fieldname": "prior_psychiatric_diagnosis",
+   "fieldtype": "Small Text",
+   "label": "Prior psychiatric diagnosis"
   },
   {
    "fieldname": "section_stressors",

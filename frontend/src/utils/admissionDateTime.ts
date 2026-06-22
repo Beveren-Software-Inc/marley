@@ -62,6 +62,24 @@ export function formatDateTimeDisplay(value?: string | null, fallback = '—'): 
   return dt.toLocaleString(undefined, DATE_TIME_OPTS)
 }
 
+export interface AdmissionSpanFields extends AdmissionDateFields {
+  discharge_datetime?: string | null
+}
+
+/** Admission date, or admission → discharge when discharged. */
+export function formatAdmissionDateSpan(record: AdmissionSpanFields): string {
+  const start = formatAdmissionDate(record, { includeTime: false, fallback: '' })
+  if (!start) return ''
+
+  const discharge = (record.discharge_datetime || '').trim()
+  if (discharge) {
+    const end = formatDateTimeDisplay(discharge, '')
+    if (end) return `${start} → ${end}`
+  }
+
+  return start
+}
+
 export function formatAdmissionDate(
   record: AdmissionDateFields,
   opts?: { includeTime?: boolean; fallback?: string }

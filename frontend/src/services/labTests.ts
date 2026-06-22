@@ -57,6 +57,7 @@ export interface LabTest {
   company?: string
   requesting_department?: string
   service_request?: string
+  service_request_status?: string
   lab_test_group?: string
   is_group_lab_test?: number
   reference_document?: string

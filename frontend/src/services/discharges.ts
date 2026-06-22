@@ -65,7 +65,22 @@ export interface DischargeStoppedMedication {
   prescription?: string
   drug?: string
   drug_name: string
+  dosage?: string
+  frequency?: string
+  start_date?: string | null
   reason_stopped: string
+}
+
+export interface DischargePrescriptionMedication {
+  name?: string
+  prescription?: string
+  drug?: string
+  drug_name: string
+  dosage?: string
+  frequency?: string
+  start_date?: string | null
+  reason_stopped?: string
+  patient_visit?: string
 }
 
 export interface DischargeDoc extends Discharge {
@@ -98,6 +113,8 @@ export interface DischargeDoc extends Discharge {
   patient_documents?: DischargePatientDocument[]
   patient_relatives?: DischargePatientRelative[]
   stopped_medications?: DischargeStoppedMedication[]
+  current_medications?: DischargePrescriptionMedication[]
+  discharged_medications?: DischargePrescriptionMedication[]
   creation?: string
   modified?: string
 }

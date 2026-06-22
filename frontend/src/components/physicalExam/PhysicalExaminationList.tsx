@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Stethoscope } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PhysicalExaminationDetailPanel } from './PhysicalExaminationDetailPanel'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface ExamRecord {
   name: string
@@ -9,6 +10,7 @@ interface ExamRecord {
   patient: string
   patient_name?: string
   inpatient_admission?: string
+  patient_visit?: string
   creation: string
 }
 
@@ -16,9 +18,19 @@ interface PhysicalExaminationListProps {
   patient?: string
   refreshKey?: number
   onPatientClick?: (patient: string) => void
+  /** When IP + active admission in header, scope list to that admission (default true). */
+  scopeToActiveAdmission?: boolean
 }
 
-export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }: PhysicalExaminationListProps) => {
+export const PhysicalExaminationList = ({
+  patient,
+  refreshKey,
+  onPatientClick,
+  scopeToActiveAdmission = true,
+}: PhysicalExaminationListProps) => {
+  const { mode, activeAdmission } = useCareContext()
+  const scopedAdmission =
+    scopeToActiveAdmission && mode === 'IP' && activeAdmission ? activeAdmission : undefined
   const [items, setItems] = useState<ExamRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -32,9 +44,10 @@ export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }:
       try {
         const filters: [string, string, string][] = []
         if (patient) filters.push(['patient', '=', patient])
+        if (scopedAdmission) filters.push(['inpatient_admission', '=', scopedAdmission])
         const params = new URLSearchParams({
           doctype: 'Physical Examination',
-          fields: JSON.stringify(['name', 'trans_no', 'patient', 'patient_name', 'inpatient_admission', 'creation']),
+          fields: JSON.stringify(['name', 'trans_no', 'patient', 'patient_name', 'inpatient_admission', 'patient_visit', 'creation']),
           filters: JSON.stringify(filters),
           order_by: 'creation desc',
           limit: '50',
@@ -49,12 +62,17 @@ export const PhysicalExaminationList = ({ patient, refreshKey, onPatientClick }:
       }
     }
     load()
-  }, [patient, refreshKey])
+  }, [patient, refreshKey, scopedAdmission])
 
   const openDetail = (row: ExamRecord) => {
     setDetailName(row.name)
-    const parts = [row.patient_name || row.patient, row.inpatient_admission].filter(Boolean)
-    setDetailSubtitle(parts.length ? parts.join(' · ') : row.name)
+    const parts = [row.patient_name || row.patient]
+    if (row.inpatient_admission) {
+      parts.push(row.inpatient_admission)
+    } else if (row.patient_visit) {
+      parts.push(row.patient_visit)
+    }
+    setDetailSubtitle(parts.filter(Boolean).join(' · ') || row.name)
   }
 
   if (loading) {

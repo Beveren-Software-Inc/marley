@@ -62,6 +62,8 @@ def create_suicide_risk_assessment(data):
             doc.access_lethal_means = data.get("access_lethal_means", 0)
         
         doc.risk_behavior = data.get("risk_behavior", 0)
+        if doc.risk_behavior:
+            doc.risk_behavior_details = data.get("risk_behavior_details")
         
         # Section 3: History / Previous Attempts
         doc.has_history = data.get("has_history", 0)
@@ -70,6 +72,8 @@ def create_suicide_risk_assessment(data):
             doc.last_attempt = data.get("last_attempt")
         
         doc.psychiatric_history = data.get("psychiatric_history")
+        if doc.psychiatric_history == "Yes":
+            doc.prior_psychiatric_diagnosis = data.get("prior_psychiatric_diagnosis")
         
         # Section 4: Current Stressors
         doc.has_stressors = data.get("has_stressors", 0)

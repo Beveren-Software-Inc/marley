@@ -26,10 +26,12 @@ export interface SuicideRiskAssessmentDetail extends SuicideRiskAssessmentRow {
   plan_immediacy?: string
   access_lethal_means?: number | boolean
   risk_behavior?: number | boolean
+  risk_behavior_details?: string
   has_history?: number | boolean
   attempt_count?: number
   last_attempt?: string
   psychiatric_history?: string
+  prior_psychiatric_diagnosis?: string
   has_stressors?: number | boolean
   stressors_description?: string
   has_support?: number | boolean
@@ -62,12 +64,14 @@ export interface CreateSuicideRiskAssessmentInput {
   plan_immediacy?: string
   access_lethal_means?: boolean
   risk_behavior?: boolean
+  risk_behavior_details?: string
 
   // Section 3: History
   has_history: boolean
   attempt_count?: number
   last_attempt?: string
   psychiatric_history?: string
+  prior_psychiatric_diagnosis?: string
 
   // Section 4: Stressors
   has_stressors: boolean

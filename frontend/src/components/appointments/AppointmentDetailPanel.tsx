@@ -3,9 +3,12 @@ import { fetchDoc } from '../../services/common'
 import {
   appointmentNeedsRegistration,
   formatAppointmentTimeLabel,
+  getPatientVisitForAppointment,
   isWalkInAppointment,
 } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { ExternalLink } from 'lucide-react'
 
 type AppointmentDoc = Record<string, unknown>
 
@@ -77,6 +80,8 @@ interface AppointmentDetailPanelProps {
   onMarkCheckedOut?: () => void
   onAddRemarks?: () => void
   onAddDoctorNote?: () => void
+  /** Sync parent page patient bar when opening OP visit from this appointment. */
+  onPatientSelect?: (patient: string) => void
 }
 
 export function AppointmentDetailPanel({
@@ -89,8 +94,11 @@ export function AppointmentDetailPanel({
   onMarkCheckedOut,
   onAddRemarks,
   onAddDoctorNote,
+  onPatientSelect,
 }: AppointmentDetailPanelProps) {
+  const { applyOpCareContext } = useCareContext()
   const [doc, setDoc] = useState<AppointmentDoc | null>(null)
+  const [patientVisit, setPatientVisit] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -112,6 +120,29 @@ export function AppointmentDetailPanel({
       cancelled = true
     }
   }, [name, refreshKey])
+
+  useEffect(() => {
+    if (!doc) {
+      setPatientVisit(null)
+      return
+    }
+    const linked = typeof doc.patient_visit === 'string' ? doc.patient_visit.trim() : ''
+    if (linked) {
+      setPatientVisit(linked)
+      return
+    }
+    let cancelled = false
+    getPatientVisitForAppointment(name)
+      .then((visit) => {
+        if (!cancelled) setPatientVisit(visit)
+      })
+      .catch(() => {
+        if (!cancelled) setPatientVisit(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [doc, name, refreshKey])
 
   if (loading) {
     return (
@@ -291,6 +322,24 @@ export function AppointmentDetailPanel({
         {!!doc.cost_center && <InfoRow label="Branch" value={str(doc.cost_center)} />}
         {!!doc.company && <InfoRow label="Company" value={str(doc.company)} />}
         {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
+        {patientVisit ? (
+          <div className="col-span-2 flex flex-col gap-1">
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Patient Visit</span>
+            <button
+              type="button"
+              onClick={() => {
+                const patientId = typeof doc.patient === 'string' ? doc.patient : undefined
+                applyOpCareContext({ patient: patientId, visit: patientVisit })
+                if (patientId) onPatientSelect?.(patientId)
+              }}
+              className="inline-flex items-center gap-1.5 text-left text-sm font-medium text-primary hover:underline"
+            >
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+              {patientVisit}
+              <span className="text-xs font-normal text-slate-500">— open in OP header</span>
+            </button>
+          </div>
+        ) : null}
       </Section>
 
       {!!(doc.practitioner || doc.department) && (

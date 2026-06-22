@@ -159,10 +159,21 @@ class PatientVisit(Document):
 			pass
 		frappe.db.set_value("Insurance Patient Register", reg, updates)
 
+	def _sync_appointment_patient_visit_link(self):
+		if not self.appointment or not self.name:
+			return
+		from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+			_link_appointment_patient_visit,
+		)
+
+		_link_appointment_patient_visit(self.appointment, self.name)
+
 	def after_insert(self):
 		self._track_insurance_visit()
+		self._sync_appointment_patient_visit_link()
 
 	def on_update(self):
+		self._sync_appointment_patient_visit_link()
 		if self.appointment:
 			# Reception flow: appointment is already Patient Arrived / Checked In / Out — do not
 			# overwrite when the visit is first created from mark-arrived.

@@ -34,28 +34,34 @@ def _get_stopped_medication_entries_for_admission(admission: str) -> list[dict]:
 			"parent": ["in", order_names],
 			"reason_stopped": ["!=", ""],
 		},
-		fields=["name", "parent", "drug", "drug_name", "reason_stopped"],
+		fields=[
+			"name",
+			"parent",
+			"drug",
+			"drug_name",
+			"dosage",
+			"instructions",
+			"patient_frequency",
+			"written_frequency",
+			"date",
+			"reason_stopped",
+		],
 		order_by="parent asc, idx asc",
 	)
 
 
 def get_stopped_medications_for_admission(admission: str) -> list[dict]:
 	"""Structured stopped medications for portal discharge detail."""
+	from healthcare.api.medicine_given import _format_discharge_prescription_entry
+
 	rows = []
 	for entry in _get_stopped_medication_entries_for_admission(admission):
 		reason = (entry.get("reason_stopped") or "").strip()
 		if not reason:
 			continue
-		drug_name = (entry.get("drug_name") or entry.get("drug") or _("Medication")).strip()
-		rows.append(
-			{
-				"name": entry.get("name"),
-				"prescription": entry.get("parent") or "",
-				"drug": entry.get("drug") or "",
-				"drug_name": drug_name,
-				"reason_stopped": reason,
-			}
-		)
+		formatted = _format_discharge_prescription_entry(entry)
+		formatted["reason_stopped"] = reason
+		rows.append(formatted)
 	return rows
 
 

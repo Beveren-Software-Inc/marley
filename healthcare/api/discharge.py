@@ -34,7 +34,14 @@ def get_discharge(name=None):
 		doc = frappe.get_doc("Discharge", name).as_dict()
 
 	if doc.get("admission"):
-		doc["stopped_medications"] = get_stopped_medications_for_admission(doc["admission"])
+		from healthcare.api.medicine_given import get_discharge_prescription_sections
+
+		sections = get_discharge_prescription_sections(doc["admission"])
+		doc["current_medications"] = sections.get("current_medications") or []
+		doc["discharged_medications"] = sections.get("discharged_medications") or []
+		doc["stopped_medications"] = sections.get("stopped_medications") or get_stopped_medications_for_admission(
+			doc["admission"]
+		)
 		if not (doc.get("duration") or "").strip():
 			admission_spend = frappe.db.get_value(
 				"Inpatient Admission", doc["admission"], "spend_daysduration"
@@ -42,6 +49,8 @@ def get_discharge(name=None):
 			if admission_spend:
 				doc["admission_spend_days"] = admission_spend
 	else:
+		doc["current_medications"] = []
+		doc["discharged_medications"] = []
 		doc["stopped_medications"] = []
 
 	if not doc.get("discharge_date") and doc.get("final_discharge_date"):

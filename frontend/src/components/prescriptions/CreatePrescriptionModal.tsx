@@ -30,6 +30,7 @@ import {
   type CreatePrescriptionData,
   type MedicationOrderRow,
   type Prescription,
+  checkPrescriptionDrugStock,
 } from '../../services/prescriptions'
 import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
@@ -52,6 +53,7 @@ import {
   CreateFrequencyMiniModal,
   type CreateFrequencyKind,
 } from './CreateFrequencyMiniModal'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -63,6 +65,7 @@ interface CreatePrescriptionModalProps {
   initialInpatientRecord?: string
   initialStartDate?: string
   transferAdmission?: string
+  transferOrderEntryNames?: string[]
   editMode?: boolean
   prescriptionData?: Prescription | null
 }
@@ -279,10 +282,11 @@ export const CreatePrescriptionModal = ({
   initialInpatientRecord,
   initialStartDate,
   transferAdmission,
+  transferOrderEntryNames,
   editMode = false,
   prescriptionData = null,
 }: CreatePrescriptionModalProps) => {
-  const { mode, activeVisit, activeAdmission, costCenterCompany } = useCareContext()
+  const { mode, activeVisit, activeAdmission, costCenterCompany, userCostCenter } = useCareContext()
   const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [expandedMedications, setExpandedMedications] = useState<Set<number>>(new Set([0]))
@@ -343,6 +347,7 @@ export const CreatePrescriptionModal = ({
 
   const [doctorsSignature, setDoctorsSignature] = useState<string | null>(null)
   const [signatureUploading, setSignatureUploading] = useState(false)
+  const [stockWarning, setStockWarning] = useState<{ title: string; message: string } | null>(null)
 
   const isEditing = editMode
 
@@ -423,6 +428,18 @@ export const CreatePrescriptionModal = ({
       }))
     }
     setDrugOptions((prev) => ({ ...prev, [index]: [] }))
+
+    try {
+      const stock = await checkPrescriptionDrugStock(opt.name, userCostCenter, formData.company)
+      if (stock.warn && stock.message) {
+        setStockWarning({
+          title: stock.level === 'out_of_stock' ? 'Out of stock' : 'Low stock',
+          message: stock.message,
+        })
+      }
+    } catch {
+      /* non-blocking */
+    }
   }
 
   const searchUoms = async (query: string) => {
@@ -752,6 +769,7 @@ export const CreatePrescriptionModal = ({
           formData.patient_encounter || undefined,
           true,
           doctorsSignature || undefined,
+          transferOrderEntryNames,
         )
         const signedNote = doctorsSignature ? ' (signed)' : ''
         toast.success(
@@ -1570,6 +1588,17 @@ export const CreatePrescriptionModal = ({
           }}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(stockWarning)}
+        title={stockWarning?.title ?? 'Stock warning'}
+        message={stockWarning?.message ?? ''}
+        confirmLabel="OK"
+        cancelLabel="Close"
+        variant="warning"
+        onConfirm={() => setStockWarning(null)}
+        onCancel={() => setStockWarning(null)}
+      />
     </div>
   )
 }

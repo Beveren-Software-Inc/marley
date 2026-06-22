@@ -18,6 +18,10 @@ function formatDate(val?: string): string {
   }
 }
 
+function diagnosisPractitionerLabel(row: PatientDiagnosisAggRow): string {
+  return row.practitioner_name || row.practitioner || '—'
+}
+
 function dateOnly(iso?: string): string {
   if (!iso) return ''
   return iso.slice(0, 10)
@@ -216,24 +220,30 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
                   <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Group</th>
                 )}
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Remarks</th>
+                <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">
+                  Practitioner
+                </th>
                 <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 whitespace-nowrap">Date</th>
                 {!compactClinical && (
-                  <>
-                    <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Practitioner</th>
-                    <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</th>
-                  </>
+                  <th className="text-left px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">Source</th>
                 )}
               </tr>
             </thead>
             <tbody>
               {filteredRows.map((row, idx) => {
+                const practitionerLabel = diagnosisPractitionerLabel(row)
+                const dateLabel = formatDate(row.posting_date)
                 const metaFields = [
                   ['No.', row.disease_no || row.diagnosis],
                   ['Group', row.diagnosis_group_name],
-                  ['Practitioner', row.practitioner_name || row.practitioner],
+                  ['Practitioner', practitionerLabel],
+                  ['Date', dateLabel],
                   ['Source', row.parent ? `${row.parent_type === 'Patient Visit' ? 'OP' : 'IP'} ${row.parent}` : ''],
                   ['Record', row.name],
                 ] as const
+                const secondaryDetails = [practitionerLabel !== '—' ? practitionerLabel : null, dateLabel !== '—' ? dateLabel : null]
+                  .filter(Boolean)
+                  .join(' · ')
                 return (
                   <tr
                     key={row.name || idx}
@@ -252,6 +262,9 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
                       {compactClinical && row.diagnosis_group_name ? (
                         <span className="block text-xs font-normal text-slate-500 mt-0.5">{row.diagnosis_group_name}</span>
                       ) : null}
+                      {compactClinical && secondaryDetails ? (
+                        <span className="block text-xs font-normal text-slate-500 mt-0.5">{secondaryDetails}</span>
+                      ) : null}
                     </td>
                     {!compactClinical && (
                       <td className="px-2 py-2 text-sm text-slate-600">{row.diagnosis_group_name || '—'}</td>
@@ -259,25 +272,21 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
                     <td className="px-2 py-2 text-slate-600 max-w-[180px] truncate" title={row.details || ''}>
                       {row.details || <span className="text-slate-300">—</span>}
                     </td>
-                    <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{formatDate(row.posting_date)}</td>
+                    <td className="px-2 py-2 text-slate-600 text-sm whitespace-nowrap">{practitionerLabel}</td>
+                    <td className="px-2 py-2 text-slate-500 whitespace-nowrap">{dateLabel}</td>
                     {!compactClinical && (
-                      <>
-                        <td className="px-2 py-2 text-slate-600 text-sm">
-                          {row.practitioner_name || row.practitioner || '—'}
-                        </td>
-                        <td className="px-2 py-2">
-                          <span
-                            className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 ${
-                              row.parent_type === 'Patient Visit'
-                                ? 'bg-blue-50 text-blue-700'
-                                : 'bg-emerald-50 text-emerald-700'
-                            }`}
-                          >
-                            {row.parent_type === 'Patient Visit' ? 'OP' : 'IP'}
-                            <span className="opacity-70">{row.parent}</span>
-                          </span>
-                        </td>
-                      </>
+                      <td className="px-2 py-2">
+                        <span
+                          className={`inline-flex items-center gap-1 text-xs font-medium rounded-full px-2 py-0.5 ${
+                            row.parent_type === 'Patient Visit'
+                              ? 'bg-blue-50 text-blue-700'
+                              : 'bg-emerald-50 text-emerald-700'
+                          }`}
+                        >
+                          {row.parent_type === 'Patient Visit' ? 'OP' : 'IP'}
+                          <span className="opacity-70">{row.parent}</span>
+                        </span>
+                      </td>
                     )}
                   </tr>
                 )

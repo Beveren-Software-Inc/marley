@@ -83,10 +83,25 @@ export function PhysicalExaminationDetailPanel({
     const parts = [
       (doc.patient_name as string) || (doc.patient as string),
       (doc.trans_no as string) || (doc.name as string),
-      doc.inpatient_admission as string,
-    ].filter(Boolean)
-    return parts.length ? parts.join(' · ') : subtitleProp ?? name
+    ]
+    if (doc.inpatient_admission) {
+      parts.push(doc.inpatient_admission as string)
+    } else if (doc.patient_visit) {
+      parts.push(doc.patient_visit as string)
+    }
+    return parts.filter(Boolean).join(' · ') || (subtitleProp ?? name)
   }, [doc, subtitleProp, name])
+
+  const visitFields = useMemo(() => {
+    if (!doc) return PE_VISIT_FIELDS
+    const hasIp = Boolean(doc.inpatient_admission)
+    const hasOp = Boolean(doc.patient_visit)
+    return PE_VISIT_FIELDS.filter((field) => {
+      if (field.key === 'patient_visit' && hasIp) return false
+      if (field.key === 'inpatient_admission' && hasOp && !hasIp) return false
+      return true
+    })
+  }, [doc])
 
   const findingSections = useMemo(() => {
     if (!doc) return []
@@ -132,7 +147,7 @@ export function PhysicalExaminationDetailPanel({
               Visit & patient
             </h3>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-              {PE_VISIT_FIELDS.map((field) => (
+              {visitFields.map((field) => (
                 <DataTile
                   key={field.key}
                   label={field.label}

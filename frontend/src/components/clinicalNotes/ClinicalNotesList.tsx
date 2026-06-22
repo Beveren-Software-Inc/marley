@@ -40,6 +40,10 @@ function resolveListTitle(clinicalNoteType?: string, title?: string): string {
   return clinicalNoteType
 }
 
+function clinicalNotePractitionerLabel(note: ClinicalNote): string {
+  return note.practitioner_name || note.practitioner || note.user || '—'
+}
+
 export const ClinicalNotesList = ({
   patient,
   clinicalNoteType,
@@ -296,7 +300,7 @@ export const ClinicalNotesList = ({
           {clinicalNotes.map((note) => {
             const metaFields = [
               ['Note ID', note.name],
-              ['Practitioner', note.practitioner_name || note.practitioner],
+              ['Practitioner', clinicalNotePractitionerLabel(note)],
               ['Clinical note type', clinicalNoteTypeLabel(note)],
               ['Reference', noteReferenceLabel(note)],
             ] as const
@@ -404,7 +408,7 @@ export const ClinicalNotesList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.practitioner_name || note.practitioner || '-'}
+                    {clinicalNotePractitionerLabel(note)}
                   </td>
                   {!hideTypeColumns && (
                     <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
@@ -449,7 +453,7 @@ export const ClinicalNotesList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {note.practitioner_name || note.practitioner || '-'}
+                    {clinicalNotePractitionerLabel(note)}
                   </td>
                   {!hideTypeColumns && (
                     <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
