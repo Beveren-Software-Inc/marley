@@ -22,7 +22,7 @@ export type DoctorMedicationPlanDoc = DoctorMedicationPlanRow & {
 
 export interface CreateDoctorMedicationPlanInput {
   patient: string
-  medical_role: string
+  medical_role?: string
   practitioner?: string
   posting_date?: string
   patient_visit: string
@@ -87,7 +87,6 @@ export async function createDoctorMedicationPlan(
   const body: Record<string, unknown> = {
     doctype: 'Doctor Medication Plan',
     patient: input.patient,
-    medical_role: input.medical_role,
     practitioner: input.practitioner || undefined,
     posting_date: input.posting_date || undefined,
     reference_doctype: 'Patient Visit',
@@ -111,7 +110,7 @@ export async function fetchDoctorMedicationPlan(name: string): Promise<DoctorMed
 
 export interface UpdateDoctorMedicationPlanInput {
   practitioner?: string
-  medical_role: string
+  medical_role?: string
   posting_date?: string
   plan?: string
   recommendation?: string

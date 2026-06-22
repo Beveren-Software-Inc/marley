@@ -227,7 +227,6 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                       ['Plan ID', row.name],
                       ['Patient', row.patient],
                       ['Practitioner', row.practitioner],
-                      ['Medical role', row.medical_role],
                       [
                         'Visit',
                         row.reference_document
@@ -276,7 +275,6 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                     )}
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Medical Role</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
                   </tr>
@@ -309,7 +307,6 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                         </td>
                       )}
                       <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700">{row.medical_role || '—'}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 max-w-[140px] truncate">
                         {row.reference_document || '—'}
                       </td>
