@@ -481,22 +481,40 @@ def _new_receive_payment_entry(
 	return pe
 
 
-def _submit_payment_entry(pe) -> dict:
+def _is_reception_portal_user(user: str | None = None) -> bool:
+	from healthcare.healthcare.discharge_checklist_permissions import _is_reception_user
+
+	return _is_reception_user(user)
+
+
+def _save_payment_entry(pe, *, draft: bool = False) -> dict:
 	from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
 	stamp_receptionist_shift_on_doc(pe)
 	pe.insert(ignore_permissions=True)
-	pe.submit()
+	if not draft:
+		pe.submit()
 	frappe.db.commit()
-	msg = f"Payment Entry {pe.name} created successfully"
-	unallocated = flt(getattr(pe, "unallocated_amount", 0))
-	if unallocated > 0:
-		msg += f". Unallocated credit: {unallocated:.2f}"
+
+	if draft:
+		msg = f"Payment Entry {pe.name} saved as draft"
+	else:
+		msg = f"Payment Entry {pe.name} created successfully"
+		unallocated = flt(getattr(pe, "unallocated_amount", 0))
+		if unallocated > 0:
+			msg += f". Unallocated credit: {unallocated:.2f}"
+
 	return {
 		"name": pe.name,
 		"server_message": msg,
-		"unallocated_amount": unallocated,
+		"unallocated_amount": 0 if draft else flt(getattr(pe, "unallocated_amount", 0)),
+		"docstatus": pe.docstatus,
+		"is_draft": draft,
 	}
+
+
+def _submit_payment_entry(pe) -> dict:
+	return _save_payment_entry(pe, draft=False)
 
 
 @frappe.whitelist()
@@ -749,4 +767,4 @@ def create_patient_refund(data: dict) -> dict:
 	pe.reference_no = (data.get("reference_no") or "").strip() or f"REFUND-{patient}"[:140]
 	pe.reference_date = data.get("reference_date") or frappe.utils.today()
 
-	return _submit_payment_entry(pe)
+	return _save_payment_entry(pe, draft=_is_reception_portal_user())

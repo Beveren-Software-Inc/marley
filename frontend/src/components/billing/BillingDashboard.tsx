@@ -9,6 +9,7 @@ import {
   fetchInvoiceSummary,
   fetchInpatientBalances,
   fetchOutpatientBalances,
+  fetchIopBalances,
   fetchBillingCostCenterScope,
   fetchPatientBillingCostCenterBreakdown,
   fetchPaymentEntries,
@@ -45,6 +46,7 @@ import {
   Filter,
   Loader2,
   CalendarRange,
+  Activity,
   Printer,
   FileDown,
   X,
@@ -59,7 +61,7 @@ import { StandalonePaymentModal } from './StandalonePaymentModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
-type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'unpaid' | 'paid' | 'payments'
+type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'unpaid' | 'paid' | 'payments'
 
 // Navigation Button Component
 const NavButton = ({ 
@@ -123,7 +125,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   // Load saved view from localStorage
   const getSavedView = (): DashboardView => {
     const saved = localStorage.getItem('billingDashboardView')
-    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'unpaid' || saved === 'paid' || saved === 'payments') {
+    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'iop' || saved === 'unpaid' || saved === 'paid' || saved === 'payments') {
       return saved as DashboardView
     }
     return 'overview'
@@ -136,11 +138,14 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [filteredInpatient, setFilteredInpatient] = useState<InpatientBalance[]>([])
   const [outpatientBalances, setOutpatientBalances] = useState<OutpatientBalance[]>([])
   const [filteredOutpatient, setFilteredOutpatient] = useState<OutpatientBalance[]>([])
+  const [iopBalances, setIopBalances] = useState<OutpatientBalance[]>([])
+  const [filteredIop, setFilteredIop] = useState<OutpatientBalance[]>([])
   const [loading, setLoading] = useState(true)
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([])
   const [recentInvoices, setRecentInvoices] = useState<ServiceInvoice[]>([])
   const [inpatientFilter, setInpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   const [outpatientFilter, setOutpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
+  const [iopFilter, setIopFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   
   // Modal states
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -188,7 +193,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
       setCurrentView('overview')
       localStorage.setItem('billingDashboardView', 'overview')
     }
-    if (costCenterCareScope === 'ip_only' && currentView === 'outpatient') {
+    if (costCenterCareScope === 'ip_only' && (currentView === 'outpatient' || currentView === 'iop')) {
       setCurrentView('overview')
       localStorage.setItem('billingDashboardView', 'overview')
     }
@@ -276,6 +281,8 @@ const handleMakePayment = async (
       loadInpatientBalances()
     } else if (currentView === 'outpatient') {
       loadOutpatientBalances()
+    } else if (currentView === 'iop') {
+      loadIopBalances()
     } else {
       loadDashboardData()
     }
@@ -387,11 +394,27 @@ const handleMakePayment = async (
     }
   }
 
+  const loadIopBalances = async () => {
+    try {
+      setLoading(true)
+      const balances = await fetchIopBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      setIopBalances(balances)
+      setFilteredIop(balances)
+    } catch (error) {
+      console.error('Failed to load IOP balances:', error)
+      toast.error('Failed to load IOP balances')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (currentView === 'inpatient') {
       loadInpatientBalances()
     } else if (currentView === 'outpatient') {
       loadOutpatientBalances()
+    } else if (currentView === 'iop') {
+      loadIopBalances()
     } else {
       loadDashboardData()
     }
@@ -434,6 +457,22 @@ const handleMakePayment = async (
       setFilteredOutpatient(filtered)
     }
   }, [outpatientFilter, outpatientBalances])
+
+  // Filter IOP balances
+  useEffect(() => {
+    if (iopFilter === 'all') {
+      setFilteredIop(iopBalances)
+    } else {
+      const filtered = iopBalances.filter(balance => {
+        if (iopFilter === 'paid') return balance.outstanding_amount === 0 && balance.total_paid > 0
+        if (iopFilter === 'unpaid') return balance.outstanding_amount === balance.total_amount && balance.total_amount > 0
+        if (iopFilter === 'partial') return balance.outstanding_amount > 0 && balance.outstanding_amount < balance.total_amount
+        if (iopFilter === 'overdue') return balance.days_overdue > 0
+        return true
+      })
+      setFilteredIop(filtered)
+    }
+  }, [iopFilter, iopBalances])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -579,6 +618,15 @@ const handleMakePayment = async (
             count={outpatientBalances.length}
           />
         )}
+        {costCenterCareScope !== 'ip_only' && (
+          <NavButton
+            icon={Activity}
+            label="All IOP"
+            isActive={currentView === 'iop'}
+            onClick={() => handleViewChange('iop')}
+            count={iopBalances.length}
+          />
+        )}
         <NavButton
           icon={CreditCard}
           label="Payments"
@@ -659,7 +707,7 @@ const handleMakePayment = async (
     </>
   )
 
-  if (loading && (currentView === 'inpatient' || currentView === 'outpatient')) {
+  if (loading && (currentView === 'inpatient' || currentView === 'outpatient' || currentView === 'iop')) {
     return (
       <div className="space-y-4">
         <NavigationRow />
@@ -867,15 +915,24 @@ const handleMakePayment = async (
               <tbody className="divide-y divide-slate-100">
                 {payments.map((p) => {
                   const isRefund = p.payment_type === 'Pay'
+                  const isDraft = Number(p.docstatus) === 0
                   const signedAmount = isRefund ? -(p.paid_amount || 0) : p.paid_amount || 0
-                  const typeLabel = isRefund ? 'Refund' : p.invoice_name ? 'Invoice payment' : 'Advance'
+                  const typeLabel = isDraft
+                    ? 'Draft refund'
+                    : isRefund
+                      ? 'Refund'
+                      : p.invoice_name
+                        ? 'Invoice payment'
+                        : 'Advance'
                   return (
                   <tr key={p.name}>
                     <td className="px-3 py-2 font-mono text-xs">{p.name}</td>
                     <td className="px-3 py-2">{p.posting_date || '-'}</td>
                     <td className="px-3 py-2">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
-                        isRefund
+                        isDraft
+                          ? 'bg-slate-100 text-slate-700'
+                          : isRefund
                           ? 'bg-amber-100 text-amber-800'
                           : p.invoice_name
                             ? 'bg-emerald-100 text-emerald-800'
@@ -885,8 +942,8 @@ const handleMakePayment = async (
                       </span>
                     </td>
                     <td className="px-3 py-2">{p.mode_of_payment || '-'}</td>
-                    <td className={`px-3 py-2 text-right font-medium ${isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
-                      {formatCurrency(signedAmount)}
+                    <td className={`px-3 py-2 text-right font-medium ${isDraft ? 'text-slate-500' : isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
+                      {isDraft ? '—' : formatCurrency(signedAmount)}
                     </td>
                     <td className="px-3 py-2">{p.invoice_name || '—'}</td>
                   </tr>
@@ -1189,6 +1246,147 @@ const handleMakePayment = async (
     <CreditCard className="w-3 h-3" /> Make Payment
   </button>
 )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <SharedModals />
+      </div>
+    )
+  }
+
+  // IOP Balances View (Patient Visit with visit type IOP)
+  if (currentView === 'iop') {
+    const totalOutstanding = iopBalances.reduce((sum, b) => sum + b.outstanding_amount, 0)
+    const totalOverdue = iopBalances.filter(b => b.days_overdue > 0).reduce((sum, b) => sum + b.outstanding_amount, 0)
+    const totalPaid = iopBalances.reduce((sum, b) => sum + b.total_paid, 0)
+
+    return (
+      <div className="space-y-6">
+        <NavigationRow />
+        <DateFiltersPanel />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard title="Total Outstanding" value={formatCurrency(totalOutstanding)} subValue={`Across ${iopBalances.length} IOP visits`} icon={AlertCircle} color="bg-red-50 text-red-600" />
+          <StatCard title="Overdue Amount" value={formatCurrency(totalOverdue)} subValue={`${iopBalances.filter(b => b.days_overdue > 0).length} overdue`} icon={Clock} color="bg-orange-50 text-orange-600" />
+          <StatCard title="Total Paid" value={formatCurrency(totalPaid)} subValue="Across all IOP visits" icon={CheckCircle} color="bg-green-50 text-green-600" />
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <span className="text-sm text-slate-600 mr-2">Filter:</span>
+          <FilterButton label="All" active={iopFilter === 'all'} onClick={() => setIopFilter('all')} color="bg-slate-600" />
+          <FilterButton label="Unpaid" active={iopFilter === 'unpaid'} onClick={() => setIopFilter('unpaid')} color="bg-orange-600" />
+          <FilterButton label="Partial" active={iopFilter === 'partial'} onClick={() => setIopFilter('partial')} color="bg-yellow-600" />
+          <FilterButton label="Paid" active={iopFilter === 'paid'} onClick={() => setIopFilter('paid')} color="bg-green-600" />
+          <FilterButton label="Overdue" active={iopFilter === 'overdue'} onClick={() => setIopFilter('overdue')} color="bg-red-600" />
+        </div>
+
+        {filteredIop.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+            <Activity className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
+            <p className="text-slate-500">No IOP visit balances found</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredIop.map((balance) => {
+              const status = getBalanceStatusColor(balance)
+              const percentagePaid = balance.total_amount > 0 ? (balance.total_paid / balance.total_amount) * 100 : 0
+              const isLoading = loadingInvoices === balance.visit_id
+
+              return (
+                <div key={balance.visit_id} className={`bg-white rounded-xl border ${status.border} p-5 hover:shadow-md transition-all`}>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${status.badge.replace('bg-', 'bg-')}`} />
+                        <h3 className="font-semibold text-slate-900">{balance.patient_name}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-violet-100 text-violet-800">IOP</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${status.badge}`}>{status.label}</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                        <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
+                        <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
+                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
+                        {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
+                      </div>
+                    </div>
+                    <div className="text-right min-w-[180px]">
+                      <p className="text-xs text-slate-400">Total Charges</p>
+                      <p className="text-lg font-bold text-slate-900">{formatCurrency(balance.total_amount)}</p>
+                      <div className="mt-1">
+                        <p className="text-xs text-green-600">Paid: {formatCurrency(balance.total_paid)}</p>
+                        <p className={`text-xs font-medium ${balance.outstanding_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          Outstanding: {formatCurrency(balance.outstanding_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {balance.total_amount > 0 && (
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>Payment Progress</span>
+                        <span>{percentagePaid.toFixed(1)}% paid</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`}
+                          style={{ width: `${percentagePaid}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        void openInvoiceForHealthcareReference(
+                          balance.visit_id,
+                          'Patient Visit',
+                          balance.latest_invoice_name
+                        )
+                      }
+                      disabled={isLoading}
+                      className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      title="Open invoice details (slide-over)"
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-3 h-3 animate-spin" />
+                      ) : (
+                        <Receipt className="w-3 h-3" />
+                      )}
+                      View invoice
+                    </button>
+                    {balance.latest_invoice_name ? (
+                      <PrintFormatDropdown
+                        doctype="Sales Invoice"
+                        docName={balance.latest_invoice_name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      />
+                    ) : null}
+                    {balance.outstanding_amount > 0 && (
+                      <button
+                        onClick={() =>
+                          handleMakePayment(
+                            balance.visit_id,
+                            balance.patient_name,
+                            balance.outstanding_amount,
+                            'Patient Visit',
+                            balance.patient_id
+                          )
+                        }
+                        className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                        title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
+                      >
+                        <CreditCard className="w-3 h-3" /> Make Payment
+                      </button>
+                    )}
                   </div>
                 </div>
               )

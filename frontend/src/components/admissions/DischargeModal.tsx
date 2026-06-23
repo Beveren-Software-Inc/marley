@@ -177,8 +177,8 @@ const DISCHARGE_TAB_DEFINITIONS: {
   },
   {
     id: 'charges',
-    label: 'Extra Charges',
-    shortLabel: 'Extra',
+    label: 'Room Charges',
+    shortLabel: 'Room',
     Icon: Receipt,
     borderColor: 'border-amber-500',
     activeBg: 'bg-amber-50/80',
@@ -912,7 +912,10 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     next_appointment_date: '',
     next_appointment_time: '',
     today_charge: 0,
+    room_charge_today: 0,
+    room_charge_service_unit: '',
     room_charges: 0,
+    medical_supervision_amount: 0,
     today_charge_sales_order: '',
     ip_case_management: 0,
     ip_case_management_fee: 0,
@@ -941,6 +944,12 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [obsRoomQuery, setObsRoomQuery] = useState('')
   const [selectedObsRoom, setSelectedObsRoom] = useState<ServiceUnit | null>(null)
   const [obsRoomLoading, setObsRoomLoading] = useState(false)
+  const [roomChargeRoomOptions, setRoomChargeRoomOptions] = useState<ServiceUnit[]>([])
+  const [roomChargeRoomOpen, setRoomChargeRoomOpen] = useState(false)
+  const [roomChargeRoomQuery, setRoomChargeRoomQuery] = useState('')
+  const [selectedRoomChargeRoom, setSelectedRoomChargeRoom] = useState<ServiceUnit | null>(null)
+  const [roomChargeRoomLoading, setRoomChargeRoomLoading] = useState(false)
+  const [extraChargeSalesOrders, setExtraChargeSalesOrders] = useState<Record<string, string>>({})
   const [obsDepartmentOptions, setObsDepartmentOptions] = useState<LinkFieldOption[]>([])
   const [obsDepartmentOpen, setObsDepartmentOpen] = useState(false)
   const [obsDepartmentQuery, setObsDepartmentQuery] = useState('')
@@ -1262,6 +1271,15 @@ const loadDailyVisitSetup = async () => {
             setObsRoomQuery(obsRoom)
           }
 
+          const roomChargeUnit = fdStr('room_charge_service_unit')
+          if (roomChargeUnit) {
+            setSelectedRoomChargeRoom({
+              name: roomChargeUnit,
+              healthcare_service_unit_name: roomChargeUnit,
+            } as ServiceUnit)
+            setRoomChargeRoomQuery(roomChargeUnit)
+          }
+
           const obsPractitioner = fdStr('observation_practitioner')
           if (obsPractitioner) {
             const pract = pickLink(obsPractitioner, doctors)
@@ -1432,6 +1450,15 @@ const loadDailyVisitSetup = async () => {
               serverDraft.patient_documents as PatientDocumentRow[] | undefined,
               serverDraft.patient_relatives as typeof relatives | undefined
             )
+            if (serverDraft.extra_charges?.length) {
+              const orders: Record<string, string> = {}
+              for (const row of serverDraft.extra_charges) {
+                if (row.charge_type && row.sales_order) {
+                  orders[row.charge_type] = row.sales_order
+                }
+              }
+              setExtraChargeSalesOrders(orders)
+            }
             const fd = serverDraft.form_data
             const hasNurseTemplate = Boolean((fd.nurse_discharge_template || '').trim())
             const localDraft = loadDischargeDraft(admission.name)
@@ -1796,6 +1823,23 @@ const loadDailyVisitSetup = async () => {
   }, [obsRoomQuery, obsRoomOpen, formData.discharge_to_observation])
 
   useEffect(() => {
+    if (!roomChargeRoomOpen || !Number(formData.room_charge_today)) return
+    const search = async () => {
+      setRoomChargeRoomLoading(true)
+      try {
+        const results = await fetchServiceUnits(roomChargeRoomQuery.trim() || undefined, 'Vacant')
+        setRoomChargeRoomOptions(results)
+      } catch {
+        setRoomChargeRoomOptions([])
+      } finally {
+        setRoomChargeRoomLoading(false)
+      }
+    }
+    const id = setTimeout(search, roomChargeRoomQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(id)
+  }, [roomChargeRoomQuery, roomChargeRoomOpen, formData.room_charge_today])
+
+  useEffect(() => {
     if (!obsDepartmentOpen || !Number(formData.discharge_to_observation)) return
     const search = async () => {
       try {
@@ -2042,8 +2086,23 @@ const loadDailyVisitSetup = async () => {
 
     if (!validateObservationIfEnabled()) return
 
-    if (Number(formData.today_charge) && (!formData.room_charges || Number(formData.room_charges) <= 0)) {
-      setError('Room Charges must be greater than zero when charging for today')
+    if (Number(formData.room_charge_today)) {
+      if (!formData.room_charge_service_unit) {
+        setError('Room is required when Room Charge Today is enabled')
+        setActiveTab('charges')
+        return
+      }
+      if (!formData.room_charges || Number(formData.room_charges) <= 0) {
+        setError('Room Charges amount must be greater than zero')
+        setActiveTab('charges')
+        return
+      }
+    }
+    if (
+      Number(formData.today_charge) &&
+      (!formData.medical_supervision_amount || Number(formData.medical_supervision_amount) <= 0)
+    ) {
+      setError('Medical Supervision Amount must be greater than zero')
       setActiveTab('charges')
       return
     }
@@ -2197,11 +2256,24 @@ const loadDailyVisitSetup = async () => {
   }
 
   const validateChargeIfEnabled = (): boolean => {
-    if (!Number(formData.today_charge)) return true
-    if (!formData.room_charges || Number(formData.room_charges) <= 0) {
-      setError('Room Charges must be greater than zero when charging for today')
-      setActiveTab('charges')
-      return false
+    if (Number(formData.room_charge_today)) {
+      if (!formData.room_charge_service_unit) {
+        setError('Room is required when Room Charge Today is enabled')
+        setActiveTab('charges')
+        return false
+      }
+      if (!formData.room_charges || Number(formData.room_charges) <= 0) {
+        setError('Room Charges amount must be greater than zero')
+        setActiveTab('charges')
+        return false
+      }
+    }
+    if (Number(formData.today_charge)) {
+      if (!formData.medical_supervision_amount || Number(formData.medical_supervision_amount) <= 0) {
+        setError('Medical Supervision Amount must be greater than zero')
+        setActiveTab('charges')
+        return false
+      }
     }
     return true
   }
@@ -2209,12 +2281,22 @@ const loadDailyVisitSetup = async () => {
   const applyServerDraftChargeResult = (result: {
     today_charge_sales_order?: string
     charge_sales_order?: string
+    charge_sales_orders?: Record<string, string>
   }) => {
-    const so = result.today_charge_sales_order || result.charge_sales_order
+    const orders = { ...extraChargeSalesOrders, ...(result.charge_sales_orders || {}) }
+    const so =
+      result.today_charge_sales_order ||
+      result.charge_sales_order ||
+      orders['Room Charges'] ||
+      orders['Medical Supervision'] ||
+      orders.Observation
+    if (result.charge_sales_orders) {
+      setExtraChargeSalesOrders(orders)
+    }
     if (so) {
       setFormData((prev) => ({
         ...prev,
-        today_charge_sales_order: so,
+        today_charge_sales_order: orders['Room Charges'] || prev.today_charge_sales_order,
       }))
     }
   }
@@ -2261,9 +2343,16 @@ const loadDailyVisitSetup = async () => {
       setFormData((prev) => ({
         ...prev,
         today_charge: 0,
+        medical_supervision_amount: 0,
+        room_charge_today: 0,
+        room_charge_service_unit: '',
         room_charges: 0,
+        charge_observation_today: 0,
         today_charge_sales_order: '',
       }))
+      setSelectedRoomChargeRoom(null)
+      setRoomChargeRoomQuery('')
+      setExtraChargeSalesOrders({})
       persistLocalDischargeDraft()
       toast.success(result?.message || 'Today charge deleted', 5000)
       setActiveTab('details')
@@ -2358,7 +2447,11 @@ const loadDailyVisitSetup = async () => {
   const ActiveSectionIcon = activeTabMeta.Icon
   const isObservationTabActive =
     activeTab === 'observation' && Number(formData.discharge_to_observation) === 1
-  const isChargesTabActive = activeTab === 'charges' && Number(formData.today_charge) === 1
+  const isChargesTabActive =
+    activeTab === 'charges' &&
+    (Number(formData.room_charge_today) === 1 ||
+      Number(formData.today_charge) === 1 ||
+      Number(formData.charge_observation_today) === 1)
   const observationActionBusy = savingObservation || deletingObservation
   const chargeActionBusy = savingCharge || deletingCharge
   const tabActionBusy = observationActionBusy || chargeActionBusy
@@ -3415,40 +3508,180 @@ const loadDailyVisitSetup = async () => {
             </div>
           )}
 
-          {/* ── TAB: CHARGES ── */}
+          {/* ── TAB: ROOM CHARGES ── */}
           {canViewDischargeTabPanel('charges') && (
             <div className="p-6 space-y-6">
               <p className="text-sm text-slate-600">
-                Reception only — confirm extra charges for today and any additional inpatient fees.
-                Use Proceed and charge to save and create a Sales Order without leaving this section.
+                Reception only — confirm room, observation, and medical supervision charges for today.
+                Use Proceed and charge to save and create Sales Orders without leaving this section.
               </p>
-              {formData.today_charge_sales_order ? (
-                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
-                  Linked charge order:{' '}
-                  <span className="font-medium">{formData.today_charge_sales_order}</span>
-                  {' '}— saving again will update the amount, not create a duplicate.
+              {Object.keys(extraChargeSalesOrders).length > 0 ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900 space-y-1">
+                  <p className="font-medium">Linked charge orders</p>
+                  {Object.entries(extraChargeSalesOrders).map(([type, so]) => (
+                    <p key={type}>
+                      {type}: <span className="font-medium">{so}</span>
+                    </p>
+                  ))}
+                  <p className="text-xs text-green-800 pt-1">
+                    Saving again will update amounts where possible, not create duplicates.
+                  </p>
                 </div>
               ) : null}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+              <div className="space-y-4 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <h3 className="text-sm font-semibold text-slate-800">Observation charge</h3>
                 <YesNoField
-                  label="Charge for today?"
-                  value={checkToYesNo(formData.today_charge)}
-                  onChange={(v) => setFormData((prev) => ({ ...prev, today_charge: v === 'Yes' ? 1 : 0 }))}
-                  required
+                  label="Charge observation today?"
+                  value={checkToYesNo(formData.charge_observation_today)}
+                  onChange={(v) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      charge_observation_today: v === 'Yes' ? 1 : 0,
+                    }))
+                  }
                 />
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Room Charges</label>
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={formData.room_charges || ''}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, room_charges: Number(e.target.value) || 0 }))
+                {Number(formData.charge_observation_today) ? (
+                  <p className="text-xs text-slate-500">
+                    Observation details are completed on the Observation tab. A Sales Order is created when
+                    an observation record is linked.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="space-y-4 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <h3 className="text-sm font-semibold text-slate-800">Room charges</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <YesNoField
+                    label="Room charge today?"
+                    value={checkToYesNo(formData.room_charge_today)}
+                    onChange={(v) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        room_charge_today: v === 'Yes' ? 1 : 0,
+                        room_charge_service_unit: v === 'Yes' ? prev.room_charge_service_unit : '',
+                      }))
                     }
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
+                  {Number(formData.room_charge_today) ? (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Room <span className="text-red-500">*</span>
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="text"
+                            value={
+                              selectedRoomChargeRoom
+                                ? selectedRoomChargeRoom.healthcare_service_unit_name ||
+                                  selectedRoomChargeRoom.name
+                                : roomChargeRoomQuery
+                            }
+                            onChange={(e) => {
+                              setRoomChargeRoomQuery(e.target.value)
+                              setRoomChargeRoomOpen(true)
+                              setSelectedRoomChargeRoom(null)
+                              setFormData((prev) => ({ ...prev, room_charge_service_unit: '' }))
+                            }}
+                            onFocus={() => setRoomChargeRoomOpen(true)}
+                            placeholder="Search room..."
+                            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                          />
+                          {roomChargeRoomOpen && (
+                            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                              {roomChargeRoomLoading ? (
+                                <div className="px-3 py-2 text-sm text-slate-500">Loading...</div>
+                              ) : roomChargeRoomOptions.length > 0 ? (
+                                roomChargeRoomOptions.map((unit) => (
+                                  <button
+                                    key={unit.name}
+                                    type="button"
+                                    onClick={() => {
+                                      setSelectedRoomChargeRoom(unit)
+                                      setRoomChargeRoomQuery(
+                                        unit.healthcare_service_unit_name || unit.name
+                                      )
+                                      setRoomChargeRoomOpen(false)
+                                      setFormData((prev) => ({
+                                        ...prev,
+                                        room_charge_service_unit: unit.name,
+                                      }))
+                                    }}
+                                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                                  >
+                                    {unit.healthcare_service_unit_name || unit.name}
+                                  </button>
+                                ))
+                              ) : (
+                                <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Room Charges amount <span className="text-red-500">*</span>
+                        </label>
+                        <input
+                          type="number"
+                          min={0}
+                          step="0.01"
+                          value={formData.room_charges || ''}
+                          onChange={(e) =>
+                            setFormData((prev) => ({
+                              ...prev,
+                              room_charges: Number(e.target.value) || 0,
+                            }))
+                          }
+                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    </>
+                  ) : null}
                 </div>
+              </div>
+
+              <div className="space-y-4 border border-slate-200 rounded-lg p-4 bg-slate-50/50">
+                <h3 className="text-sm font-semibold text-slate-800">Medical supervision</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <YesNoField
+                    label="Medical supervision charge today?"
+                    value={checkToYesNo(formData.today_charge)}
+                    onChange={(v) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        today_charge: v === 'Yes' ? 1 : 0,
+                        medical_supervision_amount:
+                          v === 'Yes' ? prev.medical_supervision_amount : 0,
+                      }))
+                    }
+                  />
+                  {Number(formData.today_charge) ? (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Medical Supervision Amount <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        step="0.01"
+                        value={formData.medical_supervision_amount || ''}
+                        onChange={(e) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            medical_supervision_amount: Number(e.target.value) || 0,
+                          }))
+                        }
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-4">
                 <YesNoField
                   label="IP Case Management?"
                   value={checkToYesNo(formData.ip_case_management)}
@@ -4382,7 +4615,7 @@ const loadDailyVisitSetup = async () => {
                 </>
               ) : isChargesTabActive ? (
                 <>
-                  {formData.today_charge_sales_order ? (
+                  {Object.keys(extraChargeSalesOrders).length > 0 ? (
                     <button
                       type="button"
                       onClick={handleDeleteCharge}
@@ -4390,7 +4623,7 @@ const loadDailyVisitSetup = async () => {
                       className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="w-4 h-4" />
-                      {deletingCharge ? 'Deleting…' : 'Delete charge'}
+                      {deletingCharge ? 'Deleting…' : 'Delete charges'}
                     </button>
                   ) : null}
                   <button

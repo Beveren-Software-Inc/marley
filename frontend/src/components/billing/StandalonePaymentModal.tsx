@@ -21,6 +21,8 @@ import {
 } from '../../services/paymentEntry'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
+import { useAuth } from '../../providers/AuthProvider'
+import { isReceptionRole } from '../../config/permissions'
 import {
   linkComboboxDropdownClass,
   linkComboboxEmptyPanelClass,
@@ -137,6 +139,13 @@ export function StandalonePaymentModal({
 }: StandalonePaymentModalProps) {
   const moneyInput = useMoneyInputConfig()
   const formatMoney = useFormatMoney()
+  const { user } = useAuth()
+  const isReceptionUser = useMemo(() => {
+    const roles = user?.roles?.length
+      ? user.roles
+      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+    return isReceptionRole(roles)
+  }, [user])
 
   const [paymentMode, setPaymentMode] = useState<PaymentMode>('single')
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
@@ -441,7 +450,12 @@ export function StandalonePaymentModal({
           mode_of_payment: modeOfPayment,
           remarks: remarks.trim() || undefined,
         })
-        toast.success(result.server_message || `Refund ${result.name} recorded`)
+        toast.success(
+          result.server_message ||
+            (result.is_draft
+              ? `Refund draft ${result.name} saved`
+              : `Refund ${result.name} recorded`)
+        )
       } else {
         const selectedReference = referenceType === 'Sales Invoice' ? selectedInvoice : selectedOrder
         if (!selectedReference) {
@@ -747,6 +761,12 @@ export function StandalonePaymentModal({
               <span>
                 Return excess patient credit. Available credit:{' '}
                 <strong>{formatMoney(creditBalance)}</strong>
+                {isReceptionUser ? (
+                  <>
+                    {' '}
+                    — saved as a draft Payment Entry for finance to submit after cash is paid out.
+                  </>
+                ) : null}
               </span>
             </div>
           )}
@@ -825,7 +845,9 @@ export function StandalonePaymentModal({
               {loading
                 ? 'Processing…'
                 : paymentMode === 'refund'
-                  ? 'Process refund'
+                  ? isReceptionUser
+                    ? 'Save refund draft'
+                    : 'Process refund'
                   : 'Create payment'}
             </button>
           </div>

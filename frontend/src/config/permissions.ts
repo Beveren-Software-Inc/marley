@@ -225,6 +225,13 @@ export function isNurseRole(roles: string[] | undefined): boolean {
   return hasExactRole(roles, ['Nurse']) || roleMatches(roles, (r) => r.includes('nurse') || r.includes('nursing'))
 }
 
+/** Nurse, physician/doctor, or admin — may view clinical summary and clinical history cards. */
+export function canViewClinicalPatientHistory(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return isDoctorRole(roles) || isNurseRole(roles)
+}
+
 /** Lines without a department on the checklist master (e.g. billing). */
 export function canEditUnassignedDischargeChecklistLine(roles: string[] | undefined): boolean {
   if (!roles?.length) return false

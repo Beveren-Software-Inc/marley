@@ -693,6 +693,14 @@ export interface ServerDischargeDraft {
   nursing_checklist?: unknown[]
   patient_documents?: unknown[]
   patient_relatives?: unknown[]
+  extra_charges?: Array<{
+    charge_type?: string
+    charge_today?: number
+    service_unit?: string
+    amount?: number
+    sales_order?: string
+    item_code?: string
+  }>
 }
 
 export async function fetchDischargeDraftForAdmission(
@@ -716,6 +724,7 @@ export async function saveDischargeDraftToServer(
   sales_order?: string
   today_charge_sales_order?: string
   charge_sales_order?: string
+  charge_sales_orders?: Record<string, string>
 }> {
   return apiRequest(
     '/api/method/healthcare.api.inpatient_admission.save_discharge_draft',

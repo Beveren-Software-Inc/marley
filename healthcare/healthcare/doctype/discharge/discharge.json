@@ -75,6 +75,10 @@
   "ip_case_management",
   "ip_case_management_fee",
   "room_charges",
+  "room_charge_today",
+  "room_charge_service_unit",
+  "medical_supervision_amount",
+  "extra_charges",
   "today_charge_sales_order",
   "today_charge_obs",
   "discharge_to_observation",
@@ -474,7 +478,7 @@
    "default": "0",
    "fieldname": "today_charge",
    "fieldtype": "Check",
-   "label": "Today Charge"
+   "label": "Medical Supervision Charge"
   },
   {
    "default": "0",
@@ -492,6 +496,32 @@
    "fieldname": "room_charges",
    "fieldtype": "Currency",
    "label": "Room Charges"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.room_charge_today",
+   "fieldname": "room_charge_today",
+   "fieldtype": "Check",
+   "label": "Room Charge Today"
+  },
+  {
+   "depends_on": "eval:doc.room_charge_today",
+   "fieldname": "room_charge_service_unit",
+   "fieldtype": "Link",
+   "label": "Room",
+   "options": "Healthcare Service Unit"
+  },
+  {
+   "depends_on": "eval:doc.today_charge",
+   "fieldname": "medical_supervision_amount",
+   "fieldtype": "Currency",
+   "label": "Medical Supervision Amount"
+  },
+  {
+   "fieldname": "extra_charges",
+   "fieldtype": "Table",
+   "label": "Extra Charges",
+   "options": "Discharge Extra Charge"
   },
   {
    "fieldname": "today_charge_sales_order",

@@ -101,6 +101,76 @@ def create_iop_day(data):
 
 
 @frappe.whitelist()
+def update_iop_day(name, data=None, sessions=None):
+	"""Update IOP Day sessions and optional company / cost center."""
+	if not name:
+		frappe.throw(_("IOP Day is required"))
+	if isinstance(data, str):
+		data = json.loads(data) if data else {}
+	if not isinstance(data, dict):
+		data = {}
+	if sessions is None and "sessions" in data:
+		sessions = data.get("sessions")
+
+	doc = frappe.get_doc("IOP Day", name)
+	if "company" in data:
+		doc.company = data.get("company") or None
+	if "cost_center" in data:
+		doc.cost_center = data.get("cost_center") or None
+	if sessions is not None:
+		valid_sessions = [s for s in (sessions or []) if (s.get("session_type") or "").strip()]
+		if not valid_sessions:
+			frappe.throw(_("Add at least one session with a Healthcare Service"))
+		doc.sessions = []
+		for s in valid_sessions:
+			doc.append(
+				"sessions",
+				{
+					"session_type": s.get("session_type"),
+					"from_time": s.get("from_time"),
+					"to_time": s.get("to_time"),
+				},
+			)
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {
+		"name": doc.name,
+		"posting_date": doc.posting_date,
+		"sessions": _enrich_sessions_with_template_details(
+			[
+				{
+					"session_type": s.session_type,
+					"from_time": str(s.from_time) if s.from_time else None,
+					"to_time": str(s.to_time) if s.to_time else None,
+				}
+				for s in (doc.sessions or [])
+			]
+		),
+	}
+
+
+@frappe.whitelist()
+def delete_iop_day(name):
+	"""Delete an IOP Day when it has no enrollments."""
+	if not name:
+		frappe.throw(_("IOP Day is required"))
+	if not frappe.db.exists("IOP Day", name):
+		frappe.throw(_("IOP Day {0} not found").format(name))
+
+	enrollment_count = frappe.db.count("IOP Enrollment", {"iop_day": name})
+	if enrollment_count:
+		frappe.throw(
+			_("Cannot delete IOP Day with {0} enrollment(s). Remove or reassign enrollments first.").format(
+				enrollment_count
+			)
+		)
+
+	frappe.delete_doc("IOP Day", name, ignore_permissions=True)
+	frappe.db.commit()
+	return {"message": _("IOP Day deleted")}
+
+
+@frappe.whitelist()
 def get_iop_session_types():
 	"""List IOP Session Types for dropdowns."""
 	return frappe.get_all(

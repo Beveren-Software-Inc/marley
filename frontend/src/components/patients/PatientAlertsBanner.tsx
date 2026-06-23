@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { X, AlertTriangle, FileText, Plus } from 'lucide-react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../services/patients'
@@ -6,6 +6,8 @@ import { CreateWarningMessageModal } from '../warnings/CreateWarningMessageModal
 import { CreatePatientMedicalHistoryModal } from '../medicalHistory/CreatePatientMedicalHistoryModal'
 import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHistoryUtils'
 import { toast } from '../../hooks/useToast'
+import { useAuth } from '../../providers/AuthProvider'
+import { canViewClinicalPatientHistory } from '../../config/permissions'
 
 const stripHtml = (html: string | undefined): string => {
   if (!html) return '-'
@@ -35,6 +37,13 @@ export const PatientAlertsBanner = ({
   enforceWarnings = false,
   onDismissabilityChange,
 }: PatientAlertsBannerProps) => {
+  const { user } = useAuth()
+  const canViewClinical = useMemo(() => {
+    const roles = user?.roles?.length
+      ? user.roles
+      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+    return canViewClinicalPatientHistory(roles)
+  }, [user])
   const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(patient)
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistory | null>(null)
   const [medicalLoading, setMedicalLoading] = useState(false)
@@ -42,7 +51,7 @@ export const PatientAlertsBanner = ({
   const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
 
   useEffect(() => {
-    if (!patient) {
+    if (!patient || !canViewClinical) {
       setMedicalHistory(null)
       return
     }
@@ -58,7 +67,7 @@ export const PatientAlertsBanner = ({
       }
     }
     load()
-  }, [patient])
+  }, [patient, canViewClinical])
 
   const hasWarnings = warnings.length > 0
   const canDismiss = enforceWarnings ? !warningsLoading && hasWarnings : true
@@ -126,7 +135,7 @@ export const PatientAlertsBanner = ({
             </button>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 p-4 bg-green-50">
+          <div className={`grid gap-4 p-4 bg-green-50 ${canViewClinical ? 'sm:grid-cols-2' : ''}`}>
             {/* Warnings & Allergies */}
             <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
@@ -163,7 +172,7 @@ export const PatientAlertsBanner = ({
               )}
             </div>
 
-            {/* Medical History summary */}
+            {canViewClinical && (
             <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
               <div className="mb-2 flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
@@ -240,6 +249,7 @@ export const PatientAlertsBanner = ({
                 <p className="text-sm text-slate-500">No past medical history recorded.</p>
               )}
             </div>
+            )}
           </div>
         </div>
       </div>

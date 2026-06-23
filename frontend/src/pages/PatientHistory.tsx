@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { useCareContext } from '../providers/CareContextProvider'
 import { observationsAllowedForMode } from '../config/costCenterCareScope'
+import { canViewClinicalPatientHistory } from '../config/permissions'
+import { useAuth } from '../providers/AuthProvider'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
@@ -31,6 +33,7 @@ import { useFormatMoney } from '../hooks/useFormatMoney'
 
 export const PatientHistoryPage = () => {
   const formatCurrency = useFormatMoney()
+  const { user } = useAuth()
   const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, mode } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
@@ -38,6 +41,19 @@ export const PatientHistoryPage = () => {
   const [summary, setSummary] = useState<PatientHistorySummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'general' | 'admission'>('general')
+
+  const canViewClinical = useMemo(() => {
+    const roles = user?.roles?.length
+      ? user.roles
+      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+    return canViewClinicalPatientHistory(roles)
+  }, [user])
+
+  useEffect(() => {
+    if (!canViewClinical && activeTab === 'admission') {
+      setActiveTab('general')
+    }
+  }, [canViewClinical, activeTab])
 
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -111,20 +127,22 @@ export const PatientHistoryPage = () => {
             >
               General
             </button>
-            <button
-              type="button"
-              onClick={() => setActiveTab('admission')}
-              className={`rounded-md px-4 py-2 text-sm font-medium transition ${
-                activeTab === 'admission'
-                  ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              Clinical summary
-            </button>
+            {canViewClinical && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('admission')}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                  activeTab === 'admission'
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Clinical summary
+              </button>
+            )}
           </div>
 
-          {activeTab === 'admission' ? (
+          {canViewClinical && activeTab === 'admission' ? (
             <LastAdmissionClinicalTab patient={selectedPatient} />
           ) : (
             <>
@@ -218,14 +236,16 @@ export const PatientHistoryPage = () => {
           </section>
 
           {/* Content cards - show ALL history regardless of mode */}
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
+          <div className={`grid gap-4 auto-rows-fr ${canViewClinical ? 'md:grid-cols-2' : 'max-w-xl'}`}>
             <DashboardCard fixedHeight title="Warnings & Allergies">
               <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
-            <DashboardCard fixedHeight title="Diagnosis Detail">
-              <PatientDiagnosisList patient={selectedPatient} />
-            </DashboardCard>
+            {canViewClinical && (
+              <DashboardCard fixedHeight title="Diagnosis Detail">
+                <PatientDiagnosisList patient={selectedPatient} />
+              </DashboardCard>
+            )}
           </div>
 
           {/* Admissions and Patient Visits - always side by side */}
@@ -239,10 +259,12 @@ export const PatientHistoryPage = () => {
             </DashboardCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
-            <DashboardCard fixedHeight title="Lab Test Reports">
-              <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-            </DashboardCard>
+          <div className={`grid gap-4 auto-rows-fr ${canViewClinical ? 'md:grid-cols-2' : 'max-w-xl'}`}>
+            {canViewClinical && (
+              <DashboardCard fixedHeight title="Lab Test Reports">
+                <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+              </DashboardCard>
+            )}
 
             <DashboardCard fixedHeight title="Discharge Form">
               <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
@@ -259,21 +281,27 @@ export const PatientHistoryPage = () => {
             </DashboardCard>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
-            <DashboardCard fixedHeight title="Vital Signs">
-              <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          {(canViewClinical || observationsAllowedForMode(mode)) && (
+            <div className={`grid gap-4 auto-rows-fr ${canViewClinical && observationsAllowedForMode(mode) ? 'md:grid-cols-2' : 'max-w-xl'}`}>
+              {canViewClinical && (
+                <DashboardCard fixedHeight title="Vital Signs">
+                  <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+                </DashboardCard>
+              )}
+
+              {observationsAllowedForMode(mode) && (
+                <DashboardCard fixedHeight title="Observation">
+                  <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+                </DashboardCard>
+              )}
+            </div>
+          )}
+
+          {canViewClinical && (
+            <DashboardCard noHeightLimit title="Medical History">
+              <MedicalHistoryView patient={selectedPatient} />
             </DashboardCard>
-
-            {observationsAllowedForMode(mode) && (
-              <DashboardCard fixedHeight title="Observation">
-                <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-              </DashboardCard>
-            )}
-          </div>
-
-          <DashboardCard noHeightLimit title="Medical History">
-            <MedicalHistoryView patient={selectedPatient} />
-          </DashboardCard>
+          )}
 
           <DashboardCard noHeightLimit title="Package Details">
             <PackageDetailsList patient={selectedPatient} />
