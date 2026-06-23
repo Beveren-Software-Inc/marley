@@ -708,7 +708,15 @@ export async function fetchDischargeDraftForAdmission(
 export async function saveDischargeDraftToServer(
   admissionName: string,
   dischargeData: Record<string, unknown>
-): Promise<{ name: string; message?: string }> {
+): Promise<{
+  name: string
+  message?: string
+  observation?: string
+  observation_record?: string
+  sales_order?: string
+  today_charge_sales_order?: string
+  charge_sales_order?: string
+}> {
   return apiRequest(
     '/api/method/healthcare.api.inpatient_admission.save_discharge_draft',
     {
@@ -717,6 +725,30 @@ export async function saveDischargeDraftToServer(
         admission_name: admissionName,
         discharge_data: dischargeData,
       }),
+    }
+  )
+}
+
+export async function deleteDischargeObservation(
+  admissionName: string
+): Promise<{ message?: string }> {
+  return apiRequest(
+    '/api/method/healthcare.api.inpatient_admission.delete_discharge_observation',
+    {
+      method: 'POST',
+      body: JSON.stringify({ admission_name: admissionName }),
+    }
+  )
+}
+
+export async function deleteDischargeTodayCharge(
+  admissionName: string
+): Promise<{ message?: string }> {
+  return apiRequest(
+    '/api/method/healthcare.api.inpatient_admission.delete_discharge_today_charge',
+    {
+      method: 'POST',
+      body: JSON.stringify({ admission_name: admissionName }),
     }
   )
 }

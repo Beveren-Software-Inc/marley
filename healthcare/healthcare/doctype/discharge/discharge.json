@@ -75,6 +75,7 @@
   "ip_case_management",
   "ip_case_management_fee",
   "room_charges",
+  "today_charge_sales_order",
   "today_charge_obs",
   "discharge_to_observation",
   "charge_observation_today",
@@ -491,6 +492,13 @@
    "fieldname": "room_charges",
    "fieldtype": "Currency",
    "label": "Room Charges"
+  },
+  {
+   "fieldname": "today_charge_sales_order",
+   "fieldtype": "Link",
+   "label": "Today Charge Sales Order",
+   "options": "Sales Order",
+   "read_only": 1
   },
   {
    "default": "0",

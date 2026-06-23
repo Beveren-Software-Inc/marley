@@ -477,10 +477,10 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 			so.submit()
 		return {"sales_order": so.name, "status": so.status, "existing": True, "billing_date": str(billing_date)}
 
-	if not _observation_is_billable_on_date(obs, billing_date):
-		frappe.throw(
-			_("Observation {0} is not billable on {1}").format(observation_name, billing_date)
-		)
+	# if not _observation_is_billable_on_date(obs, billing_date):
+	# 	frappe.throw(
+	# 		_("Observation {0} is not billable on {1}").format(observation_name, billing_date)
+	# 	)
 
 	if not obs.company:
 		frappe.throw(_("Company is required on Observation {0}").format(observation_name))
