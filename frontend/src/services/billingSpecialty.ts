@@ -112,7 +112,11 @@ export async function cancelOrDeleteSalesInvoice(invoiceName: string): Promise<v
 }
 
 export type SalesInvoiceItemUpdate = {
-  name: string
+  name?: string
+  item_code?: string
+  item_name?: string
+  description?: string
+  uom?: string
   qty?: number
   rate?: number
   discount_amount?: number

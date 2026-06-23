@@ -22,6 +22,8 @@ export interface CreatePaymentEntryResult {
   name: string
   server_message?: string
   unallocated_amount?: number
+  docstatus?: number
+  is_draft?: boolean
 }
 
 export interface PatientBillingBalance {

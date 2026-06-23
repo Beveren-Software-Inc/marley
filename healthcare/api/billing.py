@@ -463,12 +463,14 @@ def get_inpatient_balances(patient=None, from_date=None, to_date=None):
     return balances
 
 
-@frappe.whitelist()
-def get_outpatient_balances(patient=None, from_date=None, to_date=None):
+def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_only=None):
     """
-    Get outpatient balances for all patients or a specific patient
-    Returns list of patient visits with outstanding balances
+    Patient Visit balances with optional IOP filter.
+
+    iop_only: True = IOP visits only, False = non-IOP OP visits, None = all visits.
     """
+    from healthcare.api.care_episode import patient_visit_type_info
+
     visit_filters = {}
     if patient:
         visit_filters["patient"] = patient
@@ -492,11 +494,18 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
             "cost_center",
         ],
     )
-    
+
     balances = []
     today = frappe.utils.today()
-    
+
     for visit in visits:
+        if iop_only is not None:
+            is_iop = patient_visit_type_info(visit.name).get("is_iop_visit")
+            if iop_only and not is_iop:
+                continue
+            if not iop_only and is_iop:
+                continue
+
         inv_filters = _sales_invoice_filters_for_reference(
             "Patient Visit", visit.name, submitted_only=True
         )
@@ -514,12 +523,11 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
                 },
                 fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
             )
-        
+
         total_amount = sum(inv.grand_total for inv in invoices)
         total_paid = sum(inv.grand_total - inv.outstanding_amount for inv in invoices)
         outstanding = sum(inv.outstanding_amount for inv in invoices)
-        
-        # Calculate days overdue
+
         days_overdue = 0
         last_invoice_date = None
         if invoices:
@@ -527,8 +535,8 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
             last_invoice_date = last_invoice.posting_date
             if last_invoice.outstanding_amount > 0:
                 days_overdue = frappe.utils.date_diff(today, last_invoice.posting_date)
-        
-        if total_amount > 0:  # Only include visits with charges
+
+        if total_amount > 0:
             latest_invoice_name = None
             if invoices:
                 latest_invoice_name = max(invoices, key=lambda x: x.posting_date or "").name
@@ -544,13 +552,27 @@ def get_outpatient_balances(patient=None, from_date=None, to_date=None):
                 "total_paid": total_paid,
                 "outstanding_amount": outstanding,
                 "days_overdue": max(0, days_overdue),
-                "last_invoice_date": last_invoice_date
+                "last_invoice_date": last_invoice_date,
             })
-    
-    # Sort by outstanding amount (highest first) and then by days overdue
+
     balances.sort(key=lambda x: (-x["outstanding_amount"], -x["days_overdue"]))
-    
     return balances
+
+
+@frappe.whitelist()
+def get_outpatient_balances(patient=None, from_date=None, to_date=None):
+    """Outpatient (non-IOP) patient visit balances."""
+    return _get_patient_visit_balances(
+        patient=patient, from_date=from_date, to_date=to_date, iop_only=False
+    )
+
+
+@frappe.whitelist()
+def get_iop_balances(patient=None, from_date=None, to_date=None):
+    """IOP patient visit balances (visit type IOP or linked IOP enrollment)."""
+    return _get_patient_visit_balances(
+        patient=patient, from_date=from_date, to_date=to_date, iop_only=True
+    )
 
 
 @frappe.whitelist()
@@ -573,7 +595,8 @@ def get_payment_entries(
     if shift_filter is not None and not shift_filter:
         return []
 
-    conditions = ["pe.docstatus = 1"]
+    # Submitted payments plus draft refund/credit payouts (reception portal saves refunds as draft).
+    conditions = ["(pe.docstatus = 1 OR (pe.docstatus = 0 AND pe.payment_type = 'Pay'))"]
     params = {}
 
     if shift_filter and frappe.get_meta("Payment Entry").has_field(SHIFT_LINK_FIELD):
@@ -640,6 +663,7 @@ def get_payment_entries(
         f"""
         SELECT
             pe.name,
+            pe.docstatus,
             pe.posting_date,
             pe.payment_type,
             pe.mode_of_payment,
@@ -688,12 +712,13 @@ def get_payment_summary(
         receptionist_shift=receptionist_shift,
         filter_by_open_shift=filter_by_open_shift,
     )
+    submitted_rows = [r for r in rows if cint(r.get("docstatus")) == 1]
     total_paid = sum(
         -flt(r.get("paid_amount")) if r.get("payment_type") == "Pay" else flt(r.get("paid_amount"))
-        for r in rows
+        for r in submitted_rows
     )
     by_mode = {}
-    for r in rows:
+    for r in submitted_rows:
         mode = (r.get("mode_of_payment") or "Unknown").strip() or "Unknown"
         signed = -flt(r.get("paid_amount")) if r.get("payment_type") == "Pay" else flt(r.get("paid_amount"))
         if mode not in by_mode:
@@ -703,7 +728,7 @@ def get_payment_summary(
 
     modes = sorted(by_mode.values(), key=lambda x: (-x["amount"], x["mode_of_payment"]))
     return {
-        "payment_count": len(rows),
+        "payment_count": len(submitted_rows),
         "total_paid": total_paid,
         "modes": modes,
     }
@@ -793,7 +818,7 @@ def get_invoice_details(invoice_name):
 
 @frappe.whitelist()
 def update_sales_invoice_items(invoice_name, items):
-    """Update qty, rate, discount, and cost center on draft Sales Invoice lines."""
+    """Update draft Sales Invoice lines — edit existing rows, add new services, remove omitted rows."""
     if not invoice_name:
         frappe.throw(_("Invoice name is required"))
 
@@ -807,39 +832,80 @@ def update_sales_invoice_items(invoice_name, items):
     if doc.docstatus != 0:
         frappe.throw(_("Only draft invoices can be edited"))
 
+    default_cc = (
+        getattr(doc, "custom_created_at", None)
+        or doc.cost_center
+        or ""
+    )
+
+    incoming_names = {
+        (row.get("name") or "").strip()
+        for row in items
+        if isinstance(row, dict) and (row.get("name") or "").strip()
+    }
+    for line in list(doc.items):
+        if line.name not in incoming_names:
+            doc.remove(line)
+
     by_name = {line.name: line for line in doc.items}
-    updated = 0
+    touched = 0
+
     for row in items:
         if not isinstance(row, dict):
             continue
         row_name = (row.get("name") or "").strip()
-        if not row_name or row_name not in by_name:
-            frappe.throw(_("Invoice line not found: {0}").format(row_name or "—"))
+        if row_name:
+            if row_name not in by_name:
+                frappe.throw(_("Invoice line not found: {0}").format(row_name))
+            line = by_name[row_name]
+            if row.get("qty") is not None:
+                qty = flt(row.get("qty"))
+                if qty <= 0:
+                    frappe.throw(_("Quantity must be greater than zero for {0}").format(line.item_code))
+                line.qty = qty
+            if row.get("rate") is not None:
+                line.rate = flt(row.get("rate"))
+            if row.get("discount_amount") is not None:
+                line.discount_amount = flt(row.get("discount_amount"))
+                if line.discount_amount:
+                    line.discount_percentage = 0
+            if row.get("discount_percentage") is not None:
+                line.discount_percentage = flt(row.get("discount_percentage"))
+                if line.discount_percentage:
+                    line.discount_amount = 0
+            cc = row.get("cost_center")
+            if cc is not None and hasattr(line, "cost_center"):
+                line.cost_center = (cc or "").strip() or line.cost_center
+            touched += 1
+            continue
 
-        line = by_name[row_name]
-        if row.get("qty") is not None:
-            qty = flt(row.get("qty"))
-            if qty <= 0:
-                frappe.throw(_("Quantity must be greater than zero for {0}").format(line.item_code))
-            line.qty = qty
-        if row.get("rate") is not None:
-            line.rate = flt(row.get("rate"))
+        item_code = (row.get("item_code") or "").strip()
+        if not item_code:
+            frappe.throw(_("Each new invoice line needs an item"))
+        qty = flt(row.get("qty"))
+        if qty <= 0:
+            frappe.throw(_("Quantity must be greater than zero for {0}").format(item_code))
+        line = {
+            "item_code": item_code,
+            "item_name": row.get("item_name"),
+            "description": row.get("description"),
+            "qty": qty,
+            "rate": flt(row.get("rate")),
+            "cost_center": (row.get("cost_center") or "").strip() or default_cc,
+        }
+        if row.get("uom"):
+            line["uom"] = row.get("uom")
         if row.get("discount_amount") is not None:
-            line.discount_amount = flt(row.get("discount_amount"))
-            if line.discount_amount:
-                line.discount_percentage = 0
-        if row.get("discount_percentage") is not None:
-            line.discount_percentage = flt(row.get("discount_percentage"))
-            if line.discount_percentage:
-                line.discount_amount = 0
-        cc = row.get("cost_center")
-        if cc is not None and hasattr(line, "cost_center"):
-            line.cost_center = (cc or "").strip() or line.cost_center
-        updated += 1
+            line["discount_amount"] = flt(row.get("discount_amount"))
+        doc.append("items", line)
+        touched += 1
 
-    if not updated:
+    if not touched or not doc.items:
         frappe.throw(_("No invoice lines were updated"))
 
+    from healthcare.api.sales_order_cost_center import finalize_sales_invoice_cost_centers
+
+    finalize_sales_invoice_cost_centers(doc, default_cc)
     doc.run_method("calculate_taxes_and_totals")
     doc.save(ignore_permissions=True)
     frappe.db.commit()

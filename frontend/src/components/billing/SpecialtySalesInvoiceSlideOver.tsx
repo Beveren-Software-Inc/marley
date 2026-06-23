@@ -15,6 +15,7 @@ import { canRecordPaymentAgainstSalesInvoice } from '../../utils/specialtyInvoic
 import {
   DraftSalesInvoiceItemsEditor,
   invoiceDetailToEditableLines,
+  newDraftInvoiceLine,
   type DraftInvoiceLineEdit,
 } from './DraftSalesInvoiceItemsEditor'
 import {
@@ -115,7 +116,9 @@ export function SpecialtySalesInvoiceSlideOver({
 
   const startEditing = () => {
     if (!detail) return
-    setEditLines(invoiceDetailToEditableLines(detail))
+    const lines = invoiceDetailToEditableLines(detail)
+    const defaultCc = detail.custom_created_at || detail.cost_center || ''
+    setEditLines(lines.length ? lines : [newDraftInvoiceLine(defaultCc)])
     setEditing(true)
   }
 
@@ -126,16 +129,25 @@ export function SpecialtySalesInvoiceSlideOver({
 
   const handleSaveItems = async () => {
     if (!invoiceName || !editLines.length) return
+    const invalid = editLines.some((line) => !line.item_code?.trim() || line.qty <= 0)
+    if (invalid) {
+      toast.error('Each line needs an item and quantity greater than zero')
+      return
+    }
     try {
       setActionBusy('save')
       const updated = await updateSalesInvoiceItems(
         invoiceName,
         editLines.map((line) => ({
-          name: line.name,
+          ...(line.name ? { name: line.name } : {}),
+          item_code: line.item_code,
+          item_name: line.item_name,
+          description: line.description,
           qty: line.qty,
           rate: line.rate,
           discount_amount: line.discount_amount,
           cost_center: line.cost_center || undefined,
+          uom: line.uom,
         })),
       )
       setDetail(updated)
@@ -394,6 +406,10 @@ export function SpecialtySalesInvoiceSlideOver({
                   lines={editLines}
                   onChange={setEditLines}
                   company={detail.company}
+                  customer={detail.customer}
+                  patient={detail.patient || undefined}
+                  postingDate={detail.posting_date}
+                  defaultCostCenter={detail.custom_created_at || detail.cost_center || ''}
                   disabled={actionBusy === 'save'}
                 />
               ) : (

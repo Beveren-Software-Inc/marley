@@ -132,6 +132,50 @@ export async function createIOPDay(payload: {
   return data.message
 }
 
+export async function updateIOPDay(
+  name: string,
+  payload: {
+    company?: string
+    cost_center?: string
+    sessions: { session_type: string; from_time?: string; to_time?: string }[]
+  },
+): Promise<IOPDayWithSessions> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.iop.update_iop_day', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ name, data: payload }),
+  })
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  if (!data?.message?.name) throw new Error('Failed to update IOP Day')
+  return data.message as IOPDayWithSessions
+}
+
+export async function deleteIOPDay(name: string): Promise<{ message?: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.iop.delete_iop_day', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ name }),
+  })
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return data.message || {}
+}
+
 export async function fetchCompanies(): Promise<{ name: string }[]> {
   const res = await fetch('/api/resource/Company?fields=["name"]&limit_page_length=200')
   const data = await res.json()

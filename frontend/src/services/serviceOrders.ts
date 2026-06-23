@@ -98,6 +98,7 @@ export interface InvoiceSummary {
 
 export interface PaymentEntryRow {
   name: string
+  docstatus?: number
   posting_date: string
   payment_type?: string
   mode_of_payment: string
@@ -527,6 +528,22 @@ export async function fetchOutpatientBalances(patientId?: string, fromDate?: str
   const response = await fetch(url)
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || 'Failed to fetch outpatient balances')
+  return data.message || []
+}
+
+export async function fetchIopBalances(patientId?: string, fromDate?: string, toDate?: string): Promise<OutpatientBalance[]> {
+  let url = '/api/method/healthcare.api.billing.get_iop_balances'
+  const params = new URLSearchParams()
+  if (patientId) params.append('patient', patientId)
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
+  const q = params.toString()
+  if (q) {
+    url += `?${q}`
+  }
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch IOP balances')
   return data.message || []
 }
 
