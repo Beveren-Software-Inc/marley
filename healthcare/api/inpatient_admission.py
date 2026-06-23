@@ -867,7 +867,7 @@ DISCHARGE_CHILD_TABLE_KEYS = frozenset(
 )
 
 # Set only on the server when an observation is first created — never from portal JSON.
-DISCHARGE_SERVER_OWNED_FIELDS = frozenset({"observation_record"})
+DISCHARGE_SERVER_OWNED_FIELDS = frozenset({"observation_record", "today_charge_sales_order"})
 
 DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"discharge_type",
@@ -912,6 +912,7 @@ DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"observation_duration",
 	"observation_note",
 	"observation_record",
+	"today_charge_sales_order",
 )
 
 DISCHARGE_PORTAL_CHECK_FIELDS = frozenset(
@@ -1292,6 +1293,13 @@ def save_discharge_draft(admission_name, discharge_data):
 
 	observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
 	discharge_doc.reload()
+	if cint(discharge_doc.get("discharge_to_observation")) and discharge_doc.get("observation_record"):
+		_sync_observation_from_discharge_if_linked(discharge_doc)
+
+	charge_result = _create_discharge_today_charge_sales_order_if_needed(discharge_doc, admission_name)
+	discharge_doc.reload()
+	if cint(discharge_doc.get("today_charge")) and discharge_doc.get("today_charge_sales_order"):
+		_sync_discharge_charge_sales_order_if_linked(discharge_doc)
 
 	frappe.db.commit()
 
@@ -1301,6 +1309,8 @@ def save_discharge_draft(admission_name, discharge_data):
 	}
 	if discharge_doc.get("observation_record"):
 		response["observation_record"] = discharge_doc.observation_record
+	if discharge_doc.get("today_charge_sales_order"):
+		response["today_charge_sales_order"] = discharge_doc.today_charge_sales_order
 	if observation_result:
 		response["observation"] = observation_result.get("name")
 		response["observation_trans_no"] = observation_result.get("trans_no")
@@ -1318,6 +1328,17 @@ def save_discharge_draft(admission_name, discharge_data):
 				response["message"] = _(
 					"Discharge draft saved. Observation {0} and Sales Order {1} created."
 				).format(observation_result.get("name"), observation_result.get("sales_order"))
+
+	if charge_result:
+		response["charge_sales_order"] = charge_result.get("sales_order")
+		if charge_result.get("existing"):
+			response["message"] = _(
+				"Discharge draft saved. Today charge Sales Order {0} already linked."
+			).format(charge_result.get("sales_order"))
+		else:
+			response["message"] = _(
+				"Discharge draft saved. Today charge Sales Order {0} created."
+			).format(charge_result.get("sales_order"))
 
 	return response
 
@@ -1475,6 +1496,378 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 	}
 
 
+def _sync_observation_from_discharge_if_linked(discharge_doc) -> None:
+	"""Push discharge observation fields onto the linked Observation document."""
+	observation_name = (discharge_doc.get("observation_record") or "").strip()
+	if not observation_name or not frappe.db.exists("Observation", observation_name):
+		return
+
+	obs = frappe.get_doc("Observation", observation_name)
+	if obs.get("dc_date"):
+		return
+
+	new_room = frappe.utils.cstr(discharge_doc.get("observation_room") or "").strip()
+	if new_room and new_room != frappe.utils.cstr(obs.get("room") or "").strip():
+		from healthcare.api.observation import validate_observation_room_available
+
+		validate_observation_room_available(new_room)
+
+	level = (discharge_doc.get("observation_level") or "").strip()
+	if level:
+		obs.observation_level = level
+	if new_room:
+		obs.room = new_room
+
+	obs.note = discharge_doc.get("observation_note") or ""
+	obs.designated_security_personel = discharge_doc.get("observation_designated_security_personel") or ""
+	obs.amount = flt(discharge_doc.get("observation_amount")) or flt(discharge_doc.get("today_charge_obs"))
+	obs.duration = discharge_doc.get("observation_duration") or ""
+
+	start_date = discharge_doc.get("observation_start_date")
+	if start_date:
+		obs.start_date = getdate(start_date)
+
+	practitioner = (
+		discharge_doc.get("observation_practitioner") or discharge_doc.get("discharge_doctor") or ""
+	).strip()
+	if practitioner:
+		obs.healthcare_practitioner = practitioner
+
+	department = (discharge_doc.get("observation_department") or "").strip()
+	if department:
+		obs.medical_department = department
+
+	obs.flags.ignore_permissions = True
+	obs.save()
+
+
+def _persist_discharge_charge_sales_order_link(discharge_doc, sales_order_name: str) -> None:
+	sales_order_name = (sales_order_name or "").strip()
+	if not sales_order_name or not discharge_doc.name:
+		return
+	if discharge_doc.get("today_charge_sales_order") == sales_order_name:
+		return
+	frappe.db.set_value(
+		"Discharge",
+		discharge_doc.name,
+		"today_charge_sales_order",
+		sales_order_name,
+		update_modified=False,
+	)
+	discharge_doc.today_charge_sales_order = sales_order_name
+
+
+def _existing_discharge_charge_sales_order(discharge_name: str) -> str | None:
+	rows = frappe.get_all(
+		"Sales Order",
+		filters={
+			"custom_base_reference": "Discharge",
+			"custom_base_reference_name": discharge_name,
+			"docstatus": ["<", 2],
+		},
+		pluck="name",
+		order_by="creation desc",
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
+def _resolve_discharge_charge_sales_order_link(discharge_doc) -> str | None:
+	linked = (discharge_doc.get("today_charge_sales_order") or "").strip()
+	if linked and frappe.db.exists("Sales Order", linked):
+		return linked
+
+	existing = _existing_discharge_charge_sales_order(discharge_doc.name)
+	if existing:
+		_persist_discharge_charge_sales_order_link(discharge_doc, existing)
+		return existing
+	return None
+
+
+def _resolve_discharge_room_charge_item_code(admission_name: str) -> str:
+	occupancy = frappe.get_all(
+		"Inpatient Occupancy",
+		filters={"parent": admission_name, "left": 0},
+		fields=["service_unit"],
+		order_by="check_in desc",
+		limit=1,
+	)
+	if occupancy and occupancy[0].service_unit:
+		service_unit_name = frappe.db.get_value(
+			"Healthcare Service Unit",
+			occupancy[0].service_unit,
+			"healthcare_service_unit_name",
+		)
+		item_code = (service_unit_name or occupancy[0].service_unit or "").strip()
+		if item_code and frappe.db.exists("Item", item_code):
+			return item_code
+
+	item_code = (
+		frappe.db.get_single_value("Healthcare Settings", "inpatient_visit_charge_item") or ""
+	).strip()
+	if item_code and frappe.db.exists("Item", item_code):
+		return item_code
+
+	frappe.throw(
+		_(
+			"Room charge item is not configured. Set Inpatient Visit Charge Item in Healthcare Settings "
+			"or use a room with a matching Item code."
+		)
+	)
+
+
+def _create_discharge_today_charge_sales_order_if_needed(
+	discharge_doc, admission_name: str
+) -> dict | None:
+	"""When charging for today, create one Sales Order for room charges on this discharge draft."""
+	if not cint(discharge_doc.get("today_charge")):
+		return None
+
+	amount = flt(discharge_doc.get("room_charges"))
+	if amount <= 0:
+		frappe.throw(_("Room Charges must be greater than zero when Charge for today is enabled"))
+
+	existing = _resolve_discharge_charge_sales_order_link(discharge_doc)
+	if existing:
+		return {"sales_order": existing, "existing": True}
+
+	admission = frappe.get_doc("Inpatient Admission", admission_name)
+	patient = discharge_doc.file_no or admission.patient
+	if not patient:
+		frappe.throw(_("Patient is required to create a today charge Sales Order"))
+
+	from healthcare.api.patient_file_no_charge import _ensure_patient_customer
+	from healthcare.api.sales_order_cost_center import (
+		apply_cost_center_to_sales_order,
+		cost_center_from_visit_or_admission,
+	)
+
+	customer = _ensure_patient_customer(patient)
+	company = admission.company or frappe.defaults.get_user_default("Company")
+	if not company:
+		frappe.throw(_("Company is required"))
+
+	item_code = _resolve_discharge_room_charge_item_code(admission_name)
+	billing_date = getdate(discharge_doc.discharge_date or frappe.utils.today())
+	if hasattr(billing_date, "date"):
+		billing_date = billing_date.date()
+	billing_date = getdate(billing_date)
+
+	so = frappe.new_doc("Sales Order")
+	so.company = company
+	so.customer = customer
+	so.patient = patient
+	if hasattr(so, "custom_patient"):
+		so.custom_patient = patient
+	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
+	if patient_name and hasattr(so, "custom_patient_name"):
+		so.custom_patient_name = patient_name
+
+	so.custom_reference_type = "Inpatient Admission"
+	so.custom_reference_name = admission_name
+	so.custom_base_reference = "Discharge"
+	so.custom_base_reference_name = discharge_doc.name
+	so.transaction_date = billing_date
+	so.delivery_date = billing_date
+	so.ignore_pricing_rule = 1
+
+	so.append(
+		"items",
+		{
+			"item_code": item_code,
+			"qty": 1,
+			"rate": amount,
+			"price_list_rate": amount,
+			"description": _("Discharge room charge for {0}").format(billing_date),
+		},
+	)
+
+	cc = cost_center_from_visit_or_admission("Inpatient Admission", admission_name)
+	apply_cost_center_to_sales_order(so, cc)
+
+	so.insert(ignore_permissions=True)
+	so.flags.ignore_permissions = True
+	so.submit()
+
+	_persist_discharge_charge_sales_order_link(discharge_doc, so.name)
+
+	return {"sales_order": so.name, "existing": False}
+
+
+def _sync_discharge_charge_sales_order_if_linked(discharge_doc) -> None:
+	"""Update linked today-charge Sales Order when room charges change."""
+	so_name = _resolve_discharge_charge_sales_order_link(discharge_doc)
+	if not so_name:
+		return
+
+	amount = flt(discharge_doc.get("room_charges"))
+	if amount <= 0:
+		return
+
+	so = frappe.get_doc("Sales Order", so_name)
+	if cint(so.docstatus) == 2:
+		return
+
+	if not so.items:
+		return
+
+	so.items[0].rate = amount
+	so.items[0].price_list_rate = amount
+	so.flags.ignore_permissions = True
+	so.save()
+
+
+def _cancel_discharge_charge_sales_order(discharge_name: str, sales_order_name: str | None = None) -> None:
+	"""Cancel or delete Sales Orders linked to a discharge today charge."""
+	names: list[str] = []
+	if sales_order_name:
+		names = [sales_order_name]
+	else:
+		names = frappe.get_all(
+			"Sales Order",
+			filters={
+				"custom_base_reference": "Discharge",
+				"custom_base_reference_name": discharge_name,
+				"docstatus": ["<", 2],
+			},
+			pluck="name",
+		)
+
+	for so_name in names:
+		try:
+			so = frappe.get_doc("Sales Order", so_name)
+			so.flags.ignore_permissions = True
+			if cint(so.docstatus) == 1:
+				so.cancel()
+			elif cint(so.docstatus) == 0:
+				so.delete()
+		except Exception:
+			frappe.log_error(
+				title=f"Failed to cancel discharge charge Sales Order {so_name}",
+				message=frappe.get_traceback(),
+			)
+
+
+def _clear_discharge_charge_fields(discharge_doc) -> None:
+	for field, value in {
+		"today_charge_sales_order": "",
+		"today_charge": 0,
+		"room_charges": 0,
+	}.items():
+		discharge_doc.set(field, value)
+	discharge_doc.flags.ignore_permissions = True
+	discharge_doc.save()
+
+
+@frappe.whitelist()
+def delete_discharge_today_charge(admission_name):
+	"""Cancel linked today-charge Sales Order and clear charge fields on the draft discharge."""
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	_ensure_discharge_admission_access(admission_name)
+
+	draft_name = _get_draft_discharge_name(admission_name)
+	if not draft_name:
+		frappe.throw(_("No discharge draft found for this admission"))
+
+	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
+	so_name = _resolve_discharge_charge_sales_order_link(discharge_doc)
+	if so_name:
+		_cancel_discharge_charge_sales_order(discharge_doc.name, so_name)
+
+	_clear_discharge_charge_fields(discharge_doc)
+	frappe.db.commit()
+
+	return {"message": _("Today charge deleted")}
+
+
+def _cancel_observation_sales_orders(observation_name: str) -> None:
+	"""Cancel or delete draft Sales Orders linked to an observation."""
+	sos = frappe.get_all(
+		"Sales Order",
+		filters={
+			"custom_base_reference": "Observation",
+			"custom_base_reference_name": observation_name,
+			"docstatus": ["<", 2],
+		},
+		pluck="name",
+	)
+	for so_name in sos:
+		try:
+			so = frappe.get_doc("Sales Order", so_name)
+			so.flags.ignore_permissions = True
+			if cint(so.docstatus) == 1:
+				so.cancel()
+			elif cint(so.docstatus) == 0:
+				so.delete()
+		except Exception:
+			frappe.log_error(
+				title=f"Failed to cancel Sales Order {so_name} for observation {observation_name}",
+				message=frappe.get_traceback(),
+			)
+
+
+def _clear_discharge_observation_fields(discharge_doc) -> None:
+	"""Remove observation setup from a draft discharge."""
+	for field, value in {
+		"observation_record": "",
+		"discharge_to_observation": 0,
+		"charge_observation_today": 0,
+		"observation_level": "",
+		"observation_room": "",
+		"observation_practitioner": "",
+		"observation_department": "",
+		"observation_designated_security_personel": "",
+		"observation_amount": 0,
+		"observation_duration": "",
+		"observation_note": "",
+		"today_charge_obs": 0,
+	}.items():
+		discharge_doc.set(field, value)
+	discharge_doc.flags.ignore_permissions = True
+	discharge_doc.save()
+
+
+@frappe.whitelist()
+def delete_discharge_observation(admission_name):
+	"""Cancel linked observation, clear discharge observation fields, and stay on draft."""
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	_ensure_discharge_admission_access(admission_name)
+
+	draft_name = _get_draft_discharge_name(admission_name)
+	if not draft_name:
+		frappe.throw(_("No discharge draft found for this admission"))
+
+	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
+	observation_name = _resolve_discharge_observation_link(discharge_doc, admission_name)
+
+	if observation_name:
+		obs = frappe.get_doc("Observation", observation_name, ignore_permissions=True)
+		room = frappe.utils.cstr(obs.get("room") or "").strip()
+		has_dc = bool(obs.get("dc_date"))
+
+		_cancel_observation_sales_orders(observation_name)
+
+		obs.flags.ignore_permissions = True
+		if cint(obs.docstatus) == 1:
+			obs.cancel()
+		elif cint(obs.docstatus) == 0:
+			obs.delete()
+
+		if room and not has_dc:
+			from healthcare.healthcare.doctype.observation.observation import vacate_observation_room
+
+			vacate_observation_room(room)
+
+	_clear_discharge_observation_fields(discharge_doc)
+	frappe.db.commit()
+
+	return {"message": _("Observation deleted")}
+
+
 @frappe.whitelist()
 def create_and_submit_discharge(admission_name, discharge_data):
 	"""Create or update draft Discharge, then submit."""
@@ -1492,6 +1885,10 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		discharge_doc.reload()
 
 		observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+		discharge_doc.reload()
+
+		charge_result = _create_discharge_today_charge_sales_order_if_needed(discharge_doc, admission_name)
+		discharge_doc.reload()
 
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.flags.ignore_permissions = True

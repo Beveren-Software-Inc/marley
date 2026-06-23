@@ -235,9 +235,15 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/staff-activity-audit', label: 'Staff Activity Audit', screens: [],                  prefix: '/staff-activity-audit' },
 ]
 
+/** Single-admission discharge — not part of care context; drop when navigating away. */
+function stripInpatientDischargeFlowParams(params: URLSearchParams): void {
+  params.delete('discharge')
+}
+
 /** Keep patient / mode / admission query params when switching sidebar screens. */
 function buildScreenPath(basePath: string, screenId: string, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch)
+  stripInpatientDischargeFlowParams(params)
   params.set('screen', screenId)
   const qs = params.toString()
   return qs ? `${basePath}?${qs}` : basePath
@@ -246,6 +252,7 @@ function buildScreenPath(basePath: string, screenId: string, currentSearch: stri
 /** Role home link: drop screen only, keep care context query params. */
 function buildRoleHomePath(basePath: string, currentSearch: string): string {
   const params = new URLSearchParams(currentSearch)
+  stripInpatientDischargeFlowParams(params)
   params.delete('screen')
   const qs = params.toString()
   return qs ? `${basePath}?${qs}` : basePath

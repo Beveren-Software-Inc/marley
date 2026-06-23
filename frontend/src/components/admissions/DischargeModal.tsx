@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 
 import {
   createDischarge,
+  deleteDischargeObservation,
+  deleteDischargeTodayCharge,
   fetchDischargeDraftForAdmission,
   fetchInpatientRecord,
   fetchServiceUnits,
@@ -747,6 +749,10 @@ function pickDefaultNursingTemplate(
 export const DischargePatientForm = ({ admission, onClose, onSuccess }: DischargePatientFormProps) => {
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
+  const [savingObservation, setSavingObservation] = useState(false)
+  const [deletingObservation, setDeletingObservation] = useState(false)
+  const [savingCharge, setSavingCharge] = useState(false)
+  const [deletingCharge, setDeletingCharge] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
   const [activeTab, setActiveTab] = useState<DischargeTabId>('details')
@@ -907,6 +913,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     next_appointment_time: '',
     today_charge: 0,
     room_charges: 0,
+    today_charge_sales_order: '',
     ip_case_management: 0,
     ip_case_management_fee: 0,
     today_charge_obs: 0,
@@ -967,7 +974,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     }
   }, [visibleTabIds, activeTab])
 
-  const clearObservationFields = useCallback(() => {
+  const clearObservationFields = useCallback((options?: { keepLinkedRecord?: boolean }) => {
     setFormData((prev) => ({
       ...prev,
       discharge_to_observation: 0,
@@ -982,7 +989,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
       observation_duration: '',
       observation_note: '',
       today_charge_obs: 0,
-      // Keep observation_record — the observation document already exists on the server.
+      observation_record: options?.keepLinkedRecord === false ? '' : prev.observation_record,
     }))
     setSelectedObservationLevel(null)
     setObservationLevelQuery('')
@@ -1988,6 +1995,7 @@ const loadDailyVisitSetup = async () => {
     }
     // observation_record is server-owned once created; never send from the portal.
     delete payload.observation_record
+    delete payload.today_charge_sales_order
 
     // Doctors/reception do not load the Nursing tab; omit so Save does not clear nurse work.
     if (visibleTabIds.includes('checklist')) {
@@ -2032,17 +2040,12 @@ const loadDailyVisitSetup = async () => {
       return
     }
 
-    if (Number(formData.discharge_to_observation)) {
-      if (!formData.observation_level) {
-        setError('Observation Level is required when discharging to observation')
-        setActiveTab('observation')
-        return
-      }
-      if (!formData.observation_room) {
-        setError('Observation Room is required when discharging to observation')
-        setActiveTab('observation')
-        return
-      }
+    if (!validateObservationIfEnabled()) return
+
+    if (Number(formData.today_charge) && (!formData.room_charges || Number(formData.room_charges) <= 0)) {
+      setError('Room Charges must be greater than zero when charging for today')
+      setActiveTab('charges')
+      return
     }
 
     try {
@@ -2078,51 +2081,216 @@ const loadDailyVisitSetup = async () => {
     }
   }
 
+  const validateObservationIfEnabled = (): boolean => {
+    if (!Number(formData.discharge_to_observation)) return true
+    if (!formData.observation_level) {
+      setError('Observation Level is required when observation is enabled')
+      setActiveTab('observation')
+      return false
+    }
+    if (!formData.observation_room) {
+      setError('Observation Room is required when observation is enabled')
+      setActiveTab('observation')
+      return false
+    }
+    return true
+  }
+
+  const persistLocalDischargeDraft = () => {
+    saveDischargeDraft(admission.name, {
+      formData,
+      selectedOptions: {
+        dischargeReceptionist: selectedDischargeReceptionist,
+        dischargeDoctor: selectedDischargeDoctor,
+        dischargeNurse: selectedDischargeNurse,
+        dischargeTemplate: selectedDischargeTemplate,
+        nurseTemplate: selectedNurseTemplate,
+        nursingTemplateSource,
+        dischargeReceptionistQuery,
+        dischargeDoctorQuery,
+        dischargeNurseQuery,
+        dischargeTemplateQuery,
+        nurseTemplateQuery,
+      },
+      checklistItems,
+      nurseChecklistItems,
+      documents,
+      relatives,
+    })
+  }
+
+  const applyServerDraftObservationResult = (result: {
+    observation?: string
+    observation_record?: string
+  }) => {
+    if (result?.observation || result?.observation_record) {
+      setFormData((prev) => ({
+        ...prev,
+        observation_record: result.observation_record || result.observation || prev.observation_record,
+      }))
+    }
+  }
+
+  const handleSaveObservation = async () => {
+    setError(null)
+    if (!validateObservationIfEnabled()) return
+
+    try {
+      setSavingObservation(true)
+      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload())
+      persistLocalDischargeDraft()
+      applyServerDraftObservationResult(result)
+      toast.success(
+        result?.message ||
+          (result?.observation
+            ? `Observation saved. ${result.observation}${result.sales_order ? ` · Sales Order ${result.sales_order}` : ''}`
+            : 'Observation saved.'),
+        5000
+      )
+      setActiveTab('observation')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save observation'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
+    } finally {
+      setSavingObservation(false)
+    }
+  }
+
+  const handleDeleteObservation = async () => {
+    if (
+      !window.confirm(
+        'Delete this observation? The linked observation record and any draft sales order will be removed from this discharge.'
+      )
+    ) {
+      return
+    }
+
+    setError(null)
+    try {
+      setDeletingObservation(true)
+      const result = await deleteDischargeObservation(admission.name)
+      clearObservationFields({ keepLinkedRecord: false })
+      setSelectedObservationLevel(null)
+      setObservationLevelQuery('')
+      setSelectedObsRoom(null)
+      setObsRoomQuery('')
+      setSelectedObsDepartment(null)
+      setObsDepartmentQuery('')
+      setSelectedObsPractitioner(null)
+      setObsPractitionerQuery('')
+      persistLocalDischargeDraft()
+      toast.success(result?.message || 'Observation deleted', 5000)
+      setActiveTab('details')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete observation'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
+    } finally {
+      setDeletingObservation(false)
+    }
+  }
+
+  const handleChangeObservation = () => {
+    setActiveTab('details')
+    toast.info('Update Need Observation? in Discharge details to change this choice.', 4000)
+  }
+
+  const validateChargeIfEnabled = (): boolean => {
+    if (!Number(formData.today_charge)) return true
+    if (!formData.room_charges || Number(formData.room_charges) <= 0) {
+      setError('Room Charges must be greater than zero when charging for today')
+      setActiveTab('charges')
+      return false
+    }
+    return true
+  }
+
+  const applyServerDraftChargeResult = (result: {
+    today_charge_sales_order?: string
+    charge_sales_order?: string
+  }) => {
+    const so = result.today_charge_sales_order || result.charge_sales_order
+    if (so) {
+      setFormData((prev) => ({
+        ...prev,
+        today_charge_sales_order: so,
+      }))
+    }
+  }
+
+  const handleProceedAndCharge = async () => {
+    setError(null)
+    if (!validateChargeIfEnabled()) return
+
+    try {
+      setSavingCharge(true)
+      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload())
+      persistLocalDischargeDraft()
+      applyServerDraftChargeResult(result)
+      toast.success(
+        result?.message ||
+          (result.charge_sales_order || result.today_charge_sales_order
+            ? `Charge saved. Sales Order ${result.charge_sales_order || result.today_charge_sales_order}`
+            : 'Charge saved.'),
+        5000
+      )
+      setActiveTab('charges')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save today charge'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
+    } finally {
+      setSavingCharge(false)
+    }
+  }
+
+  const handleDeleteCharge = async () => {
+    if (
+      !window.confirm(
+        'Delete this today charge? The linked Sales Order will be cancelled and removed from this discharge.'
+      )
+    ) {
+      return
+    }
+
+    setError(null)
+    try {
+      setDeletingCharge(true)
+      const result = await deleteDischargeTodayCharge(admission.name)
+      setFormData((prev) => ({
+        ...prev,
+        today_charge: 0,
+        room_charges: 0,
+        today_charge_sales_order: '',
+      }))
+      persistLocalDischargeDraft()
+      toast.success(result?.message || 'Today charge deleted', 5000)
+      setActiveTab('details')
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to delete today charge'
+      toast.error(errorMessage, 5000)
+      setError(errorMessage)
+    } finally {
+      setDeletingCharge(false)
+    }
+  }
+
+  const handleCancelCharges = () => {
+    setActiveTab('details')
+    toast.info('Update charge settings in the Charges tab when you are ready.', 4000)
+  }
+
   const handleSaveAndClose = async () => {
     setError(null)
 
-    if (Number(formData.discharge_to_observation)) {
-      if (!formData.observation_level) {
-        setError('Observation Level is required when observation is enabled')
-        setActiveTab('observation')
-        return
-      }
-      if (!formData.observation_room) {
-        setError('Observation Room is required when observation is enabled')
-        setActiveTab('observation')
-        return
-      }
-    }
+    if (!validateObservationIfEnabled()) return
+    if (!validateChargeIfEnabled()) return
 
     try {
       setSavingDraft(true)
-      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload()) as {
-        message?: string
-        name?: string
-        observation?: string
-        observation_record?: string
-        sales_order?: string
-      }
-      saveDischargeDraft(admission.name, {
-        formData,
-        selectedOptions: {
-          dischargeReceptionist: selectedDischargeReceptionist,
-          dischargeDoctor: selectedDischargeDoctor,
-          dischargeNurse: selectedDischargeNurse,
-          dischargeTemplate: selectedDischargeTemplate,
-          nurseTemplate: selectedNurseTemplate,
-          nursingTemplateSource,
-          dischargeReceptionistQuery,
-          dischargeDoctorQuery,
-          dischargeNurseQuery,
-          dischargeTemplateQuery,
-          nurseTemplateQuery,
-        },
-        checklistItems,
-        nurseChecklistItems,
-        documents,
-        relatives,
-      })
+      const result = await saveDischargeDraftToServer(admission.name, buildDischargePayload())
+      persistLocalDischargeDraft()
       toast.success(
         result?.message ||
           (result?.observation
@@ -2130,12 +2298,8 @@ const loadDailyVisitSetup = async () => {
             : `Discharge draft saved${result?.name ? ` (${result.name})` : ''}.`),
         5000
       )
-      if (result?.observation || result?.observation_record) {
-        setFormData((prev) => ({
-          ...prev,
-          observation_record: result.observation_record || result.observation || prev.observation_record,
-        }))
-      }
+      applyServerDraftObservationResult(result)
+      applyServerDraftChargeResult(result)
       onClose()
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to save discharge draft'
@@ -2192,6 +2356,12 @@ const loadDailyVisitSetup = async () => {
 
   const activeTabMeta = tabs.find((t) => t.id === activeTab) ?? tabs[0]
   const ActiveSectionIcon = activeTabMeta.Icon
+  const isObservationTabActive =
+    activeTab === 'observation' && Number(formData.discharge_to_observation) === 1
+  const isChargesTabActive = activeTab === 'charges' && Number(formData.today_charge) === 1
+  const observationActionBusy = savingObservation || deletingObservation
+  const chargeActionBusy = savingCharge || deletingCharge
+  const tabActionBusy = observationActionBusy || chargeActionBusy
 
   const updateSectionScrollArrows = useCallback(() => {
     const el = sectionTabsScrollRef.current
@@ -3250,7 +3420,15 @@ const loadDailyVisitSetup = async () => {
             <div className="p-6 space-y-6">
               <p className="text-sm text-slate-600">
                 Reception only — confirm extra charges for today and any additional inpatient fees.
+                Use Proceed and charge to save and create a Sales Order without leaving this section.
               </p>
+              {formData.today_charge_sales_order ? (
+                <div className="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-900">
+                  Linked charge order:{' '}
+                  <span className="font-medium">{formData.today_charge_sales_order}</span>
+                  {' '}— saving again will update the amount, not create a duplicate.
+                </div>
+              ) : null}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <YesNoField
                   label="Charge for today?"
@@ -4172,30 +4350,95 @@ const loadDailyVisitSetup = async () => {
               )}
             </div>
             <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleSaveAndClose}
-                disabled={submitting || savingDraft}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                title="Save draft on server and close. You can continue this discharge later."
-              >
-                <Save className="w-4 h-4" />
-                {savingDraft ? 'Saving…' : 'Save & Close'}
-              </button>
-              <button
-                type="submit"
-                disabled={submitting || savingDraft}
-                className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {submitting ? 'Discharging...' : 'Discharge Patient'}
-              </button>
+              {isObservationTabActive ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleDeleteObservation}
+                    disabled={tabActionBusy || submitting || savingDraft}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    {deletingObservation ? 'Deleting…' : 'Delete observation'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleChangeObservation}
+                    disabled={tabActionBusy || submitting || savingDraft}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <PenLine className="w-4 h-4" />
+                    Change observation
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveObservation}
+                    disabled={tabActionBusy || submitting || savingDraft}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Save className="w-4 h-4" />
+                    {savingObservation ? 'Saving…' : 'Save observation'}
+                  </button>
+                </>
+              ) : isChargesTabActive ? (
+                <>
+                  {formData.today_charge_sales_order ? (
+                    <button
+                      type="button"
+                      onClick={handleDeleteCharge}
+                      disabled={tabActionBusy || submitting || savingDraft}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-red-700 bg-white border border-red-300 rounded-md hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                      {deletingCharge ? 'Deleting…' : 'Delete charge'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={handleCancelCharges}
+                    disabled={tabActionBusy || submitting || savingDraft}
+                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleProceedAndCharge}
+                    disabled={tabActionBusy || submitting || savingDraft}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Receipt className="w-4 h-4" />
+                    {savingCharge ? 'Saving…' : 'Proceed and charge'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    type="button"
+                    onClick={onClose}
+                    className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveAndClose}
+                    disabled={submitting || savingDraft || tabActionBusy}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Save draft on server and close. You can continue this discharge later."
+                  >
+                    <Save className="w-4 h-4" />
+                    {savingDraft ? 'Saving…' : 'Save & Close'}
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={submitting || savingDraft || tabActionBusy}
+                    className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? 'Discharging...' : 'Discharge Patient'}
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </form>
