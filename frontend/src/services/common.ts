@@ -19,6 +19,8 @@ export interface LinkFieldOption {
   default?: number | boolean
   item_group?: string
   stock_uom?: string
+  /** Inpatient Admission branch (cost center) when returned by get_inpatient_admissions */
+  cost_center?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */
   default_route_of_administration?: string
   code_value?: string

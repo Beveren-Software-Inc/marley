@@ -10,6 +10,7 @@ import {
   fetchInpatientBalances,
   fetchOutpatientBalances,
   fetchIopBalances,
+  fetchDailyAutoVisitBalances,
   fetchBillingCostCenterScope,
   fetchPatientBillingCostCenterBreakdown,
   fetchPaymentEntries,
@@ -47,12 +48,14 @@ import {
   Loader2,
   CalendarRange,
   Activity,
+  CalendarClock,
   Printer,
   FileDown,
   X,
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { createInvoiceForVisit } from '../../services/patientVisits'
 
 import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
@@ -61,7 +64,7 @@ import { StandalonePaymentModal } from './StandalonePaymentModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
-type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'unpaid' | 'paid' | 'payments'
+type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'dv' | 'unpaid' | 'paid' | 'payments'
 
 // Navigation Button Component
 const NavButton = ({ 
@@ -125,7 +128,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   // Load saved view from localStorage
   const getSavedView = (): DashboardView => {
     const saved = localStorage.getItem('billingDashboardView')
-    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'iop' || saved === 'unpaid' || saved === 'paid' || saved === 'payments') {
+    if (saved === 'overview' || saved === 'orders' || saved === 'invoices' || saved === 'inpatient' || saved === 'outpatient' || saved === 'iop' || saved === 'dv' || saved === 'unpaid' || saved === 'paid' || saved === 'payments') {
       return saved as DashboardView
     }
     return 'overview'
@@ -140,12 +143,15 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [filteredOutpatient, setFilteredOutpatient] = useState<OutpatientBalance[]>([])
   const [iopBalances, setIopBalances] = useState<OutpatientBalance[]>([])
   const [filteredIop, setFilteredIop] = useState<OutpatientBalance[]>([])
+  const [dvBalances, setDvBalances] = useState<OutpatientBalance[]>([])
+  const [filteredDv, setFilteredDv] = useState<OutpatientBalance[]>([])
   const [loading, setLoading] = useState(true)
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([])
   const [recentInvoices, setRecentInvoices] = useState<ServiceInvoice[]>([])
   const [inpatientFilter, setInpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   const [outpatientFilter, setOutpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   const [iopFilter, setIopFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
+  const [dvFilter, setDvFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
   
   // Modal states
   const [showPaymentModal, setShowPaymentModal] = useState(false)
@@ -283,6 +289,8 @@ const handleMakePayment = async (
       loadOutpatientBalances()
     } else if (currentView === 'iop') {
       loadIopBalances()
+    } else if (currentView === 'dv') {
+      loadDailyAutoVisitBalances()
     } else {
       loadDashboardData()
     }
@@ -408,6 +416,35 @@ const handleMakePayment = async (
     }
   }
 
+  const loadDailyAutoVisitBalances = async () => {
+    try {
+      setLoading(true)
+      const balances = await fetchDailyAutoVisitBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      setDvBalances(balances)
+      setFilteredDv(balances)
+    } catch (error) {
+      console.error('Failed to load daily auto visit balances:', error)
+      toast.error('Failed to load daily auto visit balances')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCreateInvoiceForDailyVisit = async (visitId: string) => {
+    try {
+      setLoadingInvoices(visitId)
+      const result = await createInvoiceForVisit(visitId)
+      toast.success(result.message || `Invoice ${result.sales_invoice} created`)
+      setSalesInvoiceDetailName(result.sales_invoice)
+      loadDailyAutoVisitBalances()
+    } catch (error) {
+      console.error('Failed to create invoice for daily auto visit:', error)
+      toast.error(error instanceof Error ? error.message : 'Failed to create invoice')
+    } finally {
+      setLoadingInvoices(null)
+    }
+  }
+
   useEffect(() => {
     if (currentView === 'inpatient') {
       loadInpatientBalances()
@@ -415,6 +452,8 @@ const handleMakePayment = async (
       loadOutpatientBalances()
     } else if (currentView === 'iop') {
       loadIopBalances()
+    } else if (currentView === 'dv') {
+      loadDailyAutoVisitBalances()
     } else {
       loadDashboardData()
     }
@@ -473,6 +512,22 @@ const handleMakePayment = async (
       setFilteredIop(filtered)
     }
   }, [iopFilter, iopBalances])
+
+  // Filter Daily Auto Visit balances
+  useEffect(() => {
+    if (dvFilter === 'all') {
+      setFilteredDv(dvBalances)
+    } else {
+      const filtered = dvBalances.filter(balance => {
+        if (dvFilter === 'paid') return balance.outstanding_amount === 0 && balance.total_paid > 0
+        if (dvFilter === 'unpaid') return balance.outstanding_amount === balance.total_amount && balance.total_amount > 0
+        if (dvFilter === 'partial') return balance.outstanding_amount > 0 && balance.outstanding_amount < balance.total_amount
+        if (dvFilter === 'overdue') return balance.days_overdue > 0
+        return true
+      })
+      setFilteredDv(filtered)
+    }
+  }, [dvFilter, dvBalances])
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -627,6 +682,13 @@ const handleMakePayment = async (
             count={iopBalances.length}
           />
         )}
+        <NavButton
+          icon={CalendarClock}
+          label="All DV"
+          isActive={currentView === 'dv'}
+          onClick={() => handleViewChange('dv')}
+          count={dvBalances.length}
+        />
         <NavButton
           icon={CreditCard}
           label="Payments"
@@ -1371,6 +1433,162 @@ const handleMakePayment = async (
                       />
                     ) : null}
                     {balance.outstanding_amount > 0 && (
+                      <button
+                        onClick={() =>
+                          handleMakePayment(
+                            balance.visit_id,
+                            balance.patient_name,
+                            balance.outstanding_amount,
+                            'Patient Visit',
+                            balance.patient_id
+                          )
+                        }
+                        className="text-xs text-green-600 hover:underline flex items-center gap-1"
+                        title={`Pay outstanding amount of ${formatCurrency(balance.outstanding_amount)}`}
+                      >
+                        <CreditCard className="w-3 h-3" /> Make Payment
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+
+        <SharedModals />
+      </div>
+    )
+  }
+
+  // Daily Auto Visit balances
+  if (currentView === 'dv') {
+    const totalOutstanding = dvBalances.reduce((sum, b) => sum + b.outstanding_amount, 0)
+    const totalOverdue = dvBalances.filter(b => b.days_overdue > 0).reduce((sum, b) => sum + b.outstanding_amount, 0)
+    const totalPaid = dvBalances.reduce((sum, b) => sum + b.total_paid, 0)
+
+    return (
+      <div className="space-y-6">
+        <NavigationRow />
+        <DateFiltersPanel />
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <StatCard title="Total Outstanding" value={formatCurrency(totalOutstanding)} subValue={`Across ${dvBalances.length} daily auto visits`} icon={AlertCircle} color="bg-red-50 text-red-600" />
+          <StatCard title="Overdue Amount" value={formatCurrency(totalOverdue)} subValue={`${dvBalances.filter(b => b.days_overdue > 0).length} overdue`} icon={Clock} color="bg-orange-50 text-orange-600" />
+          <StatCard title="Total Paid" value={formatCurrency(totalPaid)} subValue="Across all daily auto visits" icon={CheckCircle} color="bg-green-50 text-green-600" />
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <span className="text-sm text-slate-600 mr-2">Filter:</span>
+          <FilterButton label="All" active={dvFilter === 'all'} onClick={() => setDvFilter('all')} color="bg-slate-600" />
+          <FilterButton label="Unpaid" active={dvFilter === 'unpaid'} onClick={() => setDvFilter('unpaid')} color="bg-orange-600" />
+          <FilterButton label="Partial" active={dvFilter === 'partial'} onClick={() => setDvFilter('partial')} color="bg-yellow-600" />
+          <FilterButton label="Paid" active={dvFilter === 'paid'} onClick={() => setDvFilter('paid')} color="bg-green-600" />
+          <FilterButton label="Overdue" active={dvFilter === 'overdue'} onClick={() => setDvFilter('overdue')} color="bg-red-600" />
+        </div>
+
+        {filteredDv.length === 0 ? (
+          <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+            <CalendarClock className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
+            <p className="text-slate-500">No daily auto visit balances found</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {filteredDv.map((balance) => {
+              const status = getBalanceStatusColor(balance)
+              const percentagePaid = balance.total_amount > 0 ? (balance.total_paid / balance.total_amount) * 100 : 0
+              const isLoading = loadingInvoices === balance.visit_id
+              const hasPendingOrders = (balance.pending_sales_order_names?.length ?? 0) > 0
+              const needsInvoice = !balance.latest_invoice_name && hasPendingOrders
+
+              return (
+                <div key={balance.visit_id} className={`bg-white rounded-xl border ${status.border} p-5 hover:shadow-md transition-all`}>
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className={`w-2 h-2 rounded-full ${status.badge.replace('bg-', 'bg-')}`} />
+                        <h3 className="font-semibold text-slate-900">{balance.patient_name}</h3>
+                        <span className="text-xs px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">DV</span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full ${status.badge}`}>{status.label}</span>
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
+                        <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
+                        <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
+                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
+                        {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
+                      </div>
+                      {needsInvoice && (balance.uninvoiced_amount ?? 0) > 0 && (
+                        <p className="text-xs text-amber-700 mt-2">
+                          {formatCurrency(balance.uninvoiced_amount ?? 0)} on sales order(s) — invoice not created yet
+                        </p>
+                      )}
+                    </div>
+                    <div className="text-right min-w-[180px]">
+                      <p className="text-xs text-slate-400">Total Charges</p>
+                      <p className="text-lg font-bold text-slate-900">{formatCurrency(balance.total_amount)}</p>
+                      <div className="mt-1">
+                        <p className="text-xs text-green-600">Paid: {formatCurrency(balance.total_paid)}</p>
+                        <p className={`text-xs font-medium ${balance.outstanding_amount > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                          Outstanding: {formatCurrency(balance.outstanding_amount)}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  {balance.total_amount > 0 && (
+                    <div className="mt-4">
+                      <div className="flex justify-between text-xs text-slate-500 mb-1">
+                        <span>Payment Progress</span>
+                        <span>{percentagePaid.toFixed(1)}% paid</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-2 overflow-hidden">
+                        <div
+                          className={`h-2 rounded-full transition-all duration-500 ${percentagePaid === 100 ? 'bg-green-500' : balance.days_overdue > 0 ? 'bg-red-500' : 'bg-primary'}`}
+                          style={{ width: `${percentagePaid}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  <div className="flex flex-wrap items-center gap-2 mt-4 pt-3 border-t border-slate-100">
+                    {needsInvoice ? (
+                      <button
+                        type="button"
+                        onClick={() => void handleCreateInvoiceForDailyVisit(balance.visit_id)}
+                        disabled={isLoading}
+                        className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Receipt className="w-3 h-3" />}
+                        Create invoice
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          void openInvoiceForHealthcareReference(
+                            balance.visit_id,
+                            'Patient Visit',
+                            balance.latest_invoice_name
+                          )
+                        }
+                        disabled={isLoading}
+                        className="text-xs text-primary hover:underline flex items-center gap-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Open invoice details (slide-over)"
+                      >
+                        {isLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Receipt className="w-3 h-3" />}
+                        View invoice
+                      </button>
+                    )}
+                    {balance.latest_invoice_name ? (
+                      <PrintFormatDropdown
+                        doctype="Sales Invoice"
+                        docName={balance.latest_invoice_name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex items-center justify-center rounded border border-slate-300 bg-white px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
+                      />
+                    ) : null}
+                    {balance.latest_invoice_name && balance.outstanding_amount > 0 && (
                       <button
                         onClick={() =>
                           handleMakePayment(

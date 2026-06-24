@@ -2,10 +2,7 @@ import { useEffect, useState } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { StatusPill } from '../ui/StatusPill'
-import {
-  displayMedicationDosage,
-  displayMedicationDrugName,
-} from '../../utils/medicationOrderDisplayUtils'
+import { displayMedicationDrugName } from '../../utils/medicationOrderDisplayUtils'
 
 function DetailField({ label, value }: { label: string; value?: string | null }) {
   const display = value?.trim() ? value : '—'
@@ -108,8 +105,6 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
               <thead>
                 <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
                   <th className="py-2 pr-3">Drug</th>
-                  <th className="py-2 pr-3">Prescription type</th>
-                  <th className="py-2 pr-3">Dosage</th>
                   <th className="py-2 pr-3">Qty</th>
                   <th className="py-2 pr-3">Unit of measure</th>
                 </tr>
@@ -118,8 +113,6 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
                 {medications.map((med) => (
                   <tr key={med.name} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-900">{displayMedicationDrugName(med)}</td>
-                    <td className="py-2.5 pr-3 text-slate-700">{med.medication_type || '—'}</td>
-                    <td className="py-2.5 pr-3 text-slate-700">{displayMedicationDosage(med)}</td>
                     <td className="py-2.5 pr-3 text-slate-700">{med.quantity ?? '—'}</td>
                     <td className="py-2.5 pr-3 text-slate-700">{med.uom || '—'}</td>
                   </tr>

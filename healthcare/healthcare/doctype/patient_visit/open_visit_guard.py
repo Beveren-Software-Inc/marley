@@ -49,8 +49,14 @@ def get_open_patient_visits_for_patient(patient: str | None, exclude_name: str |
 	)
 
 
-def ensure_patient_can_open_new_visit(patient: str | None, exclude_name: str | None = None) -> None:
+def ensure_patient_can_open_new_visit(
+	patient: str | None,
+	exclude_name: str | None = None,
+	visit_type: str | None = None,
+) -> None:
 	"""Raise if the patient already has an open visit (when enabled in Healthcare Settings)."""
+	if (visit_type or "").strip() == "Daily Auto Visit":
+		return
 	if not is_block_new_patient_visit_if_open_exist_enabled():
 		return
 

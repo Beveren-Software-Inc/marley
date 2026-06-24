@@ -278,6 +278,30 @@ export async function fetchMedicineGiven(
   return []
 }
 
+export interface UpdateMedicineGivenData {
+  name: string
+  unit?: string
+  allow_override?: boolean
+  override_reason?: string
+  dose?: string
+  qty?: number | string
+  date?: string
+  time?: string
+  dose_notes?: string
+  batch_no?: string
+  lot_no?: string
+  dispensing_lot?: string
+}
+
+export async function updateMedicineGiven(
+  data: UpdateMedicineGivenData
+): Promise<{ admission_detail: string; row_name: string }> {
+  return apiRequest('/api/method/healthcare.api.medicine_given.update_medicine_given', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
 export async function deleteMedicineGiven(name: string): Promise<void> {
   await apiRequest(
     '/api/method/healthcare.api.medicine_given.delete_medicine_given',

@@ -667,6 +667,7 @@ export const DoctorPage = () => {
 
   // Show Laboratory (Lab Tests)
   if (screen === 'lab') {
+    const focusLabTest = searchParams.get('lab_test') || undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -677,7 +678,15 @@ export const DoctorPage = () => {
             addButtonTitle="Add Lab Test"
             noHeightLimit
           >
-            <LabTestList patient={selectedPatient} defaultStatus="Pending Review" doctorLabDefaults key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
+            <LabTestList
+              patient={selectedPatient}
+              defaultStatus="Pending Review"
+              doctorLabDefaults
+              focusLabTest={focusLabTest}
+              focusOpenReview
+              key={`${labTestRefreshKey}-${focusLabTest || ''}`}
+              onPatientClick={handlePatientSelect}
+            />
           </DashboardCard>
         </div>
       </div>

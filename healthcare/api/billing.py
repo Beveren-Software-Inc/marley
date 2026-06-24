@@ -492,6 +492,7 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
             "practitioner",
             "status",
             "cost_center",
+            "visit_type",
         ],
     )
 
@@ -504,6 +505,8 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
             if iop_only and not is_iop:
                 continue
             if not iop_only and is_iop:
+                continue
+            if not iop_only and (visit.get("visit_type") or "").strip() == DAILY_AUTO_VISIT_TYPE:
                 continue
 
         inv_filters = _sales_invoice_filters_for_reference(
@@ -573,6 +576,127 @@ def get_iop_balances(patient=None, from_date=None, to_date=None):
     return _get_patient_visit_balances(
         patient=patient, from_date=from_date, to_date=to_date, iop_only=True
     )
+
+
+DAILY_AUTO_VISIT_TYPE = "Daily Auto Visit"
+
+
+def _sales_invoices_for_reference(reference_type, reference_name):
+    inv_filters = _sales_invoice_filters_for_reference(
+        reference_type, reference_name, submitted_only=True
+    )
+    invoices = frappe.get_all(
+        "Sales Invoice",
+        filters=inv_filters,
+        fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+    )
+    if not invoices:
+        invoices = frappe.get_all(
+            "Sales Invoice",
+            filters={
+                "custom_reference_name": reference_name,
+                "docstatus": 1,
+            },
+            fields=["name", "grand_total", "outstanding_amount", "posting_date", "status"],
+        )
+    return invoices
+
+
+def _patient_visit_balance_row(visit, *, include_uninvoiced_orders=False):
+    from healthcare.api.sales_order import _pending_billable_sales_order_names
+
+    invoices = _sales_invoices_for_reference("Patient Visit", visit.name)
+
+    total_amount = sum(flt(inv.grand_total) for inv in invoices)
+    total_paid = sum(flt(inv.grand_total) - flt(inv.outstanding_amount) for inv in invoices)
+    outstanding = sum(flt(inv.outstanding_amount) for inv in invoices)
+    uninvoiced_amount = 0.0
+    pending_sales_order_names = []
+
+    if include_uninvoiced_orders:
+        pending_sales_order_names = _pending_billable_sales_order_names(
+            "Patient Visit",
+            visit.name,
+            patient=visit.patient,
+        )
+        for so_name in pending_sales_order_names:
+            uninvoiced_amount += flt(frappe.db.get_value("Sales Order", so_name, "grand_total"))
+        total_amount += uninvoiced_amount
+        outstanding += uninvoiced_amount
+
+    if total_amount <= 0 and not pending_sales_order_names:
+        return None
+
+    today = frappe.utils.today()
+    days_overdue = 0
+    last_invoice_date = None
+    if invoices:
+        last_invoice = max(invoices, key=lambda x: x.posting_date or "")
+        last_invoice_date = last_invoice.posting_date
+        if flt(last_invoice.outstanding_amount) > 0:
+            days_overdue = frappe.utils.date_diff(today, last_invoice.posting_date)
+    elif outstanding > 0 and visit.encounter_date:
+        days_overdue = max(0, frappe.utils.date_diff(today, visit.encounter_date))
+
+    latest_invoice_name = None
+    if invoices:
+        latest_invoice_name = max(invoices, key=lambda x: x.posting_date or "").name
+
+    row = {
+        "visit_id": visit.name,
+        "patient_name": visit.patient_name,
+        "patient_id": visit.patient,
+        "visit_date": visit.encounter_date if visit.encounter_date else "",
+        "practitioner": visit.practitioner,
+        "cost_center": visit.get("cost_center"),
+        "latest_invoice_name": latest_invoice_name,
+        "total_amount": total_amount,
+        "total_paid": total_paid,
+        "outstanding_amount": outstanding,
+        "days_overdue": max(0, days_overdue),
+        "last_invoice_date": last_invoice_date,
+    }
+    if include_uninvoiced_orders:
+        row["pending_sales_order_names"] = pending_sales_order_names
+        row["uninvoiced_amount"] = uninvoiced_amount
+    return row
+
+
+@frappe.whitelist()
+def get_daily_auto_visit_balances(patient=None, from_date=None, to_date=None):
+    """Daily Auto Visit balances (includes submitted sales orders not yet invoiced)."""
+    visit_filters = {"visit_type": DAILY_AUTO_VISIT_TYPE}
+    if patient:
+        visit_filters["patient"] = patient
+    if from_date and to_date:
+        visit_filters["encounter_date"] = ["between", [from_date, to_date]]
+    elif from_date:
+        visit_filters["encounter_date"] = [">=", from_date]
+    elif to_date:
+        visit_filters["encounter_date"] = ["<=", to_date]
+
+    visits = frappe.get_all(
+        "Patient Visit",
+        filters=visit_filters,
+        fields=[
+            "name",
+            "patient",
+            "patient_name",
+            "encounter_date",
+            "practitioner",
+            "status",
+            "cost_center",
+        ],
+    )
+
+    balances = []
+    for visit in visits:
+        row = _patient_visit_balance_row(visit, include_uninvoiced_orders=True)
+        if row:
+            balances.append(row)
+
+    balances.sort(key=lambda x: (-x["outstanding_amount"], -x["days_overdue"]))
+    return balances
 
 
 @frappe.whitelist()

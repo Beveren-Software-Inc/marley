@@ -1233,6 +1233,179 @@ def convert_missed_medicine_to_given(name: str, given_late_reason: str | None = 
 
 
 @frappe.whitelist()
+def update_medicine_given(
+	name: str,
+	dose: str | None = None,
+	qty: float | int | None = None,
+	unit: str | None = None,
+	date: str | None = None,
+	time: str | None = None,
+	dose_notes: str | None = None,
+	allow_override: int | None = 0,
+	override_reason: str | None = None,
+	batch_no: str | None = None,
+	lot_no: str | None = None,
+	dispensing_lot: str | None = None,
+) -> dict:
+	"""Update an existing Medicine Given row on Admission Detail."""
+	if not name:
+		frappe.throw(_("Row name is required"))
+
+	parenttype, parent = frappe.db.get_value(
+		"Medicine Given", name, ["parenttype", "parent"], as_dict=False
+	) or (None, None)
+	if not parent or parenttype != "Admission Detail":
+		frappe.throw(_("Medicine Given row {0} does not exist").format(frappe.bold(name)))
+
+	sales_order = frappe.db.get_value("Medicine Given", name, "sales_order")
+	if sales_order:
+		frappe.throw(
+			_("This given medicine is already linked to Sales Order {0} and cannot be edited.").format(
+				frappe.bold(sales_order)
+			)
+		)
+
+	admission_detail = frappe.get_doc("Admission Detail", parent)
+	admission = admission_detail.admission
+	if not admission:
+		frappe.throw(_("Admission Detail is not linked to an Inpatient Admission"))
+
+	assert_inpatient_admission_open_for_create(admission)
+
+	row = next((r for r in admission_detail.table_yrwe if r.name == name), None)
+	if not row:
+		frappe.throw(_("Medicine Given row {0} was not found on Admission Detail").format(frappe.bold(name)))
+
+	drug_code = row.medicine_code or row.old_medicine_code
+	if not drug_code:
+		frappe.throw(_("Medicine code is missing on this given medicine row"))
+
+	dose_text = (dose if dose is not None else row.dose or "").strip()
+	if not dose_text:
+		frappe.throw(_("Dose is required (e.g. 50mg)."))
+
+	from healthcare.api.dose_limit_validation import extract_dose_numeric
+
+	if extract_dose_numeric(dose_text) is None:
+		frappe.throw(_("Enter a valid dose (numeric value only, e.g. 50 or 50mg)."))
+
+	parsed_qty = flt(qty if qty is not None else row.qty)
+	if parsed_qty <= 0:
+		frappe.throw(_("Quantity must be greater than zero."))
+
+	row_date = date or row.date or nowdate()
+	row_time = _normalize_row_time(time if time is not None else row.time)
+
+	_validate_medicine_given_batch_lot(
+		drug_code,
+		admission,
+		batch_no if batch_no is not None else row.batch_no,
+		lot_no if lot_no is not None else row.lot_no,
+		dispensing_lot if dispensing_lot is not None else row.dispensing_lot,
+	)
+
+	prescription_frequency = None
+	medication_order = row.medication_order or row.patient_medication_order
+	if medication_order:
+		pmo = frappe.get_doc("Patient Medication Order", medication_order)
+		if getattr(pmo, "medication_orders", None):
+			for child in pmo.medication_orders:
+				if child.drug == drug_code:
+					prescription_frequency = child.patient_frequency or getattr(
+						child, "long_acting_frequency", None
+					)
+					break
+			if not prescription_frequency and pmo.medication_orders:
+				first = pmo.medication_orders[0]
+				prescription_frequency = first.patient_frequency or getattr(
+					first, "long_acting_frequency", None
+				)
+
+	if prescription_frequency and is_daily_prescription_frequency(prescription_frequency):
+		freq_per_day = frappe.db.get_value(
+			"Prescription Frequency",
+			prescription_frequency,
+			"frequency_in_a_day",
+		)
+		freq_per_day = cint(freq_per_day or 0)
+		if freq_per_day > 0:
+			already_given = frappe.db.count(
+				"Medicine Given",
+				{
+					"parent": admission_detail.name,
+					"parenttype": "Admission Detail",
+					"medicine_code": drug_code,
+					"date": row_date,
+					"name": ["!=", name],
+				},
+			)
+			if already_given + 1 > freq_per_day:
+				if not cint(allow_override):
+					frappe.throw(
+						_(
+							"Frequency limit reached for this medicine.\n"
+							"Prescribed frequency: {0} times per day.\n"
+							"Already recorded doses today for this admission: {1}.\n"
+							"Please review the prescription or consult the prescriber before giving an extra dose."
+						).format(freq_per_day, already_given),
+						title=_("Dose frequency exceeded"),
+					)
+				if not override_reason:
+					frappe.throw(
+						_("Override reason is required to exceed prescribed daily frequency."),
+						title=_("Override reason required"),
+					)
+				if hasattr(row, "override_exceeded_frequency"):
+					row.override_exceeded_frequency = 1
+				if hasattr(row, "override_reason"):
+					row.override_reason = override_reason
+				if hasattr(row, "override_user"):
+					row.override_user = frappe.session.user
+				if hasattr(row, "override_timestamp"):
+					row.override_timestamp = now_datetime()
+
+	from healthcare.api.dose_limit_validation import (
+		apply_dose_limit_override_audit,
+		validate_medicine_given_dose_or_throw,
+	)
+
+	dose_evaluation = validate_medicine_given_dose_or_throw(
+		admission_detail_name=admission_detail.name,
+		medicine_code=drug_code,
+		dose=dose_text,
+		date_value=row_date,
+		time_value=row_time,
+		allow_override=allow_override,
+		override_reason=override_reason,
+		exclude_row_name=name,
+	)
+	if dose_evaluation.get("override_required"):
+		apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())
+
+	row.date = row_date
+	row.time = row_time
+	_set_medicine_given_dose(row, dose_text)
+	row.qty = parsed_qty
+	if unit is not None:
+		row.unit = (unit or "").strip() or None
+	if dose_notes is not None:
+		row.dose_notes = dose_notes
+	_apply_medicine_given_batch_lot(
+		row,
+		batch_no if batch_no is not None else row.batch_no,
+		lot_no if lot_no is not None else row.lot_no,
+		dispensing_lot if dispensing_lot is not None else row.dispensing_lot,
+	)
+
+	admission_detail.save(ignore_permissions=True)
+
+	return {
+		"admission_detail": admission_detail.name,
+		"row_name": row.name,
+	}
+
+
+@frappe.whitelist()
 def delete_medicine_given(name: str) -> dict:
 	"""Delete a Medicine Given row (child of Admission Detail)."""
 	if not name:

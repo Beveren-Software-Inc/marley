@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 import { fetchMainNursingNotes, type MainNursingNoteRow } from '../../services/mainNursingNote'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { CardRowTextHint } from '../ui/dashboardCardListing'
+import { NURSING_SHIFTS } from '../../constants/nursingShift'
+import { EditMainNursingNoteModal } from './EditMainNursingNoteModal'
 
 interface MainNursingNoteListProps {
   patient?: string
@@ -12,6 +17,8 @@ interface MainNursingNoteListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** When false, hides row edit actions. */
+  manageRows?: boolean
 }
 
 const FilterToggleButton = ({
@@ -40,6 +47,15 @@ const FilterToggleButton = ({
   </button>
 )
 
+const formatNursingNoteDate = (val: string | null | undefined) => {
+  if (!val) return '—'
+  try {
+    return new Date(val).toLocaleDateString()
+  } catch {
+    return val
+  }
+}
+
 export const MainNursingNoteList = ({
   patient,
   admission,
@@ -48,6 +64,7 @@ export const MainNursingNoteList = ({
   title = 'Nursing Notes',
   onAdd,
   addButtonTitle = 'Add Nursing Note',
+  manageRows = true,
 }: MainNursingNoteListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
@@ -60,16 +77,20 @@ export const MainNursingNoteList = ({
   const [search, setSearch] = useState('')
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [shiftFilter, setShiftFilter] = useState('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [selected, setSelected] = useState<MainNursingNoteRow | null>(null)
+  const [editRow, setEditRow] = useState<MainNursingNoteRow | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
   const practitionerFilterRef = useRef<HTMLDivElement>(null)
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  const hasActiveFilters = Boolean(search || dateFrom || dateTo || practitionerFilter)
+  const hasActiveFilters = Boolean(search || dateFrom || dateTo || shiftFilter || practitionerFilter)
 
   const load = useCallback(
     async (q?: string) => {
@@ -80,6 +101,7 @@ export const MainNursingNoteList = ({
           dateFrom: dateFrom || undefined,
           dateTo: dateTo || undefined,
           practitioner: practitionerFilter || undefined,
+          shift: shiftFilter || undefined,
         })
         setRecords(data)
       } catch (e) {
@@ -88,7 +110,7 @@ export const MainNursingNoteList = ({
         setLoading(false)
       }
     },
-    [patient, admission, dateFrom, dateTo, practitionerFilter]
+    [patient, admission, dateFrom, dateTo, shiftFilter, practitionerFilter]
   )
 
   useEffect(() => {
@@ -140,6 +162,7 @@ export const MainNursingNoteList = ({
     setSearch('')
     setDateFrom('')
     setDateTo('')
+    setShiftFilter('')
     setPractitionerFilter('')
     setPractitionerQuery('')
     setPractitionerOpen(false)
@@ -147,15 +170,6 @@ export const MainNursingNoteList = ({
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
-
-  const formatDate = (val: string | null | undefined) => {
-    if (!val) return '—'
-    try {
-      return new Date(val).toLocaleDateString()
-    } catch {
-      return val
-    }
-  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -212,6 +226,21 @@ export const MainNursingNoteList = ({
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">Shift</label>
+            <select
+              value={shiftFilter}
+              onChange={(e) => setShiftFilter(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">All shifts</option>
+              {NURSING_SHIFTS.map((shift) => (
+                <option key={shift} value={shift}>
+                  {shift}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex flex-col gap-1 min-w-[180px] relative" ref={practitionerFilterRef}>
             <label className="text-xs font-medium text-slate-500">Recorded by</label>
@@ -276,6 +305,9 @@ export const MainNursingNoteList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Notes</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">By</th>
+                {manageRows ? (
+                  <th className="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -285,7 +317,7 @@ export const MainNursingNoteList = ({
                   className="hover:bg-slate-50 cursor-pointer"
                   onClick={() => setSelected(row)}
                 >
-                  <td className="px-3 py-2 whitespace-nowrap">{formatDate(row.date)}</td>
+                  <td className="px-3 py-2 whitespace-nowrap">{formatNursingNoteDate(row.date)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{row.shift || '—'}</td>
                   {!patient && (
                     <td className="px-3 py-2">
@@ -306,12 +338,50 @@ export const MainNursingNoteList = ({
                     </td>
                   )}
                   <td className="px-3 py-2 whitespace-nowrap">{row.admission || '—'}</td>
-                  <td className="px-3 py-2 max-w-xs truncate text-slate-700">
-                    {row.nursing_notes || '—'}
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <CardRowTextHint text={row.nursing_notes} title="Nursing notes" />
                   </td>
                   <td className="px-3 py-2 whitespace-nowrap text-slate-600">
                     {row.user_name || row.user || '—'}
                   </td>
+                  {manageRows ? (
+                    <td className="px-3 py-2 text-right">
+                      <div
+                        className="relative inline-block"
+                        ref={openActionRow === row.name ? menuRef : undefined}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          aria-label="Actions"
+                          onClick={() =>
+                            setOpenActionRow((prev) => (prev === row.name ? null : row.name))
+                          }
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </button>
+                        <PortalActionsMenu
+                          open={openActionRow === row.name}
+                          onClose={() => setOpenActionRow(null)}
+                          triggerRef={menuRef}
+                          minWidth={160}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              setEditRow(row)
+                            }}
+                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                            Append note
+                          </button>
+                        </PortalActionsMenu>
+                      </div>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -327,13 +397,27 @@ export const MainNursingNoteList = ({
           >
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-semibold text-slate-900">Nursing Note</h3>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="text-slate-500 hover:text-slate-800 text-lg leading-none"
-              >
-                ×
-              </button>
+              <div className="flex items-center gap-2">
+                {manageRows ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditRow(selected)
+                      setSelected(null)
+                    }}
+                    className="text-xs font-medium text-primary hover:underline"
+                  >
+                    Append note
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelected(null)}
+                  className="text-slate-500 hover:text-slate-800 text-lg leading-none"
+                >
+                  ×
+                </button>
+              </div>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 text-sm">
               <div>
@@ -343,7 +427,7 @@ export const MainNursingNoteList = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <div className="text-xs text-slate-500 uppercase font-semibold">Date</div>
-                  <div>{formatDate(selected.date)}</div>
+                  <div>{formatNursingNoteDate(selected.date)}</div>
                 </div>
                 <div>
                   <div className="text-xs text-slate-500 uppercase font-semibold">Start time</div>
@@ -379,6 +463,18 @@ export const MainNursingNoteList = ({
             </div>
           </div>
         </div>
+      )}
+
+      {editRow && (
+        <EditMainNursingNoteModal
+          row={editRow}
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
+            setSelected(null)
+            load(search || undefined)
+          }}
+        />
       )}
     </div>
   )

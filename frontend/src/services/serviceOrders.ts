@@ -48,6 +48,9 @@ export interface OutpatientBalance {
   outstanding_amount: number
   days_overdue: number
   last_invoice_date?: string
+  /** Submitted sales orders not yet on an invoice (Daily Auto Visit billing). */
+  pending_sales_order_names?: string[]
+  uninvoiced_amount?: number
 }
 
 export interface ServiceInvoice {
@@ -544,6 +547,26 @@ export async function fetchIopBalances(patientId?: string, fromDate?: string, to
   const response = await fetch(url)
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || 'Failed to fetch IOP balances')
+  return data.message || []
+}
+
+export async function fetchDailyAutoVisitBalances(
+  patientId?: string,
+  fromDate?: string,
+  toDate?: string
+): Promise<OutpatientBalance[]> {
+  let url = '/api/method/healthcare.api.billing.get_daily_auto_visit_balances'
+  const params = new URLSearchParams()
+  if (patientId) params.append('patient', patientId)
+  if (fromDate) params.append('from_date', fromDate)
+  if (toDate) params.append('to_date', toDate)
+  const q = params.toString()
+  if (q) {
+    url += `?${q}`
+  }
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch daily auto visit balances')
   return data.message || []
 }
 

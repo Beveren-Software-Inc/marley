@@ -2107,6 +2107,9 @@ export const LabTestList = ({
   onAdd,
   addButtonTitle = 'New Lab Test',
   headerExtra,
+  focusLabTest,
+  focusOpenSampleCollection = false,
+  focusOpenReview = false,
 }: {
   patient?: string
   isOutsourced?: boolean
@@ -2123,6 +2126,10 @@ export const LabTestList = ({
   onAdd?: () => void
   addButtonTitle?: string
   headerExtra?: ReactNode
+  /** When set, scroll to this lab test and optionally open sample collection or review. */
+  focusLabTest?: string
+  focusOpenSampleCollection?: boolean
+  focusOpenReview?: boolean
 }) => {
   const { selectedPatient: contextPatient, userRole } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
@@ -2570,6 +2577,55 @@ export const LabTestList = ({
       .catch((e) => { const msg = e instanceof Error ? e.message : 'Failed to load lab test'; setSampleModalError(msg); toast.error(msg) })
       .finally(() => setSampleModalLoading(false))
   }
+
+  const focusLabTestHandledRef = useRef<string | null>(null)
+  useEffect(() => {
+    const target = (focusLabTest || '').trim()
+    if (!target || loading || focusLabTestHandledRef.current === target) return
+
+    const openForTest = (labTest: LabTest) => {
+      focusLabTestHandledRef.current = target
+      const docName = resolveLabTestDocName(labTest)
+      window.requestAnimationFrame(() => {
+        document.getElementById(`lab-test-row-${docName}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+      })
+      if (focusOpenSampleCollection) {
+        handleOpenSampleCollection(labTest)
+      } else if (focusOpenReview) {
+        openReviewModal(docName, 'Reviewed')
+      } else {
+        setSelectedLabTestForDetails(docName)
+      }
+    }
+
+    const match = displayLabTests.find((lt) => {
+      const docName = resolveLabTestDocName(lt)
+      return docName === target || lt.name === target
+    })
+
+    if (match) {
+      openForTest(match)
+      return
+    }
+
+    if (labTests.length === 0) return
+
+    focusLabTestHandledRef.current = target
+    fetchLabTest(target)
+      .then((doc) => {
+        if (focusOpenSampleCollection) {
+          handleOpenSampleCollection(doc)
+        } else if (focusOpenReview) {
+          openReviewModal(resolveLabTestDocName(doc), 'Reviewed')
+        } else {
+          setSelectedLabTestForDetails(resolveLabTestDocName(doc))
+        }
+      })
+      .catch((e) => {
+        focusLabTestHandledRef.current = null
+        toast.error(e instanceof Error ? e.message : 'Failed to load lab test')
+      })
+  }, [focusLabTest, focusOpenSampleCollection, focusOpenReview, loading, displayLabTests, labTests.length])
 
   // ── Remarks modal ──────────────────────────────────────────────────────────
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)
@@ -3466,8 +3522,20 @@ export const LabTestList = ({
                 }
                 const labTest = row.labTest
                 const detailsName = resolveLabTestDocName(labTest)
+                const isFocusedRow = Boolean(
+                  focusLabTest &&
+                    (detailsName === focusLabTest || labTest.name === focusLabTest),
+                )
                 return (
-                <tr key={labTest.name} className={isLegacyHistoryLabRow(labTest) ? 'hover:bg-slate-50 bg-amber-50/30' : 'hover:bg-slate-50'}>
+                <tr
+                  key={labTest.name}
+                  id={`lab-test-row-${detailsName}`}
+                  className={
+                    isLegacyHistoryLabRow(labTest)
+                      ? `hover:bg-slate-50 bg-amber-50/30${isFocusedRow ? ' ring-2 ring-inset ring-primary' : ''}`
+                      : `hover:bg-slate-50${isFocusedRow ? ' bg-primary/5 ring-2 ring-inset ring-primary' : ''}`
+                  }
+                >
                   <td 
                     className="px-3 py-1.5 text-sm font-medium text-slate-900 cursor-pointer hover:text-primary"
                     onClick={(e) => {
