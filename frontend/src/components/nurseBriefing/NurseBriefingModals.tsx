@@ -7,6 +7,7 @@ import type {
   NurseShiftBriefing,
 } from '../../services/nurseBriefing'
 import { StatusPill } from '../ui/StatusPill'
+import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
 
 function stripHtml(html: string | undefined): string {
   if (!html) return ''
@@ -97,7 +98,7 @@ export function NurseAdmissionsBriefingModal({
           Loading admissions…
         </div>
       ) : admissions.length === 0 ? (
-        <EmptyState message="No patients with Admitted status for your branch." />
+        <EmptyState message="No admitted patients with warnings for your branch." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {admissions.map((admission) => {
@@ -166,9 +167,6 @@ export function NurseAdmissionsBriefingModal({
                     ) : null}
                   </div>
                 )}
-                {!hasAllergies && !hasWarnings ? (
-                  <p className="mt-3 text-xs text-slate-500">No recorded warnings or allergies.</p>
-                ) : null}
               </button>
             )
           })}
@@ -227,7 +225,10 @@ export function NurseLabSampleBriefingModal({
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <StatusPill status={test.status || 'Requested'} />
+                <StatusPill
+                  status={test.status || 'Requested'}
+                  color={labTestStatusColor(test.status)}
+                />
                 {test.department ? (
                   <span className="text-xs text-slate-500">{test.department}</span>
                 ) : null}

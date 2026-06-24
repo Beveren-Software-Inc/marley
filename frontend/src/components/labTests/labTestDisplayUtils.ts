@@ -73,3 +73,26 @@ export function expandLegacyLabTestsForDisplay(labTests: LabTest[]): LabTest[] {
 export function isLegacyHistoryLabRow(lt: LabTest): boolean {
   return Boolean(lt.is_legacy_line_row || (lt.is_legacy_import && !lt.legacy_parent_name))
 }
+
+/** Status pill colors — keep in sync with LabTestList / LabTestDetails. */
+export const LAB_TEST_STATUS_COLORS: Record<string, string> = {
+  Reviewed: 'success',
+  Rejected: 'danger',
+  Completed: 'success',
+  'Pending Review': 'warning',
+  Submitted: 'info',
+  Cancelled: 'default',
+  Draft: 'warning',
+  Pending: 'warning',
+  Requested: 'info',
+  'Awaiting sample collection': 'warning',
+  'Sample Collection in Progress': 'info',
+  'Sample collection in progress': 'info',
+  'Sample Collected': 'info',
+  'Testing in progress': 'info',
+}
+
+export function labTestStatusColor(status?: string | null): string {
+  const key = (status || 'Draft').trim()
+  return LAB_TEST_STATUS_COLORS[key] || 'default'
+}

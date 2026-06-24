@@ -1395,6 +1395,9 @@ def _order_kind_label(so_row, sr_by_name):
         svc = frappe.db.get_value("Inpatient Healthcare Service", base_name, "service") or base_name
         return _("IP / ward service") + f" — {svc}"
 
+    if base_ref == "IP Service" and base_name:
+        return _("ECT Chart") + f" — {base_name}"
+
     if base_ref == "Clinical Procedure" and base_name:
         title = frappe.db.get_value("Clinical Procedure", base_name, "procedure_template") or base_name
         return _("Clinical procedure") + f" — {title}"

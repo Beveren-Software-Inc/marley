@@ -1,45 +1,37 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useLayoutEffect, useCallback } from 'react'
+import { createPortal } from 'react-dom'
 import {
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
-import { fetchServiceRequests } from '../../services/serviceRequests'
-import { fetchCostCenters, fetchItems, type LinkFieldOption } from '../../services/common'
+import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import {
-  linkComboboxDropdownClassLow,
-  linkComboboxDropdownClassShort,
-  linkComboboxInputClass,
   linkComboboxInputClassCompact,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
-import { createIPService, type CreateIPServiceInput, type IPServiceLineInput } from '../../services/ipServices'
-import { fetchIPServiceType } from '../../services/ipServices'
+import {
+  createIPService,
+  fetchIPServiceType,
+  fetchIPServiceTypes,
+  type CreateIPServiceInput,
+  type IPServiceLineInput,
+} from '../../services/ipServices'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { fetchPatientDisplayName } from '../../services/patients'
 
 interface CreateIPServiceModalProps {
   onClose: () => void
   onSuccess: (ipServiceName: string) => void
   initialPatient?: string
-  initialServiceRequest?: string
-  initialCategory?: 'Medical Service' | 'Other Service'
   openInNewTab?: boolean
-  prefillFromServiceRequest?: boolean  // New prop
 }
-
-const TYPE_OPTIONS = [
-  { value: 'Internal Service', label: 'Internal Service' },
-  { value: 'External Service', label: 'External Service' },
-]
-
-type TabId = 'details' | 'items'
 
 interface ItemRow {
   id: string
-  service_code: string
-  item_label: string
+  service_type: string
+  template_label: string
   amount: string
   note: string
 }
@@ -48,284 +40,157 @@ function nextId() {
   return `row-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
 }
 
+function emptyItemRow(): ItemRow {
+  return { id: nextId(), service_type: '', template_label: '', amount: '', note: '' }
+}
+
 export const CreateIPServiceModal = ({
   onClose,
   onSuccess,
   initialPatient,
-  initialServiceRequest,
-  initialCategory,
   openInNewTab = true,
-  prefillFromServiceRequest = false,  // New prop
 }: CreateIPServiceModalProps) => {
-  // Get context from CareContextProvider
-  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
-  
-  // Determine if we're in IP mode
-  const isIPMode = mode === 'IP'
-  
-  const [tab, setTab] = useState<TabId>('details')
-  const [admissionNo, setAdmissionNo] = useState('')
-  const [admissionSearch, setAdmissionSearch] = useState('')
-  const [admissions, setAdmissions] = useState<InpatientRecord[]>([])
-  const [admissionOpen, setAdmissionOpen] = useState(false)
-  const [serviceRequest, setServiceRequest] = useState(initialServiceRequest || '')
-  const [serviceRequests, setServiceRequests] = useState<{ name: string; template_name?: string }[]>([])
-  const [category, setCategory] = useState<string>(initialCategory || 'Medical Service')
-  const [type, setType] = useState<string>('External Service')
-  const [costCenter, setCostCenter] = useState('')
-  const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
-  const [costCenterOpen, setCostCenterOpen] = useState(false)
-  const [costCenterSearch, setCostCenterSearch] = useState('')
-  const [items, setItems] = useState<ItemRow[]>([])
-  const [loadingTemplate, setLoadingTemplate] = useState(false)
+  const { mode, activeAdmission, activeVisit, selectedPatient: contextPatient } = useCareContext()
 
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+  const hasCareContext = isIPMode || isOPMode
+
+  const effectivePatient = initialPatient || contextPatient || ''
+  const effectiveAdmission = isIPMode ? (activeAdmission || '') : ''
+  const effectiveVisit = isOPMode ? (activeVisit || '') : ''
+
+  const [patientName, setPatientName] = useState('')
+  const [admissionLabel, setAdmissionLabel] = useState('')
+  const [visitLabel, setVisitLabel] = useState('')
+  const [items, setItems] = useState<ItemRow[]>([emptyItemRow()])
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const admissionDropdownRef = useRef<HTMLDivElement>(null)
-  const costCenterDropdownRef = useRef<HTMLDivElement>(null)
 
-  // Get effective patient and admission
-  const effectivePatient = initialPatient || contextPatient || ''
-  const effectiveAdmission = activeAdmission || ''
-
-  // NEW: Auto-load items from Service Request when prefillFromServiceRequest is true
   useEffect(() => {
-    const loadFromServiceRequest = async () => {
-      if (!prefillFromServiceRequest || !initialServiceRequest) return
-      
-      setLoadingTemplate(true)
-      try {
-        // Fetch service request details
-        const srResponse = await fetch(`/api/resource/Service Request/${encodeURIComponent(initialServiceRequest)}`)
-        const srData = await srResponse.json()
-        const sr = srData?.data
-        
-        if (sr && sr.template_dt === 'Healthcare Service Template' && sr.template_dn) {
-          // Auto-fill branch from service request
-          if (sr.cost_center) {
-            setCostCenter(sr.cost_center)
-          }
-          
-          // Auto-fill category from service request
-          if (sr.category) {
-            setCategory(sr.category)
-          }
-          
-          // Fetch Healthcare Service Template template to get items
-          const template = await fetchIPServiceType(sr.template_dn)
-          
-          if (template && template.pricing && template.pricing.length > 0) {
-            const newItems: ItemRow[] = []
-            
-            for (const pricingRow of template.pricing) {
-              if (pricingRow.item) {
-                // Fetch item details to get label
-                try {
-                  const itemResponse = await fetch(`/api/resource/Item/${encodeURIComponent(pricingRow.item)}`)
-                  const itemData = await itemResponse.json()
-                  const item = itemData?.data
-                  
-                  newItems.push({
-                    id: nextId(),
-                    service_code: pricingRow.item,
-                    item_label: item?.item_name || pricingRow.item,
-                    amount: pricingRow.rate?.toString() || sr.amount?.toString() || '0',
-                    note: pricingRow.note || '',
-                  })
-                } catch (err) {
-                  newItems.push({
-                    id: nextId(),
-                    service_code: pricingRow.item,
-                    item_label: pricingRow.item,
-                    amount: pricingRow.rate?.toString() || sr.amount?.toString() || '0',
-                    note: pricingRow.note || '',
-                  })
-                }
-              }
-            }
-            
-            if (newItems.length > 0) {
-              setItems(newItems)
-              toast.success(`Loaded ${newItems.length} service item(s) from template`)
-            }
-          } else if (template && template.rate && template.item_code) {
-            // Fallback to single item
-            try {
-              const itemResponse = await fetch(`/api/resource/Item/${encodeURIComponent(template.item_code)}`)
-              const itemData = await itemResponse.json()
-              const item = itemData?.data
-              
-              setItems([{
-                id: nextId(),
-                service_code: template.item_code,
-                item_label: item?.item_name || template.item_code,
-                amount: template.rate.toString(),
-                note: template.description || '',
-              }])
-              toast.success('Loaded service item from template')
-            } catch (err) {
-              setItems([{
-                id: nextId(),
-                service_code: template.item_code,
-                item_label: template.item_code,
-                amount: template.rate.toString(),
-                note: template.description || '',
-              }])
-            }
-          }
-        }
-      } catch (err) {
-        console.error('Failed to load from service request:', err)
-        toast.error('Could not auto-load service details')
-      } finally {
-        setLoadingTemplate(false)
-      }
+    if (!effectivePatient) {
+      setPatientName('')
+      return
     }
-    
-    loadFromServiceRequest()
-  }, [prefillFromServiceRequest, initialServiceRequest])
-
-  // Auto-load admission from context
-  useEffect(() => {
-    if (isIPMode && effectiveAdmission && !admissionNo) {
-      fetchInpatientRecords(undefined, effectiveAdmission, effectivePatient, undefined, undefined, undefined)
-        .then((response) => {
-          const list = response.data
-          const matched = list.find(a => a.name === effectiveAdmission)
-          if (matched) {
-            setAdmissionNo(matched.name)
-          } else if (list.length > 0) {
-            setAdmissionNo(list[0].name)
-          }
-        })
-        .catch(() => {})
-    }
-  }, [isIPMode, effectiveAdmission, effectivePatient, admissionNo])
-
-  // Auto-load service request if provided
-  useEffect(() => {
-    if (initialServiceRequest) setServiceRequest(initialServiceRequest)
-  }, [initialServiceRequest])
-
-  useEffect(() => {
-    if (initialCategory) setCategory(initialCategory)
-  }, [initialCategory])
-
-  // Load service requests for the patient
-  useEffect(() => {
-    if (!effectivePatient) return
-    fetchServiceRequests(50, 0, effectivePatient, 'Healthcare Service Template')
-      .then((result) => setServiceRequests(result.data))
-      .catch(() => setServiceRequests([]))
+    fetchPatientDisplayName(effectivePatient)
+      .then((row) => setPatientName(row.patient_name || row.name || effectivePatient))
+      .catch(() => setPatientName(effectivePatient))
   }, [effectivePatient])
 
-  // Load admissions with search
   useEffect(() => {
-    if (!admissionOpen) return
-    const t = setTimeout(() => {
-      fetchInpatientRecords(undefined, admissionSearch || undefined, effectivePatient, undefined, undefined, undefined)
-        .then((response) => setAdmissions(response.data.slice(0, 30)))
-        .catch(() => setAdmissions([]))
-    }, admissionSearch.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [admissionOpen, admissionSearch, effectivePatient])
+    if (!effectiveAdmission) {
+      setAdmissionLabel('')
+      return
+    }
+    fetchInpatientRecords(undefined, effectiveAdmission, effectivePatient, undefined, undefined, undefined)
+      .then((response) => {
+        const row = response.data.find((a) => a.name === effectiveAdmission) || response.data[0]
+        if (row) {
+          setAdmissionLabel(
+            `${row.name}${row.patient_name ? ` – ${row.patient_name}` : ''}`
+          )
+        } else {
+          setAdmissionLabel(effectiveAdmission)
+        }
+      })
+      .catch(() => setAdmissionLabel(effectiveAdmission))
+  }, [effectiveAdmission, effectivePatient])
 
-  // Load branches (optionally by company when admission is selected)
   useEffect(() => {
-    const selectedAdmission = admissions.find((a) => a.name === admissionNo)
-    const company = selectedAdmission?.company
-    fetchCostCenters(company, costCenterSearch || undefined)
-      .then(setCostCenters)
-      .catch(() => setCostCenters([]))
-  }, [admissionNo, admissions, costCenterSearch])
-
-  const selectedAdmission = admissions.find((a) => a.name === admissionNo)
+    if (!effectiveVisit) {
+      setVisitLabel('')
+      return
+    }
+    setVisitLabel(effectiveVisit)
+  }, [effectiveVisit])
 
   const addItemRow = () => {
-    setItems((prev) => [...prev, { id: nextId(), service_code: '', item_label: '', amount: '', note: '' }])
+    setItems((prev) => [...prev, emptyItemRow()])
   }
 
   const removeItemRow = (id: string) => {
-    setItems((prev) => prev.filter((r) => r.id !== id))
+    setItems((prev) => (prev.length <= 1 ? prev : prev.filter((r) => r.id !== id)))
   }
 
-  const updateItemRow = (id: string, field: keyof ItemRow, value: string) => {
-    setItems((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, [field]: value } : r))
-    )
+  const updateItemRow = (id: string, patch: Partial<ItemRow>) => {
+    setItems((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
-    if (!admissionNo.trim()) {
-      setError('Admission is required.')
+    if (!hasCareContext) {
+      setError('Select IP or OP mode from the navbar before creating a service.')
       return
     }
-    if (!costCenter.trim()) {
-      setError('Branch is required.')
+    if (isIPMode && !effectiveAdmission) {
+      setError('Select an inpatient admission in IP mode.')
+      return
+    }
+    if (isOPMode && !effectiveVisit) {
+      setError('Select a patient visit in OP mode.')
       return
     }
 
-    const needItems = !serviceRequest
-    const validItems = items.filter((r) => r.service_code.trim() && r.amount.trim() && !isNaN(parseFloat(r.amount)))
-    if (needItems && validItems.length === 0) {
-      setError('Without a Service Request you must add at least one item with a price.')
-      setTab('items')
+    const validItems = items.filter(
+      (r) => r.service_type.trim() && r.amount.trim() && !Number.isNaN(parseFloat(r.amount))
+    )
+    if (validItems.length === 0) {
+      setError('Add at least one Healthcare Service Template with an amount.')
       return
     }
 
     try {
       setSubmitting(true)
-      const input: CreateIPServiceInput = {
-        admission_no: admissionNo.trim(),
-        cost_center: costCenter.trim(),
-        type,
-        category,
-      }
-      if (serviceRequest) input.service_request = serviceRequest
-      if (validItems.length > 0) {
-        input.services = validItems.map(
-          (r): IPServiceLineInput => ({
-            service_code: r.service_code.trim(),
-            amount: parseFloat(r.amount),
-            note: r.note.trim() || undefined,
-          })
-        )
+      const serviceLines: IPServiceLineInput[] = []
+      for (const row of validItems) {
+        const template = await fetchIPServiceType(row.service_type)
+        serviceLines.push({
+          service_type: row.service_type.trim(),
+          service_code: template?.item_code,
+          amount: parseFloat(row.amount),
+          note: row.note.trim() || undefined,
+        })
       }
 
-      const { name } = await createIPService(input)
-      toast.success(`IP Service ${name} created.`)
+      const input: CreateIPServiceInput = {
+        category: 'Medical Service',
+        services: serviceLines,
+      }
+      if (isIPMode && effectiveAdmission) {
+        input.admission_no = effectiveAdmission
+      }
+      if (isOPMode && effectiveVisit) {
+        input.patient_visit = effectiveVisit
+      }
+
+      const { name, sales_order } = await createIPService(input)
+      toast.success(
+        sales_order
+          ? `ECT Chart ${name} created. Sales Order ${sales_order} created.`
+          : `ECT Chart ${name} created.`
+      )
       onSuccess(name)
       onClose()
       if (openInNewTab) {
         window.open(`/app/ip-service/${encodeURIComponent(name)}`, '_blank')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create IP Service')
+      setError(err instanceof Error ? err.message : 'Failed to create ECT Chart')
     } finally {
       setSubmitting(false)
     }
   }
 
-  // Get mode-specific help text
-  const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating IP service for admission: ${admissionNo || 'auto-selected from context'}`
-    }
-    return 'Select IP mode from the context switcher above'
-  }
-
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-2xl w-full min-h-[32rem] max-h-[90vh]')}>
+      <div className={createModalShellClass('max-w-2xl w-full min-h-[34rem] max-h-[92vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Create IP Service</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Create ECT Chart</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
-              {getModeHelpText()}
+              Add Healthcare Service Template lines for the current patient context.
             </p>
           </div>
           <button
@@ -340,59 +205,6 @@ export const CreateIPServiceModal = ({
           </button>
         </div>
 
-        {/* Mode indicator box */}
-        <div className="mx-4 mt-3 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-          <p className="text-xs font-semibold text-primary mb-1">
-            {isIPMode ? '🏥 Creating IP Service for Inpatient' : '📋 Select IP Context'}
-          </p>
-          <p className="text-xs text-slate-600">
-            {isIPMode 
-              ? `The IP service will be linked to the selected inpatient admission.`
-              : 'Please select IP mode from the top navbar before creating an IP service.'
-            }
-          </p>
-        </div>
-
-        {/* Loading indicator */}
-        {loadingTemplate && (
-          <div className="mx-4 mt-2 px-3 py-2 bg-blue-50 text-blue-700 text-xs rounded-md flex items-center gap-2">
-            <svg className="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
-            Loading service items from template...
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex border-b border-slate-200 flex-shrink-0 mt-3">
-          <button
-            type="button"
-            onClick={() => setTab('details')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'details'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Details
-          </button>
-          <button
-            type="button"
-            onClick={() => setTab('items')}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === 'items'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            Items
-            {items.length > 0 && (
-              <span className="ml-1.5 rounded-full bg-slate-200 px-1.5 py-0.5 text-xs">{items.length}</span>
-            )}
-          </button>
-        </div>
-
         <form onSubmit={handleSubmit} className="flex flex-col flex-1 min-h-0">
           {error && (
             <div className="px-4 py-2 text-sm text-red-700 bg-red-50 border-b border-red-200 flex-shrink-0">
@@ -400,233 +212,78 @@ export const CreateIPServiceModal = ({
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-4 min-h-[20rem]">
-            {tab === 'details' && (
-              <div className="space-y-4">
-                <div ref={admissionDropdownRef} className="relative">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Inpatient Admission <span className="text-red-500">*</span>
-                  </label>
-                  {activeAdmission ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={selectedAdmission ? `${selectedAdmission.name}${selectedAdmission.patient_name ? ` – ${selectedAdmission.patient_name}` : ''}` : admissionNo}
-                        readOnly
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
-                    </div>
-                  ) : (
-                    <>
-                      <input
-                        type="text"
-                        value={
-                          admissionOpen
-                            ? admissionSearch
-                            : selectedAdmission
-                              ? `${selectedAdmission.name}${selectedAdmission.patient_name ? ` – ${selectedAdmission.patient_name}` : ''}`
-                              : admissionNo
-                        }
-                        onChange={(e) => {
-                          setAdmissionSearch(e.target.value)
-                          if (!admissionOpen) setAdmissionOpen(true)
-                        }}
-                        onFocus={() => setAdmissionOpen(true)}
-                        className={linkComboboxInputClass}
-                        placeholder="Search admission..."
-                      />
-                      {admissionOpen && (
-                        <div className={`${linkComboboxDropdownClassShort} max-w-md`}>
-                          {admissions.length === 0 ? (
-                            <div className="px-3 py-2 text-sm text-slate-500">No admissions found.</div>
-                          ) : (
-                            admissions.map((a) => (
-                              <button
-                                key={a.name}
-                                type="button"
-                                className={`block w-full ${linkComboboxOptionClassCompact} border-b border-slate-100 last:border-0`}
-                                onClick={() => {
-                                  setAdmissionNo(a.name)
-                                  setAdmissionSearch('')
-                                  setAdmissionOpen(false)
-                                }}
-                              >
-                                {a.name}
-                                {a.patient_name ? ` – ${a.patient_name}` : ''}
-                              </button>
-                            ))
-                          )}
-                        </div>
-                      )}
-                    </>
-                  )}
-                </div>
+          <div className="flex-1 overflow-y-auto overflow-x-visible p-4 space-y-4 min-h-[20rem]">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Patient</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={patientName || effectivePatient || '—'}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Care context</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    isIPMode
+                      ? `IP${admissionLabel ? ` · ${admissionLabel}` : effectiveAdmission ? ` · ${effectiveAdmission}` : ''}`
+                      : isOPMode
+                        ? `OP${visitLabel ? ` · ${visitLabel}` : ''}`
+                        : 'Select IP or OP mode'
+                  }
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
+                <input
+                  type="text"
+                  readOnly
+                  value="Medical Service"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                />
+              </div>
+            </div>
 
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Service Request</label>
-                  {initialServiceRequest ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={serviceRequest}
-                        readOnly
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-slate-700">Service items</p>
+                <button
+                  type="button"
+                  onClick={addItemRow}
+                  className="text-sm font-medium text-primary hover:underline"
+                >
+                  + Add row
+                </button>
+              </div>
+
+              <div className="overflow-x-auto overflow-visible border border-slate-200 rounded-lg">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 border-b border-slate-200">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">Healthcare Service Template</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600 w-28">Amount</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">Note</th>
+                      <th className="w-10" />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((row) => (
+                      <TemplateRowEditor
+                        key={row.id}
+                        row={row}
+                        onUpdate={(patch) => updateItemRow(row.id, patch)}
+                        onRemove={() => removeItemRow(row.id)}
                       />
-                      <p className="text-xs text-slate-400 mt-1">Linked from Service Request</p>
-                    </div>
-                  ) : (
-                    <select
-                      value={serviceRequest}
-                      onChange={(e) => setServiceRequest(e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">None</option>
-                      {serviceRequests.map((sr) => (
-                        <option key={sr.name} value={sr.name}>
-                          {sr.template_name || sr.name}
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                  {!serviceRequest && (
-                    <p className="text-xs text-amber-700 mt-1">Add at least one item in the Items tab.</p>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Category</label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="Medical Service">Medical Service</option>
-                    <option value="Other Service">Other Service</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-medium text-slate-600 mb-1">Type</label>
-                  <select
-                    value={type}
-                    onChange={(e) => setType(e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    {TYPE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
                     ))}
-                  </select>
-                </div>
-
-                <div ref={costCenterDropdownRef} className="relative">
-                  <label className="block text-xs font-medium text-slate-600 mb-1">
-                    Branch <span className="text-red-500">*</span>
-                  </label>
-                  {prefillFromServiceRequest && initialServiceRequest && costCenter ? (
-                    <div>
-                      <input
-                        type="text"
-                        value={costCenter}
-                        readOnly
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
-                      />
-                      <p className="text-xs text-slate-400 mt-1">Auto-loaded from Service Request</p>
-                    </div>
-                  ) : (
-                    <input
-                      type="text"
-                      value={
-                        costCenterOpen
-                          ? costCenterSearch
-                          : costCenter
-                            ? costCenters.find((c) => c.name === costCenter)?.label ?? costCenter
-                            : ''
-                      }
-                      onChange={(e) => {
-                        setCostCenterSearch(e.target.value)
-                        if (!costCenterOpen) setCostCenterOpen(true)
-                      }}
-                      onFocus={() => setCostCenterOpen(true)}
-                      className={linkComboboxInputClass}
-                      placeholder="Search branch..."
-                    />
-                  )}
-                  {costCenterOpen && !(prefillFromServiceRequest && initialServiceRequest) && (
-                    <div className={linkComboboxDropdownClassShort}>
-                      {costCenters.length === 0 ? (
-                        <div className="px-3 py-2 text-sm text-slate-500">No branches found.</div>
-                      ) : (
-                        costCenters.map((c) => (
-                          <button
-                            key={c.name}
-                            type="button"
-                            className={`block w-full ${linkComboboxOptionClassCompact} border-b border-slate-100 last:border-0`}
-                            onClick={() => {
-                              setCostCenter(c.name)
-                              setCostCenterSearch('')
-                              setCostCenterOpen(false)
-                            }}
-                          >
-                            {c.label || c.name}
-                          </button>
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
+                  </tbody>
+                </table>
               </div>
-            )}
-
-            {tab === 'items' && (
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-slate-600">
-                    {serviceRequest
-                      ? 'Service items loaded from template. You can modify or add more.'
-                      : 'Add at least one item and price when no Service Request is linked.'}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={addItemRow}
-                    className="text-sm font-medium text-primary hover:underline"
-                  >
-                    + Add row
-                  </button>
-                </div>
-
-                {items.length === 0 ? (
-                  <div className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-slate-500 text-sm">
-                    No items. Click &quot;+ Add row&quot; to add an item and amount.
-                  </div>
-                ) : (
-                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                    <table className="w-full text-sm">
-                      <thead className="bg-slate-50 border-b border-slate-200">
-                        <tr>
-                          <th className="px-3 py-2 text-left font-medium text-slate-600">Item</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-600 w-28">Amount</th>
-                          <th className="px-3 py-2 text-left font-medium text-slate-600">Note</th>
-                          <th className="w-10" />
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {items.map((row) => (
-                          <ItemRowEditor
-                            key={row.id}
-                            row={row}
-                            onUpdate={(field, value) => updateItemRow(row.id, field, value)}
-                            onRemove={() => removeItemRow(row.id)}
-                          />
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
-            )}
+            </div>
           </div>
 
           <div className="px-4 py-3 border-t border-slate-200 flex justify-end gap-2 flex-shrink-0">
@@ -639,17 +296,10 @@ export const CreateIPServiceModal = ({
             </button>
             <button
               type="submit"
-              disabled={
-                submitting ||
-                loadingTemplate ||
-                !admissionNo.trim() ||
-                !costCenter.trim() ||
-                (!serviceRequest && items.filter((r) => r.service_code.trim() && r.amount.trim()).length === 0) ||
-                !isIPMode
-              }
+              disabled={submitting || !hasCareContext}
               className={CM_BTN_PRIMARY}
             >
-              {submitting ? 'Creating…' : 'Create IP Service'}
+              {submitting ? 'Creating…' : 'Create ECT Chart'}
             </button>
           </div>
         </form>
@@ -658,65 +308,143 @@ export const CreateIPServiceModal = ({
   )
 }
 
-interface ItemRowEditorProps {
+interface TemplateRowEditorProps {
   row: ItemRow
-  onUpdate: (field: keyof ItemRow, value: string) => void
+  onUpdate: (patch: Partial<ItemRow>) => void
   onRemove: () => void
 }
 
-function ItemRowEditor({ row, onUpdate, onRemove }: ItemRowEditorProps) {
-  const [itemSearch, setItemSearch] = useState('')
-  const [itemOptions, setItemOptions] = useState<LinkFieldOption[]>([])
-  const [itemOpen, setItemOpen] = useState(false)
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>(null)
+function TemplateRowEditor({ row, onUpdate, onRemove }: TemplateRowEditorProps) {
+  const [search, setSearch] = useState('')
+  const [options, setOptions] = useState<{ name: string; service_name: string; rate?: number }[]>([])
+  const [open, setOpen] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<React.CSSProperties | null>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  const displayValue = row.template_label || row.service_type
 
   useEffect(() => {
-    if (!itemOpen) return
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => {
-      fetchItems(itemSearch || undefined).then(setItemOptions)
-    }, itemSearch.trim() === '' ? 0 : 300)
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+    if (!open) return
+    const t = setTimeout(() => {
+      fetchIPServiceTypes(search || undefined, 50, true)
+        .then(setOptions)
+        .catch(() => setOptions([]))
+    }, search.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [open, search])
+
+  const updateDropdownPosition = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    const rect = el.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom - 8
+    const spaceAbove = rect.top - 8
+    const openUp = spaceBelow < 160 && spaceAbove > spaceBelow
+    const maxHeight = Math.min(224, Math.max(openUp ? spaceAbove : spaceBelow, 120))
+
+    setDropdownStyle({
+      position: 'fixed',
+      top: openUp ? undefined : rect.bottom + 4,
+      bottom: openUp ? window.innerHeight - rect.top + 4 : undefined,
+      left: rect.left,
+      width: Math.max(rect.width, 220),
+      maxHeight,
+      zIndex: 10000,
+    })
+  }, [])
+
+  useLayoutEffect(() => {
+    if (!open) {
+      setDropdownStyle(null)
+      return
     }
-  }, [itemOpen, itemSearch])
+    const id = requestAnimationFrame(updateDropdownPosition)
+    const onScrollOrResize = () => updateDropdownPosition()
+    window.addEventListener('scroll', onScrollOrResize, true)
+    window.addEventListener('resize', onScrollOrResize)
+    return () => {
+      cancelAnimationFrame(id)
+      window.removeEventListener('scroll', onScrollOrResize, true)
+      window.removeEventListener('resize', onScrollOrResize)
+    }
+  }, [open, options.length, updateDropdownPosition])
+
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      const inWrap = wrapRef.current?.contains(target)
+      const inDropdown = dropdownRef.current?.contains(target)
+      if (!inWrap && !inDropdown) {
+        setOpen(false)
+        setSearch('')
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [])
+
+  const selectTemplate = async (name: string, label: string) => {
+    onUpdate({ service_type: name, template_label: label })
+    setSearch('')
+    setOpen(false)
+    try {
+      const template = await fetchIPServiceType(name)
+      if (template?.rate != null && !row.amount) {
+        onUpdate({ service_type: name, template_label: label, amount: String(template.rate) })
+      }
+    } catch {
+      // keep manual amount entry
+    }
+  }
+
+  const dropdownPanel =
+    open && dropdownStyle ? (
+      <div
+        ref={dropdownRef}
+        style={dropdownStyle}
+        className="overflow-y-auto rounded-xl border border-emerald-200/80 bg-white py-1 text-slate-900 shadow-lg ring-1 ring-emerald-300/40"
+      >
+        {options.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-slate-500">No ECT templates found.</div>
+        ) : (
+          options.map((opt) => (
+            <button
+              key={opt.name}
+              type="button"
+              className={`block w-full ${linkComboboxOptionClassCompact} px-2 text-left`}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => void selectTemplate(opt.name, opt.service_name || opt.name)}
+            >
+              {opt.service_name || opt.name}
+              {opt.rate != null ? ` · ${opt.rate}` : ''}
+            </button>
+          ))
+        )}
+      </div>
+    ) : null
 
   return (
     <tr className="border-b border-slate-100 last:border-0">
       <td className="px-3 py-2">
-        <div className="relative min-w-[180px]">
+        <div ref={wrapRef} className="relative min-w-[220px]">
           <input
+            ref={inputRef}
             type="text"
-            value={itemOpen ? itemSearch : row.item_label || row.service_code}
+            value={open ? search : displayValue}
             onChange={(e) => {
-              setItemSearch(e.target.value)
-              if (!itemOpen) setItemOpen(true)
+              setSearch(e.target.value)
+              if (!open) setOpen(true)
             }}
-            onFocus={() => setItemOpen(true)}
-            onBlur={() => setTimeout(() => setItemOpen(false), 200)}
+            onFocus={() => setOpen(true)}
             className={linkComboboxInputClassCompact}
-            placeholder="Search item..."
+            placeholder="Search template..."
           />
-          {itemOpen && (
-            <div className={`${linkComboboxDropdownClassLow} left-0 right-0`}>
-              {itemOptions.map((opt) => (
-                <button
-                  key={opt.name}
-                  type="button"
-                  className={`block w-full ${linkComboboxOptionClassCompact} px-2`}
-                  onMouseDown={() => {
-                    onUpdate('service_code', opt.name)
-                    onUpdate('item_label', opt.label || opt.name)
-                    setItemSearch('')
-                    setItemOpen(false)
-                  }}
-                >
-                  {opt.label || opt.name}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
+        {typeof document !== 'undefined' && dropdownPanel
+          ? createPortal(dropdownPanel, document.body)
+          : null}
       </td>
       <td className="px-3 py-2">
         <input
@@ -724,7 +452,7 @@ function ItemRowEditor({ row, onUpdate, onRemove }: ItemRowEditorProps) {
           min={0}
           step={0.01}
           value={row.amount}
-          onChange={(e) => onUpdate('amount', e.target.value)}
+          onChange={(e) => onUpdate({ amount: e.target.value })}
           className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="0"
         />
@@ -733,7 +461,7 @@ function ItemRowEditor({ row, onUpdate, onRemove }: ItemRowEditorProps) {
         <input
           type="text"
           value={row.note}
-          onChange={(e) => onUpdate('note', e.target.value)}
+          onChange={(e) => onUpdate({ note: e.target.value })}
           className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
           placeholder="Note"
         />

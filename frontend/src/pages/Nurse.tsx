@@ -124,7 +124,6 @@ export const NursePage = () => {
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
   const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
-  const [createIPServicePreFill, setCreateIPServicePreFill] = useState<{ serviceRequest?: string; patient?: string } | null>(null)
   const [prescriptionRefreshKey] = useState(0)
   const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
@@ -1079,81 +1078,42 @@ export const NursePage = () => {
     )
   }
 
-  // Other Services / Referral Services - Service Requests list
-  // IP Services page: two cards – Service Request (left), IP Service (right)
+  // ECT Chart page
   if (screen === 'n-ip-services') {
     return (
       <div className="flex min-h-full flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4 flex-1 min-h-0 flex flex-col">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 min-h-0 flex-1">
-            {/* Left card: Service Request – request a service (e.g. Transport) */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px] overflow-hidden min-w-0">
-              <ServiceRequestList
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0">
+            <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
+              <span>ECT Chart</span>
+              <button
+                onClick={() => setShowCreateIPServiceModal(true)}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="New ECT Chart"
+              >
+                +
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 mb-3 flex-shrink-0">
+              Record medical services for the selected patient using Healthcare Service Templates. Branch is taken from the active admission or patient visit.
+            </p>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <IPServiceList
                 patient={selectedPatient}
-                refreshKey={serviceRequestRefreshKey}
-                template_dt="Healthcare Service Template"
-                isNurseContext={true}
-                onPatientClick={handlePatientSelect}
-                title="Service Request"
-                subtitle="Request a hospital service (e.g. transport with nurse, transport only). Turn a request into an IP Service from the right card."
-                onAdd={() => setShowServiceRequestModal(true)}
-                addButtonTitle="New service request (Healthcare Service Template)"
-                onCreateIPService={(sr) => {
-                  setCreateIPServicePreFill({ serviceRequest: sr.name, patient: sr.patient })
-                  setShowCreateIPServiceModal(true)
-                }}
+                refreshKey={ipServiceRefreshKey}
               />
-            </section>
-            {/* Right card: IP Service – fulfill / create service (with or without a request) */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[420px] overflow-hidden min-w-0">
-              <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
-                <span>IP Service</span>
-                <button
-                  onClick={() => setShowCreateIPServiceModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                  title="New IP Service (with or without a request)"
-                >
-                  +
-                </button>
-              </div>
-              <p className="text-sm text-slate-600 mb-3 flex-shrink-0">
-                Fulfill a service request or create an IP Service directly (admission, services, totals). Link to a Service Request optional.
-              </p>
-              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                <IPServiceList
-                  patient={selectedPatient}
-                  refreshKey={ipServiceRefreshKey}
-                />
-              </div>
-            </section>
-          </div>
+            </div>
+          </section>
         </div>
-        {showServiceRequestModal && (
-          <CreateServiceRequestModal
-            onClose={() => setShowServiceRequestModal(false)}
-            onSuccess={() => {
-              setServiceRequestRefreshKey((prev) => prev + 1)
-              setShowServiceRequestModal(false)
-            }}
-            initialPatient={selectedPatient}
-            initialTemplate='Healthcare Service Template'
-          />
-        )}
         {showCreateIPServiceModal && (
           <CreateIPServiceModal
-            onClose={() => {
-              setShowCreateIPServiceModal(false)
-              setCreateIPServicePreFill(null)
-            }}
+            onClose={() => setShowCreateIPServiceModal(false)}
             onSuccess={() => {
               setIpServiceRefreshKey((prev) => prev + 1)
               setShowCreateIPServiceModal(false)
-              setCreateIPServicePreFill(null)
             }}
-            initialPatient={createIPServicePreFill?.patient ?? selectedPatient}
-            initialServiceRequest={createIPServicePreFill?.serviceRequest}
-            prefillFromServiceRequest={!!createIPServicePreFill?.serviceRequest}
+            initialPatient={selectedPatient}
             openInNewTab={false}
           />
         )}
@@ -1161,12 +1121,12 @@ export const NursePage = () => {
     )
   }
 
-  if (screen === 'n-other' || screen === 'n-ref') {
+  if (screen === 'n-other') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title={screen === 'n-ref' ? 'Referral Services' : 'Other Services'} onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))} addButtonTitle="Add Service Request">
+          <DashboardCard title="Other Services" onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))} addButtonTitle="Add Service Request">
             <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>

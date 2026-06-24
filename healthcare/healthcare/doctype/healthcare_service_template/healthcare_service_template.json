@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_import": 1,
  "autoname": "field:service_id",
  "creation": "2026-01-01 00:00:00",
@@ -16,6 +17,7 @@
   "rate",
   "disabled",
   "pricing",
+  "is_ect",
   "section_break_gxzz",
   "display_name",
   "sg_no",
@@ -34,6 +36,7 @@
    "fieldname": "service_name",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Service Name"
   },
   {
@@ -46,6 +49,7 @@
    "fieldname": "category",
    "fieldtype": "Select",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Category",
    "options": "\nMedical Service\nOther Service"
   },
@@ -151,10 +155,16 @@
    "fieldtype": "Link",
    "label": "Service Group",
    "options": "Service Template Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_ect",
+   "fieldtype": "Check",
+   "label": "Is ECT"
   }
  ],
  "links": [],
- "modified": "2026-06-17 11:26:49.608049",
+ "modified": "2026-06-24 17:12:36.416964",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",
