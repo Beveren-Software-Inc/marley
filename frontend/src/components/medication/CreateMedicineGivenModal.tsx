@@ -14,7 +14,9 @@ import {
   fetchMedicineGivenItemLots,
   fetchMedicineGivenDispensingLots,
   previewMedicineGivenDoseValidation,
+  updateMedicineGiven,
   type MedicineGivenDoseValidationPreview,
+  type MedicineGivenRow,
   type MedicineGivenStockOptions,
   type MedicineGivenDispensingLotOption,
 } from '../../services/medicineGiven'
@@ -37,8 +39,22 @@ interface CreateMedicineGivenModalProps {
   initialOrderEntry?: string
   initialDate?: string
   initialTime?: string
+  /** When set, opens in edit mode for an existing given medicine row. */
+  editRow?: MedicineGivenRow
   onClose: () => void
   onSuccess: () => void
+}
+
+function toTimeInputValue(time?: string | null): string {
+  if (!time) return ''
+  let value = time.trim()
+  if (value.includes(' ')) {
+    value = value.split(' ').pop() || value
+  }
+  if (value.includes('.')) {
+    value = value.split('.')[0]
+  }
+  return value.length >= 5 ? value.slice(0, 5) : value
 }
 
 function pickInitialOrderEntry(
@@ -156,9 +172,11 @@ export const CreateMedicineGivenModal = ({
   initialOrderEntry,
   initialDate,
   initialTime,
+  editRow,
   onClose,
   onSuccess,
 }: CreateMedicineGivenModalProps) => {
+  const isEdit = Boolean(editRow)
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [selectedPrescription, setSelectedPrescription] = useState<string>('')
@@ -197,9 +215,24 @@ export const CreateMedicineGivenModal = ({
 
   useEffect(() => {
     const now = new Date()
+    if (editRow) {
+      setDate(editRow.date || initialDate || now.toISOString().slice(0, 10))
+      setTime(toTimeInputValue(editRow.time) || initialTime || now.toTimeString().slice(0, 5))
+      setDose((editRow.dose || '').trim())
+      setQty(editRow.qty != null ? String(editRow.qty) : '1')
+      setUom((editRow.unit || '').trim())
+      setUomQuery((editRow.unit || '').trim())
+      setNotes((editRow.dose_notes || '').trim())
+      setBatchNo(editRow.batch_no || '')
+      setLotNo(editRow.lot_no || '')
+      setDispensingLot(editRow.dispensing_lot || '')
+      setSelectedPrescription(editRow.medication_order || editRow.patient_medication_order || '')
+      setIsPrn(Boolean(editRow.is_prn))
+      return
+    }
     setDate(initialDate || now.toISOString().slice(0, 10))
     setTime(initialTime || now.toTimeString().slice(0, 5))
-  }, [initialDate, initialTime])
+  }, [initialDate, initialTime, editRow])
 
   useEffect(() => {
     const load = async () => {
@@ -211,7 +244,15 @@ export const CreateMedicineGivenModal = ({
         setLoading(true)
         setError(null)
 
-        const adm = await getPatientActiveAdmission(initialPatient)
+        const adm = propInpatientRecord
+          ? ({
+              name: propInpatientRecord,
+              patient: initialPatient,
+              patient_name: '',
+              status: 'Admitted' as const,
+              scheduled_date: '',
+            } satisfies InpatientRecord)
+          : await getPatientActiveAdmission(initialPatient)
         if (!adm) {
           setError('No active inpatient admission found for this patient')
           return
@@ -232,6 +273,20 @@ export const CreateMedicineGivenModal = ({
               : await fetchMedicationOrders(prescriptionName)
           setOrders(ords)
           setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
+        }
+
+        if (isEdit && editRow?.medicine_code) {
+          setPrescriptions([])
+          setOrders([])
+          setSelectedOrder('')
+          setLoadingStock(true)
+          try {
+            const stock = await fetchMedicineGivenStockOptions(adm.name, editRow.medicine_code)
+            setStockOptions(stock)
+          } finally {
+            setLoadingStock(false)
+          }
+          return
         }
 
         if (initialPrescription) {
@@ -317,16 +372,19 @@ export const CreateMedicineGivenModal = ({
     propPatientEncounter,
     initialPrescription,
     initialOrderEntry,
+    editRow,
+    isEdit,
   ])
 
   useEffect(() => {
+    if (isEdit) return
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
     setUom((selected?.uom || '').trim())
     setUomQuery((selected?.uom || '').trim())
     setDose((selected?.dosage || '').trim())
     const orderQty = selected?.quantity
     setQty(orderQty != null && orderQty > 0 ? String(orderQty) : '1')
-  }, [selectedOrder, prescriptionOrders])
+  }, [selectedOrder, prescriptionOrders, isEdit])
 
   useEffect(() => {
     const resetBatchLot = () => {
@@ -340,10 +398,12 @@ export const CreateMedicineGivenModal = ({
     }
 
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
-    const drugCode = (selected?.drug || '').trim()
+    const drugCode = isEdit
+      ? (editRow?.medicine_code || '').trim()
+      : (selected?.drug || '').trim()
     const admissionName = admission?.name
     if (!admissionName || !drugCode) {
-      resetBatchLot()
+      if (!isEdit) resetBatchLot()
       return
     }
 
@@ -377,7 +437,7 @@ export const CreateMedicineGivenModal = ({
     return () => {
       cancelled = true
     }
-  }, [selectedOrder, prescriptionOrders, admission?.name])
+  }, [selectedOrder, prescriptionOrders, admission?.name, isEdit, editRow?.medicine_code])
 
   useEffect(() => {
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
@@ -518,13 +578,15 @@ export const CreateMedicineGivenModal = ({
       toast.error('No active admission found')
       return
     }
-    if (!selectedPrescription) {
-      toast.error('Select a prescription')
-      return
-    }
-    if (!selectedOrder) {
-      toast.error('Select a medicine from the prescription')
-      return
+    if (!isEdit) {
+      if (!selectedPrescription) {
+        toast.error('Select a prescription')
+        return
+      }
+      if (!selectedOrder) {
+        toast.error('Select a medicine from the prescription')
+        return
+      }
     }
     const parsedDose = extractDoseNumeric(dose)
     if (!dose.trim() || parsedDose == null || parsedDose <= 0) {
@@ -578,32 +640,50 @@ export const CreateMedicineGivenModal = ({
         return
       }
 
-      const selectedRx = prescriptions.find(p => p.name === selectedPrescription)
-      const admissionName = selectedRx?.inpatient_record || propInpatientRecord || admission.name
+      if (isEdit && editRow) {
+        await updateMedicineGiven({
+          name: editRow.name,
+          unit: uom || undefined,
+          allow_override: overrideChecked || undefined,
+          override_reason: overrideChecked ? overrideReason.trim() : undefined,
+          dose: dose.trim(),
+          qty: parsedQty,
+          date,
+          time,
+          dose_notes: notes || undefined,
+          batch_no: batchNo || undefined,
+          lot_no: lotNo || undefined,
+          dispensing_lot: dispensingLot || undefined,
+        })
+        toast.success(overrideChecked ? 'Given medicine updated with override' : 'Given medicine updated')
+      } else {
+        const selectedRx = prescriptions.find(p => p.name === selectedPrescription)
+        const admissionName = selectedRx?.inpatient_record || propInpatientRecord || admission.name
 
-      await createMedicineGiven({
-        admission: admissionName,
-        medication_order: selectedPrescription,
-        order_entry: selectedOrder,
-        unit: uom || undefined,
-        allow_override: overrideChecked || undefined,
-        override_reason: overrideChecked ? overrideReason.trim() : undefined,
-        dose: dose.trim(),
-        qty: parsedQty,
-        date,
-        time,
-        dose_notes: notes || undefined,
-        is_prn: isPrn || undefined,
-        batch_no: batchNo || undefined,
-        lot_no: lotNo || undefined,
-        dispensing_lot: dispensingLot || undefined,
-      })
+        await createMedicineGiven({
+          admission: admissionName,
+          medication_order: selectedPrescription,
+          order_entry: selectedOrder,
+          unit: uom || undefined,
+          allow_override: overrideChecked || undefined,
+          override_reason: overrideChecked ? overrideReason.trim() : undefined,
+          dose: dose.trim(),
+          qty: parsedQty,
+          date,
+          time,
+          dose_notes: notes || undefined,
+          is_prn: isPrn || undefined,
+          batch_no: batchNo || undefined,
+          lot_no: lotNo || undefined,
+          dispensing_lot: dispensingLot || undefined,
+        })
 
-      toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
+        toast.success(overrideChecked ? 'Given medicine recorded with override' : 'Given medicine recorded')
+      }
       onSuccess()
       onClose()
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to record given medicine'
+      const msg = e instanceof Error ? e.message : isEdit ? 'Failed to update given medicine' : 'Failed to record given medicine'
       setError(msg)
       toast.error(msg)
     } finally {
@@ -626,7 +706,9 @@ export const CreateMedicineGivenModal = ({
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-semibold tracking-tight text-emerald-950">Record Given Medicine</h2>
+                <h2 className="text-xl font-semibold tracking-tight text-emerald-950">
+                  {isEdit ? 'Edit Given Medicine' : 'Record Given Medicine'}
+                </h2>
                 {admission && (
                   <p className="mt-1 text-sm text-emerald-800/80">
                     Admission: <span className="font-medium">{admission.name}</span>
@@ -692,6 +774,20 @@ export const CreateMedicineGivenModal = ({
             </div>
 
           {/* PRN filter */}
+          {isEdit ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Medicine</span>
+              <p className="mt-1 font-medium">
+                {editRow?.medicine_name || editRow?.medicine_code || '—'}
+              </p>
+              {editRow?.medication_order || editRow?.patient_medication_order ? (
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Prescription: {editRow.medication_order || editRow.patient_medication_order}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+          <>
           <div className="flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600 border-b border-slate-200 pb-3">
             <label className="inline-flex items-center gap-2 ml-auto cursor-pointer">
               <input
@@ -760,6 +856,8 @@ export const CreateMedicineGivenModal = ({
               </select>
             </div>
           </div>
+          </>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div className="space-y-2">
@@ -982,7 +1080,7 @@ export const CreateMedicineGivenModal = ({
           <button
             type="submit"
             onClick={handleSubmit}
-            disabled={loading || !admission || !selectedPrescription || !selectedOrder}
+            disabled={loading || !admission || (!isEdit && (!selectedPrescription || !selectedOrder))}
             className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (
@@ -993,6 +1091,8 @@ export const CreateMedicineGivenModal = ({
                 </svg>
                 Saving...
               </span>
+            ) : isEdit ? (
+              'Save Changes'
             ) : (
               'Save Medicine Record'
             )}

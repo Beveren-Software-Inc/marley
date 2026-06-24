@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { Loader2, Pill, ShoppingCart, Trash2 } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Loader2, MoreHorizontal, Pill, Pencil, ShoppingCart, Trash2 } from 'lucide-react'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   fetchMedicineGiven,
@@ -13,9 +13,11 @@ import {
 } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { CreateMedicineGivenModal } from './CreateMedicineGivenModal'
 
 const iconToolbarBtn =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
@@ -248,9 +250,11 @@ function MarkMissedGivenModal({
 interface MedicineGivenListProps {
   patient?: string
   refreshKey?: string | number
+  /** When false, hides row edit/delete actions (e.g. discharge read-only view). */
+  manageRows?: boolean
 }
 
-export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProps) => {
+export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: MedicineGivenListProps) => {
   const { activeAdmission } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
@@ -261,6 +265,9 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
   const [checkingMissedNow, setCheckingMissedNow] = useState(false)
   const [pendingMissedRow, setPendingMissedRow] = useState<MissedMedicineRow | null>(null)
   const [detailRow, setDetailRow] = useState<MedicineGivenRow | null>(null)
+  const [editRow, setEditRow] = useState<MedicineGivenRow | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     const load = async () => {
@@ -311,6 +318,12 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
 
     load()
   }, [patient, refreshKey, activeAdmission])
+
+  const refreshGivenRows = async () => {
+    if (!admission?.name) return
+    const refreshed = await fetchMedicineGiven(admission.name, 100, 0)
+    setRows(refreshed)
+  }
 
   const handleDelete = async (row: MedicineGivenRow) => {
     if (!window.confirm('Remove this given medicine entry?')) return
@@ -476,15 +489,17 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
               <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                 Billing
               </th>
-              <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">
-                Actions
-              </th>
+              {manageRows ? (
+                <th className="px-3 py-2 text-right text-xs font-semibold text-slate-600 uppercase">
+                  Actions
+                </th>
+              ) : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-4 text-xs text-slate-500 text-center">
+                <td colSpan={manageRows ? 7 : 6} className="px-3 py-4 text-xs text-slate-500 text-center">
                   No given medicines recorded yet for this admission.
                 </td>
               </tr>
@@ -551,22 +566,61 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
                     <span className="text-[10px] text-slate-400">Pending</span>
                   )}
                 </td>
-                <td className="px-3 py-2 text-xs text-right">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(row)}
-                    disabled={Boolean(row.sales_order)}
-                    className={`${iconToolbarBtn} border-red-200 text-red-700 hover:bg-red-50 disabled:opacity-30 disabled:cursor-not-allowed`}
-                    title={
-                      row.sales_order
-                        ? `Linked to ${row.sales_order} — cannot remove`
-                        : 'Remove this given medicine row'
-                    }
-                  >
-                    <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                    <span className="sr-only">Remove</span>
-                  </button>
-                </td>
+                {manageRows ? (
+                  <td className="px-3 py-2 text-xs text-right">
+                    <div className="relative inline-block" ref={openActionRow === row.name ? menuRef : undefined}>
+                      <button
+                        type="button"
+                        aria-label="Actions"
+                        onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name))}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                      >
+                        <MoreHorizontal className="h-4 w-4" aria-hidden />
+                      </button>
+                      <PortalActionsMenu
+                        open={openActionRow === row.name}
+                        onClose={() => setOpenActionRow(null)}
+                        triggerRef={menuRef}
+                        minWidth={180}
+                      >
+                        <button
+                          type="button"
+                          disabled={Boolean(row.sales_order)}
+                          onClick={() => {
+                            setOpenActionRow(null)
+                            setEditRow(row)
+                          }}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={
+                            row.sales_order
+                              ? `Linked to ${row.sales_order} — cannot edit`
+                              : 'Edit this given medicine row'
+                          }
+                        >
+                          <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenActionRow(null)
+                            handleDelete(row)
+                          }}
+                          disabled={Boolean(row.sales_order)}
+                          className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={
+                            row.sales_order
+                              ? `Linked to ${row.sales_order} — cannot remove`
+                              : 'Remove this given medicine row'
+                          }
+                        >
+                          <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                          Delete
+                        </button>
+                      </PortalActionsMenu>
+                    </div>
+                  </td>
+                ) : null}
               </tr>
             ))}
           </tbody>
@@ -653,6 +707,19 @@ export const MedicineGivenList = ({ patient, refreshKey }: MedicineGivenListProp
 
       {detailRow && (
         <MedicineGivenDetailPanel row={detailRow} onClose={() => setDetailRow(null)} />
+      )}
+
+      {editRow && patient && (
+        <CreateMedicineGivenModal
+          initialPatient={patient}
+          inpatientRecord={admission?.name}
+          editRow={editRow}
+          onClose={() => setEditRow(null)}
+          onSuccess={async () => {
+            setEditRow(null)
+            await refreshGivenRows()
+          }}
+        />
       )}
     </div>
   )

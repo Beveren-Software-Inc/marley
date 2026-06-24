@@ -50,7 +50,7 @@ class PatientVisit(Document):
 				ensure_patient_can_open_new_visit,
 			)
 
-			ensure_patient_can_open_new_visit(self.patient)
+			ensure_patient_can_open_new_visit(self.patient, visit_type=self.visit_type)
 
 		self.set_title()
 		self.validate_medications()

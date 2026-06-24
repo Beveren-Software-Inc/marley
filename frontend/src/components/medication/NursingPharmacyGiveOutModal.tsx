@@ -32,17 +32,7 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
-import { flagsFromPrescriptionType, normalizeMedicationOrderForSave } from '../../utils/prescriptionType'
 import { Loader2, Pill, Plus, Trash2 } from 'lucide-react'
-
-const PRESCRIPTION_TYPES = [
-  'STAT',
-  'PRN',
-  'Regular - Psy (Active)',
-  'Regular - Med (Active)',
-  'Future Plan',
-  'Long Acting Medicine',
-] as const
 
 interface NursingPharmacyGiveOutModalProps {
   onClose: () => void
@@ -761,14 +751,6 @@ export function NursingPharmacyGiveOutModal({
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index]
       if (!row.drug.trim()) continue
-      if (!row.dosage?.trim()) {
-        setError('Dosage is required for each medication')
-        return
-      }
-      if (!row.medication_type?.trim()) {
-        setError('Prescription type is required for each medication')
-        return
-      }
       if (!row.uom?.trim()) {
         setError('Unit of measure is required for each medication')
         return
@@ -814,9 +796,13 @@ export function NursingPharmacyGiveOutModal({
       setSubmitting(true)
       setError(null)
       blockIfClosed()
-      const payload: MedicationOrderRow[] = validRows.map(({ rowKey: _rk, ...rest }) =>
-        normalizeMedicationOrderForSave(rest)
-      )
+      const payload: MedicationOrderRow[] = validRows.map(({ rowKey: _rk, ...rest }) => ({
+        ...rest,
+        dosage: '',
+        medication_type: '',
+        is_prn: false,
+        is_long_acting: false,
+      }))
       const result = await createNursingPharmacyGiveOut({
         patient,
         inpatient_record: admissionId,
@@ -985,43 +971,7 @@ export function NursingPharmacyGiveOutModal({
                           />
                         </div>
 
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Prescription Type <span className="text-red-500">*</span>
-                          </label>
-                          <select
-                            value={row.medication_type || ''}
-                            onChange={(e) => {
-                              const medication_type = e.target.value
-                              updateRow(index, {
-                                medication_type,
-                                ...flagsFromPrescriptionType(medication_type),
-                              })
-                            }}
-                            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                          >
-                            <option value="">Select…</option>
-                            {PRESCRIPTION_TYPES.map((type) => (
-                              <option key={type} value={type}>
-                                {type}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-
-                        <div>
-                          <label className="block text-xs font-medium text-slate-600 mb-1">
-                            Dosage <span className="text-red-500">*</span>
-                          </label>
-                          <input
-                            type="text"
-                            value={row.dosage}
-                            onChange={(e) => updateRow(index, { dosage: e.target.value })}
-                            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                          />
-                        </div>
-
-                        <div className="md:col-span-2 grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-2 gap-3">
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">
                               Quantity to bill <span className="text-red-500">*</span>

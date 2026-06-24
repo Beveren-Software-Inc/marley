@@ -4492,7 +4492,7 @@ const loadDailyVisitSetup = async () => {
               <div className="space-y-4">
                 <div>
                   <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines given</h4>
-                  <MedicineGivenList patient={admission.patient} />
+                  <MedicineGivenList patient={admission.patient} manageRows={false} />
                 </div>
                 <div>
                   <h4 className="text-xs font-medium text-slate-500 uppercase tracking-wide mb-2">Medicines not given (remaining)</h4>

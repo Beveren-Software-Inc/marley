@@ -20,9 +20,10 @@ export function cardRowMetaFields(fields: readonly CardMetaField[]): { label: st
 /** Dashboard card rows: clickable, no row background on hover (details only via ⓘ popover). */
 export const dashboardCardRowHoverClass = 'cursor-pointer'
 
-/** Hover ⓘ → light green popover with IDs, practitioner, type, etc. */
-export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }) {
-  const items = cardRowMetaFields(fields)
+export const DASHBOARD_CARD_POPOVER_SHELL_CLASS =
+  'pointer-events-auto fixed z-[250] rounded-lg border border-emerald-200/90 bg-gradient-to-b from-emerald-50 via-emerald-50/95 to-teal-50/80 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-100/90'
+
+function useDashboardCardPopover(popWidth: number, popHeight: number) {
   const [open, setOpen] = useState(false)
   const [pos, setPos] = useState({ top: 0, left: 0 })
   const triggerRef = useRef<HTMLSpanElement>(null)
@@ -33,18 +34,18 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
     const el = triggerRef.current
     if (!el) return
     const r = el.getBoundingClientRect()
-    const popW = Math.min(280, window.innerWidth - 16)
-    const popH = Math.min(220, Math.max(120, items.length * 28 + 40))
+    const width = Math.min(popWidth, window.innerWidth - 16)
+    const height = Math.min(popHeight, window.innerHeight - 32)
     let left = r.left
     let top = r.bottom + 6
-    if (left + popW > window.innerWidth - 8) {
-      left = Math.max(8, window.innerWidth - popW - 8)
+    if (left + width > window.innerWidth - 8) {
+      left = Math.max(8, window.innerWidth - width - 8)
     }
-    if (top + popH > window.innerHeight - 8) {
-      top = Math.max(8, r.top - popH - 6)
+    if (top + height > window.innerHeight - 8) {
+      top = Math.max(8, r.top - height - 6)
     }
     setPos({ top, left })
-  }, [items.length])
+  }, [popWidth, popHeight])
 
   const show = () => {
     if (hideTimer.current) clearTimeout(hideTimer.current)
@@ -87,6 +88,108 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
     }
   }, [open])
 
+  return {
+    open,
+    pos,
+    triggerRef,
+    popoverRef,
+    show,
+    scheduleHide,
+    cancelHide,
+    toggleOpen,
+    popWidth: Math.min(popWidth, window.innerWidth - 16),
+    popHeight: Math.min(popHeight, window.innerHeight - 32),
+  }
+}
+
+/** Hover truncated text or ⓘ → larger emerald popover for multiline notes. */
+export function CardRowTextHint({
+  text,
+  title = 'Nursing notes',
+  popoverWidth = 420,
+  popoverMaxHeight = 300,
+}: {
+  text?: string | null
+  title?: string
+  popoverWidth?: number
+  popoverMaxHeight?: number
+}) {
+  const content = (text || '').trim()
+  const {
+    open,
+    pos,
+    triggerRef,
+    popoverRef,
+    show,
+    scheduleHide,
+    cancelHide,
+    toggleOpen,
+    popWidth,
+    popHeight,
+  } = useDashboardCardPopover(popoverWidth, popoverMaxHeight)
+
+  if (!content) return <span className="text-slate-400">—</span>
+
+  return (
+    <>
+      <span
+        ref={triggerRef}
+        className="inline-flex max-w-xs items-start gap-1"
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+      >
+        <span className="block min-w-0 flex-1 truncate text-slate-700 cursor-help">{content}</span>
+        <button
+          type="button"
+          className="inline-flex shrink-0 items-center justify-center rounded-full p-0.5 text-emerald-600/55 hover:text-emerald-900 hover:bg-emerald-100 hover:ring-1 hover:ring-emerald-200/80 cursor-help transition-colors"
+          aria-label={`Show ${title.toLowerCase()}`}
+          onClick={toggleOpen}
+        >
+          <Info className="w-3.5 h-3.5" strokeWidth={2.25} />
+        </button>
+      </span>
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="tooltip"
+            className={`${DASHBOARD_CARD_POPOVER_SHELL_CLASS} overflow-hidden text-emerald-950`}
+            style={{ top: pos.top, left: pos.left, width: popWidth, maxHeight: popHeight }}
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3.5 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/75 mb-2">
+                {title}
+              </p>
+              <p className="max-h-[min(240px,calc(100vh-120px))] overflow-y-auto whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-emerald-950 [scrollbar-width:thin]">
+                {content}
+              </p>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
+/** Hover ⓘ → light green popover with IDs, practitioner, type, etc. */
+export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }) {
+  const items = cardRowMetaFields(fields)
+  const metaPopoverHeight = Math.min(220, Math.max(120, items.length * 28 + 40))
+  const {
+    open,
+    pos,
+    triggerRef,
+    popoverRef,
+    show,
+    scheduleHide,
+    cancelHide,
+    toggleOpen,
+    popHeight,
+  } = useDashboardCardPopover(280, metaPopoverHeight)
+
   if (!items.length) return null
 
   return (
@@ -108,8 +211,8 @@ export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }
           <div
             ref={popoverRef}
             role="tooltip"
-            className="pointer-events-auto fixed z-[250] w-[min(280px,calc(100vw-16px))] max-w-[calc(100vw-16px)] rounded-lg border border-emerald-200/90 bg-gradient-to-b from-emerald-50 via-emerald-50/95 to-teal-50/80 px-3 py-2.5 text-xs text-emerald-950 shadow-lg shadow-emerald-900/10 ring-1 ring-emerald-100/90"
-            style={{ top: pos.top, left: pos.left }}
+            className={`${DASHBOARD_CARD_POPOVER_SHELL_CLASS} w-[min(280px,calc(100vw-16px))] max-w-[calc(100vw-16px)] px-3 py-2.5 text-xs text-emerald-950`}
+            style={{ top: pos.top, left: pos.left, maxHeight: popHeight }}
             onMouseEnter={cancelHide}
             onMouseLeave={scheduleHide}
             onClick={(e) => e.stopPropagation()}

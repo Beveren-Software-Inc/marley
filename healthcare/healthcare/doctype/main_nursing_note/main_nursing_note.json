@@ -67,11 +67,12 @@
   },
   {
    "fieldname": "shift",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Shift Code",
-   "options": "Shift Type"
+   "label": "Nursing Shift",
+   "options": "Morning\nEvening\nNight",
+   "reqd": 1
   },
   {
    "fieldname": "nursing_notes",

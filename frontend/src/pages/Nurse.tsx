@@ -614,6 +614,7 @@ export const NursePage = () => {
 
   // Laboratory – same listing as doctor Laboratory
   if (screen === 'n-lab') {
+    const focusLabTest = searchParams.get('lab_test') || undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -621,9 +622,11 @@ export const NursePage = () => {
           <DashboardCard title="Laboratory">
             <LabTestList
               patient={selectedPatient}
-              defaultStatus="Requested"
+              defaultStatus={focusLabTest ? '' : 'Requested'}
               byNurse={true}
-              key={labTestRefreshKey}
+              focusLabTest={focusLabTest}
+              focusOpenSampleCollection
+              key={`${labTestRefreshKey}-${focusLabTest || ''}`}
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>

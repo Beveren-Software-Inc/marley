@@ -6,13 +6,10 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createMainNursingNote, fetchNextMainNursingNoteTransNo } from '../../services/mainNursingNote'
-import {
-  fetchCostCenters,
-  fetchInpatientAdmissions,
-  type LinkFieldOption,
-} from '../../services/common'
+import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { NURSING_SHIFTS } from '../../constants/nursingShift'
 
 interface CreateMainNursingNoteModalProps {
   onClose: () => void
@@ -25,7 +22,7 @@ export const CreateMainNursingNoteModal = ({
   onSuccess,
   patient: patientProp,
 }: CreateMainNursingNoteModalProps) => {
-  const { mode, activeAdmission, costCenterCompany } = useCareContext()
+  const { mode, activeAdmission } = useCareContext()
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -39,7 +36,7 @@ export const CreateMainNursingNoteModal = ({
   const [patientId, setPatientId] = useState(patientProp || '')
   const [patientName, setPatientName] = useState('')
   const [admission, setAdmission] = useState(mode === 'IP' && activeAdmission ? activeAdmission : '')
-  const [costCenter, setCostCenter] = useState(costCenterCompany || '')
+  const [costCenter, setCostCenter] = useState('')
 
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -50,9 +47,17 @@ export const CreateMainNursingNoteModal = ({
   const [admissionOpen, setAdmissionOpen] = useState(false)
   const [admissionQuery, setAdmissionQuery] = useState('')
 
-  const [ccOptions, setCcOptions] = useState<LinkFieldOption[]>([])
-  const [ccOpen, setCcOpen] = useState(false)
-  const [ccQuery, setCcQuery] = useState('')
+  const syncCostCenterFromAdmission = (admissionName: string, options: LinkFieldOption[]) => {
+    const matched = options.find((row) => row.name === admissionName)
+    setCostCenter(matched?.cost_center || '')
+  }
+
+  const selectAdmission = (row: LinkFieldOption) => {
+    setAdmission(row.name)
+    setAdmissionQuery(row.label || row.name)
+    setCostCenter(row.cost_center || '')
+    setAdmissionOpen(false)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -90,10 +95,10 @@ export const CreateMainNursingNoteModal = ({
       setAdmissionOptions(rows)
       if (mode === 'IP' && activeAdmission && rows.some((r) => r.name === activeAdmission)) {
         setAdmission(activeAdmission)
-        setAdmissionQuery(activeAdmission)
+        setAdmissionQuery(rows.find((r) => r.name === activeAdmission)?.label || activeAdmission)
+        syncCostCenterFromAdmission(activeAdmission, rows)
       } else if (rows.length === 1) {
-        setAdmission(rows[0].name)
-        setAdmissionQuery(rows[0].label || rows[0].name)
+        selectAdmission(rows[0])
       }
     })
   }, [patientId, mode, activeAdmission])
@@ -116,14 +121,13 @@ export const CreateMainNursingNoteModal = ({
     fetchInpatientAdmissions(patientId, admissionQuery).then(setAdmissionOptions)
   }, [admissionOpen, admissionQuery, patientId])
 
-  useEffect(() => {
-    if (!ccOpen) return
-    fetchCostCenters(costCenterCompany, ccQuery).then(setCcOptions)
-  }, [ccOpen, ccQuery, costCenterCompany])
-
   const handleSave = async () => {
     if (!patientId.trim()) {
       setError('Patient is required')
+      return
+    }
+    if (!shift) {
+      setError('Nursing shift is required')
       return
     }
     if (!nursingNotes.trim()) {
@@ -219,6 +223,7 @@ export const CreateMainNursingNoteModal = ({
               onChange={(e) => {
                 setAdmissionQuery(e.target.value)
                 setAdmission('')
+                setCostCenter('')
                 setAdmissionOpen(true)
               }}
               onFocus={() => patientId && setAdmissionOpen(true)}
@@ -233,11 +238,7 @@ export const CreateMainNursingNoteModal = ({
                     key={a.name}
                     type="button"
                     className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                    onClick={() => {
-                      setAdmission(a.name)
-                      setAdmissionQuery(a.label || a.name)
-                      setAdmissionOpen(false)
-                    }}
+                    onClick={() => selectAdmission(a)}
                   >
                     {a.label || a.name}
                   </button>
@@ -268,48 +269,32 @@ export const CreateMainNursingNoteModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Shift</label>
-            <input
-              type="text"
+            <label className="block text-xs font-medium text-slate-700 mb-1">Nursing shift *</label>
+            <select
               value={shift}
               onChange={(e) => setShift(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Shift code"
-            />
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+            >
+              <option value="">Select shift…</option>
+              {NURSING_SHIFTS.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Branch</label>
-            <input
-              type="text"
-              value={ccQuery || costCenter}
-              onChange={(e) => {
-                setCcQuery(e.target.value)
-                setCostCenter(e.target.value)
-                setCcOpen(true)
-              }}
-              onFocus={() => setCcOpen(true)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-            />
-            {ccOpen && ccOptions.length > 0 && (
-              <div className="mt-1 border border-slate-200 rounded-md bg-white shadow-lg max-h-36 overflow-auto">
-                {ccOptions.map((cc) => (
-                  <button
-                    key={cc.name}
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                    onClick={() => {
-                      setCostCenter(cc.name)
-                      setCcQuery(cc.label || cc.name)
-                      setCcOpen(false)
-                    }}
-                  >
-                    {cc.label || cc.name}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          {admission ? (
+            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+              <span className="text-xs font-medium text-slate-500">Branch</span>
+              <p className="mt-0.5 font-medium text-slate-900">
+                {costCenter || 'No branch on this admission'}
+              </p>
+              <p className="mt-1 text-[11px] text-slate-500">
+                Taken from the selected inpatient admission.
+              </p>
+            </div>
+          ) : null}
 
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Nursing notes *</label>

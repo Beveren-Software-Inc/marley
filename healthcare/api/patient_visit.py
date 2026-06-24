@@ -356,6 +356,27 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		for row in service_rows:
 			service_amount_map[row.visit_name] = float(row.amount or 0)
 
+		direct_visit_charge_rows = frappe.db.sql(
+			"""
+			SELECT
+				so.custom_reference_name AS visit_name,
+				SUM(COALESCE(so.grand_total, 0)) AS amount
+			FROM `tabSales Order` so
+			WHERE
+				so.custom_reference_name IN %(visit_names)s
+				AND so.custom_reference_type = 'Patient Visit'
+				AND so.custom_base_reference = 'Patient Visit'
+				AND so.docstatus != 2
+			GROUP BY so.custom_reference_name
+			""",
+			{"visit_names": tuple(visit_names)},
+			as_dict=True,
+		)
+		for row in direct_visit_charge_rows:
+			service_amount_map[row.visit_name] = service_amount_map.get(row.visit_name, 0) + float(
+				row.amount or 0
+			)
+
 		pharmacy_rows = frappe.db.sql(
 			"""
 			SELECT
