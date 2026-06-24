@@ -56,6 +56,7 @@
   "clinical_procedure_consumable_item",
   "default_patient_appointment_item",
   "default_mode_of_payment",
+  "medical_supervision_item",
   "sb_in_ac",
   "income_account",
   "receivable_account",
@@ -655,11 +656,17 @@
    "fieldtype": "Table",
    "label": "prescr_warehouse",
    "options": "Warehouse Cost Center"
+  },
+  {
+   "fieldname": "medical_supervision_item",
+   "fieldtype": "Link",
+   "label": "Medical Supervision Item",
+   "options": "Healthcare Service Template"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-22 17:13:55.822220",
+ "modified": "2026-06-24 11:40:02.645608",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -4,6 +4,7 @@
 import json
 import frappe
 from frappe import _
+from frappe.model.rename_doc import rename_doc
 from frappe.utils import flt
 
 
@@ -47,12 +48,14 @@ def get_iop_day_with_sessions(name):
 		}
 		for s in (doc.sessions or [])
 	]
+	enriched_sessions = _enrich_sessions_with_template_details(sessions)
 	return {
 		"name": doc.name,
 		"posting_date": doc.posting_date,
 		"company": doc.company,
 		"cost_center": doc.cost_center,
-		"sessions": _enrich_sessions_with_template_details(sessions),
+		"session_total": _iop_day_session_total(enriched_sessions),
+		"sessions": enriched_sessions,
 	}
 
 
@@ -100,9 +103,19 @@ def create_iop_day(data):
 	return {"name": doc.name, "posting_date": doc.posting_date}
 
 
+def _iop_day_session_total(sessions):
+	"""Sum Healthcare Service Template rates for IOP Day session rows."""
+	if not sessions:
+		return 0.0
+	rates = _healthcare_service_template_rates(
+		[s.get("session_type") for s in sessions if s.get("session_type")]
+	)
+	return sum(flt(rates.get(st, {}).get("rate")) for st in rates)
+
+
 @frappe.whitelist()
 def update_iop_day(name, data=None, sessions=None):
-	"""Update IOP Day sessions and optional company / cost center."""
+	"""Update IOP Day date, sessions, and optional company / cost center."""
 	if not name:
 		frappe.throw(_("IOP Day is required"))
 	if isinstance(data, str):
@@ -113,6 +126,20 @@ def update_iop_day(name, data=None, sessions=None):
 		sessions = data.get("sessions")
 
 	doc = frappe.get_doc("IOP Day", name)
+	if "posting_date" in data:
+		new_posting_date = data.get("posting_date")
+		if not new_posting_date:
+			frappe.throw(_("Date is required"), title=_("Validation Error"))
+		if str(new_posting_date) != str(doc.posting_date):
+			existing = frappe.db.exists("IOP Day", {"posting_date": new_posting_date})
+			if existing and existing != doc.name:
+				frappe.throw(
+					_("An IOP Day already exists for {0}. Choose a different date.").format(
+						new_posting_date
+					),
+					title=_("Duplicate Date"),
+				)
+			doc.posting_date = new_posting_date
 	if "company" in data:
 		doc.company = data.get("company") or None
 	if "cost_center" in data:
@@ -132,20 +159,35 @@ def update_iop_day(name, data=None, sessions=None):
 				},
 			)
 	doc.save(ignore_permissions=True)
+
+	new_name = f"IOP-DAY-{doc.posting_date}"
+	if doc.name != new_name and not frappe.db.exists("IOP Day", new_name):
+		rename_doc("IOP Day", doc.name, new_name, force=True, ignore_permissions=True)
+		doc.name = new_name
+		frappe.db.set_value(
+			"IOP Enrollment",
+			{"iop_day": new_name},
+			"posting_date",
+			doc.posting_date,
+			update_modified=False,
+		)
+
 	frappe.db.commit()
+	enriched_sessions = _enrich_sessions_with_template_details(
+		[
+			{
+				"session_type": s.session_type,
+				"from_time": str(s.from_time) if s.from_time else None,
+				"to_time": str(s.to_time) if s.to_time else None,
+			}
+			for s in (doc.sessions or [])
+		]
+	)
 	return {
 		"name": doc.name,
 		"posting_date": doc.posting_date,
-		"sessions": _enrich_sessions_with_template_details(
-			[
-				{
-					"session_type": s.session_type,
-					"from_time": str(s.from_time) if s.from_time else None,
-					"to_time": str(s.to_time) if s.to_time else None,
-				}
-				for s in (doc.sessions or [])
-			]
-		),
+		"session_total": _iop_day_session_total(enriched_sessions),
+		"sessions": enriched_sessions,
 	}
 
 

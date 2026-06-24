@@ -17,6 +17,7 @@ export interface IOPDay {
 }
 
 export interface IOPDayWithSessions extends IOPDay {
+  session_total?: number
   sessions: {
     session_type: string
     service_name?: string
@@ -135,6 +136,7 @@ export async function createIOPDay(payload: {
 export async function updateIOPDay(
   name: string,
   payload: {
+    posting_date?: string
     company?: string
     cost_center?: string
     sessions: { session_type: string; from_time?: string; to_time?: string }[]

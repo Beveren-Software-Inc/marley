@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -14,6 +14,7 @@ import {
   updateIOPDay,
   type IOPHealthcareServiceTemplate,
 } from '../../services/iop'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -25,7 +26,13 @@ interface EditIOPDayModalProps {
 
 type SessionRow = { session_type: string }
 
+function sessionRate(templates: IOPHealthcareServiceTemplate[], sessionType: string): number {
+  const match = templates.find((t) => t.name === sessionType)
+  return Number(match?.rate ?? 0)
+}
+
 export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayModalProps) => {
+  const formatMoney = useFormatMoney()
   const [postingDate, setPostingDate] = useState('')
   const [sessions, setSessions] = useState<SessionRow[]>([{ session_type: '' }])
   const [sessionTemplates, setSessionTemplates] = useState<IOPHealthcareServiceTemplate[]>([])
@@ -62,6 +69,15 @@ export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayMo
     }
   }, [iopDayName])
 
+  const sessionsTotal = useMemo(
+    () =>
+      sessions.reduce(
+        (sum, row) => sum + (row.session_type ? sessionRate(sessionTemplates, row.session_type) : 0),
+        0,
+      ),
+    [sessions, sessionTemplates],
+  )
+
   const addSession = () => {
     setSessions((prev) => [...prev, { session_type: '' }])
   }
@@ -81,6 +97,10 @@ export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayMo
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    if (!postingDate) {
+      setError('Date is required')
+      return
+    }
     const validSessions = sessions.filter((s) => s.session_type)
     if (validSessions.length === 0) {
       setError('Add at least one session with a Healthcare Service')
@@ -89,6 +109,7 @@ export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayMo
     try {
       setSaving(true)
       await updateIOPDay(iopDayName, {
+        posting_date: postingDate,
         sessions: validSessions.map((s) => ({ session_type: s.session_type })),
       })
       toast.success('IOP Day updated')
@@ -115,14 +136,16 @@ export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayMo
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-800">{error}</div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Date <span className="text-red-500">*</span>
+              </label>
               <input
                 type="date"
                 value={postingDate}
-                readOnly
-                className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                onChange={(e) => setPostingDate(e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                required
               />
-              <p className="text-xs text-slate-500 mt-1">Date cannot be changed. Delete and create a new day to reschedule.</p>
             </div>
             <div>
               <div className="flex items-center justify-between mb-2">
@@ -132,27 +155,40 @@ export const EditIOPDayModal = ({ iopDayName, onClose, onSuccess }: EditIOPDayMo
                 </button>
               </div>
               <div className="space-y-2">
-                {sessions.map((row, idx) => (
-                  <div key={idx} className="flex items-center gap-2 p-2 border border-slate-200 rounded-md">
-                    <IOPHealthcareServiceTemplateSelect
-                      value={row.session_type}
-                      onChange={(value) => updateSession(idx, value)}
-                      templates={sessionTemplates}
-                      onTemplatesUpdated={setSessionTemplates}
-                      className="flex-1 min-w-0"
-                      placeholder="Select healthcare service..."
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeSession(idx)}
-                      className="text-slate-500 hover:text-red-600 p-1 shrink-0"
-                      title="Remove"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                ))}
+                {sessions.map((row, idx) => {
+                  const rate = row.session_type ? sessionRate(sessionTemplates, row.session_type) : 0
+                  return (
+                    <div key={idx} className="flex items-center gap-2 p-2 border border-slate-200 rounded-md">
+                      <IOPHealthcareServiceTemplateSelect
+                        value={row.session_type}
+                        onChange={(value) => updateSession(idx, value)}
+                        templates={sessionTemplates}
+                        onTemplatesUpdated={setSessionTemplates}
+                        className="flex-1 min-w-0"
+                        placeholder="Select healthcare service..."
+                      />
+                      {row.session_type ? (
+                        <span className="text-sm font-medium text-slate-700 tabular-nums shrink-0">
+                          {formatMoney(rate)}
+                        </span>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => removeSession(idx)}
+                        className="text-slate-500 hover:text-red-600 p-1 shrink-0"
+                        title="Remove"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  )
+                })}
               </div>
+              {sessionsTotal > 0 ? (
+                <div className="mt-2 text-right text-sm font-medium text-slate-700">
+                  Day total: <span className="tabular-nums">{formatMoney(sessionsTotal)}</span>
+                </div>
+              ) : null}
             </div>
             <CreateModalFooter>
               <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
