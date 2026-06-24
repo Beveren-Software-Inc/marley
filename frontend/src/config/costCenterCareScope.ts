@@ -47,7 +47,6 @@ const OP_ONLY_NURSE_SCREEN_IDS = new Set([
   'n-given',
   'n-pharmacy-giveout',
   'n-daily-med',
-  'n-ref',
   'n-sick',
   'n-reg',
   'admission',

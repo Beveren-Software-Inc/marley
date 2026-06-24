@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchIPServices, type IPServiceRow } from '../../services/ipServices'
+import { fetchIPServices, deleteIPService, type IPServiceRow } from '../../services/ipServices'
+import { toast } from '../../hooks/useToast'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -21,6 +22,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
   const [error, setError] = useState<Error | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [deletingName, setDeletingName] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
   // Close action menu when clicking outside
@@ -57,7 +59,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err : new Error('Failed to fetch IP Services'))
+        if (!cancelled) setError(err instanceof Error ? err : new Error('Failed to fetch ECT Charts'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -77,6 +79,30 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
     setOpenActionRow(null)
   }
 
+  const handleDelete = async (name: string) => {
+    setOpenActionRow(null)
+    if (!window.confirm(`Delete ECT Chart ${name}? This cannot be undone.`)) {
+      return
+    }
+    try {
+      setDeletingName(name)
+      const result = await deleteIPService(name)
+      setList((prev) => prev.filter((row) => row.name !== name))
+      if (detailName === name) {
+        setDetailName(null)
+      }
+      const soMsg =
+        result.sales_orders && result.sales_orders.length > 0
+          ? ` Linked sales order(s) removed.`
+          : ''
+      toast.success(`ECT Chart ${name} deleted.${soMsg}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete ECT Chart')
+    } finally {
+      setDeletingName(null)
+    }
+  }
+
   const doRefetch = () => {
     fetchIPServices(50, 0, patient, admission_no)
       .then((data) => {
@@ -92,14 +118,14 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
         setList(filtered)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err : new Error('Failed to fetch IP Services'))
+        setError(err instanceof Error ? err : new Error('Failed to fetch ECT Charts'))
       })
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
-        Loading IP Services…
+        Loading ECT Charts…
       </div>
     )
   }
@@ -115,7 +141,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
   if (list.length === 0) {
     const emptyMessage = category === 'Other Service'
       ? 'No Other Services found. Create one with the + button.'
-      : 'No IP Services found. Create one with the + button.'
+      : 'No ECT Charts found. Create one with the + button.'
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
         {emptyMessage}
@@ -134,8 +160,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
               {!patient && (
                 <th className="py-2 pr-2">Patient</th>
               )}
-              <th className="py-2 pr-2">Type</th>
-              <th className="py-2 pr-2">Service Request</th>
+              <th className="py-2 pr-2">Service</th>
               <th className="py-2 pr-2 text-right">Total</th>
               <th className="py-2 pr-2 text-right">Actions</th>
             </tr>
@@ -167,13 +192,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
                   className="py-2 pr-2 cursor-pointer"
                   onClick={() => handleView(row.name)}
                 >
-                  {row.type ?? '–'}
-                </td>
-                <td 
-                  className="py-2 pr-2 cursor-pointer"
-                  onClick={() => handleView(row.name)}
-                >
-                  {row.service_request ?? '–'}
+                  {row.first_service ?? '–'}
                 </td>
                 <td 
                   className="py-2 pr-2 text-right cursor-pointer"
@@ -217,6 +236,14 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
                         >
                           Edit
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleDelete(row.name)}
+                          disabled={deletingName === row.name}
+                          className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+                        >
+                          {deletingName === row.name ? 'Deleting…' : 'Delete'}
+                        </button>
                       </PortalActionsMenu>
                     </div>
 
@@ -239,7 +266,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
       {/* Detail Slide Over */}
       {detailName && (
         <DetailSlideOver
-          title="IP Service"
+          title="ECT Chart"
           subtitle={detailName}
           onClose={() => setDetailName(null)}
         >

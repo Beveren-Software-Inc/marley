@@ -184,7 +184,7 @@ def _active_admissions(cost_center: str | None) -> list[dict]:
 		record["allergy_summary"] = (record.get("allergies") or "").strip()
 		record["warnings"] = warnings_by_patient.get(patient or "", [])
 
-	return records
+	return [record for record in records if record.get("warnings")]
 
 
 def _pending_sample_lab_tests(cost_center: str | None) -> list[dict]:

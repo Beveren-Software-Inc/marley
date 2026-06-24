@@ -23,6 +23,7 @@ import {
   DoctorBriefingModals,
   type DoctorBriefingStep,
 } from '../components/doctorBriefing/DoctorBriefingModals'
+import { markShiftBriefingShown, wasShiftBriefingShown } from '../utils/shiftBriefingSession'
 
 type DoctorBriefingContextValue = {
   briefingActive: boolean
@@ -75,7 +76,7 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   const [step, setStep] = useState<DoctorBriefingStep | null>(null)
   const [briefing, setBriefing] = useState<DoctorShiftBriefing>(EMPTY_BRIEFING)
   const [loading, setLoading] = useState(false)
-  const completedForLandingRef = useRef(false)
+  const completedForLandingRef = useRef(wasShiftBriefingShown('doctor'))
   const lastRouteRef = useRef(location.pathname)
   const loadedSectionsRef = useRef({ admissions: false, lab_tests: false })
 
@@ -87,33 +88,35 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   )
 
   const shouldOfferBriefing =
-    isAuthenticated && isDoctor && onDoctorRoute && !careSelected && !authLoading
+    isAuthenticated &&
+    isDoctor &&
+    onDoctorRoute &&
+    !careSelected &&
+    !authLoading &&
+    !wasShiftBriefingShown('doctor')
 
-  const resetBriefing = useCallback(() => {
+  const clearBriefingUi = useCallback(() => {
     setStep(null)
     setBriefing(EMPTY_BRIEFING)
     setLoading(false)
-    completedForLandingRef.current = false
     loadedSectionsRef.current = { admissions: false, lab_tests: false }
+    completedForLandingRef.current = wasShiftBriefingShown('doctor')
   }, [])
 
   useEffect(() => {
     if (lastRouteRef.current !== location.pathname) {
       lastRouteRef.current = location.pathname
       if (!onDoctorRoute) {
-        resetBriefing()
-      } else if (!careSelected) {
-        completedForLandingRef.current = false
-        loadedSectionsRef.current = { admissions: false, lab_tests: false }
+        clearBriefingUi()
       }
     }
-  }, [location.pathname, onDoctorRoute, careSelected, resetBriefing])
+  }, [location.pathname, onDoctorRoute, clearBriefingUi])
 
   useEffect(() => {
     if (careSelected) {
-      resetBriefing()
+      clearBriefingUi()
     }
-  }, [careSelected, resetBriefing])
+  }, [careSelected, clearBriefingUi])
 
   const loadSection = useCallback(
     async (section: DoctorBriefingStep) => {
@@ -151,7 +154,8 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    if (!shouldOfferBriefing || step || completedForLandingRef.current) return
+    if (!shouldOfferBriefing || step) return
+    markShiftBriefingShown('doctor')
     setStep('admissions')
   }, [shouldOfferBriefing, step])
 
@@ -163,12 +167,14 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   const handleAdvance = useCallback(() => {
     setStep((current) => {
       if (current === 'admissions') return 'lab_tests'
+      markShiftBriefingShown('doctor')
       completedForLandingRef.current = true
       return null
     })
   }, [])
 
   const finishBriefing = useCallback(() => {
+    markShiftBriefingShown('doctor')
     completedForLandingRef.current = true
     setStep(null)
   }, [])

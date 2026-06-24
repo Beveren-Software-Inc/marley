@@ -3,6 +3,7 @@ import type { DoctorBriefingLabTest, DoctorShiftBriefing } from '../../services/
 import type { NurseBriefingAdmission } from '../../services/nurseBriefing'
 import { NurseAdmissionsBriefingModal } from '../nurseBriefing/NurseBriefingModals'
 import { StatusPill } from '../ui/StatusPill'
+import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
 
 function BriefingModalShell({
   title,
@@ -97,7 +98,10 @@ export function DoctorLabReviewBriefingModal({
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">
-                <StatusPill status={test.status || 'Pending Review'} />
+                <StatusPill
+                  status={test.status || 'Pending Review'}
+                  color={labTestStatusColor(test.status)}
+                />
                 {test.department ? (
                   <span className="text-xs text-slate-500">{test.department}</span>
                 ) : null}

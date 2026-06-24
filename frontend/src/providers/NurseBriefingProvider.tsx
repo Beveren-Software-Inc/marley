@@ -24,6 +24,7 @@ import {
   NurseBriefingModals,
   type NurseBriefingStep,
 } from '../components/nurseBriefing/NurseBriefingModals'
+import { markShiftBriefingShown, wasShiftBriefingShown } from '../utils/shiftBriefingSession'
 
 type NurseBriefingContextValue = {
   briefingActive: boolean
@@ -77,7 +78,7 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
   const [step, setStep] = useState<NurseBriefingStep | null>(null)
   const [briefing, setBriefing] = useState<NurseShiftBriefing>(EMPTY_BRIEFING)
   const [loading, setLoading] = useState(false)
-  const completedForLandingRef = useRef(false)
+  const completedForLandingRef = useRef(wasShiftBriefingShown('nurse'))
   const lastRouteRef = useRef(location.pathname)
   const loadedSectionsRef = useRef({ admissions: false, lab_tests: false, low_stock: false })
 
@@ -89,33 +90,35 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
   )
 
   const shouldOfferBriefing =
-    isAuthenticated && isNurse && onNurseRoute && !careSelected && !authLoading
+    isAuthenticated &&
+    isNurse &&
+    onNurseRoute &&
+    !careSelected &&
+    !authLoading &&
+    !wasShiftBriefingShown('nurse')
 
-  const resetBriefing = useCallback(() => {
+  const clearBriefingUi = useCallback(() => {
     setStep(null)
     setBriefing(EMPTY_BRIEFING)
     setLoading(false)
-    completedForLandingRef.current = false
     loadedSectionsRef.current = { admissions: false, lab_tests: false, low_stock: false }
+    completedForLandingRef.current = wasShiftBriefingShown('nurse')
   }, [])
 
   useEffect(() => {
     if (lastRouteRef.current !== location.pathname) {
       lastRouteRef.current = location.pathname
       if (!onNurseRoute) {
-        resetBriefing()
-      } else if (!careSelected) {
-        completedForLandingRef.current = false
-        loadedSectionsRef.current = { admissions: false, lab_tests: false, low_stock: false }
+        clearBriefingUi()
       }
     }
-  }, [location.pathname, onNurseRoute, careSelected, resetBriefing])
+  }, [location.pathname, onNurseRoute, clearBriefingUi])
 
   useEffect(() => {
     if (careSelected) {
-      resetBriefing()
+      clearBriefingUi()
     }
-  }, [careSelected, resetBriefing])
+  }, [careSelected, clearBriefingUi])
 
   const loadSection = useCallback(
     async (section: NurseBriefingStep) => {
@@ -134,6 +137,9 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
             cost_center: data.cost_center ?? prev.cost_center,
             active_admissions: data.active_admissions,
           }))
+          if (data.active_admissions.length === 0) {
+            setStep('lab_tests')
+          }
         } else if (section === 'lab_tests') {
           const data = await fetchNurseBriefingLabTests(userCostCenter)
           loadedSectionsRef.current.lab_tests = true
@@ -160,7 +166,8 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
   )
 
   useEffect(() => {
-    if (!shouldOfferBriefing || step || completedForLandingRef.current) return
+    if (!shouldOfferBriefing || step) return
+    markShiftBriefingShown('nurse')
     setStep('admissions')
   }, [shouldOfferBriefing, step])
 
@@ -173,12 +180,14 @@ export function NurseBriefingProvider({ children }: { children: ReactNode }) {
     setStep((current) => {
       if (current === 'admissions') return 'lab_tests'
       if (current === 'lab_tests') return 'low_stock'
+      markShiftBriefingShown('nurse')
       completedForLandingRef.current = true
       return null
     })
   }, [])
 
   const finishBriefing = useCallback(() => {
+    markShiftBriefingShown('nurse')
     completedForLandingRef.current = true
     setStep(null)
   }, [])
