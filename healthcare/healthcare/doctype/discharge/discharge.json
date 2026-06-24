@@ -542,10 +542,10 @@
    "label": "Receiving Doctor"
   },
   {
+   "depends_on": "eval:doc.charge_observation_today",
    "fieldname": "today_charge_obs",
    "fieldtype": "Currency",
-   "label": "Observation Charge Amount",
-   "depends_on": "eval:doc.charge_observation_today"
+   "label": "Observation Charge Amount"
   },
   {
    "default": "0",
@@ -597,7 +597,7 @@
    "fieldname": "observation_department",
    "fieldtype": "Link",
    "label": "Observation Department",
-   "options": "Medical Department"
+   "options": "Department"
   },
   {
    "depends_on": "eval:doc.discharge_to_observation",
@@ -776,7 +776,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-16 09:20:34.775638",
+ "modified": "2026-06-24 11:49:48.442343",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge",

@@ -5,9 +5,15 @@ interface CollapsibleFormSectionProps {
   title: string
   defaultOpen?: boolean
   children: ReactNode
+  footer?: ReactNode
 }
 
-export function CollapsibleFormSection({ title, defaultOpen = true, children }: CollapsibleFormSectionProps) {
+export function CollapsibleFormSection({
+  title,
+  defaultOpen = true,
+  children,
+  footer,
+}: CollapsibleFormSectionProps) {
   const [open, setOpen] = useState(defaultOpen)
   return (
     <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-sm">
@@ -19,7 +25,12 @@ export function CollapsibleFormSection({ title, defaultOpen = true, children }: 
         <span className="text-sm font-semibold text-slate-800">{title}</span>
         {open ? <ChevronUp className="w-4 h-4 text-slate-500 shrink-0" /> : <ChevronDown className="w-4 h-4 text-slate-500 shrink-0" />}
       </button>
-      {open && <div className="p-3 space-y-3 border-t border-slate-100">{children}</div>}
+      {open && (
+        <div className="p-3 space-y-3 border-t border-slate-100">
+          {children}
+          {footer ? <div className="pt-1">{footer}</div> : null}
+        </div>
+      )}
     </div>
   )
 }

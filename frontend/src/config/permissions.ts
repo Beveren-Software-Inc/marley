@@ -182,7 +182,6 @@ export const DISCHARGE_TAB_IDS = [
   'nursing',
   'transfer',
   'charges',
-  'observation',
   'medicine-sales',
   'reconcile',
   'daily-visit',
@@ -193,7 +192,7 @@ export const DISCHARGE_TAB_IDS = [
 export type DischargeTabId = (typeof DISCHARGE_TAB_IDS)[number]
 
 const DISCHARGE_TABS_BY_ROLE: Record<'Reception' | 'Doctor' | 'Nurse', readonly DischargeTabId[]> = {
-  Reception: ['details', 'checklist', 'charges', 'observation', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
+  Reception: ['details', 'checklist', 'charges', 'medicine-sales', 'reconcile', 'daily-visit', 'documents', 'relatives'],
   Doctor: ['details', 'checklist', 'transfer', 'documents'],
   Nurse: ['details', 'checklist', 'nursing', 'reconcile'],
 }

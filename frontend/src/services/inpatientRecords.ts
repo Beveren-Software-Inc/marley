@@ -331,6 +331,51 @@ export async function fetchServiceUnits(
   }
 }
 
+export async function fetchServiceUnitChargeItem(
+  serviceUnit: string
+): Promise<{ item_code?: string; service_unit_type?: string; rate?: number }> {
+  const params = new URLSearchParams({ service_unit: serviceUnit })
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.get_service_unit_charge_item?${params.toString()}`
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as { item_code?: string; service_unit_type?: string; rate?: number }
+  }
+  return {}
+}
+
+export async function fetchMedicalSupervisionChargePreview(
+  serviceUnit?: string
+): Promise<{
+  configured?: boolean
+  template?: string
+  service_name?: string
+  item_code?: string
+  rate?: number
+  service_unit?: string
+  service_unit_item_code?: string
+}> {
+  const params = new URLSearchParams()
+  if (serviceUnit) params.append('service_unit', serviceUnit)
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.get_medical_supervision_charge_preview${params.toString() ? `?${params.toString()}` : ''}`
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as {
+      configured?: boolean
+      template?: string
+      service_name?: string
+      item_code?: string
+      rate?: number
+      service_unit?: string
+      service_unit_item_code?: string
+    }
+  }
+  return {}
+}
+
 export async function fetchBedNumbers(
   options?: {
     occupancyStatus?: string
@@ -713,9 +758,12 @@ export async function fetchDischargeDraftForAdmission(
   return draft && typeof draft === 'object' && draft.name ? draft : null
 }
 
+export type DischargeExtraChargeType = 'Room Charges' | 'Medical Supervision' | 'Observation'
+
 export async function saveDischargeDraftToServer(
   admissionName: string,
-  dischargeData: Record<string, unknown>
+  dischargeData: Record<string, unknown>,
+  options?: { syncObservation?: boolean; syncChargeTypes?: DischargeExtraChargeType[] }
 ): Promise<{
   name: string
   message?: string
@@ -733,6 +781,8 @@ export async function saveDischargeDraftToServer(
       body: JSON.stringify({
         admission_name: admissionName,
         discharge_data: dischargeData,
+        sync_observation: options?.syncObservation ? 1 : 0,
+        sync_charge_types: options?.syncChargeTypes?.length ? options.syncChargeTypes : undefined,
       }),
     }
   )
@@ -758,6 +808,19 @@ export async function deleteDischargeTodayCharge(
     {
       method: 'POST',
       body: JSON.stringify({ admission_name: admissionName }),
+    }
+  )
+}
+
+export async function deleteDischargeExtraCharge(
+  admissionName: string,
+  chargeType: DischargeExtraChargeType
+): Promise<{ message?: string }> {
+  return apiRequest(
+    '/api/method/healthcare.api.inpatient_admission.delete_discharge_extra_charge',
+    {
+      method: 'POST',
+      body: JSON.stringify({ admission_name: admissionName, charge_type: chargeType }),
     }
   )
 }

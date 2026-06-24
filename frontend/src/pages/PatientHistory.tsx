@@ -30,6 +30,7 @@ import {
   DollarSign
 } from 'lucide-react'
 import { useFormatMoney } from '../hooks/useFormatMoney'
+import { usePatientHistoryListingOpener } from '../utils/patientHistoryListingNavigation'
 
 export const PatientHistoryPage = () => {
   const formatCurrency = useFormatMoney()
@@ -101,6 +102,8 @@ export const PatientHistoryPage = () => {
     !summaryLoading &&
     summary != null &&
     summary.billing_summary_allowed !== false
+
+  const { listingProps } = usePatientHistoryListingOpener(selectedPatient)
 
   return (
     <div className="flex flex-col min-h-full">
@@ -235,75 +238,64 @@ export const PatientHistoryPage = () => {
             </div>
           </section>
 
-          {/* Content cards - show ALL history regardless of mode */}
-          <div className={`grid gap-4 auto-rows-fr ${canViewClinical ? 'md:grid-cols-2' : 'max-w-xl'}`}>
-            <DashboardCard fixedHeight title="Warnings & Allergies">
+          {/* Content cards — single 2-col grid so visible cards flow side by side when clinical cards are hidden */}
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr md:[&>*:last-child:nth-child(odd)]:col-span-2">
+            <DashboardCard fixedHeight title="Warnings & Allergies" {...listingProps('warnings')}>
               <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
             {canViewClinical && (
-              <DashboardCard fixedHeight title="Diagnosis Detail">
+              <DashboardCard fixedHeight title="Diagnosis Detail" {...listingProps('diagnosis')}>
                 <PatientDiagnosisList patient={selectedPatient} />
               </DashboardCard>
             )}
-          </div>
 
-          {/* Admissions and Patient Visits - always side by side */}
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
-            <DashboardCard fixedHeight title="Admissions">
+            <DashboardCard fixedHeight title="Admissions" {...listingProps('admissions')}>
               <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
             </DashboardCard>
 
-            <DashboardCard fixedHeight title="Patient Visits">
+            <DashboardCard fixedHeight title="Patient Visits" {...listingProps('patient-visits')}>
               <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
             </DashboardCard>
-          </div>
 
-          <div className={`grid gap-4 auto-rows-fr ${canViewClinical ? 'md:grid-cols-2' : 'max-w-xl'}`}>
             {canViewClinical && (
-              <DashboardCard fixedHeight title="Lab Test Reports">
+              <DashboardCard fixedHeight title="Lab Test Reports" {...listingProps('lab')}>
                 <LabTestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
               </DashboardCard>
             )}
 
-            <DashboardCard fixedHeight title="Discharge Form">
+            <DashboardCard fixedHeight title="Discharge Form" {...listingProps('discharge')}>
               <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
-          </div>
 
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr">
-            <DashboardCard fixedHeight title="Service Requests">
+            <DashboardCard fixedHeight title="Service Requests" {...listingProps('service-requests')}>
               <ServiceRequestList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
-            <DashboardCard fixedHeight title="Appointments">
+            <DashboardCard fixedHeight title="Appointments" {...listingProps('appointments')}>
               <AppointmentList patient={selectedPatient} showAll={true} onPatientClick={handlePatientSelect} />
             </DashboardCard>
+
+            {canViewClinical && (
+              <DashboardCard fixedHeight title="Vital Signs" {...listingProps('vital-signs')}>
+                <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+              </DashboardCard>
+            )}
+
+            {observationsAllowedForMode(mode) && (
+              <DashboardCard fixedHeight title="Observation" {...listingProps('observation')}>
+                <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+              </DashboardCard>
+            )}
           </div>
 
-          {(canViewClinical || observationsAllowedForMode(mode)) && (
-            <div className={`grid gap-4 auto-rows-fr ${canViewClinical && observationsAllowedForMode(mode) ? 'md:grid-cols-2' : 'max-w-xl'}`}>
-              {canViewClinical && (
-                <DashboardCard fixedHeight title="Vital Signs">
-                  <VitalSignsList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-                </DashboardCard>
-              )}
-
-              {observationsAllowedForMode(mode) && (
-                <DashboardCard fixedHeight title="Observation">
-                  <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-                </DashboardCard>
-              )}
-            </div>
-          )}
-
           {canViewClinical && (
-            <DashboardCard noHeightLimit title="Medical History">
+            <DashboardCard noHeightLimit title="Medical History" {...listingProps('medical-history')}>
               <MedicalHistoryView patient={selectedPatient} />
             </DashboardCard>
           )}
 
-          <DashboardCard noHeightLimit title="Package Details">
+          <DashboardCard noHeightLimit title="Package Details" {...listingProps('package-details')}>
             <PackageDetailsList patient={selectedPatient} />
           </DashboardCard>
             </>

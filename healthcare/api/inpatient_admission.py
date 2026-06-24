@@ -642,6 +642,31 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 	return units
 
 
+@frappe.whitelist()
+def get_service_unit_charge_item(service_unit: str) -> dict:
+	"""Return the billing item configured on a Healthcare Service Unit's type."""
+	service_unit = (service_unit or "").strip()
+	if not service_unit:
+		return {}
+
+	item_code = _item_code_from_healthcare_service_unit(service_unit)
+	if not item_code:
+		return {}
+
+	service_unit_type = frappe.db.get_value(
+		"Healthcare Service Unit", service_unit, "service_unit_type"
+	)
+	rate = flt(
+		frappe.db.get_value("Healthcare Service Unit Type", service_unit_type, "rate")
+	) if service_unit_type else 0
+
+	return {
+		"item_code": item_code,
+		"service_unit_type": service_unit_type,
+		"rate": rate,
+	}
+
+
 def _resolve_quotation_service_unit(admission_name, explicit_service_unit=None):
 	"""Pick a Healthcare Service Unit for quotation line item: explicit, then admission multiselect, then bed."""
 	if explicit_service_unit:
@@ -871,6 +896,21 @@ DISCHARGE_EXTRA_CHARGE_TYPES = ("Room Charges", "Medical Supervision", "Observat
 
 # Set only on the server when an observation is first created — never from portal JSON.
 DISCHARGE_SERVER_OWNED_FIELDS = frozenset({"observation_record", "today_charge_sales_order"})
+
+
+def _parse_discharge_sync_charge_types(sync_charge_types) -> list[str] | None:
+	"""Normalize portal charge-type filter; None means sync every enabled charge."""
+	if sync_charge_types in (None, ""):
+		return None
+	parsed = frappe.parse_json(sync_charge_types)
+	if not isinstance(parsed, list) or not parsed:
+		return None
+	filtered = []
+	for charge_type in parsed:
+		charge_type = (charge_type or "").strip()
+		if charge_type in DISCHARGE_EXTRA_CHARGE_TYPES and charge_type not in filtered:
+			filtered.append(charge_type)
+	return filtered or None
 
 DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"discharge_type",
@@ -1321,12 +1361,14 @@ def get_discharge_draft_for_admission(admission_name):
 
 
 @frappe.whitelist()
-def save_discharge_draft(admission_name, discharge_data):
+def save_discharge_draft(admission_name, discharge_data, sync_observation=None, sync_charge_types=None):
 	"""Create or update a draft Discharge without submitting."""
 	if not admission_name:
 		frappe.throw(_("Admission is required"))
 
 	discharge_data = frappe.parse_json(discharge_data or {})
+	sync_observation = cint(sync_observation)
+	charge_types = _parse_discharge_sync_charge_types(sync_charge_types)
 	discharge_doc = _get_or_create_draft_discharge(admission_name)
 	_apply_discharge_payload(discharge_doc, discharge_data)
 	# Nursing Checklist Template names may be stored in nurse_discharge_template (Link → DNT).
@@ -1334,12 +1376,20 @@ def save_discharge_draft(admission_name, discharge_data):
 	discharge_doc.save(ignore_permissions=True)
 	discharge_doc.reload()
 
-	observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
-	discharge_doc.reload()
-	if cint(discharge_doc.get("discharge_to_observation")) and discharge_doc.get("observation_record"):
+	observation_result = None
+	if charge_types is None or "Observation" in charge_types:
+		observation_result = _create_observation_from_discharge_if_needed(discharge_doc, admission_name)
+		discharge_doc.reload()
+	if (
+		sync_observation
+		and cint(discharge_doc.get("discharge_to_observation"))
+		and _is_active_discharge_observation(discharge_doc.get("observation_record"))
+	):
 		_sync_observation_from_discharge_if_linked(discharge_doc)
 
-	charge_result = _sync_discharge_extra_charge_sales_orders(discharge_doc, admission_name)
+	charge_result = _sync_discharge_extra_charge_sales_orders(
+		discharge_doc, admission_name, charge_types=charge_types
+	)
 	discharge_doc.reload()
 	if charge_result and charge_result.get("sales_orders"):
 		for charge_type, so_name in charge_result["sales_orders"].items():
@@ -1397,6 +1447,28 @@ def save_discharge_draft(admission_name, discharge_data):
 	return response
 
 
+def _is_active_discharge_observation(observation_name: str | None) -> bool:
+	"""True when observation exists and is not cancelled."""
+	observation_name = (observation_name or "").strip()
+	if not observation_name or not frappe.db.exists("Observation", observation_name):
+		return False
+	return cint(frappe.db.get_value("Observation", observation_name, "docstatus")) < 2
+
+
+def _clear_discharge_observation_link(discharge_doc) -> None:
+	"""Drop a stale observation_record pointer on the discharge draft."""
+	if not discharge_doc.name or not (discharge_doc.get("observation_record") or "").strip():
+		return
+	frappe.db.set_value(
+		"Discharge",
+		discharge_doc.name,
+		"observation_record",
+		"",
+		update_modified=False,
+	)
+	discharge_doc.observation_record = ""
+
+
 def _persist_discharge_observation_link(discharge_doc, observation_name: str) -> None:
 	"""Store the one observation document created for this discharge draft."""
 	observation_name = (observation_name or "").strip()
@@ -1415,13 +1487,15 @@ def _persist_discharge_observation_link(discharge_doc, observation_name: str) ->
 
 
 def _resolve_discharge_observation_link(discharge_doc, admission_name: str) -> str | None:
-	"""Return the observation already linked to this discharge, if any."""
+	"""Return the active observation linked to this discharge, if any."""
 	linked = (discharge_doc.get("observation_record") or "").strip()
-	if linked and frappe.db.exists("Observation", linked):
-		return linked
+	if linked:
+		if _is_active_discharge_observation(linked):
+			return linked
+		_clear_discharge_observation_link(discharge_doc)
 
 	# Backfill link when an observation was created earlier but observation_record was not stored.
-	filters = {"admission_no": admission_name, "dc_date": ["is", "not set"]}
+	filters = {"admission_no": admission_name, "dc_date": ["is", "not set"], "docstatus": ["<", 2]}
 	rows = frappe.get_all(
 		"Observation",
 		filters=filters,
@@ -1436,7 +1510,7 @@ def _resolve_discharge_observation_link(discharge_doc, admission_name: str) -> s
 		if patient:
 			rows = frappe.get_all(
 				"Observation",
-				filters={"patient": patient, "dc_date": ["is", "not set"]},
+				filters={"patient": patient, "dc_date": ["is", "not set"], "docstatus": ["<", 2]},
 				fields=["name"],
 				order_by="creation desc",
 				limit=1,
@@ -1444,8 +1518,9 @@ def _resolve_discharge_observation_link(discharge_doc, admission_name: str) -> s
 
 	if rows:
 		observation_name = rows[0].name
-		_persist_discharge_observation_link(discharge_doc, observation_name)
-		return observation_name
+		if _is_active_discharge_observation(observation_name):
+			_persist_discharge_observation_link(discharge_doc, observation_name)
+			return observation_name
 
 	return None
 
@@ -1553,11 +1628,16 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 def _sync_observation_from_discharge_if_linked(discharge_doc) -> None:
 	"""Push discharge observation fields onto the linked Observation document."""
 	observation_name = (discharge_doc.get("observation_record") or "").strip()
-	if not observation_name or not frappe.db.exists("Observation", observation_name):
+	if not observation_name or not _is_active_discharge_observation(observation_name):
+		if observation_name:
+			_clear_discharge_observation_link(discharge_doc)
 		return
 
 	obs = frappe.get_doc("Observation", observation_name)
 	if obs.get("dc_date"):
+		return
+	if cint(obs.docstatus) != 0:
+		# Submitted or cancelled observations cannot be edited from discharge fields.
 		return
 
 	new_room = frappe.utils.cstr(discharge_doc.get("observation_room") or "").strip()
@@ -1638,11 +1718,44 @@ def _resolve_discharge_charge_sales_order_link(discharge_doc) -> str | None:
 	return None
 
 
+def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
+	"""Resolve billing Item from Healthcare Service Unit → Healthcare Service Unit Type → Item."""
+	service_unit = (service_unit or "").strip()
+	if not service_unit or not frappe.db.exists("Healthcare Service Unit", service_unit):
+		return None
+
+	service_unit_type = frappe.db.get_value(
+		"Healthcare Service Unit", service_unit, "service_unit_type"
+	)
+	if not service_unit_type:
+		return None
+
+	row = frappe.db.get_value(
+		"Healthcare Service Unit Type",
+		service_unit_type,
+		["item", "item_code"],
+		as_dict=True,
+	)
+	if not row:
+		return None
+
+	for candidate in (row.get("item"), row.get("item_code")):
+		item_code = (candidate or "").strip()
+		if item_code and frappe.db.exists("Item", item_code):
+			return item_code
+	return None
+
+
 def _resolve_discharge_room_charge_item_code(
 	admission_name: str, service_unit: str | None = None
 ) -> str:
 	service_unit = (service_unit or "").strip()
 	if service_unit:
+		item_code = _item_code_from_healthcare_service_unit(service_unit)
+		if item_code:
+			return item_code
+
+		# Legacy fallback: room display name or unit id matching an Item code.
 		service_unit_name = frappe.db.get_value(
 			"Healthcare Service Unit",
 			service_unit,
@@ -1660,12 +1773,17 @@ def _resolve_discharge_room_charge_item_code(
 		limit=1,
 	)
 	if occupancy and occupancy[0].service_unit:
+		occupancy_unit = occupancy[0].service_unit
+		item_code = _item_code_from_healthcare_service_unit(occupancy_unit)
+		if item_code:
+			return item_code
+
 		service_unit_name = frappe.db.get_value(
 			"Healthcare Service Unit",
-			occupancy[0].service_unit,
+			occupancy_unit,
 			"healthcare_service_unit_name",
 		)
-		item_code = (service_unit_name or occupancy[0].service_unit or "").strip()
+		item_code = (service_unit_name or occupancy_unit or "").strip()
 		if item_code and frappe.db.exists("Item", item_code):
 			return item_code
 
@@ -1677,31 +1795,115 @@ def _resolve_discharge_room_charge_item_code(
 
 	frappe.throw(
 		_(
-			"Room charge item is not configured. Set Inpatient Visit Charge Item in Healthcare Settings "
-			"or use a room with a matching Item code."
+			"Room charge item is not configured. Set the Item on the room's Healthcare Service Unit Type, "
+			"set Inpatient Visit Charge Item in Healthcare Settings, or use a room with a matching Item code."
 		)
 	)
 
 
-def _resolve_discharge_medical_supervision_item_code(discharge_doc) -> str:
-	practitioner = (discharge_doc.get("discharge_doctor") or "").strip()
-	if practitioner:
-		item_code = frappe.db.get_value(
-			"Healthcare Practitioner", practitioner, "inpatient_visit_charge_item"
-		)
-		if item_code and frappe.db.exists("Item", item_code):
-			return item_code
+def get_medical_supervision_charge_config() -> dict:
+	"""Resolve Healthcare Settings → Medical Supervision Item (Healthcare Service Template)."""
+	template_name = (frappe.db.get_single_value("Healthcare Settings", "medical_supervision_item") or "").strip()
+	if not template_name:
+		return {
+			"configured": False,
+			"template": None,
+			"service_name": None,
+			"item_code": None,
+			"item_name": None,
+			"rate": 0,
+		}
 
-	item_code = (
-		frappe.db.get_single_value("Healthcare Settings", "inpatient_visit_charge_item") or ""
-	).strip()
+	if not frappe.db.exists("Healthcare Service Template", template_name):
+		return {
+			"configured": False,
+			"template": template_name,
+			"service_name": None,
+			"item_code": None,
+			"item_name": None,
+			"rate": 0,
+		}
+
+	tpl = frappe.get_doc("Healthcare Service Template", template_name)
+	item_code = (tpl.item_code or "").strip()
+	rate = flt(tpl.rate)
+	item_name = frappe.db.get_value("Item", item_code, "item_name") if item_code else None
+
+	return {
+		"configured": bool(item_code),
+		"template": template_name,
+		"service_name": tpl.service_name or template_name,
+		"item_code": item_code,
+		"item_name": item_name,
+		"rate": rate,
+	}
+
+
+@frappe.whitelist()
+def get_medical_supervision_charge_preview(service_unit: str | None = None) -> dict:
+	"""API for discharge UI: medical supervision item and default rate."""
+	config = get_medical_supervision_charge_config()
+	service_unit = (service_unit or "").strip()
+	if not service_unit:
+		return config
+
+	config = dict(config)
+	config["service_unit"] = service_unit
+	unit_item_code = _item_code_from_healthcare_service_unit(service_unit)
+	if unit_item_code:
+		config["service_unit_item_code"] = unit_item_code
+		if not config.get("item_code"):
+			config["item_code"] = unit_item_code
+			config["configured"] = True
+
+	service_unit_type = frappe.db.get_value(
+		"Healthcare Service Unit", service_unit, "service_unit_type"
+	)
+	if service_unit_type:
+		unit_rate = flt(frappe.db.get_value("Healthcare Service Unit Type", service_unit_type, "rate"))
+		if unit_rate > 0 and not flt(config.get("rate")):
+			config["rate"] = unit_rate
+	return config
+
+
+def _discharge_room_service_unit(discharge_doc, admission_name: str) -> str | None:
+	"""Healthcare Service Unit selected for room charges, or current admission occupancy."""
+	unit = (discharge_doc.get("room_charge_service_unit") or "").strip()
+	if unit and frappe.db.exists("Healthcare Service Unit", unit):
+		return unit
+
+	occupancy = frappe.get_all(
+		"Inpatient Occupancy",
+		filters={"parent": admission_name, "left": 0},
+		fields=["service_unit"],
+		order_by="check_in desc",
+		limit=1,
+	)
+	if occupancy and occupancy[0].service_unit:
+		return occupancy[0].service_unit
+	return None
+
+
+def _resolve_discharge_medical_supervision_item_code(
+	discharge_doc, admission_name: str, service_unit: str | None = None
+) -> str:
+	config = get_medical_supervision_charge_config()
+	item_code = (config.get("item_code") or "").strip()
 	if item_code and frappe.db.exists("Item", item_code):
 		return item_code
 
+	service_unit = (service_unit or "").strip() or _discharge_room_service_unit(
+		discharge_doc, admission_name
+	)
+	if service_unit:
+		item_code = _item_code_from_healthcare_service_unit(service_unit)
+		if item_code:
+			return item_code
+
 	frappe.throw(
 		_(
-			"Medical supervision item is not configured. Set Inpatient Visit Charge Item on the "
-			"discharge doctor or in Healthcare Settings."
+			"Medical supervision item is not configured. Set Medical Supervision Item in Healthcare Settings "
+			"(Healthcare Service Template with Item), or choose a room whose Healthcare Service Unit Type has an Item."
 		)
 	)
 
@@ -1716,7 +1918,7 @@ def _sync_extra_charge_rows_from_scalars(discharge_doc) -> None:
 		},
 		"Medical Supervision": {
 			"charge_today": cint(discharge_doc.get("today_charge")),
-			"service_unit": None,
+			"service_unit": _discharge_room_service_unit(discharge_doc, discharge_doc.admission),
 			"amount": flt(discharge_doc.get("medical_supervision_amount")),
 		},
 		"Observation": {
@@ -1840,7 +2042,10 @@ def _sync_discharge_extra_charge_sales_order_row(
 			frappe.throw(
 				_("Medical Supervision Amount must be greater than zero when Medical Supervision Charge is enabled")
 			)
-		item_code = _resolve_discharge_medical_supervision_item_code(discharge_doc)
+		service_unit = (row.service_unit or "").strip()
+		item_code = _resolve_discharge_medical_supervision_item_code(
+			discharge_doc, admission_name, service_unit
+		)
 		description = _("Discharge medical supervision for {0}").format(
 			getdate(discharge_doc.discharge_date or frappe.utils.today())
 		)
@@ -1880,27 +2085,34 @@ def _sync_discharge_extra_charge_sales_order_row(
 	return {"sales_order": so_name, "existing": False}
 
 
-def _sync_discharge_extra_charge_sales_orders(discharge_doc, admission_name: str) -> dict | None:
+def _sync_discharge_extra_charge_sales_orders(
+	discharge_doc, admission_name: str, charge_types: list[str] | None = None
+) -> dict | None:
 	"""Create or update Sales Orders for enabled discharge extra charges."""
 	_sync_extra_charge_rows_from_scalars(discharge_doc)
 	discharge_doc.flags.ignore_permissions = True
 	discharge_doc.save()
 	discharge_doc.reload()
 
-	has_charge = any(
-		cint(row.charge_today)
-		for row in (discharge_doc.get("extra_charges") or [])
-		if (row.charge_type or "") != "Observation"
-	) or (
-		cint(discharge_doc.get("charge_observation_today"))
-		and (discharge_doc.get("observation_record") or "").strip()
-	)
+	rows = list(discharge_doc.get("extra_charges") or [])
+	if charge_types:
+		allowed = set(charge_types)
+		rows = [row for row in rows if (row.charge_type or "").strip() in allowed]
+
+	has_charge = any(cint(row.charge_today) for row in rows if (row.charge_type or "") != "Observation")
+	if not has_charge and (
+		charge_types is None or "Observation" in (charge_types or [])
+	):
+		has_charge = (
+			cint(discharge_doc.get("charge_observation_today"))
+			and (discharge_doc.get("observation_record") or "").strip()
+		)
 	if not has_charge:
 		return None
 
 	sales_orders: dict[str, str] = {}
 	details: dict[str, dict] = {}
-	for row in discharge_doc.get("extra_charges") or []:
+	for row in rows:
 		result = _sync_discharge_extra_charge_sales_order_row(discharge_doc, admission_name, row)
 		if not result or not result.get("sales_order"):
 			continue
@@ -1962,6 +2174,32 @@ def _cancel_discharge_charge_sales_order(discharge_name: str, sales_order_name: 
 			)
 
 
+def _remove_discharge_extra_charge_rows(
+	discharge_doc, charge_types: list[str] | tuple[str, ...] | None = None
+) -> None:
+	"""Drop extra_charges child rows (all, or only the given charge types)."""
+	allowed = set(charge_types) if charge_types else None
+	for row in list(discharge_doc.get("extra_charges") or []):
+		if allowed is None or (row.charge_type or "").strip() in allowed:
+			discharge_doc.remove(row)
+
+
+def _detach_discharge_extra_charge_sales_orders(
+	discharge_doc, charge_types: list[str] | tuple[str, ...] | None = None
+) -> list[str]:
+	"""Clear sales_order links on extra_charges rows before cancelling those orders."""
+	allowed = set(charge_types) if charge_types else None
+	detached: list[str] = []
+	for row in discharge_doc.get("extra_charges") or []:
+		if allowed is not None and (row.charge_type or "").strip() not in allowed:
+			continue
+		so_name = (row.sales_order or "").strip()
+		if so_name:
+			detached.append(so_name)
+			row.sales_order = None
+	return detached
+
+
 def _clear_discharge_charge_fields(discharge_doc) -> None:
 	for field, value in {
 		"today_charge_sales_order": "",
@@ -1973,13 +2211,67 @@ def _clear_discharge_charge_fields(discharge_doc) -> None:
 		"charge_observation_today": 0,
 	}.items():
 		discharge_doc.set(field, value)
-	for row in discharge_doc.get("extra_charges") or []:
-		row.charge_today = 0
-		row.sales_order = None
-		row.amount = 0
-		row.service_unit = None
+	_remove_discharge_extra_charge_rows(discharge_doc)
 	discharge_doc.flags.ignore_permissions = True
 	discharge_doc.save()
+
+
+def _clear_discharge_fields_for_charge_type(discharge_doc, charge_type: str) -> None:
+	"""Clear scalar fields and remove the extra-charge row for one charge type."""
+	if charge_type == "Room Charges":
+		discharge_doc.set("room_charge_today", 0)
+		discharge_doc.set("room_charge_service_unit", "")
+		discharge_doc.set("room_charges", 0)
+		discharge_doc.set("today_charge_sales_order", "")
+	elif charge_type == "Medical Supervision":
+		discharge_doc.set("today_charge", 0)
+		discharge_doc.set("medical_supervision_amount", 0)
+	elif charge_type == "Observation":
+		discharge_doc.set("charge_observation_today", 0)
+		discharge_doc.set("today_charge_obs", 0)
+	else:
+		frappe.throw(_("Unknown charge type: {0}").format(charge_type))
+
+	_remove_discharge_extra_charge_rows(discharge_doc, [charge_type])
+	discharge_doc.flags.ignore_permissions = True
+	discharge_doc.save()
+
+
+@frappe.whitelist()
+def delete_discharge_extra_charge(admission_name, charge_type):
+	"""Cancel one linked extra-charge Sales Order and clear that charge section on the draft."""
+	if not admission_name:
+		frappe.throw(_("Admission is required"))
+
+	charge_type = (charge_type or "").strip()
+	if charge_type not in ("Room Charges", "Medical Supervision", "Observation"):
+		frappe.throw(_("Invalid charge type"))
+
+	_ensure_discharge_admission_access(admission_name)
+
+	draft_name = _get_draft_discharge_name(admission_name)
+	if not draft_name:
+		frappe.throw(_("No discharge draft found for this admission"))
+
+	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
+	so_to_cancel = _detach_discharge_extra_charge_sales_orders(discharge_doc, [charge_type])
+	if charge_type == "Room Charges":
+		so_name = _resolve_discharge_charge_sales_order_link(discharge_doc)
+		if so_name:
+			so_to_cancel.append(so_name)
+			discharge_doc.set("today_charge_sales_order", "")
+
+	if so_to_cancel:
+		discharge_doc.flags.ignore_permissions = True
+		discharge_doc.flags.ignore_links = True
+		discharge_doc.save()
+		for so_name in dict.fromkeys(so_to_cancel):
+			_cancel_discharge_charge_sales_order(discharge_doc.name, so_name)
+
+	_clear_discharge_fields_for_charge_type(discharge_doc, charge_type)
+	frappe.db.commit()
+
+	return {"message": _("{0} deleted").format(charge_type)}
 
 
 @frappe.whitelist()
@@ -1995,12 +2287,18 @@ def delete_discharge_today_charge(admission_name):
 		frappe.throw(_("No discharge draft found for this admission"))
 
 	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
-	for row in discharge_doc.get("extra_charges") or []:
-		if row.sales_order:
-			_cancel_discharge_charge_sales_order(discharge_doc.name, row.sales_order)
+	so_to_cancel = _detach_discharge_extra_charge_sales_orders(discharge_doc)
 	so_name = _resolve_discharge_charge_sales_order_link(discharge_doc)
 	if so_name:
-		_cancel_discharge_charge_sales_order(discharge_doc.name, so_name)
+		so_to_cancel.append(so_name)
+		discharge_doc.set("today_charge_sales_order", "")
+
+	if so_to_cancel:
+		discharge_doc.flags.ignore_permissions = True
+		discharge_doc.flags.ignore_links = True
+		discharge_doc.save()
+		for linked_so in dict.fromkeys(so_to_cancel):
+			_cancel_discharge_charge_sales_order(discharge_doc.name, linked_so)
 
 	_clear_discharge_charge_fields(discharge_doc)
 	frappe.db.commit()
@@ -2051,6 +2349,7 @@ def _clear_discharge_observation_fields(discharge_doc) -> None:
 		"today_charge_obs": 0,
 	}.items():
 		discharge_doc.set(field, value)
+	_remove_discharge_extra_charge_rows(discharge_doc, ["Observation"])
 	discharge_doc.flags.ignore_permissions = True
 	discharge_doc.save()
 
@@ -2074,6 +2373,13 @@ def delete_discharge_observation(admission_name):
 		obs = frappe.get_doc("Observation", observation_name, ignore_permissions=True)
 		room = frappe.utils.cstr(obs.get("room") or "").strip()
 		has_dc = bool(obs.get("dc_date"))
+
+		# Detach SO links on discharge/observation before cancelling orders.
+		_detach_discharge_extra_charge_sales_orders(discharge_doc, ["Observation"])
+		frappe.db.set_value("Observation", observation_name, "order_created", None, update_modified=False)
+		discharge_doc.flags.ignore_permissions = True
+		discharge_doc.flags.ignore_links = True
+		discharge_doc.save()
 
 		_cancel_observation_sales_orders(observation_name)
 

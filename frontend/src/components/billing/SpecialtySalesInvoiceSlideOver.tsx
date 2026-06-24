@@ -55,6 +55,24 @@ function isSubmittedInvoiceDetail(d: SalesInvoiceDetail): boolean {
   return normalizeDocstatus(d.docstatus) === 1
 }
 
+function draftLinesEqual(a: DraftInvoiceLineEdit[], b: DraftInvoiceLineEdit[]): boolean {
+  if (a.length !== b.length) return false
+  return a.every((line, i) => {
+    const other = b[i]
+    return (
+      line.name === other.name &&
+      line.item_code === other.item_code &&
+      (line.item_name || '') === (other.item_name || '') &&
+      (line.description || '') === (other.description || '') &&
+      Number(line.qty) === Number(other.qty) &&
+      Number(line.rate) === Number(other.rate) &&
+      Number(line.discount_amount) === Number(other.discount_amount) &&
+      (line.cost_center || '') === (other.cost_center || '') &&
+      (line.uom || '') === (other.uom || '')
+    )
+  })
+}
+
 interface SpecialtySalesInvoiceSlideOverProps {
   invoiceName: string | null
   onClose: () => void
@@ -152,7 +170,7 @@ export function SpecialtySalesInvoiceSlideOver({
       )
       setDetail(updated)
       setEditing(false)
-      toast.success('Invoice updated')
+      toast.success('Draft updated')
       onUpdated?.()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Save failed')
@@ -160,6 +178,10 @@ export function SpecialtySalesInvoiceSlideOver({
       setActionBusy(null)
     }
   }
+
+  const savedEditLines = detail ? invoiceDetailToEditableLines(detail) : []
+  const hasUnsavedItemEdits =
+    editing && detail && isDraftInvoiceDetail(detail) && !draftLinesEqual(editLines, savedEditLines)
 
   if (!invoiceName) return null
 
@@ -219,10 +241,72 @@ export function SpecialtySalesInvoiceSlideOver({
     </>
   )
 
+  const renderDraftFooterActions = (invoice: SalesInvoiceDetail) => (
+    <>
+      <a
+        href={deskUrl}
+        target="_blank"
+        rel="noopener noreferrer"
+        className={`${CM_BTN_CANCEL} inline-flex items-center gap-1.5`}
+      >
+        <ExternalLink className="w-4 h-4" />
+        Open in Desk
+      </a>
+      {isDraftInvoiceDetail(invoice) && !editing ? (
+        <button type="button" onClick={startEditing} className={CM_BTN_CANCEL}>
+          Edit items
+        </button>
+      ) : null}
+      {isDraftInvoiceDetail(invoice) ? (
+        <button
+          type="button"
+          disabled={!!actionBusy}
+          onClick={() => void handleSubmit()}
+          className={`${CM_BTN_PRIMARY} inline-flex items-center gap-2`}
+        >
+          {actionBusy === 'submit' && <Loader2 className="w-4 h-4 animate-spin" />}
+          Submit
+        </button>
+      ) : null}
+      {isSubmittedInvoiceDetail(invoice) && canRecordPaymentAgainstSalesInvoice(invoice) && (
+        <button
+          type="button"
+          disabled={!!actionBusy}
+          onClick={() => setShowPayment(true)}
+          className={CM_BTN_PRIMARY}
+        >
+          Record payment
+        </button>
+      )}
+      {isDraftInvoiceDetail(invoice) ? (
+        <button
+          type="button"
+          disabled={!!actionBusy}
+          onClick={() => void handleCancel()}
+          className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+          Discard draft
+        </button>
+      ) : null}
+      {isSubmittedInvoiceDetail(invoice) ? (
+        <button
+          type="button"
+          disabled={!!actionBusy}
+          onClick={() => void handleCancel()}
+          className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
+        >
+          {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
+          Cancel invoice
+        </button>
+      ) : null}
+    </>
+  )
+
   const footer =
     detail && (isDraftInvoiceDetail(detail) || isSubmittedInvoiceDetail(detail)) ? (
       <div className="flex flex-wrap items-center justify-end gap-2 w-full">
-        {isDraftInvoiceDetail(detail) && editing ? (
+        {isDraftInvoiceDetail(detail) && editing && hasUnsavedItemEdits ? (
           <>
             <button type="button" disabled={!!actionBusy} onClick={cancelEditing} className={CM_BTN_CANCEL}>
               Cancel edit
@@ -234,69 +318,11 @@ export function SpecialtySalesInvoiceSlideOver({
               className={`${CM_BTN_PRIMARY} inline-flex items-center gap-2`}
             >
               {actionBusy === 'save' && <Loader2 className="w-4 h-4 animate-spin" />}
-              Save changes
+              Save
             </button>
           </>
         ) : (
-          <>
-            <a
-              href={deskUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={`${CM_BTN_CANCEL} inline-flex items-center gap-1.5`}
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open in Desk
-            </a>
-            {isDraftInvoiceDetail(detail) && (
-              <button type="button" onClick={startEditing} className={CM_BTN_CANCEL}>
-                Edit items
-              </button>
-            )}
-            {isDraftInvoiceDetail(detail) && (
-              <button
-                type="button"
-                disabled={!!actionBusy}
-                onClick={() => void handleSubmit()}
-                className={`${CM_BTN_PRIMARY} inline-flex items-center gap-2`}
-              >
-                {actionBusy === 'submit' && <Loader2 className="w-4 h-4 animate-spin" />}
-                Submit invoice
-              </button>
-            )}
-            {isSubmittedInvoiceDetail(detail) && canRecordPaymentAgainstSalesInvoice(detail) && (
-              <button
-                type="button"
-                disabled={!!actionBusy}
-                onClick={() => setShowPayment(true)}
-                className={CM_BTN_PRIMARY}
-              >
-                Record payment
-              </button>
-            )}
-            {isDraftInvoiceDetail(detail) && (
-              <button
-                type="button"
-                disabled={!!actionBusy}
-                onClick={() => void handleCancel()}
-                className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
-                Discard draft
-              </button>
-            )}
-            {isSubmittedInvoiceDetail(detail) && (
-              <button
-                type="button"
-                disabled={!!actionBusy}
-                onClick={() => void handleCancel()}
-                className="rounded-lg border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50 inline-flex items-center gap-2"
-              >
-                {actionBusy === 'cancel' && <Loader2 className="w-4 h-4 animate-spin" />}
-                Cancel invoice
-              </button>
-            )}
-          </>
+          renderDraftFooterActions(detail)
         )}
       </div>
     ) : null
