@@ -5,8 +5,17 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { updateAppointmentStatus, type Appointment } from '../../services/appointments'
+import {
+  createAppointmentSalesOrder,
+  updateAppointmentStatus,
+  type Appointment,
+} from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
+import {
+  AppointmentInlineBillingOption,
+  isAppointmentInvoiced,
+  parseAppointmentBillAmount,
+} from './AppointmentInlineBillingOption'
 
 function toDatetimeLocalValue(d: Date): string {
   const pad = (n: number) => String(n).padStart(2, '0')
@@ -26,13 +35,23 @@ export const MarkPatientCheckedOutModal = ({
 }: MarkPatientCheckedOutModalProps) => {
   const [notes, setNotes] = useState('')
   const [checkoutTime, setCheckoutTime] = useState(() => toDatetimeLocalValue(new Date()))
+  const [billNow, setBillNow] = useState(false)
+  const [amount, setAmount] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const label = appointment.patient_name || appointment.temporary_patient_name || appointment.name
+  const showBilling = Boolean(appointment.patient) && !isAppointmentInvoiced(appointment)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    const billAmount = billNow ? parseAppointmentBillAmount(amount) : null
+    if (billNow && billAmount === null) {
+      setError('Enter a billing amount greater than zero.')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
@@ -41,9 +60,20 @@ export const MarkPatientCheckedOutModal = ({
         appointment.name,
         'Checked Out',
         notes.trim() || undefined,
-        checkoutIso
+        checkoutIso,
       )
       toast.success('Patient checked out')
+
+      if (billNow && billAmount !== null) {
+        try {
+          const billed = await createAppointmentSalesOrder(appointment.name, true, billAmount)
+          toast.success(`Sales Order ${billed.sales_order} and Invoice ${billed.sales_invoice} created`)
+        } catch (billErr) {
+          const billMsg = billErr instanceof Error ? billErr.message : 'Billing failed'
+          toast.error(`Patient checked out, but billing failed: ${billMsg}`)
+        }
+      }
+
       onSuccess()
       onClose()
     } catch (err) {
@@ -113,12 +143,23 @@ export const MarkPatientCheckedOutModal = ({
             />
           </div>
 
+          {showBilling && (
+            <AppointmentInlineBillingOption
+              appointment={appointment}
+              billNow={billNow}
+              onBillNowChange={setBillNow}
+              amount={amount}
+              onAmountChange={setAmount}
+              disabled={saving}
+            />
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
-              {saving ? 'Saving…' : 'Check out patient'}
+              {saving ? 'Saving…' : billNow ? 'Check out & bill' : 'Check out patient'}
             </button>
           </div>
         </form>

@@ -359,7 +359,7 @@ def _find_appointment_sales_order(appointment_name):
 	)
 
 
-def _appointment_billing_item_and_rate(appointment_doc):
+def _appointment_billing_item_and_rate(appointment_doc, amount=None):
 	item_code = frappe.db.get_single_value(
 		"Healthcare Settings", "default_patient_appointment_item"
 	)
@@ -374,7 +374,9 @@ def _appointment_billing_item_and_rate(appointment_doc):
 	if not frappe.db.exists("Item", item_code):
 		frappe.throw(_("Item {0} does not exist").format(item_code))
 
-	billing_rate = flt(appointment_doc.paid_amount)
+	billing_rate = flt(amount)
+	if billing_rate <= 0:
+		billing_rate = flt(appointment_doc.paid_amount)
 	if billing_rate <= 0:
 		try:
 			details = get_appointment_billing_item_and_rate(appointment_doc)
@@ -388,7 +390,22 @@ def _appointment_billing_item_and_rate(appointment_doc):
 
 
 @frappe.whitelist()
-def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0):
+def get_appointment_billing_preview(appointment_name):
+	"""Suggested item and charge for billing a checked-out appointment."""
+	if not appointment_name:
+		frappe.throw(_("Appointment name is required"))
+
+	appointment = frappe.get_doc("Patient Appointment", appointment_name)
+	item_code, billing_rate = _appointment_billing_item_and_rate(appointment)
+	return {
+		"item_code": item_code,
+		"suggested_amount": billing_rate,
+		"paid_amount": flt(appointment.paid_amount),
+	}
+
+
+@frappe.whitelist()
+def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0, amount=None):
 	"""Create (or reuse) a draft Sales Order for a checked-out appointment.
 
 	Uses ``default_patient_appointment_item`` from Healthcare Settings.
@@ -403,13 +420,30 @@ def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0
 	appointment = frappe.get_doc("Patient Appointment", appointment_name)
 	if not appointment.patient:
 		frappe.throw(_("Register a patient on this appointment before billing."))
-	if appointment.status != "Checked Out":
+	if appointment.status not in ("Patient Arrived", "Checked In", "Checked Out"):
 		frappe.throw(
-			_("Appointment must be Checked Out before creating a Sales Order."),
-			title=_("Not Checked Out"),
+			_("Appointment must be Patient Arrived or Checked Out before billing."),
+			title=_("Cannot Bill Yet"),
 		)
 
+	billing_amount = flt(amount)
 	existing_so = _find_appointment_sales_order(appointment_name)
+	if not existing_so and billing_amount <= 0:
+		frappe.throw(
+			_("Enter a billing amount for this appointment."),
+			title=_("Amount Required"),
+		)
+
+	if billing_amount > 0:
+		frappe.db.set_value(
+			"Patient Appointment",
+			appointment_name,
+			"paid_amount",
+			billing_amount,
+			update_modified=False,
+		)
+		appointment.paid_amount = billing_amount
+
 	if existing_so and not create_sales_invoice:
 		so = frappe.get_doc("Sales Order", existing_so)
 		return {
@@ -443,7 +477,10 @@ def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0
 			)
 		)
 
-	item_code, billing_rate = _appointment_billing_item_and_rate(appointment)
+	item_code, billing_rate = _appointment_billing_item_and_rate(
+		appointment,
+		amount=billing_amount if billing_amount > 0 else None,
+	)
 
 	if existing_so:
 		so_name = existing_so

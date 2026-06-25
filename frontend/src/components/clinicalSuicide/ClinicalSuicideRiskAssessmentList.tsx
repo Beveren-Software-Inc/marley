@@ -4,6 +4,7 @@ import {
   fetchSuicideRiskAssessments,
   type SuicideRiskAssessmentRow,
 } from '../../services/suicideRisk'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -14,6 +15,8 @@ interface SuicideRiskAssessmentListProps {
   inpatientAdmission?: string
   refreshKey?: number
   onPatientClick?: (patient: string) => void
+  /** When IP + active admission in header, scope list to that admission (default true). */
+  scopeToActiveAdmission?: boolean
 }
 
 const riskLevelBadge = (level?: string) => {
@@ -49,7 +52,17 @@ export const SuicideRiskAssessmentList = ({
   inpatientAdmission,
   refreshKey,
   onPatientClick,
+  scopeToActiveAdmission = true,
 }: SuicideRiskAssessmentListProps) => {
+  const { mode, activeAdmission, activeVisit, selectedPatient: contextPatient } = useCareContext()
+  const effectivePatient = patient ?? contextPatient ?? undefined
+  const scopedAdmission =
+    scopeToActiveAdmission && mode === 'IP' && activeAdmission
+      ? activeAdmission
+      : inpatientAdmission
+  const scopedVisit =
+    mode === 'OP' && activeVisit && !scopedAdmission ? activeVisit : undefined
+
   const [records, setRecords] = useState<SuicideRiskAssessmentRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -70,7 +83,12 @@ export const SuicideRiskAssessmentList = ({
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchSuicideRiskAssessments(patient, q, inpatientAdmission)
+      const data = await fetchSuicideRiskAssessments(
+        effectivePatient,
+        q,
+        scopedAdmission,
+        scopedVisit,
+      )
       setRecords(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load suicide risk assessments')
@@ -81,11 +99,11 @@ export const SuicideRiskAssessmentList = ({
 
   useEffect(() => {
     load()
-  }, [patient, inpatientAdmission, refreshKey])
+  }, [effectivePatient, scopedAdmission, scopedVisit, refreshKey])
 
   const handleSearchChange = (q: string) => {
     setSearch(q)
-    if (patient) return
+    if (effectivePatient) return
     if (debounceRef.current) clearTimeout(debounceRef.current)
     debounceRef.current = setTimeout(() => load(q), 350)
   }
@@ -193,7 +211,7 @@ export const SuicideRiskAssessmentList = ({
         </div>
       )}
 
-      {patient && !isInsideCard && (
+      {effectivePatient && !isInsideCard && (
         <p className="text-[11px] text-slate-500 flex-shrink-0">
           {filteredRecords.length} record{filteredRecords.length !== 1 ? 's' : ''}
           {hasActiveFilters && records.length !== filteredRecords.length ? ` (of ${records.length})` : ''}
@@ -217,7 +235,7 @@ export const SuicideRiskAssessmentList = ({
             <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                {!patient && (
+                {!effectivePatient && (
                   <th className="px-3 py-2 text-left font-semibold text-slate-600">Patient</th>
                 )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Clinician</th>
@@ -230,7 +248,7 @@ export const SuicideRiskAssessmentList = ({
               {filteredRecords.map((r) => (
                 <tr key={r.name} className="hover:bg-slate-50 cursor-pointer" onClick={() => setSelected(r)}>
                   <td className="px-3 py-2 text-slate-900 font-medium whitespace-nowrap">{fmt(r.assessment_date)}</td>
-                  {!patient && (
+                  {!effectivePatient && (
                     <td
                       className="px-3 py-2 cursor-pointer"
                       onClick={(e) => {

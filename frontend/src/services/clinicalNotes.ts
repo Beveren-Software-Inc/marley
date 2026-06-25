@@ -8,6 +8,7 @@ export interface ClinicalNote {
   practitioner?: string
   practitioner_name?: string
   user?: string
+  username?: string
   clinical_note_type?: string
   clinical_note_type_name?: string
   note_type?: string

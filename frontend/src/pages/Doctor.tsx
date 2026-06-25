@@ -363,6 +363,13 @@ export const DoctorPage = () => {
     setSearchParams(np, { replace: true })
   }
 
+  const returnToDoctorHome = () => {
+    const np = new URLSearchParams(searchParams)
+    if (!np.get('screen')) return
+    np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }
+
   const continueIpRequiredDocsAfterPmh = async () => {
     if (mode !== 'IP' || !selectedPatient || !activeAdmission) return
     try {
@@ -1229,6 +1236,7 @@ export const DoctorPage = () => {
               patient={selectedPatient || undefined}
               refreshKey={appointmentRefreshKey}
               onPatientClick={handlePatientSelect}
+              onOpenVisitInHeader={returnToDoctorHome}
             />
           </DashboardCard>
         </div>
@@ -1650,7 +1658,10 @@ export const DoctorPage = () => {
             onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
             addButtonTitle="Create Suicide Risk Assessment"
           >
-            <SuicideRiskAssessmentList refreshKey={suicideRiskRefreshKey} />
+            <SuicideRiskAssessmentList
+              patient={selectedPatient}
+              refreshKey={suicideRiskRefreshKey}
+            />
           </DashboardCard>
         </div>
         {showCreateSuicideRiskModal && (
@@ -1849,6 +1860,7 @@ export const DoctorPage = () => {
         patient={selectedPatient || undefined}
         refreshKey={appointmentRefreshKey}
         onPatientClick={handlePatientSelect}
+        onOpenVisitInHeader={returnToDoctorHome}
       />
     </DashboardCard>
   )

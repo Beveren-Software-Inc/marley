@@ -23,8 +23,10 @@ interface PatientAlertsBannerProps {
   dismissed: boolean
   onDismiss: () => void
   visible: boolean
-  /** Doctors with an active visit/admission must record warnings before closing. */
+  /** Doctors must record warnings or allergies when the patient has an active admission. */
   enforceWarnings?: boolean
+  /** While checking for an active admission, close stays blocked when enforceWarnings applies. */
+  enforceWarningsPending?: boolean
   onDismissabilityChange?: (canDismiss: boolean) => void
 }
 
@@ -35,6 +37,7 @@ export const PatientAlertsBanner = ({
   onDismiss,
   visible,
   enforceWarnings = false,
+  enforceWarningsPending = false,
   onDismissabilityChange,
 }: PatientAlertsBannerProps) => {
   const { user } = useAuth()
@@ -70,7 +73,13 @@ export const PatientAlertsBanner = ({
   }, [patient, canViewClinical])
 
   const hasWarnings = warnings.length > 0
-  const canDismiss = enforceWarnings ? !warningsLoading && hasWarnings : true
+  const hasDocumentedAllergies = Boolean(medicalHistory?.allergies?.trim())
+  const hasRequiredAlerts = hasWarnings || (canViewClinical && hasDocumentedAllergies)
+  const alertsDataLoading =
+    warningsLoading || (enforceWarnings && canViewClinical && medicalLoading)
+  const canDismiss =
+    !enforceWarnings ||
+    (!enforceWarningsPending && !alertsDataLoading && hasRequiredAlerts)
 
   useEffect(() => {
     onDismissabilityChange?.(canDismiss)
@@ -114,9 +123,9 @@ export const PatientAlertsBanner = ({
                 <AlertTriangle className="h-4 w-4 flex-shrink-0 text-amber-600" />
                 <span>Patient alerts — {patientName || patient}</span>
               </div>
-              {enforceWarnings && !canDismiss && !warningsLoading && (
+              {enforceWarnings && !canDismiss && !alertsDataLoading && !enforceWarningsPending && (
                 <p className="mt-1 text-xs font-medium text-amber-800">
-                  Warnings &amp; allergies are required for this visit. Use &ldquo;Create one&rdquo; below, then close.
+                  Warnings or allergies are required for admitted patients. Use &ldquo;Create one&rdquo; below, then close.
                 </p>
               )}
             </div>

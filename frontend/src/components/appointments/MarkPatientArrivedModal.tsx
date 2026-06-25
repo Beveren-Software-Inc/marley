@@ -7,10 +7,16 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   appointmentNeedsRegistration,
+  createAppointmentSalesOrder,
   updateAppointmentStatus,
   type Appointment,
 } from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
+import {
+  AppointmentInlineBillingOption,
+  isAppointmentInvoiced,
+  parseAppointmentBillAmount,
+} from './AppointmentInlineBillingOption'
 
 interface MarkPatientArrivedModalProps {
   appointment: Appointment
@@ -27,10 +33,13 @@ export const MarkPatientArrivedModal = ({
   onRequiresRegistration,
 }: MarkPatientArrivedModalProps) => {
   const [notes, setNotes] = useState('')
+  const [billNow, setBillNow] = useState(false)
+  const [amount, setAmount] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const label = appointment.patient_name || appointment.temporary_patient_name || appointment.name
+  const showBilling = Boolean(appointment.patient) && !isAppointmentInvoiced(appointment)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,19 +48,37 @@ export const MarkPatientArrivedModal = ({
       onClose()
       return
     }
+
+    const billAmount = billNow ? parseAppointmentBillAmount(amount) : null
+    if (billNow && billAmount === null) {
+      setError('Enter a billing amount greater than zero.')
+      return
+    }
+
     setSaving(true)
     setError(null)
     try {
       const result = await updateAppointmentStatus(
         appointment.name,
         'Patient Arrived',
-        notes.trim() || undefined
+        notes.trim() || undefined,
       )
       if (result.patient_visit) {
         toast.success(`Patient marked as arrived · visit ${result.patient_visit} created`)
       } else {
         toast.success('Patient marked as arrived')
       }
+
+      if (billNow && billAmount !== null) {
+        try {
+          const billed = await createAppointmentSalesOrder(appointment.name, true, billAmount)
+          toast.success(`Sales Order ${billed.sales_order} and Invoice ${billed.sales_invoice} created`)
+        } catch (billErr) {
+          const billMsg = billErr instanceof Error ? billErr.message : 'Billing failed'
+          toast.error(`Patient arrived, but billing failed: ${billMsg}`)
+        }
+      }
+
       onSuccess()
       onClose()
     } catch (err) {
@@ -107,12 +134,23 @@ export const MarkPatientArrivedModal = ({
             />
           </div>
 
+          {showBilling && (
+            <AppointmentInlineBillingOption
+              appointment={appointment}
+              billNow={billNow}
+              onBillNowChange={setBillNow}
+              amount={amount}
+              onAmountChange={setAmount}
+              disabled={saving}
+            />
+          )}
+
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
-              {saving ? 'Saving…' : 'Mark patient arrived'}
+              {saving ? 'Saving…' : billNow ? 'Mark arrived & bill' : 'Mark patient arrived'}
             </button>
           </div>
         </form>

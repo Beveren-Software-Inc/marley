@@ -94,8 +94,6 @@ export interface CreateWarningMessageData {
   warning?: string
   practitioner?: string
   posting_date?: string
-  clinical_note_type?: string
-  medical_role?: string
 }
 
 export async function createWarningMessage(data: CreateWarningMessageData): Promise<WarningMessage> {

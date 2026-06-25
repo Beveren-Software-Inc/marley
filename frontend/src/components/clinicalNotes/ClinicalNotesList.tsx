@@ -44,6 +44,22 @@ function clinicalNotePractitionerLabel(note: ClinicalNote): string {
   return note.practitioner_name || note.practitioner || note.user || '—'
 }
 
+/** Doctor Progress Note listing: practitioner name, else username when no practitioner. */
+function doctorProgressNoteAuthorLabel(note: ClinicalNote): string {
+  if (note.practitioner) {
+    return note.practitioner_name || note.practitioner
+  }
+  if (note.username?.trim()) return note.username.trim()
+  return note.user || '—'
+}
+
+function clinicalNoteAuthorLabel(note: ClinicalNote, clinicalNoteType?: string): string {
+  if (clinicalNoteType === 'Doctor Progress Note') {
+    return doctorProgressNoteAuthorLabel(note)
+  }
+  return clinicalNotePractitionerLabel(note)
+}
+
 export const ClinicalNotesList = ({
   patient,
   clinicalNoteType,
@@ -255,6 +271,8 @@ export const ClinicalNotesList = ({
   const cardCompactLayout = compactClinical
   /** When the screen is already titled by note type, hide redundant type columns. */
   const hideTypeColumns = hideTypes || Boolean(clinicalNoteType?.trim())
+  const authorColumnLabel =
+    clinicalNoteType === 'Doctor Progress Note' ? 'Username' : 'Practitioner'
   const clinicalNoteTypeLabel = (note: ClinicalNote) =>
     note.clinical_note_type_name || note.clinical_note_type || '-'
 
@@ -300,7 +318,7 @@ export const ClinicalNotesList = ({
           {clinicalNotes.map((note) => {
             const metaFields = [
               ['Note ID', note.name],
-              ['Practitioner', clinicalNotePractitionerLabel(note)],
+              [authorColumnLabel, clinicalNoteAuthorLabel(note, clinicalNoteType)],
               ['Clinical note type', clinicalNoteTypeLabel(note)],
               ['Reference', noteReferenceLabel(note)],
             ] as const
@@ -346,7 +364,7 @@ export const ClinicalNotesList = ({
                   </th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Practitioner
+                  {authorColumnLabel}
                 </th>
                 {!hideTypeColumns && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -365,7 +383,7 @@ export const ClinicalNotesList = ({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                  Practitioner
+                  {authorColumnLabel}
                 </th>
                 {!hideTypeColumns && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -408,7 +426,7 @@ export const ClinicalNotesList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {clinicalNotePractitionerLabel(note)}
+                    {clinicalNoteAuthorLabel(note, clinicalNoteType)}
                   </td>
                   {!hideTypeColumns && (
                     <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
@@ -453,7 +471,7 @@ export const ClinicalNotesList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">
-                    {clinicalNotePractitionerLabel(note)}
+                    {clinicalNoteAuthorLabel(note, clinicalNoteType)}
                   </td>
                   {!hideTypeColumns && (
                     <td className="px-4 py-3 text-sm text-slate-700">{clinicalNoteTypeLabel(note)}</td>
