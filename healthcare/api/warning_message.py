@@ -81,6 +81,24 @@ def allocate_warning_trans_id() -> str:
 	return str(max(integers) + 1)
 
 
+def _resolve_practitioner(data: dict) -> str | None:
+	practitioner = (data.get("practitioner") or "").strip()
+	if practitioner:
+		return practitioner
+	from healthcare.utils import get_current_user_practitioner
+
+	return get_current_user_practitioner()
+
+
+def _resolve_medical_role(data: dict, practitioner: str | None) -> str | None:
+	medical_role = (data.get("medical_role") or "").strip()
+	if medical_role:
+		return medical_role
+	if not practitioner:
+		return None
+	return frappe.db.get_value("Healthcare Practitioner", practitioner, "medical_role")
+
+
 def insert_medical_warning_message(
 	patient: str,
 	warning: str,
@@ -89,7 +107,6 @@ def insert_medical_warning_message(
 	reference_name: str | None = None,
 	practitioner: str | None = None,
 	posting_date=None,
-	clinical_note_type: str | None = None,
 	medical_role: str | None = None,
 ):
 	"""Insert a Medical Warning Message with mandatory ``trans_id`` set."""
@@ -107,7 +124,6 @@ def insert_medical_warning_message(
 			"warning": (warning or "").strip(),
 			"practitioner": practitioner,
 			"posting_date": posting_date or frappe.utils.now(),
-			"clinical_note_type": clinical_note_type,
 			"medical_role": medical_role,
 			"reference_doc": reference_doc,
 			"reference_name": reference_name,
@@ -217,6 +233,9 @@ def create_warning_message(data):
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
+
+	practitioner = _resolve_practitioner(data)
+	medical_role = _resolve_medical_role(data, practitioner)
 	
 	wtype = (data.get('type_of_warning') or 'Medical').strip()
 	if wtype not in ('Medical', 'Organisation'):
@@ -229,10 +248,9 @@ def create_warning_message(data):
 		warning = insert_medical_warning_message(
 			data.get('patient'),
 			data.get('warning', ''),
-			practitioner=data.get('practitioner'),
+			practitioner=practitioner,
 			posting_date=data.get('posting_date'),
-			clinical_note_type=data.get('clinical_note_type'),
-			medical_role=data.get('medical_role'),
+			medical_role=medical_role,
 		)
 	else:
 		warning = frappe.get_doc(
@@ -242,10 +260,9 @@ def create_warning_message(data):
 				'type_of_warning': wtype,
 				'patient': data.get('patient') or None,
 				'warning': data.get('warning', ''),
-				'practitioner': data.get('practitioner'),
+				'practitioner': practitioner,
 				'posting_date': data.get('posting_date') or frappe.utils.now(),
-				'clinical_note_type': data.get('clinical_note_type'),
-				'medical_role': data.get('medical_role'),
+				'medical_role': medical_role,
 			}
 		)
 		warning.insert(ignore_permissions=True)

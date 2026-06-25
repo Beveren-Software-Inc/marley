@@ -233,6 +233,7 @@ def get_clinical_notes(**kwargs):
 			'posting_date',
 			'practitioner',
 			'user',
+			'username',
 			'clinical_note_type',
 			'medical_role',
 			'note',

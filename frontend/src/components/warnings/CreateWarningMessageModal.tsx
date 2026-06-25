@@ -11,19 +11,13 @@ import {
 import { createWarningMessage } from '../../services/warningMessages'
 import {
   fetchHealthcarePractitioners,
-  fetchClinicalNoteTypes,
-  fetchMedicalRoles,
-  fetchMedicalRoleByName,
   getCurrentUserPractitioner,
-  getPractitionerMedicalRole,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
-import { CreateClinicalNoteTypeModal } from '../clinicalNotes/CreateClinicalNoteTypeModal'
-import { CreateMedicalRoleModal } from '../clinicalNotes/CreateMedicalRoleModal'
 import {
   linkComboboxDropdownClassTall,
   linkComboboxInputWithClearClass,
@@ -43,41 +37,24 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     warning: '',
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
-    clinical_note_type: '',
-    medical_role: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   const [showCreatePatient, setShowCreatePatient] = useState(false)
-  const [showCreateClinicalNoteType, setShowCreateClinicalNoteType] = useState(false)
-  const [showCreateMedicalRole, setShowCreateMedicalRole] = useState(false)
-  
-  // Patient dropdown state
+
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
   const [patientLoading, setPatientLoading] = useState(false)
 
-  // Practitioner dropdown state
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
 
-  // Clinical Note Type dropdown state
-  const [clinicalNoteTypeOptions, setClinicalNoteTypeOptions] = useState<LinkFieldOption[]>([])
-  const [clinicalNoteTypeOpen, setClinicalNoteTypeOpen] = useState(false)
-  const [clinicalNoteTypeQuery, setClinicalNoteTypeQuery] = useState('')
-  const [selectedClinicalNoteType, setSelectedClinicalNoteType] = useState<LinkFieldOption | null>(null)
-
-  // Medical Role dropdown state
-  const [medicalRoleOptions, setMedicalRoleOptions] = useState<LinkFieldOption[]>([])
-  const [medicalRoleOpen, setMedicalRoleOpen] = useState(false)
-  const [medicalRoleQuery, setMedicalRoleQuery] = useState('')
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (formData.type_of_warning === 'Medical' && !formData.patient) {
       setError('Patient is required for medical warnings')
       return
@@ -98,15 +75,10 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
         warning: formData.warning,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
-        clinical_note_type: formData.clinical_note_type || undefined,
-        medical_role: formData.medical_role || undefined,
       })
-      
+
       toast.success('Warning message created successfully')
-      if (onSuccess) {
-        onSuccess()
-      }
-      
+      onSuccess?.()
       onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create warning message'
@@ -118,34 +90,9 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   }
 
   const handleChange = (field: string, value: string) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
-  /** Set Medical Role UI + form from Healthcare Practitioner’s `medical_role` link (Medical Role name). */
-  const syncMedicalRoleFromPractitioner = async (medicalRoleLink: string | null) => {
-    if (!medicalRoleLink?.trim()) {
-      setFormData((prev) => ({ ...prev, medical_role: '' }))
-      setMedicalRoleQuery('')
-      return
-    }
-    const name = medicalRoleLink.trim()
-    setFormData((prev) => ({ ...prev, medical_role: name }))
-
-    const hit = medicalRoleOptions.find((r) => r.name === name)
-    if (hit) {
-      setMedicalRoleQuery(hit.label)
-      return
-    }
-    const fromApi = await fetchMedicalRoleByName(name)
-    if (fromApi) {
-      setMedicalRoleQuery(fromApi.label)
-      setMedicalRoleOptions((prev) => (prev.some((r) => r.name === fromApi.name) ? prev : [fromApi, ...prev]))
-      return
-    }
-    setMedicalRoleQuery(name)
-  }
-
-  // Load initial patient if provided
   useEffect(() => {
     if (initialPatient) {
       const loadInitialPatient = async () => {
@@ -162,18 +109,11 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     }
   }, [initialPatient])
 
-  // Load initial options
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [practs, noteTypes, roles] = await Promise.all([
-          fetchHealthcarePractitioners(),
-          fetchClinicalNoteTypes(),
-          fetchMedicalRoles()
-        ])
+        const practs = await fetchHealthcarePractitioners()
         setPractitionerOptions(practs)
-        setClinicalNoteTypeOptions(noteTypes)
-        setMedicalRoleOptions(roles)
       } catch (err) {
         console.error('Failed to load options:', err)
       }
@@ -181,37 +121,23 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     loadOptions()
   }, [])
 
-  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
   useEffect(() => {
     const autoPopulatePractitioner = async () => {
       try {
         const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          setFormData(prev => ({ ...prev, practitioner }))
-          
-          // Find the practitioner option to set display label
-          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
-          if (practitionerOption) {
-            setPractitionerQuery(practitionerOption.label)
-            let medicalRole: string | null = practitionerOption.medical_role || null
-            if (!medicalRole) {
-              try {
-                medicalRole = await getPractitionerMedicalRole(practitioner)
-              } catch (err) {
-                console.error('Failed to fetch medical role:', err)
-              }
-            }
-            await syncMedicalRoleFromPractitioner(medicalRole)
-          }
-        }
+        if (!practitioner) return
+
+        setFormData((prev) => ({ ...prev, practitioner }))
+
+        const practitionerOption = practitionerOptions.find((p) => p.name === practitioner)
+        setPractitionerQuery(practitionerOption?.label || practitioner)
       } catch (err) {
         console.error('Failed to auto-populate practitioner:', err)
       }
     }
     autoPopulatePractitioner()
-  }, [practitionerOptions, medicalRoleOptions])
+  }, [practitionerOptions])
 
-  // Search/fetch patients
   useEffect(() => {
     if (!patientOpen) return
 
@@ -240,7 +166,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     return () => clearTimeout(timeoutId)
   }, [patientQuery, patientOpen])
 
-  // Search practitioners
   useEffect(() => {
     if (!practitionerOpen) return
 
@@ -261,81 +186,16 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     return () => clearTimeout(timeoutId)
   }, [practitionerQuery, practitionerOpen])
 
-  // Search clinical note types
-  useEffect(() => {
-    if (!clinicalNoteTypeOpen) return
-
-    const search = async () => {
-      try {
-        const results = await fetchClinicalNoteTypes(clinicalNoteTypeQuery)
-        setClinicalNoteTypeOptions(results)
-      } catch (err) {
-        console.error('Failed to search clinical note types:', err)
-        setClinicalNoteTypeOptions([])
-      }
-    }
-
-    const timeoutId = setTimeout(() => {
-      search()
-    }, clinicalNoteTypeQuery.trim() === '' ? 0 : 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [clinicalNoteTypeQuery, clinicalNoteTypeOpen])
-
-  // Search medical roles
-  useEffect(() => {
-    if (!medicalRoleOpen) return
-
-    const search = async () => {
-      try {
-        const results = await fetchMedicalRoles(medicalRoleQuery)
-        setMedicalRoleOptions(results)
-      } catch (err) {
-        console.error('Failed to search medical roles:', err)
-        setMedicalRoleOptions([])
-      }
-    }
-
-    const timeoutId = setTimeout(() => {
-      search()
-    }, medicalRoleQuery.trim() === '' ? 0 : 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [medicalRoleQuery, medicalRoleOpen])
-
   const handlePatientSelect = (patient: PatientListItem) => {
-    setFormData(prev => ({ ...prev, patient: patient.name }))
+    setFormData((prev) => ({ ...prev, patient: patient.name }))
     setPatientQuery(patient.patient_name)
     setPatientOpen(false)
   }
 
-  const handlePractitionerSelect = async (pract: LinkFieldOption) => {
+  const handlePractitionerSelect = (pract: LinkFieldOption) => {
     setFormData((prev) => ({ ...prev, practitioner: pract.name }))
     setPractitionerQuery(pract.label || pract.name)
     setPractitionerOpen(false)
-
-    let medicalRole: string | null = pract.medical_role || null
-    if (!medicalRole) {
-      try {
-        medicalRole = await getPractitionerMedicalRole(pract.name)
-      } catch (err) {
-        console.error('Failed to fetch medical role:', err)
-      }
-    }
-    await syncMedicalRoleFromPractitioner(medicalRole)
-  }
-
-  const handleClinicalNoteTypeSelect = (noteType: LinkFieldOption) => {
-    setSelectedClinicalNoteType(noteType)
-    setFormData(prev => ({ ...prev, clinical_note_type: noteType.name }))
-    setClinicalNoteTypeQuery(noteType.label)
-    setClinicalNoteTypeOpen(false)
-  }
-
-  const handleMedicalRoleSelect = (role: LinkFieldOption) => {
-    setFormData(prev => ({ ...prev, medical_role: role.name }))
-    setMedicalRoleQuery(role.label)
-    setMedicalRoleOpen(false)
   }
 
   return (
@@ -347,15 +207,13 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
           onSubmit={handleSubmit}
           className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-6`}
           onClick={(e) => {
-          // Close dropdowns when clicking outside inputs
-          const target = e.target as HTMLElement
-          if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
-            setPatientOpen(false)
-            setPractitionerOpen(false)
-            setClinicalNoteTypeOpen(false)
-            setMedicalRoleOpen(false)
-          }
-        }}>
+            const target = e.target as HTMLElement
+            if (target.tagName !== 'INPUT' && !target.closest('.absolute')) {
+              setPatientOpen(false)
+              setPractitionerOpen(false)
+            }
+          }}
+        >
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Type of warning</label>
             <select
@@ -372,9 +230,11 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                     patient: initialPatient || prev.patient,
                   }))
                   if (initialPatient) {
-                    fetchPatients(1, 0, initialPatient).then((patients) => {
-                      if (patients[0]) setPatientQuery(patients[0].patient_name)
-                    }).catch(() => {})
+                    fetchPatients(1, 0, initialPatient)
+                      .then((patients) => {
+                        if (patients[0]) setPatientQuery(patients[0].patient_name)
+                      })
+                      .catch(() => {})
                   }
                 }
               }}
@@ -388,7 +248,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             </p>
           </div>
 
-          {/* Patient Information */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -438,9 +297,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                           className={linkComboboxOptionClass}
                         >
                           <div className="font-medium">{patient.patient_name}</div>
-                          {patient.mobile && (
-                            <div className="text-xs text-slate-500">{patient.mobile}</div>
-                          )}
+                          {patient.mobile && <div className="text-xs text-slate-500">{patient.mobile}</div>}
                         </button>
                       ))}
                     </div>
@@ -450,7 +307,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             </div>
           </div>
 
-          {/* Warning Details */}
           <div>
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Warning Details</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -469,9 +325,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Posting Date
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Posting Date</label>
                 <input
                   type="datetime-local"
                   value={formData.posting_date}
@@ -481,18 +335,14 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Practitioner
-                </label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
                     value={practitionerQuery}
                     onChange={(e) => {
-                      const v = e.target.value
-                      setPractitionerQuery(v)
+                      setPractitionerQuery(e.target.value)
                       setFormData((prev) => ({ ...prev, practitioner: '' }))
-                      void syncMedicalRoleFromPractitioner(null)
                       setPractitionerOpen(true)
                     }}
                     onFocus={() => setPractitionerOpen(true)}
@@ -531,106 +381,11 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                   )}
                 </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Medical Role
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={medicalRoleQuery}
-                    onChange={(e) => {
-                      setMedicalRoleQuery(e.target.value)
-                      setFormData((prev) => ({ ...prev, medical_role: '' }))
-                      setMedicalRoleOpen(true)
-                    }}
-                    onFocus={() => setMedicalRoleOpen(true)}
-                    placeholder="Search medical role..."
-                    className={linkComboboxInputWithClearClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowCreateMedicalRole(true)
-                    }}
-                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                    title="Create New Medical Role"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  {medicalRoleOpen && medicalRoleOptions.length > 0 && (
-                    <div className={`${linkComboboxDropdownClassTall} top-full`}>
-                      {medicalRoleOptions.map((role) => (
-                        <button
-                          key={role.name}
-                          type="button"
-                          onClick={() => handleMedicalRoleSelect(role)}
-                          className={linkComboboxOptionClass}
-                        >
-                          {role.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Clinical Note Type
-                </label>
-                <div className="relative flex items-center">
-                  <input
-                    type="text"
-                    value={selectedClinicalNoteType ? selectedClinicalNoteType.label : clinicalNoteTypeQuery}
-                    onChange={(e) => {
-                      setClinicalNoteTypeQuery(e.target.value)
-                      setClinicalNoteTypeOpen(true)
-                    }}
-                    onFocus={() => setClinicalNoteTypeOpen(true)}
-                    placeholder="Search clinical note type..."
-                    className={linkComboboxInputWithClearClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowCreateClinicalNoteType(true)
-                    }}
-                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                    title="Create New Clinical Note Type"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  {clinicalNoteTypeOpen && clinicalNoteTypeOptions.length > 0 && (
-                    <div className={`${linkComboboxDropdownClassTall} top-full`}>
-                      {clinicalNoteTypeOptions.map((noteType) => (
-                        <button
-                          key={noteType.name}
-                          type="button"
-                          onClick={() => handleClinicalNoteTypeSelect(noteType)}
-                          className={linkComboboxOptionClass}
-                        >
-                          {noteType.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
             </div>
           </div>
 
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
-              {error}
-            </div>
+            <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">{error}</div>
           )}
 
           <CreateModalFooter>
@@ -657,17 +412,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             }
             setPractitionerOpen(false)
             setShowCreatePractitioner(false)
-            void (async () => {
-              let role: string | null = newPract?.medical_role || null
-              if (!role) {
-                try {
-                  role = await getPractitionerMedicalRole(practitionerName)
-                } catch {
-                  role = null
-                }
-              }
-              await syncMedicalRoleFromPractitioner(role)
-            })()
           }}
         />
       )}
@@ -683,40 +427,6 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
           }}
         />
       )}
-      {showCreateMedicalRole && (
-        <CreateMedicalRoleModal
-          onClose={() => setShowCreateMedicalRole(false)}
-          onSuccess={(created) => {
-            const option: LinkFieldOption = {
-              name: created.name,
-              label: created.medical_role,
-            }
-            setMedicalRoleOptions((prev) => [option, ...prev])
-            setFormData((prev) => ({ ...prev, medical_role: created.name }))
-            setMedicalRoleQuery(option.label)
-            setMedicalRoleOpen(false)
-            setShowCreateMedicalRole(false)
-          }}
-        />
-      )}
-      {showCreateClinicalNoteType && (
-        <CreateClinicalNoteTypeModal
-          onClose={() => setShowCreateClinicalNoteType(false)}
-          onSuccess={(created) => {
-            const option: LinkFieldOption = {
-              name: created.name,
-              label: created.clinical_note_type,
-            }
-            setClinicalNoteTypeOptions((prev) => [option, ...prev])
-            setSelectedClinicalNoteType(option)
-            setFormData((prev) => ({ ...prev, clinical_note_type: created.name }))
-            setClinicalNoteTypeQuery(option.label)
-            setClinicalNoteTypeOpen(false)
-            setShowCreateClinicalNoteType(false)
-          }}
-        />
-      )}
     </div>
   )
 }
-

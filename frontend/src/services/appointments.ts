@@ -393,9 +393,32 @@ export async function linkWalkInAppointmentToPatient(
   throw new Error('Failed to link patient to appointment')
 }
 
+export interface AppointmentBillingPreview {
+  item_code: string
+  suggested_amount: number
+  paid_amount?: number
+}
+
+export async function fetchAppointmentBillingPreview(
+  appointmentName: string,
+): Promise<AppointmentBillingPreview> {
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_appointment.get_appointment_billing_preview?appointment_name=${encodeURIComponent(appointmentName)}`,
+  )
+  const resData = await response.json()
+  if (resData?.exc) {
+    throw new Error(messageFromExc(resData.exc, resData.exc_type))
+  }
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as AppointmentBillingPreview
+  }
+  throw new Error('Failed to load appointment billing preview')
+}
+
 export async function createAppointmentSalesOrder(
   appointmentName: string,
   createSalesInvoice = false,
+  amount?: number,
 ): Promise<AppointmentSalesOrderResult> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -412,6 +435,7 @@ export async function createAppointmentSalesOrder(
       body: JSON.stringify({
         appointment_name: appointmentName,
         create_sales_invoice: createSalesInvoice ? 1 : 0,
+        amount: amount ?? undefined,
       }),
     },
   )

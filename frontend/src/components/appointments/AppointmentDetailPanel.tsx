@@ -8,7 +8,6 @@ import {
 } from '../../services/appointments'
 import { StatusPill } from '../ui/StatusPill'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { ExternalLink } from 'lucide-react'
 
 type AppointmentDoc = Record<string, unknown>
 
@@ -82,6 +81,8 @@ interface AppointmentDetailPanelProps {
   onAddDoctorNote?: () => void
   /** Sync parent page patient bar when opening OP visit from this appointment. */
   onPatientSelect?: (patient: string) => void
+  /** Close appointment detail UI and return to the underlying page (e.g. doctor home). */
+  onOpenVisitInHeader?: () => void
 }
 
 export function AppointmentDetailPanel({
@@ -95,6 +96,7 @@ export function AppointmentDetailPanel({
   onAddRemarks,
   onAddDoctorNote,
   onPatientSelect,
+  onOpenVisitInHeader,
 }: AppointmentDetailPanelProps) {
   const { applyOpCareContext } = useCareContext()
   const [doc, setDoc] = useState<AppointmentDoc | null>(null)
@@ -174,6 +176,14 @@ export function AppointmentDetailPanel({
   const status = str(doc.status)
   const displayName = isWalkIn ? str(doc.temporary_patient_name) : str(doc.patient_name || doc.patient)
   const hasPatient = Boolean(doc.patient)
+
+  const openPatientVisitInHeader = () => {
+    if (!patientVisit) return
+    const patientId = typeof doc.patient === 'string' ? doc.patient : undefined
+    applyOpCareContext({ patient: patientId, visit: patientVisit })
+    if (patientId) onPatientSelect?.(patientId)
+    onOpenVisitInHeader?.()
+  }
 
   return (
     <div className="space-y-4">
@@ -289,8 +299,23 @@ export function AppointmentDetailPanel({
         ) : (
           <>
             <InfoRow label="Patient ID" value={str(doc.patient)} />
-            <InfoRow label="Patient Name" value={str(doc.patient_name)} />
+            <div className="flex flex-col gap-0.5">
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Patient Name</span>
+              <span className="text-sm font-medium text-slate-800">{str(doc.patient_name)}</span>
+            </div>
             {!!doc.patient_sex && <InfoRow label="Sex" value={str(doc.patient_sex)} />}
+            {patientVisit ? (
+              <div className="flex flex-col gap-0.5">
+                <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Patient Visit</span>
+                <button
+                  type="button"
+                  onClick={openPatientVisitInHeader}
+                  className="text-left text-sm font-medium text-primary hover:underline"
+                >
+                  {patientVisit}
+                </button>
+              </div>
+            ) : null}
             {!!doc.patient_age && <InfoRow label="Age" value={str(doc.patient_age)} />}
           </>
         )}
@@ -322,24 +347,6 @@ export function AppointmentDetailPanel({
         {!!doc.cost_center && <InfoRow label="Branch" value={str(doc.cost_center)} />}
         {!!doc.company && <InfoRow label="Company" value={str(doc.company)} />}
         {!!doc.source && <InfoRow label="Source" value={str(doc.source)} />}
-        {patientVisit ? (
-          <div className="col-span-2 flex flex-col gap-1">
-            <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">Patient Visit</span>
-            <button
-              type="button"
-              onClick={() => {
-                const patientId = typeof doc.patient === 'string' ? doc.patient : undefined
-                applyOpCareContext({ patient: patientId, visit: patientVisit })
-                if (patientId) onPatientSelect?.(patientId)
-              }}
-              className="inline-flex items-center gap-1.5 text-left text-sm font-medium text-primary hover:underline"
-            >
-              <ExternalLink className="h-3.5 w-3.5 shrink-0" />
-              {patientVisit}
-              <span className="text-xs font-normal text-slate-500">— open in OP header</span>
-            </button>
-          </div>
-        ) : null}
       </Section>
 
       {!!(doc.practitioner || doc.department) && (

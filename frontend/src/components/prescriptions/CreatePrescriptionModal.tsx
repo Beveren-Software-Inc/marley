@@ -31,6 +31,7 @@ import {
   type MedicationOrderRow,
   type Prescription,
   checkPrescriptionDrugStock,
+  type PrescriptionDrugStockCheck,
 } from '../../services/prescriptions'
 import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
@@ -53,7 +54,6 @@ import {
   CreateFrequencyMiniModal,
   type CreateFrequencyKind,
 } from './CreateFrequencyMiniModal'
-import { ConfirmDialog } from '../ui/ConfirmDialog'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -114,6 +114,13 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   route_of_administration: '',
   medication_type: '',
 })
+
+function formatMedicationStockInline(stock: PrescriptionDrugStockCheck): string | null {
+  if (!stock.warn || !stock.level) return null
+  const qty = stock.actual_qty ?? 0
+  if (stock.level === 'out_of_stock') return `Out of stock - ${qty}`
+  return `Low stock - ${qty}`
+}
 
 // COMBOBOX WITH FIXED POSITIONING - DROPDOWNS ESCAPE MODAL
 interface ComboboxProps {
@@ -347,7 +354,7 @@ export const CreatePrescriptionModal = ({
 
   const [doctorsSignature, setDoctorsSignature] = useState<string | null>(null)
   const [signatureUploading, setSignatureUploading] = useState(false)
-  const [stockWarning, setStockWarning] = useState<{ title: string; message: string } | null>(null)
+  const [medicationStock, setMedicationStock] = useState<Record<number, PrescriptionDrugStockCheck>>({})
 
   const isEditing = editMode
 
@@ -431,12 +438,15 @@ export const CreatePrescriptionModal = ({
 
     try {
       const stock = await checkPrescriptionDrugStock(opt.name, userCostCenter, formData.company)
-      if (stock.warn && stock.message) {
-        setStockWarning({
-          title: stock.level === 'out_of_stock' ? 'Out of stock' : 'Low stock',
-          message: stock.message,
-        })
-      }
+      setMedicationStock((prev) => {
+        const next = { ...prev }
+        if (stock.warn) {
+          next[index] = stock
+        } else {
+          delete next[index]
+        }
+        return next
+      })
     } catch {
       /* non-blocking */
     }
@@ -668,6 +678,15 @@ export const CreatePrescriptionModal = ({
     setFrequencyQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
     setRouteQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
     setUomQueries((prev) => { const n = { ...prev }; delete n[index]; return n })
+    setMedicationStock((prev) => {
+      const next: Record<number, PrescriptionDrugStockCheck> = {}
+      Object.entries(prev).forEach(([key, val]) => {
+        const i = Number(key)
+        if (i < index) next[i] = val
+        else if (i > index) next[i - 1] = val
+      })
+      return next
+    })
     setExpandedMedications((prev) => {
       const next = new Set(prev)
       next.delete(index)
@@ -1088,11 +1107,7 @@ export const CreatePrescriptionModal = ({
             {/* ── MEDICATIONS TAB ── */}
             {activeTab === 'medications' && (
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <p className="text-sm text-slate-500">
-                    Fill in Drug, Dosage, Dosage Form, and Date for each medication.
-                    {isIP && <span className="ml-2 text-amber-600">(IP: No need to specify number of days)</span>}
-                  </p>
+                <div className="flex justify-end items-center">
                   <button
                     type="button"
                     onClick={addMedicationRow}
@@ -1118,7 +1133,11 @@ export const CreatePrescriptionModal = ({
                 )}
 
                 <div className="space-y-3">
-                  {medications.map((row, index) => (
+                  {medications.map((row, index) => {
+                    const stockLabel = medicationStock[index]
+                      ? formatMedicationStockInline(medicationStock[index])
+                      : null
+                    return (
                     <div
                       key={index}
                       className="border border-slate-200 rounded-lg bg-white shadow-sm overflow-hidden transition-all"
@@ -1131,12 +1150,23 @@ export const CreatePrescriptionModal = ({
                           !shouldShowCollapse ? 'cursor-default' : 'cursor-pointer'
                         }`}
                       >
-                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                          <Pill className="w-4 h-4 text-primary" />
-                          <span>Medication {index + 1}</span>
+                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700 min-w-0 flex-wrap">
+                          <Pill className="w-4 h-4 text-primary shrink-0" />
+                          <span className="shrink-0">Medication {index + 1}</span>
                           {row.drug && drugQueries[index] && (
-                            <span className="text-slate-400 font-normal">— {drugQueries[index]}</span>
+                            <span className="text-slate-400 font-normal truncate">— {drugQueries[index]}</span>
                           )}
+                          {stockLabel ? (
+                            <span
+                              className={`font-medium shrink-0 ${
+                                medicationStock[index].level === 'out_of_stock'
+                                  ? 'text-red-600'
+                                  : 'text-amber-600'
+                              }`}
+                            >
+                              {stockLabel}
+                            </span>
+                          ) : null}
                           {isPrnPrescriptionType(row.medication_type) && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
                               PRN
@@ -1487,7 +1517,7 @@ export const CreatePrescriptionModal = ({
                         </div>
                       )}
                     </div>
-                  ))}
+                  )})}
 
                   {medications.length === 0 && (
                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
@@ -1588,17 +1618,6 @@ export const CreatePrescriptionModal = ({
           }}
         />
       )}
-
-      <ConfirmDialog
-        open={Boolean(stockWarning)}
-        title={stockWarning?.title ?? 'Stock warning'}
-        message={stockWarning?.message ?? ''}
-        confirmLabel="OK"
-        cancelLabel="Close"
-        variant="warning"
-        onConfirm={() => setStockWarning(null)}
-        onCancel={() => setStockWarning(null)}
-      />
     </div>
   )
 }

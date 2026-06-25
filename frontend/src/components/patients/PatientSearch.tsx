@@ -15,7 +15,7 @@ import { useAuth } from '../../providers/AuthProvider'
 import { isDoctorRole } from '../../config/permissions'
 import { toast } from '../../hooks/useToast'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
-import { fetchInpatientRecords } from '../../services/inpatientRecords'
+import { fetchInpatientRecords, getPatientActiveAdmission } from '../../services/inpatientRecords'
 import { formatAdmissionDateSpan } from '../../utils/admissionDateTime'
 import { IpAdmissionDateBadge } from '../layout/IpAdmissionDateBadge'
 
@@ -24,6 +24,8 @@ interface PatientSearchProps {
   onPatientSelect: (patient: string | undefined) => void
   patients?: string[]
   showAlertsBanner?: boolean
+  /** When false, this instance does not portal PatientAlertsBanner (avoids duplicate modals). */
+  renderAlertsPortal?: boolean
   /** Mobile nav menu button — header is menu + patient only; OP/IP lives in sidebar. */
   leadingSlot?: ReactNode
   /** Do not re-select patient from localStorage on mount (e.g. pharmacy discharge queue). */
@@ -80,6 +82,7 @@ export const PatientSearch = ({
   selectedPatient,
   onPatientSelect,
   showAlertsBanner = true,
+  renderAlertsPortal = true,
   leadingSlot,
   skipStoredPatientRestore = false,
 }: PatientSearchProps) => {
@@ -118,6 +121,7 @@ export const PatientSearch = ({
   /** Hidden until the user explicitly picks a patient (not when restoring from localStorage on refresh). */
   const [alertsBannerDismissed, setAlertsBannerDismissed] = useState(true)
   const [alertsCanDismiss, setAlertsCanDismiss] = useState(true)
+  const [patientHasActiveAdmission, setPatientHasActiveAdmission] = useState<boolean | null>(null)
 
   const { user } = useAuth()
   const userRoles =
@@ -127,9 +131,29 @@ export const PatientSearch = ({
         ? [user.role]
         : []
   const isDoctor = isDoctorRole(userRoles)
-  const hasActiveCareEpisode =
-    (mode === 'OP' && Boolean(activeVisit)) || (mode === 'IP' && Boolean(activeAdmission))
-  const enforceDoctorWarnings = isDoctor && hasActiveCareEpisode
+
+  useEffect(() => {
+    if (!selectedPatient || !isDoctor) {
+      setPatientHasActiveAdmission(null)
+      return
+    }
+    let cancelled = false
+    setPatientHasActiveAdmission(null)
+    void getPatientActiveAdmission(selectedPatient)
+      .then((admission) => {
+        if (!cancelled) setPatientHasActiveAdmission(Boolean(admission))
+      })
+      .catch(() => {
+        if (!cancelled) setPatientHasActiveAdmission(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPatient, isDoctor])
+
+  /** Doctors must record warnings/allergies when the patient has an active IP admission. */
+  const enforceDoctorWarnings =
+    isDoctor && Boolean(selectedPatient) && patientHasActiveAdmission !== false
 
   const tryDismissAlerts = () => {
     if (!alertsCanDismiss) {
@@ -141,6 +165,7 @@ export const PatientSearch = ({
 
   const showPatientAlertsFromUserAction = () => {
     if (!showAlertsBanner) return
+    if (isDoctor && selectedPatient) setAlertsCanDismiss(false)
     setAlertsBannerDismissed(false)
   }
 
@@ -441,6 +466,7 @@ export const PatientSearch = ({
     (mode === 'IP' && Boolean(activeAdmission))
 
   const alertsPortal =
+    renderAlertsPortal &&
     showAlertsBanner &&
     selectedPatient &&
     !alertsBannerDismissed &&
@@ -461,9 +487,12 @@ export const PatientSearch = ({
                 patient={selectedPatient}
                 patientName={selectedPatientName || undefined}
                 dismissed={alertsBannerDismissed}
-                onDismiss={() => setAlertsBannerDismissed(true)}
+                onDismiss={tryDismissAlerts}
                 visible={Boolean(selectedPatient)}
                 enforceWarnings={enforceDoctorWarnings}
+                enforceWarningsPending={
+                  isDoctor && Boolean(selectedPatient) && patientHasActiveAdmission === null
+                }
                 onDismissabilityChange={setAlertsCanDismiss}
               />
             </div>

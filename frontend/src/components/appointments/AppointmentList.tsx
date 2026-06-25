@@ -708,6 +708,8 @@ interface AppointmentListProps {
   patient?: string
   onAddAppointment?: () => void
   onPatientClick?: (patient: string) => void
+  /** After opening the linked visit in the OP header (e.g. return doctor to home). */
+  onOpenVisitInHeader?: () => void
   /** Reception: walk-in actions (register, create visit, patient arrived) in the ⋮ menu. */
   receptionWalkInActions?: boolean
 }
@@ -851,6 +853,7 @@ export const AppointmentList = ({
   compact = false,
   patient,
   onPatientClick,
+  onOpenVisitInHeader,
   receptionWalkInActions = false,
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -2123,6 +2126,10 @@ export const AppointmentList = ({
             name={detailApt.name}
             refreshKey={refreshTrigger}
             onPatientSelect={onPatientClick}
+            onOpenVisitInHeader={() => {
+              setDetailApt(null)
+              onOpenVisitInHeader?.()
+            }}
             receptionWalkInActions={receptionWalkInActions}
             onAddRemarks={
               receptionWalkInActions

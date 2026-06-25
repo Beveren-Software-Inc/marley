@@ -12,6 +12,7 @@
   "default_code_system",
   "validate_nursing_checklists",
   "default_google_calendar",
+  "lock_editing_data",
   "column_break_9",
   "collect_registration_fee",
   "registration_item",
@@ -662,11 +663,17 @@
    "fieldtype": "Link",
    "label": "Medical Supervision Item",
    "options": "Healthcare Service Template"
+  },
+  {
+   "default": "0",
+   "fieldname": "lock_editing_data",
+   "fieldtype": "Check",
+   "label": "Lock Editing Data"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-24 11:40:02.645608",
+ "modified": "2026-06-25 13:20:57.837863",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

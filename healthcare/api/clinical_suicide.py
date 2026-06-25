@@ -227,7 +227,6 @@ def get_suicide_risk_assessments(
 ):
     """Fetch Suicide Risk assessments with optional filters."""
     filters = []
-    or_filters = []
 
     if patient:
         filters.append(["patient", "=", patient])
@@ -236,11 +235,7 @@ def get_suicide_risk_assessments(
     if patient_visit:
         filters.append(["patient_visit", "=", patient_visit])
     if admission:
-        # Current admission plus legacy rows without admission linked
-        or_filters = [
-            ["inpatient_admission", "=", admission],
-            ["inpatient_admission", "is", "not set"],
-        ]
+        filters.append(["inpatient_admission", "=", admission])
 
     assessments = frappe.get_list(
         "Clinical Suicide Risk Assessment",
@@ -256,7 +251,6 @@ def get_suicide_risk_assessments(
             "docstatus",
         ],
         filters=filters,
-        or_filters=or_filters,
         limit=50,
         order_by="assessment_date desc",
     )
