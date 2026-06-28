@@ -59,6 +59,9 @@ VISIT_00_04_HEADER_MAP = {
 	"UP_ID": "up_id",
 	"UP_DATE": "up_date",
 	"NURSE_FLAG": "nurse_flag",
+	"GIVEN_BY": "given_by",
+	"GIVEN BY": "given_by",
+	"GIVEN_BY_USER": "given_by",
 	"IS_CANCELLED": "is_cancelled",
 	"CANCELLED_REMARKS": "cancelled_remarks",
 	"CANCELLED REMARKS": "cancelled_remarks",
@@ -146,7 +149,6 @@ def _give_out_fields(row: dict) -> dict:
 		notes = f"{status}{(' | ' + notes) if notes else ''}"
 
 	fields = {
-		"user": frappe.session.user,
 		"trans_no": trans_num or None,
 		"dose": _cell_text(row.get("dose")) or None,
 		"medication": _cell_text(row.get("medication")) or None,
@@ -164,6 +166,9 @@ def _give_out_fields(row: dict) -> dict:
 		"cancelled_notes": _cell_text(row.get("cancelled_remarks")) or None,
 		"notes": notes or None,
 	}
+	given_by = _cell_text(row.get("given_by")) or None
+	if given_by:
+		fields["user"] = given_by
 	if acting:
 		fields["date"] = acting
 		fields["scheduled_run_date"] = acting

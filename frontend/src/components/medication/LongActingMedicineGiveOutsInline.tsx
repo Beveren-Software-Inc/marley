@@ -89,14 +89,7 @@ function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
                 <td className="px-2.5 py-2 max-w-[160px] truncate" title={row.medication || undefined}>
                   {row.medication || '—'}
                 </td>
-                <td className="px-2.5 py-2 whitespace-nowrap">
-                  <span className="inline-flex items-baseline gap-1.5">
-                    <span className="font-medium text-slate-800">{row.dose || '—'}</span>
-                    {row.dose_term ? (
-                      <span className="text-slate-500">{row.dose_term}</span>
-                    ) : null}
-                  </span>
-                </td>
+                <td className="px-2.5 py-2 whitespace-nowrap">{row.dose || '—'}</td>
                 <td className="px-2.5 py-2 whitespace-nowrap">{row.user || '—'}</td>
                 <td className="px-2.5 py-2 text-slate-600 max-w-[200px]">
                   {cancelled ? (
