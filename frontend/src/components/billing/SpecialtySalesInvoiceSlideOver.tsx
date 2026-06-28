@@ -70,6 +70,8 @@ function draftLinesEqual(a: DraftInvoiceLineEdit[], b: DraftInvoiceLineEdit[]): 
       Number(line.qty) === Number(other.qty) &&
       Number(line.rate) === Number(other.rate) &&
       Number(line.discount_amount) === Number(other.discount_amount) &&
+      Number(line.discount_percentage) === Number(other.discount_percentage) &&
+      line.discount_mode === other.discount_mode &&
       (line.cost_center || '') === (other.cost_center || '') &&
       (line.uom || '') === (other.uom || '')
     )
@@ -176,7 +178,9 @@ export function SpecialtySalesInvoiceSlideOver({
           description: line.description,
           qty: line.qty,
           rate: line.rate,
-          discount_amount: line.discount_amount,
+          ...(line.discount_mode === 'percentage'
+            ? { discount_percentage: line.discount_percentage }
+            : { discount_amount: line.discount_amount }),
           cost_center: line.cost_center || undefined,
           uom: line.uom,
         })),

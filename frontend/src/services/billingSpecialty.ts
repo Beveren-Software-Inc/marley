@@ -43,6 +43,7 @@ export interface SalesInvoiceDetail {
     description?: string
     qty: number
     rate?: number
+    price_list_rate?: number
     amount?: number
     discount_amount?: number
     discount_percentage?: number

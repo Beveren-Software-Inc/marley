@@ -1,18 +1,37 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { ShieldCheck, ClipboardList, FileText } from 'lucide-react'
+import { ShieldCheck, ClipboardList, FileText, LayoutDashboard, Receipt } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { InsurancePatientRegisterList } from '../components/insurance/InsurancePatientRegisterList'
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 import { InsuranceClaimList } from '../components/insurance/InsuranceClaimList'
 import { CreateInsuranceClaimModal } from '../components/insurance/CreateInsuranceClaimModal'
+import { InsuranceClaimsDashboard } from '../components/insurance/InsuranceClaimsDashboard'
+import { InvoicesNeedingClaimList } from '../components/insurance/InvoicesNeedingClaimList'
 import { HealthInsuranceList } from '../components/insurance/HealthInsuranceList'
 import { CreateHealthInsuranceModal } from '../components/insurance/CreateHealthInsuranceModal'
+import type { InvoiceNeedingClaimRow } from '../services/common'
 
-type Tab = 'health-insurance' | 'registers' | 'claims'
+type Tab = 'dashboard' | 'invoices-needing-claim' | 'health-insurance' | 'registers' | 'claims'
 
 const NAV_CARDS = [
+  {
+    id: 'dashboard' as Tab,
+    title: 'Dashboard',
+    desc: 'Claims overview, insurance & category summary',
+    icon: LayoutDashboard,
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    iconColor: 'text-indigo-600',
+  },
+  {
+    id: 'invoices-needing-claim' as Tab,
+    title: 'Invoices Needing Claim',
+    desc: 'Draft & unpaid insured invoices without a claim yet',
+    icon: Receipt,
+    color: 'bg-orange-50 text-orange-700 border-orange-200',
+    iconColor: 'text-orange-600',
+  },
   {
     id: 'health-insurance' as Tab,
     title: 'Health Insurance',
@@ -39,10 +58,17 @@ const NAV_CARDS = [
   },
 ]
 
+const DEFAULT_TAB: Tab = 'dashboard'
+
+function parseInsuranceTab(value: string | null): Tab {
+  if (value && NAV_CARDS.some(c => c.id === value)) return value as Tab
+  return DEFAULT_TAB
+}
+
 export const InsurancePage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, companyCurrency } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [activeTab, setActiveTab] = useState<Tab>('health-insurance')
+  const activeTab = parseInsuranceTab(searchParams.get('tab'))
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(
     () => searchParams.get('patient') || globalPatient || undefined
   )
@@ -52,10 +78,19 @@ export const InsurancePage = () => {
 
   const [claimRefreshKey, setClaimRefreshKey] = useState(0)
   const [showCreateClaim, setShowCreateClaim] = useState(false)
+  const [editClaimName, setEditClaimName] = useState<string | undefined>()
+  const [claimFromInvoice, setClaimFromInvoice] = useState<InvoiceNeedingClaimRow | undefined>()
 
   const [hiRefreshKey, setHiRefreshKey] = useState(0)
   const [showCreateHI, setShowCreateHI] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+
+  const setActiveTab = (tab: Tab) => {
+    const p = new URLSearchParams(searchParams)
+    if (tab === DEFAULT_TAB) p.delete('tab')
+    else p.set('tab', tab)
+    setSearchParams(p, { replace: true })
+  }
 
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
@@ -64,6 +99,26 @@ export const InsurancePage = () => {
     if (patient) p.set('patient', patient)
     else p.delete('patient')
     setSearchParams(p, { replace: true })
+  }
+
+  const bumpClaims = () => setClaimRefreshKey(k => k + 1)
+
+  const openCreateClaim = (invoice?: InvoiceNeedingClaimRow) => {
+    setEditClaimName(undefined)
+    setClaimFromInvoice(invoice)
+    setShowCreateClaim(true)
+  }
+
+  const openEditClaim = (claimName: string) => {
+    setClaimFromInvoice(undefined)
+    setEditClaimName(claimName)
+    setShowCreateClaim(true)
+  }
+
+  const closeClaimModal = () => {
+    setShowCreateClaim(false)
+    setEditClaimName(undefined)
+    setClaimFromInvoice(undefined)
   }
 
   const activeCard = NAV_CARDS.find(c => c.id === activeTab)!
@@ -76,7 +131,7 @@ export const InsurancePage = () => {
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
 
         {/* Navigation cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
           {NAV_CARDS.map(card => {
             const Icon = card.icon
             const isActive = activeTab === card.id
@@ -112,14 +167,16 @@ export const InsurancePage = () => {
               <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
-              <button
-                type="button"
-                onClick={() => setShowFilters(prev => !prev)}
-                className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-                title={showFilters ? 'Hide filters' : 'Show filters'}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
-              </button>
+              {activeTab !== 'dashboard' && (
+                <button
+                  type="button"
+                  onClick={() => setShowFilters(prev => !prev)}
+                  className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+                  title={showFilters ? 'Hide filters' : 'Show filters'}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" /></svg>
+                </button>
+              )}
               {activeTab === 'health-insurance' && (
                 <button
                   onClick={() => setShowCreateHI(true)}
@@ -140,7 +197,7 @@ export const InsurancePage = () => {
               )}
               {activeTab === 'claims' && (
                 <button
-                  onClick={() => setShowCreateClaim(true)}
+                  onClick={() => openCreateClaim()}
                   className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                   title="New Insurance Claim"
                 >
@@ -152,6 +209,22 @@ export const InsurancePage = () => {
 
           {/* Content */}
           <div className="p-4 overflow-y-auto" style={{ maxHeight: '65vh', scrollbarWidth: 'thin' }}>
+            {activeTab === 'dashboard' && (
+              <InsuranceClaimsDashboard
+                patient={selectedPatient}
+                currency={companyCurrency}
+                refreshKey={claimRefreshKey}
+              />
+            )}
+            {activeTab === 'invoices-needing-claim' && (
+              <InvoicesNeedingClaimList
+                patient={selectedPatient}
+                refreshKey={claimRefreshKey}
+                showFilters={showFilters}
+                onPatientClick={handlePatientSelect}
+                onCreateClaim={openCreateClaim}
+              />
+            )}
             {activeTab === 'health-insurance' && (
               <HealthInsuranceList
                 refreshKey={hiRefreshKey}
@@ -170,6 +243,8 @@ export const InsurancePage = () => {
                 patient={selectedPatient}
                 onPatientClick={handlePatientSelect}
                 showFilters={showFilters}
+                onEditDraft={openEditClaim}
+                onRefresh={bumpClaims}
               />
             )}
           </div>
@@ -199,11 +274,13 @@ export const InsurancePage = () => {
 
       {showCreateClaim && (
         <CreateInsuranceClaimModal
-          onClose={() => setShowCreateClaim(false)}
+          onClose={closeClaimModal}
           initialPatient={selectedPatient}
+          initialInvoice={claimFromInvoice}
+          editClaimName={editClaimName}
           onSuccess={() => {
-            setShowCreateClaim(false)
-            setClaimRefreshKey(k => k + 1)
+            closeClaimModal()
+            bumpClaims()
           }}
         />
       )}

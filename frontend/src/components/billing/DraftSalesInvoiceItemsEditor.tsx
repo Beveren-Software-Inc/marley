@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, Loader2, Plus, Trash2 } from 'lucide-react'
-import { fetchCostCenters, fetchItems, type LinkFieldOption } from '../../services/common'
+import { fetchItems, type LinkFieldOption } from '../../services/common'
 import { fetchSalesItemPricingForBilling } from '../../services/serviceOrders'
 import type { SalesInvoiceDetail } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
@@ -24,23 +24,87 @@ export type DraftInvoiceLineEdit = {
   description?: string
   qty: number
   rate: number
+  price_list_rate?: number
   discount_amount: number
+  discount_percentage: number
+  /** Which discount field the user last edited — drives save payload. */
+  discount_mode: 'amount' | 'percentage'
   cost_center: string
   uom?: string
 }
 
+function lineBaseRate(line: {
+  price_list_rate?: number
+  rate?: number
+}): number {
+  return Number(line.price_list_rate || line.rate || 0)
+}
+
+function grossRateFromApiLine(line: {
+  rate?: number
+  price_list_rate?: number
+  discount_percentage?: number
+  discount_amount?: number
+}): number {
+  const listRate = Number(line.price_list_rate || 0)
+  if (listRate > 0) return listRate
+
+  const netRate = Number(line.rate || 0)
+  const pct = Number(line.discount_percentage || 0)
+  const discAmt = Number(line.discount_amount || 0)
+
+  if (pct > 0 && pct < 100 && netRate > 0) {
+    return netRate / (1 - pct / 100)
+  }
+  if (discAmt > 0 && netRate > 0) {
+    return netRate + discAmt
+  }
+  return netRate
+}
+
+function normalizeLineDiscounts(line: DraftInvoiceLineEdit): DraftInvoiceLineEdit {
+  const base = lineBaseRate(line)
+  let discount_amount = Number(line.discount_amount || 0)
+  let discount_percentage = Number(line.discount_percentage || 0)
+
+  if (line.discount_mode === 'percentage' && discount_percentage && base) {
+    discount_amount = (base * discount_percentage) / 100
+  } else if (line.discount_mode === 'amount' && base) {
+    discount_percentage = discount_amount > 0 ? (discount_amount / base) * 100 : 0
+  } else if (discount_percentage && base) {
+    discount_amount = (base * discount_percentage) / 100
+  } else if (discount_amount && base) {
+    discount_percentage = (discount_amount / base) * 100
+  }
+
+  return { ...line, discount_amount, discount_percentage }
+}
+
 export function invoiceDetailToEditableLines(detail: SalesInvoiceDetail): DraftInvoiceLineEdit[] {
   const defaultCc = detail.custom_created_at || detail.cost_center || ''
-  return (detail.items || []).map((line) => ({
-    name: line.name || '',
-    item_code: line.item_code,
-    item_name: line.item_name,
-    description: line.description,
-    qty: Number(line.qty || 0),
-    rate: Number(line.rate || 0),
-    discount_amount: Number(line.discount_amount || 0),
-    cost_center: line.cost_center || defaultCc,
-  }))
+  return (detail.items || []).map((line) => {
+    const grossRate = grossRateFromApiLine(line)
+    const apiPct = Number(line.discount_percentage || 0)
+    const apiAmt = Number(line.discount_amount || 0)
+    const discount_mode: 'amount' | 'percentage' =
+      apiPct > 0 && (!apiAmt || Math.abs(apiAmt - (grossRate * apiPct) / 100) < 0.001)
+        ? 'percentage'
+        : 'amount'
+
+    return normalizeLineDiscounts({
+      name: line.name || '',
+      item_code: line.item_code,
+      item_name: line.item_name,
+      description: line.description,
+      qty: Number(line.qty || 0),
+      rate: grossRate,
+      price_list_rate: grossRate,
+      discount_amount: apiAmt,
+      discount_percentage: apiPct,
+      discount_mode,
+      cost_center: line.cost_center || defaultCc,
+    })
+  })
 }
 
 export function newDraftInvoiceLine(defaultCostCenter = ''): DraftInvoiceLineEdit {
@@ -51,7 +115,10 @@ export function newDraftInvoiceLine(defaultCostCenter = ''): DraftInvoiceLineEdi
     description: '',
     qty: 1,
     rate: 0,
+    price_list_rate: 0,
     discount_amount: 0,
+    discount_percentage: 0,
+    discount_mode: 'amount',
     cost_center: defaultCostCenter,
   }
 }
@@ -190,6 +257,7 @@ function DraftInvoiceItemSearch({
           item_code: itemCode,
           item_name: (p.item_name as string) || label,
           rate: Number(p.rate) || 0,
+          price_list_rate: Number(p.rate) || 0,
           uom: p.uom || undefined,
         })
       } catch (e) {
@@ -266,6 +334,10 @@ function DraftInvoiceItemSearch({
   )
 }
 
+const LINE_NUMERIC_COL = 'w-28 min-w-[7rem] max-w-[7rem] px-2 py-2 align-top'
+const LINE_NUMERIC_INPUT =
+  'w-full rounded-lg border border-emerald-200/70 bg-white px-3 py-2 text-right tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-emerald-50/50'
+
 export function DraftSalesInvoiceItemsEditor({
   lines,
   onChange,
@@ -276,29 +348,36 @@ export function DraftSalesInvoiceItemsEditor({
   defaultCostCenter = '',
   disabled = false,
 }: DraftSalesInvoiceItemsEditorProps) {
-  const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
-  const [ccLoading, setCcLoading] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    setCcLoading(true)
-    fetchCostCenters(company)
-      .then((rows) => {
-        if (!cancelled) setCostCenters(rows)
-      })
-      .catch(() => {
-        if (!cancelled) setCostCenters([])
-      })
-      .finally(() => {
-        if (!cancelled) setCcLoading(false)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [company])
-
   const patchLine = (idx: number, patch: Partial<DraftInvoiceLineEdit>) => {
-    onChange(lines.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+    onChange(lines.map((row, i) => {
+      if (i !== idx) return row
+      let next: DraftInvoiceLineEdit = { ...row, ...patch }
+
+      if (patch.discount_percentage !== undefined) {
+        const base = lineBaseRate(next)
+        next.discount_mode = 'percentage'
+        next.discount_percentage = Number(patch.discount_percentage || 0)
+        next.discount_amount = base > 0 ? (base * next.discount_percentage) / 100 : 0
+      } else if (patch.discount_amount !== undefined) {
+        const base = lineBaseRate(next)
+        next.discount_mode = 'amount'
+        next.discount_amount = Number(patch.discount_amount || 0)
+        next.discount_percentage = base > 0 ? (next.discount_amount / base) * 100 : 0
+      } else if (patch.rate !== undefined || patch.price_list_rate !== undefined) {
+        const gross = Number(patch.rate ?? patch.price_list_rate ?? next.rate ?? 0)
+        next.rate = gross
+        next.price_list_rate = gross
+        if (next.discount_mode === 'percentage') {
+          next.discount_amount = gross > 0 ? (gross * next.discount_percentage) / 100 : 0
+        } else {
+          next.discount_percentage = gross > 0 && next.discount_amount > 0
+            ? (next.discount_amount / gross) * 100
+            : 0
+        }
+      }
+
+      return next
+    }))
   }
 
   const addLine = () => {
@@ -329,14 +408,14 @@ export function DraftSalesInvoiceItemsEditor({
         </p>
       ) : null}
       <div className="overflow-x-auto">
-        <table className="min-w-full text-xs">
+        <table className="min-w-full table-fixed text-xs">
           <thead className="bg-emerald-50/60 border-b border-emerald-100">
             <tr>
               <th className="text-left px-3 py-2 font-medium text-emerald-900/80 min-w-[180px]">Item</th>
-              <th className="text-right px-2 py-2 font-medium text-emerald-900/80 w-20">Qty</th>
-              <th className="text-right px-2 py-2 font-medium text-emerald-900/80 w-24">Rate</th>
-              <th className="text-right px-2 py-2 font-medium text-emerald-900/80 w-24">Discount</th>
-              <th className="text-left px-2 py-2 font-medium text-emerald-900/80 min-w-[140px]">Branch</th>
+              <th className={`text-right font-medium text-emerald-900/80 ${LINE_NUMERIC_COL}`}>Qty</th>
+              <th className={`text-right font-medium text-emerald-900/80 ${LINE_NUMERIC_COL}`}>Rate</th>
+              <th className={`text-right font-medium text-emerald-900/80 ${LINE_NUMERIC_COL}`}>Disc %</th>
+              <th className={`text-right font-medium text-emerald-900/80 ${LINE_NUMERIC_COL}`}>Disc Amt</th>
               <th className="w-10" />
             </tr>
           </thead>
@@ -362,7 +441,7 @@ export function DraftSalesInvoiceItemsEditor({
                     />
                   )}
                 </td>
-                <td className="px-2 py-2 align-top">
+                <td className={LINE_NUMERIC_COL}>
                   <input
                     type="number"
                     min="0"
@@ -370,10 +449,10 @@ export function DraftSalesInvoiceItemsEditor({
                     disabled={disabled}
                     value={line.qty}
                     onChange={(e) => patchLine(idx, { qty: Number(e.target.value || 0) })}
-                    className="w-full rounded-lg border border-emerald-200/70 bg-white px-2 py-1.5 text-right tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-emerald-50/50"
+                    className={LINE_NUMERIC_INPUT}
                   />
                 </td>
-                <td className="px-2 py-2 align-top">
+                <td className={LINE_NUMERIC_COL}>
                   <input
                     type="number"
                     min="0"
@@ -381,10 +460,23 @@ export function DraftSalesInvoiceItemsEditor({
                     disabled={disabled}
                     value={line.rate}
                     onChange={(e) => patchLine(idx, { rate: Number(e.target.value || 0) })}
-                    className="w-full rounded-lg border border-emerald-200/70 bg-white px-2 py-1.5 text-right tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-emerald-50/50"
+                    className={LINE_NUMERIC_INPUT}
                   />
                 </td>
-                <td className="px-2 py-2 align-top">
+                <td className={LINE_NUMERIC_COL}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    step="any"
+                    disabled={disabled}
+                    value={line.discount_percentage}
+                    onChange={(e) => patchLine(idx, { discount_percentage: Number(e.target.value || 0) })}
+                    className={LINE_NUMERIC_INPUT}
+                    title="Discount percentage"
+                  />
+                </td>
+                <td className={LINE_NUMERIC_COL}>
                   <input
                     type="number"
                     min="0"
@@ -392,32 +484,9 @@ export function DraftSalesInvoiceItemsEditor({
                     disabled={disabled}
                     value={line.discount_amount}
                     onChange={(e) => patchLine(idx, { discount_amount: Number(e.target.value || 0) })}
-                    className="w-full rounded-lg border border-emerald-200/70 bg-white px-2 py-1.5 text-right tabular-nums text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-emerald-50/50"
+                    className={LINE_NUMERIC_INPUT}
+                    title="Discount amount"
                   />
-                </td>
-                <td className="px-2 py-2 align-top">
-                  <input
-                    type="text"
-                    list={`invoice-cc-${idx}`}
-                    disabled={disabled}
-                    value={line.cost_center}
-                    onChange={(e) => patchLine(idx, { cost_center: e.target.value })}
-                    placeholder="Cost center"
-                    className="w-full rounded-lg border border-emerald-200/70 bg-white px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-emerald-50/50"
-                  />
-                  <datalist id={`invoice-cc-${idx}`}>
-                    {costCenters.map((cc) => (
-                      <option key={cc.name} value={cc.name}>
-                        {cc.label || cc.name}
-                      </option>
-                    ))}
-                  </datalist>
-                  {ccLoading ? (
-                    <div className="flex items-center gap-1 mt-1 text-[10px] text-slate-400">
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                      Branches…
-                    </div>
-                  ) : null}
                 </td>
                 <td className="px-2 py-2 align-top">
                   <button

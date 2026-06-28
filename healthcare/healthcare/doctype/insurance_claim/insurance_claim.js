@@ -60,6 +60,29 @@ frappe.ui.form.on("Insurance Claim", {
       };
     });
 
+    if (frm.doc.docstatus !== 2 && frm.doc.status !== "Rejected") {
+      frm.add_custom_button(
+        __("Reject Claim"),
+        function () {
+          frappe.confirm(
+            __("Mark Insurance Claim {0} as Rejected?", [frm.doc.name]),
+            function () {
+              frappe.call({
+                method: "healthcare.api.common.reject_insurance_claim",
+                args: { claim_name: frm.doc.name },
+                freeze: true,
+                callback() {
+                  frappe.show_alert({ message: __("Claim rejected"), indicator: "red" });
+                  frm.reload_doc();
+                },
+              });
+            }
+          );
+        },
+        __("Actions")
+      );
+    }
+
     if (frm.doc.docstatus === 1 && frm.doc.sales_invoice) {
       frm.add_custom_button(
         __("Update Cost"),
