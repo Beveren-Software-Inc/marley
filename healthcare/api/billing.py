@@ -930,6 +930,7 @@ def get_invoice_details(invoice_name):
                 "description": item.description,
                 "qty": item.qty,
                 "rate": item.rate,
+                "price_list_rate": flt(getattr(item, "price_list_rate", 0)),
                 "amount": item.amount,
                 "discount_amount": flt(getattr(item, "discount_amount", 0)),
                 "discount_percentage": flt(getattr(item, "discount_percentage", 0)),
@@ -939,6 +940,32 @@ def get_invoice_details(invoice_name):
             for item in invoice.items
         ],
     }
+
+
+def _apply_sales_invoice_item_discount(line, discount_amount=None, discount_percentage=None):
+	"""Set per-line discount only. List rate stays unchanged; totals recalc on save."""
+	if hasattr(line, "pricing_rules"):
+		line.pricing_rules = None
+	if hasattr(line, "ignore_pricing_rule"):
+		line.ignore_pricing_rule = 1
+
+	if discount_amount is not None:
+		line.discount_amount = flt(discount_amount)
+		line.discount_percentage = 0
+		return
+
+	if discount_percentage is not None:
+		pct = flt(discount_percentage)
+		line.discount_percentage = pct
+		line.discount_amount = 0
+
+
+def _set_line_gross_rate(line, gross_rate):
+	"""Store the user-facing unit rate as price list rate (before line discount)."""
+	gross = flt(gross_rate)
+	if hasattr(line, "price_list_rate"):
+		line.price_list_rate = gross
+	line.rate = gross
 
 
 @frappe.whitelist()
@@ -990,15 +1017,13 @@ def update_sales_invoice_items(invoice_name, items):
                     frappe.throw(_("Quantity must be greater than zero for {0}").format(line.item_code))
                 line.qty = qty
             if row.get("rate") is not None:
-                line.rate = flt(row.get("rate"))
-            if row.get("discount_amount") is not None:
-                line.discount_amount = flt(row.get("discount_amount"))
-                if line.discount_amount:
-                    line.discount_percentage = 0
-            if row.get("discount_percentage") is not None:
-                line.discount_percentage = flt(row.get("discount_percentage"))
-                if line.discount_percentage:
-                    line.discount_amount = 0
+                _set_line_gross_rate(line, row.get("rate"))
+            if row.get("discount_amount") is not None or row.get("discount_percentage") is not None:
+                _apply_sales_invoice_item_discount(
+                    line,
+                    discount_amount=row.get("discount_amount"),
+                    discount_percentage=row.get("discount_percentage"),
+                )
             cc = row.get("cost_center")
             if cc is not None and hasattr(line, "cost_center"):
                 line.cost_center = (cc or "").strip() or line.cost_center
@@ -1011,19 +1036,31 @@ def update_sales_invoice_items(invoice_name, items):
         qty = flt(row.get("qty"))
         if qty <= 0:
             frappe.throw(_("Quantity must be greater than zero for {0}").format(item_code))
+        gross = flt(row.get("rate"))
         line = {
             "item_code": item_code,
             "item_name": row.get("item_name"),
             "description": row.get("description"),
             "qty": qty,
-            "rate": flt(row.get("rate")),
+            "rate": gross,
+            "price_list_rate": gross,
             "cost_center": (row.get("cost_center") or "").strip() or default_cc,
         }
         if row.get("uom"):
             line["uom"] = row.get("uom")
-        if row.get("discount_amount") is not None:
-            line["discount_amount"] = flt(row.get("discount_amount"))
+        if row.get("discount_amount") is not None or row.get("discount_percentage") is not None:
+            line["discount_amount"] = flt(row.get("discount_amount") or 0)
+            line["discount_percentage"] = flt(row.get("discount_percentage") or 0)
+            if line.get("discount_amount") or line.get("discount_percentage"):
+                line["ignore_pricing_rule"] = 1
         doc.append("items", line)
+        new_line = doc.items[-1]
+        if row.get("discount_amount") is not None or row.get("discount_percentage") is not None:
+            _apply_sales_invoice_item_discount(
+                new_line,
+                discount_amount=row.get("discount_amount"),
+                discount_percentage=row.get("discount_percentage"),
+            )
         touched += 1
 
     if not touched or not doc.items:

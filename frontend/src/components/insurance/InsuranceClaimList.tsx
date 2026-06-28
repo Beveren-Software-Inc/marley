@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ExternalLink, X } from 'lucide-react'
-import { fetchInsuranceClaims, type InsuranceClaimRow } from '../../services/common'
+import { fetchInsuranceClaims, rejectInsuranceClaim, fetchHealthcareInsurance, fetchPatientCategories, type InsuranceClaimRow, type LinkFieldOption } from '../../services/common'
+import { apiRequest } from '../../services/apiClient'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -62,7 +63,6 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
     setSaving(true)
     setError(null)
     try {
-      const csrfToken = (window as unknown as { frappe?: { csrf_token?: string } }).frappe?.csrf_token
       const params = new URLSearchParams({
         claim_name: row.name,
         ...(isRejected ? { status: 'Rejected' } : {}),
@@ -71,19 +71,11 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
         authorization_no: authNo,
         remark,
       })
-      const res = await fetch(
+      const data = await apiRequest<{ derived_status?: string }>(
         `/api/method/healthcare.api.common.update_insurance_claim?${params.toString()}`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-Frappe-CSRF-Token': csrfToken } : {}),
-          },
-        }
+        { method: 'POST' },
       )
-      const data = await res.json()
-      if (!res.ok || data.exc) throw new Error(data.exc || 'Failed to update')
-      const finalStatus = data?.message?.derived_status || previewStatus
+      const finalStatus = data?.derived_status || previewStatus
       onSuccess({
         status: finalStatus,
         total_approved: approved || row.total_approved,
@@ -214,12 +206,16 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
 
 // ─── Main List ────────────────────────────────────────────────────────────────
 
+const STATUS_OPTIONS = ['Draft', 'Submitted', 'Partially Paid', 'Paid', 'Rejected']
+
 interface InsuranceClaimListProps {
   refreshKey?: number
   patient?: string
   currency?: string
   onPatientClick?: (patient: string) => void
   showFilters?: boolean
+  onEditDraft?: (claimName: string) => void
+  onRefresh?: () => void
 }
 
 export const InsuranceClaimList = ({
@@ -228,6 +224,8 @@ export const InsuranceClaimList = ({
   currency,
   onPatientClick,
   showFilters = true,
+  onEditDraft,
+  onRefresh,
 }: InsuranceClaimListProps) => {
   const { companyCurrency, guardClinicalEdit } = useCareContext()
   const displayCurrency = (currency ?? companyCurrency ?? 'USD').toUpperCase()
@@ -235,7 +233,13 @@ export const InsuranceClaimList = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [healthInsuranceFilter, setHealthInsuranceFilter] = useState('')
+  const [patientCategoryFilter, setPatientCategoryFilter] = useState('')
+  const [insuranceOptions, setInsuranceOptions] = useState<LinkFieldOption[]>([])
+  const [categoryOptions, setCategoryOptions] = useState<LinkFieldOption[]>([])
   const [detailRow, setDetailRow] = useState<InsuranceClaimRow | null>(null)
+  const [rejecting, setRejecting] = useState<string | null>(null)
 
   // Three-dot menu
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
@@ -244,20 +248,49 @@ export const InsuranceClaimList = ({
   // Update modal
   const [updateTarget, setUpdateTarget] = useState<InsuranceClaimRow | null>(null)
 
+  useEffect(() => {
+    if (showFilters) {
+      fetchHealthcareInsurance().then(setInsuranceOptions).catch(() => setInsuranceOptions([]))
+      fetchPatientCategories().then(setCategoryOptions).catch(() => setCategoryOptions([]))
+    }
+  }, [showFilters])
+
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const data = await fetchInsuranceClaims(search || undefined, patient)
+      const data = await fetchInsuranceClaims({
+        search: search || undefined,
+        patient,
+        status: statusFilter || undefined,
+        health_insurance: healthInsuranceFilter || undefined,
+        patient_category: patientCategoryFilter || undefined,
+      })
       setRows(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load claims')
     } finally {
       setLoading(false)
     }
-  }, [search, patient, refreshKey])
+  }, [search, patient, statusFilter, healthInsuranceFilter, patientCategoryFilter, refreshKey])
 
   useEffect(() => { load() }, [load])
+
+  const handleReject = async (row: InsuranceClaimRow) => {
+    if (!window.confirm(`Reject claim ${row.name}?`)) return
+    setRejecting(row.name)
+    try {
+      await rejectInsuranceClaim(row.name)
+      setRows(prev => prev.map(r => r.name === row.name ? { ...r, status: 'Rejected' } : r))
+      if (detailRow?.name === row.name) setDetailRow(prev => prev ? { ...prev, status: 'Rejected' } : prev)
+      onRefresh?.()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Failed to reject claim')
+    } finally {
+      setRejecting(null)
+      setOpenActionRow(null)
+    }
+  }
 
   // Close menu on outside click
   useEffect(() => {
@@ -309,6 +342,25 @@ export const InsuranceClaimList = ({
         >
           Update Status &amp; Payment
         </button>
+        {(row.docstatus === 0 || row.status === 'Draft') && onEditDraft && (
+          <button
+            type="button"
+            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            onClick={() => { guardClinicalEdit(() => onEditDraft(row.name)); setOpenActionRow(null) }}
+          >
+            Edit Draft
+          </button>
+        )}
+        {row.status !== 'Rejected' && (
+          <button
+            type="button"
+            disabled={rejecting === row.name}
+            className="block w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+            onClick={() => guardClinicalEdit(() => handleReject(row))}
+          >
+            {rejecting === row.name ? 'Rejecting…' : 'Reject Claim'}
+          </button>
+        )}
         <button
           type="button"
           className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
@@ -350,14 +402,54 @@ export const InsuranceClaimList = ({
       )}
 
       {showFilters && (
-        <div>
-          <input
-            type="text"
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Search by claim number…"
-            className="w-full max-w-xs rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
+        <div className="flex flex-wrap gap-2 items-end">
+          <div>
+            <label className="block text-xs text-slate-500 mb-0.5">Search</label>
+            <input
+              type="text"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Claim number…"
+              className="w-full min-w-[140px] rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-0.5">Status</label>
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All statuses</option>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-0.5">Health Insurance</label>
+            <select
+              value={healthInsuranceFilter}
+              onChange={e => setHealthInsuranceFilter(e.target.value)}
+              className="rounded border border-slate-300 px-2.5 py-1.5 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All insurance</option>
+              {insuranceOptions.map(o => (
+                <option key={o.name} value={o.name}>{o.label || o.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-slate-500 mb-0.5">Patient Category</label>
+            <select
+              value={patientCategoryFilter}
+              onChange={e => setPatientCategoryFilter(e.target.value)}
+              className="rounded border border-slate-300 px-2.5 py-1.5 text-sm min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary"
+            >
+              <option value="">All categories</option>
+              {categoryOptions.map(o => (
+                <option key={o.name} value={o.name}>{o.label || o.name}</option>
+              ))}
+            </select>
+          </div>
         </div>
       )}
 
@@ -373,6 +465,7 @@ export const InsuranceClaimList = ({
                 {!patient && (
                   <th className="px-3 py-2 text-xs font-semibold text-slate-600">Patient</th>
                 )}
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">Category</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Health Insurance</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Claim Date</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600 text-right">Claimed</th>
@@ -386,7 +479,7 @@ export const InsuranceClaimList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={patient ? 9 : 10} className="text-center text-slate-400 py-8">No insurance claims found</td>
+                  <td colSpan={patient ? 10 : 11} className="text-center text-slate-400 py-8">No insurance claims found</td>
                 </tr>
               )}
               {rows.map(row => (
@@ -409,6 +502,7 @@ export const InsuranceClaimList = ({
                       </span>
                     </td>
                   )}
+                  <td className="px-3 py-2 text-xs text-slate-500">{row.patient_category || '—'}</td>
                   <td className="px-3 py-2 text-xs text-slate-600">{row.health_insurance || '—'}</td>
                   <td className="px-3 py-2 text-xs text-slate-500">{row.claim_date || '—'}</td>
                   <td className="px-3 py-2 text-xs text-right font-mono text-slate-700">{fmt(row.total_claimed, displayCurrency)}</td>
@@ -512,14 +606,33 @@ export const InsuranceClaimList = ({
             </div>
 
             {/* Footer */}
-            <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-2 items-center">
+            <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex flex-wrap gap-2 items-center">
               <button
                 type="button"
                 onClick={() => { guardClinicalEdit(() => setUpdateTarget(detailRow)); setDetailRow(null) }}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
+                className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
               >
                 Update Status &amp; Payment
               </button>
+              {(detailRow.docstatus === 0 || detailRow.status === 'Draft') && onEditDraft && (
+                <button
+                  type="button"
+                  onClick={() => { guardClinicalEdit(() => { onEditDraft(detailRow.name); setDetailRow(null) }) }}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-slate-700 border border-slate-300 rounded-lg hover:bg-slate-100 transition"
+                >
+                  Edit Draft
+                </button>
+              )}
+              {detailRow.status !== 'Rejected' && (
+                <button
+                  type="button"
+                  disabled={rejecting === detailRow.name}
+                  onClick={() => guardClinicalEdit(() => handleReject(detailRow))}
+                  className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50 transition disabled:opacity-50"
+                >
+                  {rejecting === detailRow.name ? 'Rejecting…' : 'Reject Claim'}
+                </button>
+              )}
               <PrintFormatDropdown
                 doctype="Insurance Claim"
                 docName={detailRow.name}

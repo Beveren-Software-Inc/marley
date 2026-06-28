@@ -1212,10 +1212,12 @@ export interface InsuranceClaimRow {
   name: string
   patient: string
   patient_name: string
+  patient_category?: string
   health_insurance: string
   insurance_payor: string
   claim_date: string
   status: string
+  docstatus?: number
   total_claimed: number
   total_approved: number
   total_rejected: number
@@ -1225,10 +1227,23 @@ export interface InsuranceClaimRow {
   remark?: string
 }
 
-export async function fetchInsuranceClaims(search?: string, patient?: string): Promise<InsuranceClaimRow[]> {
+export interface InsuranceClaimFilters {
+  search?: string
+  patient?: string
+  status?: string
+  health_insurance?: string
+  insurance_payor?: string
+  patient_category?: string
+}
+
+export async function fetchInsuranceClaims(filters: InsuranceClaimFilters = {}): Promise<InsuranceClaimRow[]> {
   const params = new URLSearchParams()
-  if (search) params.append('search', search)
-  if (patient) params.append('patient', patient)
+  if (filters.search) params.append('search', filters.search)
+  if (filters.patient) params.append('patient', filters.patient)
+  if (filters.status) params.append('status', filters.status)
+  if (filters.health_insurance) params.append('health_insurance', filters.health_insurance)
+  if (filters.insurance_payor) params.append('insurance_payor', filters.insurance_payor)
+  if (filters.patient_category) params.append('patient_category', filters.patient_category)
 
   const url = `/api/method/healthcare.api.common.get_insurance_claims${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
@@ -1238,6 +1253,177 @@ export async function fetchInsuranceClaims(search?: string, patient?: string): P
     return resData.message as InsuranceClaimRow[]
   }
   return []
+}
+
+export interface InsuranceClaimsDashboard {
+  totals: {
+    claims: number
+    pending: number
+    submitted: number
+    partially_paid: number
+    paid: number
+    rejected: number
+    total_claimed: number
+    total_approved: number
+    total_unpaid: number
+  }
+  by_insurance: Array<{
+    health_insurance: string
+    total: number
+    pending: number
+    submitted: number
+    paid: number
+    rejected: number
+    total_claimed: number
+    total_approved: number
+    unpaid_amount: number
+  }>
+  by_category: Array<{ category: string; count: number; total_claimed: number }>
+  by_status: Record<string, number>
+  invoices_needing_claim: number
+}
+
+export async function fetchInsuranceClaimsDashboard(
+  patient?: string,
+  health_insurance?: string
+): Promise<InsuranceClaimsDashboard | null> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  if (health_insurance) params.append('health_insurance', health_insurance)
+  const url = `/api/method/healthcare.api.common.get_insurance_claims_dashboard${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  return resData?.message ?? null
+}
+
+export interface InvoiceNeedingClaimRow {
+  name: string
+  patient: string
+  patient_name: string
+  posting_date: string
+  grand_total: number
+  discount_amount: number
+  outstanding_amount: number
+  status: string
+  docstatus?: number
+  custom_base_reference: string | null
+  custom_base_reference_name: string | null
+  custom_health_insurance: string | null
+  insurance_register?: string | null
+  insurance_register_status?: string | null
+  insurance_provider?: string | null
+  patient_category?: string | null
+  health_insurance?: string | null
+}
+
+export interface InvoicesNeedingClaimFilters {
+  patient?: string
+  patient_category?: string
+  date_from?: string
+  date_to?: string
+  health_insurance?: string
+  limit?: number
+}
+
+export async function fetchInvoicesNeedingInsuranceClaim(
+  filters: InvoicesNeedingClaimFilters = {}
+): Promise<InvoiceNeedingClaimRow[]> {
+  const limit = filters.limit ?? 50
+  const params = new URLSearchParams({ limit: String(limit) })
+  if (filters.patient) params.append('patient', filters.patient)
+  if (filters.patient_category) params.append('patient_category', filters.patient_category)
+  if (filters.date_from) params.append('date_from', filters.date_from)
+  if (filters.date_to) params.append('date_to', filters.date_to)
+  if (filters.health_insurance) params.append('health_insurance', filters.health_insurance)
+  const url = `/api/method/healthcare.api.common.get_invoices_needing_insurance_claim?${params.toString()}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as InvoiceNeedingClaimRow[]
+  }
+  return []
+}
+
+export interface InsuranceClaimDetail {
+  name: string
+  docstatus: number
+  patient: string
+  patient_name: string
+  patient_category: string
+  health_insurance: string
+  insurance_payor: string
+  claim_date: string | null
+  status: string
+  sales_invoice: string | null
+  reference_doctype: string | null
+  reference_name: string | null
+  authorization_no: string | null
+  remark: string | null
+  total_claimed: number
+  total_approved: number
+  total_rejected: number
+  claim_items: Array<{
+    service_type: string
+    item_name: string
+    description: string
+    sales_invoice_item?: string
+    gross_amount: number
+    covered_amount: number
+    co_pay_amount: number
+    non_covered_amount: number
+    patient_liability: number
+    paid_amount: number
+  }>
+}
+
+export async function fetchInsuranceClaimDetail(claimName: string): Promise<InsuranceClaimDetail | null> {
+  const params = new URLSearchParams({ claim_name: claimName })
+  const url = `/api/method/healthcare.api.common.get_insurance_claim_detail?${params.toString()}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  return resData?.message ?? null
+}
+
+export interface SaveInsuranceClaimPayload {
+  name?: string
+  patient: string
+  claim_date?: string | null
+  status?: string
+  health_insurance?: string | null
+  insurance_payor?: string | null
+  sales_invoice?: string | null
+  reference_doctype?: string | null
+  reference_name?: string | null
+  authorization_no?: string | null
+  remark?: string | null
+  submit?: boolean
+  claim_items: Array<{
+    service_type: string
+    item_name: string
+    description: string
+    gross_amount: number
+    covered_amount: number
+    co_pay_amount: number
+    non_covered_amount: number
+    patient_liability: number
+    paid_amount: number
+    sales_invoice_item?: string
+  }>
+}
+
+export async function saveInsuranceClaim(payload: SaveInsuranceClaimPayload): Promise<{ name: string; docstatus: number; status: string }> {
+  return apiRequest('/api/method/healthcare.api.common.save_insurance_claim', {
+    method: 'POST',
+    body: JSON.stringify({ data: JSON.stringify(payload) }),
+  })
+}
+
+export async function rejectInsuranceClaim(claimName: string, remark?: string): Promise<void> {
+  const params = new URLSearchParams({ claim_name: claimName })
+  if (remark) params.append('remark', remark)
+  await apiRequest(`/api/method/healthcare.api.common.reject_insurance_claim?${params.toString()}`, {
+    method: 'POST',
+  })
 }
 
 export interface InsurancePatientRegisterRow {
