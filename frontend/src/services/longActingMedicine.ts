@@ -5,6 +5,15 @@ export interface LongActingMedicineGiveOutRow {
   user?: string
   scheduled_run_date?: string
   notes?: string
+  trans_no?: string
+  dose?: string
+  dose_term?: string
+  medication?: string
+  written_frequency?: string
+  is_cancelled?: number | boolean
+  cancelled_notes?: string
+  nurse_flag?: string
+  next_dose?: string
 }
 
 export interface LongActingMedicineRow {
@@ -18,6 +27,9 @@ export interface LongActingMedicineRow {
   status?: string
   remarks?: string
   drug_name?: string
+  medication_label?: string
+  default_dosage?: string
+  default_dosage_form?: string
   practitioner?: string
   practitioner_name?: string
   doctors_remark?: string
@@ -49,8 +61,22 @@ export async function fetchLongActingMedicine(name: string): Promise<LongActingM
     `/api/method/healthcare.api.common.get_long_acting_medicine?${params.toString()}`
   )
   const data = await res.json()
-  if (data?.exc_type) throw new Error(data?.message || 'Failed to load long acting medicine')
+  if (data?.exc || data?.exc_type) throw new Error(data?.message || 'Failed to load long acting medicine')
   return (data?.message || {}) as LongActingMedicineRow
+}
+
+export async function fetchLongActingMedicineGiveOuts(
+  name: string,
+): Promise<LongActingMedicineGiveOutRow[]> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine.get_long_acting_medicine_give_outs?${params.toString()}`,
+  )
+  const data = await res.json()
+  if (data?.exc || data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load give-outs')
+  }
+  return Array.isArray(data?.message) ? (data.message as LongActingMedicineGiveOutRow[]) : []
 }
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
@@ -111,6 +137,8 @@ export async function fetchLongActingMedicineList(
 export async function recordLongActingMedicineGiveOut(
   name: string,
   notes?: string,
+  dose?: string,
+  doseTerm?: string,
 ): Promise<LongActingMedicineRow> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -122,7 +150,12 @@ export async function recordLongActingMedicineGiveOut(
         'Content-Type': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
-      body: JSON.stringify({ name, notes: notes || undefined }),
+      body: JSON.stringify({
+        name,
+        notes: notes || undefined,
+        dose: dose !== undefined ? dose : undefined,
+        dose_term: doseTerm !== undefined ? doseTerm : undefined,
+      }),
       credentials: 'include',
     },
   )

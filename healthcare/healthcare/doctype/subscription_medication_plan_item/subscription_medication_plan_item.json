@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "creation": "2026-01-28 00:00:00",
  "doctype": "DocType",
@@ -17,7 +18,9 @@
   "date",
   "time",
   "qty_per_cycle",
-  "is_active"
+  "is_active",
+  "old_med_no",
+  "old_medication_name"
  ],
  "fields": [
   {
@@ -31,10 +34,10 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Drug",
-   "options": "Item",
-   "reqd": 1
+   "options": "Item"
   },
   {
+   "fetch_from": "drug.item_name",
    "fieldname": "drug_name",
    "fieldtype": "Data",
    "in_list_view": 1,
@@ -88,11 +91,22 @@
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Active"
+  },
+  {
+   "fieldname": "old_med_no",
+   "fieldtype": "Link",
+   "label": "Old Med No",
+   "options": "ITEM_00_01"
+  },
+  {
+   "fieldname": "old_medication_name",
+   "fieldtype": "Data",
+   "label": "Old Medication Name"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-02-02 10:23:52.107027",
+ "modified": "2026-06-28 14:04:29.527409",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Subscription Medication Plan Item",

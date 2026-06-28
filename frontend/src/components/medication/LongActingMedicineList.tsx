@@ -121,7 +121,7 @@
 // }
 
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, Fragment } from 'react'
 import { createPortal } from 'react-dom'
 import { fetchLongActingMedicineList, type LongActingMedicineRow } from '../../services/longActingMedicine'
 import { Pill, MoreVertical } from 'lucide-react'
@@ -131,6 +131,10 @@ import {
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
+import {
+  GiveOutExpandToggle,
+  LongActingMedicineGiveOutsInline,
+} from './LongActingMedicineGiveOutsInline'
 
 const statusColors: Record<string, string> = {
   Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -246,10 +250,16 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
   const [error, setError] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
 
   const openDetail = (row: LongActingMedicineRow) => {
     setDetailPreview(row)
     setDetailName(row.name)
+  }
+
+  const toggleGiveOuts = (e: React.MouseEvent, name: string) => {
+    e.stopPropagation()
+    setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }))
   }
 
   useEffect(() => {
@@ -324,29 +334,45 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
                   ['Ends', formatDashboardDate(row.end_date)],
                   ['Remarks', row.remarks],
                 ] as const
+                const expanded = Boolean(expandedRows[row.name])
                 return (
-                  <tr
-                    key={row.name}
-                    className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
-                    onClick={() => openDetail(row)}
-                  >
-                    <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
-                      {row.frequency || 'Long acting'}
-                      <CardRowMetaHint fields={metaFields} />
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
-                      {formatDashboardDate(row.next_run_date)}
-                    </td>
-                    <td className="px-3 py-2.5 align-top">
-                      <span
-                        className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
-                          statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
-                        }`}
-                      >
-                        {row.status || 'Draft'}
-                      </span>
-                    </td>
-                  </tr>
+                  <Fragment key={row.name}>
+                    <tr
+                      className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
+                      onClick={() => openDetail(row)}
+                    >
+                      <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
+                        <div className="flex items-start gap-2">
+                          <GiveOutExpandToggle
+                            expanded={expanded}
+                            onToggle={(e) => toggleGiveOuts(e, row.name)}
+                          />
+                          <div className="min-w-0">
+                            {row.frequency || 'Long acting'}
+                            <CardRowMetaHint fields={metaFields} />
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
+                        {formatDashboardDate(row.next_run_date)}
+                      </td>
+                      <td className="px-3 py-2.5 align-top">
+                        <span
+                          className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
+                            statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}
+                        >
+                          {row.status || 'Draft'}
+                        </span>
+                      </td>
+                    </tr>
+                    <LongActingMedicineGiveOutsInline
+                      lamName={row.name}
+                      expanded={expanded}
+                      colSpan={3}
+                      refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}`}
+                    />
+                  </Fragment>
                 )
               })}
             </tbody>
@@ -379,30 +405,48 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {list.map((row) => (
-              <tr
-                key={row.name}
-                className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
-                onClick={() => openDetail(row)}
-              >
-                <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
-                <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
-                <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
-                <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
-                <td className="px-3 py-2">
-                  <span
-                    className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
-                      statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
+            {list.map((row) => {
+              const expanded = Boolean(expandedRows[row.name])
+              return (
+                <Fragment key={row.name}>
+                  <tr
+                    className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
+                    onClick={() => openDetail(row)}
                   >
-                    {row.status || 'Draft'}
-                  </span>
-                </td>
-                <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
-                  <RowMenu row={row} />
-                </td>
-              </tr>
-            ))}
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-2">
+                        <GiveOutExpandToggle
+                          expanded={expanded}
+                          onToggle={(e) => toggleGiveOuts(e, row.name)}
+                        />
+                        <span className="text-primary font-medium">{row.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
+                    <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`inline-flex px-1.5 py-0.5 rounded text-xs font-medium border ${
+                          statusColors[row.status || 'Draft'] ?? 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {row.status || 'Draft'}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <RowMenu row={row} />
+                    </td>
+                  </tr>
+                  <LongActingMedicineGiveOutsInline
+                    lamName={row.name}
+                    expanded={expanded}
+                    colSpan={6}
+                    refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}`}
+                  />
+                </Fragment>
+              )
+            })}
           </tbody>
         </table>
       </div>

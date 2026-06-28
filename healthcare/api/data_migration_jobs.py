@@ -2462,6 +2462,91 @@ def process_patient_medication_order_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── OP Injection Prescription import (Oracle VISIT_00_04) ─────────────────────
+
+
+@frappe.whitelist()
+def start_op_injection_prescription_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.op_injection_prescription_import import parse_and_cache_file
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "op_injection_prescription_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_file(file_url)
+	_set_progress(
+		job,
+		0,
+		total_groups=summary.get("medicine_groups"),
+		resolvable_groups=summary.get("resolvable_groups"),
+		file_rows=summary.get("file_rows"),
+		give_out_lines=summary.get("give_out_lines"),
+		skipped_rows=summary.get("skipped_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_op_injection_prescription_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_op_injection_prescription_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"OP Injection Prescription import started ({0} patient/medicine groups, {1} give-out rows, {2} resolvable groups)."
+		).format(
+			summary.get("medicine_groups") or 0,
+			summary.get("give_out_lines") or 0,
+			summary.get("resolvable_groups") or 0,
+		),
+	}
+
+
+def process_op_injection_prescription_import_batch(offset: int = 0) -> None:
+	from healthcare.api.op_injection_prescription_import import run_op_injection_prescription_import_batch
+
+	job = "op_injection_prescription_import"
+	try:
+		result = run_op_injection_prescription_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
+			skip_no_new_giveouts=cint(prev.get("skip_no_new_giveouts", 0))
+			+ cint(result.get("skip_no_new_giveouts", 0)),
+			skip_other=cint(prev.get("skip_other", 0)) + cint(result.get("skip_other", 0)),
+			errors=cint(prev.get("errors", 0)) + len(result.get("errors") or []),
+			total_groups=prev.get("total_groups"),
+			give_out_lines=prev.get("give_out_lines"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_op_injection_prescription_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_op_injection_prescription_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="OP Injection Prescription import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── Legacy lab test Excel import (Oracle C LAB_00_03 + C-I LAB_00_04) ─────────
 
 
