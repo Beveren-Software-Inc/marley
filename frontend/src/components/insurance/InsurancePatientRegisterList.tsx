@@ -4,6 +4,7 @@ import { fetchInsurancePatientRegisters, linkPatientToInsuranceRegister, type In
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { EditInsurancePatientRegisterModal } from './EditInsurancePatientRegisterModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 const STATUS_COLORS: Record<string, string> = {
   Active: 'bg-green-100 text-green-700',
@@ -44,6 +45,7 @@ export const InsurancePatientRegisterList = ({
   refreshKey = 0,
   showFilters = true,
 }: InsurancePatientRegisterListProps) => {
+  const { guardClinicalEdit } = useCareContext()
   const [rows, setRows] = useState<InsurancePatientRegisterRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -214,7 +216,7 @@ export const InsurancePatientRegisterList = ({
                           </button>
                           <button
                             type="button"
-                            onClick={() => { setEditRegister(row); setOpenActionRow(null) }}
+                            onClick={() => { guardClinicalEdit(() => setEditRegister(row)); setOpenActionRow(null) }}
                             className="flex w-full items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                           >
                             <Pencil className="w-4 h-4 text-emerald-600" />
@@ -363,7 +365,7 @@ export const InsurancePatientRegisterList = ({
             <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-3">
               <button
                 type="button"
-                onClick={() => { setEditRegister(detailRow); setDetailRow(null) }}
+                onClick={() => { guardClinicalEdit(() => setEditRegister(detailRow)); setDetailRow(null) }}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
               >
                 <Pencil className="w-4 h-4" />

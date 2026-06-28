@@ -6,6 +6,7 @@ import { Settings, Moon, Sun, LogOut, LayoutDashboard, DoorClosed } from 'lucide
 const FRAPPE_DESK_URL = '/app'
 import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../providers/AuthProvider'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { useReceptionistShift } from '../../providers/ReceptionistShiftProvider'
 
 type UserMenuProps = {
@@ -19,6 +20,7 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
   const dropdownRef = useRef<HTMLDivElement>(null)
   const { theme, toggleTheme } = useTheme()
   const { user, logout } = useAuth()
+  const { lockEditingData } = useCareContext()
   const navigate = useNavigate()
   const shift = useReceptionistShift()
   const shiftOpen = Boolean(shift?.shiftRequired && shift.context?.open_shift?.status === 'Open')
@@ -100,7 +102,25 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
           Open
         </span>
       )}
+      {!isSidebar && lockEditingData && (
+        <span
+          className="inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-1 text-[11px] font-semibold text-white whitespace-nowrap"
+          title="You can create new records but cannot modify existing data"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-amber-300" />
+          Editing locked
+        </span>
+      )}
       <div className={isSidebar ? 'w-full' : 'flex flex-col items-center'}>
+      {isSidebar && lockEditingData && (
+        <span
+          className="mb-2 inline-flex w-full items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-1.5 text-[11px] font-semibold text-amber-100"
+          title="You can create new records but cannot modify existing data"
+        >
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-300" />
+          Editing locked
+        </span>
+      )}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={

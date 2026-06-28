@@ -7,6 +7,8 @@ import {
 } from '../ui/CreateModalChrome'
 import { updateMainNursingNote, type MainNursingNoteRow } from '../../services/mainNursingNote'
 import { formatNursingNoteTimestamp } from '../../constants/nursingShift'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 
 interface EditMainNursingNoteModalProps {
   row: MainNursingNoteRow
@@ -19,6 +21,8 @@ export const EditMainNursingNoteModal = ({
   onClose,
   onSuccess,
 }: EditMainNursingNoteModalProps) => {
+  useRejectEditModeWhenLocked(true, onClose)
+  const blockIfEditingLocked = useBlockIfEditingLocked()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [appendNote, setAppendNote] = useState('')
@@ -40,6 +44,7 @@ export const EditMainNursingNoteModal = ({
       setError('Enter a note to append')
       return
     }
+    blockIfEditingLocked()
     setSaving(true)
     setError(null)
     try {

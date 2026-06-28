@@ -16,6 +16,7 @@ from healthcare.healthcare.doctype.observation.observation import (
 	vacate_observation_room,
 	validate_observation_room_available,
 )
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 OBSERVATION_PORTAL_READ_ROLES = frozenset(
 	{
@@ -316,6 +317,7 @@ def schedule_observation_discharge(name, dc_date=None):
 @frappe.whitelist()
 def update_observation(data):
 	"""Update observation fields (room, dc_date) with occupancy side effects."""
+	assert_editing_allowed()
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)

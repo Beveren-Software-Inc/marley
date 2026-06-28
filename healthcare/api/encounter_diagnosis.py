@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 @frappe.whitelist()
@@ -47,6 +48,7 @@ def get_encounter_diagnosis_symptoms(parent_doctype, parent_name):
 @frappe.whitelist()
 def update_encounter_diagnosis_symptoms(parent_doctype, parent_name, diagnosis=None, symptoms=None):
 	"""Update diagnosis and symptoms/chief complaint on a Patient Visit or Inpatient Admission."""
+	assert_editing_allowed()
 	if parent_doctype not in ("Patient Visit", "Inpatient Admission"):
 		frappe.throw(_("Parent must be Patient Visit or Inpatient Admission"))
 	if not parent_name:

@@ -3,6 +3,8 @@ import { toast } from '../hooks/useToast'
 import { careScopeFromCostCenterField, type CostCenterCareScope } from '../config/costCenterCareScope'
 import { fetchActiveCareEpisodeStatus, type ActiveCareEpisodeStatus } from '../services/careEpisode'
 import { fetchDefaultCompanyCurrency } from '../services/common'
+import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
+import { setEditingLockState } from '../services/editingLockStore'
 import {
   getActiveCareBlockReason,
   isActiveCareEpisodeClosedForCreate,
@@ -107,6 +109,14 @@ interface CareContextValue {
   applyOpCareContext: (opts: { patient?: string; visit: string; visitLabel?: string }) => void
   /** Select IP mode with patient + admission in the header (shared by admission/discharge links). */
   applyIpCareContext: (opts: { patient?: string; admission: string; admissionLabel?: string }) => void
+  /** True when Healthcare Settings.lock_editing_data is enabled. */
+  lockEditingData: boolean
+  editingLockMessage?: string
+  /**
+   * Wrap handlers that modify existing records (edit modals, append note, etc.).
+   * Creating new records is still allowed via {@link guardClinicalCreate}.
+   */
+  guardClinicalEdit: (open: () => void) => void
 }
 
 const CareContext = createContext<CareContextValue | undefined>(undefined)
@@ -154,6 +164,10 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [activeVisitStatus, setActiveVisitStatus] = useState<string | undefined>(undefined)
   const [activeAdmissionStatus, setActiveAdmissionStatus] = useState<string | undefined>(undefined)
   const [careEpisodeStatus, setCareEpisodeStatus] = useState<ActiveCareEpisodeStatus | null>(null)
+  const [lockEditingData, setLockEditingData] = useState(false)
+
+  const editingLockMessage =
+    'Editing is locked in Healthcare Settings. You can create new records but cannot modify existing data.'
 
   useEffect(() => {
     let cancelled = false
@@ -217,6 +231,17 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     [isActiveCareEpisodeClosed, activeCareBlockReason],
   )
 
+  const guardClinicalEdit = useCallback(
+    (open: () => void) => {
+      if (lockEditingData) {
+        toast.error(editingLockMessage)
+        return
+      }
+      open()
+    },
+    [lockEditingData, editingLockMessage],
+  )
+
   // Load user branch and roles when component mounts
   useEffect(() => {
     const loadUserContext = async () => {
@@ -259,13 +284,37 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
             }
           }
         }
+
+        const portalSettings = await fetchHealthcarePortalSettings().catch(() => ({
+          lock_editing_data: false,
+        }))
+        setLockEditingData(Boolean(portalSettings.lock_editing_data))
       } catch (error) {
         console.warn('Failed to load user context:', error)
       }
     }
 
     loadUserContext()
+
+    const refreshEditingLock = () => {
+      fetchHealthcarePortalSettings()
+        .then((portalSettings) => {
+          setLockEditingData(Boolean(portalSettings.lock_editing_data))
+        })
+        .catch(() => {
+          setLockEditingData(false)
+        })
+    }
+
+    window.addEventListener('focus', refreshEditingLock)
+    return () => {
+      window.removeEventListener('focus', refreshEditingLock)
+    }
   }, [])
+
+  useEffect(() => {
+    setEditingLockState(lockEditingData, editingLockMessage)
+  }, [lockEditingData, editingLockMessage])
 
   useEffect(() => {
     let cancelled = false
@@ -389,6 +438,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
       guardClinicalCreate,
+      guardClinicalEdit,
+      lockEditingData,
+      editingLockMessage,
       applyOpCareContext,
       applyIpCareContext,
     }),
@@ -410,6 +462,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
       guardClinicalCreate,
+      guardClinicalEdit,
+      lockEditingData,
+      editingLockMessage,
       applyOpCareContext,
       applyIpCareContext,
     ],

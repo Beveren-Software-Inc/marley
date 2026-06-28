@@ -4,6 +4,7 @@ from frappe import _
 from frappe.utils import nowdate, nowtime, now_datetime, cint, flt, getdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 def _medicine_given_has_column(column: str) -> bool:
@@ -1248,6 +1249,7 @@ def update_medicine_given(
 	dispensing_lot: str | None = None,
 ) -> dict:
 	"""Update an existing Medicine Given row on Admission Detail."""
+	assert_editing_allowed()
 	if not name:
 		frappe.throw(_("Row name is required"))
 

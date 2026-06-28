@@ -229,7 +229,7 @@ export const InsuranceClaimList = ({
   onPatientClick,
   showFilters = true,
 }: InsuranceClaimListProps) => {
-  const { companyCurrency } = useCareContext()
+  const { companyCurrency, guardClinicalEdit } = useCareContext()
   const displayCurrency = (currency ?? companyCurrency ?? 'USD').toUpperCase()
   const [rows, setRows] = useState<InsuranceClaimRow[]>([])
   const [loading, setLoading] = useState(false)
@@ -305,7 +305,7 @@ export const InsuranceClaimList = ({
         <button
           type="button"
           className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-          onClick={() => { setUpdateTarget(row); setOpenActionRow(null) }}
+          onClick={() => { guardClinicalEdit(() => setUpdateTarget(row)); setOpenActionRow(null) }}
         >
           Update Status &amp; Payment
         </button>
@@ -515,7 +515,7 @@ export const InsuranceClaimList = ({
             <div className="shrink-0 px-6 py-4 border-t border-slate-200 bg-slate-50 flex gap-2 items-center">
               <button
                 type="button"
-                onClick={() => { setUpdateTarget(detailRow); setDetailRow(null) }}
+                onClick={() => { guardClinicalEdit(() => setUpdateTarget(detailRow)); setDetailRow(null) }}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:bg-primary/90 transition"
               >
                 Update Status &amp; Payment

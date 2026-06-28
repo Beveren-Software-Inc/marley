@@ -474,6 +474,7 @@ def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
 		lt.status = "Pending Review"
 	elif text and (lt.status or "") in ("", "Requested"):
 		lt.status = "Pending Review"
+	lt.flags.skip_editing_lock = True
 	if text:
 		try:
 			from healthcare.api.lab_test import _calculate_result_flag

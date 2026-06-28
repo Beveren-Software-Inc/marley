@@ -1,6 +1,7 @@
 import frappe
 from frappe import _
 from frappe.utils import today
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 @frappe.whitelist()
@@ -82,6 +83,7 @@ def update_session_schedule_status(session_schedule_name: str, status: str):
 	"""
 	Update the status of a Session Schedule.
 	"""
+	assert_editing_allowed()
 	if not session_schedule_name or not status:
 		frappe.throw(_("Session Schedule name and status are required"))
 

@@ -14,6 +14,7 @@ from healthcare.api.sales_order_cost_center import (
 	cost_center_from_visit_or_admission,
 )
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 DAILY_AUTO_VISIT_TYPE = "Daily Auto Visit"
 
@@ -54,6 +55,7 @@ def create_daily_patient_visit_setup(data):
 @frappe.whitelist()
 def update_daily_patient_visit_setup(name, data):
     """Update an existing Daily Patient Visit Setup document"""
+    assert_editing_allowed()
     if isinstance(data, str):
         import json
         data = json.loads(data)

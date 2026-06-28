@@ -21,6 +21,7 @@ import {
   type MedicineGivenDispensingLotOption,
 } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { fetchStandardUoms, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClass,
@@ -177,6 +178,7 @@ export const CreateMedicineGivenModal = ({
   onSuccess,
 }: CreateMedicineGivenModalProps) => {
   const isEdit = Boolean(editRow)
+  useRejectEditModeWhenLocked(isEdit, onClose)
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
   const [selectedPrescription, setSelectedPrescription] = useState<string>('')

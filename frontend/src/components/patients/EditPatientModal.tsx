@@ -24,6 +24,8 @@ import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { PenLine, Trash2, Check, X } from 'lucide-react'
 
 // ─── Signature Pad Component (same as CreatePatientModal) ───────────────────
@@ -232,6 +234,8 @@ type Tab = 'details' | 'relations' | 'insurance' | 'documents'
 const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
 export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatientModalProps) => {
+  const blockIfEditingLocked = useBlockIfEditingLocked()
+  useRejectEditModeWhenLocked(true, onClose)
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -543,6 +547,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
+    try {
+      blockIfEditingLocked()
+    } catch {
+      return
+    }
 
     if (!formData.patient_name || !formData.sex) {
       setError('Full Name and Gender are required')

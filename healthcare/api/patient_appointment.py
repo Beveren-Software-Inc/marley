@@ -8,6 +8,7 @@ from healthcare.api.sales_order_cost_center import (
 )
 from healthcare.api.utils.api_utility import get_next_prefixed, get_next_transaction_number
 from healthcare.healthcare.utils import get_appointment_billing_item_and_rate
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_all_appointments(limit=50, offset=0, status=None, patient=None,
@@ -67,6 +68,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 @frappe.whitelist()
 def update_appointment_ad_remark(appointment_name, remark):
 	"""Reception: save or update the AD (administrative) remark on an appointment."""
+	assert_editing_allowed()
 	if not appointment_name:
 		frappe.throw(_("Appointment is required"))
 	if not frappe.db.exists("Patient Appointment", appointment_name):
@@ -88,6 +90,7 @@ def update_appointment_ad_remark(appointment_name, remark):
 @frappe.whitelist()
 def update_appointment_doctor_note(appointment_name, note):
 	"""Doctor: save or update the clinical note on an appointment."""
+	assert_editing_allowed()
 	if not appointment_name:
 		frappe.throw(_("Appointment is required"))
 	if not frappe.db.exists("Patient Appointment", appointment_name):

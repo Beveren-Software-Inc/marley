@@ -98,7 +98,7 @@ export function AppointmentDetailPanel({
   onPatientSelect,
   onOpenVisitInHeader,
 }: AppointmentDetailPanelProps) {
-  const { applyOpCareContext } = useCareContext()
+  const { applyOpCareContext, guardClinicalEdit } = useCareContext()
   const [doc, setDoc] = useState<AppointmentDoc | null>(null)
   const [patientVisit, setPatientVisit] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
@@ -404,7 +404,13 @@ export function AppointmentDetailPanel({
             {onAddRemarks && (
               <button
                 type="button"
-                onClick={onAddRemarks}
+                onClick={() => {
+                  if (doc.remarks) {
+                    guardClinicalEdit(() => onAddRemarks())
+                  } else {
+                    onAddRemarks()
+                  }
+                }}
                 className="inline-flex items-center px-2 py-1 text-[11px] font-semibold rounded border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
               >
                 {doc.remarks ? 'Edit remarks' : 'Add remarks'}
@@ -413,7 +419,13 @@ export function AppointmentDetailPanel({
             {onAddDoctorNote && (
               <button
                 type="button"
-                onClick={onAddDoctorNote}
+                onClick={() => {
+                  if (doc.notes) {
+                    guardClinicalEdit(() => onAddDoctorNote())
+                  } else {
+                    onAddDoctorNote()
+                  }
+                }}
                 className="inline-flex items-center px-2 py-1 text-[11px] font-semibold rounded border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
               >
                 {doc.notes ? "Edit doctor's note" : "Add doctor's note"}

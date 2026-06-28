@@ -62,7 +62,7 @@ export const EnvironmentalChecklistList = ({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
-  const { guardClinicalCreate } = useCareContext()
+  const { guardClinicalCreate, guardClinicalEdit } = useCareContext()
   const [rows, setRows] = useState<EnvironmentalChecklistRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -153,7 +153,7 @@ export const EnvironmentalChecklistList = ({
   const handleEdit = (name: string) => {
     setOpenActionRow(null)
     setDetailRow(null)
-    setEditChecklist(name)
+    guardClinicalEdit(() => setEditChecklist(name))
   }
 
   if (!patient) {

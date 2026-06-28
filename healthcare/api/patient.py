@@ -409,6 +409,7 @@ def _validate_patient_payload(data):
 
 
 from frappe.utils import cint
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 def _parse_child_rows(data, key):
 	rows = data.get(key) or []
@@ -730,6 +731,7 @@ def _apply_patient_scalar_fields(patient, data):
 @frappe.whitelist()
 def update_patient(patient, data):
 	"""Update Patient from portal (bypasses REST write permission)."""
+	assert_editing_allowed()
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)

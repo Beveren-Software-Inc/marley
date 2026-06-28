@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { fetchServiceRequest } from '../../services/serviceRequests'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -111,6 +112,7 @@ function FieldRow({ label, value }: { label: string; value: string }) {
 
 export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequestDetailPanelProps) {
   const formatMoney = useFormatMoney()
+  const { guardClinicalEdit } = useCareContext()
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -197,8 +199,10 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
           <button
             type="button"
             onClick={() => {
-              onEdit()
-              onClose()
+              guardClinicalEdit(() => {
+                onEdit()
+                onClose()
+              })
             }}
             className="rounded-lg border border-emerald-200/80 bg-white px-4 py-2 text-sm font-medium text-emerald-900 shadow-sm transition hover:bg-emerald-50"
           >

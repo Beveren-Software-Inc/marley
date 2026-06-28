@@ -13,6 +13,7 @@ from healthcare.api.patient_visit import create_invoice
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
 from healthcare.healthcare.doctype.observation.observation import vacate_active_observation_rooms_for_patient
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 try:
 	from erpnext import get_default_currency
@@ -2847,6 +2848,7 @@ def _apply_e_signatures(doc, documents_data):
 @frappe.whitelist()
 def update_inpatient_admission(name, data):
 	"""Update editable fields on a scheduled or admitted Inpatient Admission."""
+	assert_editing_allowed()
 	if isinstance(data, str):
 		data = frappe.parse_json(data) if data else {}
 	if not name:

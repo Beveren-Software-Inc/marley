@@ -8,6 +8,9 @@ import {
   type SalesInvoiceDetail,
 } from '../../services/billingSpecialty'
 import { toast } from '../../hooks/useToast'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaymentModal } from './PaymentModal'
@@ -90,12 +93,15 @@ export function SpecialtySalesInvoiceSlideOver({
   initialEditMode = false,
   partyLabel = 'Customer',
 }: SpecialtySalesInvoiceSlideOverProps) {
+  const { guardClinicalEdit } = useCareContext()
+  const blockIfEditingLocked = useBlockIfEditingLocked()
   const [detail, setDetail] = useState<SalesInvoiceDetail | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<'submit' | 'cancel' | 'save' | null>(null)
   const [showPayment, setShowPayment] = useState(false)
   const [editing, setEditing] = useState(initialEditMode)
+  useRejectEditModeWhenLocked(editing, () => setEditing(false))
   const [editLines, setEditLines] = useState<DraftInvoiceLineEdit[]>([])
   const formatMoney = useFormatMoney(detail?.company ?? null)
 
@@ -133,11 +139,13 @@ export function SpecialtySalesInvoiceSlideOver({
   }, [detail, editing])
 
   const startEditing = () => {
-    if (!detail) return
-    const lines = invoiceDetailToEditableLines(detail)
-    const defaultCc = detail.custom_created_at || detail.cost_center || ''
-    setEditLines(lines.length ? lines : [newDraftInvoiceLine(defaultCc)])
-    setEditing(true)
+    guardClinicalEdit(() => {
+      if (!detail) return
+      const lines = invoiceDetailToEditableLines(detail)
+      const defaultCc = detail.custom_created_at || detail.cost_center || ''
+      setEditLines(lines.length ? lines : [newDraftInvoiceLine(defaultCc)])
+      setEditing(true)
+    })
   }
 
   const cancelEditing = () => {
@@ -147,6 +155,11 @@ export function SpecialtySalesInvoiceSlideOver({
 
   const handleSaveItems = async () => {
     if (!invoiceName || !editLines.length) return
+    try {
+      blockIfEditingLocked()
+    } catch {
+      return
+    }
     const invalid = editLines.some((line) => !line.item_code?.trim() || line.qty <= 0)
     if (invalid) {
       toast.error('Each line needs an item and quantity greater than zero')

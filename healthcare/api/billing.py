@@ -133,6 +133,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import cint, cstr, flt, getdate, nowdate
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 def _billing_item_uom_options(item_code):
@@ -943,6 +944,7 @@ def get_invoice_details(invoice_name):
 @frappe.whitelist()
 def update_sales_invoice_items(invoice_name, items):
     """Update draft Sales Invoice lines — edit existing rows, add new services, remove omitted rows."""
+    assert_editing_allowed()
     if not invoice_name:
         frappe.throw(_("Invoice name is required"))
 

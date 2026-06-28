@@ -6,6 +6,7 @@ import frappe
 from frappe import _
 from frappe.model.rename_doc import rename_doc
 from frappe.utils import flt
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 @frappe.whitelist()
@@ -116,6 +117,7 @@ def _iop_day_session_total(sessions):
 @frappe.whitelist()
 def update_iop_day(name, data=None, sessions=None):
 	"""Update IOP Day date, sessions, and optional company / cost center."""
+	assert_editing_allowed()
 	if not name:
 		frappe.throw(_("IOP Day is required"))
 	if isinstance(data, str):
@@ -457,6 +459,7 @@ def get_iop_enrollment(name):
 @frappe.whitelist()
 def update_iop_enrollment(name, iop_session=None, status=None, notes=None):
 	"""Update IOP Enrollment sessions, status, and/or notes."""
+	assert_editing_allowed()
 	if isinstance(iop_session, str):
 		iop_session = json.loads(iop_session) if iop_session else []
 	doc = frappe.get_doc("IOP Enrollment", name)

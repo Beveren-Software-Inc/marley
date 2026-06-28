@@ -8,11 +8,13 @@ from healthcare.api.medical_diagnosis_entry import (
 	list_for_context,
 	save_for_context,
 )
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 @frappe.whitelist()
 def update_inpatient_diagnoses(admission: str, diagnoses: list):
 	"""Replace all diagnoses for an inpatient admission (Medical Diagnosis Entry)."""
+	assert_editing_allowed()
 	if not admission:
 		frappe.throw(_("Admission is required"))
 	return save_for_context("Inpatient Admission", admission, diagnoses)

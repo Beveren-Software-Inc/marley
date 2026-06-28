@@ -53,7 +53,7 @@ const STATUS_STYLES: Record<StatusColor, string> = {
 };
 
 export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
-  const { selectedPatient: globalSelectedPatient } = useCareContext()
+  const { selectedPatient: globalSelectedPatient, guardClinicalEdit } = useCareContext()
   const [editPatientName, setEditPatientName] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState<string>('')
   const [debouncedQuery, setDebouncedQuery] = useState<string>('')
@@ -345,7 +345,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       <td className="px-4 py-3">
                         <button
                           type="button"
-                          onClick={() => setEditPatientName(patient.name)}
+                          onClick={() => guardClinicalEdit(() => setEditPatientName(patient.name))}
                           className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-md transition-colors"
                           title="Edit patient"
                         >
