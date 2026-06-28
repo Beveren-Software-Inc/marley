@@ -1377,10 +1377,9 @@ def _resolve_item_00_01_name(code_value) -> str | None:
 		return None
 	if frappe.db.exists("ITEM_00_01", code_str):
 		return code_str
-	if code_str.endswith(".0"):
-		trimmed = code_str[:-2]
-		if frappe.db.exists("ITEM_00_01", trimmed):
-			return trimmed
+	stripped = code_str.lstrip("0")
+	if stripped and stripped != code_str and frappe.db.exists("ITEM_00_01", stripped):
+		return stripped
 	return None
 
 

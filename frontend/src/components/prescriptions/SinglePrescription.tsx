@@ -20,15 +20,17 @@ import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
+import { CardRowPopoverHint } from '../ui/dashboardCardListing'
 import {
   displayMedicationDosage,
   displayMedicationDrugCode,
   displayMedicationDrugName,
   displayMedicationEndDate,
   displayMedicationFrequency,
-  displayMedicationInstructions,
+  displayMedicationInstructionTooltip,
   displayMedicationRoute,
   displayMedicationStartDate,
+  displayPrescriptionPractitioner,
   isLegacyMedicationOrderRow,
 } from '../../utils/medicationOrderDisplayUtils'
 import {
@@ -993,6 +995,7 @@ const AddMedicationEntryModal = ({
 const MedicationRow = ({
   order,
   prescriptionName,
+  prescriptionPractitioner,
   onUpdated,
   onEdit,
   readOnly = false,
@@ -1002,6 +1005,7 @@ const MedicationRow = ({
 }: {
   order: any
   prescriptionName: string
+  prescriptionPractitioner: { healthcare_practitioner_name?: string; practitioner?: string; user_name?: string }
   onUpdated: () => void | Promise<void>
   onEdit: () => void
   readOnly?: boolean
@@ -1018,8 +1022,9 @@ const MedicationRow = ({
   const displayDrugCode = displayMedicationDrugCode(order)
   const displayDosage = displayMedicationDosage(order)
   const displayFrequency = displayMedicationFrequency(order)
-  const displayInstructions = displayMedicationInstructions(order)
+  const instructionTooltip = displayMedicationInstructionTooltip(order)
   const displayRoute = displayMedicationRoute(order)
+  const displayPractitioner = displayPrescriptionPractitioner(prescriptionPractitioner, order)
   const displayStartDate = displayMedicationStartDate(order, parentStartDate)
   const displayEndDate = displayMedicationEndDate(order, parentEndDate)
 
@@ -1129,27 +1134,31 @@ const MedicationRow = ({
         className={`${order.is_pink ? 'bg-pink-50/60' : ''} ${isStopped ? 'opacity-90' : ''}`}
         style={!order.is_pink && isHex(color) ? rowStyle : undefined}
       >
-        <td className="px-3 py-2.5">
-          <div className="flex items-center flex-wrap gap-1.5">
-            <span className={`font-medium ${isStopped ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
-              {displayDrugName}
-            </span>
-            {isStopped && <SmallBadge cls="bg-rose-100 text-rose-800 border border-rose-200">Stopped</SmallBadge>}
-            {isLegacyRow && <SmallBadge cls="bg-amber-100 text-amber-800 border border-amber-200">Legacy</SmallBadge>}
-            {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
-            {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
-            {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
+        <td className="px-3 py-2.5 min-w-0">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <div className="flex items-center flex-wrap gap-x-1.5 gap-y-1 min-w-0">
+              <span
+                className={`font-medium ${isStopped ? 'text-slate-500 line-through' : 'text-slate-800'}`}
+              >
+                {displayDrugName}
+              </span>
+              <CardRowPopoverHint content={instructionTooltip} title="Instructions" />
+              {isStopped && <SmallBadge cls="bg-rose-100 text-rose-800 border border-rose-200">Stopped</SmallBadge>}
+              {isLegacyRow && <SmallBadge cls="bg-amber-100 text-amber-800 border border-amber-200">Legacy</SmallBadge>}
+              {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
+              {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
+              {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
+            </div>
+            {displayDrugCode && displayDrugCode !== '-' ? (
+              <div className="block w-full text-xs text-slate-400 tabular-nums">{displayDrugCode}</div>
+            ) : null}
           </div>
-          <div className="text-xs text-slate-400 mt-0.5">{displayDrugCode}</div>
           {isLegacyRow && (
             <div className="mt-1 text-[11px] text-slate-500 space-x-2">
               {order.trans_num ? <span>IP Med: {order.trans_num}</span> : null}
               {order.redundancy_type ? <span>Redundancy: {order.redundancy_type}</span> : null}
             </div>
           )}
-          {displayInstructions ? (
-            <div className="mt-1 text-xs text-slate-500">Notes: {displayInstructions}</div>
-          ) : null}
           {isStopped && (
             <div className="mt-1.5 text-xs text-rose-800 bg-rose-50/80 border border-rose-100 rounded px-2 py-1 max-w-md" title={reasonStopped}>
               <span className="font-semibold text-rose-900">Reason: </span>
@@ -1169,6 +1178,7 @@ const MedicationRow = ({
           )}
         </td>
         <td className="px-3 py-2.5 text-slate-600 text-xs">{displayRoute}</td>
+        <td className="px-3 py-2.5 text-slate-600 text-xs">{displayPractitioner}</td>
         <td className="px-3 py-2.5 text-xs text-slate-500">
           <div>{displayStartDate}</div>
           <div className="text-slate-400">→ {displayEndDate}</div>
@@ -1560,7 +1570,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
             <table className="min-w-full text-sm divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])].map(h => (
+                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Practitioner', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])].map(h => (
                     <th
                       key={h}
                       className={`px-3 py-2.5 text-xs font-semibold text-slate-600 uppercase tracking-wide ${
@@ -1578,6 +1588,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     key={order.name}
                     order={order}
                     prescriptionName={prescription.name}
+                    prescriptionPractitioner={{
+                      healthcare_practitioner_name: prescription.healthcare_practitioner_name,
+                      practitioner: prescription.practitioner,
+                      user_name: prescription.user_name,
+                    }}
                     onUpdated={load}
                     onEdit={() => guardClinicalEdit(() => setEditingOrder(order))}
                     readOnly={readOnly}

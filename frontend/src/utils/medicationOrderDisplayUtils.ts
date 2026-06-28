@@ -13,13 +13,22 @@ export type MedicationOrderLike = {
   strength?: string | null
   instructions?: string | null
   dose_notes?: string | null
+  dc?: string | null
   patient_frequency?: string | null
   written_frequency?: string | null
   date?: string | null
   start_date?: string | null
   end_date?: string | null
   route_of_administration?: string | null
+  old_route?: string | null
+  username?: string | null
   frequency?: string | null
+}
+
+export type PrescriptionPractitionerLike = {
+  healthcare_practitioner_name?: string | null
+  practitioner?: string | null
+  user_name?: string | null
 }
 
 function text(value: unknown): string {
@@ -49,8 +58,30 @@ export function displayMedicationDrugName(order: MedicationOrderLike): string {
   return text(order.drug_name) || text(order.medication) || text(order.old_medicine_name) || '-'
 }
 
+function normalizeLegacyMedicineCode(value: string): string {
+  if (!value) return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (/^\d+$/.test(trimmed)) {
+    if (/^0+$/.test(trimmed)) return ''
+    return trimmed.replace(/^0+/, '') || '0'
+  }
+  return trimmed
+}
+
+/** Best legacy item code for display: linked ITEM_00_01 name, without Oracle zero padding. */
+function resolveLegacyMedicineDisplayCode(order: MedicationOrderLike): string {
+  const linked = normalizeLegacyMedicineCode(text(order.old_medicine_code))
+  if (linked) return linked
+  return normalizeLegacyMedicineCode(text(order.medicine_no))
+}
+
 export function displayMedicationDrugCode(order: MedicationOrderLike): string {
-  return text(order.drug) || text(order.old_medicine_code) || text(order.medicine_no) || '-'
+  if (isLegacyMedicationOrderRow(order)) {
+    return resolveLegacyMedicineDisplayCode(order) || '-'
+  }
+  const code = text(order.drug) || text(order.old_medicine_code) || text(order.medicine_no)
+  return code || '-'
 }
 
 export function displayMedicationDosage(order: MedicationOrderLike): string {
@@ -85,9 +116,46 @@ export function displayMedicationEndDate(
 }
 
 export function displayMedicationRoute(order: MedicationOrderLike): string {
-  return text(order.route_of_administration) || '-'
+  return text(order.route_of_administration) || text(order.old_route) || '-'
+}
+
+/** Practitioner on parent PMO; legacy lines fall back to row/parent username. */
+export function displayPrescriptionPractitioner(
+  prescription: PrescriptionPractitionerLike,
+  order?: MedicationOrderLike | null
+): string {
+  if (order && isLegacyMedicationOrderRow(order)) {
+    return (
+      text(order.username) ||
+      text(prescription.user_name) ||
+      text(prescription.healthcare_practitioner_name) ||
+      text(prescription.practitioner) ||
+      '-'
+    )
+  }
+  return (
+    text(prescription.healthcare_practitioner_name) ||
+    text(prescription.practitioner) ||
+    text(prescription.user_name) ||
+    '-'
+  )
 }
 
 export function displayMedicationInstructions(order: MedicationOrderLike): string {
-  return text(order.instructions) || text(order.dose_notes) || ''
+  return text(order.instructions)
+}
+
+function isMeaninglessInstructionDc(value: string): boolean {
+  const v = value.trim().toLowerCase()
+  return v === '000' || v === '0'
+}
+
+/** Hover tooltip on medicine name: child-table instructions, then dc; otherwise none. */
+export function displayMedicationInstructionTooltip(order: MedicationOrderLike): string {
+  const instructions = text(order.instructions)
+  if (instructions) return instructions
+
+  const dc = text(order.dc)
+  if (dc && !isMeaninglessInstructionDc(dc)) return dc
+  return ''
 }
