@@ -21,6 +21,8 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -45,6 +47,8 @@ export const EditInsurancePatientRegisterModal = ({
   onClose,
   onSuccess,
 }: EditInsurancePatientRegisterModalProps) => {
+  const blockIfEditingLocked = useBlockIfEditingLocked()
+  useRejectEditModeWhenLocked(true, onClose)
   const [fullName, setFullName] = useState(register.full_name || '')
   const [nationalId, setNationalId] = useState(register.national_id_cpr_no || '')
   const [postingDate, setPostingDate] = useState(toDateInputValue(register.posting_date))
@@ -80,6 +84,11 @@ export const EditInsurancePatientRegisterModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    try {
+      blockIfEditingLocked()
+    } catch {
+      return
+    }
     if (!fullName.trim()) {
       setError('Full Name is required')
       return

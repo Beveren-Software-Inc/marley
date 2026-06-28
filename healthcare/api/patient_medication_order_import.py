@@ -77,7 +77,24 @@ ORACLE_HEADER_MAP = {
 	"TRANS_NUM": "trans_no",
 	"TRANS NO": "trans_no",
 	"IP_ADMISSION_REC_ID": "ip_admission_rec_id",
+	"CR_ID": "cr_id",
+	"CR ID": "cr_id",
+	"UP_ID": "up_id",
+	"UP ID": "up_id",
+	"UP_DATE": "up_date",
+	"UP DATE": "up_date",
+	"ROUTE": "route",
+	"UNIT": "unit",
+	"QTY": "qty",
+	"QUANTITY": "qty",
+	"USER_NAME": "username",
+	"PATIENT_NUM": "patient_num",
+	"PATIENT": "patient_num",
+	"COST CENTER": "branch",
+	"ADMISSION NO OLD": "old_admission_no",
 }
+
+MEDICINE_SHEET_MARKER_FIELDS = frozenset({"medicine_num", "dose_notes", "trans_no"})
 
 
 def _require_admin() -> None:
@@ -207,6 +224,11 @@ def _is_import_log_file(headers: list[str]) -> bool:
 	return {"row numbers", "status", "message"}.issubset(normalized)
 
 
+def _is_medicine_import_sheet(headers: list[str]) -> bool:
+	normalized = {_normalize_header(h) for h in headers if h is not None and str(h).strip()}
+	return bool(MEDICINE_SHEET_MARKER_FIELDS.intersection(normalized))
+
+
 def _parse_csv_rows(file_url: str) -> tuple[list[dict], int]:
 	path = _file_path(file_url)
 	rows: list[dict] = []
@@ -248,6 +270,7 @@ def _parse_excel_rows(file_url: str) -> tuple[list[dict], int]:
 	parsed: list[dict] = []
 	invalid_admission_rows = 0
 
+	sheets_with_medicine_data = 0
 	for sheet_index, ws in enumerate(wb.worksheets):
 		rows_iter = ws.iter_rows(values_only=True)
 		try:
@@ -265,6 +288,9 @@ def _parse_excel_rows(file_url: str) -> tuple[list[dict], int]:
 					)
 				)
 			continue
+		if not _is_medicine_import_sheet(header_row):
+			continue
+		sheets_with_medicine_data += 1
 		headers = [_normalize_header(h) for h in header_row]
 		for raw in rows_iter:
 			if not raw or all(cell is None or str(cell).strip() == "" for cell in raw):
@@ -276,6 +302,12 @@ def _parse_excel_rows(file_url: str) -> tuple[list[dict], int]:
 			parsed.append(row)
 
 	wb.close()
+	if not parsed and sheets_with_medicine_data == 0:
+		frappe.throw(
+			_(
+				"No medicine prescription sheets found. Expected columns such as ADMISSION_NUM, MEDICINE_NUM, TRANS_NUM, DOSE_NOTES on at least one worksheet (both sheets are read when present). Admission attribute exports (e.g. ATT_NOTES) are not medicine prescriptions."
+			)
+		)
 	return parsed, invalid_admission_rows
 
 
@@ -327,6 +359,41 @@ def _lookup_medication_name(medicine_num: str) -> str | None:
 	return frappe.db.get_value("ITEM_00_01", code, "item_nam")
 
 
+def _ensure_prescription_frequency_label(frequency_label: str | None) -> str | None:
+	label = _cell_text(frequency_label)
+	if not label:
+		return None
+	from healthcare.api.common import _ensure_prescription_frequency_exists
+
+	_ensure_prescription_frequency_exists(label)
+	return label
+
+
+def _resolve_ip_admission_medicine_link(trans_no: str | None) -> str | None:
+	trans_no = _clean_oracle_num(trans_no)
+	if not trans_no:
+		return None
+	if frappe.db.exists("IP Admission Medicine", trans_no):
+		return trans_no
+	return frappe.db.get_value("IP Admission Medicine", {"trans_no": trans_no}, "name")
+
+
+def _format_legacy_datetime(value: Any) -> str | None:
+	if value in (None, ""):
+		return None
+	if isinstance(value, datetime):
+		return value.strftime("%Y-%m-%d %H:%M:%S")
+	if isinstance(value, date):
+		return value.strftime("%Y-%m-%d")
+	text = str(value).strip()
+	if not text:
+		return None
+	try:
+		return get_datetime(text).strftime("%Y-%m-%d %H:%M:%S")
+	except Exception:
+		return text
+
+
 def _map_care_context(context_type: str | None) -> str:
 	text = (context_type or "").strip().lower()
 	if "visit" in text:
@@ -367,8 +434,9 @@ def _line_signature(row: dict) -> str:
 		[
 			row.get("trans_no") or "",
 			row.get("medicine_num") or "",
-			row.get("cr_date") or "",
 			row.get("start_date") or "",
+			row.get("trans_date") or "",
+			row.get("cr_id") or "",
 		]
 	)
 
@@ -381,8 +449,9 @@ def _existing_child_signatures(doc) -> set[str]:
 				[
 					(child.reference_no or "").strip(),
 					(child.medicine_no or "").strip(),
-					(child.cr_date or "").strip(),
 					str(child.date or ""),
+					str(child.trans_date or ""),
+					(child.cr_id or "").strip(),
 				]
 			)
 		)
@@ -391,30 +460,59 @@ def _existing_child_signatures(doc) -> set[str]:
 
 def _append_child_line(doc, row: dict) -> None:
 	medicine_num = row.get("medicine_num") or ""
-	medication_name = _lookup_medication_name(medicine_num)
 	item_code = _resolve_item_00_01_name(medicine_num)
+	medication_name = _lookup_medication_name(medicine_num)
 
 	entry = doc.append("medication_orders", {})
+	trans_no = row.get("trans_no") or ""
+	entry.reference_no = trans_no or None
+	ip_med_link = _resolve_ip_admission_medicine_link(trans_no)
+	if ip_med_link:
+		entry.trans_num = ip_med_link
+
 	entry.medicine_no = medicine_num or None
-	entry.medication = medication_name
 	entry.old_medicine_code = item_code
 	entry.old_medicine_name = medication_name
-	entry.instructions = _cell_text(row.get("dose_notes")) or None
+	entry.medication = medication_name
+
+	dose_notes = _cell_text(row.get("dose_notes"))
+	entry.dosage = dose_notes or None
+
 	entry.dc = _cell_text(row.get("dc")) or None
 	entry.redundancy_type = _cell_text(row.get("redundancy_type")) or None
 	entry.username = _cell_text(row.get("username")) or None
+
+	frequency_label = _ensure_prescription_frequency_label(row.get("frequency"))
+	if frequency_label:
+		entry.patient_frequency = frequency_label
 	entry.written_frequency = _cell_text(row.get("frequency")) or None
+
 	entry.duration = _cell_text(row.get("duration")) or None
 	entry.trans_type = _cell_text(row.get("trans_type")) or None
 	entry.date = _parse_date_value(row.get("start_date") or row.get("trans_date"))
 	entry.end_date = _parse_date_value(row.get("end_date"))
+	entry.trans_date = _parse_date_value(row.get("trans_date"))
 	entry.time = _normalize_time_value(row.get("trans_time"))
 	entry.stop_by = _cell_text(row.get("stop_by")) or None
 	entry.stopped_date = _parse_date_value(row.get("stop_date"))
 	entry.reason_stopped = _cell_text(row.get("stop_reason")) or None
 	entry.cr_id = _clean_oracle_num(row.get("cr_id")) or None
-	entry.cr_date = _format_cr_datetime(row.get("cr_date"), row.get("cr_time")) or None
-	entry.reference_no = row.get("trans_no") or None
+	entry.cr_date = _format_cr_datetime(row.get("cr_date"), row.get("cr_time")) or _format_legacy_datetime(
+		row.get("cr_date")
+	)
+	entry.up_id = _clean_oracle_num(row.get("up_id")) or None
+	entry.up_date = _format_legacy_datetime(row.get("up_date"))
+	entry.old_route = _cell_text(row.get("route")) or None
+	entry.strength = _cell_text(row.get("strength")) or None
+	entry.old_unit = _cell_text(row.get("unit")) or None
+	qty = row.get("qty")
+	if qty not in (None, ""):
+		from frappe.utils import flt
+
+		entry.quantity = flt(qty)
+	entry.ip_admission_rec_id = _clean_oracle_num(row.get("ip_admission_rec_id")) or None
+	entry.effective_status = _cell_text(row.get("effective_status")) or None
+	entry.is_completed = 1
 
 	stopped_reason = _cell_text(row.get("stop_reason"))
 	status = _cell_text(row.get("status")).lower()
@@ -423,13 +521,22 @@ def _append_child_line(doc, row: dict) -> None:
 
 
 def _submit_and_complete_pmo(doc) -> None:
+	total = len(doc.get("medication_orders") or [])
+	for child in doc.get("medication_orders") or []:
+		child.is_completed = 1
+	doc.total_orders = total
+	doc.completed_orders = total
+	doc.flags.ignore_mandatory = True
+	doc.save(ignore_permissions=True)
 	if doc.docstatus == 0:
 		doc.flags.ignore_mandatory = True
 		doc.submit()
 		doc.reload()
-	total = len(doc.get("medication_orders") or [])
-	doc.db_set("completed_orders", total, update_modified=False)
-	doc.completed_orders = total
+	else:
+		doc.db_set(
+			{"completed_orders": total, "total_orders": total},
+			update_modified=False,
+		)
 	doc.set_status()
 
 
@@ -439,9 +546,10 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 
 	first = lines[0]
 	old_admission_no = _clean_oracle_num(first.get("old_admission_no"))
-	admission_name = _resolve_inpatient_admission(admission_key, old_admission_no or None)
+	patient_hint = _clean_oracle_num(first.get("patient_num")) or None
+	admission_name = _resolve_inpatient_admission(admission_key, patient_hint)
 	if not admission_name:
-		admission_name = _resolve_inpatient_admission(old_admission_no, None)
+		admission_name = _resolve_inpatient_admission(old_admission_no, patient_hint)
 	if not admission_name:
 		return {
 			"status": "skip_no_admission",
@@ -507,6 +615,7 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 	doc.trans_type = _cell_text(first.get("trans_type")) or None
 	doc.strength = _cell_text(first.get("strength")) or None
 	doc.duration_type = _cell_text(first.get("duration_type")) or None
+	doc.route = _cell_text(first.get("route")) or None
 	doc.user_name = _cell_text(first.get("username")) or None
 
 	existing_signatures = _existing_child_signatures(doc)
@@ -533,8 +642,6 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 	if not doc.get("medication_orders"):
 		return {"status": "skip_no_lines", "admission_key": admission_key, "admission": admission_name}
 
-	doc.flags.ignore_mandatory = True
-	doc.save(ignore_permissions=True)
 	_submit_and_complete_pmo(doc)
 
 	return {

@@ -3,6 +3,7 @@ import { fetchNurseTasks, updateNurseTaskStatus, type NurseTask } from '../../se
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { toast } from '../../hooks/useToast'
+import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 
 const TASK_TYPE_ICONS: Record<string, string> = {
   'Medication Administration': '💊',
@@ -182,6 +183,7 @@ export const NurseTaskList = ({
   onAdd,
   addButtonTitle = 'New Task',
 }: NurseTaskListProps) => {
+  const blockIfEditingLocked = useBlockIfEditingLocked()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -232,6 +234,11 @@ export const NurseTaskList = ({
 
   const changeStatus = useCallback(async (task: NurseTask, newStatus: string) => {
     if (newStatus === task.status) return
+    try {
+      blockIfEditingLocked()
+    } catch {
+      return
+    }
     setUpdatingName(task.name)
     try {
       await updateNurseTaskStatus(task.name, newStatus)
@@ -243,7 +250,7 @@ export const NurseTaskList = ({
     } finally {
       setUpdatingName(null)
     }
-  }, [load, onRefresh])
+  }, [load, onRefresh, blockIfEditingLocked])
 
   const toggleComplete = useCallback((task: NurseTask) => {
     const next = task.status === 'Completed' ? 'Pending' : 'Completed'

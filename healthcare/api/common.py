@@ -17,6 +17,16 @@ def get_current_user_roles():
 
 
 @frappe.whitelist()
+def get_healthcare_portal_settings():
+	"""Portal flags from Healthcare Settings (single)."""
+	from healthcare.healthcare.editing_lock import is_editing_locked
+
+	return {
+		"lock_editing_data": is_editing_locked(),
+	}
+
+
+@frappe.whitelist()
 def get_current_user_healthcare_practitioner():
 	"""
 	Get the Healthcare Practitioner linked to the current logged-in user.
@@ -1150,6 +1160,7 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 @frappe.whitelist()
 def update_long_acting_medicine_remarks(name: str, remarks: str):
 	"""Update the remarks field on a Long Acting Medicine record."""
+	assert_editing_allowed()
 	if not name:
 		frappe.throw(_("Long Acting Medicine name is required"))
 	if not frappe.db.exists("Long Acting Medicine", name):
@@ -1618,6 +1629,7 @@ def get_healthcare_insurance(search=None):
 	]
  
 from typing import Dict  # Optional, you can also just use dict
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_salutations(query: str = "") -> list[Dict]:
@@ -1971,6 +1983,7 @@ def create_insurance_patient_register(data):
 @frappe.whitelist()
 def update_insurance_patient_register(name, data):
 	"""Portal: update editable fields on an Insurance Patient Register."""
+	assert_editing_allowed()
 	data = frappe.parse_json(data) if isinstance(data, str) else (data or {})
 	register_name = (name or data.get("name") or "").strip()
 	if not register_name:
@@ -2903,6 +2916,7 @@ def create_main_nursing_note(data):
 @frappe.whitelist()
 def update_main_nursing_note(data):
 	"""Append to an existing Main Nursing Note (portal)."""
+	assert_editing_allowed()
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
@@ -3596,6 +3610,7 @@ def update_insurance_claim(claim_name, status=None, total_approved=None, total_r
 	"""
 	if not claim_name:
 		frappe.throw(_("Claim name is required"))
+	assert_editing_allowed()
 
 	updates = {}
 

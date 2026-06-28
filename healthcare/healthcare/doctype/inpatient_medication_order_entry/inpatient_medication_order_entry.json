@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "creation": "2020-09-14 21:51:30.259164",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -44,6 +45,8 @@
   "written_frequency",
   "duration",
   "username",
+  "old_route",
+  "strength",
   "section_break_oruo",
   "rate",
   "column_break_ugjx",
@@ -52,9 +55,17 @@
   "trans_num",
   "old_medicine_code",
   "old_medicine_name",
+  "old_unit",
+  "column_break_arku",
+  "trans_date",
+  "ip_admission_rec_id",
+  "effective_status",
   "section_break_omaf",
   "cr_id",
-  "cr_date"
+  "cr_date",
+  "column_break_hjui",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -366,12 +377,60 @@
    "fieldname": "alternative_medicine_name",
    "fieldtype": "Data",
    "label": "Alternative Medicine Name"
+  },
+  {
+   "fieldname": "old_route",
+   "fieldtype": "Data",
+   "label": "Old Route"
+  },
+  {
+   "fieldname": "strength",
+   "fieldtype": "Data",
+   "label": "Strength"
+  },
+  {
+   "fieldname": "old_unit",
+   "fieldtype": "Data",
+   "label": "Old Unit"
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Date",
+   "label": "Trans Date"
+  },
+  {
+   "fieldname": "ip_admission_rec_id",
+   "fieldtype": "Data",
+   "label": "IP Admission Rec ID"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date "
+  },
+  {
+   "fieldname": "effective_status",
+   "fieldtype": "Data",
+   "label": "Effective Status"
+  },
+  {
+   "fieldname": "column_break_arku",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hjui",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-20 09:24:01.884421",
+ "modified": "2026-06-28 10:14:19.631553",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

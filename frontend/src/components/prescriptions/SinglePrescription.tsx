@@ -1257,6 +1257,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
     activeVisit,
     activeAdmission,
     guardClinicalCreate,
+    guardClinicalEdit,
   } = useCareContext()
   const [prescription, setPrescription] = useState<Prescription | null>(null)
   const [loading, setLoading] = useState(false)
@@ -1578,7 +1579,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     order={order}
                     prescriptionName={prescription.name}
                     onUpdated={load}
-                    onEdit={() => setEditingOrder(order)}
+                    onEdit={() => guardClinicalEdit(() => setEditingOrder(order))}
                     readOnly={readOnly}
                     givenInfo={givenStatus[order.name]}
                     parentStartDate={prescription.start_date}

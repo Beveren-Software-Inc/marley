@@ -101,8 +101,20 @@ export interface LabTest {
   /** Sample instances child table – one row per required/actual sample */
   sample_instances?: Array<{ sample?: string; sample_qty?: number; sample_details?: string; sample_collection?: string }>
   /** Populated after save when lab result rules run */
-  rule_warnings?: Array<{ message: string; type?: string; ok?: boolean }>
-  rule_errors?: Array<{ message: string; type?: string; block_save?: boolean }>
+  rule_warnings?: Array<{
+    message?: string
+    short_message?: string
+    title?: string
+    type?: string
+    ok?: boolean
+  }>
+  rule_errors?: Array<{
+    message?: string
+    short_message?: string
+    title?: string
+    type?: string
+    block_save?: boolean
+  }>
   calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
   /** Oracle LAB 00-03 legacy header import */
   is_legacy_import?: number | boolean

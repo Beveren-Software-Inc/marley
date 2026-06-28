@@ -11,6 +11,7 @@ from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_patient_medication_order,
 )
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 # Portal users read/write via whitelisted APIs; DocPerm on the doctype may not include Doctor.
 PATIENT_MEDICATION_ORDER_PORTAL_ROLES = frozenset(
@@ -903,6 +904,7 @@ def save_medication_order_entry_stop_reason(
 @frappe.whitelist()
 def update_medication_order():
     """Update an existing Patient Medication Order"""
+    assert_editing_allowed()
     data = frappe.local.form_dict
     
     if not data.get('name'):
@@ -1158,6 +1160,7 @@ def update_medication_order_status(name: str, status: str):
     """
     Update medication order status
     """
+    assert_editing_allowed()
     if not name:
         frappe.throw(_("Medication order name is required"))
     
@@ -1188,6 +1191,7 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         order_entry_name: Child table row name
         updates: JSON string or dict of field values to update
     """
+    assert_editing_allowed()
     import json
     if isinstance(updates, str):
         updates = json.loads(updates)

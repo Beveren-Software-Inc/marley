@@ -1632,6 +1632,8 @@ def save_and_submit_lab_test(
     _apply_documents_to_doc(doc, documents)
 
     doc.flags.ignore_permissions = True
+    # Lab result entry must still run panel rules and save while audit lock is on.
+    doc.flags.skip_editing_lock = True
     doc.save(ignore_permissions=True)
 
     # Persist calculated siblings (e.g. Globulin) after inputs are committed.
@@ -1801,6 +1803,7 @@ def recalculate_result_flags(lab_test_name=None):
 @frappe.whitelist()
 def update_lab_test_remarks(name, remarks=None):
 	"""Update the Remarks table on a Lab Test. remarks can be a list of dicts with key 'rrmark' (Remark child table)."""
+	assert_editing_allowed()
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 	doc = frappe.get_doc("Lab Test", name)
@@ -1835,6 +1838,7 @@ def update_lab_test_basic(name, data=None):
 	- time
 	- status
 	"""
+	assert_editing_allowed()
 	if not name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -1978,6 +1982,7 @@ def update_lab_test_status(lab_test_name: str, new_status: str, **kwargs):
 	"""
 	Legacy entry point — forwards to structured doctor review when review fields are sent.
 	"""
+	assert_editing_allowed()
 	from healthcare.api.lab_test_doctor_review import submit_doctor_lab_test_review
 
 	if kwargs.get("review_result_indicator"):
@@ -2177,6 +2182,7 @@ def update_sample_collection_for_lab_sample(
 	sample_qty: float | int | str | None = None,
 ):
 	"""Update an existing Sample Collection linked to a lab test sample_instances row."""
+	assert_editing_allowed()
 	if not lab_test_name:
 		frappe.throw(_("Lab Test name is required"))
 
@@ -2370,6 +2376,7 @@ def create_sample_collection_for_lab_sample(
 
 import frappe
 from frappe import _
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_lab_tests_by_inpatient_record(inpatient_record: str):

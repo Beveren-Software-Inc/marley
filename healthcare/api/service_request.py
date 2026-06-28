@@ -13,6 +13,7 @@ from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
 	cost_center_from_service_request,
 )
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 	"Doctor",
@@ -749,6 +750,7 @@ def get_service_request(name):
 @frappe.whitelist()
 def update_service_request(name, data):
 	"""Update an existing Service Request. Only allows updating specific fields."""
+	assert_editing_allowed()
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)

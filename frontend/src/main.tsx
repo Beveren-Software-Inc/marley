@@ -5,6 +5,9 @@ import { ThemeProvider } from './hooks/useTheme'
 import App from './App'
 import './theme/global.css'
 import { getRouterBasename } from './config/env'
+import { installClinicalEditingFetchGuard } from './services/editingLockStore'
+
+installClinicalEditingFetchGuard()
 
 // Dynamically determine basename based on environment
 const basename = getRouterBasename()

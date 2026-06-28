@@ -306,9 +306,9 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
-		frm.add_custom_button(__('Import Patient Medication Orders from CSV/Excel'), () => {
+		frm.add_custom_button(__('Upload IP Prescription'), () => {
 			const uploader = new frappe.ui.FileUploader({
-				dialog_title: __('Import Patient Medication Orders'),
+				dialog_title: __('Upload IP Prescription'),
 				allow_multiple: false,
 				restrictions: {
 					allowed_file_types: ['.csv', '.xlsx', '.xls'],
@@ -318,12 +318,12 @@ frappe.ui.form.on('Healthcare Settings', {
 						method: 'healthcare.api.patient_medication_order_import.preview_patient_medication_order_import',
 						args: { file_url: file.file_url },
 						freeze: true,
-						freeze_message: __('Reading file…'),
+						freeze_message: __('Reading file (all worksheets)…'),
 						callback(preview) {
 							const counts = preview.message || {};
 							frappe.confirm(
 								__(
-									'Import legacy Patient Medication Orders?\n\nFile rows: {0}\nDistinct admissions: {1}\nMedicine lines to import: {2}\nAdmissions matched in system: {3}\nRows with blank admission number: {4}\n\nRows with the same admission number are grouped into one Patient Medication Order (multiple child lines). Each order is submitted and marked Completed. Continue?',
+									'Import IP prescriptions into Patient Medication Order?\n\nFile rows: {0}\nDistinct admissions: {1}\nMedicine lines: {2}\nAdmissions matched in system: {3}\nRows with blank admission: {4}\n\nBoth Excel sheets are read. Rows with the same admission are grouped into one prescription (multiple child medicines). Each order is submitted with Completed status. Continue?',
 									[
 										counts.file_rows || 0,
 										counts.admissions || 0,

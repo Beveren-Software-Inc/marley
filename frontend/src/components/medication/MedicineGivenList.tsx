@@ -255,7 +255,7 @@ interface MedicineGivenListProps {
 }
 
 export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: MedicineGivenListProps) => {
-  const { activeAdmission } = useCareContext()
+  const { activeAdmission, guardClinicalEdit } = useCareContext()
   const [admission, setAdmission] = useState<InpatientRecord | null>(null)
   const [rows, setRows] = useState<MedicineGivenRow[]>([])
   const [missedRows, setMissedRows] = useState<MissedMedicineRow[]>([])
@@ -325,16 +325,20 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
     setRows(refreshed)
   }
 
-  const handleDelete = async (row: MedicineGivenRow) => {
+  const handleDelete = (row: MedicineGivenRow) => {
     if (!window.confirm('Remove this given medicine entry?')) return
-    try {
-      await deleteMedicineGiven(row.name)
-      setRows((prev) => prev.filter((r) => r.name !== row.name))
-      toast.success('Given medicine removed')
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to delete given medicine'
-      toast.error(msg)
-    }
+    guardClinicalEdit(() => {
+      void (async () => {
+        try {
+          await deleteMedicineGiven(row.name)
+          setRows((prev) => prev.filter((r) => r.name !== row.name))
+          toast.success('Given medicine removed')
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Failed to delete given medicine'
+          toast.error(msg)
+        }
+      })()
+    })
   }
 
   const handleCreateSalesOrder = async () => {
@@ -588,7 +592,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
                           disabled={Boolean(row.sales_order)}
                           onClick={() => {
                             setOpenActionRow(null)
-                            setEditRow(row)
+                            guardClinicalEdit(() => setEditRow(row))
                           }}
                           className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                           title={

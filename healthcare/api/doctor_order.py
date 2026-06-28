@@ -5,6 +5,7 @@ import frappe
 from frappe.utils import get_datetime, now_datetime
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 def _normalize_datetime(value):
@@ -165,6 +166,7 @@ def create_doctor_order(data):
 @frappe.whitelist()
 def update_doctor_order_nurse_response(data):
 	"""Nurse documents remarks and optionally marks the order finished."""
+	assert_editing_allowed()
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)

@@ -1,7 +1,40 @@
 import type { LabTest } from '../services/labTests'
 import { toast } from '../hooks/useToast'
 
-type RuleMessage = { message?: string; short_message?: string; type?: string }
+type RuleMessage = {
+  message?: string
+  short_message?: string
+  type?: string
+  title?: string
+}
+
+const PANEL_LEVEL_RULE_PATTERNS = [
+  /differential total/i,
+  /differential counts for this panel/i,
+]
+
+/** Panel sum rules apply to the whole group, not the single row being saved. */
+export function isPanelLevelRuleMessage(message: string, type?: string): boolean {
+  if (type === 'sum_validation' || type === 'sum_validation_config') return true
+  const text = message.trim()
+  return PANEL_LEVEL_RULE_PATTERNS.some((pattern) => pattern.test(text))
+}
+
+export function formatLabResultSaveError(
+  labTest: { lab_test_name?: string; name: string },
+  message: string,
+): string {
+  const text = message.trim()
+  if (!text) return text
+  if (isPanelLevelRuleMessage(text)) return text
+  const label = (labTest.lab_test_name || labTest.name).trim()
+  return label ? `${label}: ${text}` : text
+}
+
+function ruleToastText(msg: RuleMessage): string {
+  const text = (msg.short_message || msg.message || '').trim()
+  return text.split('\n\n')[0] || text
+}
 
 function filterFormulaWarnings(
   warnings: RuleMessage[],
@@ -33,12 +66,12 @@ export function showLabTestRuleFeedback(res: LabTest) {
   )
 
   for (const err of dedupeRuleMessages(res.rule_errors || [])) {
-    const text = (err as RuleMessage).short_message || err?.message || ''
-    if (text) toast.error(text.split('\n\n')[0] || text)
+    const text = ruleToastText(err as RuleMessage)
+    if (text) toast.error(text)
   }
   for (const warn of warnings) {
-    const text = warn.short_message || warn.message || ''
-    if (text) toast.warning(text.split('\n\n')[0] || text)
+    const text = ruleToastText(warn)
+    if (text) toast.warning(text)
   }
   for (const upd of calculatedUpdates) {
     if (upd.custom_result && upd.lab_test_name) {

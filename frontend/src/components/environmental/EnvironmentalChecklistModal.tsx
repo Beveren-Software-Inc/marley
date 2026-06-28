@@ -18,6 +18,7 @@ import {
   type EnvironmentalChecklistTemplate,
 } from '../../services/environmentalChecklist'
 import { toast } from '../../hooks/useToast'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CM_BTN_CANCEL,
@@ -161,6 +162,7 @@ export function EnvironmentalChecklistModal({
 }: EnvironmentalChecklistModalProps) {
   const { mode, userCostCenter, costCenterCompany } = useCareContext()
   const isEdit = Boolean(checklistName)
+  useRejectEditModeWhenLocked(isEdit, onClose)
   const isCreate = !isEdit
   const hidePatientVisit = isCreate && mode === 'IP' && Boolean(defaultAdmission)
   const hideInpatientAdmission = isCreate && mode === 'OP' && Boolean(defaultVisit)

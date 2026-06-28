@@ -9,6 +9,7 @@ import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryM
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
 import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { ILLNESS_FIELDS, illnessIsChecked, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
 import { CardRowMetaHint } from '../ui/dashboardCardListing'
 import { CM_BTN_PRIMARY, DetailSlideOver } from '../ui/CreateModalChrome'
@@ -200,6 +201,7 @@ function creationDay(iso?: string | null): string {
 
 // ── Main list component ────────────────────────────────────────────────────────
 export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: Props) {
+  const { guardClinicalEdit } = useCareContext()
   const [items, setItems] = useState<PatientMedicalHistory[]>([])
   const [loading, setLoading] = useState(false)
   const [internalRefresh, setInternalRefresh] = useState(0)
@@ -422,9 +424,11 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
                   <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                     <RowMenu
                       onEdit={() => {
-                        fetchPatientMedicalHistoryDetail(item.name!)
-                          .then((h) => setEditHistory(h))
-                          .catch(() => {})
+                        guardClinicalEdit(() => {
+                          fetchPatientMedicalHistoryDetail(item.name!)
+                            .then((h) => setEditHistory(h))
+                            .catch(() => {})
+                        })
                       }}
                     />
                   </td>
@@ -450,7 +454,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         <MedicalHistoryDetailPanel
           name={detailName}
           onClose={() => setDetailName(null)}
-          onEdit={(h) => { setDetailName(null); setEditHistory(h) }}
+          onEdit={(h) => { guardClinicalEdit(() => { setDetailName(null); setEditHistory(h) }) }}
         />
       )}
 

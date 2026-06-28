@@ -1688,6 +1688,7 @@ import {
   type LabTestTemplateDetails,
 } from '../../services/labTests'
 import { cancelLabSampleHandling, deleteRequestedLabTest } from '../../services/labRequestActions'
+import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
 import { ConfirmActionModal } from '../ui/ConfirmActionModal'
 import {
   fetchItems,
@@ -2131,7 +2132,7 @@ export const LabTestList = ({
   focusOpenSampleCollection?: boolean
   focusOpenReview?: boolean
 }) => {
-  const { selectedPatient: contextPatient, userRole } = useCareContext()
+  const { selectedPatient: contextPatient, userRole, guardClinicalEdit } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const resultsReadOnly = doctorLabDefaults
   const canEditResults = canEditLabTestResults(userRole)
@@ -2752,12 +2753,13 @@ export const LabTestList = ({
       setResultDialogLoading(true); setResultDialogError(null)
       const docPayload = resultDocuments.filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
         .map((r) => ({ file_name: (r.file_name || '').trim() || undefined, document_type: (r.document_type || '').trim() || undefined, transaction_no: (r.transaction_no || '').trim() || undefined, upload_remarks: (r.upload_remarks || '').trim() || undefined, document: (r.document || '').trim() || undefined }))
-      await saveAndSubmitLabTest(activeLabTest.name, {
+      const res = await saveAndSubmitLabTest(activeLabTest.name, {
         custom_result: customResult, lab_test_comment: labComment, worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
         normal_test_items: normalTestItems.length ? normalTestItems : undefined,
         lab_technician: labTechnician.trim(),
       })
+      showLabTestRuleFeedback(res)
       await refetch(); closeResultDialog()
     } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to save lab results') }
     finally { setResultDialogLoading(false) }
@@ -3104,7 +3106,7 @@ export const LabTestList = ({
                 className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results</button>
             )}
             {labTest.docstatus === 0 && (
-              <button type="button" onClick={() => { setOpenActionRow(null); setEditLabTestName(labTest.name) }}
+              <button type="button" onClick={() => { setOpenActionRow(null); guardClinicalEdit(() => setEditLabTestName(labTest.name)) }}
                 className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Edit</button>
             )}
             {labTest.docstatus === 0 && !labTest.material_request && (

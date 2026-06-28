@@ -45,6 +45,7 @@ import { X, Plus, Trash2, Pill, ChevronDown, ChevronUp, PenLine } from 'lucide-r
 import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
+import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -295,6 +296,7 @@ export const CreatePrescriptionModal = ({
 }: CreatePrescriptionModalProps) => {
   const { mode, activeVisit, activeAdmission, costCenterCompany, userCostCenter } = useCareContext()
   const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
+  useRejectEditModeWhenLocked(editMode, onClose)
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [expandedMedications, setExpandedMedications] = useState<Set<number>>(new Set([0]))
 

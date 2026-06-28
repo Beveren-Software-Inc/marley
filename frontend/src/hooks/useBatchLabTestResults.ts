@@ -4,7 +4,7 @@ import {
   saveAndSubmitLabTest,
   type LabTest,
 } from '../services/labTests'
-import { showLabTestRuleFeedback } from '../utils/labTestRuleFeedback'
+import { showLabTestRuleFeedback, formatLabResultSaveError, isPanelLevelRuleMessage } from '../utils/labTestRuleFeedback'
 import { toast } from './useToast'
 
 function stripHtml(value: string): string {
@@ -149,7 +149,14 @@ export function useBatchLabTestResults(
         savedNames.push(lt.name)
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to save result'
-        errors.push(`${lt.lab_test_name || lt.name}: ${msg}`)
+        errors.push(formatLabResultSaveError(lt, msg))
+        if (isPanelLevelRuleMessage(msg)) {
+          mergedRuleFeedback.rule_errors?.push({
+            type: 'sum_validation',
+            short_message: msg,
+            message: msg,
+          })
+        }
       }
     }
 
@@ -165,7 +172,12 @@ export function useBatchLabTestResults(
       }
     }
 
-    if (savedNames.length) {
+    const hasRuleFeedback =
+      Boolean(mergedRuleFeedback.rule_warnings?.length) ||
+      Boolean(mergedRuleFeedback.rule_errors?.length) ||
+      Boolean(mergedRuleFeedback.calculated_updates?.length)
+
+    if (savedNames.length || hasRuleFeedback) {
       showLabTestRuleFeedback(mergedRuleFeedback as LabTest)
     }
 

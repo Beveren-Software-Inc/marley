@@ -1,3 +1,7 @@
+import {
+  assertClinicalUpdateAllowed,
+} from './editingLockStore'
+
 let csrfFetchInFlight: Promise<string | null> | null = null
 
 /** Ensure CSRF token exists (fetch from API if missing). Use before any POST on live/8000. */
@@ -145,6 +149,8 @@ export async function apiRequest<T = any>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  assertClinicalUpdateAllowed(path, options.method)
+
   // Ensure CSRF token exists for unsafe methods.
   if (isUnsafeMethod(options.method)) {
     await ensureCSRF()

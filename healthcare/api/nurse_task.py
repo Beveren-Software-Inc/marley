@@ -2,6 +2,7 @@ import json
 import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 ADMIN_ROLES = {'Administrator', 'System Manager', 'Healthcare Administrator', 'Website Manager'}
@@ -212,6 +213,7 @@ def get_nurse_tasks(
 @frappe.whitelist()
 def update_nurse_task_status(name: str, status: str, notes: str | None = None) -> dict:
 	"""Update the status of a Nurse Task, and stamp completed fields if done."""
+	assert_editing_allowed()
 	if not name or not status:
 		frappe.throw(_("Task name and status are required"))
 

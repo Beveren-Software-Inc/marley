@@ -104,6 +104,7 @@ def get_patient_visits(status=None, search=None, patient=None):
 
 import frappe
 from frappe import _
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_patient_visits(
@@ -485,6 +486,7 @@ def cancel_patient_visit(visit_name: str, reason_for_cancel: str = None):
 
 @frappe.whitelist()
 def update_patient_visit_status(visit_name, action, doc_name=None):
+    assert_editing_allowed()
     ACTION_STATUS_MAP = {
         "medication_ordered": "Ordered",
         "invoice_created":    "Completed",
@@ -943,6 +945,7 @@ def _apply_patient_visit_documents(doc, documents_data):
 @frappe.whitelist()
 def update_patient_visit_documents(name, documents):
 	"""Replace Patient Visit uploaded documents child table."""
+	assert_editing_allowed()
 	name = (name or "").strip()
 	if not name:
 		frappe.throw(_("Patient Visit name is required"))
