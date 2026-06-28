@@ -1,11 +1,15 @@
-import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef, Fragment } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine } from '../../services/longActingMedicine'
 import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
+import {
+  GiveOutExpandToggle,
+  LongActingMedicineGiveOutsInline,
+} from './LongActingMedicineGiveOutsInline'
 import { toast } from '../../hooks/useToast'
-import { Mail, MoreHorizontal, Check } from 'lucide-react'
+import { Mail, MoreHorizontal } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -48,8 +52,14 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [remarksModal, setRemarksModal] = useState<{ name: string; current: string } | null>(null)
   const [remarksText, setRemarksText] = useState('')
   const [remarksSaving, setRemarksSaving] = useState(false)
+  const [giveOutModal, setGiveOutModal] = useState<LongActingMedicineRow | null>(null)
+  const [giveOutNotes, setGiveOutNotes] = useState('')
+  const [giveOutDosage, setGiveOutDosage] = useState('')
+  const [giveOutDosageForm, setGiveOutDosageForm] = useState('')
+  const [giveOutModalLoading, setGiveOutModalLoading] = useState(false)
   const [givingOutId, setGivingOutId] = useState<string | null>(null)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
+  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     try {
@@ -153,15 +163,59 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     return 'bg-white hover:bg-slate-50'
   }
 
+  const applyGiveOutDefaults = (row: LongActingMedicineRow, detail?: LongActingMedicineRow) => {
+    const source = detail || row
+    const med = source.medications?.[0]
+    const dosage =
+      source.default_dosage
+      ?? (med?.dosage != null && med.dosage !== '' && Number(med.dosage) !== 0
+        ? String(med.dosage)
+        : '')
+    const dosageForm = source.default_dosage_form ?? med?.dosage_form ?? ''
+    setGiveOutDosage(dosage || '')
+    setGiveOutDosageForm(dosageForm || '')
+  }
+
+  const resetGiveOutModal = () => {
+    setGiveOutModal(null)
+    setGiveOutNotes('')
+    setGiveOutDosage('')
+    setGiveOutDosageForm('')
+  }
+
   const handleGiveOut = async (e: React.MouseEvent, row: LongActingMedicineRow) => {
     e.stopPropagation()
     if (!row.can_give_out) return
-    setGivingOutId(row.name)
+    setGiveOutNotes('')
+    applyGiveOutDefaults(row)
+    setGiveOutModal(row)
+    setGiveOutModalLoading(true)
     try {
-      const updated = await recordLongActingMedicineGiveOut(row.name)
-      setRows((prev) =>
-        prev.map((item) => (item.name === row.name ? { ...item, ...updated } : item)),
+      const detail = await fetchLongActingMedicine(row.name)
+      applyGiveOutDefaults(row, detail)
+      setGiveOutModal((prev) => (prev ? { ...prev, ...detail } : prev))
+    } catch {
+      // keep list defaults if detail fetch fails
+    } finally {
+      setGiveOutModalLoading(false)
+    }
+  }
+
+  const handleConfirmGiveOut = async () => {
+    if (!giveOutModal) return
+    setGivingOutId(giveOutModal.name)
+    try {
+      const updated = await recordLongActingMedicineGiveOut(
+        giveOutModal.name,
+        giveOutNotes.trim() || undefined,
+        giveOutDosage.trim(),
+        giveOutDosageForm.trim(),
       )
+      setRows((prev) =>
+        prev.map((item) => (item.name === giveOutModal.name ? { ...item, ...updated } : item)),
+      )
+      setExpandedRows((prev) => ({ ...prev, [giveOutModal.name]: true }))
+      resetGiveOutModal()
       toast.success('Long acting medicine marked as given out')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record give-out')
@@ -198,6 +252,13 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setDetailPreview(row)
     setDetailName(row.name)
   }
+
+  const toggleGiveOuts = (e: React.MouseEvent, name: string) => {
+    e.stopPropagation()
+    setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }))
+  }
+
+  const tableColSpan = patient ? 8 : 9
 
   const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (formattedRows.length === 0) {
@@ -375,154 +436,163 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Frequency</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
-                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Given Out</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medication</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {formattedRows.map((row) => (
-                <tr
-                  key={row.name}
-                  className={`cursor-pointer transition-colors ${getRowColorClass(row)}`}
-                  onClick={() => handleRowClick(row)}
-                >
-                  <td className="px-3 py-2 text-primary font-medium">{row.name}</td>
-                  {!patient && (
-                    <td
-                      className="px-3 py-2 text-slate-700 cursor-pointer"
-                      onClick={(e) => { e.stopPropagation(); row.patient && onPatientClick?.(row.patient) }}
+              {formattedRows.map((row) => {
+                const expanded = Boolean(expandedRows[row.name])
+                return (
+                  <Fragment key={row.name}>
+                    <tr
+                      className={`cursor-pointer transition-colors ${getRowColorClass(row)}`}
+                      onClick={() => handleRowClick(row)}
                     >
-                      <div className="flex flex-col">
-                        <span className="font-medium text-primary hover:underline">{row.patient_name || '—'}</span>
-                        <span className="text-xs text-slate-500">{row.patient || ''}</span>
-                      </div>
-                    </td>
-                  )}
-                  <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
-                  <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
-                  <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
-                  <td className="px-3 py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                    {row.is_given_out_for_current_run ? (
-                      <span className="inline-flex items-center justify-center gap-1 text-emerald-700" title="Given out for current run">
-                        <Check className="w-4 h-4" />
-                      </span>
-                    ) : row.last_give_out_date ? (
-                      <span className="inline-flex flex-col items-center text-slate-500" title={`Last given ${formatDate(row.last_give_out_date)}`}>
-                        <Check className="w-4 h-4 text-slate-400" />
-                        <span className="text-[10px]">{formatDate(row.last_give_out_date)}</span>
-                      </span>
-                    ) : (
-                      <span className="text-slate-300">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">
-                    <span>{row.status || 'Draft'}</span>
-                  </td>
-                  <td className="px-3 py-2 text-slate-700">
-                    <span className='text-gray-500'>{row.remarks || 'No remarks'}</span>
-                  </td>
-                  {/* Actions column */}
-                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                    <div className="flex items-center justify-center gap-1">
-                      {canRecordGiveOut && row.can_stop && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleStop(e, row)}
-                          disabled={stoppingId === row.name}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <GiveOutExpandToggle
+                            expanded={expanded}
+                            onToggle={(e) => toggleGiveOuts(e, row.name)}
+                          />
+                          <span className="text-primary font-medium">{row.name}</span>
+                        </div>
+                      </td>
+                      {!patient && (
+                        <td
+                          className="px-3 py-2 text-slate-700 cursor-pointer"
+                          onClick={(e) => { e.stopPropagation(); row.patient && onPatientClick?.(row.patient) }}
                         >
-                          {stoppingId === row.name ? 'Stopping…' : 'Stop'}
-                        </button>
-                      )}
-                      {canRecordGiveOut && row.can_give_out && (
-                        <button
-                          type="button"
-                          onClick={(e) => handleGiveOut(e, row)}
-                          disabled={givingOutId === row.name}
-                          className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-emerald-600 bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
-                        >
-                          {givingOutId === row.name ? 'Saving…' : 'Give out'}
-                        </button>
-                      )}
-                      {/* Three-dot menu */}
-                      <div className="relative" ref={openMenuRow === row.name ? menuRef : undefined}>
-                        <button
-                          type="button"
-                          aria-label="Actions"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setOpenMenuRow(openMenuRow === row.name ? null : row.name)
-                          }}
-                          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
-                        >
-                          <MoreHorizontal className="w-4 h-4" />
-                        </button>
-                        <PortalActionsMenu
-                          open={openMenuRow === row.name}
-                          onClose={() => setOpenMenuRow(null)}
-                          triggerRef={menuRef}
-                          placement="above-right"
-                          minWidth={176}
-                        >
-                          <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                            Send Reminder
+                          <div className="flex flex-col">
+                            <span className="font-medium text-primary hover:underline">{row.patient_name || '—'}</span>
+                            <span className="text-xs text-slate-500">{row.patient || ''}</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
-                          </button>
-                          <div className="border-t border-slate-100 my-1" />
+                        </td>
+                      )}
+                      <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
+                      <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
+                      <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
+                      <td className="px-3 py-2 text-slate-700 max-w-[180px]">
+                        <span className="line-clamp-2" title={row.medication_label || undefined}>
+                          {row.medication_label || '—'}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">
+                        <span>{row.status || 'Draft'}</span>
+                      </td>
+                      <td className="px-3 py-2 text-slate-700">
+                        <span className='text-gray-500'>{row.remarks || 'No remarks'}</span>
+                      </td>
+                      {/* Actions column */}
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-center gap-1">
                           {canRecordGiveOut && row.can_stop && (
                             <button
                               type="button"
                               onClick={(e) => handleStop(e, row)}
                               disabled={stoppingId === row.name}
-                              className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-2"
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-red-300 bg-white text-red-700 hover:bg-red-50 disabled:opacity-50"
                             >
-                              <span className="text-red-500 text-base leading-none">⏹</span> Stop medicine
+                              {stoppingId === row.name ? 'Stopping…' : 'Stop'}
                             </button>
                           )}
-                          <button
-                            type="button"
-                            onClick={(e) => openRemarksModal(e, row)}
-                            className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                          >
-                            <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
-                          </button>
-                        </PortalActionsMenu>
-                      </div>
+                          {canRecordGiveOut && row.can_give_out && (
+                            <button
+                              type="button"
+                              onClick={(e) => handleGiveOut(e, row)}
+                              disabled={givingOutId === row.name}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-emerald-600 bg-white text-emerald-800 hover:bg-emerald-50 disabled:opacity-50"
+                            >
+                              {givingOutId === row.name ? 'Saving…' : 'Give out'}
+                            </button>
+                          )}
+                          {/* Three-dot menu */}
+                          <div className="relative" ref={openMenuRow === row.name ? menuRef : undefined}>
+                            <button
+                              type="button"
+                              aria-label="Actions"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenMenuRow(openMenuRow === row.name ? null : row.name)
+                              }}
+                              className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+                            >
+                              <MoreHorizontal className="w-4 h-4" />
+                            </button>
+                            <PortalActionsMenu
+                              open={openMenuRow === row.name}
+                              onClose={() => setOpenMenuRow(null)}
+                              triggerRef={menuRef}
+                              placement="above-right"
+                              minWidth={176}
+                            >
+                              <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                                Send Reminder
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'email')}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <Mail className="w-3.5 h-3.5 text-blue-500" /> Send Email
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'whatsapp')}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <span className="text-green-500 text-base leading-none">💬</span> Send WhatsApp
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => handleSendReminder(e, row.name, row.patient_name || row.patient || row.name, 'sms')}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
+                              </button>
+                              <div className="border-t border-slate-100 my-1" />
+                              {canRecordGiveOut && row.can_stop && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleStop(e, row)}
+                                  disabled={stoppingId === row.name}
+                                  className="w-full text-left px-3 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center gap-2"
+                                >
+                                  <span className="text-red-500 text-base leading-none">⏹</span> Stop medicine
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => openRemarksModal(e, row)}
+                                className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                              >
+                                <span className="text-slate-500 text-base leading-none">✏️</span> Add Remarks
+                              </button>
+                            </PortalActionsMenu>
+                          </div>
 
-                      {/* Print */}
-                      <PrintFormatDropdown
-                        doctype="Long Acting Medicine"
-                        docName={row.name}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors"
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                          {/* Print */}
+                          <PrintFormatDropdown
+                            doctype="Long Acting Medicine"
+                            docName={row.name}
+                            noLetterhead={0}
+                            triggerPrint={1}
+                            className="inline-flex items-center justify-center w-7 h-7 rounded-md text-slate-400 hover:text-primary hover:bg-slate-100 transition-colors"
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                    <LongActingMedicineGiveOutsInline
+                      lamName={row.name}
+                      expanded={expanded}
+                      colSpan={tableColSpan}
+                      refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}-${row.is_given_out_for_current_run}`}
+                    />
+                  </Fragment>
+                )
+              })}
             </tbody>
           </table>
         </div>
@@ -536,6 +606,102 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
           onPatientClick={onPatientClick}
         />
       ) : null}
+
+      {/* Record Give Out Modal */}
+      {giveOutModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+            <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-slate-900">Record Give Out</h2>
+                <p className="text-xs text-slate-500 mt-0.5">{giveOutModal.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (givingOutId) return
+                  resetGiveOutModal()
+                }}
+                disabled={Boolean(givingOutId)}
+                className="text-slate-400 hover:text-slate-600 disabled:opacity-40 text-lg leading-none"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="px-5 py-4 space-y-3">
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Medication</p>
+                <p className="mt-0.5 font-medium text-slate-800">
+                  {giveOutModal.medication_label || '—'}
+                </p>
+                {giveOutModal.next_run_date ? (
+                  <p className="mt-2 text-xs text-slate-600">
+                    Scheduled run: {formatDate(giveOutModal.next_run_date)}
+                  </p>
+                ) : null}
+              </div>
+              <div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dosage</label>
+                    <input
+                      type="text"
+                      value={giveOutDosage}
+                      onChange={(e) => setGiveOutDosage(e.target.value)}
+                      placeholder={giveOutModalLoading ? 'Loading…' : '25'}
+                      disabled={giveOutModalLoading || Boolean(givingOutId)}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Dosage Form</label>
+                    <input
+                      type="text"
+                      value={giveOutDosageForm}
+                      onChange={(e) => setGiveOutDosageForm(e.target.value)}
+                      placeholder={giveOutModalLoading ? 'Loading…' : 'mg'}
+                      disabled={giveOutModalLoading || Boolean(givingOutId)}
+                      className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50"
+                    />
+                  </div>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Prefilled from the medication plan; edit either field if needed.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                <textarea
+                  value={giveOutNotes}
+                  onChange={(e) => setGiveOutNotes(e.target.value)}
+                  rows={4}
+                  placeholder="Optional notes for this give-out…"
+                  className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  autoFocus
+                />
+              </div>
+            </div>
+            <div className="px-5 py-3 border-t border-slate-200 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => resetGiveOutModal()}
+                disabled={Boolean(givingOutId)}
+                className="px-4 py-2 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmGiveOut}
+                disabled={Boolean(givingOutId)}
+                className="px-4 py-2 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 font-medium"
+              >
+                {givingOutId === giveOutModal.name ? 'Saving…' : 'Confirm Give Out'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Remarks Modal */}
       {remarksModal && (

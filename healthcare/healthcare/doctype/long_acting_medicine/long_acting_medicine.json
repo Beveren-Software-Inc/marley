@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "naming_series:",
  "creation": "2026-03-15 17:09:54.732694",
@@ -12,6 +13,7 @@
   "patient_name",
   "practitioner",
   "company",
+  "written_frequency",
   "column_break_vuxl",
   "frequency",
   "start_date",
@@ -48,8 +50,7 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Patient",
-   "options": "Patient",
-   "reqd": 1
+   "options": "Patient"
   },
   {
    "fetch_from": "patient.patient_name",
@@ -75,7 +76,6 @@
    "fieldtype": "Column Break"
   },
   {
-   "default": "Weekly",
    "fieldname": "frequency",
    "fieldtype": "Select",
    "in_standard_filter": 1,
@@ -86,8 +86,7 @@
    "fieldname": "start_date",
    "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Start Date",
-   "reqd": 1
+   "label": "Start Date"
   },
   {
    "allow_on_submit": 1,
@@ -111,7 +110,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Draft\nActive\nPaused\nCompleted"
+   "options": "Draft\nActive\nInactive\nPaused\nCompleted"
   },
   {
    "fieldname": "medications_section",
@@ -122,8 +121,7 @@
    "fieldname": "medications",
    "fieldtype": "Table",
    "label": "Subscription Medications",
-   "options": "Subscription Medication Plan Item",
-   "reqd": 1
+   "options": "Subscription Medication Plan Item"
   },
   {
    "fieldname": "give_outs_section",
@@ -178,12 +176,17 @@
    "fieldtype": "Link",
    "label": "WhatsApp Template",
    "options": "Digital Whatsapp Template"
+  },
+  {
+   "fieldname": "written_frequency",
+   "fieldtype": "Data",
+   "label": "Written frequency"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-15 13:30:41.119189",
+ "modified": "2026-06-28 13:29:12.326891",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Long Acting Medicine",
@@ -242,5 +245,26 @@
  "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [
+  {
+   "color": "Green",
+   "title": "Completed"
+  },
+  {
+   "color": "Blue",
+   "title": "Active"
+  },
+  {
+   "color": "Gray",
+   "title": "Inactive"
+  },
+  {
+   "color": "Gray",
+   "title": "Draft"
+  },
+  {
+   "color": "Orange",
+   "title": "Paused"
+  }
+ ]
 }

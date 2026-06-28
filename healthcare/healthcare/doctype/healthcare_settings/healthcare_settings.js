@@ -357,6 +357,57 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('OP Injection Prescription Upload'), () => {
+			const uploader = new frappe.ui.FileUploader({
+				dialog_title: __('OP Injection Prescription Upload'),
+				allow_multiple: false,
+				restrictions: {
+					allowed_file_types: ['.xlsx', '.xls'],
+				},
+				on_success(file) {
+					frappe.call({
+						method: 'healthcare.api.op_injection_prescription_import.preview_op_injection_prescription_import',
+						args: { file_url: file.file_url },
+						freeze: true,
+						freeze_message: __('Reading VISIT_00_04 Excel…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Import OP long-acting / injection prescriptions (VISIT_00_04)?\n\nFile rows: {0}\nPatient + medicine groups: {1}\nGive-out lines: {2}\nGroups linked to Patient records: {3}\nRows without ACTING_DATE (still imported): {4}\n\nPatient, medication, and acting date are all optional. Legacy PATIENT_NUM is stored on the prescription when no Patient link exists. Continue?',
+									[
+										counts.file_rows || 0,
+										counts.medicine_groups || 0,
+										counts.give_out_lines || 0,
+										counts.patient_linked_groups || 0,
+										counts.rows_without_acting_date || 0,
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_op_injection_prescription_import_migration',
+										args: { file_url: file.file_url },
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('op_injection_prescription_import');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Import Discharge Checklist from Excel'), () => {
 			const uploader = new frappe.ui.FileUploader({
 				dialog_title: __('Import Discharge Checklist'),
