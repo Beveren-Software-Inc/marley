@@ -518,7 +518,7 @@ export const PrescriptionList = ({
                 : formatDashboardDate(row.posting_date)
             const metaFields = [
               ['Prescription', row.name],
-              ['Practitioner', row.healthcare_practitioner_name || row.practitioner],
+              ['Practitioner', row.healthcare_practitioner_name || row.practitioner || row.user_name],
               ['Care context', row.care_context],
               ['Posting date', row.posting_date ? formatDashboardDate(row.posting_date) : ''],
               ['Visit', row.patient_encounter],
@@ -602,7 +602,7 @@ export const PrescriptionList = ({
                 </td>
               )}
               <td className="px-4 py-3 text-sm text-slate-700">
-                {row.healthcare_practitioner_name || row.practitioner || '-'}
+                {row.healthcare_practitioner_name || row.practitioner || row.user_name || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {row.care_context || '-'}

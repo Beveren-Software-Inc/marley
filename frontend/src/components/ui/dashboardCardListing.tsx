@@ -174,6 +174,74 @@ export function CardRowTextHint({
   )
 }
 
+/** Hover ⓘ → emerald popover for a single text block (matches dashboard card tooltips). */
+export function CardRowPopoverHint({
+  content,
+  title = 'Instructions',
+  popoverWidth = 320,
+  popoverMaxHeight = 240,
+}: {
+  content?: string | null
+  title?: string
+  popoverWidth?: number
+  popoverMaxHeight?: number
+}) {
+  const text = (content || '').trim()
+  const {
+    open,
+    pos,
+    triggerRef,
+    popoverRef,
+    show,
+    scheduleHide,
+    cancelHide,
+    toggleOpen,
+    popWidth,
+    popHeight,
+  } = useDashboardCardPopover(popoverWidth, popoverMaxHeight)
+
+  if (!text) return null
+
+  return (
+    <>
+      <span
+        ref={triggerRef}
+        className="inline-flex shrink-0 items-center justify-center rounded-full p-0.5 text-emerald-600/55 hover:text-emerald-900 hover:bg-emerald-100 hover:ring-1 hover:ring-emerald-200/80 cursor-help transition-colors"
+        aria-label={`Show ${title.toLowerCase()}`}
+        onMouseEnter={show}
+        onMouseLeave={scheduleHide}
+        onFocus={show}
+        onBlur={scheduleHide}
+        onClick={toggleOpen}
+      >
+        <Info className="w-3.5 h-3.5" strokeWidth={2.25} />
+      </span>
+      {open &&
+        createPortal(
+          <div
+            ref={popoverRef}
+            role="tooltip"
+            className={`${DASHBOARD_CARD_POPOVER_SHELL_CLASS} overflow-hidden text-emerald-950`}
+            style={{ top: pos.top, left: pos.left, width: popWidth, maxHeight: popHeight }}
+            onMouseEnter={cancelHide}
+            onMouseLeave={scheduleHide}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-3.5 py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/75 mb-2">
+                {title}
+              </p>
+              <p className="max-h-[min(240px,calc(100vh-120px))] overflow-y-auto whitespace-pre-wrap break-words text-sm font-medium leading-relaxed text-emerald-950 [scrollbar-width:thin]">
+                {text}
+              </p>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  )
+}
+
 /** Hover ⓘ → light green popover with IDs, practitioner, type, etc. */
 export function CardRowMetaHint({ fields }: { fields: readonly CardMetaField[] }) {
   const items = cardRowMetaFields(fields)

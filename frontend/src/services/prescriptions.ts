@@ -7,6 +7,8 @@ export interface Prescription {
   inpatient_record?: string
   practitioner?: string
   healthcare_practitioner_name?: string
+  /** Legacy Oracle import: prescribing user when practitioner link is missing */
+  user_name?: string
   posting_date?: string
   start_date?: string
   end_date?: string

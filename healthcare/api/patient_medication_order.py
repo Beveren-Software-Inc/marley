@@ -83,7 +83,7 @@ def get_medication_orders(
 
 	fields = [
 		'name', 'patient', 'patient_name', 'care_context', 'patient_encounter',
-		'inpatient_record', 'practitioner', 'posting_date', 'start_date', 'end_date',
+		'inpatient_record', 'practitioner', 'user_name', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
 		'reference_doctype', 'reference_document_name', 'cost_center',
 	]
@@ -251,6 +251,23 @@ def _set_medication_row(doc, row):
 		if not entry.quantity:
 			entry.quantity = flt(entry.no_of_days, 0)
 	return entry
+
+
+def _normalize_legacy_medicine_display_codes(doc):
+	"""Ensure legacy child rows expose ITEM_00_01 code without Oracle zero-padding."""
+	if not doc:
+		return
+	from healthcare.api.patient_medication_order_import import _resolve_item_00_01_name
+
+	for row in doc.get("medication_orders") or []:
+		if getattr(row, "drug", None):
+			continue
+		resolved = _resolve_item_00_01_name(
+			getattr(row, "old_medicine_code", None) or getattr(row, "medicine_no", None)
+		)
+		if resolved:
+			row.old_medicine_code = resolved
+			row.medicine_no = resolved
 
 
 def _apply_legacy_ip_admission_medicine_fallbacks(doc):
@@ -574,6 +591,7 @@ def get_medication_order_by_id(name):
 			"practitioner_name"
 		) or doc.practitioner
 	_apply_legacy_ip_admission_medicine_fallbacks(doc)
+	_normalize_legacy_medicine_display_codes(doc)
 
 	if getattr(doc, "reference_doctype", None) == "Sales Order" and getattr(doc, "reference_document_name", None):
 		doc.invoice = _invoice_for_sales_order(doc.reference_document_name)
@@ -853,6 +871,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
             "practitioner_name"
         ) or doc.practitioner
     _apply_legacy_ip_admission_medicine_fallbacks(doc)
+    _normalize_legacy_medicine_display_codes(doc)
 
     return doc
 

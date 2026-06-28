@@ -10,6 +10,7 @@ import {
   displayMedicationInstructions,
   displayMedicationRoute,
   displayMedicationStartDate,
+  displayPrescriptionPractitioner,
   isLegacyMedicationOrderRow,
 } from '../../utils/medicationOrderDisplayUtils'
 
@@ -144,10 +145,12 @@ const MedicationRow = ({
   order,
   parentStartDate,
   parentEndDate,
+  prescriptionPractitioner,
 }: {
   order: any
   parentStartDate?: string
   parentEndDate?: string
+  prescriptionPractitioner: { healthcare_practitioner_name?: string; practitioner?: string; user_name?: string }
 }) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle: React.CSSProperties = isHex(color)
@@ -159,6 +162,7 @@ const MedicationRow = ({
   const displayDosage = displayMedicationDosage(order)
   const displayFrequency = displayMedicationFrequency(order)
   const displayRoute = displayMedicationRoute(order)
+  const displayPractitioner = displayPrescriptionPractitioner(prescriptionPractitioner, order)
   const displayStartDate = displayMedicationStartDate(order, parentStartDate)
   const displayEndDate = displayMedicationEndDate(order, parentEndDate)
 
@@ -195,6 +199,7 @@ const MedicationRow = ({
         )}
       </td>
       <td className="px-3 py-2.5 text-slate-600 text-xs">{displayRoute}</td>
+      <td className="px-3 py-2.5 text-slate-600 text-xs">{displayPractitioner}</td>
       <td className="px-3 py-2.5 text-xs text-slate-500">
         <div>{displayStartDate}</div>
         <div className="text-slate-400">→ {displayEndDate}</div>
@@ -361,7 +366,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
         <div>
           <SectionTitle title="Prescribing Details" />
           <div className="space-y-1">
-            <Field label="Practitioner"    value={prescription.healthcare_practitioner_name || prescription.practitioner} />
+            <Field label="Practitioner"    value={prescription.healthcare_practitioner_name || prescription.practitioner || prescription.user_name} />
             <Field label="Practitioner ID" value={prescription.practitioner} />
             <Field label="Company"         value={prescription.company} />
           </div>
@@ -427,7 +432,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                 <table className="min-w-full text-sm divide-y divide-slate-200">
                   <thead className="bg-slate-50">
                     <tr>
-                      {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Period', 'Status'].map(h => (
+                      {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Practitioner', 'Period', 'Status'].map(h => (
                         <th key={h} className="px-3 py-2 text-left font-semibold text-slate-600">{h}</th>
                       ))}
                     </tr>
@@ -439,6 +444,11 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                         order={order}
                         parentStartDate={prescription.start_date}
                         parentEndDate={prescription.end_date}
+                        prescriptionPractitioner={{
+                          healthcare_practitioner_name: prescription.healthcare_practitioner_name,
+                          practitioner: prescription.practitioner,
+                          user_name: prescription.user_name,
+                        }}
                       />
                     ))}
                   </tbody>

@@ -349,7 +349,22 @@ def _resolve_item_00_01_name(code_value: Any) -> str | None:
 		return None
 	if frappe.db.exists("ITEM_00_01", code_str):
 		return code_str
+	stripped = code_str.lstrip("0")
+	if stripped and stripped != code_str and frappe.db.exists("ITEM_00_01", stripped):
+		return stripped
 	return None
+
+
+def _normalize_oracle_medicine_num(value: Any) -> str | None:
+	"""Strip Oracle zero-padding from medicine numbers when ITEM_00_01 link is missing."""
+	code_str = _clean_oracle_num(value)
+	if not code_str:
+		return None
+	if code_str.isdigit():
+		if set(code_str) == {"0"}:
+			return None
+		return code_str.lstrip("0") or None
+	return code_str
 
 
 def _lookup_medication_name(medicine_num: str) -> str | None:
@@ -432,11 +447,11 @@ def _existing_pmo_for_admission(admission_name: str) -> str | None:
 def _line_signature(row: dict) -> str:
 	return "|".join(
 		[
-			row.get("trans_no") or "",
-			row.get("medicine_num") or "",
-			row.get("start_date") or "",
-			row.get("trans_date") or "",
-			row.get("cr_id") or "",
+			_cell_text(row.get("trans_no")),
+			_cell_text(row.get("medicine_num")),
+			_cell_text(row.get("start_date")),
+			_cell_text(row.get("trans_date")),
+			_cell_text(row.get("cr_id")),
 		]
 	)
 
@@ -470,7 +485,7 @@ def _append_child_line(doc, row: dict) -> None:
 	if ip_med_link:
 		entry.trans_num = ip_med_link
 
-	entry.medicine_no = medicine_num or None
+	entry.medicine_no = item_code or _normalize_oracle_medicine_num(medicine_num)
 	entry.old_medicine_code = item_code
 	entry.old_medicine_name = medication_name
 	entry.medication = medication_name
