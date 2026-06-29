@@ -3,6 +3,7 @@
 # For license information, please see license.txt
 
 import json
+import re
 
 import frappe
 from frappe import _
@@ -422,6 +423,20 @@ def _build_template_api_url(base_url):
 	return f"{base_url}/v2/api/outgoing/template"
 
 
+def _strip_template_filters(category=None, language=None, name=None, status=None):
+	"""Treat blank / ALL as no filter."""
+
+	def clean(value):
+		if value is None:
+			return None
+		text = str(value).strip()
+		if not text or text.upper() == "ALL":
+			return None
+		return text
+
+	return clean(category), clean(language), clean(name), clean(status)
+
+
 def _build_template_query_params(category=None, language=None, name=None, status=None):
 	"""Build query parameters for template API request.
 	
@@ -434,6 +449,7 @@ def _build_template_query_params(category=None, language=None, name=None, status
 	Returns:
 		tuple: (params, params_with_status)
 	"""
+	category, language, name, status = _strip_template_filters(category, language, name, status)
 	params = {}
 	if category:
 		params["category"] = category.upper() if isinstance(category, str) else category
@@ -446,9 +462,206 @@ def _build_template_query_params(category=None, language=None, name=None, status
 	# We'll attempt with status first, then retry without if needed.
 	params_with_status = dict(params)
 	if status:
-		params_with_status["status"] = status
+		params_with_status["status"] = status.upper() if isinstance(status, str) else status
 	
 	return params, params_with_status
+
+
+DEFAULT_TEMPLATE_PAGE_SIZE = 100
+
+
+def _extract_paging(data):
+	"""Read paging metadata from Digital Connect list responses."""
+	if not isinstance(data, dict):
+		return {}
+	for container in (data, data.get("message") if isinstance(data.get("message"), dict) else None):
+		if isinstance(container, dict) and isinstance(container.get("paging"), dict):
+			return container["paging"]
+	return {}
+
+
+def _looks_like_template_dict(item):
+	return isinstance(item, dict) and any(
+		key in item
+		for key in (
+			"name",
+			"language",
+			"components",
+			"status",
+			"category",
+			"id",
+			"whatsapp_template_id",
+			"template_name",
+		)
+	)
+
+
+def _looks_like_template_list(items):
+	if not isinstance(items, list) or not items:
+		return False
+	return any(_looks_like_template_dict(item) for item in items)
+
+
+def _collect_template_list(node, depth=0):
+	"""Find the templates array inside varying API response shapes."""
+	if depth > 6:
+		return []
+	if isinstance(node, list):
+		return node if _looks_like_template_list(node) else []
+	if not isinstance(node, dict):
+		return []
+
+	for key in ("data", "templates", "message_templates", "results", "items", "records"):
+		found = _collect_template_list(node.get(key), depth + 1)
+		if found:
+			return found
+
+	message = node.get("message")
+	if isinstance(message, list):
+		found = _collect_template_list(message, depth + 1)
+		if found:
+			return found
+	if isinstance(message, dict):
+		found = _collect_template_list(message, depth + 1)
+		if found:
+			return found
+
+	if isinstance(node.get("response"), dict):
+		found = _collect_template_list(node["response"], depth + 1)
+		if found:
+			return found
+
+	return []
+
+
+def _describe_response_for_log(data):
+	if not isinstance(data, dict):
+		return str(type(data))
+	parts = [f"keys={list(data.keys())}"]
+	message = data.get("message")
+	if isinstance(message, dict):
+		parts.append(f"message.keys={list(message.keys())}")
+	elif isinstance(message, list):
+		parts.append(f"message=list(len={len(message)})")
+	elif isinstance(message, str):
+		parts.append(f"message={message[:200]}")
+	return ", ".join(parts)
+
+
+def _fetch_all_templates_from_api(url, headers, base_params, status=None):
+	"""Fetch all template pages from Digital Connect."""
+	all_templates = []
+	seen = set()
+	params = dict(base_params)
+	params.setdefault("limit", DEFAULT_TEMPLATE_PAGE_SIZE)
+	offset = 0
+	use_offset = True
+
+	for _ in range(100):
+		if use_offset:
+			params["offset"] = offset
+		data = _make_template_api_request(url, headers, params, status if offset == 0 and use_offset else None)
+		batch = _extract_templates_from_response(data)
+
+		# Some tenants use `name` instead of `name_or_content` for search.
+		if not batch and offset == 0 and base_params.get("name_or_content") and "name" not in params:
+			alt_params = dict(base_params)
+			alt_params["name"] = alt_params.pop("name_or_content")
+			alt_params.setdefault("limit", DEFAULT_TEMPLATE_PAGE_SIZE)
+			alt_params["offset"] = 0
+			data = _make_template_api_request(url, headers, alt_params, status)
+			batch = _extract_templates_from_response(data)
+			if batch:
+				params = alt_params
+				base_params = alt_params
+				use_offset = True
+				offset = 0
+
+		for template in batch:
+			if not isinstance(template, dict):
+				continue
+			key = str(template.get("id") or f"{template.get('name')}::{template.get('language')}")
+			if key in seen:
+				continue
+			seen.add(key)
+			all_templates.append(template)
+
+		paging = _extract_paging(data)
+		after_cursor = paging.get("after")
+		if after_cursor:
+			params = dict(base_params)
+			params.setdefault("limit", DEFAULT_TEMPLATE_PAGE_SIZE)
+			params["after"] = after_cursor
+			params.pop("offset", None)
+			use_offset = False
+			if not batch:
+				break
+			continue
+
+		if len(batch) < params.get("limit", DEFAULT_TEMPLATE_PAGE_SIZE):
+			break
+
+		offset += len(batch)
+		params = dict(base_params)
+		params.setdefault("limit", DEFAULT_TEMPLATE_PAGE_SIZE)
+		use_offset = True
+
+	return all_templates
+
+
+def _extract_error_message(data):
+	"""Extract error message from API response.
+	
+	Args:
+		data: Response data (dict or string)
+		
+	Returns:
+		str: Error message or None
+	"""
+	if isinstance(data, str):
+		return data.strip() or None
+	if not isinstance(data, dict):
+		return str(data)
+
+	error = data.get("error")
+	if isinstance(error, dict):
+		msg = error.get("message")
+		if msg:
+			return str(msg)
+	elif isinstance(error, str) and error.strip():
+		return error
+
+	message = data.get("message")
+	if isinstance(message, str) and message.strip():
+		return message
+	if isinstance(message, dict):
+		nested_error = message.get("error")
+		if isinstance(nested_error, dict) and nested_error.get("message"):
+			return str(nested_error.get("message"))
+		if isinstance(nested_error, str) and nested_error.strip():
+			return nested_error
+		if message.get("message"):
+			return str(message.get("message"))
+
+	detail = data.get("detail")
+	if isinstance(detail, str) and detail.strip():
+		return detail
+
+	return str(data)
+
+
+def _strip_disallowed_query_param(params, error_message):
+	"""Remove a query param Digital Connect rejected, e.g. \"'offset' is not allowed\"."""
+	if not error_message:
+		return False
+	match = re.search(r"'([^']+)'\s+is not allowed", error_message, re.I)
+	if not match:
+		return False
+	param = match.group(1)
+	if param in params:
+		params.pop(param)
+		return True
+	return False
 
 
 def _make_template_api_request(url, headers, params, status=None):
@@ -465,93 +678,47 @@ def _make_template_api_request(url, headers, params, status=None):
 	"""
 	if requests is None:
 		frappe.throw(_("Python requests library is not available on this site."))
-	
-	# Log the request for debugging
-	request_params = params.copy()
-	if status:
-		request_params["status"] = status
-	
-	frappe.log_error(
-		f"Fetching templates - URL: {url}, Params: {request_params}",
-		"Digital Connect Template Fetch Request"
-	)
-	
-	# Try with status first if provided
-	if status:
-		response = requests.get(url, headers=headers, params=request_params, timeout=15)
-		
-		# Parse response
-		try:
-			data = response.json()
-		except Exception:
-			data = response.text or {"data": [], "paging": {}}
-		
-		# Check if error is about status not being allowed
-		if not response.ok:
-			error_message = _extract_error_message(data)
-			
-			# Adaptive fallback: retry without status if it's not allowed
-			if (
-				response.status_code == 400
-				and "'status' is not allowed" in (error_message or "")
-			):
-				# Retry without status
-				response = requests.get(url, headers=headers, params=params, timeout=15)
-				try:
-					data = response.json()
-				except Exception:
-					data = response.text or {"data": [], "paging": {}}
-				
-				if not response.ok:
-					error_message = _extract_error_message(data)
-					frappe.throw(
-						_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
-							response.status_code, error_message
-						)
-					)
-			else:
-				frappe.throw(
-					_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
-						response.status_code, error_message
-					)
-				)
-	else:
-		# No status filter, make direct request
-		response = requests.get(url, headers=headers, params=params, timeout=15)
-		
-		try:
-			data = response.json()
-		except Exception:
-			data = response.text or {"data": [], "paging": {}}
-		
-		if not response.ok:
-			error_message = _extract_error_message(data)
-			frappe.throw(
-				_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
-					response.status_code, error_message
-				)
-			)
-	
-	return data
 
+	current_params = dict(params or {})
+	if status:
+		current_params["status"] = status
 
-def _extract_error_message(data):
-	"""Extract error message from API response.
-	
-	Args:
-		data: Response data (dict or string)
-		
-	Returns:
-		str: Error message or None
-	"""
-	if isinstance(data, dict):
-		return (
-			data.get("error", {}).get("message")
-			or data.get("message", {}).get("error", {}).get("message")
-			or data.get("message")
-			or str(data)
+	for attempt in range(8):
+		frappe.logger("digital_connect").info(
+			"Fetching templates (attempt %s) - URL: %s, Params: %s",
+			attempt + 1,
+			url,
+			current_params,
 		)
-	return str(data)
+
+		response = requests.get(url, headers=headers, params=current_params, timeout=15)
+
+		try:
+			data = response.json()
+		except Exception:
+			data = response.text or {"data": [], "paging": {}}
+
+		if response.ok:
+			if isinstance(data, dict) and data.get("success") is False:
+				frappe.throw(
+					_("Digital Connect returned an error: {0}").format(
+						_extract_error_message(data) or _("Unknown error")
+					)
+				)
+			return data if isinstance(data, dict) else {"data": data}
+
+		error_message = _extract_error_message(data) or response.text
+
+		if response.status_code == 400 and _strip_disallowed_query_param(current_params, error_message):
+			continue
+
+		frappe.throw(
+			_("Failed to fetch templates from Digital Connect (HTTP {0}): {1}").format(
+				response.status_code, error_message
+			)
+		)
+
+	frappe.throw(_("Failed to fetch templates from Digital Connect after removing unsupported query parameters."))
 
 
 def _extract_templates_from_response(data):
@@ -563,26 +730,13 @@ def _extract_templates_from_response(data):
 	Returns:
 		list: List of template dictionaries
 	"""
-	api_templates = []
-	
-	if isinstance(data, dict):
-		# Try standard structure first: {"data": [...]}
-		if "data" in data and isinstance(data.get("data"), list):
-			api_templates = data.get("data", [])
-		# Try nested structure: {"message": {"data": [...]}}
-		elif "message" in data and isinstance(data.get("message"), dict):
-			message_data = data.get("message", {})
-			if "data" in message_data and isinstance(message_data.get("data"), list):
-				api_templates = message_data.get("data", [])
-	# If data is a list directly (unlikely but handle it)
-	elif isinstance(data, list):
-		api_templates = data
+	api_templates = _collect_template_list(data)
 	
 	# Log if we couldn't extract templates
 	if not api_templates and isinstance(data, dict):
 		frappe.log_error(
-			f"Could not extract templates from response. Response keys: {list(data.keys())}",
-			"Digital Connect Template Fetch"
+			f"Could not extract templates from response. {_describe_response_for_log(data)}",
+			"Digital Connect Template Fetch",
 		)
 	
 	return api_templates
@@ -774,25 +928,29 @@ def _show_fetch_summary(synced_count, skipped_count, total_templates, category, 
 		)
 	elif total_templates == 0:
 		response_info = f"Category: {category or 'ALL'}, Status: {status or 'ALL'}, Language: {language or 'ALL'}, Name: {name or 'ALL'}"
-		frappe.msgprint(
-			_("No templates found matching the filters. {0}").format(response_info),
-			indicator="orange",
-		)
+		msg = _("No templates were returned from Digital Connect. {0}").format(response_info)
+		if category or status or language or name:
+			msg += " " + _("Try leaving all filters blank to fetch every template.")
+		frappe.msgprint(msg, indicator="orange")
 
 
 @frappe.whitelist()
 def fetch_templates(category=None, status=None, language=None, name=None):
 	"""Fetch templates from Digital Connect API.
 
+	All filters are optional — leave them blank to fetch every template your API key can access.
+
 	Args:
 		category: Filter by category (AUTHENTICATION, MARKETING, UTILITY)
 		status: Filter by status (PENDING, APPROVED, REJECTED, PAUSED).
 			Note: Some Digital Connect tenants reject the `status` query param; in that case we retry
 			without it and apply status filtering locally.
-		language: Filter by language code
+		language: Filter by language code (e.g. en_US)
 		name: Filter by template name or content
 	"""
 	try:
+		category, language, name, status = _strip_template_filters(category, language, name, status)
+
 		# Get settings
 		settings, api_key, base_url = _get_digital_connect_settings()
 		
@@ -805,11 +963,19 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 			"token": api_key,
 		}
 		
-		# Make API request
-		data = _make_template_api_request(url, headers, params, status)
-		
-		# Extract templates from response
-		api_templates = _extract_templates_from_response(data)
+		# Fetch all pages from API
+		api_templates = _fetch_all_templates_from_api(url, headers, params, status)
+
+		# Some tenants ignore or mishandle category query params — retry and filter locally.
+		if not api_templates and category:
+			params_without_category, _ = _build_template_query_params(None, language, name, status)
+			unfiltered = _fetch_all_templates_from_api(url, headers, params_without_category, status)
+			category_upper = category.upper()
+			api_templates = [
+				template
+				for template in unfiltered
+				if str(template.get("category") or "").upper() == category_upper
+			]
 		
 		# Filter by status if needed
 		templates = _filter_templates_by_status(api_templates, status)
@@ -817,10 +983,12 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 		# Debug logging
 		total_templates = len(api_templates)
 		filtered_templates = len(templates)
-		frappe.log_error(
-			f"Template fetch: Total from API: {total_templates}, After status filter: {filtered_templates}, "
-			f"Category filter: {category or 'ALL'}, Status filter: {status or 'ALL'}",
-			"Digital Connect Template Fetch Debug"
+		frappe.logger("digital_connect").info(
+			"Template fetch: total=%s filtered=%s category=%s status=%s",
+			total_templates,
+			filtered_templates,
+			category or "ALL",
+			status or "ALL",
 		)
 		
 		# If no templates found, show message and return
@@ -830,7 +998,7 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 				"status": "success",
 				"synced_count": 0,
 				"skipped_count": 0,
-				"data": data,
+				"data": {"data": api_templates},
 				"message": "No templates found",
 				"total_from_api": total_templates
 			}
@@ -845,7 +1013,7 @@ def fetch_templates(category=None, status=None, language=None, name=None):
 			"status": "success",
 			"synced_count": synced_count,
 			"skipped_count": skipped_count,
-			"data": data,
+			"data": {"data": api_templates},
 			"total_from_api": total_templates
 		}
 	
@@ -1470,67 +1638,31 @@ def get_template_library(category=None, language=None):
 		base_url = base_url.split("/v2/api/outgoing/")[0]
 	base_url = base_url.rstrip("/")
 	
-	# Template library endpoint (assuming it exists - adjust if different)
-	# If Digital Connect doesn't have a library endpoint, we can use the regular template endpoint
-	url = f"{base_url}/v2/api/outgoing/template/library"
-	
+	# Template library endpoint (if unavailable we fall back to the regular template list).
+	library_url = f"{base_url}/v2/api/outgoing/template/library"
+	template_url = f"{base_url}/v2/api/outgoing/template"
+
+	if requests is None:
+		frappe.throw(_("Python requests library is not available on this site."))
+
 	headers = {
 		"Content-Type": "application/json",
 		"token": api_key,
 	}
-	
-	if requests is None:
-		frappe.throw(_("Python requests library is not available on this site."))
-	
-	# Build query parameters
-	params = {}
-	if category:
-		params["category"] = category.upper() if isinstance(category, str) else category
-	if language:
-		params["language"] = language
-	
+	params, _status = _build_template_query_params(category, language, None, None)
+
 	try:
-		response = requests.get(url, headers=headers, params=params, timeout=15)
-		
-		# If library endpoint doesn't exist, fall back to regular template endpoint
-		if response.status_code == 404:
-			# Try regular template endpoint instead
-			url = f"{base_url}/v2/api/outgoing/template"
-			response = requests.get(url, headers=headers, params=params, timeout=15)
-		
-		if not response.ok:
-			try:
-				error_data = response.json()
-				error_message = (
-					error_data.get("message", {}).get("error", {}).get("message")
-					or error_data.get("error", {}).get("message")
-					or error_data.get("message")
-					or str(error_data)
-				)
-			except Exception:
-				error_message = response.text
-			
-			frappe.throw(
-				_("Failed to get template library from Digital Connect (HTTP {0}): {1}").format(
-					response.status_code, error_message
-				)
-			)
-		
-		data = response.json()
-		
-		# Extract templates from response (handle different structures)
 		templates = []
-		if isinstance(data, dict):
-			if "data" in data and isinstance(data.get("data"), list):
-				templates = data.get("data", [])
-			elif "message" in data and isinstance(data.get("message"), dict):
-				message_data = data.get("message", {})
-				if "data" in message_data and isinstance(message_data.get("data"), list):
-					templates = message_data.get("data", [])
-			elif "templates" in data and isinstance(data.get("templates"), list):
-				templates = data.get("templates", [])
-		
+		for endpoint in (library_url, template_url):
+			try:
+				templates = _fetch_all_templates_from_api(endpoint, headers, params)
+			except Exception as exc:
+				frappe.log_error(f"Template library fetch failed for {endpoint}: {exc}", "Digital Connect Template Fetch")
+				templates = []
+			if templates:
+				break
+
 		return {"status": "success", "templates": templates}
-		
+
 	except requests.exceptions.RequestException as e:
 		frappe.throw(_("Failed to get template library: {0}").format(str(e)))
