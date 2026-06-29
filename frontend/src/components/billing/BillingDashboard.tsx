@@ -972,6 +972,7 @@ const handleMakePayment = async (
                   <th className="px-3 py-2 text-left">Mode</th>
                   <th className="px-3 py-2 text-right">Amount</th>
                   <th className="px-3 py-2 text-left">Invoice</th>
+                  <th className="px-3 py-2 text-center w-12">Print</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -1008,11 +1009,26 @@ const handleMakePayment = async (
                       {isDraft ? '—' : formatCurrency(signedAmount)}
                     </td>
                     <td className="px-3 py-2">{p.invoice_name || '—'}</td>
+                    <td className="px-3 py-2 text-center">
+                      {!isDraft ? (
+                        <PrintFormatDropdown
+                          doctype="Payment Entry"
+                          docName={p.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          ariaLabel={`Print payment ${p.name}`}
+                          title="Print payment entry"
+                        />
+                      ) : (
+                        <span className="text-xs text-slate-400">—</span>
+                      )}
+                    </td>
                   </tr>
                   )
                 })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={6} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
                 )}
               </tbody>
             </table>
