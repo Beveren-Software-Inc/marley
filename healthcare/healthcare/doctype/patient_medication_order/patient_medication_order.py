@@ -6,7 +6,7 @@
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cstr
+from frappe.utils import cint, cstr
 
 from healthcare.healthcare.doctype.patient_visit.patient_visit import (
 	get_prescription_dates,
@@ -15,6 +15,10 @@ from healthcare.api.patient_visit import update_patient_visit_status
 
 
 class PatientMedicationOrder(Document):
+	def before_insert(self):
+		if not cint(self.new_system) and not getattr(frappe.flags, "in_import", False):
+			self.new_system = 1
+
 	def validate(self):
 		self.validate_inpatient()
 		self.validate_duplicate()
@@ -65,23 +69,51 @@ class PatientMedicationOrder(Document):
 		# 	)
 
 	def set_total_orders(self):
-		self.db_set("total_orders", len(self.medication_orders))
+		self.total_orders = len(self.medication_orders)
+
+	def _compute_status(self):
+		has_signature = bool(cstr(self.doctors_signature).strip())
+
+		if self.docstatus == 2:
+			return "Cancelled"
+		if cint(self.new_system):
+			if not has_signature:
+				return "Unsigned"
+			if self.docstatus == 1:
+				if not self.completed_orders:
+					return "Signed"
+				if self.completed_orders < self.total_orders:
+					return "In Process"
+				return "Completed"
+			return "Signed"
+		if self.docstatus == 1:
+			if not self.completed_orders:
+				return "Pending"
+			if self.completed_orders < self.total_orders:
+				return "In Process"
+			return "Completed"
+		return "Signed" if has_signature else "Draft"
 
 	def set_status(self):
-		if self.docstatus == 2:
-			status = "Cancelled"
-		elif self.docstatus == 1:
-			if not self.completed_orders:
-				status = "Pending"
-			elif self.completed_orders < self.total_orders:
-				status = "In Process"
-			else:
-				status = "Completed"
-		else:
-			# Draft document (docstatus 0): signed when doctor's signature is captured
-			status = "Signed" if cstr(self.doctors_signature).strip() else "Draft"
+		status = self._compute_status()
+		self.status = status
+		if self.name and self.docstatus == 1:
+			frappe.db.set_value(
+				self.doctype,
+				self.name,
+				"status",
+				status,
+				update_modified=False,
+			)
 
-		self.db_set("status", status)
+	@staticmethod
+	def allows_medicine_giving(doc) -> bool:
+		"""New-system prescriptions require a doctor signature before medicine can be given."""
+		if not cint(getattr(doc, "new_system", 0)):
+			return True
+		has_signature = bool(cstr(getattr(doc, "doctors_signature", "")).strip())
+		status = cstr(getattr(doc, "status", "")).strip()
+		return has_signature and status in ("Signed", "In Process", "Completed")
 
 	@frappe.whitelist()
 	def add_order_entries(self, order):

@@ -20,6 +20,7 @@
   "by_nurse",
   "is_psy_test",
   "is_out_test",
+  "outsource",
   "result_type",
   "column_break_mqkg",
   "result_mul_val",
@@ -630,6 +631,12 @@
    "fieldname": "op_rate",
    "fieldtype": "Currency",
    "label": "OP Rate"
+  },
+  {
+   "default": "0",
+   "fieldname": "outsource",
+   "fieldtype": "Check",
+   "label": "Outsource"
   }
  ],
  "grid_page_length": 50,
@@ -640,7 +647,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-06-22 09:15:06.452552",
+ "modified": "2026-06-29 17:45:30.847888",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

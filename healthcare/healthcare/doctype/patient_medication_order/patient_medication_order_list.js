@@ -4,6 +4,8 @@ frappe.listview_settings['Patient Medication Order'] = {
 	get_indicator: function(doc) {
 		if (doc.status === "Signed") {
 			return [__("Signed"), "purple", "status,=,Signed"];
+		} else if (doc.status === "Unsigned") {
+			return [__("Unsigned"), "orange", "status,=,Unsigned"];
 		} else if (doc.status === "Draft") {
 			return [__("Draft"), "grey", "status,=,Draft"];
 		} else if (doc.status === "Pending") {

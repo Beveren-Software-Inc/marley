@@ -75,14 +75,19 @@ class TestPatientMedicationOrder(FrappeTestCase):
 		ipmo.doctors_signature = None
 		ipmo.save()
 		ipmo.reload()
-		self.assertEqual(ipmo.status, "Draft")
+		self.assertEqual(ipmo.status, "Unsigned")
 
 	def test_status(self):
 		ipmo = create_ipmo(self.patient)
 		ipmo.submit()
 		ipmo.reload()
 
-		self.assertEqual(ipmo.status, "Pending")
+		self.assertEqual(ipmo.status, "Unsigned")
+
+		ipmo.doctors_signature = "/files/test-signature.png"
+		ipmo.save()
+		ipmo.reload()
+		self.assertEqual(ipmo.status, "Signed")
 
 		filters = frappe._dict(
 			from_date=add_days(getdate(), -1), to_date=add_days(getdate(), -1), from_time="", to_time=""

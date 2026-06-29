@@ -27,6 +27,7 @@ export interface Prescription {
   modified_by?: string
   is_pink?: 0 | 1
   doctors_signature?: string
+  new_system?: 0 | 1
 }
 
 export interface PrescriptionFilters {
@@ -414,7 +415,6 @@ export async function fetchPrescriptionByInpatientOrEncounter(
   return null
 }
 
-// Add this to your prescriptions service file
 export async function updatePrescription(data: any): Promise<any> {
   const response = await fetch('/api/method/healthcare.api.patient_medication_order.update_medication_order', {
     method: 'POST',
@@ -435,6 +435,20 @@ export async function updatePrescription(data: any): Promise<any> {
   }
 
   throw new Error('Failed to update prescription')
+}
+
+export async function signPrescription(
+  name: string,
+  doctorsSignature: string,
+): Promise<{ name: string; status: string; doctors_signature?: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ name: string; status: string; doctors_signature?: string }>(
+    '/api/method/healthcare.api.patient_medication_order.sign_patient_medication_order',
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, doctors_signature: doctorsSignature }),
+    },
+  )
 }
 
 /** Set stop reason on one prescription line, or clear it (resume). */

@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:dosage",
@@ -12,6 +13,7 @@
   "frequency_in_a_day",
   "column_break_bxra",
   "daily",
+  "active",
   "section_break_iqky",
   "dosage_strength"
  ],
@@ -49,10 +51,16 @@
    "fieldname": "daily",
    "fieldtype": "Check",
    "label": "Daily"
+  },
+  {
+   "default": "0",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active"
   }
  ],
  "links": [],
- "modified": "2026-06-08 10:54:43.974377",
+ "modified": "2026-06-30 02:24:28.151397",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Prescription Frequency",

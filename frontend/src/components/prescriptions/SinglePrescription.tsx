@@ -14,9 +14,11 @@ import {
   isLongActingPrescriptionType,
   normalizeMedicationOrderForSave,
 } from '../../utils/prescriptionType'
-import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
+import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
+import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, PenLine } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
+import { SignPrescriptionPanel } from './SignPrescriptionPanel'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
@@ -1278,6 +1280,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
 
   const [editingOrder, setEditingOrder] = useState<any>(null)
   const [showAddModal, setShowAddModal] = useState(false)
+  const [showSignModal, setShowSignModal] = useState(false)
   const [givenStatus, setGivenStatus] = useState<Record<string, { has_given: boolean; count: number }>>({})
 
 
@@ -1373,7 +1376,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const contextLabel = mode === 'OP' ? 'Outpatient visit' : 'Inpatient admission'
   const contextId = mode === 'OP' ? activeVisit : activeAdmission
 
-  const renderHeaderActions = (hasPrescription: boolean) => (
+  const renderHeaderActions = (hasPrescription: boolean, rx?: Prescription | null) => (
     <div className="flex items-center gap-2">
       <button
         type="button"
@@ -1418,6 +1421,16 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           title={hasPrescription ? 'Add new medicine' : 'Create prescription'}
         >
           <Plus className="h-4 w-4" />
+        </button>
+      )}
+      {!readOnly && hasPrescription && rx && prescriptionNeedsSignature(rx) && (
+        <button
+          type="button"
+          onClick={() => setShowSignModal(true)}
+          className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 text-amber-800 p-1.5 hover:bg-amber-100 transition-colors"
+          title="Sign prescription"
+        >
+          <PenLine className="h-4 w-4" />
         </button>
       )}
       <button
@@ -1504,6 +1517,17 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     </p>
                     <h1 className="text-base font-bold text-slate-900 leading-none">
                         {prescription.name}
+                        {prescription.status && (
+                          <span className={`ml-2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                            prescription.status === 'Signed'
+                              ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              : prescription.status === 'Unsigned'
+                                ? 'bg-orange-100 text-orange-800 border-orange-200'
+                                : 'bg-slate-100 text-slate-700 border-slate-200'
+                          }`}>
+                            {prescription.status}
+                          </span>
+                        )}
                         {prescription.is_pink && (
                         <span className="ml-2 text-xs font-medium text-pink-500">🩷 Pink</span>
                         )}
@@ -1524,7 +1548,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                 />
               </div>
             </div>
-            {renderHeaderActions(true)}
+            {renderHeaderActions(true, prescription)}
           </div>
         </div>
 
@@ -1622,6 +1646,52 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           onClose={() => setShowAddModal(false)}
           onSaved={() => { setShowAddModal(false); load() }}
         />
+      )}
+
+      {showSignModal && prescription && (
+        <div
+          className={CREATE_MODAL_OVERLAY}
+          onClick={() => setShowSignModal(false)}
+          role="presentation"
+        >
+          <div
+            className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="sign-prescription-title"
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <div>
+                <h2 id="sign-prescription-title" className="text-base font-semibold text-slate-900">
+                  Sign prescription
+                </h2>
+                <p className="text-xs text-slate-500 mt-0.5 font-mono">{prescription.name}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSignModal(false)}
+                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                title="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              <SignPrescriptionPanel
+                prescriptionName={prescription.name}
+                currentSignature={prescription.doctors_signature}
+                status={prescription.status}
+                newSystem={prescription.new_system}
+                compact
+                onSigned={() => {
+                  setShowSignModal(false)
+                  load()
+                }}
+              />
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

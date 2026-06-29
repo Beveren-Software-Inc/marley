@@ -5,6 +5,7 @@ import {
 } from '../ui/CreateModalChrome'
 import type { Prescription, MedicationOrderEntry } from '../../services/prescriptions'
 import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatientOrEncounter } from '../../services/prescriptions'
+import { prescriptionAllowsMedicineGiving } from '../../utils/prescriptionSigning'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   createMedicineGiven,
@@ -297,21 +298,23 @@ export const CreateMedicineGivenModal = ({
             careContext: 'Inpatient Admission',
             inpatientRecord: propInpatientRecord || adm.name,
           })
+          const signedList = list.filter((p) => prescriptionAllowsMedicineGiving(p))
           const match = list.find((p) => p.name === initialPrescription)
-          if (match) {
-            setPrescriptions(list)
+          if (match && prescriptionAllowsMedicineGiving(match)) {
+            setPrescriptions(signedList)
             setSelectedPrescription(initialPrescription)
+            await loadPrescriptionOrders(initialPrescription)
+          } else if (match) {
+            setPrescriptions([])
+            setSelectedPrescription('')
+            setOrders([])
+            setSelectedOrder('')
+            setError('This prescription must be signed before medicine can be given.')
           } else {
-            setPrescriptions([
-              {
-                name: initialPrescription,
-                patient: initialPatient,
-                inpatient_record: propInpatientRecord || adm.name,
-              },
-            ])
+            setPrescriptions(signedList)
             setSelectedPrescription(initialPrescription)
+            await loadPrescriptionOrders(initialPrescription)
           }
-          await loadPrescriptionOrders(initialPrescription)
         } else {
           const hasContext = propInpatientRecord || propPatientEncounter
           if (hasContext) {
@@ -320,10 +323,16 @@ export const CreateMedicineGivenModal = ({
                 propInpatientRecord,
                 propPatientEncounter
               )
-              if (currentRx) {
+              if (currentRx && prescriptionAllowsMedicineGiving(currentRx)) {
                 setPrescriptions([currentRx])
                 setSelectedPrescription(currentRx.name)
                 await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders)
+              } else if (currentRx) {
+                setPrescriptions([])
+                setSelectedPrescription('')
+                setOrders([])
+                setSelectedOrder('')
+                setError('The current prescription must be signed before medicine can be given.')
               } else {
                 setPrescriptions([])
                 setSelectedPrescription('')
@@ -344,11 +353,17 @@ export const CreateMedicineGivenModal = ({
               careContext: 'Inpatient Admission',
               inpatientRecord: adm.name,
             })
-            setPrescriptions(list)
-            if (list.length > 0) {
-              const first = list[0].name
+            const signedList = list.filter((p) => prescriptionAllowsMedicineGiving(p))
+            setPrescriptions(signedList)
+            if (signedList.length > 0) {
+              const first = signedList[0].name
               setSelectedPrescription(first)
               await loadPrescriptionOrders(first)
+            } else if (list.length > 0) {
+              setSelectedPrescription('')
+              setOrders([])
+              setSelectedOrder('')
+              setError('No signed prescription found for this admission. Sign the prescription first.')
             } else {
               setSelectedPrescription('')
               setOrders([])
