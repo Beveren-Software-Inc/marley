@@ -86,6 +86,7 @@ def get_medication_orders(
 		'inpatient_record', 'practitioner', 'user_name', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
 		'reference_doctype', 'reference_document_name', 'cost_center',
+		'new_system', 'doctors_signature',
 	]
 
 	if use_sql:
@@ -393,6 +394,7 @@ def create_patient_medication_order(
 		doc.discharge_id = discharge_id
 	if doctors_signature:
 		doc.doctors_signature = doctors_signature
+	doc.new_system = 1
 	# Append medication rows
 	if medication_orders:
 		if isinstance(medication_orders, str):
@@ -415,6 +417,9 @@ def create_patient_medication_order(
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
+	doc.reload()
+	doc.set_status()
+	doc.reload()
 
 	# Create Long Acting Medicine for each medication row marked as long-acting
 	_create_long_acting_medicine_for_entries(doc)
@@ -956,9 +961,38 @@ def update_medication_order():
         _set_medication_row(doc, med)
     
     doc.save(ignore_permissions=True)
+    doc.reload()
+    doc.set_status()
+    doc.reload()
     frappe.db.commit()
     
     return doc
+
+
+@frappe.whitelist()
+def sign_patient_medication_order(name, doctors_signature):
+	"""Attach a doctor signature and move a new-system prescription to Signed status."""
+	assert_editing_allowed()
+	if not name:
+		frappe.throw(_("Patient Medication Order name is required"))
+	if not (doctors_signature or "").strip():
+		frappe.throw(_("Doctor signature is required"))
+
+	doc = frappe.get_doc("Patient Medication Order", name)
+	_ensure_pmo_write_permission(doc)
+
+	if doc.docstatus != 1:
+		frappe.throw(_("Only submitted prescriptions can be signed"))
+
+	doc.doctors_signature = doctors_signature
+	if not cint(doc.new_system):
+		doc.new_system = 1
+	doc.save(ignore_permissions=True)
+	doc.reload()
+	doc.set_status()
+	doc.reload()
+
+	return {"name": doc.name, "status": doc.status, "doctors_signature": doc.doctors_signature}
 
 
 # @frappe.whitelist()

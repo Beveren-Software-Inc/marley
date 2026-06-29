@@ -573,7 +573,8 @@ has_website_permission = {
 }
 
 standard_queries = {
-	"Healthcare Practitioner": "healthcare.healthcare.doctype.healthcare_practitioner.healthcare_practitioner.get_practitioner_list"
+	"Healthcare Practitioner": "healthcare.healthcare.doctype.healthcare_practitioner.healthcare_practitioner.get_practitioner_list",
+	"Prescription Frequency": "healthcare.healthcare.doctype.prescription_frequency.prescription_frequency.get_prescription_frequency_list",
 }
 
 treeviews = [

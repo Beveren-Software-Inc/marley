@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { SignPrescriptionPanel } from './SignPrescriptionPanel'
 import {
   displayMedicationDosage,
   displayMedicationDrugCode,
@@ -47,6 +48,7 @@ const STATUS_COLORS: Record<string, string> = {
   Stopped:   'bg-red-100 text-red-700 border-red-200',
   Draft:     'bg-amber-100 text-amber-700 border-amber-200',
   Signed:    'bg-emerald-100 text-emerald-800 border-emerald-200',
+  Unsigned:  'bg-orange-100 text-orange-800 border-orange-200',
 }
 
 // ─── Hex color helpers ────────────────────────────────────────────────────────
@@ -335,6 +337,17 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
         </div>
         {prescription.status && <StatusPill status={prescription.status} />}
       </div>
+
+      <SignPrescriptionPanel
+        prescriptionName={prescription.name}
+        currentSignature={prescription.doctors_signature}
+        status={prescription.status}
+        newSystem={prescription.new_system}
+        onSigned={() => {
+          load()
+          onUpdate?.()
+        }}
+      />
 
       {/* ── Progress bar ── */}
       <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">

@@ -25,7 +25,8 @@ export interface CreateDoctorMedicationPlanInput {
   medical_role?: string
   practitioner?: string
   posting_date?: string
-  patient_visit: string
+  reference_doctype: 'Patient Visit' | 'Inpatient Admission'
+  reference_document: string
   plan?: string
   recommendation?: string
   reception_note?: string
@@ -47,10 +48,8 @@ export async function fetchDoctorMedicationPlans(
 ): Promise<DoctorMedicationPlanRow[]> {
   const filters: unknown[] = []
   if (patient) filters.push(['patient', '=', patient])
-  if (referenceDoctype && referenceDocument) {
-    filters.push(['reference_doctype', '=', referenceDoctype])
-    filters.push(['reference_document', '=', referenceDocument])
-  }
+  if (referenceDoctype) filters.push(['reference_doctype', '=', referenceDoctype])
+  if (referenceDocument) filters.push(['reference_document', '=', referenceDocument])
   if (extraFilters?.practitioner) filters.push(['practitioner', '=', extraFilters.practitioner])
   if (extraFilters?.fromDate) filters.push(['posting_date', '>=', extraFilters.fromDate])
   if (extraFilters?.toDate) filters.push(['posting_date', '<=', `${extraFilters.toDate} 23:59:59`])
@@ -89,8 +88,8 @@ export async function createDoctorMedicationPlan(
     patient: input.patient,
     practitioner: input.practitioner || undefined,
     posting_date: input.posting_date || undefined,
-    reference_doctype: 'Patient Visit',
-    reference_document: input.patient_visit,
+    reference_doctype: input.reference_doctype,
+    reference_document: input.reference_document,
     plan: input.plan || undefined,
     recommendation: input.recommendation || undefined,
     reception_note: input.reception_note || undefined,

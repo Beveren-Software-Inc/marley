@@ -19,7 +19,7 @@ interface DoctorMedicationPlanListProps {
 }
 
 export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedicationPlanListProps) => {
-  const { mode, activeVisit } = useCareContext()
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   const cardFilters = useCardFilters()
   const compactClinical = useDashboardCompactClinical()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -60,6 +60,13 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
         if (mode === 'OP' && activeVisit) {
           referenceDoctype = 'Patient Visit'
           referenceDocument = activeVisit
+        } else if (mode === 'OP') {
+          referenceDoctype = 'Patient Visit'
+        } else if (mode === 'IP' && activeAdmission) {
+          referenceDoctype = 'Inpatient Admission'
+          referenceDocument = activeAdmission
+        } else if (mode === 'IP') {
+          referenceDoctype = 'Inpatient Admission'
         }
         const data = await fetchDoctorMedicationPlans(50, 0, patient, referenceDoctype, referenceDocument, {
           practitioner: practitionerFilter || undefined,
@@ -75,10 +82,20 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
       }
     }
     load()
-  }, [patient, mode, activeVisit, listRefreshTick, practitionerFilter, fromDate, toDate])
+  }, [patient, mode, activeVisit, activeAdmission, listRefreshTick, practitionerFilter, fromDate, toDate])
 
   const contextLabel =
-    mode === 'OP' && activeVisit ? `Doctor's Plan for OP visit: ${activeVisit}` : null
+    mode === 'OP' && activeVisit
+      ? `Doctor's Plan for OP visit: ${activeVisit}`
+      : mode === 'OP' && patient
+        ? "Showing Patient Visit plans for this patient"
+        : mode === 'IP' && activeAdmission
+          ? `Doctor's Plan for IP admission: ${activeAdmission}`
+          : mode === 'IP' && patient
+            ? "Showing Inpatient Admission plans for this patient"
+            : null
+
+  const referenceColumnLabel = mode === 'IP' ? 'Admission' : 'Visit'
 
   const hasActiveFilters = Boolean(practitionerFilter || fromDate || toDate)
 
@@ -275,7 +292,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                     )}
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{referenceColumnLabel}</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
                   </tr>
                 </thead>

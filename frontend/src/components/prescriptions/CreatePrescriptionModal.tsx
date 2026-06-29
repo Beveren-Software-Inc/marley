@@ -865,7 +865,7 @@ export const CreatePrescriptionModal = ({
 
           const createdMsg = doctorsSignature
             ? 'Prescription created (signed)'
-            : 'Prescription created'
+            : 'Prescription created (unsigned — sign before giving medicine)'
           if (tasksToCreate.length > 0) {
             try {
               const result = await bulkCreateNurseTasks(tasksToCreate)
@@ -880,7 +880,7 @@ export const CreatePrescriptionModal = ({
             toast.success(createdMsg)
           }
         } else {
-          toast.success(doctorsSignature ? 'Prescription created (signed)' : 'Prescription created')
+          toast.success(doctorsSignature ? 'Prescription created (signed)' : 'Prescription created (unsigned — sign before giving medicine)')
         }
       }
 
@@ -1554,8 +1554,8 @@ export const CreatePrescriptionModal = ({
               <div className="space-y-4 max-w-lg">
                 <p className="text-sm text-slate-600">
                   Capture the prescribing clinician&apos;s digital signature. When you save with a
-                  signature, the prescription status is set to <strong>Signed</strong> instead of
-                  Draft.
+                  signature, the prescription status is set to <strong>Signed</strong>. Without a
+                  signature it stays <strong>Unsigned</strong> until signed later.
                 </p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                   <div className="flex items-center gap-1.5 mb-3">

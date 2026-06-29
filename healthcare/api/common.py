@@ -910,11 +910,13 @@ def get_dosage_forms(search=None):
 
 @frappe.whitelist()
 def get_prescription_frequencies(search=None):
-	"""Get list of Prescription Frequency for medication rows."""
+	"""Get list of active Prescription Frequency records for medication rows."""
 	_ensure_default_long_acting_frequencies()
 	filters = {}
+	if frappe.db.has_column("Prescription Frequency", "active"):
+		filters["active"] = 1
 	if search:
-		filters["name"] = ["like", f"%{search}%"]
+		filters["dosage"] = ["like", f"%{search}%"]
 	items = frappe.get_all(
 		"Prescription Frequency",
 		filters=filters,
@@ -944,6 +946,8 @@ def _ensure_prescription_frequency_exists(dosage, frequency_in_a_day=1):
 	doc = frappe.new_doc("Prescription Frequency")
 	doc.dosage = dosage
 	doc.frequency_in_a_day = cint(frequency_in_a_day)
+	if frappe.db.has_column("Prescription Frequency", "active"):
+		doc.active = 1
 	doc.insert(ignore_permissions=True)
 
 
@@ -1001,6 +1005,8 @@ def create_prescription_frequency(dosage, frequency_in_a_day=1):
 	doc = frappe.new_doc("Prescription Frequency")
 	doc.dosage = dosage
 	doc.frequency_in_a_day = cint(frequency_in_a_day) or 1
+	if frappe.db.has_column("Prescription Frequency", "active"):
+		doc.active = 1
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return {"name": doc.name, "label": doc.name}

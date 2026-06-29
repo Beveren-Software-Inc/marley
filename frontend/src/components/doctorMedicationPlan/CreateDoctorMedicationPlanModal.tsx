@@ -13,6 +13,7 @@ import { createDoctorMedicationPlan } from '../../services/doctorMedicationPlan'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchHealthcarePractitioners,
+  fetchInpatientAdmissions,
   fetchPatientVisits as fetchPatientVisitOptions,
   getCurrentUserPractitioner,
   type LinkFieldOption,
@@ -38,14 +39,16 @@ export const CreateDoctorMedicationPlanModal = ({
   onSuccess,
   initialPatient,
 }: CreateDoctorMedicationPlanModalProps) => {
-  const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const isOPMode = mode === 'OP'
+  const isIPMode = mode === 'IP'
 
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     patient_visit: isOPMode && activeVisit ? activeVisit : '',
+    admission_no: isIPMode && activeAdmission ? activeAdmission : '',
     plan: '',
     recommendation: '',
     reception_note: '',
@@ -66,14 +69,19 @@ export const CreateDoctorMedicationPlanModal = ({
   const [practitionerLoading, setPractitionerLoading] = useState(false)
 
   const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
+  const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
 
   useEffect(() => {
     if (formData.patient) {
       fetchPatientVisitOptions(formData.patient)
         .then(setVisitOptions)
         .catch(() => setVisitOptions([]))
+      fetchInpatientAdmissions(formData.patient)
+        .then(setAdmissionOptions)
+        .catch(() => setAdmissionOptions([]))
     } else {
       setVisitOptions([])
+      setAdmissionOptions([])
     }
   }, [formData.patient])
 
@@ -159,8 +167,21 @@ export const CreateDoctorMedicationPlanModal = ({
     })
   }, [isOPMode, formData.patient, activeVisit, visitOptions])
 
+  useEffect(() => {
+    if (!isIPMode || !formData.patient || admissionOptions.length === 0) return
+    setFormData((prev) => {
+      const hasAdmission = (id: string) => admissionOptions.some((a) => a.name === id)
+      let aid = prev.admission_no
+      if (activeAdmission && hasAdmission(activeAdmission)) aid = activeAdmission
+      else if (aid && hasAdmission(aid)) {
+        /* keep */
+      } else aid = admissionOptions[0]?.name || ''
+      return aid === prev.admission_no ? prev : { ...prev, admission_no: aid || '' }
+    })
+  }, [isIPMode, formData.patient, activeAdmission, admissionOptions])
+
   const handlePatientSelect = (p: PatientListItem) => {
-    setFormData((prev) => ({ ...prev, patient: p.name, patient_visit: '' }))
+    setFormData((prev) => ({ ...prev, patient: p.name, patient_visit: '', admission_no: '' }))
     setPatientQuery(p.patient_name)
     setPatientOpen(false)
   }
@@ -177,18 +198,20 @@ export const CreateDoctorMedicationPlanModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!isOPMode) {
-      setError(
-        `Doctor's Plan applies to outpatient (OP) visits. Switch to OP mode in the navbar.`,
-      )
+    if (!isOPMode && !isIPMode) {
+      setError(`Switch to OP or IP mode in the navbar to create a Doctor's Plan.`)
       return
     }
     if (!formData.patient) {
       setError('Patient is required')
       return
     }
-    if (!formData.patient_visit) {
+    if (isOPMode && !formData.patient_visit) {
       setError('Please select a patient visit')
+      return
+    }
+    if (isIPMode && !formData.admission_no) {
+      setError('Please select an inpatient admission')
       return
     }
     if (!formData.plan.trim()) {
@@ -203,7 +226,8 @@ export const CreateDoctorMedicationPlanModal = ({
         patient: formData.patient,
         practitioner: formData.practitioner || undefined,
         posting_date: formData.posting_date || undefined,
-        patient_visit: formData.patient_visit,
+        reference_doctype: isIPMode ? 'Inpatient Admission' : 'Patient Visit',
+        reference_document: isIPMode ? formData.admission_no : formData.patient_visit,
         plan: formData.plan.trim(),
         recommendation: formData.recommendation.trim() || undefined,
         reception_note: formData.reception_note.trim() || undefined,
@@ -222,9 +246,10 @@ export const CreateDoctorMedicationPlanModal = ({
 
   const submitDisabled =
     loading ||
-    !isOPMode ||
+    (!isOPMode && !isIPMode) ||
     !formData.patient ||
-    !formData.patient_visit ||
+    (isOPMode && !formData.patient_visit) ||
+    (isIPMode && !formData.admission_no) ||
     !formData.plan.trim()
 
   return (
@@ -235,8 +260,16 @@ export const CreateDoctorMedicationPlanModal = ({
           icon={<FileText className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           subtitle={
             <>
-              {isOPMode ? <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">OP — linked to visit</span> : null}
-              Free-text plan for the visit — e.g. review timing, referrals, investigations, trials.
+              {isOPMode ? (
+                <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
+                  OP — linked to visit
+                </span>
+              ) : isIPMode ? (
+                <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
+                  IP — linked to admission
+                </span>
+              ) : null}
+              Free-text plan for the visit or admission — e.g. review timing, referrals, investigations, trials.
             </>
           }
           onClose={onClose}
@@ -254,9 +287,9 @@ export const CreateDoctorMedicationPlanModal = ({
           }}
         >
           <div className="p-6 space-y-4 overflow-y-auto flex-1">
-            {!isOPMode && (
+            {!isOPMode && !isIPMode && (
               <div className="rounded-md bg-amber-50 border border-amber-200 px-3 py-2 text-sm text-amber-900">
-                Switch to <strong>OP</strong> mode in the navbar to create a Doctor's Plan.
+                Switch to <strong>OP</strong> or <strong>IP</strong> mode in the navbar to create a Doctor's Plan.
               </div>
             )}
             {error && (
@@ -330,6 +363,39 @@ export const CreateDoctorMedicationPlanModal = ({
                     {visitOptions.map((v) => (
                       <option key={v.name} value={v.name}>
                         {v.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+
+            {formData.patient && isIPMode && (
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Inpatient Admission <span className="text-red-500">*</span>
+                </label>
+                {activeAdmission ? (
+                  <div>
+                    <input
+                      type="text"
+                      value={formData.admission_no}
+                      readOnly
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
+                    />
+                    <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
+                  </div>
+                ) : (
+                  <select
+                    value={formData.admission_no}
+                    onChange={(e) => handleChange('admission_no', e.target.value)}
+                    required
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="">— Select admission —</option>
+                    {admissionOptions.map((a) => (
+                      <option key={a.name} value={a.name}>
+                        {a.label || a.name}
                       </option>
                     ))}
                   </select>

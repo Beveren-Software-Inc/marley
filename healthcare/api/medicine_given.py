@@ -603,16 +603,24 @@ def get_medicine_given_item_lots(admission: str, item_code: str) -> list[str]:
 
 
 def _get_latest_active_inpatient_medication_order(admission: str) -> str | None:
-	"""Return latest submitted inpatient PMO for this admission."""
+	"""Return latest submitted inpatient PMO for this admission that allows medicine giving."""
+	from healthcare.healthcare.doctype.patient_medication_order.patient_medication_order import (
+		PatientMedicationOrder,
+	)
+
 	rows = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission},
+		filters={"inpatient_record": admission, "docstatus": 1},
 		fields=["name"],
 		order_by="modified desc, creation desc",
-		limit=1,
+		limit_page_length=0,
 		ignore_permissions=True,
 	)
-	return rows[0].name if rows else None
+	for row in rows:
+		doc = frappe.get_doc("Patient Medication Order", row.name)
+		if PatientMedicationOrder.allows_medicine_giving(doc):
+			return row.name
+	return None
 
 
 def _create_missed_medicine_for_admission(admission_name: str, grace_minutes: int = 60) -> int:
@@ -840,6 +848,17 @@ def create_medicine_given(
 					"Patient Medication Order {0} belongs to admission {1}, "
 					"but you are recording medicine for admission {2}."
 				).format(frappe.bold(pmo.name), frappe.bold(pmo.inpatient_record), frappe.bold(admission))
+			)
+
+		from healthcare.healthcare.doctype.patient_medication_order.patient_medication_order import (
+			PatientMedicationOrder,
+		)
+
+		if not PatientMedicationOrder.allows_medicine_giving(pmo):
+			frappe.throw(
+				_(
+					"Patient Medication Order {0} must be signed before medicine can be given."
+				).format(frappe.bold(pmo.name))
 			)
 
 	# Derive defaults: quantity is units given; dose is the clinical amount (e.g. 50mg).
