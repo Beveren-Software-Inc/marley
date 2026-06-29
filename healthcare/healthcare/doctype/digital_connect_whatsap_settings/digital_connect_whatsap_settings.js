@@ -363,10 +363,18 @@ function show_fetch_templates_dialog_from_settings() {
 		title: __('Fetch Templates from Digital Connect'),
 		fields: [
 			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options: `<div class="text-muted small" style="margin-bottom: 12px;">
+					${__('All filters are optional. Leave every field blank and click Fetch to load all templates your API key can access.')}
+				</div>`,
+			},
+			{
 				fieldname: 'category',
 				label: __('Category'),
 				fieldtype: 'Select',
 				options: '\nAUTHENTICATION\nMARKETING\nUTILITY',
+				description: __('Optional. Use exact values such as UTILITY.'),
 			},
 			{
 				fieldname: 'language',
