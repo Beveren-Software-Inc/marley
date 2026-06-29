@@ -3,7 +3,6 @@ import { Pill } from 'lucide-react'
 import {
   getDischargePrescriptionSections,
   getDischargeTransferRows,
-  stopMedicationOnDischarge,
   type DischargePrescriptionMedication,
   type DischargePrescriptionSections,
   type DischargeTransferRow,
@@ -31,6 +30,7 @@ function MedicationList({
   selected,
   onToggle,
   showReason,
+  selectableIds,
 }: {
   items: DischargePrescriptionMedication[]
   emptyText: string
@@ -38,6 +38,8 @@ function MedicationList({
   selected?: Set<string>
   onToggle?: (name: string) => void
   showReason?: boolean
+  /** When set, only these entry names can be selected (e.g. not yet discharged). */
+  selectableIds?: Set<string>
 }) {
   if (!items.length) {
     return <p className="text-sm text-slate-500 py-2">{emptyText}</p>
@@ -45,21 +47,41 @@ function MedicationList({
 
   return (
     <ul className="divide-y divide-slate-100">
-      {items.map((med, index) => (
+      {items.map((med, index) => {
+        const entryName = med.name ?? ''
+        const canSelect =
+          entryName !== '' && (!selectableIds || selectableIds.has(entryName))
+        const isTransferred = Boolean(med.transferred_to_visit)
+        return (
         <li key={med.name || `${med.drug_name}-${index}`} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
           {selectable && onToggle ? (
             <button
               type="button"
-              onClick={() => med.name && onToggle(med.name)}
-              disabled={!med.name}
-              className="mt-0.5 shrink-0 text-slate-500 hover:text-primary"
-              aria-label={med.name && selected?.has(med.name) ? 'Deselect' : 'Select'}
+              onClick={() => med.name && canSelect && onToggle(med.name)}
+              disabled={!canSelect}
+              className={`mt-0.5 shrink-0 ${
+                canSelect ? 'text-slate-500 hover:text-primary' : 'text-slate-300 cursor-not-allowed'
+              }`}
+              aria-label={
+                !canSelect
+                  ? 'Already discharged for home'
+                  : med.name && selected?.has(med.name)
+                    ? 'Deselect'
+                    : 'Select'
+              }
             >
-              {med.name && selected?.has(med.name) ? '✓' : '○'}
+              {!canSelect ? '✓' : med.name && selected?.has(med.name) ? '✓' : '○'}
             </button>
           ) : null}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-medium text-slate-900">{med.drug_name || med.drug || 'Medication'}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-sm font-medium text-slate-900">{med.drug_name || med.drug || 'Medication'}</p>
+              {isTransferred ? (
+                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
+                  Discharged for home
+                </span>
+              ) : null}
+            </div>
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">
               <span>
                 <span className="font-medium text-slate-500">Dosage:</span> {med.dosage || '—'}
@@ -82,7 +104,8 @@ function MedicationList({
             ) : null}
           </div>
         </li>
-      ))}
+        )
+      })}
     </ul>
   )
 }
@@ -153,7 +176,7 @@ export function DischargePrescriptionCardsReadonly({
     <div className="space-y-4">
       <PrescriptionCard
         title="Current medicine"
-        subtitle="Active inpatient prescriptions"
+        subtitle="Medicines used during this admission"
         accent="slate"
       >
         <MedicationList items={currentMedications} emptyText="No current medicines on record." />
@@ -187,7 +210,7 @@ export function DischargePrescriptionCardsEditable({
 }: {
   admission: string
   patient: string
-  onChanged?: () => void
+  onChanged?: (result?: { patient_visit: string; patient_medication_order: string }) => void | Promise<void>
 }) {
   const [sections, setSections] = useState<DischargePrescriptionSections>({
     current_medications: [],
@@ -199,9 +222,6 @@ export function DischargePrescriptionCardsEditable({
   const [error, setError] = useState<string | null>(null)
   const [selectedCurrent, setSelectedCurrent] = useState<Set<string>>(new Set())
   const [dischargeModalOpen, setDischargeModalOpen] = useState(false)
-  const [stopModalOpen, setStopModalOpen] = useState(false)
-  const [stopReason, setStopReason] = useState('')
-  const [stopSaving, setStopSaving] = useState(false)
   const [transferPrescription, setTransferPrescription] = useState<{
     name: string
     patient_visit?: string
@@ -217,16 +237,11 @@ export function DischargePrescriptionCardsEditable({
       ])
       setSections(nextSections)
       setTransferRows(rows)
+      const transferableIds = new Set(rows.map((r) => r.name).filter((n): n is string => Boolean(n)))
       setSelectedCurrent((prev) => {
-        const valid = new Set(
-          nextSections.current_medications.map((m) => m.name).filter((n): n is string => Boolean(n))
-        )
-        const kept = new Set([...prev].filter((id) => valid.has(id)))
-        return kept.size
-          ? kept
-          : new Set(
-              nextSections.current_medications.map((m) => m.name).filter((n): n is string => Boolean(n))
-            )
+        const kept = new Set([...prev].filter((id) => transferableIds.has(id)))
+        if (kept.size) return kept
+        return transferableIds
       })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load prescriptions')
@@ -262,40 +277,13 @@ export function DischargePrescriptionCardsEditable({
       toast.success(`Discharged prescription ${result.patient_medication_order} created`)
     }
     await load()
-    onChanged?.()
-  }
-
-  const confirmStop = async () => {
-    const names = [...selectedCurrent].filter(Boolean)
-    if (!names.length) {
-      toast.error('Select at least one current medicine to stop')
-      return
-    }
-    if (!stopReason.trim()) {
-      toast.error('Enter a reason for stopping')
-      return
-    }
-    setStopSaving(true)
-    try {
-      for (const orderEntryName of names) {
-        await stopMedicationOnDischarge(admission, orderEntryName, stopReason.trim())
-      }
-      toast.success(names.length === 1 ? 'Medicine stopped' : `${names.length} medicines stopped`)
-      setStopModalOpen(false)
-      setStopReason('')
-      setSelectedCurrent(new Set())
-      await load()
-      onChanged?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to stop medicine')
-    } finally {
-      setStopSaving(false)
-    }
+    await onChanged?.(result)
   }
 
   const selectedTransferRows = transferRows.filter(
     (row) => row.name && selectedCurrent.has(row.name)
   )
+  const transferableIds = new Set(transferRows.map((r) => r.name).filter((n): n is string => Boolean(n)))
 
   if (loading) {
     return <div className="text-sm text-slate-600">Loading prescriptions…</div>
@@ -318,27 +306,17 @@ export function DischargePrescriptionCardsEditable({
 
       <PrescriptionCard
         title="Current medicine"
-        subtitle="Select medicines to discharge or stop"
+        subtitle="Medicines used on this admission — select remaining items to discharge for home"
         accent="slate"
         actions={
-          <>
-            <button
-              type="button"
-              disabled={selectedCurrent.size === 0}
-              onClick={() => setStopModalOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-md border border-rose-300 text-rose-700 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Stop selected ({selectedCurrent.size})
-            </button>
-            <button
-              type="button"
-              disabled={selectedCurrent.size === 0 || selectedTransferRows.length === 0}
-              onClick={() => setDischargeModalOpen(true)}
-              className="px-3 py-1.5 text-xs rounded-md border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Discharge medication ({selectedCurrent.size})
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={selectedCurrent.size === 0 || selectedTransferRows.length === 0}
+            onClick={() => setDischargeModalOpen(true)}
+            className="px-3 py-1.5 text-xs rounded-md border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Discharge medication ({selectedCurrent.size})
+          </button>
         }
       >
         <MedicationList
@@ -347,6 +325,7 @@ export function DischargePrescriptionCardsEditable({
           selectable
           selected={selectedCurrent}
           onToggle={toggleCurrent}
+          selectableIds={transferableIds}
         />
       </PrescriptionCard>
 
@@ -403,49 +382,6 @@ export function DischargePrescriptionCardsEditable({
           transferAdmission={admission}
           transferOrderEntryNames={selectedTransferRows.map((row) => row.name)}
         />
-      ) : null}
-
-      {stopModalOpen ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white shadow-xl border border-slate-200 p-5 space-y-4">
-            <h3 className="text-sm font-semibold text-slate-800">Stop selected medicines</h3>
-            <p className="text-xs text-slate-600">
-              {selectedCurrent.size} medicine{selectedCurrent.size === 1 ? '' : 's'} will be moved to stopped.
-            </p>
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Reason stopped <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                value={stopReason}
-                onChange={(e) => setStopReason(e.target.value)}
-                rows={3}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Why is this medicine being stopped?"
-              />
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setStopModalOpen(false)
-                  setStopReason('')
-                }}
-                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                disabled={stopSaving}
-                onClick={() => void confirmStop()}
-                className="px-3 py-1.5 text-sm rounded-md bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
-              >
-                {stopSaving ? 'Stopping…' : 'Stop medicines'}
-              </button>
-            </div>
-          </div>
-        </div>
       ) : null}
     </div>
   )

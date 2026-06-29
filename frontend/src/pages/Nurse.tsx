@@ -25,7 +25,7 @@ import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNurs
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
 import { hasAnyDischargeDraft } from '../services/dischargeDraft'
-import { navigateToDischarge } from '../utils/dischargeNavigation'
+import { navigateToDischarge, stripDischargeFlowParams } from '../utils/dischargeNavigation'
 import {
   inpatientDischargeAllowed,
   isInpatientDischargeRoute,
@@ -247,7 +247,7 @@ export const NursePage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -281,7 +281,7 @@ export const NursePage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
   }
 

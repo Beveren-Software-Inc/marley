@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -766,6 +767,7 @@ export const CreatePrescriptionModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     setError(null)
     try {
       blockIfActiveCareClosed()
@@ -901,9 +903,19 @@ export const CreatePrescriptionModal = ({
   const shouldShowCollapse = medications.length >= 2
   const isIP = mode === 'IP'
 
-  return (
-    <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[600px]')}>
+  const modal = (
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      role="dialog"
+      aria-modal="true"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div
+        className={createModalShellClass('max-w-4xl w-full max-h-[90vh] min-h-[600px]')}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <CreateModalHeader
           title={isEditing ? 'Edit Prescription' : 'Create Prescription'}
           icon={<Pill className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
@@ -1622,4 +1634,7 @@ export const CreatePrescriptionModal = ({
       )}
     </div>
   )
+
+  if (typeof document === 'undefined') return null
+  return createPortal(modal, document.body)
 }

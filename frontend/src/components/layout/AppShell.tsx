@@ -18,6 +18,7 @@ import {
   modeForInpatientDischargeScreens,
   NURSE_DISCHARGE_SCREEN_ID,
 } from '../../utils/inpatientDischargeRoute'
+import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 
 // ─── Nurse screens ────────────────────────────────────────────────────────────
 
@@ -236,7 +237,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
 
 /** Single-admission discharge — not part of care context; drop when navigating away. */
 function stripInpatientDischargeFlowParams(params: URLSearchParams): void {
-  params.delete('discharge')
+  stripDischargeFlowParams(params)
 }
 
 /** Keep patient / mode / admission query params when switching sidebar screens. */

@@ -1,5 +1,9 @@
 import type { NavigateFunction } from 'react-router-dom'
 import {
+  DISCHARGE_TAB_IDS,
+  type DischargeTabId,
+} from '../config/permissions'
+import {
   DOCTOR_DISCHARGE_SCREEN_ID,
   NURSE_DISCHARGE_SCREEN_ID,
   RECEPTION_DISCHARGE_SCREEN_ID,
@@ -9,6 +13,24 @@ export interface DischargeAdmissionRef {
   name: string
   patient?: string
   patient_name?: string
+}
+
+/** URL param for the active discharge workflow section (survives refresh). */
+export const DISCHARGE_SECTION_SEARCH_PARAM = 'discharge_section'
+
+const DEFAULT_DISCHARGE_SECTION: DischargeTabId = 'details'
+
+export function parseDischargeSection(value: string | null): DischargeTabId {
+  if (value && (DISCHARGE_TAB_IDS as readonly string[]).includes(value)) {
+    return value as DischargeTabId
+  }
+  return DEFAULT_DISCHARGE_SECTION
+}
+
+/** Remove admission discharge flow params when leaving the workflow. */
+export function stripDischargeFlowParams(params: URLSearchParams): void {
+  params.delete('discharge')
+  params.delete(DISCHARGE_SECTION_SEARCH_PARAM)
 }
 
 /** Open discharge on the doctor/nurse portal so the top navbar stays visible. */
@@ -24,7 +46,7 @@ export function navigateToDischarge(
   const onReception = currentPath.startsWith('/reception')
 
   const cleanReturn = new URL(returnTo || `${currentPath}${currentSearch}`, window.location.origin)
-  cleanReturn.searchParams.delete('discharge')
+  stripDischargeFlowParams(cleanReturn.searchParams)
 
   const returnOnNurse = cleanReturn.pathname.startsWith('/nurse')
   const returnOnDoctor = cleanReturn.pathname.startsWith('/doctor')

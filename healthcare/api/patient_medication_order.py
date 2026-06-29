@@ -326,6 +326,7 @@ def create_patient_medication_order(
 	medication_orders=None,
 	after_discharge=None,
 	doctors_signature=None,
+	discharge_id=None,
 ):
 	"""Create a new Patient Medication Order (prescription) with optional medication rows.
 	medication_orders: list of dicts with keys: drug, dosage, no_of_days, dosage_form, instructions, date, time, patient_frequency, is_pink, reference_no.
@@ -386,8 +387,10 @@ def create_patient_medication_order(
 
 	if practitioner:
 		doc.practitioner = practitioner
-	if after_discharge:
+	if after_discharge is not None and str(after_discharge).lower() in ("1", "true", "yes"):
 		doc.after_discharge = 1
+	if discharge_id and doc.meta.has_field("discharge_id"):
+		doc.discharge_id = discharge_id
 	if doctors_signature:
 		doc.doctors_signature = doctors_signature
 	# Append medication rows

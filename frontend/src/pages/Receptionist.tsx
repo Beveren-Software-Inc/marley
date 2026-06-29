@@ -20,6 +20,7 @@ import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { inpatientDischargeAllowed } from '../utils/inpatientDischargeRoute'
+import { stripDischargeFlowParams } from '../utils/dischargeNavigation'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { CreateLongActingMedicineModal } from '../components/medication/CreateLongActingMedicineModal'
@@ -140,7 +141,7 @@ export const ReceptionistPage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -152,7 +153,7 @@ export const ReceptionistPage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
   }
 
