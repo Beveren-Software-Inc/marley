@@ -1,6 +1,7 @@
 
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'react-router-dom'
 
 import {
   createDischarge,
@@ -71,6 +72,10 @@ import {
   mergeChecklistWithTemplateDepartments,
 } from '../../utils/dischargeChecklistPermissions'
 import { DischargeChecklistStatusCard } from '../discharges/DischargeChecklistStatusCard'
+import {
+  DISCHARGE_SECTION_SEARCH_PARAM,
+  parseDischargeSection,
+} from '../../utils/dischargeNavigation'
 import { CollapsibleFormSection } from '../billing/CollapsibleFormSection'
 import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, Lock, type LucideIcon } from 'lucide-react'
 
@@ -881,6 +886,7 @@ function ChargeSectionActions({
 // ─── Main discharge form (full page) ────────────────────────────────────────
 
 export const DischargePatientForm = ({ admission, onClose, onSuccess }: DischargePatientFormProps) => {
+  const [searchParams, setSearchParams] = useSearchParams()
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [savingObservation, setSavingObservation] = useState(false)
@@ -889,7 +895,19 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [deletingChargeSection, setDeletingChargeSection] = useState<ChargeSectionKind | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [unbilledServices, setUnbilledServices] = useState<{ type: string; ids: string[] }[] | null>(null)
-  const [activeTab, setActiveTab] = useState<DischargeTabId>('details')
+  const activeTab = useMemo(
+    () => parseDischargeSection(searchParams.get(DISCHARGE_SECTION_SEARCH_PARAM)),
+    [searchParams],
+  )
+  const setActiveTab = useCallback(
+    (tab: DischargeTabId) => {
+      const np = new URLSearchParams(searchParams)
+      if (tab === 'details') np.delete(DISCHARGE_SECTION_SEARCH_PARAM)
+      else np.set(DISCHARGE_SECTION_SEARCH_PARAM, tab)
+      setSearchParams(np, { replace: true })
+    },
+    [searchParams, setSearchParams],
+  )
   const [sectionMenuOpen, setSectionMenuOpen] = useState(false)
   const sectionMenuRef = useRef<HTMLDivElement>(null)
   const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
@@ -1108,7 +1126,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     if (!visibleTabIds.includes(activeTab)) {
       setActiveTab(visibleTabIds[0] ?? 'details')
     }
-  }, [visibleTabIds, activeTab])
+  }, [visibleTabIds, activeTab, setActiveTab])
 
   const clearObservationFields = useCallback((options?: { keepLinkedRecord?: boolean }) => {
     setFormData((prev) => ({
@@ -2219,6 +2237,40 @@ const loadDailyVisitSetup = async () => {
       prev.map(item => item.name === itemName ? { ...item, [field]: value } : item)
     )
   }
+
+  const refreshChecklistFromServerDraft = useCallback(async () => {
+    if (!admission?.name) return
+    try {
+      const serverDraft = await fetchDischargeDraftForAdmission(admission.name)
+      if (!serverDraft?.discharge_checklist?.length) return
+      const checklist = serverDraft.discharge_checklist as ChecklistItem[]
+      const templateName = (serverDraft.form_data as { discharge_template?: string } | undefined)
+        ?.discharge_template
+      if (templateName) {
+        try {
+          const templateItems = await fetchDischargeChecklist(templateName)
+          setChecklistItems(mergeChecklistWithTemplateDepartments(checklist, templateItems))
+        } catch {
+          setChecklistItems(checklist)
+        }
+      } else {
+        setChecklistItems(checklist)
+      }
+    } catch {
+      /* ignore */
+    }
+  }, [admission?.name])
+
+  const handlePrescriptionSectionChanged = useCallback(
+    async (result?: { patient_visit: string; patient_medication_order: string }) => {
+      await loadPrescriptionSections()
+      if (result?.patient_medication_order) {
+        await refreshChecklistFromServerDraft()
+        setActiveTab('transfer')
+      }
+    },
+    [loadPrescriptionSections, refreshChecklistFromServerDraft, setActiveTab],
+  )
 
   const groupedChecklist = groupByDepartment(checklistItems)
   const checklistSummary = useMemo(
@@ -3774,16 +3826,13 @@ const loadDailyVisitSetup = async () => {
               <div>
                 <h3 className="text-sm font-semibold text-slate-700 mb-1">Prescription</h3>
                 <p className="text-xs text-slate-600">
-                  Manage current medicines, create discharged prescriptions for home use, and record stopped medicines.
+                  Manage current medicines and create discharged prescriptions for home use.
                 </p>
               </div>
               <DischargePrescriptionCardsEditable
                 admission={admission.name}
                 patient={admission.patient}
-                onChanged={() => {
-                  void loadPrescriptionSections()
-                  onSuccess()
-                }}
+                onChanged={handlePrescriptionSectionChanged}
               />
             </div>
           )}

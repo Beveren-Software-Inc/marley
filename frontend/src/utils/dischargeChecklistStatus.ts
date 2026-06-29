@@ -19,6 +19,18 @@ export function isFinanceChecklistItem(actionRequired?: string | null): boolean 
   return FINANCE_CHECKLIST_PATTERNS.some((pattern) => label.includes(pattern))
 }
 
+const DISCHARGE_MEDICATION_CHECKLIST_PATTERNS = [
+  'discharge medication entered',
+  'discharged medication entered',
+]
+
+/** Checklist rows that should auto-complete when a discharge prescription is created. */
+export function isDischargeMedicationChecklistItem(actionRequired?: string | null): boolean {
+  const label = (actionRequired || '').trim().toLowerCase()
+  if (!label) return false
+  return DISCHARGE_MEDICATION_CHECKLIST_PATTERNS.some((pattern) => label.includes(pattern))
+}
+
 export function isChecklistRowComplete(click?: boolean | number | null): boolean {
   return click === true || click === 1
 }

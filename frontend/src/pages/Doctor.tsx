@@ -85,7 +85,10 @@ import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/C
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
 import { draftSavedAt, hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { getPatientActiveAdmission } from '../services/inpatientRecords'
-import { navigateToDischarge } from '../utils/dischargeNavigation'
+import {
+  navigateToDischarge,
+  stripDischargeFlowParams,
+} from '../utils/dischargeNavigation'
 import {
   DOCTOR_DISCHARGE_SCREEN_ID,
   inpatientDischargeAllowed,
@@ -405,7 +408,7 @@ export const DoctorPage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -417,7 +420,7 @@ export const DoctorPage = () => {
       return
     }
     const np = new URLSearchParams(searchParams)
-    np.delete('discharge')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true, state: { dischargeCompleted: true } })
   }
 

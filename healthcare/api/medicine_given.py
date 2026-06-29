@@ -1729,7 +1729,7 @@ def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) ->
 
 	display = medication_entry_display_fields(entry, parent_start_date=parent_start_date)
 	reason = (entry.get("reason_stopped") or "").strip()
-	return {
+	result = {
 		"name": entry.get("name"),
 		"prescription": entry.get("parent") or "",
 		"drug": entry.get("drug") or "",
@@ -1739,6 +1739,10 @@ def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) ->
 		"start_date": display.get("display_start_date"),
 		"reason_stopped": reason,
 	}
+	transferred = (entry.get("transferred_to_visit") or "").strip()
+	if transferred:
+		result["transferred_to_visit"] = transferred
+	return result
 
 
 def _inpatient_admission_pmo_names(admission: str) -> list[str]:
@@ -1785,10 +1789,10 @@ def get_discharge_prescription_sections(admission: str) -> dict:
 				entry, parent_start_date=pmo_start_dates.get(entry.get("parent"))
 			)
 			reason = formatted.get("reason_stopped") or ""
-			transferred = (entry.get("transferred_to_visit") or "").strip()
 			if reason:
 				stopped_medications.append(formatted)
-			elif not transferred:
+			else:
+				# Keep in current even after transferred_to_visit — shows medicines in use on admission.
 				current_medications.append(formatted)
 
 	discharged_medications: list[dict] = []
@@ -2090,6 +2094,7 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 		})
 
 	start_date = nowdate()
+	discharge_id = _resolve_discharge_id_for_admission(admission)
 	result = create_patient_medication_order(
 		patient=patient,
 		care_context="Patient Visit",
@@ -2099,6 +2104,7 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 		inpatient_record=None,
 		practitioner=practitioner,
 		medication_orders=medication_orders,
+		discharge_id=discharge_id,
 	)
 	pmo_name = result.get("name")
 
@@ -2116,6 +2122,73 @@ def transfer_medications_on_discharge(admission: str, order_entry_names: str | l
 		"patient_visit": pv.name,
 		"patient_medication_order": pmo_name,
 	}
+
+
+def _resolve_discharge_id_for_admission(admission: str) -> str | None:
+	"""Draft Discharge name for linking discharge prescriptions; creates draft if missing."""
+	if not admission:
+		return None
+
+	from healthcare.api.inpatient_admission import (
+		_get_draft_discharge_name,
+		_get_or_create_draft_discharge,
+	)
+
+	existing = _get_draft_discharge_name(admission)
+	if existing:
+		return existing
+
+	discharge_doc = _get_or_create_draft_discharge(admission)
+	discharge_doc.flags.ignore_links = True
+	if discharge_doc.get("__islocal"):
+		discharge_doc.insert(ignore_permissions=True)
+	else:
+		discharge_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return discharge_doc.name
+
+
+def _sync_discharge_after_prescription_created(admission: str, pmo_name: str) -> None:
+	"""Link the new PMO to the draft Discharge and tick medication checklist rows."""
+	if not admission or not pmo_name:
+		return
+
+	draft_name = _resolve_discharge_id_for_admission(admission)
+	if not draft_name:
+		return
+
+	if frappe.db.has_column("Patient Medication Order", "discharge_id"):
+		frappe.db.set_value(
+			"Patient Medication Order",
+			pmo_name,
+			"discharge_id",
+			draft_name,
+			update_modified=False,
+		)
+
+	discharge_doc = frappe.get_doc("Discharge", draft_name, ignore_permissions=True)
+	if discharge_doc.meta.has_field("prescription"):
+		discharge_doc.prescription = pmo_name
+
+	medication_keys = (
+		"discharge medication entered",
+		"discharged medication entered",
+	)
+	now = now_datetime()
+	user = frappe.session.user or ""
+	for row in discharge_doc.discharge_checklist or []:
+		action = (row.action_required or "").strip().lower()
+		if any(key in action for key in medication_keys):
+			if not cint(row.click):
+				row.click = 1
+				row.date_time = now
+				if user:
+					row.user = user
+
+	discharge_doc.flags.ignore_links = True
+	discharge_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
 
 @frappe.whitelist()
 def create_visit_and_prescription_on_discharge(
@@ -2166,6 +2239,7 @@ def create_visit_and_prescription_on_discharge(
 
 	from healthcare.api.patient_medication_order import create_patient_medication_order
 
+	discharge_id = _resolve_discharge_id_for_admission(admission)
 	result = create_patient_medication_order(
 		patient=patient,
 		care_context="Patient Visit",
@@ -2176,6 +2250,7 @@ def create_visit_and_prescription_on_discharge(
 		medication_orders=medication_orders,
 		after_discharge=bool(str(after_discharge).lower() in ['1', 'true', 'yes']),
 		doctors_signature=doctors_signature,
+		discharge_id=discharge_id,
 	)
 
 	if order_entry_names is not None:
@@ -2190,9 +2265,13 @@ def create_visit_and_prescription_on_discharge(
 				)
 			frappe.db.commit()
 
+	pmo_name = result.get("name")
+	if pmo_name:
+		_sync_discharge_after_prescription_created(admission, pmo_name)
+
 	return {
 		"patient_visit": pv.name,
-		"patient_medication_order": result.get("name"),
+		"patient_medication_order": pmo_name,
 	}
 
 

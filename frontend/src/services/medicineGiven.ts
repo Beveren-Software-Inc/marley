@@ -619,6 +619,7 @@ export interface DischargePrescriptionMedication {
   start_date?: string | null
   reason_stopped?: string
   patient_visit?: string
+  transferred_to_visit?: string
 }
 
 export interface DischargePrescriptionSections {
