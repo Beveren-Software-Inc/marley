@@ -2477,9 +2477,12 @@ def admit_patient(
 
 	record = frappe.get_doc("Inpatient Admission", name)
 
-	# Update patient IP category if provided
 	if patient_ip_category:
 		record.patient_ip_category = patient_ip_category
+	elif record.patient:
+		patient_category = frappe.db.get_value("Patient", record.patient, "category")
+		if patient_category:
+			record.patient_ip_category = patient_category
 
 	# Set package fields if provided
 	if inpatient_package and inpatient_package != '__custom__':

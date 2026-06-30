@@ -11,6 +11,7 @@ import {
   fetchInpatientAdmissions,
   fetchMedicalDepartments,
   getCurrentUserPractitioner,
+  syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
@@ -45,7 +46,7 @@ export const CreateDoctorOrderModal = ({
   const [patientId, setPatientId] = useState(patientProp || '')
   const [patientName, setPatientName] = useState('')
   const [admission, setAdmission] = useState(mode === 'IP' && activeAdmission ? activeAdmission : '')
-  const [costCenter, setCostCenter] = useState(costCenterCompany || '')
+  const [costCenter, setCostCenter] = useState('')
   const [doctor, setDoctor] = useState('')
   const [doctorName, setDoctorName] = useState('')
 
@@ -125,6 +126,22 @@ export const CreateDoctorOrderModal = ({
       }
     })
   }, [patientId, mode, activeAdmission])
+
+  useEffect(() => {
+    if (mode !== 'IP' || !admission) return
+    let cancelled = false
+    void syncCostCenterFromCareEpisode('IP', {
+      inpatientRecord: admission,
+      admissions: admissionOptions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setCostCenter(cc)
+      setCcQuery(cc)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mode, admission, admissionOptions])
 
   useEffect(() => {
     if (!patientOpen) return

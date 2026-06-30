@@ -19,7 +19,7 @@ export interface LinkFieldOption {
   default?: number | boolean
   item_group?: string
   stock_uom?: string
-  /** Inpatient Admission branch (cost center) when returned by get_inpatient_admissions */
+  /** Inpatient Admission / Patient Visit branch when returned by care-episode list APIs */
   cost_center?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */
   default_route_of_administration?: string
@@ -1163,6 +1163,67 @@ export async function fetchInpatientAdmissions(
 
   const data = await res.json()
   return Array.isArray(data?.message) ? data.message : []
+}
+
+export function resolveCostCenterFromCareOptions(
+  mode: string,
+  patientVisit: string | undefined,
+  inpatientRecord: string | undefined,
+  visits: LinkFieldOption[],
+  admissions: LinkFieldOption[],
+): string | null {
+  if (mode === 'IP' && inpatientRecord) {
+    const row = admissions.find((a) => a.name === inpatientRecord)
+    const cc = row?.cost_center?.trim()
+    return cc || null
+  }
+  if (mode === 'OP' && patientVisit) {
+    const row = visits.find((v) => v.name === patientVisit)
+    const cc = row?.cost_center?.trim()
+    return cc || null
+  }
+  return null
+}
+
+export async function fetchCostCenterForCareEpisode(
+  mode: string,
+  options: { patientVisit?: string; inpatientRecord?: string },
+): Promise<string | null> {
+  const refDoctype =
+    mode === 'IP' ? 'Inpatient Admission' : mode === 'OP' ? 'Patient Visit' : null
+  const refName =
+    mode === 'IP' ? options.inpatientRecord?.trim() : mode === 'OP' ? options.patientVisit?.trim() : ''
+  if (!refDoctype || !refName) return null
+  try {
+    const response = await fetch(
+      `/api/resource/${encodeURIComponent(refDoctype)}/${encodeURIComponent(refName)}?fields=${encodeURIComponent(JSON.stringify(['cost_center']))}`,
+    )
+    const resData = await response.json()
+    const cc = resData?.data?.cost_center
+    return typeof cc === 'string' && cc.trim() ? cc.trim() : null
+  } catch {
+    return null
+  }
+}
+
+export async function syncCostCenterFromCareEpisode(
+  mode: string,
+  options: {
+    patientVisit?: string
+    inpatientRecord?: string
+    visits?: LinkFieldOption[]
+    admissions?: LinkFieldOption[]
+  },
+): Promise<string | null> {
+  const fromList = resolveCostCenterFromCareOptions(
+    mode,
+    options.patientVisit,
+    options.inpatientRecord,
+    options.visits || [],
+    options.admissions || [],
+  )
+  if (fromList) return fromList
+  return fetchCostCenterForCareEpisode(mode, options)
 }
 
 

@@ -756,9 +756,9 @@
   },
   {
    "fieldname": "patient_ip_category",
-   "fieldtype": "Select",
+   "fieldtype": "Link",
    "label": "Patient IP Category",
-   "options": "\nINSURANCE-BUPA\nINSURANCE-MILITARY\nINSURANCE-OTHERS\nJAU HOSPITAL PATIENT\nNORMAL-REGULAR\nROYAL/VIP-REGULAR"
+   "options": "Patient Category"
   },
   {
    "default": "0",
@@ -1025,7 +1025,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-06-15 17:08:41.894051",
+ "modified": "2026-07-01 00:53:40.416782",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

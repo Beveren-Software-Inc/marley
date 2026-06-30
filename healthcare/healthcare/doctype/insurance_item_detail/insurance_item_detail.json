@@ -1,13 +1,19 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "creation": "2026-02-25 10:28:48.219868",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "lab_test_name",
+  "healthcare_service",
+  "healthcare_service_name",
+  "lab_test_template",
   "item_code",
   "item_name",
+  "discount_apply",
   "column_break_tzqa",
   "outpatient_discount",
   "inpatient_discount"
@@ -46,13 +52,42 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inpatient Discount(%)"
+  },
+  {
+   "default": "0",
+   "fieldname": "discount_apply",
+   "fieldtype": "Check",
+   "label": "Discount Apply"
+  },
+  {
+   "fetch_from": "lab_test_template.lab_test_name",
+   "fieldname": "lab_test_name",
+   "fieldtype": "Data",
+   "label": "Lab Test Name"
+  },
+  {
+   "fieldname": "healthcare_service",
+   "fieldtype": "Link",
+   "label": "Healthcare Service",
+   "options": "Healthcare Service Template"
+  },
+  {
+   "fieldname": "healthcare_service_name",
+   "fieldtype": "Data",
+   "label": "Healthcare Service Name"
+  },
+  {
+   "fieldname": "lab_test_template",
+   "fieldtype": "Link",
+   "label": "Lab Test Template",
+   "options": "Lab Test Template"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-02-25 10:54:32.530052",
+ "modified": "2026-07-01 00:10:03.790620",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Item Detail",

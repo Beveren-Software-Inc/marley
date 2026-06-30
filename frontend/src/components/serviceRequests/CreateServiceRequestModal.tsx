@@ -9,6 +9,7 @@ import {
   fetchServiceRequestTemplateTypes,
   fetchServiceRequestTemplates,
   getCurrentUserPractitioner,
+  syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -323,6 +324,40 @@ export const CreateServiceRequestModal = ({
       return currentOk ? prev : { ...prev, patient_visit: first }
     })
   }, [mode, form.patient, activeVisit, patientVisits])
+
+  useEffect(() => {
+    if (mode !== 'IP' || !form.patient || admissions.length === 0) return
+    setForm((prev) => {
+      if (activeAdmission && admissions.some((a) => a.name === activeAdmission))
+        return { ...prev, inpatient_record: activeAdmission }
+      const first = admissions[0]?.name
+      if (!first) return prev
+      const currentOk = prev.inpatient_record && admissions.some((a) => a.name === prev.inpatient_record)
+      return currentOk ? prev : { ...prev, inpatient_record: first }
+    })
+  }, [mode, form.patient, activeAdmission, admissions])
+
+  useEffect(() => {
+    const patientVisit = mode === 'OP' ? form.patient_visit : undefined
+    const inpatientRecord = mode === 'IP' ? form.inpatient_record : undefined
+    if (!patientVisit && !inpatientRecord) return
+    if (mode !== 'OP' && mode !== 'IP') return
+
+    let cancelled = false
+    void syncCostCenterFromCareEpisode(mode, {
+      patientVisit,
+      inpatientRecord,
+      visits: patientVisits,
+      admissions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setForm((prev) => ({ ...prev, cost_center: cc }))
+      setCostCenterSearchQuery(cc)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [mode, form.patient_visit, form.inpatient_record, patientVisits, admissions])
 
   useEffect(() => {
     if (!costCenterDropdownOpen) return
@@ -826,7 +861,9 @@ export const CreateServiceRequestModal = ({
                       )}
                     </div>
                   )}
-                  <p className="mt-1.5 text-[11px] text-slate-500">Type to search; pick a row to select (optional).</p>
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    Filled from the selected {mode === 'IP' ? 'admission' : 'visit'} branch; type to search and change if needed.
+                  </p>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div>

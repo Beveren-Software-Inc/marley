@@ -1,0 +1,65 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-06-30 23:19:22.524094",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "from_date",
+  "to_date",
+  "column_break_oopw",
+  "outpatient_percentage",
+  "inpatient_percentage"
+ ],
+ "fields": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "From Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "To Date"
+  },
+  {
+   "fieldname": "column_break_oopw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outpatient_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Outpatient Percentage"
+  },
+  {
+   "fieldname": "inpatient_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Percentage"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-06-30 23:20:46.277403",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Historical Insurance Price Change",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
