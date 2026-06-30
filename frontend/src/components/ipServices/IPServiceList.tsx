@@ -59,7 +59,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
         }
       })
       .catch((err) => {
-        if (!cancelled) setError(err instanceof Error ? err : new Error('Failed to fetch ECT Charts'))
+        if (!cancelled) setError(err instanceof Error ? err : new Error('Failed to fetch ECT Services'))
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
@@ -81,7 +81,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
 
   const handleDelete = async (name: string) => {
     setOpenActionRow(null)
-    if (!window.confirm(`Delete ECT Chart ${name}? This cannot be undone.`)) {
+    if (!window.confirm(`Delete ECT Service ${name}? This cannot be undone.`)) {
       return
     }
     try {
@@ -95,9 +95,9 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
         result.sales_orders && result.sales_orders.length > 0
           ? ` Linked sales order(s) removed.`
           : ''
-      toast.success(`ECT Chart ${name} deleted.${soMsg}`)
+      toast.success(`ECT Service ${name} deleted.${soMsg}`)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to delete ECT Chart')
+      toast.error(err instanceof Error ? err.message : 'Failed to delete ECT Service')
     } finally {
       setDeletingName(null)
     }
@@ -118,14 +118,14 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
         setList(filtered)
       })
       .catch((err) => {
-        setError(err instanceof Error ? err : new Error('Failed to fetch ECT Charts'))
+        setError(err instanceof Error ? err : new Error('Failed to fetch ECT Services'))
       })
   }
 
   if (loading) {
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
-        Loading ECT Charts…
+        Loading ECT Services…
       </div>
     )
   }
@@ -141,7 +141,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
   if (list.length === 0) {
     const emptyMessage = category === 'Other Service'
       ? 'No Other Services found. Create one with the + button.'
-      : 'No ECT Charts found. Create one with the + button.'
+      : 'No ECT Services found. Create one with the + button.'
     return (
       <div className="flex items-center justify-center p-6 text-slate-500 text-sm">
         {emptyMessage}
@@ -266,7 +266,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
       {/* Detail Slide Over */}
       {detailName && (
         <DetailSlideOver
-          title="ECT Chart"
+          title="ECT Service"
           subtitle={detailName}
           onClose={() => setDetailName(null)}
         >

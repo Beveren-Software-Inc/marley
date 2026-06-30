@@ -84,7 +84,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { isDoctorScreenBlocked } from '../config/costCenterCareScope'
 import { draftSavedAt, hasAnyDischargeDraft } from '../services/dischargeDraft'
-import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { getPatientActiveAdmission, type InpatientRecord } from '../services/inpatientRecords'
 import {
   navigateToDischarge,
   stripDischargeFlowParams,
@@ -363,6 +363,29 @@ export const DoctorPage = () => {
     const np = new URLSearchParams(searchParams)
     if (visit.patient) np.set('patient', visit.patient)
     np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleAdmissionActivate = (record: InpatientRecord) => {
+    if (record.patient) {
+      handlePatientSelect(record.patient)
+    }
+    setMode('IP')
+    setActiveVisit(undefined)
+    setActiveAdmission(record.name)
+    try {
+      localStorage.setItem('patientSearch_activeMode', 'IP')
+      localStorage.setItem('patientSearch_activeAdmission', record.name)
+      localStorage.setItem('patientSearch_activeAdmissionLabel', record.name)
+      localStorage.removeItem('patientSearch_activeVisit')
+      localStorage.removeItem('patientSearch_activeVisitLabel')
+    } catch {
+      /* ignore storage errors */
+    }
+    const np = new URLSearchParams(searchParams)
+    if (record.patient) np.set('patient', record.patient)
+    np.delete('screen')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -1915,6 +1938,7 @@ export const DoctorPage = () => {
           >
             <AdmissionList
               patient={undefined}
+              onAdmissionActivate={handleAdmissionActivate}
               onPatientFromAdmission={(p) => {
                 setSelectedPatient(p)
                 const sp = new URLSearchParams(searchParams)
@@ -1957,6 +1981,7 @@ export const DoctorPage = () => {
             >
               <AdmissionList
                 patient={selectedPatient}
+                onAdmissionActivate={handleAdmissionActivate}
                 onPatientFromAdmission={(p) => {
                   setSelectedPatient(p)
                   const sp = new URLSearchParams(searchParams)

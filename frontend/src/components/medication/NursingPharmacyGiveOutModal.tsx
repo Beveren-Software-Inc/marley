@@ -130,6 +130,11 @@ function todayStr() {
   return new Date().toISOString().split('T')[0]
 }
 
+function currentTimeStr() {
+  const now = new Date()
+  return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
+}
+
 function emptyRow(startDate: string): GiveOutRow {
   return {
     rowKey: nextRowKey(),
@@ -142,7 +147,7 @@ function emptyRow(startDate: string): GiveOutRow {
     instructions: '',
     date: startDate,
     end_date: startDate,
-    time: '08:00:00',
+    time: currentTimeStr(),
     patient_frequency: '',
     quantity: 1,
     batch_no: '',
@@ -177,7 +182,7 @@ function mapEntryToRow(
     instructions: entry.instructions || '',
     date: entry.date || startDate,
     end_date: entry.end_date || startDate,
-    time: entry.time || '08:00:00',
+    time: entry.time || currentTimeStr(),
     patient_frequency: entry.patient_frequency || '',
     route_of_administration: entry.route_of_administration || '',
     medication_type: entry.medication_type || '',

@@ -2,9 +2,11 @@
 # Copyright (c) 2020, Frappe Technologies Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
+import re
+
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate, getdate, add_days, cint
+from frappe.utils import flt, nowdate, getdate, add_days, cint, nowtime
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.api.sales_order_cost_center import (
@@ -1694,6 +1696,57 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record):
 	}
 
 
+def _format_pharmacy_giveout_error(exc, warehouse=None):
+	"""Turn stock/billing failures into readable portal messages."""
+	raw = ""
+	if isinstance(exc, frappe.ValidationError):
+		raw = str(exc.args[0]) if exc.args else str(exc)
+	else:
+		raw = str(exc)
+
+	raw = re.sub(r"<[^>]+>", " ", raw or "")
+	raw = re.sub(r"\s+", " ", raw).strip()
+	if not raw:
+		return _("Pharmacy give-out could not be completed. Please try again.")
+
+	wh_label = (warehouse or "").strip() or _("the selected warehouse")
+	lower = raw.lower()
+
+	if any(
+		phrase in lower
+		for phrase in (
+			"negative stock",
+			"not enough stock",
+			"insufficient stock",
+			"stock balance for batch",
+			"qty must be less than or equal to",
+		)
+	):
+		return _(
+			"Not enough stock in {0} for one or more medicines. Check batch quantities or choose another warehouse."
+		).format(wh_label)
+
+	if "needed" in lower and "warehouse" in lower:
+		return raw
+
+	if "please select a batch" in lower:
+		return _("Please select a batch for each medicine that requires batch tracking.")
+
+	if "please select a dispensing lot" in lower:
+		return _("Please select a dispensing lot for each medicine that requires lot tracking.")
+
+	if "please select a lot number" in lower:
+		return _("Please select a lot number for each serialized medicine.")
+
+	if "traceback" in lower:
+		for part in reversed(re.split(r"[.\n]", raw)):
+			part = part.strip()
+			if part and "traceback" not in part.lower() and len(part) > 8:
+				return part
+
+	return raw
+
+
 @frappe.whitelist()
 def create_nursing_pharmacy_giveout(
 	patient,
@@ -1742,11 +1795,42 @@ def create_nursing_pharmacy_giveout(
 			)
 		)
 
-	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
-
 	warehouse = _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse)
 
+	try:
+		return _create_nursing_pharmacy_giveout_documents(
+			patient=patient,
+			inpatient_record=inpatient_record,
+			valid_rows=valid_rows,
+			admission_doc=admission_doc,
+			company=company,
+			cost_center=cost_center,
+			practitioner=practitioner,
+			source_prescription=source_prescription,
+			warehouse=warehouse,
+		)
+	except frappe.ValidationError as exc:
+		frappe.throw(_format_pharmacy_giveout_error(exc, warehouse=warehouse), exc=exc)
+	except Exception as exc:
+		frappe.log_error(message=frappe.get_traceback(), title="Nursing pharmacy give-out failed")
+		frappe.throw(_format_pharmacy_giveout_error(exc, warehouse=warehouse))
+
+
+def _create_nursing_pharmacy_giveout_documents(
+	patient,
+	inpatient_record,
+	valid_rows,
+	admission_doc,
+	company,
+	cost_center,
+	practitioner=None,
+	source_prescription=None,
+	warehouse=None,
+):
+	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
+
 	start_date = nowdate()
+
 	doc = frappe.new_doc("Patient Medication Order")
 	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
 	doc.patient = patient
@@ -1763,8 +1847,6 @@ def create_nursing_pharmacy_giveout(
 	elif admission_doc.get("secondary_practitioner"):
 		doc.practitioner = admission_doc.secondary_practitioner
 
-	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
-
 	doc.nursing_pharmacy_giveout = 1
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
 		doc.source_prescription = source_prescription
@@ -1773,8 +1855,9 @@ def create_nursing_pharmacy_giveout(
 		row = dict(row)
 		if not row.get("date"):
 			row["date"] = start_date
-		if not row.get("time"):
-			row["time"] = "00:00:00"
+		row_time = (row.get("time") or "").strip()
+		if not row_time or row_time in ("00:00:00", "00:00"):
+			row["time"] = nowtime()
 		if not row.get("quantity") and not row.get("qty"):
 			row["quantity"] = 1
 		drug = (row.get("drug") or "").strip()

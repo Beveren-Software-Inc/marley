@@ -124,7 +124,11 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
 
   return (
     <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">
-      <table className="w-full">
+      <p className="sm:hidden border-b border-slate-100 bg-slate-50 px-4 py-2 text-xs text-slate-500">
+        Swipe horizontally to see all columns
+      </p>
+      <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <table className="w-full min-w-[72rem]">
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -294,6 +298,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
           ))}
         </tbody>
       </table>
+      </div>
 
       {detailName ? (
         <ObservationDetailPanel

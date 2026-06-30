@@ -23,7 +23,7 @@ import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClini
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
-import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { getPatientActiveAdmission, type InpatientRecord } from '../services/inpatientRecords'
 import { hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { navigateToDischarge, stripDischargeFlowParams } from '../utils/dischargeNavigation'
 import {
@@ -230,6 +230,29 @@ export const NursePage = () => {
     const np = new URLSearchParams(searchParams)
     if (visit.patient) np.set('patient', visit.patient)
     np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleAdmissionActivate = (record: InpatientRecord) => {
+    if (record.patient) {
+      handlePatientSelect(record.patient)
+    }
+    setMode('IP')
+    setActiveVisit(undefined)
+    setActiveAdmission(record.name)
+    try {
+      localStorage.setItem('patientSearch_activeMode', 'IP')
+      localStorage.setItem('patientSearch_activeAdmission', record.name)
+      localStorage.setItem('patientSearch_activeAdmissionLabel', record.name)
+      localStorage.removeItem('patientSearch_activeVisit')
+      localStorage.removeItem('patientSearch_activeVisitLabel')
+    } catch {
+      /* ignore storage errors */
+    }
+    const np = new URLSearchParams(searchParams)
+    if (record.patient) np.set('patient', record.patient)
+    np.delete('screen')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -819,7 +842,9 @@ export const NursePage = () => {
                 +
               </button>
             </div>
+            <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
             <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
+            </div>
           </section>
         </div>
         {showObservationModal && (
@@ -1078,7 +1103,7 @@ export const NursePage = () => {
     )
   }
 
-  // ECT Chart page
+  // ECT Service page
   if (screen === 'n-ip-services') {
     return (
       <div className="flex min-h-full flex-col">
@@ -1086,11 +1111,11 @@ export const NursePage = () => {
         <div className="p-4 flex-1 min-h-0 flex flex-col">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0">
             <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
-              <span>ECT Chart</span>
+              <span>ECT Service</span>
               <button
                 onClick={() => setShowCreateIPServiceModal(true)}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="New ECT Chart"
+                title="New ECT Service"
               >
                 +
               </button>
@@ -1494,6 +1519,7 @@ export const NursePage = () => {
               >
                 <AdmissionList
                   patient={selectedPatient || undefined}
+                  onAdmissionActivate={handleAdmissionActivate}
                   onPatientFromAdmission={(p) => {
                     setSelectedPatient(p)
                     const sp = new URLSearchParams(searchParams)

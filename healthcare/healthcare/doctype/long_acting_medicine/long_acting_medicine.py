@@ -189,6 +189,23 @@ def _plan_item_dose_fields(med):
 	}
 
 
+def _normalize_injection_given_on(value):
+	side = (value or "").strip().upper()
+	if side in ("LT", "L", "LEFT"):
+		return "LT"
+	if side in ("RT", "R", "RIGHT"):
+		return "RT"
+	return None
+
+
+def _injection_flags_from_side(side):
+	if side == "LT":
+		return {"lt_flag": "1", "rt_flag": None}
+	if side == "RT":
+		return {"rt_flag": "1", "lt_flag": None}
+	return {"lt_flag": None, "rt_flag": None}
+
+
 def _first_medication_give_out_fields(doc):
 	"""Medication + dose from the first plan item on a Long Acting Medicine doc."""
 	for med in doc.get("medications") or []:
@@ -343,12 +360,18 @@ class LongActingMedicine(Document):
 
 
 @frappe.whitelist()
-def record_long_acting_medicine_give_out(name, notes=None, dose=None, dose_term=None):
+def record_long_acting_medicine_give_out(
+	name, notes=None, dose=None, dose_term=None, injection_given_on=None
+):
 	"""Record a give-out for the current scheduled run and advance next_run_date."""
 	if not name:
 		frappe.throw(_("Long Acting Medicine is required"))
 	if not user_can_give_out_long_acting_medicine():
 		frappe.throw(_("Only nurses and doctors can record give-outs."), frappe.PermissionError)
+
+	injection_side = _normalize_injection_given_on(injection_given_on)
+	if not injection_side:
+		frappe.throw(_("Please select injection side (Left or Right)"))
 
 	doc = frappe.get_doc("Long Acting Medicine", name)
 	if doc.docstatus == 2:
@@ -381,7 +404,12 @@ def record_long_acting_medicine_give_out(name, notes=None, dose=None, dose_term=
 		if value:
 			give_out_row[key] = value
 
+	for key, value in _injection_flags_from_side(injection_side).items():
+		if value:
+			give_out_row[key] = value
+
 	doc.append("give_outs", give_out_row)
+	doc.injection_given_on = injection_side
 
 	interval_days = _long_acting_frequency_interval_days(doc.frequency)
 	doc.next_run_date = add_days(scheduled_run_date, interval_days)

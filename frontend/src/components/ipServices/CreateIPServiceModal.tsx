@@ -168,8 +168,8 @@ export const CreateIPServiceModal = ({
       const { name, sales_order } = await createIPService(input)
       toast.success(
         sales_order
-          ? `ECT Chart ${name} created. Sales Order ${sales_order} created.`
-          : `ECT Chart ${name} created.`
+          ? `ECT Service ${name} created. Sales Order ${sales_order} created.`
+          : `ECT Service ${name} created.`
       )
       onSuccess(name)
       onClose()
@@ -177,7 +177,7 @@ export const CreateIPServiceModal = ({
         window.open(`/app/ip-service/${encodeURIComponent(name)}`, '_blank')
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create ECT Chart')
+      setError(err instanceof Error ? err.message : 'Failed to create ECT Service')
     } finally {
       setSubmitting(false)
     }
@@ -188,7 +188,7 @@ export const CreateIPServiceModal = ({
       <div className={createModalShellClass('max-w-2xl w-full min-h-[34rem] max-h-[92vh]')}>
         <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0">
           <div>
-            <h2 className="text-sm font-semibold text-slate-900">Create ECT Chart</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Create ECT Service</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               Add Healthcare Service Template lines for the current patient context.
             </p>
@@ -299,7 +299,7 @@ export const CreateIPServiceModal = ({
               disabled={submitting || !hasCareContext}
               className={CM_BTN_PRIMARY}
             >
-              {submitting ? 'Creating…' : 'Create ECT Chart'}
+              {submitting ? 'Creating…' : 'Create ECT Service'}
             </button>
           </div>
         </form>

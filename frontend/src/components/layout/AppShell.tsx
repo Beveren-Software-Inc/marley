@@ -96,7 +96,7 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Additional Care',
     screens: [
-      { id: 'n-ip-services', title: 'ECT Chart' },
+      { id: 'n-ip-services', title: 'ECT Service' },
       { id: 'n-other',       title: 'Other Services' },
       { id: 'n-session',     title: 'Sessions / Scheduler' },
       { id: 'n-sick',        title: 'Sick Leave' },

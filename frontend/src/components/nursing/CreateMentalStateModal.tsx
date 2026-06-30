@@ -3,6 +3,9 @@ import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CREATE_MODAL_TABBED_BODY,
+  CREATE_MODAL_TABBED_SHELL,
+  CreateModalFooter,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createMentalState } from '../../services/mentalState'
@@ -278,7 +281,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}>
+      <div className={createModalShellClass(CREATE_MODAL_TABBED_SHELL)}>
         {/* Header */}
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 p-4 sm:px-5 flex-shrink-0">
           <div className="flex items-center justify-between">
@@ -317,7 +320,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
           }}
         >
           {/* Scrollable content area */}
-          <div className="p-6 space-y-4 overflow-y-auto flex-1 min-h-0 min-h-[500px]">
+          <div className={CREATE_MODAL_TABBED_BODY}>
             {/* ── Details ── */}
             {activeTab === 'details' && (
               <>
@@ -592,15 +595,14 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
             )}
           </div>
 
-          {/* Fixed Footer */}
-          <div className="border-t border-slate-200 bg-white px-6 py-4 flex justify-end gap-3 flex-shrink-0">
+          <CreateModalFooter>
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
             <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
               {saving ? 'Saving…' : 'Save Record'}
             </button>
-          </div>
+          </CreateModalFooter>
         </form>
       </div>
     </div>

@@ -2,6 +2,45 @@ export const NURSING_SHIFTS = ['Morning', 'Evening', 'Night'] as const
 
 export type NursingShift = (typeof NURSING_SHIFTS)[number]
 
+/** 06:00–13:59 Morning, 14:00–21:59 Evening, 22:00–05:59 Night */
+const NURSING_SHIFT_WINDOWS: ReadonlyArray<{ label: NursingShift; start: number; end: number }> = [
+  { label: 'Morning', start: 6, end: 14 },
+  { label: 'Evening', start: 14, end: 22 },
+  { label: 'Night', start: 22, end: 6 },
+]
+
+function hourInWindow(hour: number, start: number, end: number): boolean {
+  if (start < end) return hour >= start && hour < end
+  return hour >= start || hour < end
+}
+
+function parseHourFromTime(value: string): number | null {
+  const trimmed = value.trim()
+  if (!trimmed) return null
+  let clock = trimmed
+  if (clock.includes(' ')) clock = clock.split(' ').pop() || clock
+  if (clock.includes('.')) clock = clock.split('.')[0]
+  const parts = clock.split(':')
+  if (parts.length < 2) return null
+  const hour = Number(parts[0])
+  return Number.isFinite(hour) ? hour : null
+}
+
+/** Infer nursing shift from an HH:MM or HH:MM:SS time string. */
+export function getNursingShiftFromTime(time?: string | null, fallbackHour?: number): NursingShift {
+  const hour = time ? parseHourFromTime(time) : fallbackHour ?? new Date().getHours()
+  const resolvedHour = hour ?? new Date().getHours()
+  for (const window of NURSING_SHIFT_WINDOWS) {
+    if (hourInWindow(resolvedHour, window.start, window.end)) return window.label
+  }
+  return 'Morning'
+}
+
+/** Infer nursing shift from the current clock time. */
+export function getCurrentNursingShift(): NursingShift {
+  return getNursingShiftFromTime()
+}
+
 export function formatNursingNoteTimestamp(time?: string | null): string {
   if (time) {
     let value = time.trim()

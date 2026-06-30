@@ -17,6 +17,14 @@ def get_current_user_roles():
 
 
 @frappe.whitelist()
+def get_current_nursing_shift():
+	"""Return Morning, Evening, or Night for the server clock (portal nursing notes)."""
+	from healthcare.utils.nursing_shift import get_nursing_shift_for_datetime
+
+	return get_nursing_shift_for_datetime()
+
+
+@frappe.whitelist()
 def get_healthcare_portal_settings():
 	"""Portal flags from Healthcare Settings (single)."""
 	from healthcare.healthcare.editing_lock import is_editing_locked
@@ -1153,6 +1161,7 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 			"next_run_date",
 			"status",
 			"remarks",
+			"injection_given_on",
 		],
 		order_by="next_run_date asc, start_date asc, name asc",
 		limit=limit,

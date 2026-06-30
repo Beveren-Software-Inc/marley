@@ -7,21 +7,12 @@ export interface PharmacyGiveOutWarehouseOptions {
 export async function fetchPharmacyGiveOutWarehouses(
   inpatientRecord: string
 ): Promise<PharmacyGiveOutWarehouseOptions> {
+  const { apiRequest } = await import('./apiClient')
   const params = new URLSearchParams()
   params.append('inpatient_record', inpatientRecord)
-  const response = await fetch(
+  return apiRequest<PharmacyGiveOutWarehouseOptions>(
     `/api/method/healthcare.api.patient_medication_order.get_nursing_pharmacy_giveout_warehouses?${params.toString()}`
   )
-  const resData = await response.json()
-  if (resData?.exc || !response.ok) {
-    throw new Error(resData?.message || resData?.exc || 'Failed to load pharmacy give-out warehouses')
-  }
-  const msg = (resData?.message || {}) as PharmacyGiveOutWarehouseOptions
-  return {
-    warehouses: Array.isArray(msg.warehouses) ? msg.warehouses : [],
-    default_warehouse: msg.default_warehouse,
-    mini_warehouse: msg.mini_warehouse,
-  }
 }
 
 export interface PharmacyGiveOutRow {

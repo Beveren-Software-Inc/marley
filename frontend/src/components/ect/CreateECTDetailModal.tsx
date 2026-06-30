@@ -8,6 +8,7 @@ import {
 import { createECTDetail } from '../../services/ectDetails'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 
 interface CreateECTDetailModalProps {
@@ -35,6 +36,7 @@ export const CreateECTDetailModal = ({
   onSuccess,
   initialPatient,
 }: CreateECTDetailModalProps) => {
+  const { mode, activeAdmission, activeVisit } = useCareContext()
   const now = new Date()
   const [activeTab, setActiveTab] = useState<ECTTab>('procedure')
   const [formData, setFormData] = useState({
@@ -183,31 +185,48 @@ export const CreateECTDetailModal = ({
     }
   }, [initialPatient])
 
+  // Auto-link admission or visit from care context (avoids invalid dynamic-link errors).
+  useEffect(() => {
+    if (mode === 'IP' && activeAdmission) {
+      setFormData((prev) => ({
+        ...prev,
+        reference_doctype: 'Inpatient Admission',
+        reference_name: activeAdmission,
+      }))
+    } else if (mode === 'OP' && activeVisit) {
+      setFormData((prev) => ({
+        ...prev,
+        reference_doctype: 'Patient Visit',
+        reference_name: activeVisit,
+      }))
+    }
+  }, [mode, activeAdmission, activeVisit])
+
   // Auto-populate practitioner fields if current user is a healthcare practitioner
   useEffect(() => {
     const autoPopulatePractitioners = async () => {
       try {
         const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          // Populate all practitioner fields with the current user's practitioner
-          // User can modify individual fields as needed
-          setFormData(prev => ({
-            ...prev,
-            anathesiologist: practitioner,
-            assist_doctor: practitioner,
-            psychiatrist: practitioner,
-            nurse: practitioner,
-            psychology_doctor: practitioner,
-            anaesthetic_doctor: practitioner,
-          }))
-        }
+        if (!practitioner) return
+
+        const matches = await fetchHealthcarePractitioners(practitioner)
+        const label = matches.find((row) => row.name === practitioner)?.label || practitioner
+
+        setFormData((prev) => ({
+          ...prev,
+          anathesiologist: label,
+          assist_doctor: label,
+          psychiatrist: label,
+          nurse: label,
+          psychology_doctor: practitioner,
+          anaesthetic_doctor: practitioner,
+        }))
       } catch (err) {
         console.error('Failed to auto-populate ECT practitioners:', err)
-        // If this fails, leave fields blank - user can select manually
       }
     }
-    
-    autoPopulatePractitioners()
+
+    void autoPopulatePractitioners()
   }, [])
 
   useEffect(() => {
@@ -514,28 +533,14 @@ export const CreateECTDetailModal = ({
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reference Doctype</label>
-                    <input
-                      type="text"
-                      value={formData.reference_doctype}
-                      onChange={(e) => handleChange('reference_doctype', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="e.g. DocType"
-                    />
+                {(formData.reference_doctype && formData.reference_name) ? (
+                  <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+                    <span className="text-xs font-medium text-slate-500">Linked to </span>
+                    <span className="font-medium">{formData.reference_doctype}</span>
+                    <span className="text-slate-500"> · </span>
+                    <span>{formData.reference_name}</span>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reference Name</label>
-                    <input
-                      type="text"
-                      value={formData.reference_name}
-                      onChange={(e) => handleChange('reference_name', e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                      placeholder="Document name"
-                    />
-                  </div>
-                </div>
+                ) : null}
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Repeated</label>

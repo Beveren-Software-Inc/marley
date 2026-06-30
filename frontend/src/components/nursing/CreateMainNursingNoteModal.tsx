@@ -9,7 +9,7 @@ import { createMainNursingNote, fetchNextMainNursingNoteTransNo } from '../../se
 import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { NURSING_SHIFTS } from '../../constants/nursingShift'
+import { NURSING_SHIFTS, getCurrentNursingShift, getNursingShiftFromTime, type NursingShift } from '../../constants/nursingShift'
 
 interface CreateMainNursingNoteModalProps {
   onClose: () => void
@@ -31,7 +31,7 @@ export const CreateMainNursingNoteModal = ({
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [startTime, setStartTime] = useState(new Date().toTimeString().slice(0, 5))
-  const [shift, setShift] = useState('')
+  const [shift, setShift] = useState<NursingShift | ''>(() => getCurrentNursingShift())
   const [nursingNotes, setNursingNotes] = useState('')
   const [patientId, setPatientId] = useState(patientProp || '')
   const [patientName, setPatientName] = useState('')
@@ -102,6 +102,10 @@ export const CreateMainNursingNoteModal = ({
       }
     })
   }, [patientId, mode, activeAdmission])
+
+  useEffect(() => {
+    setShift(getNursingShiftFromTime(startTime))
+  }, [startTime])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -272,7 +276,7 @@ export const CreateMainNursingNoteModal = ({
             <label className="block text-xs font-medium text-slate-700 mb-1">Nursing shift *</label>
             <select
               value={shift}
-              onChange={(e) => setShift(e.target.value)}
+              onChange={(e) => setShift((e.target.value || '') as NursingShift | '')}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
             >
               <option value="">Select shift…</option>

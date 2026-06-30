@@ -1,3 +1,5 @@
+export type InjectionSide = 'LT' | 'RT'
+
 export interface LongActingMedicineGiveOutRow {
   name?: string
   date?: string
@@ -14,6 +16,36 @@ export interface LongActingMedicineGiveOutRow {
   cancelled_notes?: string
   nurse_flag?: string
   next_dose?: string
+  lt_flag?: string
+  rt_flag?: string
+}
+
+export function formatInjectionSide(value?: string | null): string {
+  if (value === 'LT') return 'Left (L)'
+  if (value === 'RT') return 'Right (R)'
+  return '—'
+}
+
+export function formatInjectionSideShort(value?: string | null): string {
+  if (value === 'LT') return 'L'
+  if (value === 'RT') return 'R'
+  return '—'
+}
+
+export function injectionSideFromGiveOut(
+  row: LongActingMedicineGiveOutRow,
+): InjectionSide | undefined {
+  const lt = (row.lt_flag || '').trim()
+  const rt = (row.rt_flag || '').trim()
+  if (lt && lt !== '0' && lt.toLowerCase() !== 'n') return 'LT'
+  if (rt && rt !== '0' && rt.toLowerCase() !== 'n') return 'RT'
+  return undefined
+}
+
+export function suggestedNextInjectionSide(last?: string | null): InjectionSide {
+  if (last === 'LT') return 'RT'
+  if (last === 'RT') return 'LT'
+  return 'LT'
 }
 
 export interface LongActingMedicineRow {
@@ -41,6 +73,7 @@ export interface LongActingMedicineRow {
   is_given_out_for_current_run?: boolean
   can_give_out?: boolean
   can_stop?: boolean
+  injection_given_on?: InjectionSide | string
 }
 
 export interface LongActingMedicineItem {
@@ -139,6 +172,7 @@ export async function recordLongActingMedicineGiveOut(
   notes?: string,
   dose?: string,
   doseTerm?: string,
+  injectionGivenOn?: InjectionSide,
 ): Promise<LongActingMedicineRow> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -155,6 +189,7 @@ export async function recordLongActingMedicineGiveOut(
         notes: notes || undefined,
         dose: dose !== undefined ? dose : undefined,
         dose_term: doseTerm !== undefined ? doseTerm : undefined,
+        injection_given_on: injectionGivenOn || undefined,
       }),
       credentials: 'include',
     },
