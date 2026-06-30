@@ -57,7 +57,7 @@ export const SignPrescriptionPanel = ({
     }
   }
 
-  if (!needsSign && prescriptionIsSigned({ new_system: newSystem, doctors_signature: currentSignature, status })) {
+  if (!needsSign && prescriptionIsSigned({ new_system: newSystem, doctors_signature: currentSignature ?? undefined, status })) {
     return (
       <div className={`rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900 ${compact ? '' : 'mb-4'}`}>
         <div className="font-medium">Signed prescription</div>
