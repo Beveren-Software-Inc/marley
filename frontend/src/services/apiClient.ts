@@ -50,6 +50,37 @@ export function parseFrappeErrorPayload(data: unknown): string {
 
   const record = data as Record<string, unknown>
 
+  const pickFromText = (text: string): string => {
+    const trimmed = text.trim()
+    if (!trimmed) return ''
+    const withoutHtml = trimmed.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    const validation = withoutHtml.match(/ValidationError:\s*(.+)$/m)
+    if (validation?.[1]) return validation[1].trim()
+    const lines = withoutHtml.split('\n').map((l) => l.trim()).filter(Boolean)
+    if (lines.length) {
+      const last = lines[lines.length - 1]
+      const lastMatch = last.match(/ValidationError:\s*(.+)$/)
+      if (lastMatch?.[1]) return lastMatch[1].trim()
+      return last
+    }
+    return withoutHtml
+  }
+
+  const stockPhrases = [
+    'negative stock',
+    'not enough stock',
+    'insufficient stock',
+    'stock balance for batch',
+    'qty must be less than or equal to',
+  ]
+  const normalized = (message: string) => {
+    const lower = message.toLowerCase()
+    if (stockPhrases.some((phrase) => lower.includes(phrase))) {
+      return 'Not enough stock in the selected warehouse for one or more medicines. Check batch quantities or choose another warehouse.'
+    }
+    return message
+  }
+
   try {
     const rawMsgs = record._server_messages
     if (rawMsgs) {
@@ -60,7 +91,7 @@ export function parseFrappeErrorPayload(data: unknown): string {
         const parsed =
           typeof first === 'string' ? (JSON.parse(first) as { message?: string }) : first
         if (parsed && typeof parsed === 'object' && parsed.message) {
-          return String(parsed.message).trim()
+          return normalized(String(parsed.message).trim())
         }
       }
     }
@@ -68,26 +99,11 @@ export function parseFrappeErrorPayload(data: unknown): string {
     /* fall through */
   }
 
-  const pickFromText = (text: string): string => {
-    const trimmed = text.trim()
-    if (!trimmed) return ''
-    const validation = trimmed.match(/ValidationError:\s*(.+)$/m)
-    if (validation?.[1]) return validation[1].trim()
-    const lines = trimmed.split('\n').map((l) => l.trim()).filter(Boolean)
-    if (lines.length) {
-      const last = lines[lines.length - 1]
-      const lastMatch = last.match(/ValidationError:\s*(.+)$/)
-      if (lastMatch?.[1]) return lastMatch[1].trim()
-      return last
-    }
-    return trimmed
-  }
-
   if (typeof record.message === 'string' && record.message.trim()) {
-    return pickFromText(record.message)
+    return normalized(pickFromText(record.message))
   }
   if (typeof record.exception === 'string' && record.exception.trim()) {
-    return pickFromText(record.exception)
+    return normalized(pickFromText(record.exception))
   }
 
   return ''

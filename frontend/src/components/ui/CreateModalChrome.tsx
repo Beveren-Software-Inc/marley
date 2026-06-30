@@ -2,9 +2,17 @@ import type { ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
 
-/** Backdrop — centered create / edit dialogs */
+/** Backdrop — centered create / edit dialogs; scrollable on small screens */
 export const CREATE_MODAL_OVERLAY =
-  'fixed inset-0 z-50 flex items-center justify-center bg-primary/15 p-4 backdrop-blur-[2px]'
+  'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-primary/15 p-3 sm:items-center sm:p-4 backdrop-blur-[2px]'
+
+/** Tall tabbed create dialogs — capped height with internal scroll + pinned footer */
+export const CREATE_MODAL_TABBED_SHELL =
+  'max-w-2xl w-full max-h-[min(90dvh,calc(100vh-1.5rem))] overflow-hidden my-auto'
+
+/** Scrollable body for tabbed create dialogs */
+export const CREATE_MODAL_TABBED_BODY =
+  'flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5 space-y-4 bg-gradient-to-b from-emerald-50/40 via-white to-teal-50/30'
 
 /** Nested modal (e.g. confirm on top of create) */
 export const CREATE_MODAL_OVERLAY_STACK =
