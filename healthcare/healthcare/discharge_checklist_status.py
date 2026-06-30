@@ -15,11 +15,25 @@ FINANCE_CHECKLIST_PATTERNS = (
 )
 
 
+def is_final_financial_check_item(action_required: str | None) -> bool:
+	label = (action_required or "").strip().lower()
+	return "final financial check" in label or "final finance check" in label
+
+
 def is_finance_checklist_item(action_required: str | None) -> bool:
 	label = (action_required or "").strip().lower()
 	if not label:
 		return False
 	return any(pattern in label for pattern in FINANCE_CHECKLIST_PATTERNS)
+
+
+def is_finance_pending_checklist_row(row) -> bool:
+	"""Incomplete rows that only block discharge for finance/accounts (not clinical)."""
+	from healthcare.healthcare.discharge_checklist_permissions import is_accounts_checklist_row
+
+	if is_accounts_checklist_row(row):
+		return True
+	return is_finance_checklist_item(_action_required(row))
 
 
 def is_checklist_row_complete(row) -> bool:
@@ -46,7 +60,7 @@ def summarize_checklist_status(rows) -> dict:
 
 	if incomplete == 0:
 		status = "complete"
-	elif any(not is_finance_checklist_item(_action_required(row)) for row in incomplete_rows):
+	elif any(not is_finance_pending_checklist_row(row) for row in incomplete_rows):
 		status = "incomplete"
 	else:
 		status = "finance_pending"
@@ -78,7 +92,7 @@ def attach_checklist_status_to_discharges(discharges: list[dict]) -> None:
 	checklist_rows = frappe.get_all(
 		"Discharge Checklist Details",
 		filters={"parent": ["in", names], "parenttype": "Discharge"},
-		fields=["parent", "action_required", "click"],
+		fields=["parent", "action_required", "click", "department"],
 	)
 
 	by_parent: dict[str, list] = {}

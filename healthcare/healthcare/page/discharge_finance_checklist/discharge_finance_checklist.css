@@ -1,0 +1,115 @@
+.finance-discharge-page .filter-bar {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border-color, #e2e8f0);
+	display: flex;
+	flex-wrap: wrap;
+	gap: 12px;
+	align-items: flex-end;
+}
+
+.finance-discharge-page .filter-bar .filter-field {
+	min-width: 150px;
+}
+
+.finance-discharge-page .filter-bar label {
+	display: block;
+	font-size: 11px;
+	font-weight: 600;
+	color: var(--text-muted, #64748b);
+	margin-bottom: 4px;
+}
+
+.finance-discharge-page .table td.text-right,
+.finance-discharge-page .table th.text-right {
+	text-align: right;
+}
+
+.finance-discharge-page .pending-card,
+.finance-discharge-page .detail-card {
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border-color, #e2e8f0);
+	border-radius: 8px;
+	margin-bottom: 1rem;
+}
+
+.finance-discharge-page .card-header {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border-color, #e2e8f0);
+	background: var(--fg-color, #f8fafc);
+}
+
+.finance-discharge-page .card-header h4 {
+	margin: 0;
+	font-size: 14px;
+	font-weight: 600;
+}
+
+.finance-discharge-page .card-header p {
+	margin: 4px 0 0;
+	font-size: 12px;
+	color: var(--text-muted, #64748b);
+}
+
+.finance-discharge-page .pending-row {
+	cursor: pointer;
+}
+
+.finance-discharge-page .pending-row:hover {
+	background: var(--highlight-color, #f1f5f9);
+}
+
+.finance-discharge-page .checklist-item {
+	display: flex;
+	align-items: flex-start;
+	gap: 12px;
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.finance-discharge-page .checklist-item:last-child {
+	border-bottom: none;
+}
+
+.finance-discharge-page .checklist-item.done {
+	background: #f0fdf4;
+}
+
+.finance-discharge-page .checklist-item input[type="checkbox"] {
+	margin-top: 3px;
+	width: 16px;
+	height: 16px;
+}
+
+.finance-discharge-page .item-title {
+	font-weight: 600;
+	font-size: 13px;
+}
+
+.finance-discharge-page .item-meta {
+	font-size: 11px;
+	color: var(--text-muted, #64748b);
+	margin-top: 4px;
+}
+
+.finance-discharge-page .patient-banner {
+	padding: 12px 16px;
+	border-bottom: 1px solid var(--border-color, #e2e8f0);
+}
+
+.finance-discharge-page .patient-banner .name {
+	font-weight: 600;
+	font-size: 15px;
+}
+
+.finance-discharge-page .patient-banner .meta {
+	font-size: 12px;
+	color: var(--text-muted, #64748b);
+	margin-top: 4px;
+}
+
+.finance-discharge-page .empty-state {
+	padding: 32px 16px;
+	text-align: center;
+	color: var(--text-muted, #64748b);
+	font-size: 13px;
+}
