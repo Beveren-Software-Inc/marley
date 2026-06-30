@@ -82,6 +82,7 @@ export const ECTDetailDetails = ({ ectName }: ECTDetailDetailsProps) => {
           <SectionTitle title="Procedure" />
           <div className="space-y-0.5">
             <Field label="Patient" value={ect.patient_name || ect.patient} />
+            <Field label="Branch" value={ect.cost_center} />
             <Field label="Date" value={fmt(ect.date)} />
             <Field label="Time" value={fmtTime(ect.time)} />
             <Field label="Source" value={ect.source} />

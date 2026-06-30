@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "{session_type}-.####",
  "creation": "2025-12-24 15:00:00",
@@ -21,6 +22,7 @@
   "doctor_name",
   "section_break_ispo",
   "from_time",
+  "amount",
   "column_break_supe",
   "to_time"
  ],
@@ -61,8 +63,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Session Code",
-   "options": "Session Type",
-   "reqd": 1
+   "options": "Healthcare Service Template"
   },
   {
    "fieldname": "transaction_status",
@@ -70,8 +71,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Transaction Status",
-   "options": "Draft\nSubmitted\nCancelled",
-   "reqd": 1
+   "options": "Draft\nIn Progress\nCompleted\nSubmitted\nCancelled"
   },
   {
    "fieldname": "company",
@@ -122,6 +122,7 @@
    "label": "To Time"
   },
   {
+   "fetch_from": "session_type.service_name",
    "fieldname": "session_name",
    "fieldtype": "Data",
    "label": "Session Name"
@@ -131,11 +132,16 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Amount"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-14 10:45:13.712214",
+ "modified": "2026-06-30 15:11:25.852829",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Session Schedule",

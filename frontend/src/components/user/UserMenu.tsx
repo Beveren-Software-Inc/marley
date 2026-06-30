@@ -1,9 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Settings, Moon, Sun, LogOut, LayoutDashboard, DoorClosed } from 'lucide-react'
+import { Settings, Moon, Sun, LogOut, LayoutDashboard, DoorClosed, CalendarDays } from 'lucide-react'
 
 /** Frappe Desk (same origin as the portal). */
 const FRAPPE_DESK_URL = '/app'
+/** HRMS shift roster (same origin as the portal). */
+const HR_ROSTER_URL = '/hr/roster'
 import { useTheme } from '../../hooks/useTheme'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -229,6 +231,15 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
             >
               <LayoutDashboard size={16} className="mr-3 text-gray-500 dark:text-gray-400" />
               <span>Back to Desk</span>
+            </a>
+
+            <a
+              href={HR_ROSTER_URL}
+              onClick={() => setIsOpen(false)}
+              className="flex items-center w-full px-4 py-3 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+            >
+              <CalendarDays size={16} className="mr-3 text-gray-500 dark:text-gray-400" />
+              <span>Go to Roster</span>
             </a>
 
             <div className="border-t border-gray-100 dark:border-gray-700 my-1"></div>

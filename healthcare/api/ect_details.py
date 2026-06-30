@@ -26,6 +26,25 @@ def _sanitize_practitioner_link(value):
 	return None
 
 
+def _resolve_ect_cost_center(data, ref_doctype=None, ref_name=None):
+	cost_center = (data.get("cost_center") or "").strip() or None
+	if cost_center and frappe.db.exists("Cost Center", cost_center):
+		return cost_center
+
+	if ref_doctype and ref_name:
+		from healthcare.api.sales_order_cost_center import cost_center_from_visit_or_admission
+
+		cc = cost_center_from_visit_or_admission(ref_doctype, ref_name)
+		if cc and frappe.db.exists("Cost Center", cc):
+			return cc
+
+	default_cc = frappe.defaults.get_user_default("cost_center")
+	if default_cc and frappe.db.exists("Cost Center", default_cc):
+		return default_cc
+
+	frappe.throw(_("Cost Center is required"))
+
+
 @frappe.whitelist()
 def get_ect_details(limit=50, offset=0, patient=None):
 	"""Get list of ECT Details"""
@@ -40,6 +59,7 @@ def get_ect_details(limit=50, offset=0, patient=None):
 		fields=[
 			'name',
 			'patient',
+			'cost_center',
 			'date',
 			'time',
 			'source',
@@ -179,10 +199,12 @@ def create_ect_detail(data):
 	ref_doctype, ref_name = _sanitize_ect_reference(
 		data.get("reference_doctype"), data.get("reference_name")
 	)
+	cost_center = _resolve_ect_cost_center(data, ref_doctype, ref_name)
 
 	doc = frappe.get_doc({
 		"doctype": "ECT Details",
 		"patient": data.get("patient"),
+		"cost_center": cost_center,
 		"date": data.get("date") or frappe.utils.getdate(),
 		"time": data.get("time") or frappe.utils.get_time(),
 		"source": data.get("source") or None,
@@ -220,6 +242,7 @@ def create_ect_detail(data):
 		"name": doc.name,
 		"patient": doc.patient,
 		"patient_name": frappe.db.get_value("Patient", doc.patient, "patient_name"),
+		"cost_center": doc.cost_center,
 		"date": doc.date,
 		"time": doc.time,
 		"energy": doc.energy,

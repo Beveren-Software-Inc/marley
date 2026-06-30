@@ -51,7 +51,7 @@ import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
-import { Loader2, PackageSearch, Plus } from 'lucide-react'
+import { Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
 import { AppointmentList } from '../components/appointments/AppointmentList'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
@@ -78,6 +78,26 @@ import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { SessionScheduleList } from '../components/sessionSchedule/SessionScheduleList'
 import { CreateSessionScheduleModal } from '../components/sessionSchedule/CreateSessionScheduleModal'
+import { CardFilterContext } from '../contexts/CardFilterContext'
+
+type SessionTab = 'session-schedule' | 'appointments'
+
+const SESSION_NAV_CARDS = [
+  {
+    id: 'session-schedule' as SessionTab,
+    title: 'Session Schedule',
+    icon: CalendarClock,
+    color: 'bg-violet-50 text-violet-700 border-violet-200',
+    iconColor: 'text-violet-600',
+  },
+  {
+    id: 'appointments' as SessionTab,
+    title: 'Appointments',
+    icon: Calendar,
+    color: 'bg-sky-50 text-sky-700 border-sky-200',
+    iconColor: 'text-sky-600',
+  },
+]
 import { PatientList } from '../components/patients/PatientList'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
@@ -151,7 +171,9 @@ export const NursePage = () => {
   const [sickLeaveRefreshKey, setSickLeaveRefreshKey] = useState(0)
   const [showSessionScheduleModal, setShowSessionScheduleModal] = useState(false)
   const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
-    const [patientRefreshKey, setPatientRefreshKey] = useState(0)
+  const [activeSessionTab, setActiveSessionTab] = useState<SessionTab>('session-schedule')
+  const [sessionShowFilters, setSessionShowFilters] = useState(false)
+  const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [morseFallRefreshKey, setMorseFallRefreshKey] = useState(0)
 
   // ECT dashboard state
@@ -174,6 +196,26 @@ export const NursePage = () => {
   const modeForScreens = modeForInpatientDischargeScreens(mode, costCenterCareScope, inDischargeRoute)
   const screen =
     rawScreen && !isNurseScreenBlocked(rawScreen, costCenterCareScope, modeForScreens) ? rawScreen : null
+
+  useEffect(() => {
+    if (screen !== 'n-session') return
+    const tab = searchParams.get('tab')
+    const resolved: SessionTab = tab === 'appointments' ? 'appointments' : 'session-schedule'
+    setActiveSessionTab(resolved)
+    if (tab !== 'session-schedule' && tab !== 'appointments') {
+      const sp = new URLSearchParams(searchParams)
+      sp.set('tab', 'session-schedule')
+      setSearchParams(sp, { replace: true })
+    }
+  }, [screen, searchParams, setSearchParams])
+
+  const handleSessionTabChange = (tab: SessionTab) => {
+    setActiveSessionTab(tab)
+    setSessionShowFilters(false)
+    const sp = new URLSearchParams(searchParams)
+    sp.set('tab', tab)
+    setSearchParams(sp, { replace: true })
+  }
 
   useLayoutEffect(() => {
     if (!inDischargeRoute || mode === 'IP' || costCenterCareScope === 'op_only') return
@@ -1170,35 +1212,101 @@ export const NursePage = () => {
     )
   }
 
-  // Sessions / Scheduler - Appointments & Session Schedules
+  // Session & Appointments — card navigation (Session Schedule | Appointments)
   if (screen === 'n-session') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4 space-y-4">
-          {/* Appointments Section */}
-          <DashboardCard fixedHeight title="Appointments" listingScreen="n-session">
-            <AppointmentList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+    const activeSessionCard =
+      SESSION_NAV_CARDS.find((card) => card.id === activeSessionTab) ?? SESSION_NAV_CARDS[0]
 
-          {/* Session Schedules Section */}
-          <DashboardCard title="Session Schedules" onAdd={() => guardClinicalCreate(() => setShowSessionScheduleModal(true))} addButtonTitle="Add Session Schedule">
-            <SessionScheduleList 
-              patient={selectedPatient}
-              admissionNumber={activeAdmission}
-              refreshKey={sessionScheduleRefreshKey}
-            />
-          </DashboardCard>
+    return (
+      <div className="flex flex-col h-full min-w-0">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+
+        <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-w-2xl">
+            {SESSION_NAV_CARDS.map((card) => {
+              const Icon = card.icon
+              const isActive = activeSessionTab === card.id
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => handleSessionTabChange(card.id)}
+                  className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-2 py-3 text-center transition-all hover:shadow-md ${
+                    isActive
+                      ? `${card.color} shadow-sm`
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`rounded-lg p-2.5 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
+                    <Icon className={`h-5 w-5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
+                  </div>
+                  <p className={`text-xs font-semibold leading-tight sm:text-sm ${isActive ? '' : 'text-slate-800'}`}>
+                    {card.title}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
+
+          <CardFilterContext.Provider value={sessionShowFilters}>
+            <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+                <h2 className="text-sm font-semibold text-slate-800">{activeSessionCard.title}</h2>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSessionShowFilters((prev) => !prev)}
+                    className={`p-1.5 rounded-md border transition-colors ${
+                      sessionShowFilters
+                        ? 'bg-primary/10 border-primary text-primary'
+                        : 'border-slate-300 text-slate-500 hover:bg-slate-50'
+                    }`}
+                    title={sessionShowFilters ? 'Hide filters' : 'Show filters'}
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+                    </svg>
+                  </button>
+                  {activeSessionTab === 'session-schedule' && (
+                    <button
+                      type="button"
+                      onClick={() => guardClinicalCreate(() => setShowSessionScheduleModal(true))}
+                      className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
+                      title="Add Session Schedule"
+                    >
+                      +
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-3" style={{ scrollbarWidth: 'thin' }}>
+                {activeSessionTab === 'session-schedule' ? (
+                  <SessionScheduleList
+                    embedded
+                    patient={selectedPatient}
+                    admissionNumber={activeAdmission}
+                    refreshKey={sessionScheduleRefreshKey}
+                  />
+                ) : (
+                  <AppointmentList
+                    embedded
+                    patient={selectedPatient}
+                    onPatientClick={handlePatientSelect}
+                  />
+                )}
+              </div>
+            </section>
+          </CardFilterContext.Provider>
         </div>
 
         {showSessionScheduleModal && (
           <CreateSessionScheduleModal
             onClose={() => setShowSessionScheduleModal(false)}
             onSuccess={() => {
-              setSessionScheduleRefreshKey(prev => prev + 1)
+              setSessionScheduleRefreshKey((prev) => prev + 1)
               setShowSessionScheduleModal(false)
             }}
-            // initialPatient={selectedPatient}
             initialAdmission={activeAdmission}
           />
         )}

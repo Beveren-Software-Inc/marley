@@ -712,6 +712,8 @@ interface AppointmentListProps {
   onOpenVisitInHeader?: () => void
   /** Reception: walk-in actions (register, create visit, patient arrived) in the ⋮ menu. */
   receptionWalkInActions?: boolean
+  /** Hide standalone page title when embedded in a tabbed shell (e.g. nurse Sessions). */
+  embedded?: boolean
 }
 
 interface LeaveDetails {
@@ -855,6 +857,7 @@ export const AppointmentList = ({
   onPatientClick,
   onOpenVisitInHeader,
   receptionWalkInActions = false,
+  embedded = false,
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
@@ -1336,7 +1339,7 @@ export const AppointmentList = ({
         </p>
       )}
       {/* Header row */}
-      {!isInsideCard && (
+      {!isInsideCard && !embedded && (
       <div className="flex items-center justify-between gap-2 mb-3">
         <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
         <button
@@ -1803,7 +1806,7 @@ export const AppointmentList = ({
                                   }}
                                   className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
                                 >
-                                  {apt.sales_order ? 'Bill appointment…' : 'Create Sales Order…'}
+                                  {apt.sales_order ? 'Bill…' : 'Bill'}
                                 </button>
                               )}
                               {apt.sales_order && (
@@ -1812,7 +1815,7 @@ export const AppointmentList = ({
                                   onClick={() => handleOpenSalesOrder(apt.sales_order!)}
                                   className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                                 >
-                                  Open Sales Order
+                                  View Bill
                                 </button>
                               )}
                               {apt.ref_sales_invoice && (
@@ -1890,7 +1893,7 @@ export const AppointmentList = ({
                                 }}
                                 className="block w-full text-left px-3 py-2 text-sm text-primary font-medium hover:bg-primary/5"
                               >
-                                {apt.sales_order ? 'Bill appointment…' : 'Create Sales Order…'}
+                                {apt.sales_order ? 'Bill…' : 'Bill'}
                               </button>
                             )}
                           {apt.sales_order && (
@@ -1899,7 +1902,7 @@ export const AppointmentList = ({
                               onClick={() => handleOpenSalesOrder(apt.sales_order!)}
                               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                             >
-                              Open Sales Order
+                              View Bill
                             </button>
                           )}
                           {apt.ref_sales_invoice && (
