@@ -346,7 +346,7 @@ export interface SaveAndSubmitLabTestInput {
   worksheet_instructions?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   normal_test_items?: NormalTestResultRow[]
-  /** Link to Healthcare Practitioner (Lab Technologist or Lab Technician); required when saving results */
+  /** Link to Healthcare Practitioner (Lab Technologist or Lab Technician); optional when saving draft results */
   lab_technician?: string
   /** @deprecated Submit occurs on doctor review only; ignored if sent */
   submit?: boolean

@@ -105,32 +105,11 @@ export interface CreateECTDetailData {
 }
 
 export async function createECTDetail(data: CreateECTDetailData): Promise<ECTDetail> {
-  const { ensureCSRF } = await import('./apiClient')
-  const csrf = await ensureCSRF()
-
-  const response = await fetch('/api/method/healthcare.api.ect_details.create_ect_detail', {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<ECTDetail>('/api/method/healthcare.api.ect_details.create_ect_detail', {
     method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
-    },
     body: JSON.stringify({ data }),
   })
-
-  const resData = await response.json()
-
-  if (!response.ok || resData?.exc) {
-    const msg =
-      resData?.message?.message || resData?.message || resData?.exc || 'Failed to create ECT detail'
-    throw new Error(typeof msg === 'string' ? msg : 'Failed to create ECT detail')
-  }
-
-  if (resData?.message && typeof resData.message === 'object') {
-    return resData.message as ECTDetail
-  }
-  throw new Error('Invalid response format')
 }
 
 

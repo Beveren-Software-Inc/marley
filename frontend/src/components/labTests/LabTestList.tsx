@@ -2745,10 +2745,6 @@ export const LabTestList = ({
   }
   const handleSubmitLabTestWithResults = async () => {
     if (!activeLabTest) return
-    if (!labTechnician.trim()) {
-      setResultDialogError('Lab technician is required. Choose an active practitioner with Medical Role Lab Technologist or Lab Technician.')
-      return
-    }
     try {
       setResultDialogLoading(true); setResultDialogError(null)
       const docPayload = resultDocuments.filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
@@ -2757,7 +2753,7 @@ export const LabTestList = ({
         custom_result: customResult, lab_test_comment: labComment, worksheet_instructions: worksheetText,
         documents: docPayload.length ? docPayload : undefined,
         normal_test_items: normalTestItems.length ? normalTestItems : undefined,
-        lab_technician: labTechnician.trim(),
+        lab_technician: labTechnician.trim() || undefined,
       })
       showLabTestRuleFeedback(res)
       await refetch(); closeResultDialog()
@@ -4085,9 +4081,11 @@ export const LabTestList = ({
                 <>
                   <div className="relative rounded-lg border border-slate-200 bg-slate-50/80 px-3 py-3" data-no-row-click onClick={(e) => e.stopPropagation()}>
                     <label className="block text-sm font-semibold text-slate-800 mb-0.5">
-                      Lab technician <span className="text-red-600" title="Required">*</span>
+                      Lab technician <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
-                    <p className="text-xs text-slate-500 mb-2">Only practitioners whose Medical Role is Lab Technologist or Lab Technician.</p>
+                    <p className="text-xs text-slate-500 mb-2">
+                      Lab Technologist or Lab Technician. Required only when the test is submitted after doctor review.
+                    </p>
                     <div className="relative max-w-md">
                       <input
                         type="text"

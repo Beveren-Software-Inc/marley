@@ -95,7 +95,7 @@ export async function deleteIPService(name: string): Promise<{ deleted: string; 
       body: JSON.stringify({ name }),
     }
   )
-  if (!data?.deleted) throw new Error('Delete ECT Chart did not return confirmation')
+  if (!data?.deleted) throw new Error('Delete ECT Service did not return confirmation')
   return data
 }
 

@@ -6,6 +6,26 @@ import frappe
 from frappe import _
 
 
+def _sanitize_ect_reference(reference_doctype, reference_name):
+	"""Drop invalid dynamic-link pairs that cause confusing validation errors."""
+	ref_dt = (reference_doctype or "").strip() or None
+	ref_name = (reference_name or "").strip() or None
+	if not ref_dt or not ref_name:
+		return None, None
+	if not frappe.db.exists("DocType", ref_dt):
+		return None, None
+	if not frappe.db.exists(ref_dt, ref_name):
+		return None, None
+	return ref_dt, ref_name
+
+
+def _sanitize_practitioner_link(value):
+	value = (value or "").strip() or None
+	if value and frappe.db.exists("Healthcare Practitioner", value):
+		return value
+	return None
+
+
 @frappe.whitelist()
 def get_ect_details(limit=50, offset=0, patient=None):
 	"""Get list of ECT Details"""
@@ -156,6 +176,10 @@ def create_ect_detail(data):
 	if not data.get("patient"):
 		frappe.throw(_("Patient is required"))
 
+	ref_doctype, ref_name = _sanitize_ect_reference(
+		data.get("reference_doctype"), data.get("reference_name")
+	)
+
 	doc = frappe.get_doc({
 		"doctype": "ECT Details",
 		"patient": data.get("patient"),
@@ -166,8 +190,8 @@ def create_ect_detail(data):
 		"energy": data.get("energy") or None,
 		"_age": data.get("_age"),
 		"success": data.get("success") or None,
-		"reference_doctype": data.get("reference_doctype") or None,
-		"reference_name": data.get("reference_name") or None,
+		"reference_doctype": ref_doctype,
+		"reference_name": ref_name,
 		"repeated": data.get("repeated") or None,
 		"vitals": data.get("vitals") or None,
 		"ecg": data.get("ecg") or None,
@@ -187,8 +211,8 @@ def create_ect_detail(data):
 		"max_bp2": data.get("max_bp2") or None,
 		"propofol_detail": data.get("propofol_detail") or None,
 		"succinycholine_detail": data.get("succinycholine_detail") or None,
-		"psychology_doctor": data.get("psychology_doctor") or None,
-		"anaesthetic_doctor": data.get("anaesthetic_doctor") or None,
+		"psychology_doctor": _sanitize_practitioner_link(data.get("psychology_doctor")),
+		"anaesthetic_doctor": _sanitize_practitioner_link(data.get("anaesthetic_doctor")),
 	})
 	doc.insert(ignore_permissions=True)
 

@@ -819,7 +819,9 @@ export const NursePage = () => {
                 +
               </button>
             </div>
+            <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
             <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
+            </div>
           </section>
         </div>
         {showObservationModal && (
@@ -1078,7 +1080,7 @@ export const NursePage = () => {
     )
   }
 
-  // ECT Chart page
+  // ECT Service page
   if (screen === 'n-ip-services') {
     return (
       <div className="flex min-h-full flex-col">
@@ -1086,11 +1088,11 @@ export const NursePage = () => {
         <div className="p-4 flex-1 min-h-0 flex flex-col">
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0">
             <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
-              <span>ECT Chart</span>
+              <span>ECT Service</span>
               <button
                 onClick={() => setShowCreateIPServiceModal(true)}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
-                title="New ECT Chart"
+                title="New ECT Service"
               >
                 +
               </button>
