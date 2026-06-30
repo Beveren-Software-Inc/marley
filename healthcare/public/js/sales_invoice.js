@@ -67,6 +67,40 @@ frappe.ui.form.on('Sales Invoice', {
 				});
 			}, __('Create'));
 		}
+
+		if (frm.doc.patient) {
+			const can_access_discharge_finance = frappe.user.has_role([
+				'Accounts Manager',
+				'Accounts User',
+			]);
+
+			frm.add_custom_button(__('Final Financial Check'), function () {
+				if (!frm.doc.name) {
+					frappe.throw(__('Please save the Sales Invoice first'));
+				}
+				frappe.call({
+					method: 'healthcare.api.discharge_finance_checklist.complete_final_financial_check_from_sales_invoice',
+					args: { sales_invoice: frm.doc.name },
+					freeze: true,
+					freeze_message: __('Updating discharge checklist...'),
+					callback(r) {
+						if (!r.message) {
+							return;
+						}
+						frappe.show_alert({
+							message: __('Final Financial Check marked complete'),
+							indicator: 'green',
+						});
+					},
+				});
+			}, __('Actions'));
+
+			if (can_access_discharge_finance) {
+				frm.add_custom_button(__('Go to Discharge List'), function () {
+					frappe.set_route('discharge-finance-checklist');
+				}, __('Actions'));
+			}
+		}
 	},
 
 	onload_post_render(frm) {

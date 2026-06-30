@@ -167,6 +167,24 @@ def user_can_edit_checklist_row(row, user: str | None = None, reference_row=None
 	return any(dept in normalized_user_depts for dept in allowed)
 
 
+ACCOUNTS_DEPARTMENT_HINTS = ("account",)
+
+
+def is_accounts_department(dept_id: str | None) -> bool:
+	"""True when a Department link/name is the Accounts team (template department column)."""
+	if not dept_id:
+		return False
+	resolved = resolve_department_link(dept_id)
+	label = (resolve_department_link_label(resolved) or resolved or "").strip().lower()
+	text = f"{resolved} {label}".lower()
+	return any(hint in text for hint in ACCOUNTS_DEPARTMENT_HINTS)
+
+
+def is_accounts_checklist_row(row) -> bool:
+	"""Checklist lines assigned to Accounts on the discharge template."""
+	return any(is_accounts_department(dept) for dept in checklist_row_department_ids(row))
+
+
 def _checklist_row_key(row) -> tuple:
 	if isinstance(row, dict):
 		return (

@@ -13,6 +13,28 @@ const FINANCE_CHECKLIST_PATTERNS = [
   'final finance check',
 ]
 
+export function isAccountsChecklistItem(row?: {
+  department?: string | null
+  department_label?: string | null
+  department_2?: string | null
+  department_2_label?: string | null
+}): boolean {
+  const dept = `${row?.department || ''} ${row?.department_label || ''} ${row?.department_2 || ''} ${row?.department_2_label || ''}`
+    .trim()
+    .toLowerCase()
+  return dept.includes('account')
+}
+
+export function isFinancePendingChecklistItem(row?: {
+  action_required?: string | null
+  department?: string | null
+  department_label?: string | null
+  department_2?: string | null
+  department_2_label?: string | null
+}): boolean {
+  return isAccountsChecklistItem(row) || isFinanceChecklistItem(row?.action_required)
+}
+
 export function isFinanceChecklistItem(actionRequired?: string | null): boolean {
   const label = (actionRequired || '').trim().toLowerCase()
   if (!label) return false
@@ -36,7 +58,14 @@ export function isChecklistRowComplete(click?: boolean | number | null): boolean
 }
 
 export function summarizeDischargeChecklistStatus(
-  rows: Array<{ action_required?: string; click?: boolean | number | null }> | undefined
+  rows: Array<{
+    action_required?: string
+    click?: boolean | number | null
+    department?: string
+    department_label?: string
+    department_2?: string
+    department_2_label?: string
+  }> | undefined
 ): DischargeChecklistSummary {
   const list = rows ?? []
   const total = list.length
@@ -64,7 +93,7 @@ export function summarizeDischargeChecklistStatus(
   }
 
   const hasNonFinancePending = incompleteRows.some(
-    (row) => !isFinanceChecklistItem(row.action_required)
+    (row) => !isFinancePendingChecklistItem(row)
   )
 
   return {
