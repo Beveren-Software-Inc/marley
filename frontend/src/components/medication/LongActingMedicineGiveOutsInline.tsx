@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import {
   fetchLongActingMedicineGiveOuts,
+  formatInjectionSideShort,
+  injectionSideFromGiveOut,
   type LongActingMedicineGiveOutRow,
 } from '../../services/longActingMedicine'
 
@@ -71,6 +73,7 @@ function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
             <th className="px-2.5 py-2 font-semibold">Scheduled</th>
             <th className="px-2.5 py-2 font-semibold">Medication</th>
             <th className="px-2.5 py-2 font-semibold">Dosage</th>
+            <th className="px-2.5 py-2 font-semibold text-center">Side</th>
             <th className="px-2.5 py-2 font-semibold">Given by</th>
             <th className="px-2.5 py-2 font-semibold">Notes</th>
           </tr>
@@ -90,6 +93,9 @@ function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
                   {row.medication || '—'}
                 </td>
                 <td className="px-2.5 py-2 whitespace-nowrap">{row.dose || '—'}</td>
+                <td className="px-2.5 py-2 whitespace-nowrap text-center font-semibold text-slate-700">
+                  {formatInjectionSideShort(injectionSideFromGiveOut(row))}
+                </td>
                 <td className="px-2.5 py-2 whitespace-nowrap">{row.user || '—'}</td>
                 <td className="px-2.5 py-2 text-slate-600 max-w-[200px]">
                   {cancelled ? (

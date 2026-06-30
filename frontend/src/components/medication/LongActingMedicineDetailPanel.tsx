@@ -8,6 +8,9 @@ import {
 } from 'lucide-react'
 import {
   fetchLongActingMedicine,
+  formatInjectionSide,
+  formatInjectionSideShort,
+  injectionSideFromGiveOut,
   type LongActingMedicineItem,
   type LongActingMedicineRow,
 } from '../../services/longActingMedicine'
@@ -222,6 +225,7 @@ export function LongActingMedicineDetailPanel({
                       <th className="py-2 pr-3">Date</th>
                       <th className="py-2 pr-3">Time</th>
                       <th className="py-2 pr-3">Scheduled Run</th>
+                      <th className="py-2 pr-3 text-center">Side</th>
                       <th className="py-2 pr-3">Given By</th>
                       <th className="py-2">Notes</th>
                     </tr>
@@ -232,6 +236,9 @@ export function LongActingMedicineDetailPanel({
                         <td className="py-2 pr-3 text-slate-700">{formatDate(row.date)}</td>
                         <td className="py-2 pr-3 text-slate-700">{row.time || '—'}</td>
                         <td className="py-2 pr-3 text-slate-700">{formatDate(row.scheduled_run_date)}</td>
+                        <td className="py-2 pr-3 text-center text-slate-700 font-semibold">
+                          {formatInjectionSideShort(injectionSideFromGiveOut(row))}
+                        </td>
                         <td className="py-2 pr-3 text-slate-700">{row.user || '—'}</td>
                         <td className="py-2 text-slate-600">{row.notes || '—'}</td>
                       </tr>
@@ -277,6 +284,11 @@ export function LongActingMedicineDetailPanel({
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Next run"
                 value={formatDate(doc?.next_run_date || preview?.next_run_date)}
+              />
+              <InfoTile
+                icon={<Pill className="h-4 w-4" strokeWidth={2} />}
+                label="Last injection side"
+                value={formatInjectionSide(doc?.injection_given_on || preview?.injection_given_on)}
               />
               <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}

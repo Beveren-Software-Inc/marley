@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef, Fragment } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
-import type { LongActingMedicineRow, ReminderChannel } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine } from '../../services/longActingMedicine'
+import type { LongActingMedicineRow, ReminderChannel, InjectionSide } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, suggestedNextInjectionSide } from '../../services/longActingMedicine'
 import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 import {
@@ -56,6 +56,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [giveOutNotes, setGiveOutNotes] = useState('')
   const [giveOutDosage, setGiveOutDosage] = useState('')
   const [giveOutDosageForm, setGiveOutDosageForm] = useState('')
+  const [giveOutInjectionSide, setGiveOutInjectionSide] = useState<InjectionSide | null>(null)
   const [giveOutModalLoading, setGiveOutModalLoading] = useState(false)
   const [givingOutId, setGivingOutId] = useState<string | null>(null)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
@@ -174,6 +175,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     const dosageForm = source.default_dosage_form ?? med?.dosage_form ?? ''
     setGiveOutDosage(dosage || '')
     setGiveOutDosageForm(dosageForm || '')
+    setGiveOutInjectionSide(suggestedNextInjectionSide(source.injection_given_on))
   }
 
   const resetGiveOutModal = () => {
@@ -181,6 +183,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setGiveOutNotes('')
     setGiveOutDosage('')
     setGiveOutDosageForm('')
+    setGiveOutInjectionSide(null)
   }
 
   const handleGiveOut = async (e: React.MouseEvent, row: LongActingMedicineRow) => {
@@ -203,6 +206,10 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
 
   const handleConfirmGiveOut = async () => {
     if (!giveOutModal) return
+    if (!giveOutInjectionSide) {
+      toast.error('Please select injection side (Left or Right)')
+      return
+    }
     setGivingOutId(giveOutModal.name)
     try {
       const updated = await recordLongActingMedicineGiveOut(
@@ -210,6 +217,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
         giveOutNotes.trim() || undefined,
         giveOutDosage.trim(),
         giveOutDosageForm.trim(),
+        giveOutInjectionSide,
       )
       setRows((prev) =>
         prev.map((item) => (item.name === giveOutModal.name ? { ...item, ...updated } : item)),
@@ -258,7 +266,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }))
   }
 
-  const tableColSpan = patient ? 8 : 9
+  const tableColSpan = patient ? 9 : 10
 
   const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (formattedRows.length === 0) {
@@ -437,6 +445,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medication</th>
+                <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Last Inj.</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
@@ -477,6 +486,14 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                       <td className="px-3 py-2 text-slate-700 max-w-[180px]">
                         <span className="line-clamp-2" title={row.medication_label || undefined}>
                           {row.medication_label || '—'}
+                        </span>
+                      </td>
+                      <td
+                        className="px-3 py-2 text-center text-slate-700 whitespace-nowrap"
+                        title={row.injection_given_on ? formatInjectionSide(row.injection_given_on) : undefined}
+                      >
+                        <span className="inline-flex items-center justify-center min-w-[1.75rem] rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
+                          {formatInjectionSideShort(row.injection_given_on)}
                         </span>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
@@ -670,6 +687,42 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 </p>
               </div>
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Injection side <span className="text-red-600">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setGiveOutInjectionSide('LT')}
+                    disabled={giveOutModalLoading || Boolean(givingOutId)}
+                    className={`rounded-md border px-3 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      giveOutInjectionSide === 'LT'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Left (L)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setGiveOutInjectionSide('RT')}
+                    disabled={giveOutModalLoading || Boolean(givingOutId)}
+                    className={`rounded-md border px-3 py-2.5 text-sm font-semibold transition-colors disabled:opacity-50 ${
+                      giveOutInjectionSide === 'RT'
+                        ? 'border-emerald-600 bg-emerald-50 text-emerald-900 ring-2 ring-emerald-200'
+                        : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    Right (R)
+                  </button>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  {giveOutModal.injection_given_on
+                    ? `Last time was ${formatInjectionSide(giveOutModal.injection_given_on)}. Alternate side is suggested.`
+                    : 'Select which hand/arm this injection was given on.'}
+                </p>
+              </div>
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
                 <textarea
                   value={giveOutNotes}
@@ -693,7 +746,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
               <button
                 type="button"
                 onClick={handleConfirmGiveOut}
-                disabled={Boolean(givingOutId)}
+                disabled={Boolean(givingOutId) || !giveOutInjectionSide}
                 className="px-4 py-2 text-sm rounded-md bg-emerald-700 text-white hover:bg-emerald-800 disabled:opacity-50 font-medium"
               >
                 {givingOutId === giveOutModal.name ? 'Saving…' : 'Confirm Give Out'}

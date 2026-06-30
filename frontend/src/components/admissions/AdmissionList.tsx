@@ -40,6 +40,8 @@ import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
+import { isDoctorRole, isNurseRole } from '../../config/permissions'
+import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -63,6 +65,8 @@ function getIpDefaultFilters() {
 
 interface AdmissionListProps {
   onAdmissionSelect?: (admissionName: string) => void
+  /** Select admission in navbar (IP mode) and go to doctor/nurse home — used from clinical portals */
+  onAdmissionActivate?: (record: InpatientRecord) => void
   onPatientFromAdmission?: (patient: string) => void
   searchQuery?: string
   patient?: string
@@ -70,10 +74,25 @@ interface AdmissionListProps {
   onCreateNew?: () => void
 }
 
-export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searchQuery: externalSearchQuery = '', patient, refreshKey, onCreateNew }: AdmissionListProps = {}) => {
+export const AdmissionList = ({
+  onAdmissionSelect,
+  onAdmissionActivate,
+  onPatientFromAdmission,
+  searchQuery: externalSearchQuery = '',
+  patient,
+  refreshKey,
+  onCreateNew,
+}: AdmissionListProps = {}) => {
   const navigate = useNavigate()
   const location = useLocation()
-  const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const {
+    mode,
+    activeAdmission,
+    selectedPatient: contextPatient,
+    userRole,
+    applyIpCareContext,
+    setSelectedPatient,
+  } = useCareContext()
 
   const effectivePatient = patient ?? (contextPatient || undefined)
   // When IP mode has a specific admission selected globally, lock the list to that admission
@@ -158,8 +177,49 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
   const [openActionRowHasDraft, setOpenActionRowHasDraft] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // Slide-over detail panel (unchanged — opens on row click)
+  // Slide-over detail panel — opens when clicking the row (not the case number)
   const [detailAdmission, setDetailAdmission] = useState<string | null>(null)
+
+  const openAdmissionDetail = (record: InpatientRecord) => {
+    setDetailAdmission(record.name)
+  }
+
+  const handleAdmissionIdClick = (e: React.MouseEvent, record: InpatientRecord) => {
+    e.stopPropagation()
+    if (onAdmissionActivate) {
+      onAdmissionActivate(record)
+      return
+    }
+
+    applyIpCareContext({
+      patient: record.patient,
+      admission: record.name,
+      admissionLabel: record.name,
+    })
+    if (record.patient) {
+      setSelectedPatient(record.patient)
+      onPatientFromAdmission?.(record.patient)
+    }
+
+    const portal = location.pathname.startsWith('/doctor')
+      ? '/doctor'
+      : location.pathname.startsWith('/nurse')
+        ? '/nurse'
+        : isDoctorRole(userRole)
+          ? '/doctor'
+          : isNurseRole(userRole)
+            ? '/nurse'
+            : null
+
+    if (!portal) return
+
+    const onPortal = location.pathname.startsWith(portal)
+    const params = new URLSearchParams(onPortal ? location.search : undefined)
+    if (record.patient) params.set('patient', record.patient)
+    params.delete('screen')
+    stripDischargeFlowParams(params)
+    navigate(`${portal}?${params.toString()}`, { replace: onPortal })
+  }
 
   const { records, totalCount, loading, error, refetch } = useInpatientRecords(
     effectiveNameFilter ? undefined : (selectedStatus || undefined),
@@ -589,18 +649,18 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                 </tr>
               ) : (
                 records.map((record) => (
-                  <tr key={record.name} className="hover:bg-slate-50">
-
-                    {/* Clickable Admission No → opens detail slide-over */}
-                    <td className="px-4 py-3 text-sm font-medium">
+                  <tr
+                    key={record.name}
+                    className="hover:bg-slate-50 cursor-pointer"
+                    onClick={() => openAdmissionDetail(record)}
+                  >
+                    {/* Case No — select patient + IP in header (doctor/nurse home) */}
+                    <td className="px-4 py-3 text-sm font-medium" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
-                        onClick={() => {
-                          setDetailAdmission(record.name)
-                          onAdmissionSelect?.(record.name)
-                        }}
+                        onClick={(e) => handleAdmissionIdClick(e, record)}
                         className="text-primary hover:underline text-left focus:outline-none"
-                        title="View admission details"
+                        title="Select this admission in header"
                       >
                         {record.name}
                       </button>
@@ -609,7 +669,10 @@ export const AdmissionList = ({ onAdmissionSelect, onPatientFromAdmission, searc
                     {!patient && (
                       <td
                         className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                        onClick={() => record.patient && onPatientFromAdmission?.(record.patient)}
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          if (record.patient) onPatientFromAdmission?.(record.patient)
+                        }}
                       >
                         <span className="font-medium text-primary hover:underline">{record.patient_name || record.patient || '-'}</span>
                       </td>

@@ -23,7 +23,7 @@ import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClini
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
-import { getPatientActiveAdmission } from '../services/inpatientRecords'
+import { getPatientActiveAdmission, type InpatientRecord } from '../services/inpatientRecords'
 import { hasAnyDischargeDraft } from '../services/dischargeDraft'
 import { navigateToDischarge, stripDischargeFlowParams } from '../utils/dischargeNavigation'
 import {
@@ -230,6 +230,29 @@ export const NursePage = () => {
     const np = new URLSearchParams(searchParams)
     if (visit.patient) np.set('patient', visit.patient)
     np.delete('screen')
+    setSearchParams(np, { replace: true })
+  }
+
+  const handleAdmissionActivate = (record: InpatientRecord) => {
+    if (record.patient) {
+      handlePatientSelect(record.patient)
+    }
+    setMode('IP')
+    setActiveVisit(undefined)
+    setActiveAdmission(record.name)
+    try {
+      localStorage.setItem('patientSearch_activeMode', 'IP')
+      localStorage.setItem('patientSearch_activeAdmission', record.name)
+      localStorage.setItem('patientSearch_activeAdmissionLabel', record.name)
+      localStorage.removeItem('patientSearch_activeVisit')
+      localStorage.removeItem('patientSearch_activeVisitLabel')
+    } catch {
+      /* ignore storage errors */
+    }
+    const np = new URLSearchParams(searchParams)
+    if (record.patient) np.set('patient', record.patient)
+    np.delete('screen')
+    stripDischargeFlowParams(np)
     setSearchParams(np, { replace: true })
   }
 
@@ -1496,6 +1519,7 @@ export const NursePage = () => {
               >
                 <AdmissionList
                   patient={selectedPatient || undefined}
+                  onAdmissionActivate={handleAdmissionActivate}
                   onPatientFromAdmission={(p) => {
                     setSelectedPatient(p)
                     const sp = new URLSearchParams(searchParams)

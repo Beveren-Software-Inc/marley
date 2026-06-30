@@ -20,6 +20,7 @@
   "end_date",
   "next_run_date",
   "status",
+  "injection_given_on",
   "medications_section",
   "medications",
   "give_outs_section",
@@ -181,12 +182,18 @@
    "fieldname": "written_frequency",
    "fieldtype": "Data",
    "label": "Written frequency"
+  },
+  {
+   "fieldname": "injection_given_on",
+   "fieldtype": "Select",
+   "label": "Injection Given On",
+   "options": "\nLT\nRT"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-28 13:29:12.326891",
+ "modified": "2026-06-30 14:08:32.937798",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Long Acting Medicine",
