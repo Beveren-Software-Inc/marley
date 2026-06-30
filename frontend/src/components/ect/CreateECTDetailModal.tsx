@@ -7,7 +7,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createECTDetail } from '../../services/ectDetails'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchCostCenters, fetchHealthcarePractitioners, fetchLeadSources, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 
@@ -36,11 +36,12 @@ export const CreateECTDetailModal = ({
   onSuccess,
   initialPatient,
 }: CreateECTDetailModalProps) => {
-  const { mode, activeAdmission, activeVisit } = useCareContext()
+  const { mode, activeAdmission, activeVisit, userCostCenter } = useCareContext()
   const now = new Date()
   const [activeTab, setActiveTab] = useState<ECTTab>('procedure')
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
+    cost_center: userCostCenter || '',
     date: now.toISOString().slice(0, 10),
     time: now.toTimeString().slice(0, 5),
     source: '',
@@ -74,6 +75,9 @@ export const CreateECTDetailModal = ({
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [sourceOptions, setSourceOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const [costCenterLoading, setCostCenterLoading] = useState(false)
 
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -117,6 +121,12 @@ export const CreateECTDetailModal = ({
       return
     }
 
+    if (!formData.cost_center) {
+      setError('Branch is required')
+      setActiveTab('procedure')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -125,6 +135,7 @@ export const CreateECTDetailModal = ({
 
       await createECTDetail({
         patient: formData.patient,
+        cost_center: formData.cost_center || undefined,
         date: formData.date || undefined,
         time: timePart,
         source: formData.source || undefined,
@@ -170,6 +181,33 @@ export const CreateECTDetailModal = ({
   }
 
   useEffect(() => {
+    fetchLeadSources()
+      .then(setSourceOptions)
+      .catch(() => setSourceOptions([]))
+  }, [])
+
+  useEffect(() => {
+    const loadCostCenters = async () => {
+      try {
+        setCostCenterLoading(true)
+        const options = await fetchCostCenters()
+        setCostCenterOptions(options)
+      } catch {
+        setCostCenterOptions([])
+      } finally {
+        setCostCenterLoading(false)
+      }
+    }
+    void loadCostCenters()
+  }, [])
+
+  useEffect(() => {
+    if (userCostCenter && !formData.cost_center) {
+      setFormData((prev) => ({ ...prev, cost_center: userCostCenter }))
+    }
+  }, [userCostCenter, formData.cost_center])
+
+  useEffect(() => {
     if (initialPatient) {
       const load = async () => {
         try {
@@ -193,12 +231,40 @@ export const CreateECTDetailModal = ({
         reference_doctype: 'Inpatient Admission',
         reference_name: activeAdmission,
       }))
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/resource/Inpatient%20Admission/${encodeURIComponent(activeAdmission)}?fields=${encodeURIComponent(JSON.stringify(['cost_center']))}`,
+          )
+          const resData = await response.json()
+          const cc = resData?.data?.cost_center
+          if (cc) {
+            setFormData((prev) => ({ ...prev, cost_center: cc }))
+          }
+        } catch {
+          // keep user/default branch
+        }
+      })()
     } else if (mode === 'OP' && activeVisit) {
       setFormData((prev) => ({
         ...prev,
         reference_doctype: 'Patient Visit',
         reference_name: activeVisit,
       }))
+      void (async () => {
+        try {
+          const response = await fetch(
+            `/api/resource/Patient%20Visit/${encodeURIComponent(activeVisit)}?fields=${encodeURIComponent(JSON.stringify(['cost_center']))}`,
+          )
+          const resData = await response.json()
+          const cc = resData?.data?.cost_center
+          if (cc) {
+            setFormData((prev) => ({ ...prev, cost_center: cc }))
+          }
+        } catch {
+          // keep user/default branch
+        }
+      })()
     }
   }, [mode, activeAdmission, activeVisit])
 
@@ -432,6 +498,25 @@ export const CreateECTDetailModal = ({
                   </div>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Branch <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={formData.cost_center}
+                    onChange={(e) => handleChange('cost_center', e.target.value)}
+                    disabled={costCenterLoading}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:opacity-50"
+                  >
+                    <option value="">Select branch</option>
+                    {costCenterOptions.map((cc) => (
+                      <option key={cc.name} value={cc.name}>
+                        {cc.label || cc.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Date</label>
@@ -455,13 +540,18 @@ export const CreateECTDetailModal = ({
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Source</label>
-                  <input
-                    type="text"
+                  <select
                     value={formData.source}
                     onChange={(e) => handleChange('source', e.target.value)}
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-                    placeholder="Optional"
-                  />
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">Select source</option>
+                    {sourceOptions.map((opt) => (
+                      <option key={opt.name} value={opt.name}>
+                        {opt.label || opt.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 <div className="grid grid-cols-2 gap-3">

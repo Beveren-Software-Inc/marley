@@ -242,7 +242,7 @@ export const AppointmentCreateSalesOrderModal = ({
                     : 'Create order & invoice'
                   : hasExistingOrder
                     ? 'Open existing order'
-                    : 'Create Sales Order'}
+                    : 'Bill'}
             </button>
           </div>
         </form>

@@ -2,6 +2,7 @@ export interface ECTDetail {
   name: string
   patient: string
   patient_name?: string
+  cost_center?: string
   date?: string
   time?: string
   source?: string
@@ -72,6 +73,7 @@ export async function fetchECTDetail(name: string): Promise<ECTDetail> {
 
 export interface CreateECTDetailData {
   patient: string
+  cost_center?: string
   date?: string
   time?: string
   source?: string

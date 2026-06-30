@@ -6,8 +6,9 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   createSessionSchedule,
-  getSessionTypes,
-  type CreateSessionScheduleData
+  getHealthcareServiceTemplates,
+  type CreateSessionScheduleData,
+  type HealthcareServiceTemplateOption,
 } from '../../services/sessionSchedule'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
@@ -146,14 +147,16 @@ export const CreateSessionScheduleModal = ({
     cost_center: '',
     from_time: '',
     to_time: '',
+    amount: '',
   })
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Session Types
-  const [sessionTypes, setSessionTypes] = useState<Array<{ name: string }>>([])
-  const [sessionTypesLoading, setSessionTypesLoading] = useState(false)
+  // Healthcare Service Templates (session_type links to this doctype)
+  const [serviceTemplates, setServiceTemplates] = useState<HealthcareServiceTemplateOption[]>([])
+  const [serviceTemplatesLoading, setServiceTemplatesLoading] = useState(false)
+  const [serviceTemplateQuery, setServiceTemplateQuery] = useState('')
 
   // Companies
   const [companyOptions, setCompanyOptions] = useState<LinkFieldOption[]>([])
@@ -173,24 +176,23 @@ export const CreateSessionScheduleModal = ({
   const [doctorLoading, setDoctorLoading] = useState(false)
   const [doctorQuery, setDoctorQuery] = useState('')
 
-  // Load session types
+  const loadServiceTemplates = (query: string) => {
+    setServiceTemplatesLoading(true)
+    getHealthcareServiceTemplates(query || undefined)
+      .then((templates) => setServiceTemplates(templates))
+      .catch((err) => {
+        console.error('Failed to load healthcare service templates:', err)
+        setServiceTemplates([])
+        toast.error('Failed to load healthcare service templates')
+      })
+      .finally(() => setServiceTemplatesLoading(false))
+  }
+
   useEffect(() => {
-    const loadSessionTypes = async () => {
-      try {
-        setSessionTypesLoading(true)
-        const types = await getSessionTypes()
-        setSessionTypes(types)
-      } catch (err) {
-        console.error('Failed to load session types:', err)
-        toast.error('Failed to load session types')
-      } finally {
-        setSessionTypesLoading(false)
-      }
-    }
-    loadSessionTypes()
+    loadServiceTemplates('')
   }, [])
 
-  // Load companies
+  // Companies
   useEffect(() => {
     const loadCompanies = async () => {
       try {
@@ -293,7 +295,7 @@ export const CreateSessionScheduleModal = ({
     }
 
     if (!formData.session_type) {
-      setError('Session Type is required')
+      setError('Healthcare Service Template is required')
       return
     }
 
@@ -311,6 +313,7 @@ export const CreateSessionScheduleModal = ({
         from_time: formData.from_time || undefined,
         to_time: formData.to_time || undefined,
         admission_number: formData.admission_number || undefined,
+        amount: formData.amount !== '' ? Number(formData.amount) : undefined,
       }
 
       await createSessionSchedule(data)
@@ -326,8 +329,14 @@ export const CreateSessionScheduleModal = ({
     }
   }
 
-  // Get display value for doctor
   const doctorDisplayValue = formData.doctor_name || doctorQuery
+  const serviceTemplateDisplayValue =
+    formData.session_name || serviceTemplateQuery || formData.session_type
+
+  const serviceTemplateOptions: LinkFieldOption[] = serviceTemplates.map((tpl) => ({
+    name: tpl.name,
+    label: tpl.service_name || tpl.name,
+  }))
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -397,25 +406,60 @@ export const CreateSessionScheduleModal = ({
             </div>
           </div>
 
-          {/* Session Type */}
+          {/* Healthcare Service Template */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Session Type <span className="text-red-500">*</span>
+              Healthcare Service Template <span className="text-red-500">*</span>
             </label>
-            <select
-              required
+            <Combobox
               value={formData.session_type}
-              onChange={(e) => handleChange('session_type', e.target.value)}
-              disabled={sessionTypesLoading}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-            >
-              <option value="">Select session type...</option>
-              {sessionTypes.map((type) => (
-                <option key={type.name} value={type.name}>
-                  {type.name}
-                </option>
-              ))}
-            </select>
+              displayValue={serviceTemplateDisplayValue}
+              placeholder="Search healthcare service template..."
+              options={serviceTemplateOptions}
+              loading={serviceTemplatesLoading}
+              required
+              onQueryChange={(q) => {
+                setServiceTemplateQuery(q)
+                if (formData.session_type) {
+                  handleChange('session_type', '')
+                  handleChange('session_name', '')
+                  handleChange('amount', '')
+                }
+                loadServiceTemplates(q)
+              }}
+              onOpen={() => {
+                if (serviceTemplates.length === 0) {
+                  loadServiceTemplates(serviceTemplateQuery)
+                }
+              }}
+              onSelect={(opt) => {
+                const template = serviceTemplates.find((tpl) => tpl.name === opt.name)
+                handleChange('session_type', opt.name)
+                handleChange('session_name', template?.service_name || opt.label || opt.name)
+                if (template?.rate != null && Number(template.rate) > 0) {
+                  handleChange('amount', String(template.rate))
+                }
+                setServiceTemplateQuery(template?.service_name || opt.label || opt.name)
+              }}
+              onClear={() => {
+                handleChange('session_type', '')
+                handleChange('session_name', '')
+                handleChange('amount', '')
+                setServiceTemplateQuery('')
+              }}
+              renderOption={(opt) => {
+                const template = serviceTemplates.find((tpl) => tpl.name === opt.name)
+                return (
+                  <div>
+                    <div className="font-medium">{opt.label || opt.name}</div>
+                    <div className="text-xs text-slate-500">
+                      {opt.name}
+                      {template?.category ? ` · ${template.category}` : ''}
+                    </div>
+                  </div>
+                )
+              }}
+            />
           </div>
 
           {/* Session Name */}
@@ -425,11 +469,30 @@ export const CreateSessionScheduleModal = ({
             </label>
             <input
               type="text"
-              placeholder="Enter session name"
+              placeholder="Filled from template; edit if needed"
               value={formData.session_name}
               onChange={(e) => handleChange('session_name', e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Amount
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              placeholder="Filled from template; edit if needed"
+              value={formData.amount}
+              onChange={(e) => handleChange('amount', e.target.value)}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Defaults from the Healthcare Service Template rate; you can override before saving.
+            </p>
           </div>
 
           {/* Branch */}

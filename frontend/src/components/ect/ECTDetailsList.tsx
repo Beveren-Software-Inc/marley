@@ -77,6 +77,9 @@ export const ECTDetailsList = ({ patient, refreshKey, onPatientClick }: ECTDetai
                 </th>
               )}
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                Branch
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                 Energy
               </th>
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -121,6 +124,9 @@ export const ECTDetailsList = ({ patient, refreshKey, onPatientClick }: ECTDetai
                     <span className="font-medium text-primary hover:underline">{ect.patient_name || ect.patient || '-'}</span>
                   </td>
                 )}
+                <td className="px-4 py-3 text-sm text-slate-700">
+                  {ect.cost_center || '—'}
+                </td>
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {ect.energy || '-'}
                 </td>

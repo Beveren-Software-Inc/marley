@@ -14,6 +14,8 @@ export interface SessionSchedule {
   doc_code?: string
   from_time?: string
   to_time?: string
+  amount?: number
+  sales_order?: string
 }
 
 export interface CreateSessionScheduleData {
@@ -26,6 +28,7 @@ export interface CreateSessionScheduleData {
   cost_center?: string
   from_time?: string
   to_time?: string
+  amount?: number
 }
 
 export async function fetchSessionSchedules(
@@ -78,41 +81,64 @@ export async function createSessionSchedule(data: CreateSessionScheduleData): Pr
 
 export async function updateSessionScheduleStatus(
   sessionScheduleName: string,
-  status: string
+  status: string,
 ): Promise<SessionSchedule> {
-  const csrf = (window as any).csrf_token
-  const response = await fetch(
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<SessionSchedule>(
     '/api/method/healthcare.api.session_schedule.update_session_schedule_status',
     {
       method: 'POST',
-      credentials: 'include',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
-      },
       body: JSON.stringify({
         session_schedule_name: sessionScheduleName,
-        status
-      })
-    }
+        status,
+      }),
+    },
+  )
+}
+
+export interface HealthcareServiceTemplateOption {
+  name: string
+  service_name?: string
+  category?: string
+  rate?: number
+}
+
+export async function getHealthcareServiceTemplates(
+  search?: string,
+  limit: number = 100,
+): Promise<HealthcareServiceTemplateOption[]> {
+  const params = new URLSearchParams()
+  params.set('limit', String(limit))
+  if (search?.trim()) params.set('search', search.trim())
+
+  const response = await fetch(
+    `/api/method/healthcare.api.ip_service.get_ip_service_types?${params.toString()}`,
   )
   const resData = await response.json()
 
-  if (resData?.message) {
-    return resData.message as SessionSchedule
-  } else {
-    throw new Error(resData?.exc || 'Failed to update session schedule')
-  }
-}
-
-export async function getSessionTypes(): Promise<Array<{ name: string; label?: string }>> {
-  const response = await fetch('/api/method/frappe.client.get_list?doctype=Session%20Type&fields=["name"]&limit_page_length=0')
-  const resData = await response.json()
-
   if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as Array<{ name: string }>
-  } else {
-    return []
+    return resData.message as HealthcareServiceTemplateOption[]
   }
+  return []
 }
+
+/** @deprecated Use getHealthcareServiceTemplates */
+export async function getSessionTypes(): Promise<HealthcareServiceTemplateOption[]> {
+  return getHealthcareServiceTemplates()
+}
+
+export async function createSessionScheduleSalesOrder(
+  sessionScheduleName: string,
+): Promise<{ sales_order: string; existing?: boolean; transaction_status?: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ sales_order: string; existing?: boolean; transaction_status?: string }>(
+    '/api/method/healthcare.api.session_schedule.create_sales_order_from_session_schedule',
+    {
+      method: 'POST',
+      body: JSON.stringify({ session_schedule_name: sessionScheduleName }),
+    },
+  )
+}
+
+/** @deprecated Use createSessionScheduleSalesOrder */
+export const billSessionSchedule = createSessionScheduleSalesOrder
