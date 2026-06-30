@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:insurance_company",
  "creation": "2025-11-30 14:39:43.386492",
@@ -11,6 +12,7 @@
   "policy_no",
   "insurance_coverage_",
   "mode_of_payment",
+  "discount_effective_from",
   "column_break_udmx",
   "insurance_no",
   "expiry_date",
@@ -19,6 +21,8 @@
   "inpatient_discount",
   "discounts_section",
   "special_note",
+  "section_break_nmng",
+  "price_history",
   "inclusive_items_tab",
   "inclusive_item",
   "exclusive_items_tab",
@@ -129,12 +133,27 @@
    "fieldtype": "Table MultiSelect",
    "label": "Exclusive Item Group",
    "options": "Item Group TableMultiselecet"
+  },
+  {
+   "fieldname": "section_break_nmng",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "price_history",
+   "fieldtype": "Table",
+   "label": "Price History",
+   "options": "Historical Insurance Price Change"
+  },
+  {
+   "fieldname": "discount_effective_from",
+   "fieldtype": "Date",
+   "label": "Discount Effective From"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-03-22 12:20:59.969424",
+ "modified": "2026-06-30 23:22:24.171629",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Health Insurance",

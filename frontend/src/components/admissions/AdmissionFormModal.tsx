@@ -416,7 +416,6 @@ export const AdmissionFormModal = ({
   }
 
   const [formData, setFormData] = useState({
-    patientIpCategory: '',
     serviceUnit: '',           // primary bed name
     checkIn: new Date().toISOString().slice(0, 16),
     expectedDischarge: '' as string
@@ -541,10 +540,6 @@ export const AdmissionFormModal = ({
 
         setRecord(recordData)
         setDocumentTypes(docTypes)
-
-        if ((recordData as any).patient_ip_category) {
-          setFormData(prev => ({ ...prev, patientIpCategory: (recordData as any).patient_ip_category }))
-        }
 
         const existingRelatives = (recordData as any).patient_relatives || []
         if (Array.isArray(existingRelatives) && existingRelatives.length > 0) {
@@ -764,7 +759,6 @@ export const AdmissionFormModal = ({
         formData.serviceUnit || undefined,
         formData.checkIn,
         formData.expectedDischarge || undefined,
-        formData.patientIpCategory || undefined,
         patientDocuments.length > 0 ? patientDocuments : undefined,
         patientRelatives.length > 0 ? patientRelatives : undefined,
         selectedServiceUnits.map(su => su.name),
@@ -946,28 +940,6 @@ export const AdmissionFormModal = ({
                     </div>
                   </div>
                 )}
-
-                {/* Patient IP Category — then service units — then beds under chosen units */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Patient IP Category
-                    </label>
-                    <select
-                      value={formData.patientIpCategory}
-                      onChange={(e) => setFormData(prev => ({ ...prev, patientIpCategory: e.target.value }))}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-                    >
-                      <option value="">Select category</option>
-                      <option value="INSURANCE-BUPA">INSURANCE-BUPA</option>
-                      <option value="INSURANCE-MILITARY">INSURANCE-MILITARY</option>
-                      <option value="INSURANCE-OTHERS">INSURANCE-OTHERS</option>
-                      <option value="JAU HOSPITAL PATIENT">JAU HOSPITAL PATIENT</option>
-                      <option value="NORMAL-REGULAR">NORMAL-REGULAR</option>
-                      <option value="ROYAL/VIP-REGULAR">ROYAL/VIP-REGULAR</option>
-                    </select>
-                  </div>
-                </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <ServiceUnitSelect

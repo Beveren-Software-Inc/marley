@@ -590,7 +590,6 @@ export async function admitPatient(
   serviceUnit: string | undefined,
   checkIn: string,
   expectedDischarge?: string,
-  patientIpCategory?: string,
   patientDocuments?: {
     file_name?: string
     document_type?: string
@@ -631,7 +630,6 @@ export async function admitPatient(
         service_unit: serviceUnit || null,
         check_in: checkIn,
         expected_discharge: expectedDischarge || null,
-        patient_ip_category: patientIpCategory || null,
         service_units: allServiceUnits && allServiceUnits.length > 0 ? allServiceUnits : null,
         hospital_bed: hospitalBed || bedNo || null,
         bed_no: bedNo || hospitalBed || null,

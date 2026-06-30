@@ -1537,7 +1537,7 @@ def get_patient_visits(search=None, patient=None, limit=20):
 	visits = frappe.get_all(
 		"Patient Visit",
 		filters=filters,
-		fields=["name", "patient", "practitioner"],
+		fields=["name", "patient", "practitioner", "cost_center"],
 		limit=limit,
 		order_by="creation desc",
 	)
@@ -1545,7 +1545,8 @@ def get_patient_visits(search=None, patient=None, limit=20):
 	return [
 		{
 			"name": v.name,
-			"label": f"{v.name} - {v.patient or ''}"
+			"label": f"{v.name} - {v.patient or ''}",
+			"cost_center": v.get("cost_center"),
 		}
 		for v in visits
 	]

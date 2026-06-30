@@ -9,7 +9,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createMentalState } from '../../services/mentalState'
-import { fetchInpatientAdmissions, fetchBranches, type LinkFieldOption } from '../../services/common'
+import { fetchInpatientAdmissions, fetchBranches, syncCostCenterFromCareEpisode, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -177,6 +177,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
       const loadAdmissionLabel = async () => {
         try {
           const admissions = await fetchInpatientAdmissions(patientId, activeAdmission)
+          setAdmissionOptions(admissions)
           const matched = admissions.find((a) => a.name === activeAdmission)
           if (matched) {
             setSelectedAdmission(matched)
@@ -189,6 +190,23 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
       loadAdmissionLabel()
     }
   }, [isIPMode, activeAdmission, patientId])
+
+  useEffect(() => {
+    if (!isIPMode || !admissionNo) return
+    let cancelled = false
+    void syncCostCenterFromCareEpisode('IP', {
+      inpatientRecord: admissionNo,
+      admissions: admissionOptions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setBranch(cc)
+      setBranchQuery(cc)
+      setSelectedBranch({ name: cc, label: cc })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isIPMode, admissionNo, admissionOptions])
 
   useEffect(() => {
     if (!patientOpen) return

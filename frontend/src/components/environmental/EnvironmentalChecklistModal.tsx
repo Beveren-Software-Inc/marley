@@ -5,6 +5,7 @@ import {
   fetchInpatientAdmissionOptions,
   fetchPatientVisits,
   getCurrentUserPractitioner,
+  syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -160,7 +161,7 @@ export function EnvironmentalChecklistModal({
   onClose,
   onSuccess,
 }: EnvironmentalChecklistModalProps) {
-  const { mode, userCostCenter, costCenterCompany } = useCareContext()
+  const { mode, userCostCenter, costCenterCompany, activeAdmission, activeVisit } = useCareContext()
   const isEdit = Boolean(checklistName)
   useRejectEditModeWhenLocked(isEdit, onClose)
   const isCreate = !isEdit
@@ -243,6 +244,38 @@ export function EnvironmentalChecklistModal({
     if (hidePatientVisit) setPatientVisit('')
     if (hideInpatientAdmission) setInpatientAdmission('')
   }, [isCreate, hidePatientVisit, hideInpatientAdmission])
+
+  useEffect(() => {
+    if (isEdit) return
+    const visitRef = mode === 'OP' ? (patientVisit || activeVisit || '') : undefined
+    const admissionRef = mode === 'IP' ? (inpatientAdmission || activeAdmission || '') : undefined
+    if (!visitRef && !admissionRef) return
+    if (mode !== 'OP' && mode !== 'IP') return
+
+    let cancelled = false
+    void syncCostCenterFromCareEpisode(mode, {
+      patientVisit: visitRef || undefined,
+      inpatientRecord: admissionRef || undefined,
+      visits: visitOptions as LinkFieldOption[],
+      admissions: admissionOptions as LinkFieldOption[],
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setCostCenter(cc)
+      setCostCenterLabel(cc)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [
+    isEdit,
+    mode,
+    patientVisit,
+    inpatientAdmission,
+    activeVisit,
+    activeAdmission,
+    visitOptions,
+    admissionOptions,
+  ])
 
   useEffect(() => {
     const loadTemplates = async () => {

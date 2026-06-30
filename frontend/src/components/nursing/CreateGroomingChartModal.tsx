@@ -10,7 +10,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createGroomingChart, type CreateGroomingChartInput } from '../../services/groomingCharts'
-import { fetchCostCenters, fetchInpatientAdmissions, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
+import { fetchCostCenters, fetchInpatientAdmissions, fetchPatientVisits, syncCostCenterFromCareEpisode, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -135,6 +135,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
       const loadAdmissionLabel = async () => {
         try {
           const admissions = await fetchInpatientAdmissions(patientId, activeAdmission)
+          setAdmissionOptions(admissions)
           const matched = admissions.find(a => a.name === activeAdmission)
           if (matched) {
             setSelectedAdmission(matched)
@@ -149,6 +150,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
       const loadVisitLabel = async () => {
         try {
           const visits = await fetchPatientVisits(patientId, activeVisit)
+          setVisitOptions(visits)
           const matched = visits.find(v => v.name === activeVisit)
           if (matched) {
             setSelectedVisit(matched)
@@ -161,6 +163,28 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
       loadVisitLabel()
     }
   }, [isIPMode, isOPMode, activeAdmission, activeVisit, patientId])
+
+  useEffect(() => {
+    const patientVisit = isOPMode ? patientVisitNo : undefined
+    const inpatientRecord = isIPMode ? admissionNo : undefined
+    if (!patientVisit && !inpatientRecord) return
+
+    let cancelled = false
+    void syncCostCenterFromCareEpisode(isIPMode ? 'IP' : 'OP', {
+      patientVisit,
+      inpatientRecord,
+      visits: visitOptions,
+      admissions: admissionOptions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setCostCenter(cc)
+      setCcQuery(cc)
+      setSelectedCc({ name: cc, label: cc })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isIPMode, isOPMode, patientVisitNo, admissionNo, visitOptions, admissionOptions])
 
   // Fetch patients on open / query change
   useEffect(() => {
