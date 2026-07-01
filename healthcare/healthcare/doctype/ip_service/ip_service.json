@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:trans_no",
@@ -16,6 +17,8 @@
   "patient_full_name",
   "cost_center",
   "service_request",
+  "practioner",
+  "practitioner_name",
   "section_break_services",
   "services",
   "section_break_totals",
@@ -35,13 +38,15 @@
   "patient_visit",
   "sta_flg",
   "ap_date",
+  "oth_type",
   "column_break_cqnr",
   "cr_id",
   "cr_date",
   "up_id",
   "up_date",
   "sr_num",
-  "vch_status"
+  "vch_status",
+  "field_1"
  ],
  "fields": [
   {
@@ -243,13 +248,34 @@
    "fieldname": "vch_status",
    "fieldtype": "Data",
    "label": "VCH Status"
+  },
+  {
+   "fieldname": "oth_type",
+   "fieldtype": "Data",
+   "label": "OTH Type"
+  },
+  {
+   "fieldname": "practioner",
+   "fieldtype": "Link",
+   "label": "Practioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
+  },
+  {
+   "fieldname": "field_1",
+   "fieldtype": "Data",
+   "label": "Field 1"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-04-29 15:21:27.441550",
+ "modified": "2026-07-01 23:32:39.237858",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",

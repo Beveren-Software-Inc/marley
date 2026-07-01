@@ -1,0 +1,227 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "autoname": "field:trans_num",
+ "creation": "2026-07-01 23:10:14.068069",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_num",
+  "naming_series",
+  "inpatient_admission",
+  "patient",
+  "patient_name",
+  "transfer_datetime",
+  "column_break_dlni",
+  "from_cost_center",
+  "to_cost_center",
+  "from_service_unit",
+  "to_service_unit",
+  "transferred_by",
+  "company",
+  "section_break_fept",
+  "reason",
+  "section_break_jrhk",
+  "bal_amount",
+  "section_break_hbwu",
+  "old_admission",
+  "new_admission",
+  "column_break_ipdc",
+  "new_admission_date",
+  "new_admission_time",
+  "section_break_irlm",
+  "cr_id",
+  "cr_date",
+  "column_break_bxzz",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "TAE-.YYYY.-"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fetch_from": "inpatient_admission.patient",
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "inpatient_admission.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "transfer_datetime",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Transfer Date & Time"
+  },
+  {
+   "fieldname": "column_break_dlni",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "From Cost Center",
+   "options": "Cost Center",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "To Cost Center",
+   "options": "Cost Center",
+   "reqd": 1
+  },
+  {
+   "fieldname": "from_service_unit",
+   "fieldtype": "Link",
+   "label": "From Service Unit",
+   "options": "Healthcare Service Unit"
+  },
+  {
+   "fieldname": "to_service_unit",
+   "fieldtype": "Link",
+   "label": "To Service Unit",
+   "options": "Healthcare Service Unit"
+  },
+  {
+   "fieldname": "transferred_by",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Transferred By",
+   "options": "User"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company"
+  },
+  {
+   "fieldname": "section_break_fept",
+   "fieldtype": "Section Break",
+   "label": "More information"
+  },
+  {
+   "fieldname": "reason",
+   "fieldtype": "Small Text",
+   "label": "Reason"
+  },
+  {
+   "fieldname": "section_break_hbwu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "old_admission",
+   "fieldtype": "Data",
+   "label": "Old Admission"
+  },
+  {
+   "fieldname": "new_admission",
+   "fieldtype": "Data",
+   "label": "New Admission"
+  },
+  {
+   "fieldname": "column_break_ipdc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_admission_date",
+   "fieldtype": "Date",
+   "label": "New Admission Date"
+  },
+  {
+   "fieldname": "new_admission_time",
+   "fieldtype": "Datetime",
+   "label": "New Admission Time"
+  },
+  {
+   "fieldname": "section_break_irlm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_bxzz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num",
+   "unique": 1
+  },
+  {
+   "fieldname": "section_break_jrhk",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "bal_amount",
+   "fieldtype": "Currency",
+   "label": "Bal Amount"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-01 23:11:07.053965",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Admission Transfer Balance",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

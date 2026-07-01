@@ -5,7 +5,14 @@ from __future__ import annotations
 import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime, nowdate, get_time, getdate
-from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.ip_patient_assessment_import import (
+	_abbrev_to_row_key,
+	_assessment_datetime_from_row,
+	_assessment_time_from_row,
+	_persist_and_submit_patient_assessment,
+	_row_value_for_abbrev,
+	_to_yes_no_flag,
+)
 
 # ── Batch sizes (tune for ~1h runs on large datasets) ─────────────────────────
 PATIENT_BATCH_SIZE = 2000
@@ -20,6 +27,8 @@ IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
 CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
 DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
 PATIENT_HISTORY_DATE_BATCH_SIZE = 100
+PATIENT_INFO_IMPORT_BATCH_SIZE = 200
+IP_ADMISSION_DISCHARGE_IMPORT_BATCH_SIZE = 25
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 
@@ -487,6 +496,45 @@ def start_morse_fall_scale_detail_migration() -> dict:
 		"message": _(
 			"Morse Fall Scale detail backfill started ({0} staging rows, {1} resolvable)."
 		).format(preview.get("staging_rows", 0), preview.get("resolvable", 0)),
+	}
+
+
+@frappe.whitelist()
+def start_morse_fall_scale_detail_dedupe_migration() -> dict:
+	"""Delete duplicate Morse Fall Scale Detail rows (one row per text message per scale)."""
+	_require_admin()
+	from healthcare.api.morse_fall_scale_detail_dedupe import preview_morse_fall_scale_detail_dedupe
+
+	job = "morse_fall_scale_detail_dedupe"
+	preview = preview_morse_fall_scale_detail_dedupe()
+	if not cint(preview.get("rows_to_delete")):
+		return {
+			"ok": True,
+			"message": _("No duplicate Morse Fall Scale detail rows found."),
+		}
+
+	_acquire_lock(job)
+	_set_progress(
+		job,
+		0,
+		parents_affected=preview.get("parents_affected"),
+		rows_to_delete=preview.get("rows_to_delete"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_morse_fall_scale_detail_dedupe_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_morse_fall_scale_detail_dedupe",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Morse Fall Scale detail dedupe started ({0} scale(s), {1} duplicate row(s) to remove)."
+		).format(
+			preview.get("parents_affected") or 0,
+			preview.get("rows_to_delete") or 0,
+		),
 	}
 
 
@@ -1638,24 +1686,6 @@ def _resolve_item_code_for_given_tables(value) -> str | None:
 	return code if frappe.db.exists("Item", code) else None
 
 
-def _to_yes_no_flag(value) -> int:
-	"""Normalize imported true-ish values to 1, else 0."""
-	if value is None:
-		return 0
-	s = str(value).strip().upper()
-	return 1 if s in {"1", "Y", "YES", "TRUE", "T"} else 0
-
-
-def _safe_row_value(row: dict, key: str):
-	"""Read row field by case-sensitive key with lowercase fallback."""
-	if key in row:
-		return row.get(key)
-	lower = key.lower()
-	if lower in row:
-		return row.get(lower)
-	return None
-
-
 def _load_default_patient_assessment_template():
 	template_name = (
 		frappe.db.get_value("Patient Assessment Template", {"assessment_name": "Default Patient Evaluation"}, "name")
@@ -1691,6 +1721,7 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 		)
 
 		created = 0
+		submitted = 0
 		skipped_existing = 0
 		skipped_missing_admission = 0
 		skipped_missing_patient = 0
@@ -1734,12 +1765,13 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 				doc.healthcare_practitioner = (
 					inpatient.get("primary_practitioner") or inpatient.get("secondary_practitioner")
 				)
-				doc.assessment_datetime = row.get("cr_date") or now_datetime()
+				doc.assessment_datetime = _assessment_datetime_from_row(row)
 				doc.ip_patient_assessment = ip_name
 				doc.assessment_description = (
-					(_safe_row_value(row, "history_dscp") or "").strip()
-					or (_safe_row_value(row, "others") or "").strip()
+					(_row_value_for_abbrev(row, "history_dscp") or "").strip()
+					or (_row_value_for_abbrev(row, "others") or "").strip()
 				)
+				assessment_time = _assessment_time_from_row(row)
 
 				for detail in template.get("parameters") or []:
 					param_name = (detail.get("assessment_parameter") or "").strip()
@@ -1749,25 +1781,26 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 					if not abbrev:
 						continue
 
-					flag_value = _safe_row_value(row, abbrev)
+					flag_value = _row_value_for_abbrev(row, abbrev)
 					yes_flag = _to_yes_no_flag(flag_value)
 
-					desc_key = f"{abbrev.lower()}_desc"
-					comments = (_safe_row_value(row, desc_key) or "").strip()
-					if not comments and abbrev.lower() == "history":
-						comments = (_safe_row_value(row, "history_dscp") or "").strip()
+					desc_key = f"{_abbrev_to_row_key(abbrev)}_desc"
+					comments = (_row_value_for_abbrev(row, desc_key) or "").strip()
+					if not comments and _abbrev_to_row_key(abbrev) == "history_dscp":
+						comments = (_row_value_for_abbrev(row, "history_dscp") or "").strip()
 
-					doc.append(
-						"assessment_sheet",
-						{
-							"parameter": param_name,
-							"yes": yes_flag,
-							"comments": comments if yes_flag else "",
-						},
-					)
+					child_row = {
+						"parameter": param_name,
+						"yes": yes_flag,
+						"comments": comments if yes_flag else "",
+					}
+					if assessment_time:
+						child_row["time"] = assessment_time
 
-				doc.flags.ignore_mandatory = True
-				doc.insert(ignore_permissions=True)
+					doc.append("assessment_sheet", child_row)
+
+				if _persist_and_submit_patient_assessment(doc, existing=False):
+					submitted += 1
 				created += 1
 			except Exception:
 				skipped_errors += 1
@@ -1784,6 +1817,7 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 			processed,
 			template=template_name,
 			created=created,
+			submitted=submitted,
 			skipped_existing=skipped_existing,
 			skipped_missing_admission=skipped_missing_admission,
 			skipped_missing_patient=skipped_missing_patient,
@@ -1805,6 +1839,7 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 				done=True,
 				template=template_name,
 				created=created,
+				submitted=submitted,
 				skipped_existing=skipped_existing,
 				skipped_missing_admission=skipped_missing_admission,
 				skipped_missing_patient=skipped_missing_patient,
@@ -1814,7 +1849,7 @@ def process_ip_patient_assessment_map_batch(offset: int = 0) -> None:
 			frappe.log_error(
 				title="IP Patient Assessment map migration complete",
 				message=(
-					f"Processed rows: {processed}, created: {created}, "
+					f"Processed rows: {processed}, created: {created}, submitted: {submitted}, "
 					f"skipped existing: {skipped_existing}, "
 					f"skipped missing admission: {skipped_missing_admission}, "
 					f"skipped missing patient: {skipped_missing_patient}, "
@@ -2772,6 +2807,46 @@ def process_morse_fall_scale_detail_import_batch(offset: int = 0) -> None:
 		raise
 
 
+def process_morse_fall_scale_detail_dedupe_batch(offset: int = 0) -> None:
+	from healthcare.api.morse_fall_scale_detail_dedupe import run_morse_fall_scale_detail_dedupe_batch
+
+	job = "morse_fall_scale_detail_dedupe"
+	counter_fields = [
+		"parents_processed",
+		"rows_deleted",
+		"parents_total_updated",
+		"errors",
+	]
+	try:
+		result = run_morse_fall_scale_detail_dedupe_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		batch_count = cint(result.get("batch_count", 0))
+		processed = cint(prev.get("processed", 0)) + batch_count
+		extra = {field: cint(prev.get(field, 0)) + cint(result.get(field, 0)) for field in counter_fields}
+		_set_progress(job, processed, **extra)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_morse_fall_scale_detail_dedupe_batch",
+				offset=0,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_morse_fall_scale_detail_dedupe_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True, **extra)
+			_release_lock(job)
+			frappe.log_error(
+				title="Morse Fall Scale detail dedupe complete",
+				message=frappe.as_json({"processed": processed, "done": True, **extra}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── Normalize comma legacy IDs (1,415 → 1415) ─────────────────────────────────
 
 
@@ -2996,4 +3071,1921 @@ def process_visit_diagnosis_sync_batch(offset: int = 0) -> None:
 		)
 		_release_lock(job)
 		frappe.cache().delete_value(CACHE_NAMES)
+		raise
+
+
+# ── Patient Excel import (Oracle PATIENT_INFO_01) ─────────────────────────────
+
+
+@frappe.whitelist()
+def start_patient_info_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_info_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "patient_info_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_patients=summary.get("patients"),
+		excel_rows=summary.get("excel_rows"),
+		existing_patients=summary.get("existing_patients"),
+		new_patients=summary.get("new_patients"),
+		with_allergies=summary.get("with_allergies"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_info_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_info_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient import started ({0} rows, {1} to create, {2} to update, {3} with allergies)."
+		).format(
+			summary.get("patients") or 0,
+			summary.get("new_patients") or 0,
+			summary.get("existing_patients") or 0,
+			summary.get("with_allergies") or 0,
+		),
+	}
+
+
+def process_patient_info_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_info_import import run_patient_info_import_batch
+
+	job = "patient_info_import"
+	try:
+		result = run_patient_info_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_name=cint(prev.get("skip_no_name", 0)) + cint(result.get("skip_no_name", 0)),
+			skip_no_gender=cint(prev.get("skip_no_gender", 0))
+			+ cint(result.get("skip_no_gender", 0)),
+			allergy_warnings_created=cint(prev.get("allergy_warnings_created", 0))
+			+ cint(result.get("allergy_warnings_created", 0)),
+			allergy_warnings_updated=cint(prev.get("allergy_warnings_updated", 0))
+			+ cint(result.get("allergy_warnings_updated", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_patients=prev.get("total_patients"),
+			excel_rows=prev.get("excel_rows"),
+			with_allergies=prev.get("with_allergies"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_info_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_info_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient import (PATIENT_INFO_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── IP Admission + Discharge Excel import (Oracle IP_ADMISSION_01) ────────────
+
+
+@frappe.whitelist()
+def start_ip_admission_discharge_import_migration(
+	file_url: str,
+	nursing_file_url: str | None = None,
+	discharge_checklist_file_url: str | None = None,
+) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_discharge_import import (
+		parse_and_cache_bundle,
+		parse_and_cache_excel,
+	)
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "ip_admission_discharge_import"
+	_acquire_lock(job)
+	if nursing_file_url or discharge_checklist_file_url:
+		summary = parse_and_cache_bundle(
+			file_url,
+			nursing_file_url or None,
+			discharge_checklist_file_url or None,
+		)
+	else:
+		summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_admissions=summary.get("admissions"),
+		excel_rows=summary.get("excel_rows"),
+		existing_admissions=summary.get("existing_admissions"),
+		existing_discharges=summary.get("existing_discharges"),
+		missing_patients=summary.get("missing_patients"),
+		discharged_rows=summary.get("discharged_rows"),
+		admitted_rows=summary.get("admitted_rows"),
+		nursing_rows=summary.get("nursing_rows"),
+		nursing_admissions=summary.get("nursing_admissions"),
+		discharge_checklist_rows=summary.get("discharge_checklist_rows"),
+		discharge_checklist_admissions=summary.get("discharge_checklist_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_discharge_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_discharge_import",
+	)
+	checklist_note = ""
+	if summary.get("nursing_admissions") or summary.get("discharge_checklist_admissions"):
+		checklist_note = _(
+			" Nursing checklist: {0} admissions ({1} rows). Discharge checklist: {2} admissions ({3} rows)."
+		).format(
+			summary.get("nursing_admissions") or 0,
+			summary.get("nursing_rows") or 0,
+			summary.get("discharge_checklist_admissions") or 0,
+			summary.get("discharge_checklist_rows") or 0,
+		)
+	return {
+		"ok": True,
+		"message": _(
+			"IP Admission/Discharge import started ({0} rows: {1} discharged, {2} admitted).{3}"
+		).format(
+			summary.get("admissions") or 0,
+			summary.get("discharged_rows") or 0,
+			summary.get("admitted_rows") or 0,
+			checklist_note,
+		),
+	}
+
+
+def process_ip_admission_discharge_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_discharge_import import run_ip_admission_discharge_import_batch
+
+	job = "ip_admission_discharge_import"
+	try:
+		result = run_ip_admission_discharge_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			discharges_created=cint(prev.get("discharges_created", 0))
+			+ cint(result.get("discharges_created", 0)),
+			discharges_updated=cint(prev.get("discharges_updated", 0))
+			+ cint(result.get("discharges_updated", 0)),
+			discharges_submitted=cint(prev.get("discharges_submitted", 0))
+			+ cint(result.get("discharges_submitted", 0)),
+			nursing_ok=cint(prev.get("nursing_ok", 0)) + cint(result.get("nursing_ok", 0)),
+			nursing_skip=cint(prev.get("nursing_skip", 0)) + cint(result.get("nursing_skip", 0)),
+			discharge_cl_ok=cint(prev.get("discharge_cl_ok", 0))
+			+ cint(result.get("discharge_cl_ok", 0)),
+			discharge_cl_skip=cint(prev.get("discharge_cl_skip", 0))
+			+ cint(result.get("discharge_cl_skip", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_admissions=prev.get("total_admissions"),
+			discharged_rows=prev.get("discharged_rows"),
+			admitted_rows=prev.get("admitted_rows"),
+			missing_patients=prev.get("missing_patients"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_discharge_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_discharge_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Admission/Discharge import (IP_ADMISSION_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Patient Visit Excel import (Oracle VISIT_00_01) ───────────────────────────
+
+
+@frappe.whitelist()
+def start_patient_visit_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_visit_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the VISIT_00_01 Excel file."))
+
+	job = "patient_visit_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_visits=summary.get("visits"),
+		excel_rows=summary.get("excel_rows"),
+		existing_visits=summary.get("existing_visits"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_visit_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_visit_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Visit import started ({0} visits, {1} existing, {2} patients will be auto-created)."
+		).format(
+			summary.get("visits") or 0,
+			summary.get("existing_visits") or 0,
+			summary.get("patients_to_create") or 0,
+		),
+	}
+
+
+def process_patient_visit_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_visit_import import run_patient_visit_import_batch
+
+	job = "patient_visit_import"
+	try:
+		result = run_patient_visit_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_no_date=cint(prev.get("skip_no_date", 0)) + cint(result.get("skip_no_date", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_visits=prev.get("total_visits"),
+			excel_rows=prev.get("excel_rows"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_visit_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_visit_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Visit import (VISIT_00_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Service Request Excel import (Oracle VISIT_00_02) ───────────────────────
+
+
+@frappe.whitelist()
+def start_service_request_visit_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.service_request_visit_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the VISIT_00_02 Excel file."))
+
+	job = "service_request_visit_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("service_requests"),
+		excel_rows=summary.get("excel_rows"),
+		unique_visits=summary.get("unique_visits"),
+		visits_to_create=summary.get("visits_to_create"),
+		existing_service_requests=summary.get("existing_service_requests"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_service_request_visit_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_service_request_visit_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Service Request import started ({0} rows, {1} visits to create, {2} existing service requests)."
+		).format(
+			summary.get("service_requests") or 0,
+			summary.get("visits_to_create") or 0,
+			summary.get("existing_service_requests") or 0,
+		),
+	}
+
+
+def process_service_request_visit_import_batch(offset: int = 0) -> None:
+	from healthcare.api.service_request_visit_import import run_service_request_visit_import_batch
+
+	job = "service_request_visit_import"
+	try:
+		result = run_service_request_visit_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_visit=cint(prev.get("skip_no_visit", 0)) + cint(result.get("skip_no_visit", 0)),
+			skip_no_template=cint(prev.get("skip_no_template", 0))
+			+ cint(result.get("skip_no_template", 0)),
+			visits_created=cint(prev.get("visits_created", 0)) + cint(result.get("visits_created", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			excel_rows=prev.get("excel_rows"),
+			unique_visits=prev.get("unique_visits"),
+			visits_to_create=prev.get("visits_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_service_request_visit_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_service_request_visit_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Service Request import (VISIT_00_02) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Legacy IP Service Excel import (Oracle SRV_00_03 + SRV_00_04) ────────────
+
+
+@frappe.whitelist()
+def start_legacy_ip_service_import_migration(header_file_url: str, detail_file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_service_legacy_import import parse_and_cache_excel
+
+	if not (header_file_url or "").strip():
+		frappe.throw(_("Please upload the SRV_00_03 Excel file (header / parent)."))
+	if not (detail_file_url or "").strip():
+		frappe.throw(_("Please upload the SRV_00_04 Excel file (detail lines)."))
+
+	job = "legacy_ip_service_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(header_file_url, detail_file_url)
+	_set_progress(
+		job,
+		0,
+		total_transactions=summary.get("transactions"),
+		visits_to_create=summary.get("visits_to_create"),
+		standalone_transactions=summary.get("standalone_transactions"),
+		header_rows=summary.get("header_rows"),
+		detail_rows=summary.get("detail_rows"),
+		batch_id=summary.get("batch_id"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_legacy_ip_service_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_legacy_ip_service_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Legacy IP Service import started ({0} transactions, {1} visits to create, {2} standalone from detail only)."
+		).format(
+			summary.get("transactions") or 0,
+			summary.get("visits_to_create") or 0,
+			summary.get("standalone_transactions") or 0,
+		),
+	}
+
+
+def process_legacy_ip_service_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_service_legacy_import import run_legacy_ip_service_import_batch
+
+	job = "legacy_ip_service_import"
+	try:
+		result = run_legacy_ip_service_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			standalone_ok=cint(prev.get("standalone_ok", 0)) + cint(result.get("standalone_ok", 0)),
+			visits_created=cint(prev.get("visits_created", 0)) + cint(result.get("visits_created", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_template=cint(prev.get("skip_no_template", 0))
+			+ cint(result.get("skip_no_template", 0)),
+			skip_no_lines=cint(prev.get("skip_no_lines", 0)) + cint(result.get("skip_no_lines", 0)),
+			skip_no_data=cint(prev.get("skip_no_data", 0)) + cint(result.get("skip_no_data", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_transactions=prev.get("total_transactions"),
+			batch_id=prev.get("batch_id"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_legacy_ip_service_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_legacy_ip_service_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Service import (SRV_00_03 + SRV_00_04) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Lab Test Patient Visit Excel import (Oracle VISIT_00_03) ─────────────────
+
+
+@frappe.whitelist()
+def start_lab_test_visit_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.lab_test_visit_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the VISIT_00_03 Excel file."))
+
+	job = "lab_test_visit_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("lab_tests"),
+		excel_rows=summary.get("excel_rows"),
+		unique_visits=summary.get("unique_visits"),
+		visits_to_create=summary.get("visits_to_create"),
+		existing_lab_tests=summary.get("existing_lab_tests"),
+		matching_templates=summary.get("matching_templates"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_lab_test_visit_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_lab_test_visit_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Lab Test VISIT_00_03 import started ({0} rows, {1} visits to create, {2} existing lab tests)."
+		).format(
+			summary.get("lab_tests") or 0,
+			summary.get("visits_to_create") or 0,
+			summary.get("existing_lab_tests") or 0,
+		),
+	}
+
+
+def process_lab_test_visit_import_batch(offset: int = 0) -> None:
+	from healthcare.api.lab_test_visit_import import run_lab_test_visit_import_batch
+
+	job = "lab_test_visit_import"
+	try:
+		result = run_lab_test_visit_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_visit=cint(prev.get("skip_no_visit", 0)) + cint(result.get("skip_no_visit", 0)),
+			skip_existing_non_legacy=cint(prev.get("skip_existing_non_legacy", 0))
+			+ cint(result.get("skip_existing_non_legacy", 0)),
+			visits_created=cint(prev.get("visits_created", 0)) + cint(result.get("visits_created", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			excel_rows=prev.get("excel_rows"),
+			unique_visits=prev.get("unique_visits"),
+			visits_to_create=prev.get("visits_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_lab_test_visit_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_lab_test_visit_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Lab Test import (VISIT_00_03) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Patient Appointment Excel import (Oracle APPOINTMENTS_INFO_01) ───────────
+
+
+@frappe.whitelist()
+def start_patient_appointment_info_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_appointment_info_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the APPOINTMENTS_INFO_01 Excel file."))
+
+	job = "patient_appointment_info_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_appointments=summary.get("new_appointments"),
+		existing_appointments=summary.get("existing_appointments"),
+		patients_to_create=summary.get("patients_to_create"),
+		walk_ins=summary.get("walk_ins"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_appointment_info_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_appointment_info_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Appointment APPOINTMENTS_INFO_01 import started ({0} rows, {1} new, {2} existing, {3} patients to create)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_appointments") or 0,
+			summary.get("existing_appointments") or 0,
+			summary.get("patients_to_create") or 0,
+		),
+	}
+
+
+def process_patient_appointment_info_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_appointment_info_import import run_patient_appointment_info_import_batch
+
+	job = "patient_appointment_info_import"
+	try:
+		result = run_patient_appointment_info_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_date=cint(prev.get("skip_no_date", 0)) + cint(result.get("skip_no_date", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			practitioners_created=cint(prev.get("practitioners_created", 0))
+			+ cint(result.get("practitioners_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_appointments=prev.get("new_appointments"),
+			existing_appointments=prev.get("existing_appointments"),
+			patients_to_create=prev.get("patients_to_create"),
+			walk_ins=prev.get("walk_ins"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_appointment_info_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_appointment_info_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Appointment import (APPOINTMENTS_INFO_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Medical Diagnosis Entry Excel import (Oracle VISIT_DIAGNOSES_01) ─────────
+
+
+@frappe.whitelist()
+def start_visit_diagnoses_op_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.visit_diagnoses_op_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the VISIT_DIAGNOSES_01 Excel file."))
+
+	job = "visit_diagnoses_op_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_entries=summary.get("new_entries"),
+		existing_entries=summary.get("existing_entries"),
+		matched_diagnosis=summary.get("matched_diagnosis"),
+		skip_no_diagnosis=summary.get("skip_no_diagnosis"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_visit_diagnoses_op_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_visit_diagnoses_op_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Diagnosis OP VISIT_DIAGNOSES_01 import started ({0} rows, {1} new, {2} matched diagnosis codes)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_entries") or 0,
+			summary.get("matched_diagnosis") or 0,
+		),
+	}
+
+
+def process_visit_diagnoses_op_import_batch(offset: int = 0) -> None:
+	from healthcare.api.visit_diagnoses_op_import import run_visit_diagnoses_op_import_batch
+
+	job = "visit_diagnoses_op_import"
+	try:
+		result = run_visit_diagnoses_op_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_diagnosis=cint(prev.get("skip_no_diagnosis", 0))
+			+ cint(result.get("skip_no_diagnosis", 0)),
+			skip_unresolved_diagnosis=cint(prev.get("skip_unresolved_diagnosis", 0))
+			+ cint(result.get("skip_unresolved_diagnosis", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_entries=prev.get("new_entries"),
+			existing_entries=prev.get("existing_entries"),
+			matched_diagnosis=prev.get("matched_diagnosis"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_visit_diagnoses_op_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_visit_diagnoses_op_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Diagnosis OP import (VISIT_DIAGNOSES_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Medical Diagnosis Entry Excel import (Oracle IP_ADMISSION_DIAGNOSES) ─────
+
+
+@frappe.whitelist()
+def start_ip_admission_diagnoses_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_diagnoses_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_DIAGNOSES Excel file."))
+
+	job = "ip_admission_diagnoses_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_entries=summary.get("new_entries"),
+		existing_entries=summary.get("existing_entries"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		unresolved_admissions=summary.get("unresolved_admissions"),
+		skip_no_details=summary.get("skip_no_details"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_diagnoses_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_diagnoses_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Diagnosis IP IP_ADMISSION_DIAGNOSES import started ({0} rows, {1} new, {2} admissions resolved)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_entries") or 0,
+			summary.get("resolved_admissions") or 0,
+		),
+	}
+
+
+def process_ip_admission_diagnoses_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_diagnoses_import import run_ip_admission_diagnoses_import_batch
+
+	job = "ip_admission_diagnoses_import"
+	try:
+		result = run_ip_admission_diagnoses_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_details=cint(prev.get("skip_no_details", 0))
+			+ cint(result.get("skip_no_details", 0)),
+			admissions_resolved=cint(prev.get("admissions_resolved", 0))
+			+ cint(result.get("admissions_resolved", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_entries=prev.get("new_entries"),
+			existing_entries=prev.get("existing_entries"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			unresolved_admissions=prev.get("unresolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_diagnoses_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_diagnoses_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Diagnosis IP import (IP_ADMISSION_DIAGNOSES) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Doctor Order Excel import (Oracle IP_DOCTOR_REQUEST_01) ───────────────────
+
+
+@frappe.whitelist()
+def start_ip_doctor_request_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_doctor_request_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_DOCTOR_REQUEST_01 Excel file."))
+
+	job = "ip_doctor_request_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_orders=summary.get("new_orders"),
+		existing_orders=summary.get("existing_orders"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_doctor_request_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_doctor_request_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Doctor Order IP_DOCTOR_REQUEST_01 import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_orders") or 0,
+		),
+	}
+
+
+def process_ip_doctor_request_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_doctor_request_import import run_ip_doctor_request_import_batch
+
+	job = "ip_doctor_request_import"
+	try:
+		result = run_ip_doctor_request_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			placeholder_description=cint(prev.get("placeholder_description", 0))
+			+ cint(result.get("placeholder_description", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			practitioners_created=cint(prev.get("practitioners_created", 0))
+			+ cint(result.get("practitioners_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_orders=prev.get("new_orders"),
+			existing_orders=prev.get("existing_orders"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_doctor_request_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_doctor_request_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Doctor Order import (IP_DOCTOR_REQUEST_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Patient Assessment Excel import (Oracle IP_PATIENT_ASSESSMENT) ───────────
+
+
+@frappe.whitelist()
+def start_ip_patient_assessment_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_patient_assessment_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_PATIENT_ASSESSMENT Excel file."))
+
+	job = "ip_patient_assessment_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("assessments"),
+		new_assessments=summary.get("new_assessments"),
+		existing_assessments=summary.get("existing_assessments"),
+		assessment_template=summary.get("assessment_template"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		duplicate_admission_rows=summary.get("duplicate_admission_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_patient_assessment_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_patient_assessment_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Assessment IP_PATIENT_ASSESSMENT import started ({0} admissions, {1} new, template {2})."
+		).format(
+			summary.get("assessments") or 0,
+			summary.get("new_assessments") or 0,
+			summary.get("assessment_template") or "",
+		),
+	}
+
+
+def process_ip_patient_assessment_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_patient_assessment_import import run_ip_patient_assessment_import_batch
+
+	job = "ip_patient_assessment_import"
+	try:
+		result = run_ip_patient_assessment_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_assessments=prev.get("new_assessments"),
+			existing_assessments=prev.get("existing_assessments"),
+			assessment_template=prev.get("assessment_template"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			duplicate_admission_rows=prev.get("duplicate_admission_rows"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_patient_assessment_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_patient_assessment_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Assessment import (IP_PATIENT_ASSESSMENT) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Vital Signs Excel import (Oracle IP_PATIENT_VITALS) ─────────────────────
+
+
+@frappe.whitelist()
+def start_ip_patient_vitals_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_patient_vitals_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_PATIENT_VITALS Excel file."))
+
+	job = "ip_patient_vitals_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_vitals=summary.get("new_vitals"),
+		existing_vitals=summary.get("existing_vitals"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_patient_vitals_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_patient_vitals_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Vital Signs IP_PATIENT_VITALS import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_vitals") or 0,
+		),
+	}
+
+
+def process_ip_patient_vitals_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_patient_vitals_import import run_ip_patient_vitals_import_batch
+
+	job = "ip_patient_vitals_import"
+	try:
+		result = run_ip_patient_vitals_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_vitals=prev.get("new_vitals"),
+			existing_vitals=prev.get("existing_vitals"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_patient_vitals_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_patient_vitals_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Vital Signs import (IP_PATIENT_VITALS) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Observation Excel import (Oracle IP_OBSERVATION_LEVEL) ──────────────────
+
+
+@frappe.whitelist()
+def start_ip_observation_level_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_observation_level_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_OBSERVATION_LEVEL Excel file."))
+
+	job = "ip_observation_level_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_observations=summary.get("new_observations"),
+		existing_observations=summary.get("existing_observations"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		unknown_obs_code_rows=summary.get("unknown_obs_code_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_observation_level_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_observation_level_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Observation IP_OBSERVATION_LEVEL import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_observations") or 0,
+		),
+	}
+
+
+def process_ip_observation_level_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_observation_level_import import run_ip_observation_level_import_batch
+
+	job = "ip_observation_level_import"
+	try:
+		result = run_ip_observation_level_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_observations=prev.get("new_observations"),
+			existing_observations=prev.get("existing_observations"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			unknown_obs_code_rows=prev.get("unknown_obs_code_rows"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_observation_level_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_observation_level_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Observation import (IP_OBSERVATION_LEVEL) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Morse Fall Scale Excel import (Oracle MORSE_FALL_SCALE_01) ──────────────
+
+
+@frappe.whitelist()
+def start_morse_fall_scale_excel_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.morse_fall_scale_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the MORSE_FALL_SCALE_01 Excel file."))
+
+	job = "morse_fall_scale_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_scales=summary.get("new_scales"),
+		existing_scales=summary.get("existing_scales"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_morse_fall_scale_excel_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_morse_fall_scale_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Morse Fall Scale MORSE_FALL_SCALE_01 import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_scales") or 0,
+		),
+	}
+
+
+def process_morse_fall_scale_excel_import_batch(offset: int = 0) -> None:
+	from healthcare.api.morse_fall_scale_import import run_morse_fall_scale_import_batch
+
+	job = "morse_fall_scale_import"
+	try:
+		result = run_morse_fall_scale_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_empty_details=cint(prev.get("skip_empty_details", 0))
+			+ cint(result.get("skip_empty_details", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_scales=prev.get("new_scales"),
+			existing_scales=prev.get("existing_scales"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_morse_fall_scale_excel_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_morse_fall_scale_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Morse Fall Scale import (MORSE_FALL_SCALE_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Physical Examination Excel import (Oracle IP_ADMISSION_PHY_EXAM) ────────
+
+
+@frappe.whitelist()
+def start_ip_admission_phy_exam_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_phy_exam_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_PHY_EXAM Excel file."))
+
+	job = "ip_admission_phy_exam_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_examinations=summary.get("new_examinations"),
+		existing_examinations=summary.get("existing_examinations"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_phy_exam_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_phy_exam_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Physical Examination IP_ADMISSION_PHY_EXAM import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_examinations") or 0,
+		),
+	}
+
+
+def process_ip_admission_phy_exam_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_phy_exam_import import run_ip_admission_phy_exam_import_batch
+
+	job = "ip_admission_phy_exam_import"
+	try:
+		result = run_ip_admission_phy_exam_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_examinations=prev.get("new_examinations"),
+			existing_examinations=prev.get("existing_examinations"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_phy_exam_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_phy_exam_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Physical Examination import (IP_ADMISSION_PHY_EXAM) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── IP Admission Transfer import (Oracle IP_ADMISSION_TRANSFER) ─────────────
+
+
+@frappe.whitelist()
+def start_ip_admission_transfer_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_transfer_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_TRANSFER Excel file."))
+
+	job = "ip_admission_transfer_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_transfers=summary.get("new_transfers"),
+		existing_transfers=summary.get("existing_transfers"),
+		resolved_new_admissions=summary.get("resolved_new_admissions"),
+		unresolved_new_admissions=summary.get("unresolved_new_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_transfer_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_transfer_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Admission Transfer IP_ADMISSION_TRANSFER import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_transfers") or 0,
+		),
+	}
+
+
+def process_ip_admission_transfer_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_transfer_import import run_ip_admission_transfer_import_batch
+
+	job = "ip_admission_transfer_import"
+	try:
+		result = run_ip_admission_transfer_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_no_new_admission=cint(prev.get("skip_no_new_admission", 0))
+			+ cint(result.get("skip_no_new_admission", 0)),
+			skip_patient_mismatch=cint(prev.get("skip_patient_mismatch", 0))
+			+ cint(result.get("skip_patient_mismatch", 0)),
+			skip_no_cost_center=cint(prev.get("skip_no_cost_center", 0))
+			+ cint(result.get("skip_no_cost_center", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_transfers=prev.get("new_transfers"),
+			existing_transfers=prev.get("existing_transfers"),
+			resolved_new_admissions=prev.get("resolved_new_admissions"),
+			unresolved_new_admissions=prev.get("unresolved_new_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_transfer_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_transfer_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Admission Transfer import (IP_ADMISSION_TRANSFER) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Fall Risk Assessment Excel import (Oracle FALL_RISK_ASSESSMENT) ───────────
+
+
+@frappe.whitelist()
+def start_fall_risk_assessment_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.fall_risk_assessment_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the FALL_RISK_ASSESSMENT Excel file."))
+
+	job = "fall_risk_assessment_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_assessments=summary.get("new_assessments"),
+		existing_assessments=summary.get("existing_assessments"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		unresolved_admissions=summary.get("unresolved_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_fall_risk_assessment_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_fall_risk_assessment_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Fall Risk Assessment FALL_RISK_ASSESSMENT import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_assessments") or 0,
+		),
+	}
+
+
+def process_fall_risk_assessment_import_batch(offset: int = 0) -> None:
+	from healthcare.api.fall_risk_assessment_import import run_fall_risk_assessment_import_batch
+
+	job = "fall_risk_assessment_import"
+	try:
+		result = run_fall_risk_assessment_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_trans_date=cint(prev.get("skip_no_trans_date", 0))
+			+ cint(result.get("skip_no_trans_date", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_assessments=prev.get("new_assessments"),
+			existing_assessments=prev.get("existing_assessments"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			unresolved_admissions=prev.get("unresolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_fall_risk_assessment_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_fall_risk_assessment_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Fall Risk Assessment import (FALL_RISK_ASSESSMENT) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── IP Admission Transfer Balance import (Oracle IP_ADMISSION_TRANSFER_BAL) ──
+
+
+@frappe.whitelist()
+def start_ip_admission_transfer_bal_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_transfer_bal_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_TRANSFER_BAL Excel file."))
+
+	job = "ip_admission_transfer_bal_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_transfers=summary.get("new_transfers"),
+		existing_transfers=summary.get("existing_transfers"),
+		resolved_new_admissions=summary.get("resolved_new_admissions"),
+		unresolved_new_admissions=summary.get("unresolved_new_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_transfer_bal_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_transfer_bal_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Admission Transfer Balance IP_ADMISSION_TRANSFER_BAL import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_transfers") or 0,
+		),
+	}
+
+
+def process_ip_admission_transfer_bal_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_transfer_bal_import import run_ip_admission_transfer_bal_import_batch
+
+	job = "ip_admission_transfer_bal_import"
+	try:
+		result = run_ip_admission_transfer_bal_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_no_new_admission=cint(prev.get("skip_no_new_admission", 0))
+			+ cint(result.get("skip_no_new_admission", 0)),
+			skip_patient_mismatch=cint(prev.get("skip_patient_mismatch", 0))
+			+ cint(result.get("skip_patient_mismatch", 0)),
+			skip_no_cost_center=cint(prev.get("skip_no_cost_center", 0))
+			+ cint(result.get("skip_no_cost_center", 0)),
+			skip_no_trans_date=cint(prev.get("skip_no_trans_date", 0))
+			+ cint(result.get("skip_no_trans_date", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_transfers=prev.get("new_transfers"),
+			existing_transfers=prev.get("existing_transfers"),
+			resolved_new_admissions=prev.get("resolved_new_admissions"),
+			unresolved_new_admissions=prev.get("unresolved_new_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_transfer_bal_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_transfer_bal_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Admission Transfer Balance import (IP_ADMISSION_TRANSFER_BAL) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_ip_admission_form_rules_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_form_rules_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_FORM_RULES Excel file."))
+
+	job = "ip_admission_form_rules_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_rules=summary.get("new_rules"),
+		existing_rules=summary.get("existing_rules"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_form_rules_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_form_rules_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Admission Form Rules IP_ADMISSION_FORM_RULES import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_rules") or 0,
+		),
+	}
+
+
+def process_ip_admission_form_rules_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_form_rules_import import run_ip_admission_form_rules_import_batch
+
+	job = "ip_admission_form_rules_import"
+	try:
+		result = run_ip_admission_form_rules_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_rules=prev.get("new_rules"),
+			existing_rules=prev.get("existing_rules"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_form_rules_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_form_rules_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Admission Form Rules import (IP_ADMISSION_FORM_RULES) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_ip_admission_03_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_admission_03_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_03 Excel file."))
+
+	job = "ip_admission_03_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_services=summary.get("new_services"),
+		existing_services=summary.get("existing_services"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		unresolved_admissions=summary.get("unresolved_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_03_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_03_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"IP Service 2 IP_ADMISSION_03 import started ({0} transactions, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_services") or 0,
+		),
+	}
+
+
+def process_ip_admission_03_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_03_import import run_ip_admission_03_import_batch
+
+	job = "ip_admission_03_import"
+	try:
+		result = run_ip_admission_03_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_patient_mismatch=cint(prev.get("skip_patient_mismatch", 0))
+			+ cint(result.get("skip_patient_mismatch", 0)),
+			skip_no_lines=cint(prev.get("skip_no_lines", 0)) + cint(result.get("skip_no_lines", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_services=prev.get("new_services"),
+			existing_services=prev.get("existing_services"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			unresolved_admissions=prev.get("unresolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_03_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_03_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Service 2 import (IP_ADMISSION_03) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_visit_positive_finding_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.visit_positive_finding_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the VISIT_POSITIVE_FINDING_01 Excel file."))
+
+	job = "visit_positive_finding_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_findings=summary.get("new_findings"),
+		existing_findings=summary.get("existing_findings"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_visit_positive_finding_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_visit_positive_finding_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Visit Positive Finding VISIT_POSITIVE_FINDING_01 import started ({0} rows, {1} new)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_findings") or 0,
+		),
+	}
+
+
+def process_visit_positive_finding_import_batch(offset: int = 0) -> None:
+	from healthcare.api.visit_positive_finding_import import run_visit_positive_finding_import_batch
+
+	job = "visit_positive_finding_import"
+	try:
+		result = run_visit_positive_finding_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_findings=prev.get("new_findings"),
+			existing_findings=prev.get("existing_findings"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_visit_positive_finding_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_visit_positive_finding_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Visit Positive Finding import (VISIT_POSITIVE_FINDING_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
 		raise

@@ -292,7 +292,7 @@ export const CreatePatientVisitModal = ({
       const preview = await fetchPatientVisitChargePreview(formData.visit_type || undefined)
       if (!cancelled) {
         setVisitCharge(preview)
-        if (!preview.configured) {
+        if (preview.no_charges || !preview.configured) {
           setChargeVisit(false)
         }
       }
@@ -631,7 +631,7 @@ export const CreatePatientVisitModal = ({
         iop_enrollment: initialIOPEnrollment || undefined,
         cost_center: costCenter || undefined,
         status: 'Open',
-        charge_visit: chargeVisit && visitCharge.configured,
+        charge_visit: chargeVisit && visitCharge.configured && !visitCharge.no_charges,
       })
 
       if (createdVisit?.name) {
@@ -948,7 +948,11 @@ export const CreatePatientVisitModal = ({
               )}
             </div>
 
-            {visitCharge.configured ? (
+            {visitCharge.no_charges ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                This visit type is marked <span className="font-medium">No Charges</span> — no visit fee will be created.
+              </div>
+            ) : visitCharge.configured ? (
               <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
                 <label className="flex items-start gap-2 cursor-pointer">
                   <input

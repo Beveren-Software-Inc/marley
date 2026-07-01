@@ -148,6 +148,7 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: 'Appointments & Scheduling',
     screens: [
       { id: 'r-appointments-freeze', title: 'Appointments' },
+      { id: 'r-practitioner-unavailability', title: 'Practitioner Unavailability' },
       { id: 'r-followup',            title: 'Follow-up Dashboard' },
       { id: 'r-iop',                 title: 'IOP Dashboard' },
     ],
@@ -207,7 +208,7 @@ const anesthesiologistScreens = [
   { id: 'a-patient-history',    title: 'Patient History' },
 ]
 
-const psychologistScreens = [
+const psychologyScreens = [
   { id: 'p-notes',           title: 'Psychologist Notes' },
   { id: 'p-orders',          title: 'Psychologist Orders' },
   { id: 'p-dx',              title: 'Diagnoses' },
@@ -217,13 +218,37 @@ const psychologistScreens = [
   { id: 'p-physical',        title: 'Physical Examination' },
 ].sort((a, b) => a.title.localeCompare(b.title))
 
+const therapyScreens = [
+  { id: 't-notes',   title: 'Therapy Notes' },
+  { id: 't-session', title: 'Session Scheduler' },
+]
+
+const psychologistScreenGroups: ScreenGroup[] = [
+  {
+    groupTitle: 'Psychology',
+    screens: psychologyScreens,
+  },
+  {
+    groupTitle: 'Therapy',
+    screens: therapyScreens,
+  },
+]
+
+const therapyScreenGroups: ScreenGroup[] = [
+  {
+    groupTitle: 'Therapy',
+    screens: therapyScreens,
+  },
+]
+
 // ─── Main links ───────────────────────────────────────────────────────────────
 
 const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/doctor',           label: 'Doctor',           screenGroups: doctorScreenGroups,     prefix: '/doctor' },
   { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,       prefix: '/nurse' },
   { to: '/lab',              label: 'Lab',              screens: labScreens,                  prefix: '/lab' },
-  { to: '/psychologist',     label: 'Psychologist',     screens: psychologistScreens,         prefix: '/psychologist' },
+  { to: '/psychologist',     label: 'Psychologist',     screenGroups: psychologistScreenGroups, prefix: '/psychologist' },
+  { to: '/therapy',          label: 'Therapy',          screenGroups: therapyScreenGroups,      prefix: '/therapy' },
   { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
   { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
   { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },

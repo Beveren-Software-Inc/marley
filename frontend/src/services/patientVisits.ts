@@ -213,6 +213,7 @@ export interface CreatePatientVisitData {
 
 export interface PatientVisitChargePreview {
   configured: boolean
+  no_charges?: boolean
   template?: string | null
   service_name?: string | null
   item_code?: string | null

@@ -110,11 +110,13 @@ class Discharge(Document):
 		"""Update Inpatient Admission status to Discharged when Discharge is submitted"""
 		if self.admission:
 			admission = frappe.get_doc("Inpatient Admission", self.admission)
-			
-			# Validate before discharge
-			validate_nursing_tasks(admission)
-			validate_inpatient_invoicing(admission)
-			validate_incompleted_service_requests(admission)
+			legacy_import = getattr(self.flags, "from_legacy_import", False)
+
+			if not legacy_import:
+				# Validate before discharge
+				validate_nursing_tasks(admission)
+				validate_inpatient_invoicing(admission)
+				validate_incompleted_service_requests(admission)
 			
 			# Update Inpatient Admission
 			admission.discharge_datetime = self.discharge_date or now_datetime()
@@ -134,7 +136,13 @@ class Discharge(Document):
 				)
 			
 			# Check out from service unit
-			check_out_inpatient(admission)
+			if legacy_import:
+				try:
+					check_out_inpatient(admission)
+				except Exception:
+					pass
+			else:
+				check_out_inpatient(admission)
 
 			# Create Patient Follow Up (IP) for CRM if Follow Up Date is set
 			from healthcare.healthcare.doctype.patient_follow_up.patient_follow_up import (

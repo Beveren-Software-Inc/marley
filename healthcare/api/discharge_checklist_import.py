@@ -19,6 +19,16 @@ CACHE_KEYS = {
 }
 CACHE_TTL = 7200
 
+# Oracle BRANCH_NUM → ERPNext Cost Center name (legacy exports use 1, 2, 3… not labels).
+LEGACY_BRANCH_COST_CENTER_MAP = {
+	"1": "Serene Hospital - SPH",
+	"2": "Serene Center - SPH",
+	"3": "Dr. Abdul Karim Clinic - SPH",
+	"4": "Rose Pharmacy Sanad - SPH",
+	"6": "Rose Pharmacy Tashan - SPH",
+	"8": "Jau Hospital - SPH",
+}
+
 EXCEL_HEADER_MAP = {
 	"ADMISSION_NUM": "admission_num",
 	"PATIENT_NUM": "patient_num",
@@ -44,9 +54,9 @@ def _clean_oracle_num(value: Any) -> str:
 		return ""
 	if isinstance(value, float) and value == int(value):
 		return str(int(value))
-	if isinstance(value, (int,)):
+	if isinstance(value, int):
 		return str(value)
-	return str(value).strip()
+	return str(value).strip().replace(",", "")
 
 
 def _format_legacy_date(value: Any) -> str:
@@ -182,17 +192,35 @@ def _resolve_department(dept_name: str | None) -> str | None:
 	)
 
 
-def _resolve_cost_center(branch_label: str | None) -> str | None:
-	text = (branch_label or "").strip()
+def _legacy_branch_label(branch_label: Any) -> str | None:
+	code = _clean_oracle_num(branch_label)
+	if code in LEGACY_BRANCH_COST_CENTER_MAP:
+		return LEGACY_BRANCH_COST_CENTER_MAP[code]
+	if branch_label in (None, ""):
+		return None
+	if isinstance(branch_label, str):
+		text = branch_label.strip()
+		return text or None
+	return None
+
+
+def _resolve_cost_center(branch_label: Any) -> str | None:
+	if branch_label in (None, ""):
+		return None
+
+	mapped = _legacy_branch_label(branch_label)
+	text = mapped or _clean_oracle_num(branch_label) or str(branch_label).strip()
 	if not text:
 		return None
+
 	for doctype in ("Cost Center", "Branch"):
 		if frappe.db.exists(doctype, text):
 			return text
 		name = frappe.db.get_value(doctype, {"cost_center_name": text}, "name")
 		if name:
 			return name
-	return None
+	# Return mapped label even when not in DB (link may resolve on save with ignore_links).
+	return mapped or text
 
 
 def _template_checklist_seed_rows(template_name: str = DEFAULT_DISCHARGE_TEMPLATE) -> list[dict]:
@@ -269,7 +297,7 @@ def _fill_checklist_row(child, line: dict) -> None:
 			pass
 
 
-def _maybe_update_admission_cost_center(admission_name: str, branch_label: str | None) -> None:
+def _maybe_update_admission_cost_center(admission_name: str, branch_label: Any) -> None:
 	cc = _resolve_cost_center(branch_label)
 	if not cc or not admission_name:
 		return

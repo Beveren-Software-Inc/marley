@@ -1,0 +1,120 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "VPF-.####",
+ "creation": "2026-07-01 23:39:50.713913",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "sr_num",
+  "code_num",
+  "visit_num",
+  "column_break_ppiv",
+  "code_more_detail",
+  "cost_centre",
+  "section_break_gctg",
+  "cr_id",
+  "cr_date",
+  "column_break_xtgw",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "visit_num",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Visit Num",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "SR Num"
+  },
+  {
+   "fieldname": "code_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Code Num"
+  },
+  {
+   "fieldname": "column_break_ppiv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "code_more_detail",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Code More Detail"
+  },
+  {
+   "fieldname": "cost_centre",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Centre",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_break_gctg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_xtgw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-01 23:48:30.642207",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Visit Positive Finding",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

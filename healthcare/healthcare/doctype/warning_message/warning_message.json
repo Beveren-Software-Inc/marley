@@ -22,6 +22,8 @@
   "user",
   "medical_role",
   "cost_center",
+  "from_patient",
+  "is_allergy",
   "warning_section",
   "warning",
   "high_risk_text",
@@ -181,11 +183,23 @@
    "fieldtype": "Select",
    "label": "Type of Warning",
    "options": "\nOrganisation\nMedical"
+  },
+  {
+   "default": "0",
+   "fieldname": "from_patient",
+   "fieldtype": "Check",
+   "label": "From Patient"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_allergy",
+   "fieldtype": "Check",
+   "label": "Is Allergy"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 17:38:13.399355",
+ "modified": "2026-07-01 13:13:31.617647",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Warning Message",

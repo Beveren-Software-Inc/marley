@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "autoname": "field:transfer_num",
  "creation": "2026-02-16 12:00:00",
  "doctype": "DocType",
@@ -19,7 +20,19 @@
   "transferred_by",
   "company",
   "section_break_fept",
-  "reason"
+  "reason",
+  "section_break_hbwu",
+  "old_admission",
+  "new_admission",
+  "column_break_ipdc",
+  "new_admission_date",
+  "new_admission_time",
+  "section_break_irlm",
+  "cr_id",
+  "cr_date",
+  "column_break_bxzz",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -35,8 +48,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Inpatient Admission",
-   "options": "Inpatient Admission",
-   "reqd": 1
+   "options": "Inpatient Admission"
   },
   {
    "fetch_from": "inpatient_admission.patient",
@@ -57,8 +69,7 @@
    "fieldname": "transfer_datetime",
    "fieldtype": "Datetime",
    "in_list_view": 1,
-   "label": "Transfer Date & Time",
-   "reqd": 1
+   "label": "Transfer Date & Time"
   },
   {
    "fieldname": "from_cost_center",
@@ -120,11 +131,67 @@
    "fieldtype": "Data",
    "label": "Transfer Num",
    "unique": 1
+  },
+  {
+   "fieldname": "section_break_hbwu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "old_admission",
+   "fieldtype": "Data",
+   "label": "Old Admission"
+  },
+  {
+   "fieldname": "new_admission",
+   "fieldtype": "Data",
+   "label": "New Admission"
+  },
+  {
+   "fieldname": "column_break_ipdc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "new_admission_date",
+   "fieldtype": "Date",
+   "label": "New Admission Date"
+  },
+  {
+   "fieldname": "new_admission_time",
+   "fieldtype": "Datetime",
+   "label": "New Admission Time"
+  },
+  {
+   "fieldname": "section_break_irlm",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_bxzz",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-19 15:51:15.315736",
+ "modified": "2026-07-01 22:54:11.071170",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Transfer Admission Event",

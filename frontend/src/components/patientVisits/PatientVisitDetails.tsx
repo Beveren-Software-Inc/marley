@@ -141,7 +141,12 @@ const handleCancelVisitConfirm = async (reason: string) => {
                     {new Date(visit.encounter_date).toLocaleDateString()} {visit.encounter_time || ''}
                   </div>
                 )}
-                {visit.practitioner_name && <div><span className="font-medium">Practitioner:</span> {visit.practitioner_name}</div>}
+                {visit.practitioner_name || visit.practitioner ? (
+                  <div>
+                    <span className="font-medium">Practitioner:</span>{' '}
+                    {visit.practitioner_name || visit.practitioner}
+                  </div>
+                ) : null}
                 {visit.medical_department && <div><span className="font-medium">Department:</span> {visit.medical_department}</div>}
                 {visit.visit_type && <div><span className="font-medium">Visit Type:</span> {visit.visit_type}</div>}
                 {visit.inpatient_record && (

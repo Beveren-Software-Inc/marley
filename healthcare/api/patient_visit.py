@@ -7,6 +7,10 @@ from frappe import _
 from frappe.utils import nowdate, now_datetime
 import json
 
+from healthcare.api.patient_visit_practitioner import (
+	enrich_patient_visit_practitioner_names,
+	resolve_patient_visit_practitioner_name,
+)
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 	ensure_patient_can_open_new_visit,
@@ -162,6 +166,7 @@ def get_patient_visits(
 			"visit_type",
 			"file_number",
 			"inpatient_record",
+			"ip_admission_no",
 			"inpatient_status",
 			"appointment",
 			"company",
@@ -170,6 +175,8 @@ def get_patient_visits(
 		order_by="encounter_date desc, creation desc",
 		limit_page_length=500
 	)
+
+	enrich_patient_visit_practitioner_names(visits)
 
 	# Optional: further search filtering
 	if search:
@@ -199,7 +206,14 @@ def get_patient_visit(name):
 		'encounter_date': visit.encounter_date,
 		'encounter_time': visit.encounter_time,
 		'practitioner': visit.practitioner,
-		'practitioner_name': visit.practitioner_name,
+		'practitioner_name': resolve_patient_visit_practitioner_name({
+			'practitioner': visit.practitioner,
+			'practitioner_name': visit.practitioner_name,
+			'inpatient_record': visit.inpatient_record,
+			'ip_admission_no': visit.ip_admission_no,
+			'patient': visit.patient,
+			'appointment': visit.appointment,
+		}),
 		'medical_department': visit.medical_department,
 		'visit_type': visit.visit_type,
 		'file_number': visit.file_number,
@@ -287,6 +301,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"visit_type",
 			"file_number",
 			"inpatient_record",
+			"ip_admission_no",
 			"inpatient_status",
 			"appointment",
 			"company",
@@ -296,6 +311,8 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		start=offset,
 		order_by="creation desc",
 	)
+
+	enrich_patient_visit_practitioner_names(visits)
 
 	visit_names = [v.name for v in visits if v.get("name")]
 	lab_amount_map = {}
