@@ -827,6 +827,45 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('IP Risk Analysis'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('IP Risk Analysis (IP_RISK_ANALYSIS)'),
+				preview_method:
+					'healthcare.api.ip_risk_analysis_import.preview_ip_risk_analysis_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_risk_analysis_import_migration',
+				job_key: 'ip_risk_analysis_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import IP Risk Analysis from IP_RISK_ANALYSIS?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique admissions: {2}\n'
+							+ 'Admissions resolved: {3}\n'
+							+ 'Admissions unresolved: {4}\n'
+							+ 'Existing analyses (will update): {5}\n'
+							+ 'New: {6}\n\n'
+							+ 'One IP Risk Analysis per admission. Risk toward self, toward others, '
+							+ 'and from others fields mapped; RTO/RFO free-text rows go to child tables.\n'
+							+ 'Sample admissions: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.existing_analyses || 0,
+							counts.new_analyses || 0,
+							(counts.sample_admissions || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Form Rules - IP_ADMISSION_FORM_RULES'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Form Rules (IP_ADMISSION_FORM_RULES)'),
@@ -1292,6 +1331,58 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Clinical Note - IP_ADMISSION_DIAGNOSES'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Clinical Note (IP_ADMISSION_DIAGNOSES)'),
+				preview_method:
+					'healthcare.api.ip_admission_clinical_note_import.preview_ip_admission_clinical_note_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_clinical_note_import_migration',
+				job_key: 'ip_admission_clinical_note_import',
+				freeze_message: __('Reading Excel (all sheets)…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const typeLines = Object.entries(counts.mapped_note_types || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join(', ');
+					return __(
+						'Import Clinical Note rows from IP_ADMISSION_DIAGNOSES (all sheets)?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Skipped (no DIAGNOSES_DESC): {5}\n'
+							+ 'Admissions resolved: {6}\n'
+							+ 'Admissions unresolved: {7}\n'
+							+ 'Clinical Note Types (from Diagnosis Flag): {8}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_no, ADMISSION_NUM → Inpatient Admission, '
+							+ 'DIAGNOSES_FLAG → Diagnosis Flag + Clinical Note Type, '
+							+ 'DIAGNOSES_DESC → Note, DIAGNOSES_DATE → Posting Date, '
+							+ 'DIAGNOSES_TIME / DIAGNOSES_TIME_TO → Diagnosis Time / To, '
+							+ 'USER_NAME → UserName, BRANCH_NUM → Cost Center, CR/UP fields, '
+							+ 'ADMISSION_NUM_OLD → Old Admission No.\n'
+							+ 'Flag map: 1=Doctor Progress Note, 2=Psychologist, 3=Nutritionist, 4=General.\n\n'
+							+ 'Sample trans_no keys: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_notes || 0,
+							counts.new_notes || 0,
+							counts.skip_no_note || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							typeLines || __('(none)'),
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Doctor Order - IP_DOCTOR_REQUEST_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Doctor Order (IP_DOCTOR_REQUEST_01)'),
@@ -1514,6 +1605,96 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.unresolved_admissions || 0,
 							counts.patients_to_create || 0,
 							counts.empty_detail_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient History - IP_ADMISSION_02'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient History (IP_ADMISSION_02)'),
+				preview_method:
+					'healthcare.api.ip_admission_02_import.preview_ip_admission_02_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_02_import_migration',
+				job_key: 'ip_admission_02_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient History from IP_ADMISSION_02?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Attribute rows: {1}\n'
+							+ 'Distinct admissions: {2}\n'
+							+ 'Admissions resolved: {3}\n'
+							+ 'Admissions unresolved: {4}\n'
+							+ 'Existing Patient History (will update): {5}\n'
+							+ 'New: {6}\n'
+							+ 'Rows matching template ATTRIB_NUM: {7}\n'
+							+ 'Rows with unknown ATTRIB_NUM: {8}\n'
+							+ 'Template: {9}\n\n'
+							+ 'One Patient History per admission. Child history_detail lines are seeded '
+							+ 'from the template; ATT_NOTES / FIELD1 / ATT_NOTES2 fill matching attributes '
+							+ 'by ATTRIB_NUM. CR_DATE sets Patient History date when blank.\n'
+							+ 'Use Data Maintenance → Backfill Patient History Dates or Delete Orphaned '
+							+ 'Patient History if needed after import.\n'
+							+ 'Sample admissions: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || 0,
+							counts.admissions || 0,
+							counts.resolvable_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.existing_histories || 0,
+							counts.new_histories || 0,
+							counts.matching_attrib_rows || 0,
+							counts.unknown_attrib_rows || 0,
+							counts.template || __('Default History Form'),
+							(counts.sample_admissions || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Nursing Note'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Nursing Note (nursing)'),
+				preview_method:
+					'healthcare.api.main_nursing_note_import.preview_main_nursing_note_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_main_nursing_note_import_migration',
+				job_key: 'main_nursing_note_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Main Nursing Note from nursing Excel?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing notes (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'Rows missing nursing description: {7}\n\n'
+							+ 'TRANS_NUM → trans_no; NURSING_DESC → nursing notes; '
+							+ 'NURSING_DATE / NURSING_TIME → date / start time; '
+							+ 'SHIFT_CODE (MOR/EVE/NGT) → Morning/Evening/Night.\n'
+							+ 'Sample TRANS_NUM: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_notes || 0,
+							counts.new_notes || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.skip_no_notes || 0,
 							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
 						]
 					);
@@ -2465,6 +2646,18 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'ip_admission_clinical_note_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} admissions resolved, {4} skipped (no note), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.admissions_resolved || 0,
+								s.skip_no_note || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'ip_doctor_request_import') {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} with placeholder description "-", {4} patients auto-created, {5} doctors auto-created, {6} errors.',
@@ -2541,6 +2734,20 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'ip_admission_02_import') {
+						const phStats = s.stats || {};
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} attribute lines skipped, {4} unresolved admissions, {5} dates set, {6} errors.',
+							[
+								jobKey,
+								phStats.created || 0,
+								phStats.updated || 0,
+								phStats.skipped_lines || 0,
+								phStats.unresolved_groups || 0,
+								phStats.dates_set || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'ip_admission_phy_exam_import') {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no patient), {5} patients auto-created, {6} errors.',
@@ -2580,6 +2787,17 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'ip_risk_analysis_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'ip_admission_transfer_bal_import') {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} skipped (no patient), {4} skipped (no new admission), {5} skipped (patient mismatch), {6} skipped (unmapped branch), {7} skipped (no trans date), {8} errors.',
@@ -2604,6 +2822,18 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} errors.',
 							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'main_nursing_note_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no notes), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_notes || 0,
+								errN,
+							]
 						);
 					} else {
 						msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [
