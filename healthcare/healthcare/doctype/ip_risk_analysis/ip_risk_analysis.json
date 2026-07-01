@@ -12,9 +12,11 @@
  "field_order": [
   "basic_info",
   "admission_no",
+  "admission_no_old",
   "file_number",
   "patient_name",
   "column_break_14",
+  "cost_center",
   "admission_type",
   "patient_category",
   "risk_assessment_checklist_tab",
@@ -58,7 +60,13 @@
   "column_break_uzji",
   "rfo_neglect",
   "rfo_neglect_description",
-  "risk_from_others_free"
+  "risk_from_others_free",
+  "section_break_additional_details",
+  "cr_id",
+  "cr_date",
+  "column_break_audit",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -256,6 +264,19 @@
    "reqd": 1
   },
   {
+   "fieldname": "admission_no_old",
+   "fieldtype": "Data",
+   "label": "Admission No Old"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Cost Center",
+   "options": "Cost Center"
+  },
+  {
    "default": "0",
    "fieldname": "rto_bullying",
    "fieldtype": "Check",
@@ -265,7 +286,7 @@
    "fieldname": "rto_exploitation",
    "fieldtype": "Select",
    "label": "Exploitation",
-   "options": "\nFinancial\nSexual\nOthers"
+   "options": "\nFinancial\nSexual\nOthers\nF\nS\nO"
   },
   {
    "fieldname": "rto_exploitation_description",
@@ -287,7 +308,7 @@
    "fieldname": "rto_neglect",
    "fieldtype": "Select",
    "label": "Neglect",
-   "options": "\nChildren\nPets\nOthers"
+   "options": "\nChildren\nPets\nOthers\nC\nP\nO"
   },
   {
    "fieldname": "rto_neglect_description",
@@ -302,9 +323,9 @@
   },
   {
    "fieldname": "rfo_exploitation",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "label": "R Exploitation",
-   "options": "\nFinancial\nSexual\nOthers"
+   "options": "\nFinancial\nSexual\nOthers\nF\nS\nO"
   },
   {
    "fieldname": "rfo_exploitation_description",
@@ -326,7 +347,7 @@
    "fieldname": "rfo_neglect",
    "fieldtype": "Select",
    "label": "R Neglect",
-   "options": "\nChildren\nPets\nOthers"
+   "options": "\nChildren\nPets\nOthers\nC\nP\nO"
   },
   {
    "fieldname": "rfo_neglect_description",
@@ -344,6 +365,35 @@
    "fieldtype": "Table",
    "label": "Risk from Others Free",
    "options": "Risk From Others Details"
+  },
+  {
+   "fieldname": "section_break_additional_details",
+   "fieldtype": "Section Break",
+   "label": "Additional Details"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "grid_page_length": 50,
