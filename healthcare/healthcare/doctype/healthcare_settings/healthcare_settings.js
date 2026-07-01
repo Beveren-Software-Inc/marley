@@ -306,57 +306,6 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
-		frm.add_custom_button(__('Upload IP Prescription'), () => {
-			const uploader = new frappe.ui.FileUploader({
-				dialog_title: __('Upload IP Prescription'),
-				allow_multiple: false,
-				restrictions: {
-					allowed_file_types: ['.csv', '.xlsx', '.xls'],
-				},
-				on_success(file) {
-					frappe.call({
-						method: 'healthcare.api.patient_medication_order_import.preview_patient_medication_order_import',
-						args: { file_url: file.file_url },
-						freeze: true,
-						freeze_message: __('Reading file (all worksheets)…'),
-						callback(preview) {
-							const counts = preview.message || {};
-							frappe.confirm(
-								__(
-									'Import IP prescriptions into Patient Medication Order?\n\nFile rows: {0}\nDistinct admissions: {1}\nMedicine lines: {2}\nAdmissions matched in system: {3}\nRows with blank admission: {4}\n\nBoth Excel sheets are read. Rows with the same admission are grouped into one prescription (multiple child medicines). Each order is submitted with Completed status. Continue?',
-									[
-										counts.file_rows || 0,
-										counts.admissions || 0,
-										counts.medicine_lines || 0,
-										counts.resolvable_admissions || 0,
-										counts.unresolved_rows || 0,
-									]
-								),
-								() => {
-									frappe.call({
-										method:
-											'healthcare.api.data_migration_jobs.start_patient_medication_order_import_migration',
-										args: { file_url: file.file_url },
-										freeze: true,
-										freeze_message: __('Starting background job…'),
-										callback(r) {
-											if (r.message?.ok) {
-												frappe.show_alert({
-													message: r.message.message || __('Job started'),
-													indicator: 'green',
-												});
-												poll_migration_status('patient_medication_order_import');
-											}
-										},
-									});
-								}
-							);
-						},
-					});
-				},
-			});
-		}, __('Data Maintenance'));
-
 		frm.add_custom_button(__('OP Injection Prescription Upload'), () => {
 			const uploader = new frappe.ui.FileUploader({
 				dialog_title: __('OP Injection Prescription Upload'),
@@ -679,6 +628,991 @@ frappe.ui.form.on('Healthcare Settings', {
 				},
 			});
 		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Dedupe Morse Fall Scale Details'), () => {
+			frappe.call({
+				method: 'healthcare.api.morse_fall_scale_detail_dedupe.preview_morse_fall_scale_detail_dedupe',
+				callback(preview) {
+					const counts = preview.message || {};
+					const rowsToDelete = counts.rows_to_delete || 0;
+					if (!rowsToDelete) {
+						frappe.msgprint({
+							title: __('Morse Fall Scale Details'),
+							message: __('No duplicate detail rows found.'),
+							indicator: 'green',
+						});
+						return;
+					}
+					const samples = (counts.sample_parents || []).join(', ') || __('(none)');
+					frappe.confirm(
+						__(
+							'Remove duplicate Morse Fall Scale detail rows in the background?\n\n'
+								+ 'Scales affected: {0}\n'
+								+ 'Duplicate rows to delete: {1}\n'
+								+ 'Keeps the first row per text message (and points) on each scale; recalculates total points.\n\n'
+								+ 'Sample scale(s): {2}\n\nContinue?',
+							[counts.parents_affected || 0, rowsToDelete, samples]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_morse_fall_scale_detail_dedupe_migration',
+								'morse_fall_scale_detail_dedupe'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Patient — PATIENT_INFO_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Upload (PATIENT_INFO_01)'),
+				preview_method: 'healthcare.api.patient_info_import.preview_patient_info_import',
+				start_method: 'healthcare.api.data_migration_jobs.start_patient_info_import_migration',
+				job_key: 'patient_info_import',
+				build_confirm_message: (counts) =>
+					__(
+						'Import patients from PATIENT_INFO_01 Excel?\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Patients with File No: {1}\n'
+							+ 'New: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Rows with allergies (Warning Message will be created): {4}\n\n'
+							+ 'Sample File Nos: {5}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.patients || 0,
+							counts.new_patients || 0,
+							counts.existing_patients || 0,
+							counts.with_allergies || 0,
+							(counts.sample_file_nos || []).join(', ') || __('(none)'),
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('ADM Dis + Checklists'), () => {
+			open_ip_admission_bundle_upload();
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),
+				preview_method:
+					'healthcare.api.ip_admission_transfer_import.preview_ip_admission_transfer_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_transfer_import_migration',
+				job_key: 'ip_admission_transfer_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Admission Transfer from IP_ADMISSION_TRANSFER?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing transfers (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'New admissions resolved: {5}\n'
+							+ 'New admissions unresolved: {6}\n'
+							+ 'Rows with missing patient: {7}\n'
+							+ 'Rows with patient/admission mismatch: {8}\n'
+							+ 'Rows with unmapped branch: {9}\n\n'
+							+ 'OLD/NEW_ADMISSION_NUM → Transfer Admission Event; NEW admission → Inpatient Admission link. '
+							+ 'FROM/TO_BRANCH_NUM → cost centers. NEW_ADMISSION_DATE + TIME → transfer datetime.\n'
+							+ 'Sample TRANS_NUM: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_transfers || 0,
+							counts.new_transfers || 0,
+							counts.resolved_new_admissions || 0,
+							counts.unresolved_new_admissions || 0,
+							counts.skip_no_patient || 0,
+							counts.skip_patient_mismatch || 0,
+							counts.skip_no_cost_center || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Admission Transfer Balance - IP_ADMISSION_TRANSFER_BAL'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Admission Transfer Balance (IP_ADMISSION_TRANSFER_BAL)'),
+				preview_method:
+					'healthcare.api.ip_admission_transfer_bal_import.preview_ip_admission_transfer_bal_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_transfer_bal_import_migration',
+				job_key: 'ip_admission_transfer_bal_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Admission Transfer Balance from IP_ADMISSION_TRANSFER_BAL?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing records (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'New admissions resolved: {5}\n'
+							+ 'New admissions unresolved: {6}\n'
+							+ 'Rows with missing patient: {7}\n'
+							+ 'Rows with patient/admission mismatch: {8}\n'
+							+ 'Rows with unmapped branch: {9}\n'
+							+ 'Rows missing TRANS_DATE: {10}\n\n'
+							+ 'OLD/NEW admission + OLD/NEW branch → Admission Transfer Balance; BAL_AMT → balance amount. '
+							+ 'Updates linked Inpatient Admission cost center.\n'
+							+ 'Sample TRANS_NUM: {11}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_transfers || 0,
+							counts.new_transfers || 0,
+							counts.resolved_new_admissions || 0,
+							counts.unresolved_new_admissions || 0,
+							counts.skip_no_patient || 0,
+							counts.skip_patient_mismatch || 0,
+							counts.skip_no_cost_center || 0,
+							counts.missing_trans_date || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Fall Risk Assessment - FALL_RISK_ASSESSMENT'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Fall Risk Assessment (FALL_RISK_ASSESSMENT)'),
+				preview_method:
+					'healthcare.api.fall_risk_assessment_import.preview_fall_risk_assessment_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_fall_risk_assessment_import_migration',
+				job_key: 'fall_risk_assessment_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Fall Risk Assessment from FALL_RISK_ASSESSMENT?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing assessments (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'Rows missing TRANS_DATE: {7}\n\n'
+							+ 'Risk fields (1–3) and remarks mapped directly; BRANCH_NUM → cost center.\n'
+							+ 'Sample TRANS_NUM: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_assessments || 0,
+							counts.new_assessments || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.missing_trans_date || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Admission Form Rules - IP_ADMISSION_FORM_RULES'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Admission Form Rules (IP_ADMISSION_FORM_RULES)'),
+				preview_method:
+					'healthcare.api.ip_admission_form_rules_import.preview_ip_admission_form_rules_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_form_rules_import_migration',
+				job_key: 'ip_admission_form_rules_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Admission Form Rules from IP_ADMISSION_FORM_RULES?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing rules (will update): {3}\n'
+							+ 'New: {4}\n\n'
+							+ 'TRANS_NUM → trans_no; headers and details mapped directly.\n'
+							+ 'Sample TRANS_NUM: {5}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_rules || 0,
+							counts.new_rules || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Lab Test — LAB_003 + LAB_004'), () => {
+			open_lab_test_bundle_upload();
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Visit — VISIT_00_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Visit Upload (VISIT_00_01)'),
+				preview_method: 'healthcare.api.patient_visit_import.preview_patient_visit_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_visit_import_migration',
+				job_key: 'patient_visit_import',
+				build_confirm_message: (counts) => {
+					const createSamples = (counts.sample_patients_to_create || [])
+						.map((row) => `${row.case_no} → ${row.patient}`)
+						.join('\n');
+					const createBlock =
+						(counts.patients_to_create || 0) > 0
+							? __(
+									'Patients to auto-create: {0} ({1} unique File Nos)\n'
+										+ 'Examples (Visit No → File No):\n{2}\n\n'
+										+ 'A minimal Patient record will be created for each missing file number.\n\n',
+									[
+										counts.patients_to_create || 0,
+										counts.unique_patients_to_create || 0,
+										createSamples || __('(none)'),
+									]
+								)
+							: '';
+					return __(
+						'Import Patient Visits from VISIT_00_01 (all sheets)?\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Visits (Visit No): {1}\n'
+							+ 'Existing visits: {2}\n'
+							+ '{3}'
+							+ 'Visits are created with status Completed and submitted when possible.\n'
+							+ 'Sample Visit Nos: {4}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.visits || 0,
+							counts.existing_visits || 0,
+							createBlock,
+							(counts.sample_case_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Service Request — VISIT_00_02'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Service Request Upload (VISIT_00_02)'),
+				preview_method:
+					'healthcare.api.service_request_visit_import.preview_service_request_visit_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_service_request_visit_import_migration',
+				job_key: 'service_request_visit_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const unmatched = counts.unmatched_serv_num_count
+						? __('\nUnmatched SERV_NUM codes: {0} (e.g. {1})', [
+							counts.unmatched_serv_num_count,
+							(counts.unmatched_serv_nums || []).slice(0, 5).join(', ') || __('(none)'),
+						])
+						: '';
+					const op0092 = counts.op_0092_resolved
+						? __('OP-0092 → template {0}', [counts.op_0092_resolved])
+						: __('OP-0092 → not found in Healthcare Service Template');
+					return __(
+						'Import Service Requests from VISIT_00_02 (all sheets)?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows (both sheets): {1}\n'
+							+ 'Unique lines (after VISIT_NUM+SR_NUM dedup): {2}\n'
+							+ 'Unique visits: {3}\n'
+							+ 'Visits already in system: {4}\n'
+							+ 'Visits to auto-create: {5}\n'
+							+ 'Existing legacy service requests (will update): {6}\n'
+							+ 'Unique SERV_NUM codes in Excel: {8}\n'
+							+ 'Matched to Healthcare Service Template: {7} / {8}\n'
+							+ 'Templates in database: {10}\n'
+							+ '{11}\n'
+							+ '{12}'
+							+ '\n\nMapping: VISIT_NUM → Patient Visit, SERV_NUM → Order Template, '
+							+ 'SERV_AMT_DISC → Discount, SERV_AMT_NET → Grand Total, '
+							+ 'BRANCH_NUM → Cost Center (1=Serene Hospital, 2=Serene Center, 8=Jau Hospital), '
+							+ 'CR_ID / CR_DATE preserved. Legacy ticked.\n'
+							+ 'Service requests are submitted with status Completed.\n'
+							+ 'Sample Visit Nos: {9}\n'
+							+ 'Sample SERV_NUM codes: {13}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.service_requests || 0,
+							counts.unique_visits || 0,
+							counts.existing_visits || 0,
+							counts.visits_to_create || 0,
+							counts.existing_service_requests || 0,
+							counts.matching_templates || 0,
+							counts.unique_serv_nums || 0,
+							(counts.sample_visit_nums || []).join(', ') || __('(none)'),
+							counts.healthcare_service_templates_in_db || 0,
+							op0092,
+							unmatched,
+							(counts.sample_serv_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('IP Service — SRV_00_03 — child 004'), () => {
+			open_ip_service_bundle_upload();
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('IP Service 2 - IP_ADMISSION_03'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('IP Service 2 (IP_ADMISSION_03)'),
+				preview_method:
+					'healthcare.api.ip_admission_03_import.preview_ip_admission_03_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_03_import_migration',
+				job_key: 'ip_admission_03_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import IP Services from IP_ADMISSION_03?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM transactions: {2}\n'
+							+ 'Existing IP Services (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'Rows missing patient: {7}\n'
+							+ 'Patient/admission mismatches: {8}\n'
+							+ 'Multi-line transactions: {9}\n\n'
+							+ 'One IP Service per TRANS_NUM; service lines go in the Services child table. '
+							+ 'PATIENT_NUM / ADMISSION_NUM commas stripped; BRANCH_NUM → cost center.\n'
+							+ 'Sample TRANS_NUM: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_services || 0,
+							counts.new_services || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.skip_no_patient || 0,
+							counts.skip_patient_mismatch || 0,
+							counts.multi_line_transactions || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Prescription - IP_ADMISSION_MEDICINE'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Prescription - IP_ADMISSION_MEDICINE'),
+				preview_method:
+					'healthcare.api.patient_medication_order_import.preview_patient_medication_order_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_medication_order_import_migration',
+				job_key: 'patient_medication_order_import',
+				allowed_file_types: ['.csv', '.xlsx', '.xls'],
+				freeze_message: __('Reading file (all worksheets)…'),
+				build_confirm_message: (counts) =>
+					__(
+						'Import IP prescriptions into Patient Medication Order?\n\n'
+							+ 'File rows: {0}\n'
+							+ 'Distinct admissions: {1}\n'
+							+ 'Medicine lines: {2}\n'
+							+ 'Admissions matched in system: {3}\n'
+							+ 'Rows with blank admission: {4}\n\n'
+							+ 'Both Excel sheets are read. Rows with the same admission are grouped into one '
+							+ 'prescription (multiple child medicines). Each order is submitted with Completed status.\n\nContinue?',
+						[
+							counts.file_rows || 0,
+							counts.admissions || 0,
+							counts.medicine_lines || 0,
+							counts.resolvable_admissions || 0,
+							counts.unresolved_rows || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Practitioner Unavailability - APPOINTMENTS_HOLD_01'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Practitioner Unavailability - APPOINTMENTS_HOLD_01'),
+				preview_method:
+					'healthcare.api.practitioner_unavailability_import.preview_practitioner_unavailability_import',
+				import_method:
+					'healthcare.api.practitioner_unavailability_import.run_practitioner_unavailability_import',
+				build_confirm_message: (counts) =>
+					__(
+						'Import Practitioner Unavailability from APPOINTMENTS_HOLD_01?\n\n'
+							+ 'Rows: {0}\n'
+							+ 'Existing records (will update): {1}\n'
+							+ 'Rows with resolvable practitioner (DOC_CODE): {2}\n'
+							+ 'Unique doctor codes: {3}\n'
+							+ 'Cancelled rows (IS_CANCEL=Y): {4}\n\n'
+							+ 'Mapping: TRANS_NUM → Tran Num, DOC_CODE → Doctor ID, '
+							+ 'START_DATE/END_DATE → dates, BRANCH_NUM → Branch (Cost Center), '
+							+ 'IS_CANCEL → Is Cancel, ANY_REMARKS → remarks.\n'
+							+ 'Import runs immediately (no background job).\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolvable_practitioners || 0,
+							counts.unique_doc_codes || 0,
+							counts.cancelled_rows || 0,
+						]
+					),
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Practitioners auto-created: {3}\n'
+							+ 'Skipped: {4}\n'
+							+ 'Errors: {5}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.practitioners_created || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient appointment - APPOINTMENTS_INFO_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Appointment (APPOINTMENTS_INFO_01)'),
+				preview_method:
+					'healthcare.api.patient_appointment_info_import.preview_patient_appointment_info_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_appointment_info_import_migration',
+				job_key: 'patient_appointment_info_import',
+				freeze_message: __('Reading Excel (all sheets)…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const statusLines = Object.entries(counts.status_counts || {})
+						.map(([code, n]) => `${code}: ${n}`)
+						.join(', ');
+					const patientSamples = (counts.sample_patients_to_create || []).join(', ');
+					return __(
+						'Import Patient Appointments from APPOINTMENTS_INFO_01 (all sheets)?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique appointments (APP_NUM): {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Walk-ins (no PATIENT_NUM): {5}\n'
+							+ 'Patients to auto-create: {6}\n'
+							+ 'Sample missing File Nos: {7}\n\n'
+							+ 'Mapping: APP_NUM → Trans No, DOC_CODE → practitioner/doc_code, '
+							+ 'APP_DATE → Date, APP_TIME → Old Time, PATIENT_NUM → Patient '
+							+ '(create if missing), PATIENT_CONTACT_NUM → Temporary Mobile No, '
+							+ 'APP_REMARKS → Remarks, APP_STATUS → Old Status + ERP status '
+							+ '(V→Closed, S→Scheduled/No Show, C→Cancelled), BRANCH_NUM → Cost Center.\n'
+							+ 'Oracle status counts: {8}\n\n'
+							+ 'Sample APP_NUMs: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_appointments || 0,
+							counts.new_appointments || 0,
+							counts.walk_ins || 0,
+							counts.patients_to_create || 0,
+							patientSamples || __('(none)'),
+							statusLines || __('(none)'),
+							(counts.sample_app_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Diagnosis OP - VISIT_DIAGNOSES_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Diagnosis OP (VISIT_DIAGNOSES_01)'),
+				preview_method:
+					'healthcare.api.visit_diagnoses_op_import.preview_visit_diagnoses_op_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_visit_diagnoses_op_import_migration',
+				job_key: 'visit_diagnoses_op_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const sourceLines = Object.entries(counts.sources || {})
+						.map(([code, n]) => `${code}: ${n}`)
+						.join(', ');
+					return __(
+						'Import Medical Diagnosis Entry rows from VISIT_DIAGNOSES_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Rows: {1}\n'
+							+ 'Existing (will update): {2}\n'
+							+ 'New: {3}\n'
+							+ 'Matched Diagnosis codes: {4}\n'
+							+ 'Unresolved Diagnosis codes: {5} (e.g. {6})\n'
+							+ 'Skipped (no Diagnosis in Excel): {7}\n'
+							+ 'Patients to auto-create: {8}\n'
+							+ 'With Patient Visit: {9} ({10} resolved)\n'
+							+ 'With Inpatient Admission: {11} ({12} resolved)\n'
+							+ 'Source: {13}\n\n'
+							+ 'Mapping: Patient → Patient, SR No → SR No, Diagnosis → Diagnosis, '
+							+ 'Details → Details, CD Date → CD Date + Posting Date, CR ID / UP ID / UP Date, '
+							+ 'Patient Visit → Patient Visit, Cost Center (branch name or number), '
+							+ 'Inpatient Admission, Group Code, Source (OP/IP).\n\n'
+							+ 'Sample trans_num keys: {14}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || 0,
+							counts.existing_entries || 0,
+							counts.new_entries || 0,
+							counts.matched_diagnosis || 0,
+							counts.unresolved_diagnosis_count || 0,
+							(counts.unresolved_diagnosis_codes || []).join(', ') || __('(none)'),
+							counts.skip_no_diagnosis || 0,
+							counts.patients_to_create || 0,
+							counts.with_visit_num || 0,
+							counts.resolved_visits || 0,
+							counts.with_admission || 0,
+							counts.resolved_admissions || 0,
+							sourceLines || __('(none)'),
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('VISIT_POSITIVE_FINDING_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('VISIT_POSITIVE_FINDING_01'),
+				preview_method:
+					'healthcare.api.visit_positive_finding_import.preview_visit_positive_finding_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_visit_positive_finding_import_migration',
+				job_key: 'visit_positive_finding_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Visit Positive Finding from VISIT_POSITIVE_FINDING_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Rows with unmapped BRANCH_NUM: {5}\n\n'
+							+ 'VISIT_NUM → visit_num (commas stripped); SR_NUM, CODE_NUM, '
+							+ 'CODE_MORE_DETAIL, BRANCH_NUM → cost centre.\n'
+							+ 'Sample VISIT_NUM: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_findings || 0,
+							counts.new_findings || 0,
+							counts.skip_no_cost_center || 0,
+							(counts.sample_visit_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Diagnosis IP - IP_ADMISSION_DIAGNOSES'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Diagnosis IP (IP_ADMISSION_DIAGNOSES)'),
+				preview_method:
+					'healthcare.api.ip_admission_diagnoses_import.preview_ip_admission_diagnoses_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_diagnoses_import_migration',
+				job_key: 'ip_admission_diagnoses_import',
+				freeze_message: __('Reading Excel (all sheets)…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Medical Diagnosis Entry rows from IP_ADMISSION_DIAGNOSES (all sheets)?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Skipped (no DIAGNOSES_DESC): {5}\n'
+							+ 'With ADMISSION_NUM: {6}\n'
+							+ 'Admissions resolved: {7}\n'
+							+ 'Admissions unresolved: {8}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_num (IPDX/…), ADMISSION_NUM → Inpatient Admission, '
+							+ 'DIAGNOSES_FLAG → Diagnoses Flag, DIAGNOSES_DESC → Details, '
+							+ 'Diagnosis Date / DIAGNOSES_DATE → Posting Date, '
+							+ 'From Time / DIAGNOSES_TIME → Writing Diagnosis Time, '
+							+ 'User Name → Practitioner Name, Cost Center / BRANCH_NUM → Cost Center '
+							+ '(branch name or number), CR/UP fields, Source = IP.\n'
+							+ 'Patient is set from the resolved admission.\n\n'
+							+ 'Sample trans_num keys: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_entries || 0,
+							counts.new_entries || 0,
+							counts.skip_no_details || 0,
+							counts.with_admission_num || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Doctor Order - IP_DOCTOR_REQUEST_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Doctor Order (IP_DOCTOR_REQUEST_01)'),
+				preview_method:
+					'healthcare.api.ip_doctor_request_import.preview_ip_doctor_request_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_doctor_request_import_migration',
+				job_key: 'ip_doctor_request_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const statusLines = Object.entries(counts.status_counts || {})
+						.map(([code, n]) => `${code}: ${n}`)
+						.join(', ');
+					return __(
+						'Import Doctor Order rows from IP_DOCTOR_REQUEST_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Rows: {1}\n'
+							+ 'Will import: {2}\n'
+							+ 'Empty DOC_ORDER_DESC (will use "-"): {3} (e.g. {4})\n'
+							+ 'Existing (will update): {5}\n'
+							+ 'Patients to auto-create: {6}\n'
+							+ 'Admissions resolved: {7} / {8}\n'
+							+ 'Doctors resolvable (DOC_NUM): {9}\n'
+							+ 'Status counts: {10}\n\n'
+							+ 'Mapping: TRANS_NUM → Trans No, TRANS_DATE → Trans Date, '
+							+ 'DOC_ORDER_DESC → Order Description, ADMISSION_NUM → Inpatient Admission, '
+							+ 'PATIENT_NUM → Patient (create if missing), DOC_NUM → Doctor, '
+							+ 'DOC_DATE → Doctor Entry Date, JOB_STATUS → Status, '
+							+ 'BRANCH_NUM → Cost Center (name or number), CR/UP fields, '
+							+ 'REQUEST_TYPE → Request. Nurse columns skipped.\n\n'
+							+ 'Sample Trans Nos: {11}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || 0,
+							counts.importable_rows || 0,
+							counts.empty_description || 0,
+							(counts.sample_empty_description || []).join(', ') || __('(none)'),
+							counts.existing_orders || 0,
+							counts.patients_to_create || 0,
+							counts.resolved_admissions || 0,
+							counts.with_admission_num || 0,
+							counts.resolved_doctors || 0,
+							statusLines || __('(none)'),
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Assessment - IP_PATIENT_ASSESSMENT'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Assessment (IP_PATIENT_ASSESSMENT)'),
+				preview_method:
+					'healthcare.api.ip_patient_assessment_import.preview_ip_patient_assessment_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_patient_assessment_import_migration',
+				job_key: 'ip_patient_assessment_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient Assessment directly from IP_PATIENT_ASSESSMENT?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique admissions (after dedup): {2}\n'
+							+ 'Duplicate admission rows dropped: {3} ({4} admissions had multiple TRANS_NUM)\n'
+							+ 'Template: {5}\n'
+							+ 'Existing assessments (will update): {6}\n'
+							+ 'New: {7}\n'
+							+ 'Admissions resolved: {8}\n'
+							+ 'Admissions unresolved: {9}\n\n'
+							+ 'Creates one Patient Assessment per admission using template parameters '
+							+ '(abbrev → Yes/No, *_DESC → comments), same logic as '
+							+ '“Map IP Patient Assessment to Patient Assessment”.\n'
+							+ 'Sample TRANS_NUM: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.assessments || counts.excel_rows || 0,
+							counts.duplicate_admission_rows || 0,
+							counts.duplicate_admission_groups || 0,
+							counts.assessment_template || __('Default Patient Evaluation'),
+							counts.existing_assessments || 0,
+							counts.new_assessments || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Vital Signs - IP_PATIENT_VITALS'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Vital Signs (IP_PATIENT_VITALS)'),
+				preview_method:
+					'healthcare.api.ip_patient_vitals_import.preview_ip_patient_vitals_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_patient_vitals_import_migration',
+				job_key: 'ip_patient_vitals_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Vital Signs directly from IP_PATIENT_VITALS?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing vital signs (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Rows with admission: {5}\n'
+							+ 'Admissions resolved: {6}\n'
+							+ 'Admissions unresolved: {7}\n'
+							+ 'Patients to auto-create: {8}\n\n'
+							+ 'Maps RECORD_DATE → Date, RECORD_TIME (seconds) → Time, '
+							+ 'branch → cost center, CR/UP audit fields preserved.\n'
+							+ 'Sample TRANS_NUM: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_vitals || 0,
+							counts.new_vitals || 0,
+							counts.with_admission_num || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.patients_to_create || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Observation Level - IP_OBSERVATION_LEVEL'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Observation Level (IP_OBSERVATION_LEVEL)'),
+				preview_method:
+					'healthcare.api.ip_observation_level_import.preview_ip_observation_level_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_observation_level_import_migration',
+				job_key: 'ip_observation_level_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const obsCodes = Object.entries(counts.obs_code_counts || {})
+						.map(([code, n]) => `${code}: ${n}`)
+						.join(', ');
+					return __(
+						'Import Observation records from IP_OBSERVATION_LEVEL?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing observations (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'OBS_CODE counts: {7}\n'
+							+ 'Rows with blank/unmapped OBS_CODE (Observation Level left empty): {8}\n\n'
+							+ 'OBS_CODE → Observation Level:\n'
+							+ '1 General Observation, 2 Intermittent Observation,\n'
+							+ '3 One to One (Within Eye Sight), 4 One to One (Within In Arm\'s Length).\n'
+							+ 'Sample TRANS_NUM: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_observations || 0,
+							counts.new_observations || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							obsCodes || __('(none)'),
+							counts.unknown_obs_code_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Morse Fall Scale - MORSE_FALL_SCALE_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Morse Fall Scale (MORSE_FALL_SCALE_01)'),
+				preview_method:
+					'healthcare.api.morse_fall_scale_import.preview_morse_fall_scale_excel_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_morse_fall_scale_excel_import_migration',
+				job_key: 'morse_fall_scale_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Morse Fall Scale directly from MORSE_FALL_SCALE_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing scales (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'Patients to auto-create: {7}\n'
+							+ 'Rows with no detail lines: {8}\n\n'
+							+ 'TEXT_MESSAGE_1–7 / GET_POINTS_1–7 → Morse Fall Scale Detail child rows.\n'
+							+ 'Sample TRANS_NUM: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_scales || 0,
+							counts.new_scales || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.patients_to_create || 0,
+							counts.empty_detail_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Physical Examination - IP_ADMISSION_PHY_EXAM'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Physical Examination (IP_ADMISSION_PHY_EXAM)'),
+				preview_method:
+					'healthcare.api.ip_admission_phy_exam_import.preview_ip_admission_phy_exam_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_phy_exam_import_migration',
+				job_key: 'ip_admission_phy_exam_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Physical Examination from IP_ADMISSION_PHY_EXAM?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique TRANS_NO rows: {2}\n'
+							+ 'Existing examinations (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Admissions unresolved: {6}\n'
+							+ 'Patients to auto-create: {7}\n\n'
+							+ 'PHYS_SIGNS → Skin/Hair/Nail/Gait/Surface/Abnormalities; '
+							+ 'CVS_RESP, CNS, GIT, OTHERS mapped directly.\n'
+							+ 'Sample TRANS_NO: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_examinations || 0,
+							counts.new_examinations || 0,
+							counts.resolved_admissions || 0,
+							counts.unresolved_admissions || 0,
+							counts.patients_to_create || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Lab Test Patient Visit — VISIT_00_03'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Lab Test Patient Visit (VISIT_00_03)'),
+				preview_method: 'healthcare.api.lab_test_visit_import.preview_lab_test_visit_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_lab_test_visit_import_migration',
+				job_key: 'lab_test_visit_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const unmatched = counts.unmatched_row_count
+						? __('\nUnmatched lab template codes: {0} (e.g. {1})', [
+							counts.unmatched_row_count,
+							(counts.unmatched_codes || []).slice(0, 5).join(', ') || __('(none)'),
+						])
+						: '';
+					return __(
+						'Import Lab Tests from VISIT_00_03 (all sheets)?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique lines (VISIT_NUM+SR_NUM): {2}\n'
+							+ 'Unique visits: {3}\n'
+							+ 'Visits already in system: {4}\n'
+							+ 'Visits to auto-create: {5}\n'
+							+ 'Existing legacy lab tests (will update): {6}\n'
+							+ 'Rows with matching Lab Test Template: {7} / {2}\n'
+							+ 'Lab templates in database: {8}\n'
+							+ '{9}\n\n'
+							+ 'One Lab Test per row. LAB_GROUP_NUM → Template, LAB_SUB_NUM stored on child line. '
+							+ 'BRANCH_NUM → Cost Center. is_legacy_import ticked. Status Completed and submitted.\n'
+							+ 'Sample Visit Nos: {10}\n'
+							+ 'Sample LAB_SUB_NUM: {11}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.lab_tests || 0,
+							counts.unique_visits || 0,
+							counts.existing_visits || 0,
+							counts.visits_to_create || 0,
+							counts.existing_lab_tests || 0,
+							counts.matching_templates || 0,
+							counts.lab_test_templates_in_db || 0,
+							unmatched,
+							(counts.sample_visit_nums || []).join(', ') || __('(none)'),
+							(counts.sample_lab_sub_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
 	},
 
 	onload: function(frm) {
@@ -762,6 +1696,606 @@ function run_migration_job(frm, method, jobKey) {
 	});
 }
 
+function open_direct_excel_upload({
+	dialog_title,
+	preview_method,
+	start_method,
+	job_key,
+	build_confirm_message,
+	allowed_file_types = ['.xlsx', '.xls'],
+	freeze_message = __('Reading Excel…'),
+}) {
+	const uploader = new frappe.ui.FileUploader({
+		dialog_title,
+		allow_multiple: false,
+		restrictions: {
+			allowed_file_types,
+		},
+		on_success(file) {
+			frappe.call({
+				method: preview_method,
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message,
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(build_confirm_message(counts), () => {
+						frappe.call({
+							method: start_method,
+							args: { file_url: file.file_url },
+							freeze: true,
+							freeze_message: __('Starting background job…'),
+							callback(r) {
+								if (r.message?.ok) {
+									frappe.show_alert({
+										message: r.message.message || __('Job started'),
+										indicator: 'green',
+									});
+									poll_migration_status(job_key);
+								}
+							},
+						});
+					});
+				},
+			});
+		},
+	});
+}
+
+function open_direct_sync_excel_upload({
+	dialog_title,
+	preview_method,
+	import_method,
+	build_confirm_message,
+	build_result_message,
+	allowed_file_types = ['.xlsx', '.xls'],
+	freeze_message = __('Reading Excel…'),
+	import_freeze_message = __('Importing…'),
+}) {
+	const uploader = new frappe.ui.FileUploader({
+		dialog_title,
+		allow_multiple: false,
+		restrictions: {
+			allowed_file_types,
+		},
+		on_success(file) {
+			frappe.call({
+				method: preview_method,
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message,
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(build_confirm_message(counts), () => {
+						frappe.call({
+							method: import_method,
+							args: { file_url: file.file_url },
+							freeze: true,
+							freeze_message: import_freeze_message,
+							callback(r) {
+								const result = r.message || {};
+								frappe.msgprint({
+									title: __('Import complete'),
+									message: build_result_message(result),
+									indicator: result.errors ? 'orange' : 'green',
+								});
+							},
+						});
+					});
+				},
+			});
+		},
+	});
+}
+
+function open_ip_admission_bundle_upload() {
+	const files = {
+		admission: null,
+		nursing: null,
+		discharge_checklist: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload all three Excel files. Admissions and discharges are created first; checklist rows are applied to each Discharge in the same job.'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('IP_ADMISSION_01')} (${__('admissions + discharges')})</td>
+						<td class="bundle-adm-status">${fileLabel(files.admission)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-adm">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('IP_ADMISSION_04_NUR_CHECK_LIST')} (${__('nursing checklist')})</td>
+						<td class="bundle-nur-status">${fileLabel(files.nursing)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-nur">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>3.</strong> ${__('IP_ADMISSION_04 Discharge Checklist')}</td>
+						<td class="bundle-dc-status">${fileLabel(files.discharge_checklist)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-dc">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+			<p class="text-muted small" style="margin-top:8px">${__(
+				'Import patients (PATIENT_INFO_01) before running this job.'
+			)}</p>
+		`);
+
+		$wrapper.find('.btn-pick-adm').on('click', () => {
+			pickFile(__('IP_ADMISSION_01 Excel'), (url) => {
+				files.admission = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-nur').on('click', () => {
+			pickFile(__('Nursing Checklist Excel'), (url) => {
+				files.nursing = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-dc').on('click', () => {
+			pickFile(__('Discharge Checklist Excel'), (url) => {
+				files.discharge_checklist = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('ADM Dis + Checklists'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="ip-admission-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Preview & Import'),
+		primary_action() {
+			if (!files.admission) {
+				frappe.msgprint({
+					title: __('Admission file required'),
+					message: __('Please upload the IP_ADMISSION_01 Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			if (!files.nursing || !files.discharge_checklist) {
+				frappe.msgprint({
+					title: __('Checklist files required'),
+					message: __(
+						'Please upload both the nursing checklist and discharge checklist Excel files.'
+					),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.call({
+				method:
+					'healthcare.api.ip_admission_discharge_import.preview_ip_admission_discharge_bundle_import',
+				args: {
+					admission_file_url: files.admission,
+					nursing_file_url: files.nursing,
+					discharge_checklist_file_url: files.discharge_checklist,
+				},
+				freeze: true,
+				freeze_message: __('Reading Excel files…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					const missingSamples = (counts.sample_missing_patients || [])
+						.map((row) => `${row.case_no} → ${row.patient}`)
+						.join('\n');
+					const missingBlock =
+						(counts.missing_patients || 0) > 0
+							? __(
+									'Rows with missing Patient: {0} ({1} unique File Nos not in system)\n'
+										+ 'Examples (Case No → File No):\n{2}\n\n'
+										+ 'Import these patients via PATIENT_INFO_01 first, then re-run admissions.\n\n',
+									[
+										counts.missing_patients || 0,
+										counts.unique_missing_file_nos || 0,
+										missingSamples || __('(none)'),
+									]
+								)
+							: '';
+					frappe.confirm(
+						__(
+							'Import IP Admissions, Discharges, and both checklists?\n\n'
+								+ 'Admission Excel rows: {0}\n'
+								+ 'Admissions (Case No): {1}\n'
+								+ 'Discharged rows: {2}\n'
+								+ 'Admitted rows (no Discharge): {3}\n'
+								+ '{4}'
+								+ 'Nursing checklist: {5} admissions ({6} rows)\n'
+								+ 'Discharge checklist: {7} admissions ({8} rows)\n\n'
+								+ 'Sample Case Nos: {9}\n\nContinue?',
+							[
+								counts.excel_rows || 0,
+								counts.admissions || 0,
+								counts.discharged_rows || 0,
+								counts.admitted_rows || 0,
+								missingBlock,
+								counts.nursing_admissions || 0,
+								counts.nursing_rows || 0,
+								counts.discharge_checklist_admissions || 0,
+								counts.discharge_checklist_rows || 0,
+								(counts.sample_case_nos || []).join(', ') || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method:
+									'healthcare.api.data_migration_jobs.start_ip_admission_discharge_import_migration',
+								args: {
+									file_url: files.admission,
+									nursing_file_url: files.nursing,
+									discharge_checklist_file_url: files.discharge_checklist,
+								},
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										dialog.hide();
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('ip_admission_discharge_import');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-admission-bundle-status'));
+}
+
+function open_lab_test_bundle_upload() {
+	const files = {
+		header: null,
+		detail: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload both lab Excel files. LAB_00_03 creates the parent Lab Test; LAB_00_04 lines (all sheets) become child rows in lab_test_lines. is_legacy_import is set on each record.'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('C LAB_00_03')} (${__('header / parent')})</td>
+						<td class="bundle-lab-header-status">${fileLabel(files.header)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-lab-header">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('C-I LAB_00_04')} (${__('detail lines — both sheets')})</td>
+						<td class="bundle-lab-detail-status">${fileLabel(files.detail)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-lab-detail">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-lab-header').on('click', () => {
+			pickFile(__('C LAB_00_03 Excel'), (url) => {
+				files.header = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-lab-detail').on('click', () => {
+			pickFile(__('C-I LAB_00_04 Excel'), (url) => {
+				files.detail = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Lab Test — LAB_003 + LAB_004'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="lab-test-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Preview & Import'),
+		primary_action() {
+			if (!files.header) {
+				frappe.msgprint({
+					title: __('Header file required'),
+					message: __('Please upload the C LAB_00_03 Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			if (!files.detail) {
+				frappe.msgprint({
+					title: __('Detail file required'),
+					message: __('Please upload the C-I LAB_00_04 Excel file (both sheets are read).'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.call({
+				method: 'healthcare.api.lab_test_legacy_import.preview_legacy_lab_import',
+				args: {
+					header_file_url: files.header,
+					detail_file_url: files.detail,
+				},
+				freeze: true,
+				freeze_message: __('Reading Excel files…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Import legacy lab tests?\n\n'
+								+ 'Header rows (LAB_00_03): {0}\n'
+								+ 'Detail rows (LAB_00_04, all sheets): {1}\n'
+								+ 'Transactions: {2}\n'
+								+ 'With header (003): {3}\n'
+								+ 'With result lines: {4}\n'
+								+ 'Resolvable patient: {5}\n'
+								+ 'Matching lab template: {6}\n'
+								+ 'Standalone (004 only, no 003 header): {7}\n\n'
+								+ 'Parent = Lab Test header; children = lab_test_lines. is_legacy_import is ticked. No billing is created.\n\nContinue?',
+							[
+								counts.header_rows || 0,
+								counts.detail_rows || 0,
+								counts.transactions || 0,
+								counts.transactions_with_header || 0,
+								counts.transactions_with_results || 0,
+								counts.resolvable_patient || 0,
+								counts.resolvable_template || 0,
+								counts.standalone_transactions || counts.detail_without_header || 0,
+							]
+						),
+						() => {
+							frappe.call({
+								method:
+									'healthcare.api.data_migration_jobs.start_legacy_lab_import_migration',
+								args: {
+									header_file_url: files.header,
+									detail_file_url: files.detail,
+								},
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										dialog.hide();
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('legacy_lab_import');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.lab-test-bundle-status'));
+}
+
+function open_ip_service_bundle_upload() {
+	const files = {
+		header: null,
+		detail: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload both IP Service Excel files. SRV_00_03 creates the parent IP Service; SRV_00_04 lines (all sheets) become child rows in Services. Missing Patient Visits are auto-created. Visit numbers with commas are normalized (e.g. 1,415 → 1415).'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('C-I SRV_00_03')} (${__('header / parent')})</td>
+						<td class="bundle-ip-header-status">${fileLabel(files.header)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ip-header">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('C-I SRV_00_04')} (${__('detail lines — both sheets')})</td>
+						<td class="bundle-ip-detail-status">${fileLabel(files.detail)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ip-detail">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-ip-header').on('click', () => {
+			pickFile(__('C-I SRV_00_03 Excel'), (url) => {
+				files.header = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-ip-detail').on('click', () => {
+			pickFile(__('C-I SRV_00_04 Excel'), (url) => {
+				files.detail = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('IP Service — SRV_00_03 — child 004'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="ip-service-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Preview & Import'),
+		primary_action() {
+			if (!files.header) {
+				frappe.msgprint({
+					title: __('Header file required'),
+					message: __('Please upload the C-I SRV_00_03 Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			if (!files.detail) {
+				frappe.msgprint({
+					title: __('Detail file required'),
+					message: __('Please upload the C-I SRV_00_04 Excel file (both sheets are read).'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.call({
+				method: 'healthcare.api.ip_service_legacy_import.preview_legacy_ip_service_import',
+				args: {
+					header_file_url: files.header,
+					detail_file_url: files.detail,
+				},
+				freeze: true,
+				freeze_message: __('Reading Excel files…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Import legacy IP Services?\n\n'
+								+ 'Header rows (SRV_00_03): {0}\n'
+								+ 'Detail rows (SRV_00_04, all sheets): {1}\n'
+								+ 'Transactions: {2}\n'
+								+ 'With header (003): {3}\n'
+								+ 'With service lines: {4}\n'
+								+ 'Visits already in system: {5}\n'
+								+ 'Visits to auto-create: {6}\n'
+								+ 'Transactions with matching template: {7}\n'
+								+ 'Standalone (004 only, no 003 header): {8}\n\n'
+								+ 'Parent = IP Service header; children = Services table. '
+								+ 'SRV_SUB_NUM → Service Type (Healthcare Service Template). '
+								+ 'SRV_GROUP_NUM → Service Group. '
+								+ 'BRANCH_NUM → Cost Center (1=Serene Hospital, 2=Serene Center, 8=Jau Hospital). '
+								+ 'Records are submitted. No billing is created.\n\nContinue?',
+							[
+								counts.header_rows || 0,
+								counts.detail_rows || 0,
+								counts.transactions || 0,
+								counts.transactions_with_header || 0,
+								counts.transactions_with_service_lines || 0,
+								counts.resolvable_visits || 0,
+								counts.visits_to_create || 0,
+								counts.matching_templates || 0,
+								counts.standalone_transactions || counts.detail_without_header || 0,
+							]
+						),
+						() => {
+							frappe.call({
+								method:
+									'healthcare.api.data_migration_jobs.start_legacy_ip_service_import_migration',
+								args: {
+									header_file_url: files.header,
+									detail_file_url: files.detail,
+								},
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										dialog.hide();
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('legacy_ip_service_import');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-service-bundle-status'));
+}
+
 function poll_migration_status(jobKey) {
 	const poll = () => {
 		frappe.call({
@@ -784,13 +2318,301 @@ function poll_migration_status(jobKey) {
 					const skipped =
 						(s.skip_no_patient || 0) +
 						(s.skip_no_header || 0) +
-						(s.skip_existing_non_legacy || 0);
-					let msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [
-						jobKey,
-						ok,
-						skipped,
-						errN,
-					]);
+						(s.skip_existing_non_legacy || 0) +
+						(s.skip_no_name || 0) +
+						(s.skip_no_gender || 0) +
+						(s.skip_no_patient || 0);
+					let msg;
+					if (jobKey === 'patient_info_import') {
+						msg = __('{0} finished: {1} created, {2} updated, {3} skipped, {4} errors. Allergy warnings: {5} created, {6} updated.', [
+							jobKey,
+							s.created || 0,
+							s.updated || 0,
+							skipped,
+							errN,
+							s.allergy_warnings_created || 0,
+							s.allergy_warnings_updated || 0,
+						]);
+					} else if (jobKey === 'ip_admission_discharge_import') {
+						msg = __(
+							'{0} finished: {1} admissions created, {2} updated, {3} skipped (no patient), {4} errors. Discharges: {5} created, {6} updated, {7} submitted. Nursing checklist: {8} OK, {9} skipped. Discharge checklist: {10} OK, {11} skipped.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_patient || 0,
+								errN,
+								s.discharges_created || 0,
+								s.discharges_updated || 0,
+								s.discharges_submitted || 0,
+								s.nursing_ok || 0,
+								s.nursing_skip || 0,
+								s.discharge_cl_ok || 0,
+								s.discharge_cl_skip || 0,
+							]
+						);
+					} else if (jobKey === 'patient_visit_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} patients auto-created, {4} skipped (no patient), {5} skipped (no date), {6} submitted, {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.patients_created || 0,
+								s.skip_no_patient || 0,
+								s.skip_no_date || 0,
+								s.submitted || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'service_request_visit_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} visits auto-created, {5} patients auto-created, {6} skipped (no visit), {7} skipped (no template), {8} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.visits_created || 0,
+								s.patients_created || 0,
+								s.skip_no_visit || 0,
+								s.skip_no_template || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'legacy_ip_service_import') {
+						msg = __(
+							'{0} finished: {1} OK ({2} created, {3} updated), {4} submitted, {5} standalone, {6} visits auto-created, {7} patients auto-created, {8} skipped (no template), {9} skipped (no lines), {10} errors.',
+							[
+								jobKey,
+								s.ok || 0,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.standalone_ok || 0,
+								s.visits_created || 0,
+								s.patients_created || 0,
+								s.skip_no_template || 0,
+								s.skip_no_lines || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_03_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} skipped (no admission), {5} skipped (no patient), {6} skipped (patient mismatch), {7} skipped (no lines), {8} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								s.skip_patient_mismatch || 0,
+								s.skip_no_lines || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'lab_test_visit_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} visits auto-created, {5} patients auto-created, {6} skipped (no visit), {7} skipped (existing non-legacy), {8} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.visits_created || 0,
+								s.patients_created || 0,
+								s.skip_no_visit || 0,
+								s.skip_existing_non_legacy || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'patient_appointment_info_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} patients auto-created, {4} practitioners auto-created, {5} skipped (no date), {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.patients_created || 0,
+								s.practitioners_created || 0,
+								s.skip_no_date || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'visit_diagnoses_op_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} patients auto-created, {4} skipped (no diagnosis), {5} skipped (unresolved diagnosis), {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.patients_created || 0,
+								s.skip_no_diagnosis || 0,
+								s.skip_unresolved_diagnosis || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_diagnoses_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} admissions resolved, {4} skipped (no details), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.admissions_resolved || 0,
+								s.skip_no_details || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_doctor_request_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} with placeholder description "-", {4} patients auto-created, {5} doctors auto-created, {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.placeholder_description || 0,
+								s.patients_created || 0,
+								s.practitioners_created || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_patient_assessment_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no patient), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_patient_vitals_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} skipped (no admission), {5} skipped (no patient), {6} patients auto-created, {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								s.patients_created || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_observation_level_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} skipped (no admission), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.skip_no_admission || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'morse_fall_scale_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no patient), {5} skipped (empty details), {6} patients auto-created, {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								s.skip_empty_details || 0,
+								s.patients_created || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'morse_fall_scale_detail_dedupe') {
+						msg = __(
+							'{0} finished: {1} scale(s) cleaned, {2} duplicate row(s) deleted, {3} total point(s) recalculated, {4} errors.',
+							[
+								jobKey,
+								s.parents_processed || 0,
+								s.rows_deleted || 0,
+								s.parents_total_updated || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_phy_exam_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no patient), {5} patients auto-created, {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								s.patients_created || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_transfer_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no patient), {4} skipped (no new admission), {5} skipped (patient mismatch), {6} skipped (unmapped branch), {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_patient || 0,
+								s.skip_no_new_admission || 0,
+								s.skip_patient_mismatch || 0,
+								s.skip_no_cost_center || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'fall_risk_assessment_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no admission), {4} skipped (no trans date), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_trans_date || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_transfer_bal_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no patient), {4} skipped (no new admission), {5} skipped (patient mismatch), {6} skipped (unmapped branch), {7} skipped (no trans date), {8} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_patient || 0,
+								s.skip_no_new_admission || 0,
+								s.skip_patient_mismatch || 0,
+								s.skip_no_cost_center || 0,
+								s.skip_no_trans_date || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_admission_form_rules_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} errors.',
+							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'visit_positive_finding_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} errors.',
+							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else {
+						msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [
+							jobKey,
+							ok,
+							skipped,
+							errN,
+						]);
+					}
 					if (s.in_database != null) {
 						msg += __('. {0} legacy Lab Tests in database.', [s.in_database]);
 					}

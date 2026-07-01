@@ -1,0 +1,125 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-07-01 23:13:38.745179",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "trans_type",
+  "order_num",
+  "section_break_nnvc",
+  "eng_header",
+  "eng_detail",
+  "column_break_zzif",
+  "arb_header",
+  "arb_detail",
+  "section_break_gcvq",
+  "cr_id",
+  "cr_date",
+  "column_break_hlwc",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No"
+  },
+  {
+   "fieldname": "trans_type",
+   "fieldtype": "Data",
+   "label": "Trans Type"
+  },
+  {
+   "fieldname": "order_num",
+   "fieldtype": "Data",
+   "label": "Order Num"
+  },
+  {
+   "fieldname": "section_break_nnvc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "eng_header",
+   "fieldtype": "Small Text",
+   "label": "Eng Header"
+  },
+  {
+   "fieldname": "eng_detail",
+   "fieldtype": "Small Text",
+   "label": "Eng Detail"
+  },
+  {
+   "fieldname": "arb_header",
+   "fieldtype": "Small Text",
+   "label": "ARB Header"
+  },
+  {
+   "fieldname": "arb_detail",
+   "fieldtype": "Small Text",
+   "label": "ARB Detail"
+  },
+  {
+   "fieldname": "section_break_gcvq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_hlwc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "column_break_zzif",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-01 23:16:15.263373",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Admission Form Rules",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

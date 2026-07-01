@@ -106,6 +106,7 @@ export function hasHealthcareRole(roles: string[]): boolean {
     r.some(x => x.includes('pharmacist') || x.includes('pharmacy') || x === 'pharmacy user') ||
     r.some(x => x.includes('reception')) ||
     r.some(x => x.includes('psychologist')) ||
+    r.some(x => x === 'therapist' || x.includes('therapist')) ||
     r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist')) ||
     r.some(x => x.includes('insurance'))
   )
@@ -136,6 +137,7 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (pathname === '/pharmacy') return normalizedRoles.some(r => r.includes('pharmacist') || r.includes('pharmacy') || r === 'pharmacy user')
   if (pathname === '/reception') return normalizedRoles.some(r => r.includes('reception'))
   if (pathname === '/psychologist') return normalizedRoles.some(r => r.includes('psychologist'))
+  if (pathname === '/therapy') return normalizedRoles.some(r => r === 'therapist' || r.includes('therapist'))
   if (pathname === '/anesthesiologist') return normalizedRoles.some(r => r.includes('anesthesiologist') || r.includes('anaesthesiologist'))
   if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance') || r.includes('reception'))
 
@@ -204,6 +206,16 @@ function hasExactRole(roles: string[], names: string[]): boolean {
 
 function roleMatches(roles: string[], matcher: (normalized: string) => boolean): boolean {
   return roles.some((r) => matcher(r.trim().toLowerCase()))
+}
+
+export function isTherapistRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return hasExactRole(roles, ['Therapist']) || roleMatches(roles, (r) => r.includes('therapist'))
+}
+
+export function isPsychologistRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return hasExactRole(roles, ['Psychologist']) || roleMatches(roles, (r) => r.includes('psychologist'))
 }
 
 export function isReceptionRole(roles: string[] | undefined): boolean {
@@ -281,6 +293,7 @@ export function getDefaultRouteForUser(roles: string[]): string {
   if (r.some(x => x.includes('laboratory') || x.includes('lab'))) return '/lab'
   if (r.some(x => x.includes('pharmacist') || x.includes('pharmacy') || x === 'pharmacy user')) return '/pharmacy'
   if (r.some(x => x.includes('reception'))) return '/reception'
+  if (r.some(x => x === 'therapist' || x.includes('therapist'))) return '/therapy'
   if (r.some(x => x.includes('psychologist'))) return '/psychologist'
   if (r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist'))) return '/anesthesiologist'
   return '/patient'

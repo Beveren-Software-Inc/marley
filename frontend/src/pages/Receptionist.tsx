@@ -39,6 +39,7 @@ import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPa
 import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/costCenterCareScope'
 import { isDataOfficer } from '../config/permissions'
 import { DashboardCard } from '../components/ui/DashboardCard'
+import { PractitionerUnavailabilityList } from '../components/practitionerUnavailability/PractitionerUnavailabilityList'
 
 type View =
   | 'default'
@@ -64,6 +65,7 @@ type View =
   | 'billing-additional-collection'
   | 'billing-internal-employee'
   | 'daily-auto-visit'
+  | 'practitioner-unavailability'
 
 export const ReceptionistPage = () => {
 
@@ -217,6 +219,8 @@ export const ReceptionistPage = () => {
       setCurrentView('iop')
     } else if (screen === 'r-appointments-freeze') {
       setCurrentView('appointments-freeze')
+    } else if (screen === 'r-practitioner-unavailability') {
+      setCurrentView('practitioner-unavailability')
     } else if (screen === 'r-service-requests') {
       setCurrentView('service-requests')
     } else if (screen === 'r-receipt-voucher') {
@@ -668,6 +672,17 @@ export const ReceptionistPage = () => {
               To freeze or release practitioner schedules, use the backend: Healthcare → Practitioner Schedule, or open Appointments in the backend.
               <a href="/app/Patient%20Appointment" target="_blank" rel="noopener noreferrer" className="ml-2 underline font-medium">Open Appointments</a>
             </div> */}
+          </div>
+        )}
+
+        {currentView === 'practitioner-unavailability' && (
+          <div className="p-4">
+            <p className="text-sm text-slate-600 mb-4">
+              Record when practitioners are unavailable or on leave. Reception can create holds and cancel them when the doctor returns.
+            </p>
+            <DashboardCard title="Practitioner Unavailability" noHeightLimit>
+              <PractitionerUnavailabilityList />
+            </DashboardCard>
           </div>
         )}
 

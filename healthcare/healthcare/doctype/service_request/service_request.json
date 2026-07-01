@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_auto_repeat": 1,
+ "allow_bulk_edit": 1,
  "autoname": "naming_series:",
  "beta": 1,
  "creation": "2022-01-26 15:57:18.825681",
@@ -17,6 +18,7 @@
   "company",
   "cost_center",
   "expected_date",
+  "legacy",
   "patient_detail_section",
   "patient",
   "patient_name",
@@ -86,6 +88,8 @@
   "discount",
   "column_break_gqgr",
   "discount_amount",
+  "serv_amount_add",
+  "serv_amt_book",
   "grand_total",
   "booked_lab_section",
   "patient_accepted_cost",
@@ -93,7 +97,14 @@
   "sample_collection_required",
   "column_break_vcmb",
   "qty_invoiced",
-  "billing_status"
+  "billing_status",
+  "section_break_gemj",
+  "sr_num",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date",
+  "serv_group_num"
  ],
  "fields": [
   {
@@ -119,8 +130,7 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Order Date",
-   "reqd": 1
+   "label": "Order Date"
   },
   {
    "collapsible": 1,
@@ -186,8 +196,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Code Value",
-   "reqd": 1
+   "options": "Code Value"
   },
   {
    "fieldname": "intent",
@@ -273,8 +282,7 @@
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
-   "options": "Company",
-   "reqd": 1
+   "options": "Company"
   },
   {
    "fieldname": "source",
@@ -390,8 +398,7 @@
   {
    "fieldname": "order_time",
    "fieldtype": "Data",
-   "label": "Order Time",
-   "reqd": 1
+   "label": "Order Time"
   },
   {
    "fetch_from": "patient.sex",
@@ -614,8 +621,7 @@
    "fieldname": "cost_center",
    "fieldtype": "Link",
    "label": "Cost Center",
-   "options": "Cost Center",
-   "reqd": 1
+   "options": "Cost Center"
   },
   {
    "fieldname": "cost",
@@ -650,6 +656,56 @@
    "fieldtype": "Select",
    "label": "Discount Margin",
    "options": "\nPercentage\nAmount"
+  },
+  {
+   "default": "0",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "label": "Legacy"
+  },
+  {
+   "fieldname": "section_break_gemj",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "SR Num"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "serv_group_num",
+   "fieldtype": "Data",
+   "label": "SERV GROUP Num"
+  },
+  {
+   "fieldname": "serv_amount_add",
+   "fieldtype": "Data",
+   "label": "SERV Amount Add"
+  },
+  {
+   "fieldname": "serv_amt_book",
+   "fieldtype": "Currency",
+   "label": "Serv Amt Book"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -668,7 +724,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-04-22 09:41:55.748995",
+ "modified": "2026-07-01 15:51:14.457112",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",

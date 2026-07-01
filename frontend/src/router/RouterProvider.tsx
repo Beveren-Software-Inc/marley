@@ -15,6 +15,7 @@ import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
 import { DischargePatientPage } from '../pages/DischargePatientPage'
 import { PatientHistoryPage } from '../pages/PatientHistory'
 import { PsychologistPage } from '../pages/Psychologist'
+import { TherapyPage } from '../pages/Therapy'
 import { AnesthesiologistPage } from '../pages/Anesthesiologist'
 import { InsurancePage } from '../pages/Insurance'
 import { SHOW_EMPLOYEE_PORTAL } from '../config/features'
@@ -145,6 +146,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard roles={['psychologist']}>
           <PsychologistPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/therapy',
+      element: (
+        <RoleGuard roles={['therapist']}>
+          <TherapyPage />
         </RoleGuard>
       )
     },

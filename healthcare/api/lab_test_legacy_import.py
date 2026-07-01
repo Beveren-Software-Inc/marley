@@ -264,17 +264,10 @@ def _parse_detail_excel(file_url: str) -> list[dict]:
 	return parsed
 
 
-def _resolve_cost_center(branch_label: str | None) -> str | None:
-	text = (branch_label or "").strip()
-	if not text:
-		return None
-	for doctype in ("Cost Center", "Branch"):
-		if frappe.db.exists(doctype, text):
-			return text
-		name = frappe.db.get_value(doctype, {"cost_center_name": text}, "name")
-		if name:
-			return name
-	return None
+def _resolve_cost_center(branch_label: Any) -> str | None:
+	from healthcare.api.discharge_checklist_import import _resolve_cost_center as resolve_cc
+
+	return resolve_cc(branch_label)
 
 
 def _resolve_patient_from_sub_dr(sub_dr: str) -> str | None:
@@ -555,7 +548,7 @@ def _apply_header_fields(
 	doc.up_date = _format_legacy_date_str(header.get("up_date"))
 	doc.ap_id = header.get("ap_id") or ""
 	doc.ap_date = _format_legacy_date_str(header.get("ap_date"))
-	doc.branch_num = (header.get("branch_num") or "").strip()
+	doc.branch_num = _clean_oracle_num(header.get("branch_num")) or _result_text(header.get("branch_num"))
 	doc.oracle_field7 = _result_text(header.get("oracle_field7"))
 	doc.oracle_field8 = _result_text(header.get("oracle_field8"))
 	doc.oracle_field9 = _result_text(header.get("oracle_field9"))
@@ -891,6 +884,12 @@ def get_legacy_lab_import_report() -> dict:
 
 
 @frappe.whitelist()
+def preview_legacy_lab_bundle_import(header_file_url: str, detail_file_url: str) -> dict:
+	"""Direct Upload: LAB_00_03 header + LAB_00_04 detail (all sheets)."""
+	return preview_legacy_lab_import(header_file_url, detail_file_url)
+
+
+@frappe.whitelist()
 def preview_legacy_lab_import(header_file_url: str, detail_file_url: str) -> dict:
 	_require_admin()
 	if not (header_file_url or "").strip():
@@ -906,7 +905,7 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 	details = _load_cached_details()
 	batch_id = frappe.cache().get_value(CACHE_KEYS["batch_id"]) or ""
 
-	if not trans_nums or not headers:
+	if not trans_nums:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
 	batch_keys = trans_nums[offset : offset + LEGACY_LAB_IMPORT_BATCH_SIZE]

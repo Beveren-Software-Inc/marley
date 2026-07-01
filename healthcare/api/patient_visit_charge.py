@@ -52,9 +52,18 @@ def _template_to_config(template_name: str | None) -> dict:
 	}
 
 
+def visit_type_no_charges(visit_type: str | None) -> bool:
+	"""True when Patient Visit Type has No Charges ticked."""
+	visit_type = (visit_type or "").strip()
+	if not visit_type or not frappe.db.exists("Patient Visit Type", visit_type):
+		return False
+	return bool(cint(frappe.db.get_value("Patient Visit Type", visit_type, "no_charges")))
+
+
 def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
 	"""Resolve charge from Patient Visit Type.service_charge, else Healthcare Settings default."""
 	visit_type = (visit_type or "").strip()
+	no_charges = visit_type_no_charges(visit_type)
 	template_name = None
 	source = None
 
@@ -73,6 +82,9 @@ def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
 	config = _template_to_config(template_name)
 	config["source"] = source
 	config["visit_type"] = visit_type or None
+	config["no_charges"] = no_charges
+	if no_charges:
+		config["configured"] = False
 	return config
 
 
@@ -215,6 +227,11 @@ def maybe_create_patient_visit_charge_sales_order(
 	if charge_visit is None:
 		charge_visit = True
 	if not cint(charge_visit):
+		return None
+
+	if not visit_type and visit_name and frappe.db.exists("Patient Visit", visit_name):
+		visit_type = frappe.db.get_value("Patient Visit", visit_name, "visit_type")
+	if visit_type_no_charges(visit_type):
 		return None
 
 	try:
@@ -381,6 +398,11 @@ def maybe_create_iop_enrollment_visit_charge_sales_order(
 		charge_visit = True
 	if not cint(charge_visit):
 		return None
+
+	if visit_name and frappe.db.exists("Patient Visit", visit_name):
+		visit_type = frappe.db.get_value("Patient Visit", visit_name, "visit_type")
+		if visit_type_no_charges(visit_type):
+			return None
 
 	try:
 		return create_iop_enrollment_visit_charge_sales_order(

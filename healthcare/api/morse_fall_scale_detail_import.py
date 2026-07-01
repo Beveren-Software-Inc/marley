@@ -46,13 +46,53 @@ def _text_value(value) -> str:
 
 def _detail_rows_from_staging(staging_row: dict) -> list[dict]:
 	rows: list[dict] = []
+	seen: set[str] = set()
 	for text_field, points_field in _DETAIL_FIELD_PAIRS:
 		text = _text_value(staging_row.get(text_field))
 		points = cint(staging_row.get(points_field))
 		if not text and not points:
 			continue
+		key = text.strip().lower()
+		if key in seen:
+			continue
+		seen.add(key)
 		rows.append({"text_message": text, "points": points})
 	return rows
+
+
+def replace_morse_fall_scale_detail_from_staging(doc, staging_row: dict) -> int:
+	"""Replace Morse Fall Scale detail child rows from flat TEXT_MESSAGE_n / GET_POINTS_n columns.
+
+	Explicitly deletes existing child rows in the database before save. Frappe's child-table
+	sync can leave orphaned rows when old lines keep their ``name`` in memory (append/stack
+	instead of replace), which shows up as duplicated criteria (e.g. two ``Gait:`` rows) and
+	grows on each re-import (2x, 3x, …).
+	"""
+	detail_rows = _detail_rows_from_staging(staging_row)
+	if not detail_rows:
+		doc.set("morse_fall_scale_detail", [])
+		doc.total_points = 0
+		return 0
+
+	parent_name = (doc.name or "").strip()
+	if parent_name and frappe.db.exists(doc.doctype, parent_name):
+		frappe.db.delete(
+			"Morse Fall Scale Detail",
+			{
+				"parent": parent_name,
+				"parenttype": doc.doctype,
+				"parentfield": "morse_fall_scale_detail",
+			},
+		)
+
+	doc.set("morse_fall_scale_detail", detail_rows)
+	doc.calculate_total_points()
+
+	staging_total = staging_row.get("total_points")
+	if staging_total not in (None, ""):
+		doc.total_points = cint(staging_total)
+
+	return len(detail_rows)
 
 
 def _find_morse_fall_scale(staging_row: dict) -> tuple[str | None, str | None]:
@@ -131,19 +171,9 @@ def _apply_staging_row(staging_row: dict) -> str:
 	if not morse_name:
 		return f"unresolved_{reason or 'unknown'}"
 
-	detail_rows = _detail_rows_from_staging(staging_row)
-	if not detail_rows:
-		return "skipped_empty_details"
-
 	doc = frappe.get_doc("Morse Fall Scale", morse_name)
-	doc.set("morse_fall_scale_detail", [])
-	for row in detail_rows:
-		doc.append("morse_fall_scale_detail", row)
-
-	doc.calculate_total_points()
-	staging_total = cint(staging_row.get("total_points"))
-	if staging_total and doc.total_points != staging_total:
-		doc.total_points = staging_total
+	if not replace_morse_fall_scale_detail_from_staging(doc, staging_row):
+		return "skipped_empty_details"
 
 	doc.save(ignore_permissions=True)
 	return "updated"

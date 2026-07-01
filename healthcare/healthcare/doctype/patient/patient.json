@@ -88,6 +88,7 @@
   "time_no",
   "column_break_hhap",
   "pat_marital_status",
+  "pat_marital_status_name",
   "section_break_hfef",
   "flat_num",
   "bldg_num",
@@ -293,8 +294,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Mobile",
-   "no_copy": 1,
-   "options": "Phone"
+   "no_copy": 1
   },
   {
    "bold": 1,
@@ -310,8 +310,7 @@
    "fieldtype": "Data",
    "in_filter": 1,
    "label": "Phone",
-   "no_copy": 1,
-   "options": "Phone"
+   "no_copy": 1
   },
   {
    "fieldname": "sb_relation",
@@ -1067,6 +1066,11 @@
    "fieldname": "address",
    "fieldtype": "Small Text",
    "label": "Address"
+  },
+  {
+   "fieldname": "pat_marital_status_name",
+   "fieldtype": "Data",
+   "label": "Pat Marital Status Name"
   }
  ],
  "grid_page_length": 50,
@@ -1170,7 +1174,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-06-09 23:30:42.815619",
+ "modified": "2026-07-01 13:45:19.552540",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

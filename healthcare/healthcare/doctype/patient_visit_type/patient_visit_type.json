@@ -7,7 +7,8 @@
  "engine": "InnoDB",
  "field_order": [
   "visit_type",
-  "service_charge"
+  "service_charge",
+  "no_charges"
  ],
  "fields": [
   {
@@ -23,12 +24,18 @@
    "fieldtype": "Link",
    "label": "Service Charge",
    "options": "Healthcare Service Template"
+  },
+  {
+   "default": "0",
+   "fieldname": "no_charges",
+   "fieldtype": "Check",
+   "label": "No Charges"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-17 14:52:33.762723",
+ "modified": "2026-07-01 15:14:48.861320",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",

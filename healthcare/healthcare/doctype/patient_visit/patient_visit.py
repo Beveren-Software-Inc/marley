@@ -45,7 +45,7 @@ def _diagnosis_link_names(doc):
 
 class PatientVisit(Document):
 	def validate(self):
-		if self.patient and self.is_new():
+		if self.patient and self.is_new() and not getattr(self.flags, "from_legacy_import", False):
 			from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 				ensure_patient_can_open_new_visit,
 			)

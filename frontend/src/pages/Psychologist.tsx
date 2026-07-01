@@ -11,9 +11,16 @@ import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExam
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
+import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
+import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 
 export const PsychologistPage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, guardClinicalCreate } = useCareContext()
+  const {
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    guardClinicalCreate,
+    activeAdmission,
+  } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const patientFromUrl = searchParams.get('patient') || ''
@@ -24,6 +31,8 @@ export const PsychologistPage = () => {
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
 
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
+  const [therapyNotesRefreshKey, setTherapyNotesRefreshKey] = useState(0)
+  const [sessionRefreshKey, setSessionRefreshKey] = useState(0)
 
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -176,6 +185,41 @@ export const PsychologistPage = () => {
           <DashboardCard title="Patient History" noHeightLimit>
             <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Therapy Notes (under Psychologist → Therapy) ─────────────────────────────
+  if (screen === 't-notes') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <TherapyNotesPanel
+            patient={selectedPatient}
+            refreshKey={therapyNotesRefreshKey}
+            onRefresh={() => setTherapyNotesRefreshKey((k) => k + 1)}
+            onPatientClick={handlePatientSelect}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // ── Session Scheduler (under Psychologist → Therapy) ───────────────────────
+  if (screen === 't-session') {
+    return (
+      <div className="flex flex-col h-full min-w-0">
+        {header}
+        <div className="flex-1 min-w-0 overflow-y-auto p-4">
+          <TherapySessionPanel
+            patient={selectedPatient}
+            admissionNumber={activeAdmission || undefined}
+            refreshKey={sessionRefreshKey}
+            onRefresh={() => setSessionRefreshKey((k) => k + 1)}
+            onPatientClick={handlePatientSelect}
+          />
         </div>
       </div>
     )

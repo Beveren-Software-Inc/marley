@@ -8,6 +8,7 @@ from healthcare.api.patient_file_no_charge import _ensure_patient_customer
 from healthcare.api.patient_visit_charge import (
 	_existing_visit_charge_sales_order,
 	maybe_create_patient_visit_charge_sales_order,
+	visit_type_no_charges,
 )
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
@@ -330,6 +331,8 @@ def _get_daily_auto_visit_name(patient, visit_date):
 
 
 def _ensure_daily_auto_visit_billing(setup, visit_name, visit_date):
+    if visit_type_no_charges(DAILY_AUTO_VISIT_TYPE):
+        return
     cost_center = _resolve_setup_cost_center(setup)
     amount = flt(setup.amount)
     if amount > 0:
@@ -370,6 +373,9 @@ def _create_daily_auto_visit_for_date(setup, visit_date):
 
     visit = frappe.get_doc(visit_fields)
     visit.insert(ignore_permissions=True)
+
+    if visit_type_no_charges(DAILY_AUTO_VISIT_TYPE):
+        return visit.name
 
     amount = flt(setup.amount)
     if amount > 0:

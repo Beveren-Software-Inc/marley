@@ -11,7 +11,7 @@ from six import string_types
 import frappe
 from frappe import _
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import flt, now_datetime
+from frappe.utils import flt, now_datetime, cint
 
 from healthcare.controllers.service_request_controller import ServiceRequestController
 from healthcare.healthcare.doctype.observation.observation import add_observation
@@ -91,7 +91,24 @@ class ServiceRequest(ServiceRequestController):
 			)
 
 	def set_order_details(self):
-		pass
+		if cint(self.get("legacy")) or getattr(self.flags, "from_legacy_import", False):
+			if (
+				self.template_dt
+				and self.template_dn
+				and frappe.db.exists(self.template_dt, self.template_dn)
+			):
+				template = frappe.get_doc(self.template_dt, self.template_dn)
+				self.item_code = template.get("item") or template.get("item_code")
+				if not self.patient_care_type and template.get("patient_care_type"):
+					self.patient_care_type = template.patient_care_type
+				if not self.staff_role and template.get("staff_role"):
+					self.staff_role = template.staff_role
+			if not self.intent:
+				self.intent = frappe.db.get_single_value("Healthcare Settings", "default_intent")
+			if not self.priority:
+				self.priority = frappe.db.get_single_value("Healthcare Settings", "default_priority")
+			return
+
 		if not self.template_dt and not self.template_dn:
 			frappe.throw(
 				_("Order Template Type and Order Template are mandatory to create Service Request"),
