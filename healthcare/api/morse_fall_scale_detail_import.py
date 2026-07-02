@@ -12,7 +12,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, strip_html
 
-MORSE_FALL_SCALE_DETAIL_IMPORT_BATCH_SIZE = 200
+MORSE_FALL_SCALE_DETAIL_IMPORT_BATCH_SIZE = 500
 
 _DETAIL_FIELD_PAIRS = tuple(
 	(f"text_message_{i}", f"get_points_{i}") for i in range(1, 8)

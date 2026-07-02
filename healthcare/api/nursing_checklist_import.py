@@ -24,7 +24,7 @@ from healthcare.api.discharge_checklist_import import (
 
 DEFAULT_NURSING_TEMPLATE = "Default Nursing Discharge Checklist"
 DEFAULT_NURSING_DEPARTMENT_LABEL = "Nursing"
-NURSING_CHECKLIST_IMPORT_BATCH_SIZE = 25
+NURSING_CHECKLIST_IMPORT_BATCH_SIZE = 500
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:nursing_checklist_import:file_url",
 	"admissions": "healthcare:data_migration:nursing_checklist_import:admissions",

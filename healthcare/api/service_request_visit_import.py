@@ -21,7 +21,7 @@ from healthcare.api.patient_info_import import (
 from healthcare.api.patient_visit_import import ensure_patient_for_legacy_import
 from healthcare.api.visit_diagnosis_sync import _resolve_patient_visit
 
-SERVICE_REQUEST_VISIT_IMPORT_BATCH_SIZE = 150
+SERVICE_REQUEST_VISIT_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:service_request_visit_import:file_url",

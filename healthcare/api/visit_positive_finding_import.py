@@ -17,7 +17,7 @@ from healthcare.api.patient_info_import import (
 )
 from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
 
-VISIT_POSITIVE_FINDING_IMPORT_BATCH_SIZE = 200
+VISIT_POSITIVE_FINDING_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:visit_positive_finding_import:file_url",

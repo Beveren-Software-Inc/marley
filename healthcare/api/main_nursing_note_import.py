@@ -19,7 +19,7 @@ from healthcare.api.patient_info_import import (
 )
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-MAIN_NURSING_NOTE_IMPORT_BATCH_SIZE = 200
+MAIN_NURSING_NOTE_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:main_nursing_note_import:file_url",

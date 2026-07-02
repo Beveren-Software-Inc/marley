@@ -25,7 +25,7 @@ from healthcare.api.patient_visit_practitioner import (
 )
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-PATIENT_VISIT_IMPORT_BATCH_SIZE = 100
+PATIENT_VISIT_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:patient_visit_import:file_url",

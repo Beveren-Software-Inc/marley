@@ -15,12 +15,13 @@ from healthcare.api.patient_info_import import (
 	_cell_text,
 	_clean_oracle_num,
 	_excel_file_path,
+	_excel_serial_to_datetime,
 	_require_admin,
 )
 from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-FALL_RISK_ASSESSMENT_IMPORT_BATCH_SIZE = 200
+FALL_RISK_ASSESSMENT_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:fall_risk_assessment_import:file_url",
@@ -104,6 +105,9 @@ def _parse_trans_date(value: Any):
 		return value
 	if isinstance(value, date):
 		return datetime.combine(value, datetime.min.time())
+	dt = _excel_serial_to_datetime(value)
+	if dt:
+		return dt
 	try:
 		return get_datetime(value)
 	except Exception:

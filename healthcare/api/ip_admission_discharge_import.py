@@ -23,7 +23,7 @@ from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission impor
 	resolve_admission_datetime,
 )
 
-IP_ADMISSION_DISCHARGE_BATCH_SIZE = 25
+IP_ADMISSION_DISCHARGE_BATCH_SIZE = 500
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:ip_admission_discharge:file_url",
 	"case_nos": "healthcare:data_migration:ip_admission_discharge:case_nos",

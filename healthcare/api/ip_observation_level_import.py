@@ -21,7 +21,7 @@ from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 from healthcare.healthcare.doctype.observation.observation import fill_patient_from_admission
 
-IP_OBSERVATION_LEVEL_IMPORT_BATCH_SIZE = 200
+IP_OBSERVATION_LEVEL_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:ip_observation_level_import:file_url",
