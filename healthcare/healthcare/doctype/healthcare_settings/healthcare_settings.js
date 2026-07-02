@@ -818,6 +818,35 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Patient Allergies — PATIENT_INFO_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Allergies (PATIENT_INFO_01)'),
+				preview_method:
+					'healthcare.api.patient_allergy_warning_import.preview_patient_allergy_warning_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_allergy_warning_import_migration',
+				job_key: 'patient_allergy_warning_import',
+				build_confirm_message: (counts) =>
+					__(
+						'Import patient allergies from PATIENT_INFO_01 Excel?\n\n'
+							+ 'Only ALLERGIES_HISTORY is used — patients are not created or updated (except allergies field).\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Rows with allergy text: {1}\n'
+							+ 'Patients found in system: {2}\n'
+							+ 'Patients missing (skipped): {3}\n\n'
+							+ 'Creates or updates Medical Warning Message (type Allergy) per patient.\n\n'
+							+ 'Sample File Nos: {4}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.with_allergies || 0,
+							counts.patients_found || 0,
+							counts.patients_missing || 0,
+							(counts.sample_file_nos || []).join(', ') || __('(none)'),
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Warning Message — PATIENT_WARNING_MESSAGES'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Warning Message (PATIENT_WARNING_MESSAGES)'),
@@ -2728,6 +2757,19 @@ function poll_migration_status(jobKey) {
 							s.allergy_warnings_created || 0,
 							s.allergy_warnings_updated || 0,
 						]);
+					} else if (jobKey === 'patient_allergy_warning_import') {
+						msg = __(
+							'{0} finished: {1} allergy warnings created, {2} updated, {3} unchanged, {4} skipped (no patient), {5} skipped (no allergy text), {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_unchanged || 0,
+								s.skip_no_patient || 0,
+								s.skip_empty_allergy || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'ip_admission_discharge_import') {
 						msg = __(
 							'{0} finished: {1} admissions created, {2} updated, {3} skipped (no patient), {4} errors. Discharges: {5} created, {6} updated, {7} submitted. Nursing checklist: {8} OK, {9} skipped. Discharge checklist: {10} OK, {11} skipped.',

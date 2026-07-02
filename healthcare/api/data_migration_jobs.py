@@ -3724,6 +3724,96 @@ def process_patient_info_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── Patient allergy Warning Message import (PATIENT_INFO_01 allergies only) ───
+
+
+@frappe.whitelist()
+def start_patient_allergy_warning_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_allergy_warning_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "patient_allergy_warning_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_patients=summary.get("patients"),
+		excel_rows=summary.get("excel_rows"),
+		with_allergies=summary.get("with_allergies"),
+		patients_found=summary.get("patients_found"),
+		patients_missing=summary.get("patients_missing"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_allergy_warning_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_allergy_warning_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient allergy import started ({0} rows with allergies, {1} patients in system)."
+		).format(
+			summary.get("with_allergies") or 0,
+			summary.get("patients_found") or 0,
+		),
+	}
+
+
+def process_patient_allergy_warning_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_allergy_warning_import import run_patient_allergy_warning_import_batch
+
+	job = "patient_allergy_warning_import"
+	try:
+		result = run_patient_allergy_warning_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_empty_allergy=cint(prev.get("skip_empty_allergy", 0))
+			+ cint(result.get("skip_empty_allergy", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_unchanged=cint(prev.get("skip_unchanged", 0))
+			+ cint(result.get("skip_unchanged", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_patients=prev.get("total_patients"),
+			excel_rows=prev.get("excel_rows"),
+			with_allergies=prev.get("with_allergies"),
+			patients_found=prev.get("patients_found"),
+			patients_missing=prev.get("patients_missing"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_allergy_warning_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_allergy_warning_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient allergy Warning Message import (PATIENT_INFO_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── IP Admission + Discharge Excel import (Oracle IP_ADMISSION_01) ────────────
 
 
