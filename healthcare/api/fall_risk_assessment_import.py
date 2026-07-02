@@ -15,6 +15,7 @@ from healthcare.api.patient_info_import import (
 	_cell_text,
 	_clean_oracle_num,
 	_excel_file_path,
+	_excel_serial_to_datetime,
 	_require_admin,
 )
 from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
@@ -104,6 +105,9 @@ def _parse_trans_date(value: Any):
 		return value
 	if isinstance(value, date):
 		return datetime.combine(value, datetime.min.time())
+	dt = _excel_serial_to_datetime(value)
+	if dt:
+		return dt
 	try:
 		return get_datetime(value)
 	except Exception:

@@ -289,15 +289,25 @@ def _build_vital_signs_fields(row: dict) -> tuple[dict[str, Any], dict[str, int]
 	return {key: value for key, value in fields.items() if value not in (None, "")}, stats
 
 
+def _reopen_cancelled_vital_signs(doc) -> None:
+	"""Legacy import may update rows that were submitted or cancelled; draft first."""
+	if doc.docstatus != 2:
+		return
+	frappe.db.set_value("Vital Signs", doc.name, "docstatus", 0, update_modified=False)
+	doc.docstatus = 0
+
+
 def _persist_and_submit_vital_signs(doc, *, existing: bool) -> bool:
 	doc.flags.ignore_validate = True
 	doc.flags.ignore_mandatory = True
 	doc.flags.ignore_links = True
+	doc.flags.ignore_permissions = True
 	doc.flags.legacy_import = True
 
 	if existing:
 		if doc.docstatus == 1:
 			doc.cancel()
+		_reopen_cancelled_vital_signs(doc)
 		doc.save(ignore_permissions=True)
 	else:
 		doc.insert(ignore_permissions=True)
