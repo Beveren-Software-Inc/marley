@@ -602,6 +602,45 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Fix Patient Gender (1→Male, 2→Female)'), () => {
+			frappe.call({
+				method: 'healthcare.api.data_migration_jobs.preview_patient_legacy_gender_fix',
+				callback(preview) {
+					const counts = preview.message || {};
+					const total = counts.patients_total || 0;
+					const warnings = counts.warning_messages || 0;
+					if (!total && !warnings) {
+						frappe.msgprint({
+							title: __('Patient Gender'),
+							message: __('No patients or warning messages with legacy gender codes 1 / 2 found.'),
+							indicator: 'green',
+						});
+						return;
+					}
+					frappe.confirm(
+						__(
+							'Run in background: update legacy gender codes?\n\n'
+								+ 'Patients with sex 1 (→ Male): {0}\n'
+								+ 'Patients with sex 2 (→ Female): {1}\n'
+								+ 'Warning messages with gender 1 / 2: {2}\n\n'
+								+ 'Rows already correct are skipped. Continue?',
+							[
+								counts.patients_sex_1 || 0,
+								counts.patients_sex_2 || 0,
+								warnings,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_legacy_gender_fix_migration',
+								'patient_legacy_gender_fix'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Backfill Morse Fall Scale Details'), () => {
 			frappe.call({
 				method: 'healthcare.api.morse_fall_scale_detail_import.preview_morse_fall_scale_detail_import',
@@ -2833,6 +2872,17 @@ function poll_migration_status(jobKey) {
 								s.skip_no_admission || 0,
 								s.skip_no_notes || 0,
 								errN,
+							]
+						);
+					} else if (jobKey === 'patient_legacy_gender_fix') {
+						msg = __(
+							'{0} finished: {1} patients updated, {2} warning messages updated, {3} skipped, {4} errors.',
+							[
+								jobKey,
+								s.updated || 0,
+								s.warning_messages_updated || 0,
+								s.skipped_unchanged || 0,
+								s.skipped_errors || 0,
 							]
 						);
 					} else {

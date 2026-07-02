@@ -22,6 +22,7 @@ CACHE_TTL = 7200
 EXCEL_HEADER_MAP = {
 	"C": "file_no",
 	"FILE_NO": "file_no",
+	"PATIENT_NUM": "file_no",
 	"PATIENT_TITLE": "patient_title",
 	"FULL_NAME": "full_name",
 	"ID_TYPE": "id_type",
@@ -89,6 +90,11 @@ MARITAL_STATUS_NAMES = {
 	"1": "Single",
 	"2": "Married",
 	"3": "Widow/Separated",
+}
+
+LEGACY_SEX_NAMES = {
+	"1": "Male",
+	"2": "Female",
 }
 
 LEGACY_ALLERGY_WARNING_CLASS = "PATIENT_INFO_01"
@@ -210,10 +216,26 @@ def _resolve_gender(value: Any) -> str | None:
 	text = _cell_text(value)
 	if not text:
 		return None
+
+	code = _clean_oracle_num(value)
+	legacy_name = LEGACY_SEX_NAMES.get(code)
+	if legacy_name:
+		return legacy_name
+
+	aliases = {
+		"M": "Male",
+		"F": "Female",
+		"MALE": "Male",
+		"FEMALE": "Female",
+	}
+	alias = aliases.get(text.upper())
+	if alias:
+		return alias
+
 	for candidate in (text, text.title(), text.upper(), text.lower().title()):
 		if frappe.db.exists("Gender", candidate):
 			return candidate
-	return text
+	return None
 
 
 def _excel_file_path(file_url: str) -> str:
@@ -459,6 +481,8 @@ def sync_legacy_patient_allergy_warning(patient: str, allergies_text: str) -> st
 			**allergy_flags,
 		}
 	)
+	doc.flags.ignore_links = True
+	doc.flags.ignore_validate = True
 	doc.insert(ignore_permissions=True)
 	return "created"
 
