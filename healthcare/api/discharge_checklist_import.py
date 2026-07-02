@@ -11,7 +11,7 @@ from frappe import _
 from frappe.utils import cint, get_datetime
 
 DEFAULT_DISCHARGE_TEMPLATE = "Default Discharge Template"
-DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
+DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 500
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:discharge_checklist_import:file_url",
 	"admissions": "healthcare:data_migration:discharge_checklist_import:admissions",
@@ -213,12 +213,18 @@ def _resolve_cost_center(branch_label: Any) -> str | None:
 	if not text:
 		return None
 
-	for doctype in ("Cost Center", "Branch"):
-		if frappe.db.exists(doctype, text):
-			return text
-		name = frappe.db.get_value(doctype, {"cost_center_name": text}, "name")
-		if name:
-			return name
+	if frappe.db.exists("Cost Center", text):
+		return text
+	name = frappe.db.get_value("Cost Center", {"cost_center_name": text}, "name")
+	if name:
+		return name
+
+	if frappe.db.exists("Branch", text):
+		return text
+	name = frappe.db.get_value("Branch", {"branch": text}, "name")
+	if name:
+		return name
+
 	# Return mapped label even when not in DB (link may resolve on save with ignore_links).
 	return mapped or text
 

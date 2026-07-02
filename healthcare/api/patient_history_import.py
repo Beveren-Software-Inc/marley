@@ -16,7 +16,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, strip_html
 
-PATIENT_HISTORY_IMPORT_BATCH_SIZE = 200
+PATIENT_HISTORY_IMPORT_BATCH_SIZE = 500
 
 
 def _skip_care_episode_guard(doc) -> None:

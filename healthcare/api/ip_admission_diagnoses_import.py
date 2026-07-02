@@ -27,7 +27,7 @@ from healthcare.api.visit_diagnoses_op_import import (
 )
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-IP_ADMISSION_DIAGNOSES_IMPORT_BATCH_SIZE = 200
+IP_ADMISSION_DIAGNOSES_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:ip_admission_diagnoses_import:file_url",

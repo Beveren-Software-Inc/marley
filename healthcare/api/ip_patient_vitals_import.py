@@ -21,7 +21,7 @@ from healthcare.api.patient_visit_import import ensure_patient_for_legacy_import
 from healthcare.api.visit_diagnoses_op_import import _legacy_data_datetime
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-IP_PATIENT_VITALS_IMPORT_BATCH_SIZE = 200
+IP_PATIENT_VITALS_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:ip_patient_vitals_import:file_url",

@@ -22,14 +22,14 @@ APPOINTMENT_BATCH_SIZE = 2000
 MEDICATION_ORDER_BATCH_SIZE = 25
 DISCHARGE_BATCH_SIZE = 10
 IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
-IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
-IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
+IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 500
+IP_PATIENT_ASSESSMENT_BATCH_SIZE = 500
 CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
 PATIENT_LEGACY_GENDER_BATCH_SIZE = 500
-DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
+DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 500
 PATIENT_HISTORY_DATE_BATCH_SIZE = 100
-PATIENT_INFO_IMPORT_BATCH_SIZE = 200
-IP_ADMISSION_DISCHARGE_IMPORT_BATCH_SIZE = 25
+PATIENT_INFO_IMPORT_BATCH_SIZE = 500
+IP_ADMISSION_DISCHARGE_IMPORT_BATCH_SIZE = 500
 
 JOB_LOCK_SECONDS = 7200  # 2 hours
 
@@ -5508,6 +5508,186 @@ def process_ip_admission_clinical_note_import_batch(offset: int = 0) -> None:
 			_release_lock(job)
 			frappe.log_error(
 				title="Clinical Note import (IP_ADMISSION_DIAGNOSES) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Warning Message Excel import (Oracle PATIENT_WARNING_MESSAGES) ────────────
+
+
+@frappe.whitelist()
+def start_patient_warning_message_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_warning_message_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the PATIENT_WARNING_MESSAGES Excel file."))
+
+	job = "patient_warning_message_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		new_warnings=summary.get("new_warnings"),
+		existing_warnings=summary.get("existing_warnings"),
+		resolved_patients=summary.get("resolved_patients"),
+		unresolved_patients=summary.get("unresolved_patients"),
+		organisation_rows=summary.get("organisation_rows"),
+		skip_no_warning=summary.get("skip_no_warning"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_warning_message_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_warning_message_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Warning Message import started ({0} rows, {1} new, {2} patients resolved)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("new_warnings") or 0,
+			summary.get("resolved_patients") or 0,
+		),
+	}
+
+
+def process_patient_warning_message_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_warning_message_import import run_patient_warning_message_import_batch
+
+	job = "patient_warning_message_import"
+	try:
+		result = run_patient_warning_message_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_no_warning=cint(prev.get("skip_no_warning", 0)) + cint(result.get("skip_no_warning", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			new_warnings=prev.get("new_warnings"),
+			existing_warnings=prev.get("existing_warnings"),
+			resolved_patients=prev.get("resolved_patients"),
+			unresolved_patients=prev.get("unresolved_patients"),
+			organisation_rows=prev.get("organisation_rows"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_warning_message_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_warning_message_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Warning Message import (PATIENT_WARNING_MESSAGES) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── IP Patient Relatives Excel import (Oracle IP_PATIENT_RELATIVES) ───────────
+
+
+@frappe.whitelist()
+def start_ip_patient_relatives_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_patient_relatives_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_PATIENT_RELATIVES Excel file."))
+
+	job = "ip_patient_relatives_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_admissions=summary.get("admissions"),
+		relative_lines=summary.get("relative_lines"),
+		resolvable_admissions=summary.get("resolvable_admissions"),
+		unresolved_admissions=summary.get("unresolved_admissions"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_patient_relatives_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_patient_relatives_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"IP Patient Relatives import started ({0} relative lines across {1} admissions, {2} admissions resolved)."
+		).format(
+			summary.get("relative_lines") or 0,
+			summary.get("admissions") or 0,
+			summary.get("resolvable_admissions") or 0,
+		),
+	}
+
+
+def process_ip_patient_relatives_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_patient_relatives_import import run_ip_patient_relatives_import_batch
+
+	job = "ip_patient_relatives_import"
+	try:
+		result = run_ip_patient_relatives_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0))
+			+ cint(result.get("skip_no_admission", 0)),
+			skip_no_lines=cint(prev.get("skip_no_lines", 0)) + cint(result.get("skip_no_lines", 0)),
+			relatives_added=cint(prev.get("relatives_added", 0)) + cint(result.get("relatives_added", 0)),
+			relatives_updated=cint(prev.get("relatives_updated", 0))
+			+ cint(result.get("relatives_updated", 0)),
+			relatives_skipped=cint(prev.get("relatives_skipped", 0))
+			+ cint(result.get("relatives_skipped", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_admissions=prev.get("total_admissions"),
+			relative_lines=prev.get("relative_lines"),
+			resolvable_admissions=prev.get("resolvable_admissions"),
+			unresolved_admissions=prev.get("unresolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_patient_relatives_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_patient_relatives_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Patient Relatives import (IP_PATIENT_RELATIVES) complete",
 				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:

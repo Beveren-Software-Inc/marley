@@ -42,7 +42,7 @@ def _resolve_transfer_datetime(admitted_datetime=None, admission_date=None, admi
 			pass
 	return None
 
-IP_ADMISSION_TRANSFER_IMPORT_BATCH_SIZE = 200
+IP_ADMISSION_TRANSFER_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:ip_admission_transfer_import:file_url",

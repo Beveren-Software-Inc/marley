@@ -13,9 +13,10 @@ from frappe import _
 from frappe.utils import get_datetime, getdate, get_time, nowdate
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.discharge_checklist_import import _resolve_cost_center
 from healthcare.api.visit_diagnosis_sync import _resolve_inpatient_admission
 
-PMO_IMPORT_BATCH_SIZE = 25
+PMO_IMPORT_BATCH_SIZE = 500
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:pmo_import:file_url",
 	"admissions": "healthcare:data_migration:pmo_import:admissions",
@@ -330,19 +331,6 @@ def _group_rows_by_admission(rows: list[dict]) -> tuple[dict[str, list[dict]], l
 	return grouped, unresolved
 
 
-def _resolve_cost_center(branch_label: str | None) -> str | None:
-	text = (branch_label or "").strip()
-	if not text:
-		return None
-	for doctype in ("Cost Center", "Branch"):
-		if frappe.db.exists(doctype, text):
-			return text
-		name = frappe.db.get_value(doctype, {"cost_center_name": text}, "name")
-		if name:
-			return name
-	return None
-
-
 def _resolve_item_00_01_name(code_value: Any) -> str | None:
 	code_str = _clean_oracle_num(code_value)
 	if not code_str:
@@ -625,7 +613,7 @@ def import_patient_medication_order_for_admission(admission_key: str, lines: lis
 		or nowdate()
 	)
 	doc.end_date = _parse_date_value(first.get("end_date"))
-	doc.cost_center = _resolve_cost_center(_clean_oracle_num(first.get("branch")))
+	doc.cost_center = _resolve_cost_center(first.get("branch"))
 	doc.effective_status = _cell_text(first.get("effective_status")) or None
 	doc.trans_type = _cell_text(first.get("trans_type")) or None
 	doc.strength = _cell_text(first.get("strength")) or None

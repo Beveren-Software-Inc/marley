@@ -24,7 +24,7 @@ from healthcare.api.patient_info_import import (
 )
 from healthcare.api.patient_visit_import import _default_gender
 
-PATIENT_APPOINTMENT_INFO_IMPORT_BATCH_SIZE = 200
+PATIENT_APPOINTMENT_INFO_IMPORT_BATCH_SIZE = 500
 DATA_FIELD_MAX_LEN = 140
 CACHE_TTL = 7200
 CACHE_KEYS = {

@@ -24,7 +24,7 @@ from healthcare.api.visit_diagnosis_sync import (
 	_resolve_patient_visit,
 )
 
-VISIT_DIAGNOSES_OP_IMPORT_BATCH_SIZE = 100
+VISIT_DIAGNOSES_OP_IMPORT_BATCH_SIZE = 500
 DATA_FIELD_MAX_LEN = 140
 CACHE_TTL = 7200
 CACHE_KEYS = {

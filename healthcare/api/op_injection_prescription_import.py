@@ -28,7 +28,7 @@ from healthcare.api.patient_medication_order_import import (
 )
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
-OP_INJECTION_IMPORT_BATCH_SIZE = 25
+OP_INJECTION_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:op_injection_import:file_url",

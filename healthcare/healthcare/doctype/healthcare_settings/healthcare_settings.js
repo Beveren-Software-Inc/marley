@@ -730,6 +730,92 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Warning Message — PATIENT_WARNING_MESSAGES'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Warning Message (PATIENT_WARNING_MESSAGES)'),
+				preview_method:
+					'healthcare.api.patient_warning_message_import.preview_patient_warning_message_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_warning_message_import_migration',
+				job_key: 'patient_warning_message_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Warning Message rows from PATIENT_WARNING_MESSAGES?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique WARNING_MESSAGE_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Skipped (no WARNING_MESSAGE text): {5}\n'
+							+ 'Patients resolved: {6}\n'
+							+ 'Patients unresolved: {7}\n'
+							+ 'Organisation rows (no PATIENT_NUM): {8}\n\n'
+							+ 'Mapping: WARNING_MESSAGE_NUM → trans_id, PATIENT_NUM → Patient, '
+							+ 'WARNING_MESSAGE → warning, HIGH_RISK_TEXT → high_risk_text, '
+							+ 'WARNING_MESSAGE_TYPE / CLASS → same, BRANCH_NUM → Cost Center, '
+							+ 'CR_DATE → posting_date, STA_FLG → sta_flg.\n\n'
+							+ 'Sample trans_id keys: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_warnings || 0,
+							counts.new_warnings || 0,
+							counts.skip_no_warning || 0,
+							counts.resolved_patients || 0,
+							counts.unresolved_patients || 0,
+							counts.organisation_rows || 0,
+							(counts.sample_trans_ids || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('IP Patient Relatives — IP_PATIENT_RELATIVES'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('IP Patient Relatives (IP_PATIENT_RELATIVES)'),
+				preview_method:
+					'healthcare.api.ip_patient_relatives_import.preview_ip_patient_relatives_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_patient_relatives_import_migration',
+				job_key: 'ip_patient_relatives_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import patient relatives into Inpatient Admission child tables?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Relative lines: {1}\n'
+							+ 'Distinct admissions: {2}\n'
+							+ 'Admissions resolved: {3}\n'
+							+ 'Admissions unresolved: {4}\n\n'
+							+ 'Rows are grouped by ADMISSION_NUM and appended to Patient Relatives '
+							+ 'on each admission. Existing rows with the same TRANS_NUM are updated.\n\n'
+							+ 'Mapping: TRANS_NUM → trans_no, ADMISSION_NUM → Inpatient Admission, '
+							+ 'RELATIVE_RELATION → Relationship With Patient, RELATIVE_NAME → relative_name, '
+							+ 'RELATIVE_ID_NUM → relative_id_no / CPR ID, ANY_REMARKS → any_remarks, '
+							+ 'CR_DATE → entered_date.\n\n'
+							+ 'Sample admissions: {5}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.relative_lines || counts.excel_rows || 0,
+							counts.admissions || 0,
+							counts.resolvable_admissions || 0,
+							counts.unresolved_admissions || 0,
+							(counts.sample_admissions || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('ADM Dis + Checklists'), () => {
 			open_ip_admission_bundle_upload();
 		}, __('Direct Upload'));
@@ -2861,6 +2947,30 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} errors.',
 							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'patient_warning_message_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped (no warning), {4} skipped (no patient), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_no_warning || 0,
+								s.skip_no_patient || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'ip_patient_relatives_import') {
+						msg = __(
+							'{0} finished: {1} admissions updated, {2} relatives added, {3} relatives updated, {4} skipped (no admission), {5} errors.',
+							[
+								jobKey,
+								s.ok || 0,
+								s.relatives_added || 0,
+								s.relatives_updated || 0,
+								s.skip_no_admission || 0,
+								errN,
+							]
 						);
 					} else if (jobKey === 'main_nursing_note_import') {
 						msg = __(

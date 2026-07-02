@@ -11,7 +11,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, flt, get_datetime, getdate
 
-PATIENT_INFO_IMPORT_BATCH_SIZE = 200
+PATIENT_INFO_IMPORT_BATCH_SIZE = 500
 CACHE_KEYS = {
 	"file_url": "healthcare:data_migration:patient_info_import:file_url",
 	"file_nos": "healthcare:data_migration:patient_info_import:file_nos",

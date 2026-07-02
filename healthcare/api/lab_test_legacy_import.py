@@ -18,7 +18,7 @@ from healthcare.api.visit_diagnosis_sync import (
 	_resolve_patient_visit,
 )
 
-LEGACY_LAB_IMPORT_BATCH_SIZE = 50
+LEGACY_LAB_IMPORT_BATCH_SIZE = 500
 CACHE_TTL = 7200
 CACHE_KEYS = {
 	"header_file_url": "healthcare:data_migration:legacy_lab_import:header_file_url",
