@@ -655,6 +655,48 @@ def start_ip_admission_medicine_sheet_map_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_ip_admission_medicine_sheet_given_import_migration(file_url: str) -> dict:
+	"""Import IP_ADMISSION_MEDICINE_SHEET Excel directly into Admission Detail given medicine rows."""
+	_require_admin()
+	from healthcare.api.ip_admission_medicine_sheet_given_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_ADMISSION_MEDICINE_SHEET Excel file."))
+
+	job = "ip_admission_medicine_sheet_given_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		raw_excel_rows=summary.get("raw_excel_rows"),
+		admissions=summary.get("admissions"),
+		given_rows=summary.get("given_rows"),
+		not_given_rows=summary.get("not_given_rows"),
+		staging_existing=summary.get("existing_rows"),
+		staging_new=summary.get("new_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_admission_medicine_sheet_given_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_admission_medicine_sheet_given_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Admission Detail given medicine import started ({0} rows, {1} given rows, {2} admissions)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("given_rows") or 0,
+			summary.get("admissions") or 0,
+		),
+	}
+
+
+@frappe.whitelist()
 def start_ip_patient_assessment_map_migration() -> dict:
 	"""Map imported IP Patient Assessment rows to Patient Assessment."""
 	_require_admin()
@@ -2879,6 +2921,61 @@ def process_ip_admission_medicine_sheet_map_batch(offset: int = 0) -> None:
 					f"rows without IP med link: {total_rows_without_ip_med}, "
 					f"rows without PMO link: {total_rows_without_pmo}"
 				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def process_ip_admission_medicine_sheet_given_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_admission_medicine_sheet_given_import import (
+		run_ip_admission_medicine_sheet_given_import_batch,
+	)
+
+	job = "ip_admission_medicine_sheet_given_import"
+	try:
+		result = run_ip_admission_medicine_sheet_given_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			staging_created=cint(prev.get("staging_created", 0)) + cint(result.get("staging_created", 0)),
+			staging_updated=cint(prev.get("staging_updated", 0)) + cint(result.get("staging_updated", 0)),
+			created_given=cint(prev.get("created_given", 0)) + cint(result.get("created_given", 0)),
+			created_admission_detail=cint(prev.get("created_admission_detail", 0))
+			+ cint(result.get("created_admission_detail", 0)),
+			skip_not_given=cint(prev.get("skip_not_given", 0)) + cint(result.get("skip_not_given", 0)),
+			skip_no_admission_detail=cint(prev.get("skip_no_admission_detail", 0))
+			+ cint(result.get("skip_no_admission_detail", 0)),
+			skip_already_mapped=cint(prev.get("skip_already_mapped", 0))
+			+ cint(result.get("skip_already_mapped", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			raw_excel_rows=prev.get("raw_excel_rows"),
+			admissions=prev.get("admissions"),
+			given_rows=prev.get("given_rows"),
+			not_given_rows=prev.get("not_given_rows"),
+			staging_existing=prev.get("staging_existing"),
+			staging_new=prev.get("staging_new"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_admission_medicine_sheet_given_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_admission_medicine_sheet_given_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Admission Medicine Sheet given import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:
 		frappe.db.rollback()

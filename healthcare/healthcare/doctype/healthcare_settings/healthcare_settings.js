@@ -893,6 +893,49 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Admission Detail Given Medicine — IP_ADMISSION_MEDICINE_SHEET'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Admission Detail Given Medicine (IP_ADMISSION_MEDICINE_SHEET)'),
+				preview_method:
+					'healthcare.api.ip_admission_medicine_sheet_given_import.preview_ip_admission_medicine_sheet_given_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_ip_admission_medicine_sheet_given_import_migration',
+				job_key: 'ip_admission_medicine_sheet_given_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import given medicine rows from IP_ADMISSION_MEDICINE_SHEET?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Admissions in file: {3}\n'
+							+ 'Given rows (GIVEN_YN = Y): {4}\n'
+							+ 'Not-given rows (skipped): {5}\n'
+							+ 'Existing sheet rows (will update): {6}\n'
+							+ 'New sheet rows: {7}\n\n'
+							+ 'Creates one Admission Detail per admission when missing and appends many Given Medicine child rows. '
+							+ 'MEDI_TRANS_NUM is stored as old medicine code/name from ITEM_00_01. '
+							+ 'Rows already linked by sheet row are skipped on re-run.\n\n'
+							+ 'Sample TRANS_NUM keys: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.admissions || 0,
+							counts.given_rows || 0,
+							counts.not_given_rows || 0,
+							counts.existing_rows || 0,
+							counts.new_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('IP Patient Relatives — IP_PATIENT_RELATIVES'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('IP Patient Relatives (IP_PATIENT_RELATIVES)'),
@@ -3083,6 +3126,21 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} errors.',
 							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'ip_admission_medicine_sheet_given_import') {
+						msg = __(
+							'{0} finished: {1} given medicine row(s) created, {2} admission detail row(s) auto-created, {3} sheet row(s) created, {4} sheet row(s) updated, {5} skipped (not given), {6} skipped (no admission detail), {7} skipped (already mapped), {8} errors.',
+							[
+								jobKey,
+								s.created_given || 0,
+								s.created_admission_detail || 0,
+								s.staging_created || 0,
+								s.staging_updated || 0,
+								s.skip_not_given || 0,
+								s.skip_no_admission_detail || 0,
+								s.skip_already_mapped || 0,
+								errN,
+							]
 						);
 					} else if (jobKey === 'ip_patient_relatives_import') {
 						msg = __(
