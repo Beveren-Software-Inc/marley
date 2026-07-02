@@ -25,6 +25,7 @@ IP_ADMISSION_MEDICINE_BATCH_SIZE = 50
 IP_ADMISSION_MEDICINE_SHEET_BATCH_SIZE = 200
 IP_PATIENT_ASSESSMENT_BATCH_SIZE = 200
 CLINICAL_NOTE_TYPE_BATCH_SIZE = 500
+PATIENT_LEGACY_GENDER_BATCH_SIZE = 500
 DISCHARGE_CHECKLIST_IMPORT_BATCH_SIZE = 25
 PATIENT_HISTORY_DATE_BATCH_SIZE = 100
 PATIENT_INFO_IMPORT_BATCH_SIZE = 200
@@ -465,6 +466,56 @@ def start_clinical_note_type_from_flag_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _("Clinical Note type mapping job started in the background."),
+	}
+
+
+@frappe.whitelist()
+def preview_patient_legacy_gender_fix() -> dict:
+	"""Count Patient / Warning Message rows still using legacy sex codes 1 / 2."""
+	_require_admin()
+	patients_sex_1 = frappe.db.count("Patient", {"sex": "1"})
+	patients_sex_2 = frappe.db.count("Patient", {"sex": "2"})
+	warning_messages = frappe.db.count("Warning Message", {"gender": ["in", ["1", "2"]]})
+	return {
+		"patients_sex_1": patients_sex_1,
+		"patients_sex_2": patients_sex_2,
+		"patients_total": patients_sex_1 + patients_sex_2,
+		"warning_messages": warning_messages,
+	}
+
+
+@frappe.whitelist()
+def start_patient_legacy_gender_fix_migration() -> dict:
+	"""Replace legacy Patient.sex codes 1 → Male, 2 → Female (and linked warning messages)."""
+	_require_admin()
+	preview = preview_patient_legacy_gender_fix()
+	if not cint(preview.get("patients_total")) and not cint(preview.get("warning_messages")):
+		return {
+			"ok": True,
+			"message": _("No patients or warning messages with legacy gender codes 1 / 2 found."),
+		}
+
+	job = "patient_legacy_gender_fix"
+	_acquire_lock(job)
+	_set_progress(
+		job,
+		0,
+		patients_sex_1=preview.get("patients_sex_1"),
+		patients_sex_2=preview.get("patients_sex_2"),
+		warning_messages=preview.get("warning_messages"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_legacy_gender_fix_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_legacy_gender_fix",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient gender fix started ({0} patients, {1} warning messages to check)."
+		).format(preview.get("patients_total") or 0, preview.get("warning_messages") or 0),
 	}
 
 
@@ -1995,6 +2046,128 @@ def process_clinical_note_type_from_flag_batch(offset: int = 0) -> None:
 					f"unchanged: {skipped_unchanged}, no mapping: {skipped_no_mapping}, "
 					f"errors: {skipped_errors}"
 				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def _fix_warning_message_legacy_genders() -> int:
+	"""Bulk-fix Warning Message.gender rows still stored as 1 / 2."""
+	from healthcare.api.patient_info_import import LEGACY_SEX_NAMES
+
+	updated = 0
+	for code, gender in LEGACY_SEX_NAMES.items():
+		names = frappe.get_all("Warning Message", filters={"gender": code}, pluck="name")
+		for name in names:
+			frappe.db.set_value(
+				"Warning Message",
+				name,
+				"gender",
+				gender,
+				update_modified=False,
+			)
+			updated += 1
+	return updated
+
+
+def process_patient_legacy_gender_fix_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_info_import import LEGACY_SEX_NAMES
+
+	job = "patient_legacy_gender_fix"
+	try:
+		rows = frappe.get_all(
+			"Patient",
+			fields=["name", "sex"],
+			filters={"sex": ["in", list(LEGACY_SEX_NAMES.keys())]},
+			order_by="name asc",
+			limit_start=offset,
+			limit_page_length=PATIENT_LEGACY_GENDER_BATCH_SIZE,
+		)
+
+		updated = 0
+		skipped_unchanged = 0
+		skipped_errors = 0
+
+		for row in rows:
+			try:
+				current = (row.get("sex") or "").strip()
+				target = LEGACY_SEX_NAMES.get(current)
+				if not target:
+					skipped_unchanged += 1
+					continue
+				if current == target:
+					skipped_unchanged += 1
+					continue
+
+				frappe.db.set_value(
+					"Patient",
+					row.name,
+					"sex",
+					target,
+					update_modified=False,
+				)
+				frappe.db.sql(
+					"""
+					UPDATE `tabWarning Message`
+					SET gender = %s
+					WHERE patient = %s AND gender IN ('1', '2')
+					""",
+					(target, row.name),
+				)
+				updated += 1
+			except Exception:
+				skipped_errors += 1
+				frappe.log_error(
+					title=f"Patient legacy gender fix failed: {row.get('name')}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+
+		processed = offset + len(rows)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(
+			job,
+			processed,
+			updated=cint(prev.get("updated", 0)) + updated,
+			skipped_unchanged=cint(prev.get("skipped_unchanged", 0)) + skipped_unchanged,
+			skipped_errors=cint(prev.get("skipped_errors", 0)) + skipped_errors,
+			patients_sex_1=prev.get("patients_sex_1"),
+			patients_sex_2=prev.get("patients_sex_2"),
+			warning_messages=prev.get("warning_messages"),
+		)
+
+		if len(rows) >= PATIENT_LEGACY_GENDER_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_legacy_gender_fix_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_legacy_gender_fix_{processed}",
+			)
+		else:
+			warning_updated = _fix_warning_message_legacy_genders()
+			frappe.db.commit()
+			prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				updated=prev.get("updated", 0),
+				skipped_unchanged=prev.get("skipped_unchanged", 0),
+				skipped_errors=prev.get("skipped_errors", 0),
+				warning_messages_updated=warning_updated,
+				patients_sex_1=prev.get("patients_sex_1"),
+				patients_sex_2=prev.get("patients_sex_2"),
+				warning_messages=prev.get("warning_messages"),
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient legacy gender fix complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:
 		frappe.db.rollback()
