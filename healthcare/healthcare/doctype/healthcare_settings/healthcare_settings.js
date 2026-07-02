@@ -159,6 +159,94 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Sign Patient Medication Orders'), () => {
+			frappe.call({
+				method: 'healthcare.api.data_migration_jobs.preview_pmo_sign_migration',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Run in background: submit draft Patient Medication Orders if needed, attach a legacy migration signature, and set status to Signed.\n\nCandidates: {0}\n\nContinue?',
+							[counts.candidates || 0]
+						),
+						() => run_migration_job(frm, 'start_pmo_sign_migration', 'pmo_sign')
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Complete Medication Orders by Date'), () => {
+			const dialog = new frappe.ui.Dialog({
+				title: __('Complete Medication Orders by Date'),
+				fields: [
+					{
+						fieldname: 'from_date',
+						label: __('From Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+					{
+						fieldname: 'to_date',
+						label: __('To Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+				],
+				primary_action_label: __('Preview & Run'),
+				primary_action(values) {
+					if (values.from_date > values.to_date) {
+						frappe.msgprint({
+							title: __('Invalid date range'),
+							message: __('From Date must be on or before To Date.'),
+							indicator: 'orange',
+						});
+						return;
+					}
+					frappe.call({
+						method: 'healthcare.api.data_migration_jobs.preview_pmo_complete_by_date',
+						args: {
+							from_date: values.from_date,
+							to_date: values.to_date,
+						},
+						freeze: true,
+						freeze_message: __('Counting medication orders…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							frappe.confirm(
+								__(
+									'Run in background: submit and complete Patient Medication Orders whose posting date (or start date when posting date is empty) is between {0} and {1}.\n\nCandidates: {2}\n\nContinue?',
+									[counts.from_date, counts.to_date, counts.candidates || 0]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.data_migration_jobs.start_pmo_complete_by_date_migration',
+										args: {
+											from_date: values.from_date,
+											to_date: values.to_date,
+										},
+										freeze: true,
+										freeze_message: __('Starting background job…'),
+										callback(r) {
+											if (r.message?.ok) {
+												dialog.hide();
+												frappe.show_alert({
+													message: r.message.message || __('Job started'),
+													indicator: 'green',
+												});
+												poll_migration_status('pmo_complete_by_date');
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+			dialog.show();
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Import Patient History from Staging'), () => {
 			frappe.call({
 				method: 'healthcare.api.patient_history_import.run_patient_history_import_preview',
@@ -750,9 +838,9 @@ frappe.ui.form.on('Healthcare Settings', {
 							+ 'Unique WARNING_MESSAGE_NUM rows: {2}\n'
 							+ 'Existing (will update): {3}\n'
 							+ 'New: {4}\n'
-							+ 'Skipped (no WARNING_MESSAGE text): {5}\n'
+							+ 'Rows without WARNING_MESSAGE text (still imported): {5}\n'
 							+ 'Patients resolved: {6}\n'
-							+ 'Patients unresolved: {7}\n'
+							+ 'Patients unresolved (imported as Organisation): {7}\n'
 							+ 'Organisation rows (no PATIENT_NUM): {8}\n\n'
 							+ 'Mapping: WARNING_MESSAGE_NUM → trans_id, PATIENT_NUM → Patient, '
 							+ 'WARNING_MESSAGE → warning, HIGH_RISK_TEXT → high_risk_text, '
@@ -765,7 +853,7 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.excel_rows || 0,
 							counts.existing_warnings || 0,
 							counts.new_warnings || 0,
-							counts.skip_no_warning || 0,
+							counts.empty_warning_rows || 0,
 							counts.resolved_patients || 0,
 							counts.unresolved_patients || 0,
 							counts.organisation_rows || 0,
@@ -1985,9 +2073,10 @@ frappe.ui.form.on('Healthcare Settings', {
 	}
 });
 
-function run_migration_job(frm, method, jobKey) {
+function run_migration_job(frm, method, jobKey, args = {}) {
 	frappe.call({
 		method: `healthcare.api.data_migration_jobs.${method}`,
+		args,
 		freeze: true,
 		freeze_message: __('Starting background job…'),
 		callback(r) {
@@ -2950,15 +3039,8 @@ function poll_migration_status(jobKey) {
 						);
 					} else if (jobKey === 'patient_warning_message_import') {
 						msg = __(
-							'{0} finished: {1} created, {2} updated, {3} skipped (no warning), {4} skipped (no patient), {5} errors.',
-							[
-								jobKey,
-								s.created || 0,
-								s.updated || 0,
-								s.skip_no_warning || 0,
-								s.skip_no_patient || 0,
-								errN,
-							]
+							'{0} finished: {1} created, {2} updated, {3} errors.',
+							[jobKey, s.created || 0, s.updated || 0, errN]
 						);
 					} else if (jobKey === 'ip_patient_relatives_import') {
 						msg = __(

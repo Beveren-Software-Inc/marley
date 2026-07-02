@@ -158,16 +158,7 @@ def upsert_warning_message_from_row(row: dict) -> dict:
 	if not trans_id:
 		return {"status": "skip_no_trans_id"}
 
-	if not _cell_text(row.get("warning_message")):
-		return {"status": "skip_no_warning", "trans_id": trans_id}
-
-	patient_num = _clean_oracle_num(row.get("patient_num"))
-	if patient_num and not _resolve_patient(patient_num):
-		return {"status": "skip_no_patient", "trans_id": trans_id, "patient_num": patient_num}
-
 	fields = _build_warning_message_fields(row)
-	if not fields.get("warning"):
-		return {"status": "skip_no_warning", "trans_id": trans_id}
 
 	existing_name = _existing_warning_message_name(trans_id)
 	if existing_name:
@@ -258,12 +249,12 @@ def _preview_counts(rows: list[dict]) -> dict:
 	existing = 0
 	resolved_patients = 0
 	unresolved_patients = 0
-	skip_no_warning = 0
+	empty_warning_rows = 0
 	organisation_rows = 0
 
 	for row in rows:
 		if not _cell_text(row.get("warning_message")):
-			skip_no_warning += 1
+			empty_warning_rows += 1
 		patient_num = _clean_oracle_num(row.get("patient_num"))
 		if not patient_num:
 			organisation_rows += 1
@@ -277,7 +268,7 @@ def _preview_counts(rows: list[dict]) -> dict:
 	return {
 		"existing_warnings": existing,
 		"new_warnings": len(rows) - existing,
-		"skip_no_warning": skip_no_warning,
+		"empty_warning_rows": empty_warning_rows,
 		"resolved_patients": resolved_patients,
 		"unresolved_patients": unresolved_patients,
 		"organisation_rows": organisation_rows,
@@ -336,7 +327,7 @@ def run_patient_warning_message_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	created = updated = skip_no_warning = skip_no_patient = 0
+	created = updated = 0
 	errors: list[str] = []
 
 	for key in batch_keys:
@@ -348,10 +339,6 @@ def run_patient_warning_message_import_batch(*, offset: int = 0) -> dict:
 				created += 1
 			elif status == "updated":
 				updated += 1
-			elif status == "skip_no_warning":
-				skip_no_warning += 1
-			elif status == "skip_no_patient":
-				skip_no_patient += 1
 		except Exception:
 			errors.append(f"{key}: {frappe.get_traceback()}")
 			frappe.log_error(title=f"PATIENT_WARNING_MESSAGES import failed: {key}")
@@ -364,7 +351,5 @@ def run_patient_warning_message_import_batch(*, offset: int = 0) -> dict:
 		"batch_count": len(batch_keys),
 		"created": created,
 		"updated": updated,
-		"skip_no_warning": skip_no_warning,
-		"skip_no_patient": skip_no_patient,
 		"errors": len(errors),
 	}

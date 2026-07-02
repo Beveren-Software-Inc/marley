@@ -285,6 +285,229 @@ def start_medication_order_complete_migration() -> dict:
 	}
 
 
+LEGACY_PMO_SIGNATURE = "/files/legacy-migration-signature.png"
+
+
+def _failed_job_names_key(job: str) -> str:
+	return f"healthcare:data_migration:{job}:failed"
+
+
+def _mark_job_name_failed(job: str, name: str) -> None:
+	failed = set(frappe.cache().get_value(_failed_job_names_key(job)) or [])
+	failed.add(name)
+	frappe.cache().set_value(_failed_job_names_key(job), list(failed), expires_in_sec=JOB_LOCK_SECONDS)
+
+
+def _clear_failed_job_names(job: str) -> None:
+	frappe.cache().delete_value(_failed_job_names_key(job))
+
+
+def _job_date_range_key(job: str) -> str:
+	return f"healthcare:data_migration:{job}:date_range"
+
+
+def _set_job_date_range(job: str, from_date, to_date) -> None:
+	frappe.cache().set_value(
+		_job_date_range_key(job),
+		{"from_date": str(getdate(from_date)), "to_date": str(getdate(to_date))},
+		expires_in_sec=JOB_LOCK_SECONDS,
+	)
+
+
+def _get_job_date_range(job: str) -> tuple:
+	payload = frappe.cache().get_value(_job_date_range_key(job)) or {}
+	return getdate(payload.get("from_date")), getdate(payload.get("to_date"))
+
+
+def _pmo_names_for_date_range(
+	from_date,
+	to_date,
+	*,
+	failed_skip: list | None = None,
+	limit: int = MEDICATION_ORDER_BATCH_SIZE,
+) -> list[str]:
+	from_date = getdate(from_date)
+	to_date = getdate(to_date)
+	params = {"from_date": from_date, "to_date": to_date}
+	conditions = [
+		"docstatus != 2",
+		"IFNULL(status, '') NOT IN ('Completed', 'Cancelled')",
+		"""(
+			(posting_date IS NOT NULL AND posting_date BETWEEN %(from_date)s AND %(to_date)s)
+			OR (
+				(posting_date IS NULL OR posting_date = '')
+				AND start_date IS NOT NULL
+				AND start_date BETWEEN %(from_date)s AND %(to_date)s
+			)
+		)""",
+	]
+	if failed_skip:
+		conditions.append("name NOT IN %(failed_skip)s")
+		params["failed_skip"] = tuple(failed_skip)
+
+	return frappe.db.sql(
+		f"""
+		SELECT name
+		FROM `tabPatient Medication Order`
+		WHERE {" AND ".join(conditions)}
+		ORDER BY name ASC
+		LIMIT {cint(limit)}
+		""",
+		params,
+		pluck="name",
+	)
+
+
+def _count_pmo_sign_candidates() -> int:
+	return cint(
+		frappe.db.sql(
+			"""
+			SELECT COUNT(*)
+			FROM `tabPatient Medication Order`
+			WHERE docstatus != 2
+				AND IFNULL(status, '') NOT IN ('Completed', 'Cancelled')
+				AND (
+					doctors_signature IS NULL
+					OR TRIM(doctors_signature) = ''
+				)
+			"""
+		)[0][0]
+	)
+
+
+def _pmo_names_for_sign(*, failed_skip: list | None = None, limit: int = MEDICATION_ORDER_BATCH_SIZE) -> list[str]:
+	params: dict = {}
+	conditions = [
+		"docstatus != 2",
+		"IFNULL(status, '') NOT IN ('Completed', 'Cancelled')",
+		"(doctors_signature IS NULL OR TRIM(doctors_signature) = '')",
+	]
+	if failed_skip:
+		conditions.append("name NOT IN %(failed_skip)s")
+		params["failed_skip"] = tuple(failed_skip)
+
+	return frappe.db.sql(
+		f"""
+		SELECT name
+		FROM `tabPatient Medication Order`
+		WHERE {" AND ".join(conditions)}
+		ORDER BY name ASC
+		LIMIT {cint(limit)}
+		""",
+		params,
+		pluck="name",
+	)
+
+
+@frappe.whitelist()
+def preview_pmo_sign_migration() -> dict:
+	"""Count submitted/draft PMOs that still need a doctor signature."""
+	_require_admin()
+	return {"candidates": _count_pmo_sign_candidates()}
+
+
+@frappe.whitelist()
+def start_pmo_sign_migration() -> dict:
+	"""Submit draft PMOs if needed, attach legacy signature, and set status Signed."""
+	_require_admin()
+	preview = preview_pmo_sign_migration()
+	if not cint(preview.get("candidates")):
+		return {
+			"ok": True,
+			"message": _("No Patient Medication Orders need signing."),
+		}
+
+	job = "pmo_sign"
+	_acquire_lock(job)
+	_clear_failed_job_names(job)
+	_set_progress(job, 0, candidates=preview.get("candidates"))
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_pmo_sign_batch",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_pmo_sign",
+	)
+	return {
+		"ok": True,
+		"message": _("Sign Patient Medication Orders job started ({0} candidate(s)).").format(
+			preview.get("candidates") or 0
+		),
+	}
+
+
+@frappe.whitelist()
+def preview_pmo_complete_by_date(from_date=None, to_date=None) -> dict:
+	"""Count non-completed PMOs whose posting_date (or start_date) falls in the range."""
+	_require_admin()
+	if not from_date or not to_date:
+		frappe.throw(_("From Date and To Date are required"))
+	from_date = getdate(from_date)
+	to_date = getdate(to_date)
+	if from_date > to_date:
+		frappe.throw(_("From Date must be on or before To Date"))
+
+	candidates = cint(
+		frappe.db.sql(
+			"""
+			SELECT COUNT(*)
+			FROM `tabPatient Medication Order`
+			WHERE docstatus != 2
+				AND IFNULL(status, '') NOT IN ('Completed', 'Cancelled')
+				AND (
+					(posting_date IS NOT NULL AND posting_date BETWEEN %(from_date)s AND %(to_date)s)
+					OR (
+						(posting_date IS NULL OR posting_date = '')
+						AND start_date IS NOT NULL
+						AND start_date BETWEEN %(from_date)s AND %(to_date)s
+					)
+				)
+			""",
+			{"from_date": from_date, "to_date": to_date},
+		)[0][0]
+	)
+	return {
+		"from_date": str(from_date),
+		"to_date": str(to_date),
+		"candidates": candidates,
+	}
+
+
+@frappe.whitelist()
+def start_pmo_complete_by_date_migration(from_date=None, to_date=None) -> dict:
+	"""Submit and complete PMOs in a posting_date / start_date range."""
+	_require_admin()
+	preview = preview_pmo_complete_by_date(from_date, to_date)
+	if not cint(preview.get("candidates")):
+		return {
+			"ok": True,
+			"message": _("No Patient Medication Orders found in that date range to complete."),
+		}
+
+	job = "pmo_complete_by_date"
+	_acquire_lock(job)
+	_clear_failed_job_names(job)
+	_set_job_date_range(job, preview["from_date"], preview["to_date"])
+	_set_progress(
+		job,
+		0,
+		from_date=preview.get("from_date"),
+		to_date=preview.get("to_date"),
+		candidates=preview.get("candidates"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_pmo_complete_by_date_batch",
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_pmo_complete_by_date",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Complete Patient Medication Orders job started for {0} to {1} ({2} candidate(s))."
+		).format(preview.get("from_date"), preview.get("to_date"), preview.get("candidates") or 0),
+	}
+
+
 @frappe.whitelist()
 def start_discharge_submit_migration() -> dict:
 	_require_admin()
@@ -1160,6 +1383,169 @@ def _mark_medication_order_failed(name: str) -> None:
 
 def _clear_failed_medication_orders() -> None:
 	frappe.cache().delete_value(_failed_medication_orders_key())
+
+
+def process_pmo_sign_batch() -> None:
+	job = "pmo_sign"
+	try:
+		failed_skip = frappe.cache().get_value(_failed_job_names_key(job)) or []
+		names = _pmo_names_for_sign(failed_skip=failed_skip)
+
+		submitted = 0
+		signed = 0
+		failed = 0
+		for name in names:
+			try:
+				doc = frappe.get_doc("Patient Medication Order", name)
+				if doc.docstatus == 2:
+					continue
+				if doc.docstatus == 0:
+					doc.flags.ignore_mandatory = True
+					doc.submit()
+					submitted += 1
+					doc.reload()
+
+				if not (doc.doctors_signature or "").strip():
+					frappe.db.set_value(
+						doc.doctype,
+						doc.name,
+						{
+							"doctors_signature": LEGACY_PMO_SIGNATURE,
+							"new_system": 1,
+						},
+						update_modified=False,
+					)
+					doc.doctors_signature = LEGACY_PMO_SIGNATURE
+					doc.new_system = 1
+
+				doc.set_status()
+				signed += 1
+			except Exception:
+				failed += 1
+				_mark_job_name_failed(job, name)
+				frappe.log_error(
+					title=f"Patient Medication Order sign failed: {name}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = cint(prev.get("processed", 0)) + len(names)
+		_set_progress(
+			job,
+			processed,
+			submitted=submitted + cint(prev.get("submitted", 0)),
+			signed=signed + cint(prev.get("signed", 0)),
+			errors=failed + cint(prev.get("errors", 0)),
+		)
+
+		if len(names) >= MEDICATION_ORDER_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_pmo_sign_batch",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_pmo_sign_{processed}",
+			)
+		else:
+			prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			_clear_failed_job_names(job)
+			frappe.log_error(
+				title="Healthcare Patient Medication Order sign migration complete",
+				message=(
+					f"Processed {processed} order(s). "
+					f"Submitted {prev.get('submitted', 0)}; signed {prev.get('signed', 0)}; "
+					f"{prev.get('errors', 0)} failed (see Error Log)."
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(job, cint(prev.get("processed", 0)), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+def process_pmo_complete_by_date_batch() -> None:
+	job = "pmo_complete_by_date"
+	try:
+		from_date, to_date = _get_job_date_range(job)
+		failed_skip = frappe.cache().get_value(_failed_job_names_key(job)) or []
+		names = _pmo_names_for_date_range(
+			from_date,
+			to_date,
+			failed_skip=failed_skip,
+		)
+
+		submitted = 0
+		completed = 0
+		failed = 0
+		for name in names:
+			try:
+				doc = frappe.get_doc("Patient Medication Order", name)
+				if doc.docstatus == 2:
+					continue
+				if doc.docstatus == 0:
+					doc.flags.ignore_mandatory = True
+					doc.submit()
+					submitted += 1
+					doc.reload()
+
+				total = doc.total_orders or len(doc.get("medication_orders") or []) or 0
+				doc.db_set("completed_orders", total, update_modified=False)
+				doc.completed_orders = total
+				doc.set_status()
+				completed += 1
+			except Exception:
+				failed += 1
+				_mark_job_name_failed(job, name)
+				frappe.log_error(
+					title=f"Patient Medication Order complete-by-date failed: {name}",
+					message=frappe.get_traceback(),
+				)
+
+		frappe.db.commit()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = cint(prev.get("processed", 0)) + len(names)
+		_set_progress(
+			job,
+			processed,
+			from_date=str(from_date),
+			to_date=str(to_date),
+			submitted=submitted + cint(prev.get("submitted", 0)),
+			completed=completed + cint(prev.get("completed", 0)),
+			errors=failed + cint(prev.get("errors", 0)),
+		)
+
+		if len(names) >= MEDICATION_ORDER_BATCH_SIZE:
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_pmo_complete_by_date_batch",
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_pmo_complete_by_date_{processed}",
+			)
+		else:
+			prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			_clear_failed_job_names(job)
+			frappe.cache().delete_value(_job_date_range_key(job))
+			frappe.log_error(
+				title="Healthcare Patient Medication Order complete-by-date migration complete",
+				message=(
+					f"Range {prev.get('from_date')} to {prev.get('to_date')}: "
+					f"processed {processed} order(s). "
+					f"Submitted {prev.get('submitted', 0)}; completed {prev.get('completed', 0)}; "
+					f"{prev.get('errors', 0)} failed (see Error Log)."
+				),
+			)
+	except Exception:
+		frappe.db.rollback()
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(job, cint(prev.get("processed", 0)), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
 
 
 def process_medication_order_complete_batch(offset: int = 0) -> None:
@@ -5540,7 +5926,7 @@ def start_patient_warning_message_import_migration(file_url: str) -> dict:
 		resolved_patients=summary.get("resolved_patients"),
 		unresolved_patients=summary.get("unresolved_patients"),
 		organisation_rows=summary.get("organisation_rows"),
-		skip_no_warning=summary.get("skip_no_warning"),
+		empty_warning_rows=summary.get("empty_warning_rows"),
 	)
 	frappe.enqueue(
 		"healthcare.api.data_migration_jobs.process_patient_warning_message_import_batch",
@@ -5574,8 +5960,6 @@ def process_patient_warning_message_import_batch(offset: int = 0) -> None:
 			processed,
 			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
 			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
-			skip_no_warning=cint(prev.get("skip_no_warning", 0)) + cint(result.get("skip_no_warning", 0)),
-			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
 			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
 			total_rows=prev.get("total_rows"),
 			new_warnings=prev.get("new_warnings"),
