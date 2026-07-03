@@ -1,42 +1,45 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 1,
+ "autoname": "field:visit_cd",
  "creation": "2025-12-17 12:45:00",
  "doctype": "DocType",
+ "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "visit_cd",
   "patient_visit",
   "file_number",
-  "column_break_yfno",
+  "column_break_header",
   "patient_name",
   "branch",
-  "section_break_presc",
-  "history_order",
-  "medicine_code",
-  "if_needed_number",
-  "period",
-  "quantity",
-  "column_break_oyfw",
-  "route",
-  "strength",
-  "unit",
-  "frequency",
-  "qty",
-  "column_break_mwsq",
-  "duration",
-  "duration_type",
-  "start_date",
-  "end_date"
+  "status",
+  "column_break_counts",
+  "total_lines",
+  "completed_lines",
+  "legacy",
+  "from_prescription_his",
+  "section_break_lines",
+  "prescription_lines"
  ],
  "fields": [
+  {
+   "fieldname": "visit_cd",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Visit CD",
+   "reqd": 1,
+   "unique": 1
+  },
   {
    "fieldname": "patient_visit",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Patient Visit",
-   "options": "Patient Visit",
-   "reqd": 1
+   "options": "Patient Visit"
   },
   {
    "fieldname": "file_number",
@@ -45,6 +48,10 @@
    "in_standard_filter": 1,
    "label": "File Number",
    "options": "Patient"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
   },
   {
    "fetch_from": "file_number.patient_name",
@@ -60,107 +67,93 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Branch",
-   "options": "Branch"
+   "options": "Cost Center"
   },
   {
-   "fieldname": "section_break_presc",
-   "fieldtype": "Section Break",
-   "label": "Prescription Details"
-  },
-  {
-   "fieldname": "history_order",
-   "fieldtype": "Int",
-   "label": "History Order"
-  },
-  {
-   "fieldname": "medicine_code",
-   "fieldtype": "Data",
+   "default": "Completed",
+   "fieldname": "status",
+   "fieldtype": "Select",
    "in_list_view": 1,
-   "label": "Medicine Code"
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "\nDraft\nCompleted"
   },
   {
-   "fieldname": "if_needed_number",
-   "fieldtype": "Data",
-   "label": "If Needed Number"
+   "fieldname": "column_break_counts",
+   "fieldtype": "Column Break"
   },
   {
-   "fieldname": "period",
-   "fieldtype": "Data",
-   "label": "Period"
-  },
-  {
-   "fieldname": "quantity",
-   "fieldtype": "Float",
-   "label": "Quantity"
-  },
-  {
-   "fieldname": "route",
-   "fieldtype": "Data",
-   "label": "Route"
-  },
-  {
-   "fieldname": "strength",
-   "fieldtype": "Data",
-   "label": "Strength"
-  },
-  {
-   "fieldname": "unit",
-   "fieldtype": "Link",
-   "label": "Unit",
-   "options": "UOM"
-  },
-  {
-   "fieldname": "frequency",
-   "fieldtype": "Data",
-   "label": "Frequency"
-  },
-  {
-   "fieldname": "duration",
+   "fieldname": "total_lines",
    "fieldtype": "Int",
-   "label": "Duration"
+   "label": "Total Lines",
+   "read_only": 1
   },
   {
-   "fieldname": "duration_type",
-   "fieldtype": "Data",
-   "label": "Duration Type"
+   "fieldname": "completed_lines",
+   "fieldtype": "Int",
+   "label": "Completed Lines",
+   "read_only": 1
   },
   {
-   "fieldname": "qty",
-   "fieldtype": "Float",
-   "label": "Qty"
+   "default": "0",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "label": "Legacy"
   },
   {
-   "fieldname": "start_date",
-   "fieldtype": "Date",
-   "label": "Start Date"
+   "default": "0",
+   "fieldname": "from_prescription_his",
+   "fieldtype": "Check",
+   "label": "From Prescription HIS"
   },
   {
-   "fieldname": "end_date",
-   "fieldtype": "Date",
-   "label": "End Date"
+   "fieldname": "section_break_lines",
+   "fieldtype": "Section Break",
+   "label": "Prescription Lines"
   },
   {
-   "fieldname": "column_break_yfno",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_oyfw",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_mwsq",
-   "fieldtype": "Column Break"
+   "fieldname": "prescription_lines",
+   "fieldtype": "Table",
+   "label": "Prescription Lines",
+   "options": "Patient Visit Prescription Item"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-17 12:45:18.472254",
+ "modified": "2026-07-03 16:30:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Prescription",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
   {
    "create": 1,
    "delete": 1,
@@ -169,29 +162,14 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "System Manager",
+   "role": "Doctor",
    "share": 1,
    "write": 1
   }
  ],
  "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

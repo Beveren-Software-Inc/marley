@@ -13,6 +13,7 @@
   "invoice_no",
   "doc_code",
   "cost_center",
+  "patient_visit",
   "column_break_patient",
   "session_type",
   "session_name",
@@ -24,7 +25,12 @@
   "from_time",
   "amount",
   "column_break_supe",
-  "to_time"
+  "to_time",
+  "visit_00_05",
+  "sr_num",
+  "section_break_uiyr",
+  "doc_remarks",
+  "feedback_remarks"
  ],
  "fields": [
   {
@@ -33,8 +39,7 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Date",
-   "reqd": 1
+   "label": "Date"
   },
   {
    "fieldname": "admission_number",
@@ -104,6 +109,12 @@
    "label": "Doc Code"
   },
   {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
    "fieldname": "section_break_ispo",
    "fieldtype": "Section Break"
   },
@@ -137,11 +148,36 @@
    "fieldname": "amount",
    "fieldtype": "Currency",
    "label": "Amount"
+  },
+  {
+   "default": "0",
+   "fieldname": "visit_00_05",
+   "fieldtype": "Check",
+   "label": "VISIT_00_05"
+  },
+  {
+   "fieldname": "doc_remarks",
+   "fieldtype": "Small Text",
+   "label": "Doc Remarks"
+  },
+  {
+   "fieldname": "feedback_remarks",
+   "fieldtype": "Small Text",
+   "label": "Feedback Remarks"
+  },
+  {
+   "fieldname": "section_break_uiyr",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Data",
+   "label": "SR No"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-30 15:11:25.852829",
+ "modified": "2026-07-03 17:42:43.091842",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Session Schedule",

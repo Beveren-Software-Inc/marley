@@ -1,0 +1,179 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_no",
+ "creation": "2026-07-03 13:15:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "patient_adjustment",
+  "adjustment_trans_no",
+  "sr_num",
+  "column_break_header",
+  "reff_trans_num",
+  "inv_num",
+  "inv_date",
+  "section_break_amounts",
+  "inv_total_amt",
+  "inv_bal_amt",
+  "column_break_now",
+  "inv_now_amt",
+  "section_break_audit",
+  "cr_id",
+  "cr_date",
+  "column_break_up",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "patient_adjustment",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Adjustment",
+   "options": "Patient Adjustment"
+  },
+  {
+   "fieldname": "adjustment_trans_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Adjustment Trans No"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "SR Num"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "reff_trans_num",
+   "fieldtype": "Data",
+   "label": "Reference Trans Num"
+  },
+  {
+   "fieldname": "inv_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Invoice No"
+  },
+  {
+   "fieldname": "inv_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "inv_total_amt",
+   "fieldtype": "Float",
+   "label": "Invoice Total Amount"
+  },
+  {
+   "fieldname": "inv_bal_amt",
+   "fieldtype": "Float",
+   "label": "Invoice Balance Amount"
+  },
+  {
+   "fieldname": "column_break_now",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "inv_now_amt",
+   "fieldtype": "Float",
+   "label": "Invoice Now Amount"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_up",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-03 13:15:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Adjustment Detail",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

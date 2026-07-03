@@ -1,0 +1,338 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "allow_rename": 1,
+ "autoname": "field:trans_no",
+ "creation": "2026-07-03 15:15:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "legacy_note",
+  "trans_source",
+  "column_break_header",
+  "branch",
+  "section_break_links",
+  "patient",
+  "patient_name",
+  "column_break_admission",
+  "admission",
+  "patient_visit",
+  "section_break_doctor",
+  "practitioner",
+  "practitioner_name",
+  "section_break_dates",
+  "start_date",
+  "end_date",
+  "leave_date",
+  "column_break_more_dates",
+  "admitted_date",
+  "discharge_date",
+  "attend_date",
+  "section_break_times",
+  "attend_time",
+  "consult_time",
+  "section_break_flags",
+  "sick_flag",
+  "fit_flag",
+  "unfit_flag",
+  "column_break_flags",
+  "light_duty",
+  "needs_flag",
+  "acc_patient",
+  "section_break_clinical",
+  "diagnosis",
+  "section_break_audit",
+  "create_user_id",
+  "create_date",
+  "legacy"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Legacy Oracle PATIENT_SICK_LEAVE export. Separate from Sick Leave (PATIENT_SICK_LEAVE_01).",
+   "fieldname": "legacy_note",
+   "fieldtype": "Small Text",
+   "label": "Note",
+   "read_only": 1
+  },
+  {
+   "fieldname": "trans_source",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans Source"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_break_links",
+   "fieldtype": "Section Break",
+   "label": "Links"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_admission",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "section_break_doctor",
+   "fieldtype": "Section Break",
+   "label": "Doctor"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_dates",
+   "fieldtype": "Section Break",
+   "label": "Dates"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "End Date"
+  },
+  {
+   "fieldname": "leave_date",
+   "fieldtype": "Date",
+   "label": "Leave Date"
+  },
+  {
+   "fieldname": "column_break_more_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "admitted_date",
+   "fieldtype": "Date",
+   "label": "Admitted Date"
+  },
+  {
+   "fieldname": "discharge_date",
+   "fieldtype": "Date",
+   "label": "Discharge Date"
+  },
+  {
+   "fieldname": "attend_date",
+   "fieldtype": "Date",
+   "label": "Attend Date"
+  },
+  {
+   "fieldname": "section_break_times",
+   "fieldtype": "Section Break",
+   "label": "Times"
+  },
+  {
+   "fieldname": "attend_time",
+   "fieldtype": "Data",
+   "label": "Attend Time"
+  },
+  {
+   "fieldname": "consult_time",
+   "fieldtype": "Data",
+   "label": "Consult Time"
+  },
+  {
+   "fieldname": "section_break_flags",
+   "fieldtype": "Section Break",
+   "label": "Flags"
+  },
+  {
+   "fieldname": "sick_flag",
+   "fieldtype": "Data",
+   "label": "Sick Flag"
+  },
+  {
+   "fieldname": "fit_flag",
+   "fieldtype": "Data",
+   "label": "Fit Flag"
+  },
+  {
+   "fieldname": "unfit_flag",
+   "fieldtype": "Data",
+   "label": "Unfit Flag"
+  },
+  {
+   "fieldname": "column_break_flags",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "light_duty",
+   "fieldtype": "Data",
+   "label": "Light Duty"
+  },
+  {
+   "fieldname": "needs_flag",
+   "fieldtype": "Data",
+   "label": "Needs Flag"
+  },
+  {
+   "fieldname": "acc_patient",
+   "fieldtype": "Data",
+   "label": "Acc Patient"
+  },
+  {
+   "fieldname": "section_break_clinical",
+   "fieldtype": "Section Break",
+   "label": "Clinical"
+  },
+  {
+   "fieldname": "diagnosis",
+   "fieldtype": "Small Text",
+   "label": "Diagnosis"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "create_user_id",
+   "fieldtype": "Data",
+   "label": "Create User ID"
+  },
+  {
+   "fieldname": "create_date",
+   "fieldtype": "Data",
+   "label": "Create Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "label": "Legacy"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-03 15:15:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Sick Leave",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "import": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
