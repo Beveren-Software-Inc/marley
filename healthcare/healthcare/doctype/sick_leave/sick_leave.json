@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_rename": 1,
+ "autoname": "field:trans_no",
  "creation": "2025-09-21 03:11:24.308824",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -11,6 +12,8 @@
   "patient",
   "column_break_aqlu",
   "patient_name",
+  "trans_no",
+  "sr_no",
   "section_break_aimk",
   "from_date",
   "to_date",
@@ -18,16 +21,23 @@
   "diagnosis",
   "column_break_hfew",
   "doctor",
-  "source"
+  "doctor_name",
+  "source",
+  "from_sick_01",
+  "legacy",
+  "section_break_jhdv",
+  "cr_date",
+  "cr_id",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
    "fieldname": "from_date",
-   "fieldtype": "Data",
+   "fieldtype": "Date",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "From Date",
-   "reqd": 1
+   "label": "From Date"
   },
   {
    "fieldname": "to_date",
@@ -64,11 +74,10 @@
   },
   {
    "fieldname": "source",
-   "fieldtype": "Link",
+   "fieldtype": "Data",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Source",
-   "options": "Patient Source"
+   "label": "Source"
   },
   {
    "fieldname": "section_break_jrka",
@@ -99,15 +108,69 @@
   {
    "fieldname": "section_break_aimk",
    "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "doctor.practitioner_name",
+   "fieldname": "doctor_name",
+   "fieldtype": "Data",
+   "label": "Doctor Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "from_sick_01",
+   "fieldtype": "Check",
+   "label": "From Sick 01"
+  },
+  {
+   "default": "0",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "label": "Legacy"
+  },
+  {
+   "fieldname": "section_break_jhdv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "fieldname": "sr_no",
+   "fieldtype": "Data",
+   "label": "Sr No"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 15:31:30.962634",
+ "modified": "2026-07-03 15:05:48.506359",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Sick Leave",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

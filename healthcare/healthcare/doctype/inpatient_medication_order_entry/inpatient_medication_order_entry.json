@@ -33,6 +33,7 @@
   "frequency_in_a_day",
   "uom",
   "is_pink",
+  "prescrip_id",
   "reference_no",
   "route_of_administration",
   "is_long_acting_medicine",
@@ -176,6 +177,13 @@
    "fieldname": "is_pink",
    "fieldtype": "Check",
    "label": "Is Pink"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "prescrip_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Prescrip ID"
   },
   {
    "allow_on_submit": 1,

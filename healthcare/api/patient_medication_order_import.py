@@ -469,6 +469,9 @@ def _append_child_line(doc, row: dict) -> None:
 	entry = doc.append("medication_orders", {})
 	trans_no = row.get("trans_no") or ""
 	entry.reference_no = trans_no or None
+	prescrip_id = _cell_text(row.get("prescrip_id"))
+	if prescrip_id:
+		entry.prescrip_id = prescrip_id
 	ip_med_link = _resolve_ip_admission_medicine_link(trans_no)
 	if ip_med_link:
 		entry.trans_num = ip_med_link
@@ -480,6 +483,10 @@ def _append_child_line(doc, row: dict) -> None:
 
 	dose_notes = _cell_text(row.get("dose_notes"))
 	entry.dosage = dose_notes or None
+
+	instructions = _cell_text(row.get("instructions"))
+	if instructions:
+		entry.instructions = instructions
 
 	entry.dc = _cell_text(row.get("dc")) or None
 	entry.redundancy_type = _cell_text(row.get("redundancy_type")) or None

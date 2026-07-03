@@ -35,6 +35,10 @@
   "end_date",
   "user_name",
   "time",
+  "patient_visit_prescription_his",
+  "legacy",
+  "patient_visit_prescription",
+  "visit_cd",
   "medication_orders_section",
   "medication_orders",
   "section_break_16",
@@ -203,7 +207,8 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "\nDraft\nSubmitted\nPending\nSigned\nIn Process\nCompleted\nCancelled",
+   "mask": 1,
+   "options": "\nDraft\nSubmitted\nPending\nSigned\nIn Process\nCompleted\nUnsigned\nCancelled",
    "read_only": 1
   },
   {
@@ -429,12 +434,36 @@
    "fieldname": "new_system",
    "fieldtype": "Check",
    "label": "New System"
+  },
+  {
+   "default": "0",
+   "fieldname": "patient_visit_prescription_his",
+   "fieldtype": "Check",
+   "label": "PATIENT_VISIT_PRESCRIPTION_HIS"
+  },
+  {
+   "default": "0",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "label": "Legacy"
+  },
+  {
+   "default": "0",
+   "fieldname": "patient_visit_prescription",
+   "fieldtype": "Check",
+   "label": "PATIENT_VISIT_PRESCRIPTION"
+  },
+  {
+   "fieldname": "visit_cd",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Visit CD"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-01 00:25:59.840088",
+ "modified": "2026-07-03 17:07:34.600844",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",

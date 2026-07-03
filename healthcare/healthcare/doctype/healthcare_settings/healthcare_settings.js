@@ -341,6 +341,31 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Sync PMO Status by Admission'), () => {
+			frappe.call({
+				method: 'healthcare.api.data_migration_jobs.preview_pmo_sync_by_admission_status',
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Run in background: for Patient Medication Orders linked to an Inpatient Admission,\n'
+								+ 'set status to Signed when the admission is Admitted, and Completed when the admission is Discharged.\n\n'
+								+ 'To sign (Admitted): {0}\n'
+								+ 'To complete (Discharged): {1}\n\n'
+								+ 'Draft PMOs are submitted first. Legacy migration signature is applied when missing.\n\nContinue?',
+							[counts.sign_candidates || 0, counts.complete_candidates || 0]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_pmo_sync_by_admission_status_migration',
+								'pmo_sync_by_admission_status'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Backfill PMO Inpatient Admission from Written'), () => {
 			frappe.call({
 				method:
@@ -1185,6 +1210,47 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Visit History — VISIT_00_01_HISTORY'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Visit History (VISIT_00_01_HISTORY)'),
+				preview_method:
+					'healthcare.api.visit_00_01_history_import.preview_visit_00_01_history_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_visit_00_01_history_import_migration',
+				job_key: 'visit_00_01_history_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import visit diagnosis history from VISIT_00_01_HISTORY?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique history rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Patients resolved: {4}\n'
+							+ 'Visits resolved: {5}\n'
+							+ 'Rows with diagnosis text: {6}\n\n'
+							+ 'Mapping: VISIT_NUM → visit_num, VISIT_DATE → visit_date, '
+							+ 'VISIT_PATIENT_NUM → Patient, VISIT_DIAGNOSIS_DETAIL → visit_diagnosis_detail, '
+							+ 'CR_ID/CR_DATE → audit fields. Each row keyed by visit_num + CR_DATE.\n\n'
+							+ 'Sample record keys: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_visits || 0,
+							counts.with_diagnosis || 0,
+							(counts.sample_record_keys || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Lab Test — LAB_003 + LAB_004'), () => {
 			open_lab_test_bundle_upload();
 		}, __('Direct Upload'));
@@ -1296,6 +1362,56 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Session Schedule — VISIT_00_05'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Session Schedule (VISIT_00_05)'),
+				preview_method: 'healthcare.api.visit_00_05_import.preview_visit_00_05_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_visit_00_05_import_migration',
+				job_key: 'visit_00_05_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const unmatched = counts.unmatched_template_count
+						? __('\nUnmatched SERV_NUM codes: {0} (e.g. {1})', [
+							counts.unmatched_template_count,
+							(counts.sample_unmatched_templates || []).join(', ') || __('(none)'),
+						])
+						: '';
+					return __(
+						'Import OP session notes into Session Schedule from VISIT_00_05?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique session lines: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Patients resolved: {4}\n'
+							+ 'Visits resolved: {5}\n'
+							+ 'Templates matched: {6}\n'
+							+ 'Rows with doc remarks: {7}\n'
+							+ '{8}\n\n'
+							+ 'Mapping: VISIT_NUM → Patient Visit, PATIENT_NUM → Patient, '
+							+ 'SERV_NUM → Session Code (Healthcare Service Template), '
+							+ 'DOC_REMARKS → doc_remarks, CR_DATE → date/from_time, '
+							+ 'status → Completed, visit_00_05 checked.\n\n'
+							+ 'Sample record keys: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_visits || 0,
+							counts.resolved_templates || 0,
+							counts.with_doc_remarks || 0,
+							unmatched,
+							(counts.sample_record_keys || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('IP Service — SRV_00_03 — child 004'), () => {
 			open_ip_service_bundle_upload();
 		}, __('Direct Upload'));
@@ -1373,6 +1489,413 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.unresolved_rows || 0,
 						]
 					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Prescription — HIS Patient Visit'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Prescription — HIS Patient Visit (PATIENT_VISIT_PRESCRIPTION_HIS)'),
+				preview_method:
+					'healthcare.api.patient_visit_prescription_his_import.preview_patient_visit_prescription_his_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_visit_prescription_his_import_migration',
+				job_key: 'patient_visit_prescription_his_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import OP visit prescriptions (HIS) into Patient Medication Order from PATIENT_VISIT_PRESCRIPTION_HIS?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw medicine rows: {1}\n'
+							+ 'Distinct visits: {2}\n'
+							+ 'Existing PMOs (will update): {3}\n'
+							+ 'Visits with resolvable patient: {4}\n'
+							+ 'Visits with resolvable Patient Visit: {5}\n\n'
+							+ 'One PMO per visit with auto-generated trans_no and all medicines in '
+							+ 'medication_orders. Legacy VISIT_CD stored on visit_cd. '
+							+ 'MEDICINE_CD links to ITEM_00_01. FREQUENCY → Prescription Frequency. '
+							+ 'Submitted with Completed status.\n\n'
+							+ 'Sample visit CD keys: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || counts.medicine_lines || 0,
+							counts.visits || 0,
+							counts.existing_records || 0,
+							counts.resolvable_patients || 0,
+							counts.resolvable_visits || 0,
+							(counts.sample_visit_cds || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Prescription — Patient Visit Prescription'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Prescription — Patient Visit Prescription (PATIENT_VISIT_PRESCRIPTION)'),
+				preview_method:
+					'healthcare.api.patient_visit_prescription_import.preview_patient_visit_prescription_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_visit_prescription_import_migration',
+				job_key: 'patient_visit_prescription_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import OP visit prescriptions into Patient Medication Order from PATIENT_VISIT_PRESCRIPTION?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw medicine rows: {1}\n'
+							+ 'Distinct visits: {2}\n'
+							+ 'Existing PMOs (will update): {3}\n'
+							+ 'Visits with resolvable patient: {4}\n'
+							+ 'Visits with resolvable Patient Visit: {5}\n\n'
+							+ 'One PMO per visit with auto-generated trans_no and medicines in medication_orders. '
+							+ 'Legacy VISIT_CD stored on visit_cd for matching. '
+							+ 'NOTE → instructions, FREQUENCY → Prescription Frequency. '
+							+ 'Status set to Completed on upload.\n\n'
+							+ 'Sample visit CD keys: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || counts.medicine_lines || 0,
+							counts.visits || 0,
+							counts.existing_records || 0,
+							counts.resolvable_patients || 0,
+							counts.resolvable_visits || 0,
+							(counts.sample_visit_cds || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('IP Patient Short Leave — IP_PATIENT_SHORT_LEAVE'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('IP Patient Short Leave (IP_PATIENT_SHORT_LEAVE)'),
+				preview_method:
+					'healthcare.api.ip_patient_short_leave_import.preview_ip_patient_short_leave_import',
+				import_method: 'healthcare.api.ip_patient_short_leave_import.run_ip_patient_short_leave_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import IP Patient Short Leave from IP_PATIENT_SHORT_LEAVE?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Rows with resolvable admission: {4}\n'
+							+ 'Rows with resolvable patient: {5}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_num, ADMISSION_NUM → admission, PATIENT_NUM → patient_no, '
+							+ 'DATE_FROM/TIME_FROM → date_from/time_from, DATE_TO/TIME_TO → date_to/time_to, '
+							+ 'FINAL_COME_DATE → final_come_date, LEAVE_STATUS → leave_status, '
+							+ 'BRANCH_NUM → branch (Cost Center).\n'
+							+ 'Import runs immediately (no background job).\n\n'
+							+ 'Sample TRANS_NUM keys: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolvable_admissions || 0,
+							counts.resolvable_patients || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Sick Leave — PATIENT_SICK_LEAVE_01'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Sick Leave (PATIENT_SICK_LEAVE_01)'),
+				preview_method:
+					'healthcare.api.patient_sick_leave_import.preview_patient_sick_leave_import',
+				import_method: 'healthcare.api.patient_sick_leave_import.run_patient_sick_leave_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Sick Leave from PATIENT_SICK_LEAVE_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Rows with resolvable patient: {4}\n'
+							+ 'Rows with resolvable admission: {5}\n'
+							+ 'Rows with resolvable doctor: {6}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_no, SR_NUM → sr_no, PATIENT_NUM → patient, '
+							+ 'ADMISSION_NUM → admission_no, IP_OP_SOURCE → source, FROM_DATE/TO_DATE → dates, '
+							+ 'TOTAL_DAYS → days, DIAGNOSIS_DETAIL → diagnosis, DOC_NUM → doctor.\n'
+							+ 'Sets from_sick_01 and legacy flags. Import runs immediately.\n\n'
+							+ 'Sample trans_no keys: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolvable_patients || 0,
+							counts.resolvable_admissions || 0,
+							counts.resolvable_doctors || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Sick Leave — PATIENT_SICK_LEAVE'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Patient Sick Leave (PATIENT_SICK_LEAVE)'),
+				preview_method:
+					'healthcare.api.patient_sick_leave_record_import.preview_patient_sick_leave_record_import',
+				import_method:
+					'healthcare.api.patient_sick_leave_record_import.run_patient_sick_leave_record_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient Sick Leave from PATIENT_SICK_LEAVE?\n\n'
+							+ 'Note: This is a separate legacy doctype from Sick Leave (PATIENT_SICK_LEAVE_01).\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique Trans No rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Rows with resolvable patient: {4}\n'
+							+ 'Rows with resolvable admission: {5}\n'
+							+ 'Rows with resolvable visit: {6}\n'
+							+ 'Rows with resolvable practitioner: {7}\n\n'
+							+ 'Mapping: Trans No → trans_no, PATIENT_FILE_NO → patient, '
+							+ 'START_DATE/END_DATE → dates, DOCTOR_CD → practitioner, '
+							+ 'TRANS_SOURCE → trans_source, ADMISSION_NUM/VISIT_NUM → links, '
+							+ 'BRANCH_NUM → branch.\n'
+							+ 'Import runs immediately.\n\n'
+							+ 'Sample trans_no keys: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolvable_patients || 0,
+							counts.resolvable_admissions || 0,
+							counts.resolvable_visits || 0,
+							counts.resolvable_practitioners || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Adjustment — PATIENT_ADJUSTMENT_01'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Patient Adjustment (PATIENT_ADJUSTMENT_01)'),
+				preview_method: 'healthcare.api.patient_adjustment_import.preview_patient_adjustment_import',
+				import_method: 'healthcare.api.patient_adjustment_import.run_patient_adjustment_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient Adjustment rows from PATIENT_ADJUSTMENT_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'From patients resolved: {4}\n'
+							+ 'To patients resolved: {5}\n'
+							+ 'From admissions resolved: {6}\n'
+							+ 'To admissions resolved: {7}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_no (ID), FROM/TO patient & admission → Link fields, '
+							+ 'BRANCH_NUM → branch (Cost Center), amounts and remarks preserved.\n'
+							+ 'Import runs immediately (no background job).\n\n'
+							+ 'Sample trans_no keys: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolvable_from_patients || 0,
+							counts.resolvable_to_patients || 0,
+							counts.resolvable_from_admissions || 0,
+							counts.resolvable_to_admissions || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Adjustment Detail — PATIENT_ADJUSTMENT_02'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Patient Adjustment Detail (PATIENT_ADJUSTMENT_02)'),
+				preview_method:
+					'healthcare.api.patient_adjustment_detail_import.preview_patient_adjustment_detail_import',
+				import_method:
+					'healthcare.api.patient_adjustment_detail_import.run_patient_adjustment_detail_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient Adjustment Detail lines from PATIENT_ADJUSTMENT_02?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique detail rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Adjustment headers in file: {4}\n'
+							+ 'Lines linked to Patient Adjustment (01): {5}\n\n'
+							+ 'Mapping: TRANS_NUM → adjustment_trans_no, SR_NUM → line number, '
+							+ 'trans_no is built as adjustment trans no + SR_NUM (e.g. PJV/2021/00002-1). '
+							+ 'INV_NUM and invoice amounts are preserved. '
+							+ 'Links to Patient Adjustment when header exists.\n'
+							+ 'Import runs immediately (no background job).\n\n'
+							+ 'Sample trans_no keys: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.adjustment_headers || 0,
+							counts.linked_headers || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Created: {1}\n'
+							+ 'Updated: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Linked to Patient Adjustment: {4}\n'
+							+ 'Errors: {5}',
+						[
+							result.total || 0,
+							result.created || 0,
+							result.updated || 0,
+							result.skipped || 0,
+							result.linked_headers || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Patient Medical Report — PATIENT_MEDICAL_REPORT_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Patient Medical Report (PATIENT_MEDICAL_REPORT_01)'),
+				preview_method:
+					'healthcare.api.patient_medical_report_import.preview_patient_medical_report_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_medical_report_import_migration',
+				job_key: 'patient_medical_report_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Patient Medical Report rows from PATIENT_MEDICAL_REPORT_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Patients resolved: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Visits resolved: {6}\n'
+							+ 'Practitioners resolved: {7}\n'
+							+ 'Rows with report text: {8}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_no, PATIENT_NUM → Patient, '
+							+ 'ADMISSION_NUM → Inpatient Admission, VISIT_NUM → Patient Visit, '
+							+ 'REFF_NUM → reference_no, DOCTOR_NUM → Practitioner, '
+							+ 'REPORT_DATA_* → report text fields, BRANCH_NUM → Cost Center.\n\n'
+							+ 'Sample trans_no keys: {9}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_admissions || 0,
+							counts.resolved_visits || 0,
+							counts.resolved_practitioners || 0,
+							counts.with_report_text || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
 			});
 		}, __('Direct Upload'));
 
@@ -1559,6 +2082,44 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.excel_rows || 0,
 							counts.existing_findings || 0,
 							counts.new_findings || 0,
+							counts.skip_no_cost_center || 0,
+							(counts.sample_visit_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Visit Complain — VISIT_COMPLAIN_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Visit Complain (VISIT_COMPLAIN_01)'),
+				preview_method:
+					'healthcare.api.visit_complain_01_import.preview_visit_complain_01_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_visit_complain_01_import_migration',
+				job_key: 'visit_complain_01_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Visit Complain from VISIT_COMPLAIN_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw Excel rows: {1}\n'
+							+ 'Unique rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Rows with unmapped BRANCH_NUM: {5}\n\n'
+							+ 'Mapping: VISIT_NUM → visit_num, SR_NUM, CODE_NUM, CODE_MORE_DETAIL, '
+							+ 'CR_DATE → date, time, and cr_date (full legacy value), '
+							+ 'BRANCH_NUM → branch (Cost Center).\n'
+							+ 'Sample VISIT_NUM: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.new_records || 0,
 							counts.skip_no_cost_center || 0,
 							(counts.sample_visit_nums || []).join(', ') || __('(none)'),
 						]
@@ -2813,6 +3374,11 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'pmo_sync_by_admission_status') {
+						msg = __(
+							'{0} finished: {1} signed (Admitted), {2} completed (Discharged), {3} submitted, {4} errors.',
+							[jobKey, s.signed || 0, s.completed || 0, s.submitted || 0, errN]
+						);
 					} else if (jobKey === 'ip_admission_discharge_import') {
 						msg = __(
 							'{0} finished: {1} admissions created, {2} updated, {3} skipped (no patient), {4} errors. Discharges: {5} created, {6} updated, {7} submitted. Nursing checklist: {8} OK, {9} skipped. Discharge checklist: {10} OK, {11} skipped.',
@@ -3126,6 +3692,35 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} errors.',
 							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'patient_medical_report_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} errors.',
+							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'patient_visit_prescription_his_import') {
+						msg = __(
+							'{0} finished: {1} Patient Medication Order(s) created, {2} updated, {3} medicine line(s), {4} skipped, {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.lines_imported || 0,
+								s.skipped || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'patient_visit_prescription_import') {
+						msg = __(
+							'{0} finished: {1} Patient Medication Order(s) created, {2} updated, {3} medicine line(s), {4} skipped, {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.lines_imported || 0,
+								s.skipped || 0,
+								errN,
+							]
 						);
 					} else if (jobKey === 'ip_admission_medicine_sheet_given_import') {
 						msg = __(

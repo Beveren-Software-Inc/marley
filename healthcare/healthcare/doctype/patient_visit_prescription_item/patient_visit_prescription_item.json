@@ -1,0 +1,230 @@
+{
+ "actions": [],
+ "allow_on_submit": 1,
+ "creation": "2026-07-03 16:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "prescrip_id",
+  "history_order",
+  "old_medicine_code",
+  "old_medicine_name",
+  "medicine_code",
+  "column_break_med",
+  "patient_frequency",
+  "written_frequency",
+  "route",
+  "strength",
+  "unit",
+  "column_break_dose",
+  "if_needed_number",
+  "period",
+  "quantity",
+  "qty",
+  "duration",
+  "duration_type",
+  "column_break_dates",
+  "start_date",
+  "end_date",
+  "is_completed",
+  "note",
+  "section_break_audit",
+  "create_user_id",
+  "create_date",
+  "column_break_up",
+  "update_user_id",
+  "update_date",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "prescrip_id",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Prescrip ID"
+  },
+  {
+   "fieldname": "history_order",
+   "fieldtype": "Int",
+   "label": "History Order"
+  },
+  {
+   "fieldname": "old_medicine_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Old Medicine Code",
+   "options": "ITEM_00_01"
+  },
+  {
+   "fetch_from": "old_medicine_code.item_nam",
+   "fieldname": "old_medicine_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Old Medicine Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "medicine_code",
+   "fieldtype": "Data",
+   "label": "Medicine Code"
+  },
+  {
+   "fieldname": "column_break_med",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_frequency",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Prescription Frequency",
+   "options": "Prescription Frequency"
+  },
+  {
+   "fieldname": "written_frequency",
+   "fieldtype": "Data",
+   "label": "Written Frequency"
+  },
+  {
+   "fieldname": "route",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Route"
+  },
+  {
+   "fieldname": "strength",
+   "fieldtype": "Data",
+   "label": "Strength"
+  },
+  {
+   "fieldname": "unit",
+   "fieldtype": "Data",
+   "label": "Unit"
+  },
+  {
+   "fieldname": "column_break_dose",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "if_needed_number",
+   "fieldtype": "Data",
+   "label": "If Needed Number"
+  },
+  {
+   "fieldname": "period",
+   "fieldtype": "Data",
+   "label": "Period"
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity"
+  },
+  {
+   "fieldname": "qty",
+   "fieldtype": "Float",
+   "label": "Qty"
+  },
+  {
+   "fieldname": "duration",
+   "fieldtype": "Int",
+   "label": "Duration"
+  },
+  {
+   "fieldname": "duration_type",
+   "fieldtype": "Data",
+   "label": "Duration Type"
+  },
+  {
+   "fieldname": "column_break_dates",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date"
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_completed",
+   "fieldtype": "Check",
+   "label": "Is Completed"
+  },
+  {
+   "fieldname": "note",
+   "fieldtype": "Small Text",
+   "label": "Note"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "create_user_id",
+   "fieldtype": "Data",
+   "label": "Create User ID"
+  },
+  {
+   "fieldname": "create_date",
+   "fieldtype": "Data",
+   "label": "Create Date"
+  },
+  {
+   "fieldname": "column_break_up",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "update_user_id",
+   "fieldtype": "Data",
+   "label": "Update User ID"
+  },
+  {
+   "fieldname": "update_date",
+   "fieldtype": "Data",
+   "label": "Update Date"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-03 16:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Visit Prescription Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
