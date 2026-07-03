@@ -1,5 +1,6 @@
 export interface GroomingChartRow {
   name: string
+  trans_num?: string | null
   date: string
   admission_no: string | null
   file_no: string | null
@@ -37,6 +38,7 @@ export type NursingListFilters = {
 }
 
 export interface CreateGroomingChartInput {
+  trans_num?: string
   date?: string
   admission_no?: string
   file_no?: string
@@ -106,4 +108,16 @@ export async function createGroomingChart(
   const data = await res.json()
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
+}
+
+export async function getNextIPGroomingChartTransNum(): Promise<string> {
+  const { apiRequest } = await import('./apiClient')
+  const result = await apiRequest<string>(
+    '/api/method/healthcare.api.common.get_next_ip_grooming_chart_trans_num',
+    { method: 'POST' },
+  )
+  if (typeof result === 'string' && result.trim()) {
+    return result.trim()
+  }
+  throw new Error('Failed to generate grooming chart trans number')
 }

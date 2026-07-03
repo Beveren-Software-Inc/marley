@@ -1,0 +1,89 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-04 01:20:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "attribute",
+  "attrib_num",
+  "order_of_attrib",
+  "att_notes",
+  "section_break_audit",
+  "cr_id",
+  "cr_date",
+  "column_break_up",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "attribute",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Attribute"
+  },
+  {
+   "fieldname": "attrib_num",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Attrib Num"
+  },
+  {
+   "fieldname": "order_of_attrib",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Order Of Attrib"
+  },
+  {
+   "fieldname": "att_notes",
+   "fieldtype": "Text Editor",
+   "label": "Attribute Notes"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_up",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-04 01:20:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Details Attribute",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

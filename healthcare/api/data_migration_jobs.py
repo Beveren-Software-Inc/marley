@@ -7046,3 +7046,333 @@ def process_visit_complain_01_import_batch(offset: int = 0) -> None:
 		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
 		_release_lock(job)
 		raise
+
+
+@frappe.whitelist()
+def start_ect_details_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ect_details_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the ECT_00_01 Excel file."))
+
+	job = "ect_details_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		existing_records=summary.get("existing_records"),
+		resolved_patients=summary.get("resolved_patients"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		resolved_visits=summary.get("resolved_visits"),
+		resolved_practitioners=summary.get("resolved_practitioners"),
+		op_rows=summary.get("op_rows"),
+		ip_rows=summary.get("ip_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ect_details_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ect_details_import",
+	)
+	return {
+		"ok": True,
+		"message": _("ECT Details import started ({0} rows, {1} existing).").format(
+			summary.get("excel_rows") or 0,
+			summary.get("existing_records") or 0,
+		),
+	}
+
+
+def process_ect_details_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ect_details_import import run_ect_details_import_batch
+
+	job = "ect_details_import"
+	try:
+		result = run_ect_details_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			existing_records=prev.get("existing_records"),
+			resolved_patients=prev.get("resolved_patients"),
+			resolved_admissions=prev.get("resolved_admissions"),
+			resolved_visits=prev.get("resolved_visits"),
+			resolved_practitioners=prev.get("resolved_practitioners"),
+			op_rows=prev.get("op_rows"),
+			ip_rows=prev.get("ip_rows"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ect_details_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ect_details_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="ECT Details import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_ect_details_attribute_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ect_details_attribute_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the ECT_00_02 Excel file."))
+
+	job = "ect_details_attribute_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		parents=summary.get("parents"),
+		existing_parents=summary.get("existing_parents"),
+		missing_parents=summary.get("missing_parents"),
+		matching_template_rows=summary.get("matching_template_rows"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ect_details_attribute_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ect_details_attribute_import",
+	)
+	return {
+		"ok": True,
+		"message": _("ECT Details Attribute import started ({0} rows, {1} parent records).").format(
+			summary.get("excel_rows") or 0,
+			summary.get("parents") or 0,
+		),
+	}
+
+
+def process_ect_details_attribute_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ect_details_attribute_import import run_ect_details_attribute_import_batch
+
+	job = "ect_details_attribute_import"
+	try:
+		result = run_ect_details_attribute_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			appended_rows=cint(prev.get("appended_rows", 0)) + cint(result.get("appended_rows", 0)),
+			updated_rows=cint(prev.get("updated_rows", 0)) + cint(result.get("updated_rows", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			parents=prev.get("parents"),
+			existing_parents=prev.get("existing_parents"),
+			missing_parents=prev.get("missing_parents"),
+			matching_template_rows=prev.get("matching_template_rows"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ect_details_attribute_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ect_details_attribute_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="ECT Details Attribute import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_ip_grooming_chart_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.ip_grooming_chart_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_GROOMING_CHART Excel file."))
+
+	job = "ip_grooming_chart_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		existing_records=summary.get("existing_records"),
+		new_records=summary.get("new_records"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		skip_no_admission=summary.get("skip_no_admission"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_ip_grooming_chart_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_ip_grooming_chart_import",
+	)
+	return {
+		"ok": True,
+		"message": _("IP Grooming Chart import started ({0} rows, {1} existing).").format(
+			summary.get("excel_rows") or 0,
+			summary.get("existing_records") or 0,
+		),
+	}
+
+
+def process_ip_grooming_chart_import_batch(offset: int = 0) -> None:
+	from healthcare.api.ip_grooming_chart_import import run_ip_grooming_chart_import_batch
+
+	job = "ip_grooming_chart_import"
+	try:
+		result = run_ip_grooming_chart_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0)) + cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			existing_records=prev.get("existing_records"),
+			new_records=prev.get("new_records"),
+			resolved_admissions=prev.get("resolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_ip_grooming_chart_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_ip_grooming_chart_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="IP Grooming Chart import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
+def start_sleeping_pattern_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.sleeping_pattern_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the IP_SLEEPING_PATTERN Excel file."))
+
+	job = "sleeping_pattern_import"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_rows=summary.get("excel_rows"),
+		existing_records=summary.get("existing_records"),
+		new_records=summary.get("new_records"),
+		resolved_admissions=summary.get("resolved_admissions"),
+		skip_no_admission=summary.get("skip_no_admission"),
+		skip_no_patient=summary.get("skip_no_patient"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_sleeping_pattern_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_sleeping_pattern_import",
+	)
+	return {
+		"ok": True,
+		"message": _("Sleeping Pattern import started ({0} rows, {1} existing).").format(
+			summary.get("excel_rows") or 0,
+			summary.get("existing_records") or 0,
+		),
+	}
+
+
+def process_sleeping_pattern_import_batch(offset: int = 0) -> None:
+	from healthcare.api.sleeping_pattern_import import run_sleeping_pattern_import_batch
+
+	job = "sleeping_pattern_import"
+	try:
+		result = run_sleeping_pattern_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			skip_no_admission=cint(prev.get("skip_no_admission", 0)) + cint(result.get("skip_no_admission", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_rows=prev.get("total_rows"),
+			existing_records=prev.get("existing_records"),
+			new_records=prev.get("new_records"),
+			resolved_admissions=prev.get("resolved_admissions"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_sleeping_pattern_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_sleeping_pattern_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Sleeping Pattern import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise

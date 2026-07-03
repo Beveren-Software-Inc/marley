@@ -5,7 +5,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createECTDetail } from '../../services/ectDetails'
+import { createECTDetail, getNextECTDetailsTransNum } from '../../services/ectDetails'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchCostCenters, fetchHealthcarePractitioners, fetchLeadSources, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -132,8 +132,10 @@ export const CreateECTDetailModal = ({
       setError(null)
 
       const timePart = formData.time ? `${formData.time}:00`.slice(0, 8) : undefined
+      const transNum = await getNextECTDetailsTransNum()
 
       await createECTDetail({
+        trans_num: transNum,
         patient: formData.patient,
         cost_center: formData.cost_center || undefined,
         date: formData.date || undefined,

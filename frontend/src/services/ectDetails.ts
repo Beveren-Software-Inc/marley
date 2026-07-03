@@ -1,5 +1,6 @@
 export interface ECTDetail {
   name: string
+  trans_num?: string
   patient: string
   patient_name?: string
   cost_center?: string
@@ -72,6 +73,7 @@ export async function fetchECTDetail(name: string): Promise<ECTDetail> {
 }
 
 export interface CreateECTDetailData {
+  trans_num?: string
   patient: string
   cost_center?: string
   date?: string
@@ -112,6 +114,18 @@ export async function createECTDetail(data: CreateECTDetailData): Promise<ECTDet
     method: 'POST',
     body: JSON.stringify({ data }),
   })
+}
+
+export async function getNextECTDetailsTransNum(): Promise<string> {
+  const { apiRequest } = await import('./apiClient')
+  const result = await apiRequest<string>(
+    '/api/method/healthcare.api.ect_details.get_next_ect_details_trans_num',
+    { method: 'POST' },
+  )
+  if (typeof result === 'string' && result.trim()) {
+    return result.trim()
+  }
+  throw new Error('Failed to generate ECT trans number')
 }
 
 

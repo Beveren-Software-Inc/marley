@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 def _sanitize_ect_reference(reference_doctype, reference_name):
@@ -43,6 +44,21 @@ def _resolve_ect_cost_center(data, ref_doctype=None, ref_name=None):
 		return default_cc
 
 	frappe.throw(_("Cost Center is required"))
+
+
+def _default_ect_template(data=None):
+	template = ((data or {}).get("template") or "").strip()
+	if template and frappe.db.exists("Patient History Template", template):
+		return template
+	default_name = "Default History Form"
+	if frappe.db.exists("Patient History Template", default_name):
+		return default_name
+	return None
+
+
+@frappe.whitelist()
+def get_next_ect_details_trans_num():
+	return get_next_transaction_number("ECT Details", fieldname="trans_num")
 
 
 @frappe.whitelist()
@@ -200,10 +216,15 @@ def create_ect_detail(data):
 		data.get("reference_doctype"), data.get("reference_name")
 	)
 	cost_center = _resolve_ect_cost_center(data, ref_doctype, ref_name)
+	trans_num = (data.get("trans_num") or "").strip() or get_next_transaction_number(
+		"ECT Details", fieldname="trans_num"
+	)
 
 	doc = frappe.get_doc({
 		"doctype": "ECT Details",
+		"trans_num": trans_num,
 		"patient": data.get("patient"),
+		"template": _default_ect_template(data),
 		"cost_center": cost_center,
 		"date": data.get("date") or frappe.utils.getdate(),
 		"time": data.get("time") or frappe.utils.get_time(),
@@ -240,6 +261,8 @@ def create_ect_detail(data):
 
 	return {
 		"name": doc.name,
+		"trans_num": doc.trans_num,
+		"template": doc.template,
 		"patient": doc.patient,
 		"patient_name": frappe.db.get_value("Patient", doc.patient, "patient_name"),
 		"cost_center": doc.cost_center,
