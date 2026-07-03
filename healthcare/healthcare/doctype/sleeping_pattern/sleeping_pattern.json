@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:trans_no",
  "creation": "2025-12-17 12:00:00",
@@ -24,7 +25,13 @@
   "night_from",
   "night_to",
   "section_break_other",
-  "admission_no_old"
+  "admission_no_old",
+  "section_break_owji",
+  "cr_id",
+  "cr_date",
+  "column_break_ofwk",
+  "up_id",
+  "up_date"
  ],
  "fields": [
   {
@@ -141,12 +148,40 @@
    "fieldtype": "Link",
    "label": "Cost Center",
    "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_break_owji",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_ofwk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-26 14:20:30.257679",
+ "modified": "2026-07-04 01:43:34.002960",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Sleeping Pattern",

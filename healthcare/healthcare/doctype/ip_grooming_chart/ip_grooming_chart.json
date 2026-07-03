@@ -1,11 +1,12 @@
 {
  "actions": [],
  "allow_rename": 1,
- "autoname": "IPC-.{YY}-.#####",
+ "autoname": "field:trans_num",
  "creation": "2025-12-17 11:04:20.106659",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "trans_num",
   "date",
   "admission_no",
   "cost_center",
@@ -33,9 +34,23 @@
   "fluid_intake",
   "fluid_output",
   "section_break_ztpw",
-  "admission_no_old"
+  "admission_no_old",
+  "section_break_mnsl",
+  "cr_id",
+  "cr_date",
+  "column_break_llsi",
+  "up_id",
+  "up_date"
  ],
  "fields": [
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans Num",
+   "unique": 1
+  },
   {
    "default": "Today",
    "fieldname": "date",
@@ -198,16 +213,44 @@
    "fieldname": "fluid_output",
    "fieldtype": "Data",
    "label": "Fluid Output"
+  },
+  {
+   "fieldname": "section_break_mnsl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_llsi",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 15:01:40.224331",
+ "modified": "2026-07-04 01:33:52.969920",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Grooming Chart",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

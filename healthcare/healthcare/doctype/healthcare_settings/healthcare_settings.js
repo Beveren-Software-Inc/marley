@@ -1626,6 +1626,86 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('IP Grooming Chart'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('IP Grooming Chart (IP_GROOMING_CHART)'),
+				preview_method: 'healthcare.api.ip_grooming_chart_import.preview_ip_grooming_chart_import',
+				start_method: 'healthcare.api.data_migration_jobs.start_ip_grooming_chart_import_migration',
+				job_key: 'ip_grooming_chart_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import IP Grooming Chart from IP_GROOMING_CHART?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Rows with resolvable admission: {5}\n'
+							+ 'Rows missing admission: {6}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_num, TRANS_DATE → date, ADMISSION_NUM/ADMISSION_NUM_OLD → admission, '
+							+ 'grooming and meal flags → check fields, WEIGHT/LMP preserved, BRANCH_NUM → Cost Center.\n\n'
+							+ 'Sample trans_num keys: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.new_records || 0,
+							counts.resolved_admissions || 0,
+							counts.skip_no_admission || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Sleeping Pattern'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Sleeping Pattern (IP_SLEEPING_PATTERN)'),
+				preview_method: 'healthcare.api.sleeping_pattern_import.preview_sleeping_pattern_import',
+				start_method: 'healthcare.api.data_migration_jobs.start_sleeping_pattern_import_migration',
+				job_key: 'sleeping_pattern_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Sleeping Pattern from IP_SLEEPING_PATTERN?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NO rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Rows with resolvable admission: {5}\n'
+							+ 'Rows missing admission: {6}\n'
+							+ 'Rows missing patient on admission: {7}\n\n'
+							+ 'Mapping: TRANS_NO → standalone Sleeping Pattern.trans_no, TRANS_DATE → date, '
+							+ 'ADMISSION_NUM/ADMISSION_NUM_OLD → admission_no, period columns → morning/evening/night datetimes, '
+							+ 'BRANCH_NUM → Cost Center, CR/UP audit fields preserved.\n'
+							+ 'This imports into the standalone Sleeping Pattern doctype, not Admission Detail.\n\n'
+							+ 'Sample trans_no keys: {8}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.new_records || 0,
+							counts.resolved_admissions || 0,
+							counts.skip_no_admission || 0,
+							counts.skip_no_patient || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Sick Leave — PATIENT_SICK_LEAVE_01'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Sick Leave (PATIENT_SICK_LEAVE_01)'),
@@ -1796,6 +1876,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('IP Service Return — SERVICE_RETURN_01 + 02'), () => {
+			open_service_return_ip_service_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient Adjustment Detail — PATIENT_ADJUSTMENT_02'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Patient Adjustment Detail (PATIENT_ADJUSTMENT_02)'),
@@ -1893,6 +1977,89 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.resolved_practitioners || 0,
 							counts.with_report_text || 0,
 							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('ECT Details - ECT 001'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('ECT Details (ECT_00_01)'),
+				preview_method: 'healthcare.api.ect_details_import.preview_ect_details_import',
+				start_method: 'healthcare.api.data_migration_jobs.start_ect_details_import_migration',
+				job_key: 'ect_details_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import ECT Details from ECT_00_01?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'Patients resolved: {4}\n'
+							+ 'Admissions resolved: {5}\n'
+							+ 'Visits resolved: {6}\n'
+							+ 'Practitioners resolved: {7}\n'
+							+ 'OP rows: {8}\n'
+							+ 'IP rows: {9}\n\n'
+							+ 'Mapping: TRANS_NUM → trans_num, TRANS_DATE/TIME → date/time, '
+							+ 'PATIENT_NUM → patient, VISIT_NUM or ADMISSION_NUM → reference_doctype/reference_name, '
+							+ 'CR_DATE kept on its own field, BRANCH_NUM → Cost Center. '
+							+ 'Missing legacy columns are stored on ECT Details.\n\n'
+							+ 'Sample trans_num keys: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_admissions || 0,
+							counts.resolved_visits || 0,
+							counts.resolved_practitioners || 0,
+							counts.op_rows || 0,
+							counts.ip_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('ECT Details Attribute - ECT 002'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('ECT Details Attribute (ECT_00_02)'),
+				preview_method: 'healthcare.api.ect_details_attribute_import.preview_ect_details_attribute_import',
+				start_method: 'healthcare.api.data_migration_jobs.start_ect_details_attribute_import_migration',
+				job_key: 'ect_details_attribute_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import ECT Details Attribute rows from ECT_00_02?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Parent TRANS_NUM groups: {2}\n'
+							+ 'Existing ECT Details parents: {3}\n'
+							+ 'Missing parent ECT Details: {4}\n'
+							+ 'Rows matching template attrib_num: {5}\n\n'
+							+ 'Mapping: TRANS_NUM → ECT Details.trans_num, ATTRIB_NUM → child attrib_num, '
+							+ 'ORDER_OF_ATTRIB → order_of_attrib, ATT_NOTES → att_notes. '
+							+ 'Parent template seeds the child rows first, then notes are filled by attrib_num.\n\n'
+							+ 'Sample trans_num keys: {6}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.parents || 0,
+							counts.existing_parents || 0,
+							counts.missing_parents || 0,
+							counts.matching_template_rows || 0,
+							(counts.sample_trans_nums || []).join(', ') || __('(none)'),
 						]
 					);
 				},
@@ -3324,6 +3491,188 @@ function open_ip_service_bundle_upload() {
 	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-service-bundle-status'));
 }
 
+function open_service_return_ip_service_upload() {
+	const files = {
+		header: null,
+		detail: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload both Service Return Excel files. SERVICE_RETURN_01 creates the parent IP Service return record; SERVICE_RETURN_02 lines become child rows in Services. The import ticks Return and keeps INV_NUM on each child line.'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('SERVICE_RETURN_01')} (${__('header / parent')})</td>
+						<td class="bundle-sr-header-status">${fileLabel(files.header)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-sr-header">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('SERVICE_RETURN_02')} (${__('detail / child rows')})</td>
+						<td class="bundle-sr-detail-status">${fileLabel(files.detail)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-sr-detail">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-sr-header').on('click', () => {
+			pickFile(__('SERVICE_RETURN_01 Excel'), (url) => {
+				files.header = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-sr-detail').on('click', () => {
+			pickFile(__('SERVICE_RETURN_02 Excel'), (url) => {
+				files.detail = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('IP Service Return — SERVICE_RETURN_01 + 02'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="service-return-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Preview & Import'),
+		primary_action() {
+			if (!files.header) {
+				frappe.msgprint({
+					title: __('Header file required'),
+					message: __('Please upload the SERVICE_RETURN_01 Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			if (!files.detail) {
+				frappe.msgprint({
+					title: __('Detail file required'),
+					message: __('Please upload the SERVICE_RETURN_02 Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.call({
+				method: 'healthcare.api.service_return_import.preview_service_return_import',
+				args: {
+					header_file_url: files.header,
+					detail_file_url: files.detail,
+				},
+				freeze: true,
+				freeze_message: __('Reading Excel files…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					const headerLines = Object.entries(counts.header_sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					const detailLines = Object.entries(counts.detail_sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Import Service Return into IP Service?\n\n'
+								+ 'Header rows (SERVICE_RETURN_01): {0}\n'
+								+ 'Header sheets:\n{1}\n\n'
+								+ 'Detail rows (SERVICE_RETURN_02): {2}\n'
+								+ 'Detail sheets:\n{3}\n\n'
+								+ 'Transactions: {4}\n'
+								+ 'Existing IP Service returns (will update): {5}\n'
+								+ 'New: {6}\n'
+								+ 'Patients resolved: {7}\n'
+								+ 'Transactions with detail lines: {8}\n'
+								+ 'Single linked return_ip_service: {9}\n'
+								+ 'Multiple return invoices: {10}\n'
+								+ 'Detail without header: {11}\n\n'
+								+ 'Mapping: SERVICE_RETURN_01 → IP Service parent, SERVICE_RETURN_02 → Services child table. '
+								+ 'INV_NUM is stored on child invoice_num and used for parent return_ip_service when there is a single source invoice. '
+								+ 'Return is ticked automatically. Import runs immediately.\n\n'
+								+ 'Sample trans_no keys: {12}\n\nContinue?',
+							[
+								counts.header_rows || 0,
+								headerLines || __('(none)'),
+								counts.detail_rows || 0,
+								detailLines || __('(none)'),
+								counts.transactions || 0,
+								counts.existing_records || 0,
+								counts.new_records || 0,
+								counts.resolvable_patients || 0,
+								counts.transactions_with_detail_lines || 0,
+								counts.transactions_with_linked_return_ip_service || 0,
+								counts.transactions_with_multiple_return_invoices || 0,
+								counts.detail_without_header || 0,
+								(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.service_return_import.run_service_return_import',
+								args: {
+									header_file_url: files.header,
+									detail_file_url: files.detail,
+								},
+								freeze: true,
+								freeze_message: __('Importing service returns…'),
+								callback(r) {
+									const result = r.message || {};
+									dialog.hide();
+									frappe.msgprint({
+										title: __('Import complete'),
+										message: __(
+											'Total: {0}\nCreated: {1}\nUpdated: {2}\nSkipped: {3}\nLinked return_ip_service: {4}\nMultiple return invoices: {5}\nErrors: {6}',
+											[
+												result.total || 0,
+												result.created || 0,
+												result.updated || 0,
+												result.skipped || 0,
+												result.linked_return_ip_service || 0,
+												result.multi_return_invoices || 0,
+												result.errors || 0,
+											]
+										),
+										indicator: result.errors ? 'orange' : 'green',
+									});
+								},
+							});
+						}
+					);
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.service-return-bundle-status'));
+}
+
 function poll_migration_status(jobKey) {
 	const poll = () => {
 		frappe.call({
@@ -3663,6 +4012,19 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'ip_grooming_chart_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped, {4} skipped (no admission), {5} skipped (no patient), {6} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skipped || 0,
+								s.skip_no_admission || 0,
+								s.skip_no_patient || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'ip_admission_transfer_bal_import') {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} skipped (no patient), {4} skipped (no new admission), {5} skipped (patient mismatch), {6} skipped (unmapped branch), {7} skipped (no trans date), {8} errors.',
@@ -3697,6 +4059,23 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} errors.',
 							[jobKey, s.created || 0, s.updated || 0, errN]
+						);
+					} else if (jobKey === 'ect_details_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped, {4} errors.',
+							[jobKey, s.created || 0, s.updated || 0, s.skipped || 0, errN]
+						);
+					} else if (jobKey === 'ect_details_attribute_import') {
+						msg = __(
+							'{0} finished: {1} parent record(s) updated, {2} child row(s) appended, {3} child row(s) filled, {4} skipped, {5} errors.',
+							[
+								jobKey,
+								s.updated || 0,
+								s.appended_rows || 0,
+								s.updated_rows || 0,
+								s.skipped || 0,
+								errN,
+							]
 						);
 					} else if (jobKey === 'patient_visit_prescription_his_import') {
 						msg = __(

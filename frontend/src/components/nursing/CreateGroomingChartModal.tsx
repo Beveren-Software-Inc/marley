@@ -9,7 +9,11 @@ import {
   CreateModalFooter,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createGroomingChart, type CreateGroomingChartInput } from '../../services/groomingCharts'
+import {
+  createGroomingChart,
+  getNextIPGroomingChartTransNum,
+  type CreateGroomingChartInput,
+} from '../../services/groomingCharts'
 import { fetchCostCenters, fetchInpatientAdmissions, fetchPatientVisits, syncCostCenterFromCareEpisode, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -265,7 +269,9 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
     setSaving(true)
     setError(null)
     try {
+      const transNum = await getNextIPGroomingChartTransNum()
       const payload: CreateGroomingChartInput = {
+        trans_num: transNum,
         date,
         file_no: patientId,
         patient_name: patientName || undefined,

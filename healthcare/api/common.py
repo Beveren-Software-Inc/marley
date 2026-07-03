@@ -3240,8 +3240,11 @@ def create_grooming_chart(data):
 			data = frappe.parse_json(data)
 
 		doc = frappe.new_doc("IP Grooming Chart")
+		doc.trans_num = (data.get("trans_num") or "").strip() or get_next_transaction_number(
+			"IP Grooming Chart", fieldname="trans_num"
+		)
 		allowed_fields = [
-			"date", "admission_no", "file_no", "patient_name", "cost_center",
+			"date", "admission_no", "file_no", "patient_name", "cost_center", "trans_num",
 			"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 			"change_clothes_noon", "shower", "bowel", "bed_wetting",
 			"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
@@ -3256,6 +3259,12 @@ def create_grooming_chart(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating grooming chart: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def get_next_ip_grooming_chart_trans_num():
+	"""Preview next trans_num for IP Grooming Chart."""
+	return get_next_transaction_number("IP Grooming Chart", fieldname="trans_num")
 
 
 @frappe.whitelist()

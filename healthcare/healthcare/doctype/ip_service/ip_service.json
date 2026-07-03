@@ -19,6 +19,8 @@
   "service_request",
   "practioner",
   "practitioner_name",
+  "return_ip_service",
+  "return",
   "section_break_services",
   "services",
   "section_break_totals",
@@ -269,13 +271,25 @@
    "fieldname": "field_1",
    "fieldtype": "Data",
    "label": "Field 1"
+  },
+  {
+   "fieldname": "return_ip_service",
+   "fieldtype": "Link",
+   "label": "Return IP Service",
+   "options": "IP Service"
+  },
+  {
+   "default": "0",
+   "fieldname": "return",
+   "fieldtype": "Check",
+   "label": "Return"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-01 23:32:39.237858",
+ "modified": "2026-07-04 02:20:14.039783",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Service",
