@@ -94,7 +94,7 @@ export const AdmissionList = ({
     setSelectedPatient,
   } = useCareContext()
 
-  const effectivePatient = patient ?? (contextPatient || undefined)
+  const effectivePatient = patient !== undefined ? (patient || undefined) : (contextPatient || undefined)
   // When IP mode has a specific admission selected globally, lock the list to that admission
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined

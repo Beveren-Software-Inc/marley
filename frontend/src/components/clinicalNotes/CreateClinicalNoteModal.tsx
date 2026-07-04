@@ -658,6 +658,7 @@ export const CreateClinicalNoteModal = ({
   const isOPMode = mode === 'OP' && !isIOPVisit
   const isIOPMode = mode === 'OP' && isIOPVisit
   const isVisitMode = mode === 'OP'
+  const admissionOptionalForThisNote = defaultClinicalNoteType === 'Doctor Progress Note'
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
@@ -753,7 +754,7 @@ export const CreateClinicalNoteModal = ({
     }
 
     // Validate based on global mode
-    if (isIPMode && !formData.admission_no) {
+    if (isIPMode && !admissionOptionalForThisNote && !formData.admission_no) {
       setError('Please select an inpatient admission (IP mode active)')
       return
     }
@@ -974,6 +975,9 @@ export const CreateClinicalNoteModal = ({
   // Get mode-specific help text
   const getModeHelpText = () => {
     if (isIPMode) {
+      if (admissionOptionalForThisNote) {
+        return `Creating doctor progress note in IP mode. Admission is optional${formData.admission_no ? `: ${formData.admission_no}` : ''}`
+      }
       return `Creating clinical note for IP admission: ${formData.admission_no || 'not selected yet'}`
     }
     if (isIOPMode) {
@@ -1126,7 +1130,7 @@ export const CreateClinicalNoteModal = ({
               {isIPMode && formData.patient && (
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Inpatient Admission <span className="text-red-500">*</span>
+                    Inpatient Admission {!admissionOptionalForThisNote ? <span className="text-red-500">*</span> : null}
                   </label>
                   {activeAdmission ? (
                     <div>
@@ -1142,7 +1146,7 @@ export const CreateClinicalNoteModal = ({
                     <select
                       value={formData.admission_no}
                       onChange={(e) => handleChange('admission_no', e.target.value)}
-                      required
+                      required={!admissionOptionalForThisNote}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     >
                       <option value="">— Select admission —</option>
@@ -1264,7 +1268,12 @@ export const CreateClinicalNoteModal = ({
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>Cancel</button>
             <button
               type="submit"
-              disabled={loading || (!isIPMode && !isVisitMode) || (isIPMode && !formData.admission_no) || (isVisitMode && !formData.patient_visit)}
+              disabled={
+                loading ||
+                (!isIPMode && !isVisitMode) ||
+                (isIPMode && !admissionOptionalForThisNote && !formData.admission_no) ||
+                (isVisitMode && !formData.patient_visit)
+              }
               className={CM_BTN_PRIMARY}
             >
               {loading ? 'Saving...' : 'Save Note'}
