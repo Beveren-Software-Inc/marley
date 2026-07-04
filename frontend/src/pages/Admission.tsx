@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { AdmissionList } from '../components/admissions/AdmissionList'
@@ -21,6 +21,7 @@ export const AdmissionPage = () => {
   const [showCreateAdmission, setShowCreateAdmission] = useState(false)
   const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
   const [listRefreshKey, setListRefreshKey] = useState(0)
+  const syncingPatientSelectionRef = useRef(false)
 
   // Sync searchQuery with URL
   useEffect(() => {
@@ -53,10 +54,16 @@ export const AdmissionPage = () => {
   }, [admissionFromUrl])
 
   useEffect(() => {
+    if (syncingPatientSelectionRef.current) {
+      if ((patientFromUrl || '') === selectedPatient) {
+        syncingPatientSelectionRef.current = false
+      }
+      return
+    }
     if (patientFromUrl && patientFromUrl !== selectedPatient) {
       setSelectedPatient(patientFromUrl)
     }
-  }, [patientFromUrl])
+  }, [patientFromUrl, selectedPatient])
 
   // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
   useEffect(() => {
@@ -66,7 +73,7 @@ export const AdmissionPage = () => {
       newSearchParams.delete('patient')
       setSearchParams(newSearchParams, { replace: true })
     }
-  }, [globalPatient])
+  }, [globalPatient, selectedPatient, searchParams, setSearchParams])
 
   // When used from Admission Management screens, we rely on the list's slide-over
   // instead of navigating to a separate details page, so this is a no-op.
@@ -147,7 +154,9 @@ export const AdmissionPage = () => {
           <div className="flex-1 min-w-0">
             <PatientSearch
               selectedPatient={selectedPatient}
+              skipStoredPatientRestore
               onPatientSelect={(patient) => {
+                syncingPatientSelectionRef.current = true
                 const value = patient || ''
                 setSelectedPatient(value)
                 setGlobalPatient(patient)
@@ -172,7 +181,7 @@ export const AdmissionPage = () => {
             onAdmissionSelect={handleAdmissionSelect}
             onPatientFromAdmission={handlePatientFromAdmission}
             searchQuery={searchQuery}
-            patient={selectedPatient || undefined}
+            patient={selectedPatient}
             refreshKey={listRefreshKey}
             onCreateNew={() => setShowCreateAdmission(true)}
           />
