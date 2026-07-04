@@ -86,11 +86,12 @@ export const ReceptionistPage = () => {
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
+  const patientFromUrl = searchParams.get('patient')
   const rawScreen = searchParams.get('screen')
   const dischargeAdmission = searchParams.get('discharge')
   const screen =
     rawScreen && !isReceptionScreenBlocked(rawScreen, costCenterCareScope, mode) ? rawScreen : null
-  const [selectedPatient, setSelectedPatient] = useState<string>(() => searchParams.get('patient') || globalPatient || '')
+  const [selectedPatient, setSelectedPatient] = useState<string>(() => patientFromUrl || globalPatient || '')
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
@@ -119,14 +120,28 @@ export const ReceptionistPage = () => {
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient || '')
     setGlobalPatient(patient)
+    const newSearchParams = new URLSearchParams(searchParams)
+    if (patient) {
+      newSearchParams.set('patient', patient)
+    } else {
+      newSearchParams.delete('patient')
+    }
+    setSearchParams(newSearchParams, { replace: true })
   }
+
+  useEffect(() => {
+    const patientParam = searchParams.get('patient')
+    if (patientParam && patientParam !== selectedPatient) {
+      setSelectedPatient(patientParam)
+    }
+  }, [searchParams, selectedPatient])
 
   // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
   useEffect(() => {
     if (!globalPatient && selectedPatient) {
       setSelectedPatient('')
     }
-  }, [globalPatient])
+  }, [globalPatient, selectedPatient])
 
   useLayoutEffect(() => {
     if (dischargeAdmission) return

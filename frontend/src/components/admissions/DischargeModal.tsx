@@ -3088,18 +3088,18 @@ const loadDailyVisitSetup = async () => {
                       <option value="">Select Discharge Type</option>
                       <option value="Home">Home</option>
                       <option value="Refer To Another Hospital">Refer To Another Hospital</option>
-                      <option value="AMA">AMA</option>
+                      <option value="DAMA">DAMA</option>
                     </select>
                   </div>
-                  {formData.discharge_type === 'AMA' && (
+                  {formData.discharge_type === 'DAMA' && (
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">AMA Type</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">DAMA Type</label>
                       <select
                         value={formData.ama_type}
                         onChange={(e) => setFormData({ ...formData, ama_type: e.target.value })}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="">Select AMA Type</option>
+                        <option value="">Select DAMA Type</option>
                         <option value="Refuse Admission">Refuse Admission</option>
                         <option value="Refuse Treatment / Procedure">Refuse Treatment / Procedure</option>
                         <option value="Discharge Against Medical Advice(DAMA)">Discharge Against Medical Advice (DAMA)</option>

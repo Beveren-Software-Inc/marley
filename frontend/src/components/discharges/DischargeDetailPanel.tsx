@@ -340,7 +340,7 @@ export function DischargeDetailPanel({
               </div>
               {doc?.ama_type ? (
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">AMA type</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">DAMA type</p>
                   <p className="mt-0.5 text-sm font-medium text-slate-900">{doc.ama_type}</p>
                 </div>
               ) : null}
