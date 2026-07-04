@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
@@ -138,6 +138,7 @@ export const DoctorPage = () => {
   const location = useLocation()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
+  const syncingPatientSelectionRef = useRef(false)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
@@ -246,16 +247,23 @@ export const DoctorPage = () => {
   // Sync selectedPatient with URL on mount and when URL changes
   useEffect(() => {
     const patientParam = searchParams.get('patient')
+    if (syncingPatientSelectionRef.current) {
+      if ((patientParam || undefined) === (selectedPatient || undefined)) {
+        syncingPatientSelectionRef.current = false
+      }
+      return
+    }
     if (patientParam && patientParam !== selectedPatient) {
       setSelectedPatient(patientParam)
     } else if (!patientParam && selectedPatient) {
       // Only clear if URL doesn't have patient param
       // Don't clear if we're just initializing
     }
-  }, [searchParams])
+  }, [searchParams, selectedPatient])
 
   // Ensure patient param is preserved when navigating to OP Visit or Admission screens
   useEffect(() => {
+    if (syncingPatientSelectionRef.current) return
     if (!selectedPatient) return
     if (screen === 'admission' || screen === 'op') {
       const currentPatient = searchParams.get('patient')
@@ -333,6 +341,7 @@ export const DoctorPage = () => {
   }, [location.state, location.pathname, navigate, searchParams])
 
   const handlePatientSelect = (patient: string | undefined) => {
+    syncingPatientSelectionRef.current = true
     setSelectedPatient(patient)
     setGlobalPatient(patient)
     const newSearchParams = new URLSearchParams(searchParams)

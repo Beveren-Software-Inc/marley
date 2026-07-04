@@ -413,7 +413,7 @@
    "options": "IP Patient Relative"
   },
   {
-   "depends_on": "eval: doc.discharge_type==\"AMA\"",
+   "depends_on": "eval: doc.discharge_type==\"DAMA\"",
    "fieldname": "ama_type",
    "fieldtype": "Link",
    "label": "DAMA Type",
