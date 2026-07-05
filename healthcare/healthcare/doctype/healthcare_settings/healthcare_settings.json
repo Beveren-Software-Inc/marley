@@ -673,7 +673,6 @@
   },
   {
    "default": "0",
-   "description": "When enabled, Data Maintenance can create Clinical Notes from Patient Visit encounter comments.",
    "fieldname": "active",
    "fieldtype": "Check",
    "label": "Active"
@@ -681,7 +680,7 @@
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-05 13:34:27.210317",
+ "modified": "2026-07-06 00:48:18.752163",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

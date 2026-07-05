@@ -286,23 +286,26 @@ function buildRoleHomePath(basePath: string, currentSearch: string): string {
 
 // ─── Sidebar nav styling ──────────────────────────────────────────────────────
 
-/** Keeps sidebar colors; active state uses a green border instead of fill. */
+/** Active items keep their normal sidebar fill; highlight with a thick green border. */
+const SIDEBAR_ACTIVE_BORDER = 'border-[3px] border-emerald-400'
+
 const SIDEBAR_LINK =
-  'flex-1 px-3 py-2 rounded-md bg-white/10 text-white border-2 border-transparent hover:bg-white/20'
-const SIDEBAR_LINK_ACTIVE = 'border-emerald-300 font-semibold'
+  'flex-1 px-3 py-2 rounded-md bg-white/10 text-white border-[3px] border-transparent hover:bg-white/20 transition-colors'
+const SIDEBAR_LINK_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-semibold`
 
 const SIDEBAR_GROUP =
-  'flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left text-white/80 border-2 border-transparent hover:bg-white/20'
-const SIDEBAR_GROUP_ACTIVE = 'bg-white/10 border-emerald-300 text-white'
+  'flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left text-white/80 border-[3px] border-transparent hover:bg-white/20'
+const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white`
 
 const SIDEBAR_SCREEN =
-  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border-2 border-transparent hover:bg-white/20'
-const SIDEBAR_SCREEN_ACTIVE = 'border-emerald-300 font-medium'
+  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border-[3px] border-transparent hover:bg-white/20 transition-colors'
+const SIDEBAR_SCREEN_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-medium`
 
 const OBSERVATION_SCREEN_IDS = new Set(['n-ob', 'r-observation', 'obs'])
 const OBSERVATION_GROUP_TITLES = new Set(['Observation & Monitoring', 'Observation'])
 /** Observation nav uses a filled green background when active (exception to border-only sidebar). */
-const SIDEBAR_OBSERVATION_ACTIVE = 'bg-green-200 text-emerald-900 border-emerald-400 font-medium'
+const SIDEBAR_OBSERVATION_ACTIVE =
+  'bg-green-200 text-emerald-900 border-[3px] border-emerald-500 font-medium'
 
 function sidebarScreenClass(screenId: string, isActive: boolean): string {
   if (!isActive) return SIDEBAR_SCREEN
@@ -312,8 +315,8 @@ function sidebarScreenClass(screenId: string, isActive: boolean): string {
   return `${SIDEBAR_SCREEN} ${SIDEBAR_SCREEN_ACTIVE}`
 }
 
-function sidebarGroupClass(groupTitle: string, isHighlighted: boolean): string {
-  if (!isHighlighted) return SIDEBAR_GROUP
+function sidebarGroupClass(groupTitle: string, isActive: boolean): string {
+  if (!isActive) return SIDEBAR_GROUP
   if (OBSERVATION_GROUP_TITLES.has(groupTitle)) {
     return `${SIDEBAR_GROUP} ${SIDEBAR_OBSERVATION_ACTIVE}`
   }
@@ -475,7 +478,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">
                           <button
                             onClick={() => toggleGroup(link.to, group.groupTitle)}
-                            className={sidebarGroupClass(group.groupTitle, groupExpanded || groupIsActive)}
+                            className={sidebarGroupClass(group.groupTitle, groupIsActive)}
                           >
                             <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
                             <span className="flex-1 truncate">{group.groupTitle}</span>

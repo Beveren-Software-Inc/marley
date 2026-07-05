@@ -11,9 +11,9 @@ export function SidebarCareModePicker() {
   if (!showOp && !showIp) return null
 
   const pillClass = (active: boolean) =>
-    `flex-1 rounded-md px-3 py-2 text-sm font-semibold border-2 transition-colors ${
+    `flex-1 rounded-md px-3 py-2 text-sm font-semibold border-[3px] transition-colors ${
       active
-        ? 'bg-white/10 text-white border-emerald-300'
+        ? 'bg-white/10 text-white border-emerald-400'
         : 'bg-white/10 text-white border-transparent hover:bg-white/20'
     }`
 
