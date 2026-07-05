@@ -109,6 +109,8 @@ interface CareContextValue {
   applyOpCareContext: (opts: { patient?: string; visit: string; visitLabel?: string }) => void
   /** Select IP mode with patient + admission in the header (shared by admission/discharge links). */
   applyIpCareContext: (opts: { patient?: string; admission: string; admissionLabel?: string }) => void
+  /** Reload branch / company context after navbar branch switch. */
+  refreshUserCostCenter: () => Promise<void>
   /** True when Healthcare Settings.lock_editing_data is enabled. */
   lockEditingData: boolean
   editingLockMessage?: string
@@ -243,28 +245,33 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   )
 
   // Load user branch and roles when component mounts
+  const refreshUserCostCenter = useCallback(async () => {
+    try {
+      const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
+      if (response.ok) {
+        const data = await response.json()
+        const msg = data.message || {}
+        setUserCostCenter(msg.cost_center || undefined)
+        setCostCenterCompany(
+          typeof msg.company === 'string' && msg.company.trim()
+            ? msg.company.trim()
+            : undefined,
+        )
+        setCostCenterPatientCareType(
+          typeof msg.cost_center_patient_care_type === 'string'
+            ? msg.cost_center_patient_care_type
+            : ''
+        )
+      }
+    } catch (error) {
+      console.warn('Failed to refresh user cost center:', error)
+    }
+  }, [])
+
   useEffect(() => {
     const loadUserContext = async () => {
       try {
-        // Load branch
-        const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
-        if (response.ok) {
-          const data = await response.json()
-          const msg = data.message || {}
-          setUserCostCenter(msg.cost_center || undefined)
-          setCostCenterCompany(
-            typeof msg.company === 'string' && msg.company.trim()
-              ? msg.company.trim()
-              : undefined,
-          )
-          setCostCenterPatientCareType(
-            typeof msg.cost_center_patient_care_type === 'string'
-              ? msg.cost_center_patient_care_type
-              : ''
-          )
-        }
-
-        // Load user info including roles (GET avoids CSRF; POST to frappe user.get_roles fails without X-Frappe-CSRF-Token)
+        await refreshUserCostCenter()
         const userResponse = await fetch('/api/method/frappe.auth.get_logged_user', {
           credentials: 'include',
           headers: { Accept: 'application/json' },
@@ -310,7 +317,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       window.removeEventListener('focus', refreshEditingLock)
     }
-  }, [])
+  }, [refreshUserCostCenter])
 
   useEffect(() => {
     setEditingLockState(lockEditingData, editingLockMessage)
@@ -443,6 +450,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       editingLockMessage,
       applyOpCareContext,
       applyIpCareContext,
+      refreshUserCostCenter,
     }),
     [
       mode,
@@ -467,6 +475,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       editingLockMessage,
       applyOpCareContext,
       applyIpCareContext,
+      refreshUserCostCenter,
     ],
   )
 

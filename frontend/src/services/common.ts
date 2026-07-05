@@ -465,14 +465,16 @@ export async function fetchLabTestTemplates(
 
   const url = `/api/method/healthcare.api.common.get_lab_test_templates${params.toString() ? `?${params.toString()}` : ''}`
   
-  const response = await fetch(url)
+  const response = await fetch(url, { credentials: 'include' })
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LabTestTemplateOption[]
-  } else {
-    return []
   }
+  if (resData?.exc || resData?.exception) {
+    throw new Error(resData?.message || 'Failed to load lab test templates')
+  }
+  return []
 }
 
 export async function fetchClinicalNoteTypes(search?: string): Promise<LinkFieldOption[]> {
@@ -1582,6 +1584,7 @@ export async function linkPatientToInsuranceRegister(registerName: string, patie
 export interface LabTestTemplateListRow {
   name: string
   lab_test_name: string
+  lab_test_code?: string
   department: string
   lab_test_template_type: string
   is_group: number
@@ -1602,10 +1605,9 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
   if (search) params.append('search', search)
 
   const url = `/api/method/healthcare.api.common.get_lab_test_templates_admin_list${params.toString() ? `?${params.toString()}` : ''}`
-  const response = await fetch(url)
+  const response = await fetch(url, { credentials: 'include' })
   const resData = await response.json()
 
-  console.log('fetchLabTestTemplateList response:', resData)
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as LabTestTemplateListRow[]
   }

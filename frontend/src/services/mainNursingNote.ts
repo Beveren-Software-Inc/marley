@@ -102,7 +102,11 @@ export async function createMainNursingNote(
 
 export type UpdateMainNursingNoteInput = {
   name: string
-  append_notes: string
+  /** Full replacement text for nursing_notes */
+  nursing_notes?: string
+  /** Append-only text (legacy); ignored when replace_notes is true */
+  append_notes?: string
+  replace_notes?: boolean
   time?: string
 }
 

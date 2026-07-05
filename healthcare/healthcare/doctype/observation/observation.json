@@ -131,7 +131,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Registered\nPreliminary\nFinal\nAmended\nCorrected\nCancelled\nEntered in Error\nUnknown\nApproved\nRejected",
+   "options": "Registered\nPreliminary\nFinal\nAmended\nCorrected\nActive\nCancelled\nEntered in Error\nUnknown\nApproved\nRejected\nInactive",
    "read_only_depends_on": "eval:doc.docstatus==1;"
   },
   {
@@ -599,6 +599,7 @@
    "label": "Start Date"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "dc_date",
    "fieldtype": "Datetime",
    "label": "DC Date"
@@ -717,7 +718,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-06-10 02:02:21.745327",
+ "modified": "2026-07-05 11:31:12.767725",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation",

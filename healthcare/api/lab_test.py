@@ -396,8 +396,97 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 
 def _group_scope_filters(filters):
 	"""Scope filters for fetching all siblings in a grouped lab request (no status/date)."""
-	scope_keys = ("patient", "practitioner", "cost_center", "template", "is_outsourced", "docstatus")
+	scope_keys = (
+		"patient",
+		"practitioner",
+		"cost_center",
+		"template",
+		"lab_test_group",
+		"is_outsourced",
+		"docstatus",
+	)
 	return {key: filters[key] for key in scope_keys if key in filters}
+
+
+def _nurse_lab_test_template_names(by_nurse):
+	"""Templates allowed when filtering by Lab Test Template.by_nurse. None = no nurse filter."""
+	if by_nurse is None:
+		return None
+	if isinstance(by_nurse, str):
+		by_nurse = by_nurse.lower() in ("1", "true", "yes")
+	return frappe.get_all(
+		"Lab Test Template",
+		filters={"by_nurse": 1 if by_nurse else 0},
+		pluck="name",
+	)
+
+
+def _build_template_match_or_filters(template):
+	"""OR conditions on Lab Test for a template filter (doc name or test name)."""
+	if frappe.db.exists("Lab Test Template", template):
+		is_group = cint(frappe.db.get_value("Lab Test Template", template, "is_group") or 0)
+		if is_group:
+			return [
+				["template", "=", template],
+				["lab_test_group", "=", template],
+			]
+		label = (frappe.db.get_value("Lab Test Template", template, "lab_test_name") or "").strip()
+		or_filters = [["template", "=", template]]
+		if label and label != template:
+			or_filters.append(["lab_test_name", "=", label])
+		return or_filters
+	return [
+		["template", "=", template],
+		["lab_test_name", "=", template],
+	]
+
+
+def _apply_lab_test_template_list_filter(filters, template, nurse_templates=None):
+	"""Apply template filter. Returns (or_filters, is_empty)."""
+	if not template:
+		if nurse_templates is not None:
+			if not nurse_templates:
+				return [], True
+			filters["template"] = ["in", nurse_templates]
+		return [], False
+
+	if nurse_templates is not None:
+		nurse_set = set(nurse_templates)
+		if frappe.db.exists("Lab Test Template", template):
+			if template not in nurse_set:
+				return [], True
+		else:
+			nurse_labels = {
+				(frappe.db.get_value("Lab Test Template", name, "lab_test_name") or name).strip()
+				for name in nurse_templates
+			}
+			if template not in nurse_labels:
+				return [], True
+
+	return _build_template_match_or_filters(template), False
+
+
+@frappe.whitelist()
+def get_lab_test_template_filter_options(search=None, patient=None, by_nurse=None):
+	"""Template picker for Lab Test listing — same master list as Lab Test Templates tab."""
+	from healthcare.api.common import get_lab_test_templates, get_lab_test_templates_admin_list
+
+	if by_nurse is not None:
+		if isinstance(by_nurse, str):
+			by_nurse = by_nurse.lower() in ("1", "true", "yes")
+		if by_nurse:
+			rows = get_lab_test_templates(search=search, by_nurse=True)
+			return [{"name": r["name"], "label": r.get("label") or r["name"]} for r in rows]
+
+	rows = get_lab_test_templates_admin_list(search=search)
+	return [
+		{
+			"name": row.name,
+			"label": row.lab_test_name or row.name,
+			"lab_test_code": getattr(row, "lab_test_code", None),
+		}
+		for row in rows
+	]
 
 
 def _expand_grouped_lab_test_siblings(lab_tests, filters):
@@ -461,20 +550,12 @@ def get_lab_tests(
 			is_outsourced = is_outsourced == "1"
 		filters["is_outsourced"] = 1 if is_outsourced else 0
 
-	if template:
-		filters["template"] = template
-
-	# Filter by nurse-specific lab tests based on template's by_nurse field
-	if by_nurse is not None:
-		if isinstance(by_nurse, str):
-			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
-		# Get templates that have by_nurse set to the desired value
-		template_filters = {"by_nurse": 1 if by_nurse else 0}
-		nurse_templates = frappe.get_all("Lab Test Template", filters=template_filters, pluck="name")
-		if nurse_templates:
-			filters["template"] = ["in", nurse_templates]
-		else:
-			return {"data": [], "total_count": 0}
+	nurse_templates = _nurse_lab_test_template_names(by_nurse)
+	or_filters, template_empty = _apply_lab_test_template_list_filter(
+		filters, template, nurse_templates
+	)
+	if template_empty:
+		return {"data": [], "total_count": 0}
 
 	# OP / IP filter based on inpatient_record link (legacy; prefer practitioner filter in portal)
 	if patient_type == "IP":
@@ -501,11 +582,20 @@ def get_lab_tests(
 			return {"data": [], "total_count": 0}
 		filters["cost_center"] = ["in", permitted_cc]
 
-	total_count = len(frappe.get_all("Lab Test", filters=filters, fields=["name"], limit=0))
+	total_count = len(
+		frappe.get_all(
+			"Lab Test",
+			filters=filters,
+			or_filters=or_filters or None,
+			fields=["name"],
+			limit=0,
+		)
+	)
 
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters=filters,
+		or_filters=or_filters or None,
 		fields=_LAB_TEST_LIST_FIELDS,
 		limit=limit,
 		limit_start=offset,

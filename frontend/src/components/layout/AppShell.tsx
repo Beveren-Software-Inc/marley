@@ -4,6 +4,7 @@ import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
 import { UserMenu } from '../user/UserMenu'
 import { AppShellContext } from '../../contexts/AppShellContext'
+import { BranchSelector } from './BranchSelector'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { SidebarCareModePicker } from './SidebarCareModePicker'
 import { doctorScreenGroups } from '../../config/doctorScreens'
@@ -283,6 +284,42 @@ function buildRoleHomePath(basePath: string, currentSearch: string): string {
   return qs ? `${basePath}?${qs}` : basePath
 }
 
+// ─── Sidebar nav styling ──────────────────────────────────────────────────────
+
+/** Keeps sidebar colors; active state uses a green border instead of fill. */
+const SIDEBAR_LINK =
+  'flex-1 px-3 py-2 rounded-md bg-white/10 text-white border-2 border-transparent hover:bg-white/20'
+const SIDEBAR_LINK_ACTIVE = 'border-emerald-300 font-semibold'
+
+const SIDEBAR_GROUP =
+  'flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left text-white/80 border-2 border-transparent hover:bg-white/20'
+const SIDEBAR_GROUP_ACTIVE = 'bg-white/10 border-emerald-300 text-white'
+
+const SIDEBAR_SCREEN =
+  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border-2 border-transparent hover:bg-white/20'
+const SIDEBAR_SCREEN_ACTIVE = 'border-emerald-300 font-medium'
+
+const OBSERVATION_SCREEN_IDS = new Set(['n-ob', 'r-observation', 'obs'])
+const OBSERVATION_GROUP_TITLES = new Set(['Observation & Monitoring', 'Observation'])
+/** Observation nav uses a filled green background when active (exception to border-only sidebar). */
+const SIDEBAR_OBSERVATION_ACTIVE = 'bg-green-200 text-emerald-900 border-emerald-400 font-medium'
+
+function sidebarScreenClass(screenId: string, isActive: boolean): string {
+  if (!isActive) return SIDEBAR_SCREEN
+  if (OBSERVATION_SCREEN_IDS.has(screenId)) {
+    return `${SIDEBAR_SCREEN} ${SIDEBAR_OBSERVATION_ACTIVE}`
+  }
+  return `${SIDEBAR_SCREEN} ${SIDEBAR_SCREEN_ACTIVE}`
+}
+
+function sidebarGroupClass(groupTitle: string, isHighlighted: boolean): string {
+  if (!isHighlighted) return SIDEBAR_GROUP
+  if (OBSERVATION_GROUP_TITLES.has(groupTitle)) {
+    return `${SIDEBAR_GROUP} ${SIDEBAR_OBSERVATION_ACTIVE}`
+  }
+  return `${SIDEBAR_GROUP} ${SIDEBAR_GROUP_ACTIVE}`
+}
+
 // ─── AppShell ─────────────────────────────────────────────────────────────────
 
 export const AppShell = ({ children }: { children: ReactNode }) => {
@@ -419,9 +456,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     to={buildRoleHomePath(link.to, location.search)}
                     onClick={closeSidebar}
                     className={({ isActive }) =>
-                      `flex-1 px-3 py-2 rounded-md ${
-                        isActive ? 'bg-green-200 text-primary' : 'bg-white/10 hover:bg-white/20'
-                      }`
+                      `${SIDEBAR_LINK} ${isActive ? SIDEBAR_LINK_ACTIVE : ''}`
                     }
                   >
                     {link.label}
@@ -434,16 +469,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.screenGroups.map((group) => {
                       const groupKey      = `${link.to}||${group.groupTitle}`
                       const groupExpanded = expandedGroups.has(groupKey)
+                      const groupIsActive = group.screens.some((s) => s.id === activeScreen)
 
                       return (
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">
                           <button
                             onClick={() => toggleGroup(link.to, group.groupTitle)}
-                            className={`flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left ${
-                              groupExpanded
-                                ? 'bg-green-200 text-primary'
-                                : 'text-white/80 hover:bg-white/20'
-                            }`}
+                            className={sidebarGroupClass(group.groupTitle, groupExpanded || groupIsActive)}
                           >
                             <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
                             <span className="flex-1 truncate">{group.groupTitle}</span>
@@ -459,11 +491,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                   key={s.id}
                                   to={buildScreenPath(link.to, s.id, location.search)}
                                   onClick={closeSidebar}
-                                  className={
-                                    activeScreen === s.id
-                                      ? 'px-3 py-1.5 rounded-md text-xs bg-green-200 text-primary font-medium'
-                                      : 'px-3 py-1.5 rounded-md text-xs bg-white/10 hover:bg-white/20'
-                                  }
+                                  className={sidebarScreenClass(s.id, activeScreen === s.id)}
                                 >
                                   {s.title}
                                 </NavLink>
@@ -484,11 +512,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         key={s.id}
                         to={buildScreenPath(link.to, s.id, location.search)}
                         onClick={closeSidebar}
-                        className={
-                          activeScreen === s.id
-                            ? 'px-3 py-1.5 rounded-md bg-green-200 text-primary font-medium'
-                            : 'px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20'
-                        }
+                        className={sidebarScreenClass(s.id, activeScreen === s.id)}
                       >
                         {s.title}
                       </NavLink>
@@ -502,6 +526,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
         {/* Mobile: account & notifications — least important, pinned to bottom */}
         <div className="md:hidden mt-auto shrink-0 border-t border-white/10 px-3 py-3 flex flex-col gap-2">
+          <BranchSelector placement="sidebar" />
           <UserMenu placement="sidebar" />
           <NotificationBell placement="sidebar" />
         </div>

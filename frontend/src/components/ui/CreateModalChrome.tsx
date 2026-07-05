@@ -63,6 +63,14 @@ export const CM_BTN_CANCEL =
 export const CM_BTN_PRIMARY =
   'rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-600/30 transition hover:from-emerald-500 hover:to-teal-500 disabled:cursor-not-allowed disabled:opacity-50'
 
+/** White save / submit — green border (not theme `primary`, which is blue). */
+export const CM_BTN_OUTLINE_SAVE =
+  'rounded-lg border-2 border-emerald-600 bg-white px-5 py-2.5 text-sm font-semibold text-emerald-700 shadow-sm transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50'
+
+/** White cancel — red border */
+export const CM_BTN_OUTLINE_CANCEL =
+  'rounded-lg border-2 border-red-500 bg-white px-4 py-2.5 text-sm font-medium text-red-600 shadow-sm transition hover:bg-red-50 disabled:opacity-50'
+
 /** Standard text field — emerald hover/focus (matches Create Prescription / link combobox) */
 export const MODAL_FIELD_CLASS =
   'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500'

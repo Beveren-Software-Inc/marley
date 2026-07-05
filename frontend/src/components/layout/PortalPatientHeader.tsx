@@ -1,6 +1,5 @@
 import { PatientSearch } from '../patients/PatientSearch'
-import { NotificationBell } from '../notifications/NotificationBell'
-import { UserMenu } from '../user/UserMenu'
+import { NavbarActions } from './NavbarActions'
 import { MobileNavMenuButton } from './MobileNavMenuButton'
 
 type PortalPatientHeaderProps = {
@@ -43,10 +42,7 @@ export function PortalPatientHeader({
             skipStoredPatientRestore={skipStoredPatientRestore}
           />
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu placement="header" />
-          <NotificationBell placement="header" />
-        </div>
+        <NavbarActions placement="header" />
       </header>
     </>
   )

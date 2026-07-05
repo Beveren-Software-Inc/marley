@@ -1036,7 +1036,7 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-visible">
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               <LabTestList
                 patient={selectedPatient}
@@ -1087,7 +1087,7 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
+          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-visible">
             <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
               <LabTestList
                 patient={selectedPatient}

@@ -1,7 +1,6 @@
 import { useParams, useNavigate } from 'react-router-dom'
 import { PatientVisitDetails } from '../components/patientVisits/PatientVisitDetails'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 
 /**
  * Standalone page for a single Patient Visit (by route /patient-visit/:visitName).
@@ -33,10 +32,7 @@ export const PatientVisitDetailPage = () => {
           </button>
           <h1 className="text-lg font-semibold">Patient Visit: {visitName}</h1>
         </div>
-        <div className="flex items-center gap-3">
-          <UserMenu />
-          <NotificationBell />
-        </div>
+        <NavbarActions placement="header" />
       </header>
 
       <div className="flex-1 overflow-y-auto p-4">

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import {
-  CM_BTN_CANCEL,
-  CM_BTN_PRIMARY,
+  CM_BTN_OUTLINE_CANCEL,
+  CM_BTN_OUTLINE_SAVE,
   CREATE_MODAL_BODY_GRADIENT,
   CREATE_MODAL_OVERLAY,
   CreateModalFooter,
@@ -101,10 +101,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     }
 
     // Validate based on global mode
-    if (isIPMode && !formData.admission_no) {
-      setError('Please select an inpatient admission (IP mode active)')
-      return
-    }
     if (isOPMode && !formData.patient_visit) {
       setError('Please select a patient visit (OP mode active)')
       return
@@ -508,7 +504,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   // Get mode-specific help text
   const getModeHelpText = () => {
     if (isIPMode) {
-      return `Creating observation for IP admission: ${formData.admission_no || 'not selected yet'}`
+      return `Creating observation in IP mode${formData.admission_no ? ` · admission ${formData.admission_no}` : ''}`
     }
     if (isOPMode) {
       return `Creating observation for OP visit: ${visitLabel || formData.patient_visit || 'not selected yet'}`
@@ -553,7 +549,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </p>
             <p className="text-xs text-slate-600">
               {isIPMode 
-                ? `The observation will be linked to the selected inpatient admission. Make sure you have an admission selected below.`
+                ? `Link an inpatient admission when available, or leave blank. Room is still required for IP observations.`
                 : isOPMode
                 ? `The observation will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
                 : 'Please select either IP or OP mode from the top navbar before creating an observation.'
@@ -736,7 +732,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             {isIPMode && (
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Admission No <span className="text-red-500">*</span>
+                  Admission No
                 </label>
                 <div className="relative" data-filter-dropdown>
                   {activeAdmission ? (
@@ -969,13 +965,17 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
           </div>
 
           <CreateModalFooter>
-            <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
+            <button
+              type="button"
+              onClick={onClose}
+              className={CM_BTN_OUTLINE_CANCEL}
+            >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && (!formData.admission_no || !formData.room)) || (isOPMode && !formData.patient_visit)}
-              className={CM_BTN_PRIMARY}
+              disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.room) || (isOPMode && !formData.patient_visit)}
+              className={CM_BTN_OUTLINE_SAVE}
             >
               {loading ? 'Creating...' : 'Create Observation'}
             </button>

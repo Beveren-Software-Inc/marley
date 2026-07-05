@@ -347,7 +347,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
       return
     }
 
-    if (!window.confirm('Create sales order for today\'s medicine consumption? This will reduce stock from the admission branch warehouse.')) {
+    if (!window.confirm('Create Service Bill for today\'s medicine consumption? This will reduce stock from the admission branch warehouse.')) {
       return
     }
 
@@ -363,7 +363,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
       const refreshed = await fetchMedicineGiven(admission.name, 100, 0)
       setRows(refreshed)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Failed to create sales order'
+      const msg = e instanceof Error ? e.message : 'Failed to create Service Bill'
       toast.error(msg)
     } finally {
       setCreatingSalesOrder(false)
@@ -447,14 +447,14 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
             onClick={handleCreateSalesOrder}
             disabled={creatingSalesOrder}
             className={`${iconToolbarBtn} text-blue-700 border-blue-200/80 hover:bg-blue-50`}
-            title="Create sales order for today's medicine consumption (draft; reduces stock from warehouse)"
+            title="Create Service Bill for today's medicine consumption (draft; reduces stock from warehouse)"
           >
             {creatingSalesOrder ? (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
             ) : (
               <ShoppingCart className="h-4 w-4" aria-hidden />
             )}
-            <span className="sr-only">Create sales order</span>
+            <span className="sr-only">Create Service Bill</span>
           </button>
           <PrintFormatDropdown
             doctype="Admission Detail"

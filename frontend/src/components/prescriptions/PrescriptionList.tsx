@@ -279,7 +279,7 @@ export const PrescriptionList = ({
       // Inform user and keep SO in draft for pharmacy to edit
       toast.success(`Sales Order ${res.sales_order} created as Draft`)
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create Sales Order'
+      const msg = err instanceof Error ? err.message : 'Failed to create Service Bill'
       toast.error(msg)
     } finally {
       setActionLoading(null)
@@ -672,7 +672,7 @@ export const PrescriptionList = ({
                           onClick={() => handleCreateSalesOrder(row)}
                           className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                         >
-                          {actionLoading === row.name ? 'Creating Sales Order…' : 'Create Sales Order'}
+                          {actionLoading === row.name ? 'Creating Service Bill…' : 'Create Service Bill'}
                         </button>
                       )}
                     </PortalActionsMenu>

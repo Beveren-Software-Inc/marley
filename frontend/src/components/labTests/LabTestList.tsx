@@ -1696,8 +1696,10 @@ import {
   fetchDocumentTypes,
   fetchHealthcarePractitioners,
   fetchLabTechnicianPractitioners,
+  fetchLabTestTemplateList,
   fetchLabTestTemplates,
   getCurrentUserPractitioner,
+  type LabTestTemplateListRow,
   type LinkFieldOption,
 } from '../../services/common'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
@@ -1906,6 +1908,16 @@ const simplifyResultFlagLabel = (flag: string): string => {
 
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
 
+const templateRowMatchesQuery = (row: LabTestTemplateListRow, query: string): boolean => {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  return (
+    row.name.toLowerCase().includes(q) ||
+    (row.lab_test_name || '').toLowerCase().includes(q) ||
+    (row.lab_test_code || '').toLowerCase().includes(q)
+  )
+}
+
 const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   filters: Filters; onChange: (f: Filters) => void; onClear: () => void; activeCount: number
   /** When true, template search only lists Lab Test Templates with by_nurse set */
@@ -1913,21 +1925,71 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
 }) => {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
   const [templateQuery, setTemplateQuery] = useState('')
-  const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
+  const [allTemplates, setAllTemplates] = useState<LabTestTemplateListRow[]>([])
+  const [templateLoadState, setTemplateLoadState] = useState<'idle' | 'loading' | 'done'>('idle')
   const [templateOpen, setTemplateOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const templateRef = useRef<HTMLDivElement>(null)
+  const practitionerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (!templateOpen) return
-    const t = setTimeout(async () => {
-      try {
-        setTemplateOptions(await fetchLabTestTemplates(templateQuery || undefined, undefined, byNurse))
-      } catch { setTemplateOptions([]) }
-    }, templateQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [templateOpen, templateQuery, byNurse])
+    const onMouseDown = (event: MouseEvent) => {
+      if (templateRef.current && !templateRef.current.contains(event.target as Node)) {
+        setTemplateOpen(false)
+      }
+      if (practitionerRef.current && !practitionerRef.current.contains(event.target as Node)) {
+        setPractitionerOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onMouseDown)
+    return () => document.removeEventListener('mousedown', onMouseDown)
+  }, [])
+
+  useEffect(() => {
+    if (!templateOpen || templateLoadState !== 'idle') return
+    setTemplateLoadState('loading')
+    const load = byNurse
+      ? fetchLabTestTemplates(undefined, undefined, true).then((rows) =>
+          rows.map((row) => ({
+            name: row.name,
+            lab_test_name: row.label || row.name,
+            lab_test_code: '',
+            department: row.department || '',
+            lab_test_template_type: '',
+            is_group: 0,
+            is_billable: 0,
+            disabled: 0,
+            female_min_range: '',
+            female_max_range: '',
+            male_min_range: '',
+            male_max_range: '',
+            min_range: '',
+            max_range: '',
+            lab_test_uom: '',
+            lab_test_rate: 0,
+          } satisfies LabTestTemplateListRow)),
+        )
+      : fetchLabTestTemplateList()
+    load
+      .then((rows) => {
+        setAllTemplates(rows)
+        setTemplateLoadState('done')
+      })
+      .catch(() => {
+        setAllTemplates([])
+        setTemplateLoadState('done')
+      })
+  }, [templateOpen, templateLoadState, byNurse])
+
+  const filteredTemplates = useMemo(
+    () => allTemplates.filter((row) => templateRowMatchesQuery(row, templateQuery)).slice(0, 50),
+    [allTemplates, templateQuery],
+  )
+
+  const templateLoading = templateLoadState === 'loading'
+  const templateHasFetched = templateLoadState === 'done'
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -1940,7 +2002,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   }, [practitionerOpen, practitionerQuery])
 
   return (
-    <div className="flex flex-wrap items-end gap-3 px-4 py-2 bg-white border-b border-slate-200">
+    <div className="relative z-20 flex flex-wrap items-end gap-3 px-4 py-2 bg-white border-b border-slate-200 overflow-visible">
       <div className="flex flex-col gap-1 min-w-[160px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
         <div className="relative">
@@ -1962,7 +2024,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
         <input type="date" value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
-      <div className="flex flex-col gap-1 min-w-[200px] relative">
+      <div className="flex flex-col gap-1 min-w-[200px] relative" ref={practitionerRef}>
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Practitioner</label>
         <div className="relative">
           <input
@@ -2022,12 +2084,12 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
       </div>
-      <div className="flex flex-col gap-1 min-w-[200px] relative">
+      <div className="flex flex-col gap-1 min-w-[200px] relative z-30" ref={templateRef}>
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Lab Test Template</label>
         <div className="relative">
           <input type="text" value={filters.template ? filters.templateLabel : templateQuery}
             onChange={(e) => { setTemplateQuery(e.target.value); onChange({ ...filters, template: '', templateLabel: '' }); setTemplateOpen(true) }}
-            onFocus={() => setTemplateOpen(true)} placeholder="Search lab test template..."
+            onFocus={() => setTemplateOpen(true)} placeholder="Search template ID or name…"
             className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
           {filters.template && (
             <button type="button" onClick={() => { setTemplateQuery(''); onChange({ ...filters, template: '', templateLabel: '' }) }}
@@ -2037,16 +2099,40 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           )}
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
-        {templateOpen && templateOptions.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
-            {templateOptions.map((opt) => (
-              <button key={opt.name} type="button"
-                onClick={() => { onChange({ ...filters, template: opt.name, templateLabel: opt.label || opt.name }); setTemplateQuery(''); setTemplateOpen(false) }}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
-                <div className="font-medium text-slate-800">{opt.label || opt.name}</div>
-                {opt.label && opt.label !== opt.name && <div className="text-xs text-slate-500">{opt.name}</div>}
-              </button>
-            ))}
+        {templateOpen && (
+          <div className="absolute z-50 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+            {templateLoading || !templateHasFetched ? (
+              <div className="px-3 py-2 text-sm text-slate-500">Loading templates…</div>
+            ) : filteredTemplates.length > 0 ? (
+              filteredTemplates.map((row) => (
+                <button key={row.name} type="button"
+                  onClick={() => {
+                    onChange({
+                      ...filters,
+                      template: row.name,
+                      templateLabel: row.lab_test_name || row.name,
+                    })
+                    setTemplateQuery('')
+                    setTemplateOpen(false)
+                  }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none">
+                  <div className="font-medium text-slate-800">{row.lab_test_name || row.name}</div>
+                  {(row.lab_test_name && row.lab_test_name !== row.name) || row.lab_test_code ? (
+                    <div className="text-xs text-slate-500">
+                      {[row.name !== (row.lab_test_name || row.name) ? row.name : '', row.lab_test_code]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </div>
+                  ) : null}
+                </button>
+              ))
+            ) : (
+              <div className="px-3 py-2 text-sm text-slate-500">
+                {templateQuery.trim()
+                  ? `No template matches “${templateQuery.trim()}”`
+                  : 'No lab test templates available'}
+              </div>
+            )}
           </div>
         )}
       </div>
