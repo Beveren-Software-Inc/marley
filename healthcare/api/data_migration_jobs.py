@@ -879,6 +879,95 @@ def start_clinical_note_type_from_flag_migration() -> dict:
 
 
 @frappe.whitelist()
+def start_patient_visit_encounter_comment_clinical_note_migration() -> dict:
+	"""Create Doctor Progress Notes from Patient Visit.encounter_comment (non-empty only)."""
+	_require_admin()
+	from healthcare.api.patient_visit_encounter_comment_clinical_note import (
+		preview_patient_visit_encounter_comment_clinical_note,
+	)
+
+	job = "patient_visit_encounter_comment_clinical_note"
+	preview = preview_patient_visit_encounter_comment_clinical_note()
+	if not cint(preview.get("total_with_comment")):
+		return {
+			"ok": True,
+			"message": _("No Patient Visits with encounter_comment found."),
+		}
+
+	_acquire_lock(job)
+	_set_progress(
+		job,
+		0,
+		total_with_comment=preview.get("total_with_comment"),
+		already_linked=preview.get("already_linked"),
+		to_create=preview.get("to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_visit_encounter_comment_clinical_note_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_visit_encounter_comment_clinical_note",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient Visit encounter_comment → Clinical Note job started ({0} visits with comment, {1} to create, {2} already linked)."
+		).format(
+			preview.get("total_with_comment") or 0,
+			preview.get("to_create") or 0,
+			preview.get("already_linked") or 0,
+		),
+	}
+
+
+def process_patient_visit_encounter_comment_clinical_note_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_visit_encounter_comment_clinical_note import (
+		run_patient_visit_encounter_comment_clinical_note_batch,
+	)
+
+	job = "patient_visit_encounter_comment_clinical_note"
+	try:
+		result = run_patient_visit_encounter_comment_clinical_note_batch(offset=offset)
+		processed = result.get("next_offset") or offset
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created")) + cint(result.get("created")),
+			skipped_existing=cint(prev.get("skipped_existing")) + cint(result.get("skipped_existing")),
+			skipped_no_patient=cint(prev.get("skipped_no_patient")) + cint(result.get("skipped_no_patient")),
+			skipped_no_comment=cint(prev.get("skipped_no_comment")) + cint(result.get("skipped_no_comment")),
+			errors=cint(prev.get("errors")) + cint(result.get("errors")),
+			total_with_comment=prev.get("total_with_comment"),
+			already_linked=prev.get("already_linked"),
+			to_create=prev.get("to_create"),
+		)
+
+		if result.get("has_more"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_visit_encounter_comment_clinical_note_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_visit_encounter_comment_clinical_note_{processed}",
+			)
+		else:
+			final = frappe.cache().get_value(_job_progress_key(job)) or {}
+			_set_progress(job, processed, done=True, **{k: final.get(k) for k in final if k != "done"})
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient Visit encounter_comment → Clinical Note migration complete",
+				message=frappe.as_json(final),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+@frappe.whitelist()
 def preview_patient_legacy_gender_fix() -> dict:
 	"""Count Patient / Warning Message rows still using legacy sex codes 1 / 2."""
 	_require_admin()

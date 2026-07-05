@@ -13,6 +13,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { isObservationActive } from './observationDisplayUtils'
 
 interface ObservationDetailPanelProps {
   name: string
@@ -163,6 +164,7 @@ export function ObservationDetailPanel({
 
   const resultText = source ? getResultDisplay(source) : '—'
   const noteBody = source?.note
+  const active = source ? isObservationActive(source) : false
 
   return (
     <DetailSlideOver
@@ -196,9 +198,9 @@ export function ObservationDetailPanel({
         <div className="flex flex-col gap-5 pb-2">
           <section
             className={`rounded-xl border px-4 py-4 shadow-sm sm:px-5 sm:py-5 ${
-              source.dc_date
-                ? 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white ring-1 ring-emerald-100/80'
-                : 'border-emerald-500 bg-green-100 ring-2 ring-emerald-500/80'
+              active
+                ? 'border-emerald-500 bg-green-100 ring-2 ring-emerald-500/80'
+                : 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white ring-1 ring-emerald-100/80'
             }`}
           >
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -211,7 +213,7 @@ export function ObservationDetailPanel({
                   Security: {displayValue(source.designated_security_personel)}
                 </p>
               </div>
-              {!source.dc_date ? (
+              {active ? (
                 <span className="inline-flex items-center rounded-full border-2 border-emerald-600 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
                   Active
                 </span>
@@ -266,7 +268,9 @@ export function ObservationDetailPanel({
                 value={
                   source.dc_date
                     ? formatDate(source.dc_date)
-                    : 'Active — no discharge date'
+                    : isObservationActive(source)
+                      ? 'Active — no discharge date'
+                      : '—'
                 }
               />
               <InfoTile

@@ -5,6 +5,7 @@ import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
+import { isObservationActive } from './observationDisplayUtils'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 interface ObservationListProps {
@@ -111,8 +112,6 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
     )
   }
 
-  const isObservationActive = (obs: Observation) => !obs.dc_date
-
   const getResultDisplay = (obs: Observation): string => {
     if (obs.result_text) return obs.result_text
     if (obs.result_float !== undefined && obs.result_float !== null) return obs.result_float.toString()
@@ -208,10 +207,12 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.dc_date ? (
                   new Date(obs.dc_date).toLocaleDateString()
-                ) : (
+                ) : isObservationActive(obs) ? (
                   <span className="inline-flex items-center rounded-full border border-emerald-600 bg-white px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                     Active
                   </span>
+                ) : (
+                  '—'
                 )}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
@@ -264,7 +265,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                       triggerRef={actionMenuRef}
                       minWidth={200}
                     >
-                      {!obs.dc_date ? (
+                      {isObservationActive(obs) ? (
                         <button
                           type="button"
                           onClick={() => {

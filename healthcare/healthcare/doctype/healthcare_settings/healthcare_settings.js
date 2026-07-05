@@ -715,6 +715,45 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Create Clinical Notes from Visit Encounter Comment'), () => {
+			frappe.call({
+				method:
+					'healthcare.api.patient_visit_encounter_comment_clinical_note.preview_patient_visit_encounter_comment_clinical_note',
+				callback(preview) {
+					const counts = preview.message || {};
+					const total = counts.total_with_comment || 0;
+					if (!total) {
+						frappe.msgprint({
+							title: __('Visit Encounter Comment'),
+							message: __('No Patient Visits with encounter_comment found.'),
+							indicator: 'green',
+						});
+						return;
+					}
+					frappe.confirm(
+						__(
+							'Run in background: for each Patient Visit with encounter_comment, create a Doctor Progress Note?\n\n'
+								+ 'Visits with comment: {0}\n'
+								+ 'Already linked notes: {1}\n'
+								+ 'Notes to create: {2}\n\n'
+								+ 'Note text = encounter_comment. Date, practitioner, patient, cost center, and username (if on visit) are copied from the visit. Visits that already have a linked Doctor Progress Note are skipped. Continue?',
+							[
+								total,
+								counts.already_linked || 0,
+								counts.to_create || 0,
+							]
+						),
+						() =>
+							run_migration_job(
+								frm,
+								'start_patient_visit_encounter_comment_clinical_note_migration',
+								'patient_visit_encounter_comment_clinical_note'
+							)
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Fix Patient Gender (1→Male, 2→Female)'), () => {
 			frappe.call({
 				method: 'healthcare.api.data_migration_jobs.preview_patient_legacy_gender_fix',
@@ -4149,6 +4188,17 @@ function poll_migration_status(jobKey) {
 								s.warning_messages_updated || 0,
 								s.skipped_unchanged || 0,
 								s.skipped_errors || 0,
+							]
+						);
+					} else if (jobKey === 'patient_visit_encounter_comment_clinical_note') {
+						msg = __(
+							'{0} finished: {1} created, {2} already linked, {3} no patient, {4} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.skipped_existing || 0,
+								s.skipped_no_patient || 0,
+								s.errors || 0,
 							]
 						);
 					} else {
