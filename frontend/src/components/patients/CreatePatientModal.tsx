@@ -20,6 +20,7 @@ import {
 import { fetchLeadSources, fetchNationalities, fetchCountries, fetchDocumentTypes, fetchHealthcareInsurance, fetchSalutations, fetchInsurancePatientRegisters, fetchPatientCategories, type LinkFieldOption, type InsurancePatientRegisterRow } from '../../services/common'
 import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
+import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -823,6 +824,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                       <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
                       <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <PatientDobAgeHint dob={formData.dob} />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Blood Group</label>

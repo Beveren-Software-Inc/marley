@@ -81,13 +81,40 @@ def _observation_visit_admission_refs(obs_doc):
 
 
 @frappe.whitelist()
-def get_observations(limit=50, offset=0, patient=None):
-	"""Get list of Observations"""
+def get_observations(
+	limit=50,
+	offset=0,
+	patient=None,
+	observation_level=None,
+	date_from=None,
+	date_to=None,
+	dc_date_from=None,
+	dc_date_to=None,
+):
+	"""Get list of Observations with optional patient, level, and date filters."""
 	filters = {}
-	
+
 	if patient:
-		filters['patient'] = patient
-	
+		filters["patient"] = patient
+
+	level = (observation_level or "").strip()
+	if level:
+		filters["observation_level"] = level
+
+	if date_from and date_to:
+		filters["start_date"] = ["between", [date_from, date_to]]
+	elif date_from:
+		filters["start_date"] = [">=", date_from]
+	elif date_to:
+		filters["start_date"] = ["<=", date_to]
+
+	if dc_date_from and dc_date_to:
+		filters["dc_date"] = ["between", [dc_date_from, dc_date_to]]
+	elif dc_date_from:
+		filters["dc_date"] = [">=", dc_date_from]
+	elif dc_date_to:
+		filters["dc_date"] = ["<=", dc_date_to]
+
 	observations = frappe.get_all(
 		'Observation',
 		filters=filters,

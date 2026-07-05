@@ -4633,20 +4633,33 @@ def validate_warehouse_change_permission():
 
 @frappe.whitelist()
 def get_observation_levels(query=None):
-    """Fetch observation levels (link field options)"""
-    filters = {}
-    if query:
-        filters["name"] = ["like", f"%{query}%"]
-    
-    levels = frappe.get_all(
-        "Observation Level",
-        fields=["name", "name as label"],
-        filters=filters,
-        limit=50,
-        order_by="name asc"
-    )
-    
-    return levels
+	"""Fetch observation levels (link field options)."""
+	search = (query or "").strip()
+	filters = {}
+	or_filters = None
+	if search:
+		like = f"%{search}%"
+		or_filters = [
+			["name", "like", like],
+			["observation_level", "like", like],
+		]
+
+	rows = frappe.get_all(
+		"Observation Level",
+		fields=["name", "observation_level"],
+		filters=filters,
+		or_filters=or_filters,
+		limit=50,
+		order_by="observation_level asc, name asc",
+	)
+
+	return [
+		{
+			"name": row.name,
+			"label": (row.observation_level or row.name or "").strip() or row.name,
+		}
+		for row in rows
+	]
 
 
 @frappe.whitelist()
