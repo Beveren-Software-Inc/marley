@@ -4,6 +4,10 @@ import { useAuth } from "../providers/AuthProvider"
 import { useTheme } from "../hooks/useTheme"
 import { toast } from "../hooks/useToast"
 import {
+  getUserCostCenterPermission,
+  setUserCostCenterPermission,
+} from "../services/costCenterPermission"
+import {
   ArrowLeft,
   User,
   Palette,
@@ -130,37 +134,6 @@ const CostCenterCombobox = ({ value, onChange, disabled }: CostCenterComboboxPro
 
 // ─── Preferences section ─────────────────────────────────────────────────────
 
-async function apiGetCostCenterPerm(): Promise<{ cost_center: string; is_exempt: boolean }> {
-  const res = await fetch(
-    "/api/method/healthcare.api.common.get_user_cost_center_permission",
-    { headers: { "X-Frappe-CSRF-Token": (window as any).csrf_token || "" } }
-  )
-  const data = await res.json()
-  if (data?.message) return data.message
-  throw new Error("Failed to load branch permission")
-}
-
-async function apiSetCostCenterPerm(cost_center: string): Promise<{ status: string; cost_center: string; message?: string }> {
-  const csrf = (window as any).csrf_token || ""
-  const body = new URLSearchParams()
-  body.set("cost_center", cost_center)
-  const res = await fetch(
-    "/api/method/healthcare.api.common.set_cost_center_permission",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "X-Frappe-CSRF-Token": csrf,
-      },
-      body: body.toString(),
-    }
-  )
-  const data = await res.json()
-  if (data?.message) return data.message
-  const exc = data?._server_messages || data?.exc
-  throw new Error(exc ? JSON.parse(JSON.parse(exc)?.[0])?.message ?? "Error" : "Failed to save")
-}
-
 const PreferencesSection = () => {
   const [costCenter, setCostCenter] = useState("")
   const [savedCostCenter, setSavedCostCenter] = useState("")
@@ -171,7 +144,7 @@ const PreferencesSection = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const result = await apiGetCostCenterPerm()
+        const result = await getUserCostCenterPermission()
         setCostCenter(result.cost_center)
         setSavedCostCenter(result.cost_center)
         setIsExempt(result.is_exempt)
@@ -187,10 +160,8 @@ const PreferencesSection = () => {
   const handleSave = async () => {
     setSaving(true)
     try {
-      const result = await apiSetCostCenterPerm(costCenter)
-      if (result.status === "skipped") {
-        toast.success("You have elevated privileges — no restriction applied.")
-      } else if (result.status === "cleared") {
+      const result = await setUserCostCenterPermission(costCenter)
+      if (result.status === 'cleared') {
         toast.success("Branch restriction removed. You can now see all data.")
         setSavedCostCenter("")
       } else {
@@ -221,17 +192,17 @@ const PreferencesSection = () => {
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Branch Filter</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
           Restrict your view to a specific branch. When set, only records belonging to that branch will be visible to you.
-          Leave blank to see all data.
+          Leave blank to see all data. You can also switch branches from the navbar at any time.
         </p>
 
         {isExempt && (
-          <div className="flex items-start gap-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-lg p-4 mb-5">
-            <ShieldCheck className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-5">
+            <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
             <div>
-              <p className="text-sm font-medium text-amber-800 dark:text-amber-300">Elevated privileges detected</p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
+              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Elevated privileges</p>
+              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
                 Your account has <strong>Administrator</strong>, <strong>System Manager</strong>, or <strong>Healthcare Administrator</strong> role.
-                Branch permissions do not apply to your account and will not be created.
+                With no branch selected you see all data. Choose a branch here or from the navbar to filter your view.
               </p>
             </div>
           </div>
@@ -246,14 +217,11 @@ const PreferencesSection = () => {
             <CostCenterCombobox
               value={costCenter}
               onChange={setCostCenter}
-              disabled={isExempt}
             />
-            {!isExempt && (
-              <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-                <Info className="w-3.5 h-3.5 shrink-0" />
-                Clear the field and save to remove the restriction.
-              </p>
-            )}
+            <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
+              <Info className="w-3.5 h-3.5 shrink-0" />
+              Clear the field and save to remove the restriction.
+            </p>
           </div>
 
           {savedCostCenter && (
@@ -279,7 +247,7 @@ const PreferencesSection = () => {
         <button
           type="button"
           onClick={handleSave}
-          disabled={saving || !isDirty || isExempt}
+          disabled={saving || !isDirty}
           className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? "Saving…" : "Save Preference"}

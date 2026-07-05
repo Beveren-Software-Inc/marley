@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 import { ItemSearch } from '../components/pharmacy/ItemSearch'
 import {
   getBatchesExpiringInDays,
@@ -157,8 +156,7 @@ function PharmacyStockPage() {
           >
             Pharm POS
           </a>
-          <UserMenu placement="header" />
-          <NotificationBell placement="header" />
+          <NavbarActions placement="header" />
         </div>
         <a
           href={PHARM_POS_URL}

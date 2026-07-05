@@ -178,6 +178,27 @@ export async function fetchLabTests(
   return { data: [], total_count: 0 }
 }
 
+export async function fetchLabTestTemplateFilterOptions(
+  search?: string,
+  patient?: string,
+  byNurse?: boolean,
+): Promise<Array<{ name: string; label: string }>> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
+  if (byNurse) params.append('by_nurse', '1')
+
+  const response = await fetch(
+    `/api/method/healthcare.api.lab_test.get_lab_test_template_filter_options${params.toString() ? `?${params.toString()}` : ''}`,
+    { credentials: 'include' },
+  )
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as Array<{ name: string; label: string }>
+  }
+  return []
+}
+
 export async function fetchLabTest(name: string): Promise<LabTest> {
   const response = await fetch(
     `/api/method/healthcare.api.lab_test.get_lab_test?name=${encodeURIComponent(name)}`

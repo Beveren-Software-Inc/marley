@@ -11,10 +11,10 @@ export function SidebarCareModePicker() {
   if (!showOp && !showIp) return null
 
   const pillClass = (active: boolean) =>
-    `flex-1 rounded-md px-3 py-2 text-sm font-semibold border transition-colors ${
+    `flex-1 rounded-md px-3 py-2 text-sm font-semibold border-2 transition-colors ${
       active
-        ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
-        : 'bg-white/10 text-white border-white/30 hover:bg-white/20'
+        ? 'bg-white/10 text-white border-emerald-300'
+        : 'bg-white/10 text-white border-transparent hover:bg-white/20'
     }`
 
   const onPick = (fn: () => void) => {

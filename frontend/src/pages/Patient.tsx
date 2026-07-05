@@ -1,7 +1,6 @@
 import { PatientList } from '../components/patients/PatientList'
 import { PatientSearch } from '../components/patients/PatientSearch'
-import { UserMenu } from '../components/user/UserMenu'
-import { NotificationBell } from '../components/notifications/NotificationBell'
+import { NavbarActions } from '../components/layout/NavbarActions'
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 
@@ -50,10 +49,7 @@ export const PatientPage = () => {
           />
         </div>
 
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
+        <NavbarActions placement="header" />
       </header>
 
       {/* Content */}

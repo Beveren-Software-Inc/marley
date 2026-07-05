@@ -56,7 +56,9 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
     } else {
       const q = searchQuery.toLowerCase()
       setRows(allRows.filter(r =>
-        (r.lab_test_name || r.name).toLowerCase().includes(q) ||
+        r.name.toLowerCase().includes(q) ||
+        (r.lab_test_name || '').toLowerCase().includes(q) ||
+        (r.lab_test_code || '').toLowerCase().includes(q) ||
         (r.department || '').toLowerCase().includes(q) ||
         (r.lab_test_template_type || '').toLowerCase().includes(q)
       ))
@@ -79,7 +81,14 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
 
   // Suggestions shown in the dropdown (max 8)
   const suggestions = searchQuery.trim()
-    ? allRows.filter(r => (r.lab_test_name || r.name).toLowerCase().includes(searchQuery.toLowerCase())).slice(0, 8)
+    ? allRows.filter((r) => {
+        const q = searchQuery.toLowerCase()
+        return (
+          r.name.toLowerCase().includes(q) ||
+          (r.lab_test_name || '').toLowerCase().includes(q) ||
+          (r.lab_test_code || '').toLowerCase().includes(q)
+        )
+      }).slice(0, 8)
     : allRows.slice(0, 8)
 
   const handleSuggestionClick = (row: LabTestTemplateListRow) => {

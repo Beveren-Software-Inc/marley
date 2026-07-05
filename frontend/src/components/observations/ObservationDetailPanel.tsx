@@ -13,6 +13,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { isObservationActive } from './observationDisplayUtils'
 
 interface ObservationDetailPanelProps {
   name: string
@@ -163,6 +164,7 @@ export function ObservationDetailPanel({
 
   const resultText = source ? getResultDisplay(source) : '—'
   const noteBody = source?.note
+  const active = source ? isObservationActive(source) : false
 
   return (
     <DetailSlideOver
@@ -194,14 +196,29 @@ export function ObservationDetailPanel({
 
       {source && !error ? (
         <div className="flex flex-col gap-5 pb-2">
-          <section className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/70">Observation level</p>
-            <h3 className="mt-1 text-lg font-semibold text-emerald-950">
-              {displayValue(source.observation_level)}
-            </h3>
-            <p className="mt-2 text-sm text-slate-600">
-              Security: {displayValue(source.designated_security_personel)}
-            </p>
+          <section
+            className={`rounded-xl border px-4 py-4 shadow-sm sm:px-5 sm:py-5 ${
+              active
+                ? 'border-emerald-500 bg-green-100 ring-2 ring-emerald-500/80'
+                : 'border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 to-white ring-1 ring-emerald-100/80'
+            }`}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/70">Observation level</p>
+                <h3 className="mt-1 text-lg font-semibold text-emerald-950">
+                  {displayValue(source.observation_level)}
+                </h3>
+                <p className="mt-2 text-sm text-slate-600">
+                  Security: {displayValue(source.designated_security_personel)}
+                </p>
+              </div>
+              {active ? (
+                <span className="inline-flex items-center rounded-full border-2 border-emerald-600 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
+                  Active
+                </span>
+              ) : null}
+            </div>
           </section>
 
           <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
@@ -248,7 +265,13 @@ export function ObservationDetailPanel({
               <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="DC date"
-                value={formatDate(source.dc_date)}
+                value={
+                  source.dc_date
+                    ? formatDate(source.dc_date)
+                    : isObservationActive(source)
+                      ? 'Active — no discharge date'
+                      : '—'
+                }
               />
               <InfoTile
                 icon={<Building2 className="h-4 w-4" strokeWidth={2} />}

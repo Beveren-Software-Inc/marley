@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 import { useAuth } from '../providers/AuthProvider'
 import { getEmployeeDashboard, createEmployeeRequest } from '../services/employee'
 
@@ -81,8 +80,7 @@ export const EmployeePage = () => {
           >
             <span>Submit a Request</span>
           </button>
-          <NotificationBell />
-          <UserMenu />
+          <NavbarActions placement="header" />
         </div>
       </header>
 

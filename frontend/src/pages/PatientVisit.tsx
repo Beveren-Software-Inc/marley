@@ -3,8 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 import { PatientSearch } from '../components/patients/PatientSearch'
 
 interface PatientVisitPageProps {
@@ -56,10 +55,7 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
               onPatientSelect={handlePatientSelect}
             />
           </div>
-          <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
-          </div>
+          <NavbarActions placement="header" />
         </header>
 
         <div className="flex-1 overflow-y-auto p-4">

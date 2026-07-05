@@ -5,6 +5,7 @@ import { toast } from '../../hooks/useToast'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
+import { isObservationActive } from './observationDisplayUtils'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 
 interface ObservationListProps {
@@ -71,7 +72,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
       setOpenActionRow(null)
       await loadObservations()
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create Sales Order')
+      toast.error(err instanceof Error ? err.message : 'Failed to create Service Bill')
     } finally {
       setActionLoading(null)
     }
@@ -172,8 +173,17 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {observations.map((obs) => (
-            <tr key={obs.name} className="hover:bg-slate-50">
+          {observations.map((obs) => {
+            const active = isObservationActive(obs)
+            return (
+            <tr
+              key={obs.name}
+              className={
+                active
+                  ? 'bg-green-100 hover:bg-green-200 ring-2 ring-inset ring-emerald-500/80'
+                  : 'hover:bg-slate-50'
+              }
+            >
               <td
                 className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
                 onClick={() => {
@@ -195,7 +205,15 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                 {obs.start_date ? new Date(obs.start_date).toLocaleDateString() : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
-                {obs.dc_date ? new Date(obs.dc_date).toLocaleDateString() : '-'}
+                {obs.dc_date ? (
+                  new Date(obs.dc_date).toLocaleDateString()
+                ) : isObservationActive(obs) ? (
+                  <span className="inline-flex items-center rounded-full border border-emerald-600 bg-white px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
+                    Active
+                  </span>
+                ) : (
+                  '—'
+                )}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {obs.observation_level || '-'}
@@ -247,7 +265,7 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                       triggerRef={actionMenuRef}
                       minWidth={200}
                     >
-                      {!obs.dc_date ? (
+                      {isObservationActive(obs) ? (
                         <button
                           type="button"
                           onClick={() => {
@@ -274,14 +292,14 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                           title={
                             !canBillObservation(obs)
                               ? !obs.observation_level
-                                ? 'Select an Observation Level (billable) on the observation before creating a Sales Order'
-                                : 'Link an admission (IP) or visit (OP) before creating a Sales Order'
+                                ? 'Select an Observation Level (billable) on the observation before creating a Service Bill'
+                                : 'Link an admission (IP) or visit (OP) before creating a Service Bill'
                               : undefined
                           }
                           onClick={() => handleCreateSalesOrder(obs)}
                           className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          Create Sales Order
+                          Create Service Bill
                         </button>
                       )}
                     </PortalActionsMenu>
@@ -295,7 +313,8 @@ export const ObservationList = ({ patient, onPatientClick }: ObservationListProp
                 </div>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
       </div>

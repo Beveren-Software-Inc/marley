@@ -372,25 +372,49 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 
 	Optional by_nurse: when truthy, only templates with Lab Test Template.by_nurse set.
 	"""
-	filters = {'disabled': 0}  # Only get enabled templates
-	if search:
-		filters['lab_test_name'] = ['like', f'%{search}%']
+	# Include rows where disabled is 0 or unset (imported templates often have NULL).
+	filters = {"disabled": ["!=", 1]}
+	or_filters = None
+	if search and str(search).strip():
+		like = f"%{search.strip()}%"
+		or_filters = [
+			["lab_test_name", "like", like],
+			["name", "like", like],
+			["lab_test_code", "like", like],
+			["no", "like", like],
+		]
 	if department:
-		filters['department'] = department
+		filters["department"] = department
 	if by_nurse is not None:
 		if isinstance(by_nurse, str):
-			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
+			by_nurse = by_nurse.lower() in ("1", "true", "yes")
 		if by_nurse:
-			filters['by_nurse'] = 1
+			filters["by_nurse"] = 1
 
-	templates = frappe.get_all(
-		'Lab Test Template',
-		filters=filters,
-		# inpatient_rate may or may not exist; safe to include
-		fields=['name', 'lab_test_name', 'department', 'outpatient_rate', 'inpatient_rate', 'female_min_range', 'female_max_range', 'male_min_range', 'male_max_range', 'min_range', 'max_range', 'uom'],
-		limit=50,
-		order_by='lab_test_name'
-	)
+	query_kwargs = {
+		"doctype": "Lab Test Template",
+		"filters": filters,
+		"fields": [
+			"name",
+			"lab_test_name",
+			"department",
+			"outpatient_rate",
+			"inpatient_rate",
+			"female_min_range",
+			"female_max_range",
+			"male_min_range",
+			"male_max_range",
+			"min_range",
+			"max_range",
+			"uom",
+		],
+		"limit": 100,
+		"order_by": "lab_test_name asc",
+	}
+	if or_filters:
+		query_kwargs["or_filters"] = or_filters
+
+	templates = frappe.get_all(**query_kwargs)
 	return [
 		{
 			'name': t.name,
@@ -686,20 +710,29 @@ def get_service_request_templates(template_dt, search=None, department=None, is_
 		return []
 	
 	filters = {}
+	or_filters = None
 	if search:
-		# Different fields for different template types
-		if template_dt == 'Lab Test Template':
-			filters['lab_test_name'] = ['like', f'%{search}%']
-		elif template_dt == 'Clinical Procedure Template':
-			filters['procedure_name'] = ['like', f'%{search}%']
-		elif template_dt == 'Observation Template':
-			filters['observation'] = ['like', f'%{search}%']
-		elif template_dt == 'Therapy Type':
-			filters['therapy_type'] = ['like', f'%{search}%']
-		elif template_dt == 'Appointment Type':
-			filters['name'] = ['like', f'%{search}%']
-		elif template_dt == 'Healthcare Activity':
-			filters['activity_type'] = ['like', f'%{search}%']
+		term = str(search).strip()
+		if term:
+			like = f'%{term}%'
+			# Different fields for different template types
+			if template_dt == 'Lab Test Template':
+				or_filters = [
+					['lab_test_name', 'like', like],
+					['name', 'like', like],
+					['lab_test_code', 'like', like],
+					['no', 'like', like],
+				]
+			elif template_dt == 'Clinical Procedure Template':
+				filters['procedure_name'] = ['like', like]
+			elif template_dt == 'Observation Template':
+				filters['observation'] = ['like', like]
+			elif template_dt == 'Therapy Type':
+				filters['therapy_type'] = ['like', like]
+			elif template_dt == 'Appointment Type':
+				filters['name'] = ['like', like]
+			elif template_dt == 'Healthcare Activity':
+				filters['activity_type'] = ['like', like]
 
 	if template_dt == 'Lab Test Template' and is_group is not None and str(is_group).strip() != '':
 		try:
@@ -719,13 +752,16 @@ def get_service_request_templates(template_dt, search=None, department=None, is_
 	
 	# Get templates based on type
 	if template_dt == 'Lab Test Template':
-		templates = frappe.get_all(
-			'Lab Test Template',
-			filters={**filters, 'disabled': 0},
-			fields=['name', 'lab_test_name', 'department', 'is_group'],
-			limit=50,
-			order_by='lab_test_name'
-		)
+		lab_kwargs = {
+			"doctype": "Lab Test Template",
+			"filters": {**filters, "disabled": ["!=", 1]},
+			"fields": ["name", "lab_test_name", "department", "is_group"],
+			"limit": 100,
+			"order_by": "lab_test_name asc",
+		}
+		if or_filters:
+			lab_kwargs["or_filters"] = or_filters
+		templates = frappe.get_all(**lab_kwargs)
 		return [{'name': t.name, 'label': t.lab_test_name or t.name, 'department': t.department, 'is_group': t.is_group} for t in templates]
 	
 	elif template_dt == 'Clinical Procedure Template':
@@ -1693,13 +1729,7 @@ def get_permitted_cost_centers():
 	``[]``      The user has a permission row but it holds no values; show nothing.
 	"""
 	user = frappe.session.user
-	
-	if user == "Administrator":
-		return None
-	if _user_is_exempt(user):
-		
-		return None
-	
+
 	perms = frappe.get_all(
 		"User Permission",
 		filters={"user": user, "allow": "Cost Center"},
@@ -1752,15 +1782,11 @@ def set_cost_center_permission(cost_center=None):
 	"""
 	Set (or clear) a Cost Center User Permission for the logged-in user.
 
-	- If the user is Administrator, System Manager, or Healthcare Administrator the
-	  call is a no-op (permissions are ignored for these roles).
 	- Deletes any existing ``Cost Center`` User Permission rows for this user first.
 	- If *cost_center* is a non-empty string, creates a fresh User Permission row.
+	- Clear *cost_center* to remove the restriction and see all branches (when permitted).
 	"""
 	user = frappe.session.user
-
-	if _user_is_exempt(user):
-		return {"status": "skipped", "message": "User has elevated privileges — permission not changed."}
 
 	# ── Remove all existing Cost Center permissions for this user ──────────────
 	old_perms = frappe.get_all(
@@ -1871,21 +1897,32 @@ def get_lab_test_template_detail(name):
 def get_lab_test_templates_admin_list(search=None):
 	"""Get list of Lab Test Templates for the admin/setup template list screen (wide field set)."""
 	filters = {}
-	if search:
-		filters["lab_test_name"] = ["like", f"%{search}%"]
+	or_filters = None
+	if search and str(search).strip():
+		like = f"%{search.strip()}%"
+		or_filters = [
+			["lab_test_name", "like", like],
+			["name", "like", like],
+			["lab_test_code", "like", like],
+			["no", "like", like],
+		]
 
-	templates = frappe.get_all(
-		"Lab Test Template",
-		filters=filters,
-		fields=[
-			"name", "lab_test_name", "department",
+	query_kwargs = {
+		"doctype": "Lab Test Template",
+		"filters": filters,
+		"fields": [
+			"name", "lab_test_name", "lab_test_code", "department",
 			"lab_test_template_type", "is_group", "is_billable", "disabled",
 			"outpatient_rate", "inpatient_rate", "female_min_range", "female_max_range", "male_min_range", "male_max_range", "min_range", "max_range", "lab_test_uom",
 			"lab_test_rate",
 		],
-		limit=200,
-		order_by="lab_test_name asc",
-	)
+		"limit": 500,
+		"order_by": "lab_test_name asc",
+	}
+	if or_filters:
+		query_kwargs["or_filters"] = or_filters
+
+	templates = frappe.get_all(**query_kwargs)
 	return templates
 
 
@@ -3433,7 +3470,7 @@ def create_main_nursing_note(data):
 
 @frappe.whitelist()
 def update_main_nursing_note(data):
-	"""Append to an existing Main Nursing Note (portal)."""
+	"""Update an existing Main Nursing Note — edit full text and/or append a timestamped line."""
 	assert_editing_allowed()
 	try:
 		if isinstance(data, str):
@@ -3444,16 +3481,21 @@ def update_main_nursing_note(data):
 		if not name:
 			return {"success": False, "message": "Nursing note name is required"}
 
-		append_notes = (data.get("append_notes") or data.get("nursing_notes") or "").strip()
-		if not append_notes:
-			return {"success": False, "message": "Enter a note to append"}
-
 		doc = frappe.get_doc("Main Nursing Note", name)
-		doc.nursing_notes = _append_nursing_note_line(
-			doc.nursing_notes,
-			append_notes,
-			data.get("time") or data.get("data"),
-		)
+		append_notes = (data.get("append_notes") or "").strip()
+		replace_notes = frappe.utils.cint(data.get("replace_notes"))
+
+		if replace_notes or (data.get("nursing_notes") is not None and not append_notes):
+			doc.nursing_notes = (data.get("nursing_notes") or "").strip()
+		elif append_notes:
+			doc.nursing_notes = _append_nursing_note_line(
+				doc.nursing_notes,
+				append_notes,
+				data.get("time") or data.get("data"),
+			)
+		else:
+			return {"success": False, "message": "Enter nursing notes to save"}
+
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
 		return {

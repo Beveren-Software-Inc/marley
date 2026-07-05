@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
-  CM_BTN_CANCEL,
-  CM_BTN_PRIMARY,
   CREATE_MODAL_OVERLAY,
+  CM_BTN_OUTLINE_CANCEL,
+  CM_BTN_OUTLINE_SAVE,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { updateMainNursingNote, type MainNursingNoteRow } from '../../services/mainNursingNote'
-import { formatNursingNoteTimestamp } from '../../constants/nursingShift'
+import { appendNursingNoteLine, formatNursingNoteTimestamp } from '../../constants/nursingShift'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 
@@ -25,8 +25,14 @@ export const EditMainNursingNoteModal = ({
   const blockIfEditingLocked = useBlockIfEditingLocked()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [existingNotes, setExistingNotes] = useState(row.nursing_notes || '')
   const [appendNote, setAppendNote] = useState('')
   const [noteTime, setNoteTime] = useState(() => formatNursingNoteTimestamp())
+
+  useEffect(() => {
+    setExistingNotes(row.nursing_notes || '')
+    setAppendNote('')
+  }, [row])
 
   useEffect(() => {
     const tick = setInterval(() => {
@@ -39,9 +45,16 @@ export const EditMainNursingNoteModal = ({
     ? `[${noteTime}] ${appendNote.trim()}`
     : ''
 
+  const initialNotes = row.nursing_notes || ''
+  const isDirty = existingNotes !== initialNotes || appendNote.trim().length > 0
+
   const handleSave = async () => {
-    if (!appendNote.trim()) {
-      setError('Enter a note to append')
+    let finalNotes = existingNotes.trim()
+    if (appendNote.trim()) {
+      finalNotes = appendNursingNoteLine(finalNotes, appendNote.trim(), noteTime)
+    }
+    if (!isDirty) {
+      setError('No changes to save')
       return
     }
     blockIfEditingLocked()
@@ -50,8 +63,8 @@ export const EditMainNursingNoteModal = ({
     try {
       const result = await updateMainNursingNote({
         name: row.name,
-        append_notes: appendNote.trim(),
-        time: noteTime,
+        nursing_notes: finalNotes,
+        replace_notes: true,
       })
       if (!result.success) {
         throw new Error(result.message || 'Failed to update nursing note')
@@ -68,7 +81,7 @@ export const EditMainNursingNoteModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-lg')}>
         <div className="px-5 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Append Nursing Note</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Edit Nursing Note</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             {row.shift || 'Shift'} · {row.date || '—'}
             {row.trans_no ? ` · Trans ${row.trans_no}` : ''}
@@ -92,27 +105,31 @@ export const EditMainNursingNoteModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Existing nursing notes</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Nursing notes</label>
             <textarea
-              value={row.nursing_notes || ''}
-              readOnly
+              value={existingNotes}
+              onChange={(e) => setExistingNotes(e.target.value)}
               rows={8}
-              className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+              placeholder="Edit existing nursing notes…"
+              autoFocus
             />
+            <p className="mt-1 text-[11px] text-slate-500">
+              You can edit the full note text above, including previously saved entries.
+            </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="block text-xs font-medium text-slate-700">Add note *</label>
+              <label className="block text-xs font-medium text-slate-700">Append note (optional)</label>
               <span className="text-[11px] text-slate-500">Will be stamped {noteTime}</span>
             </div>
             <textarea
               value={appendNote}
               onChange={(e) => setAppendNote(e.target.value)}
-              rows={4}
+              rows={3}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Enter update for this shift…"
-              autoFocus
+              placeholder="Add a new timestamped entry…"
             />
             {previewLine ? (
               <p className="mt-2 text-xs text-slate-500">
@@ -123,11 +140,21 @@ export const EditMainNursingNoteModal = ({
         </div>
 
         <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button type="button" onClick={onClose} className={CM_BTN_CANCEL} disabled={saving}>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={saving}
+            className={CM_BTN_OUTLINE_CANCEL}
+          >
             Cancel
           </button>
-          <button type="button" onClick={handleSave} className={CM_BTN_PRIMARY} disabled={saving}>
-            {saving ? 'Saving…' : 'Append note'}
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={saving || !isDirty}
+            className={CM_BTN_OUTLINE_SAVE}
+          >
+            {saving ? 'Saving…' : 'Save'}
           </button>
         </div>
       </div>

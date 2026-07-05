@@ -6,8 +6,7 @@ import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { LabTestList } from '../components/labTests/LabTestList'
 import { AdmissionDetails } from '../components/admissions/AdmissionDetails'
 import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 import { PatientSearch } from '../components/patients/PatientSearch'
 
 export const AdmissionPage = () => {
@@ -113,8 +112,7 @@ export const AdmissionPage = () => {
             <h1 className="text-lg font-semibold">Admission: {admissionFromUrl}</h1>
           </div>
           <div className="flex items-center gap-3">
-            <UserMenu />
-            <NotificationBell />
+            <NavbarActions placement="header" />
           </div>
         </header>
 
@@ -171,8 +169,7 @@ export const AdmissionPage = () => {
             />
           </div>
           <div className="flex items-center gap-3 flex-shrink-0">
-            <UserMenu />
-            <NotificationBell />
+            <NavbarActions placement="header" />
           </div>
         </header>
 

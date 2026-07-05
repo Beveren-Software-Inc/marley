@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { dummyPatients } from '../config/patients'
 import { PatientSearch } from '../components/patients/PatientSearch'
-import { NotificationBell } from '../components/notifications/NotificationBell'
-import { UserMenu } from '../components/user/UserMenu'
+import { NavbarActions } from '../components/layout/NavbarActions'
 
 const firstScreenPharma = ['Medicine Expiry Alert']
 
@@ -30,10 +29,7 @@ export const PharmacistPage = () => {
             patients={dummyPatients}
           />
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
-          <UserMenu />
-          <NotificationBell />
-        </div>
+        <NavbarActions placement="header" />
       </header>
 
       <div className="flex flex-col gap-4 p-4">
