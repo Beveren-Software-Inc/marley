@@ -13,6 +13,7 @@
   "validate_nursing_checklists",
   "default_google_calendar",
   "lock_editing_data",
+  "active",
   "column_break_9",
   "collect_registration_fee",
   "registration_item",
@@ -669,11 +670,18 @@
    "fieldname": "lock_editing_data",
    "fieldtype": "Check",
    "label": "Lock Editing Data"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, Data Maintenance can create Clinical Notes from Patient Visit encounter comments.",
+   "fieldname": "active",
+   "fieldtype": "Check",
+   "label": "Active"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-25 13:20:57.837863",
+ "modified": "2026-07-05 13:34:27.210317",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -883,8 +883,13 @@ def start_patient_visit_encounter_comment_clinical_note_migration() -> dict:
 	"""Create Doctor Progress Notes from Patient Visit.encounter_comment (non-empty only)."""
 	_require_admin()
 	from healthcare.api.patient_visit_encounter_comment_clinical_note import (
+		migration_disabled_message,
 		preview_patient_visit_encounter_comment_clinical_note,
+		migration_enabled,
 	)
+
+	if not migration_enabled():
+		return {"ok": False, "message": migration_disabled_message()}
 
 	job = "patient_visit_encounter_comment_clinical_note"
 	preview = preview_patient_visit_encounter_comment_clinical_note()
@@ -912,11 +917,11 @@ def start_patient_visit_encounter_comment_clinical_note_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _(
-			"Patient Visit encounter_comment → Clinical Note job started ({0} visits with comment, {1} to create, {2} already linked)."
+			"Patient Visit encounter_comment → Clinical Note job started ({0} visits with comment, {1} to create, {2} duplicate visit+note skipped)."
 		).format(
 			preview.get("total_with_comment") or 0,
 			preview.get("to_create") or 0,
-			preview.get("already_linked") or 0,
+			preview.get("already_duplicate") or preview.get("already_linked") or 0,
 		),
 	}
 

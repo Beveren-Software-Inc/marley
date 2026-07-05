@@ -73,15 +73,29 @@ export async function fetchObservationLevelDetails(name: string): Promise<Observ
   return null
 }
 
+export interface ObservationListFilters {
+  observationLevel?: string
+  dateFrom?: string
+  dateTo?: string
+  dcDateFrom?: string
+  dcDateTo?: string
+}
+
 export async function fetchObservations(
   limit: number = 50,
   offset: number = 0,
-  patient?: string
+  patient?: string,
+  filters?: ObservationListFilters,
 ): Promise<Observation[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
+  if (filters?.observationLevel) params.append('observation_level', filters.observationLevel)
+  if (filters?.dateFrom) params.append('date_from', filters.dateFrom)
+  if (filters?.dateTo) params.append('date_to', filters.dateTo)
+  if (filters?.dcDateFrom) params.append('dc_date_from', filters.dcDateFrom)
+  if (filters?.dcDateTo) params.append('dc_date_to', filters.dcDateTo)
 
   const response = await fetch(
     `/api/method/healthcare.api.observation.get_observations?${params.toString()}`

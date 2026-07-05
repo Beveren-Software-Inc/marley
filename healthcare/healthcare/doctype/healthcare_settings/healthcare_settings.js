@@ -721,6 +721,16 @@ frappe.ui.form.on('Healthcare Settings', {
 					'healthcare.api.patient_visit_encounter_comment_clinical_note.preview_patient_visit_encounter_comment_clinical_note',
 				callback(preview) {
 					const counts = preview.message || {};
+					if (!counts.migration_enabled) {
+						frappe.msgprint({
+							title: __('Visit Encounter Comment'),
+							message: __(
+								'Enable Active in Healthcare Settings before creating Clinical Notes from visit encounter comments.'
+							),
+							indicator: 'orange',
+						});
+						return;
+					}
 					const total = counts.total_with_comment || 0;
 					if (!total) {
 						frappe.msgprint({
@@ -730,18 +740,18 @@ frappe.ui.form.on('Healthcare Settings', {
 						});
 						return;
 					}
+					const duplicates =
+						counts.already_duplicate != null
+							? counts.already_duplicate
+							: counts.already_linked || 0;
 					frappe.confirm(
 						__(
 							'Run in background: for each Patient Visit with encounter_comment, create a Doctor Progress Note?\n\n'
 								+ 'Visits with comment: {0}\n'
-								+ 'Already linked notes: {1}\n'
+								+ 'Duplicate visit + note (skipped): {1}\n'
 								+ 'Notes to create: {2}\n\n'
-								+ 'Note text = encounter_comment. Date, practitioner, patient, cost center, and username (if on visit) are copied from the visit. Visits that already have a linked Doctor Progress Note are skipped. Continue?',
-							[
-								total,
-								counts.already_linked || 0,
-								counts.to_create || 0,
-							]
+								+ 'Note text = encounter_comment. Date, practitioner, patient, cost center, and username (if on visit) are copied from the visit. Visits that already have a Clinical Note with the same text for that visit are skipped. Continue?',
+							[total, duplicates, counts.to_create || 0]
 						),
 						() =>
 							run_migration_job(
@@ -4192,7 +4202,7 @@ function poll_migration_status(jobKey) {
 						);
 					} else if (jobKey === 'patient_visit_encounter_comment_clinical_note') {
 						msg = __(
-							'{0} finished: {1} created, {2} already linked, {3} no patient, {4} errors.',
+							'{0} finished: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors.',
 							[
 								jobKey,
 								s.created || 0,
