@@ -10,11 +10,7 @@ import {
 function formatDate(value?: string): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleDateString(undefined, {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-    })
+    return new Date(value).toLocaleDateString('en-GB')
   } catch {
     return value
   }

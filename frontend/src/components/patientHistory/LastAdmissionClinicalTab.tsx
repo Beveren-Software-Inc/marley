@@ -23,13 +23,7 @@ interface LastAdmissionClinicalTabProps {
 function formatDateTime(val?: string | null): string {
   if (!val) return '—'
   try {
-    return new Date(val).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return new Date(val).toLocaleString('en-GB')
   } catch {
     return val
   }

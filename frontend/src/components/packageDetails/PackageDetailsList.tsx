@@ -105,10 +105,10 @@ export const PackageDetailsList = ({ patient, admission_no }: PackageDetailsList
                 {pkg.admission_no || '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
-                {pkg.from_date ? new Date(pkg.from_date).toLocaleDateString() : '-'}
+                {pkg.from_date ? new Date(pkg.from_date).toLocaleDateString('en-GB') : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
-                {pkg.to_date ? new Date(pkg.to_date).toLocaleDateString() : '-'}
+                {pkg.to_date ? new Date(pkg.to_date).toLocaleDateString('en-GB') : '-'}
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {pkg.total_days || '-'}

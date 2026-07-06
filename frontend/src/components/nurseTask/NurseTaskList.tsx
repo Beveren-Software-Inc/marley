@@ -260,9 +260,7 @@ export const NurseTaskList = ({
   const formatDateTime = (dt?: string) => {
     if (!dt) return '—'
     try {
-      return new Date(dt).toLocaleString(undefined, {
-        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
-      })
+      return new Date(dt).toLocaleString('en-GB')
     } catch { return dt }
   }
 

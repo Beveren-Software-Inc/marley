@@ -78,11 +78,7 @@
 
 //   const formatDate = (dateStr: string) => {
 //     if (!dateStr) return 'Unknown'
-//     return new Date(dateStr).toLocaleDateString('en-US', {
-//       year: 'numeric',
-//       month: 'short',
-//       day: 'numeric'
-//     })
+//     return new Date(dateStr).toLocaleDateString('en-GB')
 //   }
 
 //   return (
@@ -232,7 +228,7 @@
 
 //   const formatDateTime = (date?: string, time?: string): string => {
 //     if (!date) return '-'
-//     const dateStr = new Date(date).toLocaleDateString()
+//     const dateStr = new Date(date).toLocaleDateString('en-GB')
 //     return time ? `${dateStr} ${time}` : dateStr
 //   }
 
@@ -676,8 +672,12 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
   fetchHealthcarePractitioners,
   getCurrentUserPractitioner,
+  fetchBranchOptions,
   type LinkFieldOption,
 } from '../../services/common'
+import { formatDate } from '../../utils/formatDate'
+import { useAuth } from '../../providers/AuthProvider'
+import { isAdmin } from '../../config/permissions'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -705,6 +705,8 @@ interface AppointmentListProps {
   doctorScheduleMode?: boolean
   /** Dashboard card preview: ID, date/time, patient (if none selected), status only */
   compact?: boolean
+  /** Doctor dashboard: render a detailed 7-column table (File No., Patient, Date, Time, Doctor, Branch, Status). */
+  detailedColumns?: boolean
   patient?: string
   onAddAppointment?: () => void
   onPatientClick?: (patient: string) => void
@@ -783,11 +785,7 @@ const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; 
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return 'Unknown'
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    return new Date(dateStr).toLocaleDateString('en-GB')
   }
 
   return (
@@ -853,6 +851,7 @@ export const AppointmentList = ({
   showAll = false,
   doctorScheduleMode = false,
   compact = false,
+  detailedColumns = false,
   patient,
   onPatientClick,
   onOpenVisitInHeader,
@@ -893,6 +892,36 @@ export const AppointmentList = ({
   const cardCompactLayout = compactClinical || (compact && isInsideCard)
   /** Full table in card only when not using compact clinical layout (e.g. wide reception tile). */
   const cardHorizontalScroll = isInsideCard && !cardCompactLayout
+
+  // Doctor-dashboard detailed columns: map each appointment's cost center to its
+  // friendly branch label (same labels as the navbar branch filter).
+  const [branchLabels, setBranchLabels] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (!detailedColumns) return
+    let cancelled = false
+    fetchBranchOptions()
+      .then((opts) => {
+        if (cancelled) return
+        const map: Record<string, string> = {}
+        opts.forEach((o) => { map[o.name] = o.label })
+        setBranchLabels(map)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [detailedColumns])
+
+  /** Friendly branch label; falls back to the cost centre with its company suffix stripped. */
+  const branchLabel = (cc?: string) =>
+    cc ? branchLabels[cc] || cc.replace(/\s*-\s*[^-]+$/, '') || cc : '—'
+  /** Appointment time as HH:mm (no seconds). */
+  const apptTime = (apt: Appointment) =>
+    apt.appointment_time ? apt.appointment_time.slice(0, 5) : apt.old_time || '—'
+
+  // Only admins / system managers can change the doctor (practitioner) filter.
+  // For a doctor it stays locked to their own linked practitioner.
+  const { user } = useAuth()
+  const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
+  const canChangePractitioner = isAdmin(authRoles)
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
@@ -1324,19 +1353,16 @@ export const AppointmentList = ({
           <span>
             Showing appointments for <span className="font-semibold">{practitionerFilterDisplayValue || filterPractitioner}</span> only.
           </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="underline font-medium hover:text-blue-700"
-          >
-            Show all doctors
-          </button>
+          {canChangePractitioner && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="underline font-medium hover:text-blue-700"
+            >
+              Show all doctors
+            </button>
+          )}
         </div>
-      )}
-      {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
-        <p className="text-xs text-amber-700 mb-2">
-          No doctor is linked to your user. Appointments may be empty unless you have a reception/admin role.
-        </p>
       )}
       {/* Header row */}
       {!isInsideCard && !embedded && (
@@ -1395,17 +1421,19 @@ export const AppointmentList = ({
                 <input
                   type="text"
                   value={practitionerFilterDisplayValue}
+                  disabled={!canChangePractitioner}
+                  title={!canChangePractitioner ? 'Locked to your linked practitioner' : undefined}
                   onChange={(e) => {
                     setPractitionerQuery(e.target.value)
                     setFilterPractitioner('')
                     setPractitionerOpen(true)
                     setPage(1)
                   }}
-                  onFocus={() => setPractitionerOpen(true)}
+                  onFocus={() => canChangePractitioner && setPractitionerOpen(true)}
                   placeholder="Search doctor..."
-                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}`}
+                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}${!canChangePractitioner ? ' bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
                 />
-                {filterPractitioner && (
+                {filterPractitioner && canChangePractitioner && (
                   <button
                     type="button"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
@@ -1420,7 +1448,7 @@ export const AppointmentList = ({
                     ×
                   </button>
                 )}
-                {practitionerOpen && practitionerDropdownOptions.length > 0 && (
+                {practitionerOpen && canChangePractitioner && practitionerDropdownOptions.length > 0 && (
                   <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
                     {practitionerDropdownOptions.map((p) => (
                       <button
@@ -1538,7 +1566,64 @@ export const AppointmentList = ({
         </div>
       ) : (
         <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
-          {cardCompactLayout ? (
+          {detailedColumns ? (
+            <table className="w-full min-w-[760px] table-auto">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {['File No.', 'Patient Name', 'Date', 'Time', 'Doctor Name', 'Branch', 'Status'].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {appointments.map((apt) => (
+                  <tr key={apt.name} className={dashboardCardRowHoverClass} onClick={() => setDetailApt(apt)}>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '—'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      onClick={(e) => {
+                        if (apt.patient) {
+                          e.stopPropagation()
+                          onPatientClick?.(apt.patient)
+                        }
+                      }}
+                    >
+                      <span
+                        className={apt.patient ? 'font-medium text-primary hover:underline' : ''}
+                        title={apt.patient_name || apt.patient || apt.temporary_patient_name || undefined}
+                      >
+                        {apt.patient_name || apt.patient || apt.temporary_patient_name || '—'}
+                      </span>
+                      {isWalkInAppointment(apt) && (
+                        <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                          Walk-in
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.appointment_date ? formatDate(apt.appointment_date) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.practitioner_name || apt.practitioner || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={apt.cost_center || undefined}>
+                      {branchLabel(apt.cost_center)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {apt.status ? (
+                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                      ) : (
+                        <span className="text-sm text-slate-500">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : cardCompactLayout ? (
             <table className="w-full table-fixed">
               <colgroup>
                 <col className={patient ? 'w-[48%]' : 'w-[34%]'} />

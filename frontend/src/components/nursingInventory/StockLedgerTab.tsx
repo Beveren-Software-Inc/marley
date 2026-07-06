@@ -271,7 +271,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
                       </div>
                       <div className="col-span-2">
                         <label className="text-xs text-slate-500">Last Updated</label>
-                        <p className="text-slate-900 font-medium">{item.last_updated ? new Date(item.last_updated).toLocaleDateString() : '-'}</p>
+                        <p className="text-slate-900 font-medium">{item.last_updated ? new Date(item.last_updated).toLocaleDateString('en-GB') : '-'}</p>
                       </div>
                     </div>
                   </div>

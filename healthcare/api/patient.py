@@ -30,7 +30,7 @@ def user_can_browse_full_patient_directory() -> bool:
 
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
-	"""Search patients by name or file number"""
+	"""Search patients by name, patient ID, file number, or CPR/ID number."""
 	search = (search or "").strip()
 	if not search:
 		return []

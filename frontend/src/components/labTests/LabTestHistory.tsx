@@ -44,11 +44,7 @@ function formatColumnHeader(col: LabHistoryMatrixColumn): { dateLine: string; ti
   let dateLine = col.date || '—'
   try {
     if (col.date) {
-      dateLine = new Date(col.date + 'T00:00:00').toLocaleDateString('en-GB', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-      })
+      dateLine = new Date(col.date + 'T00:00:00').toLocaleDateString('en-GB')
     }
   } catch {
     dateLine = col.date || '—'

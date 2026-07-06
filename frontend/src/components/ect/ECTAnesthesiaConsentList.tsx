@@ -112,7 +112,7 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey, onPatientClick }
                   {row.inpatient_admission || '—'}
                 </td>
                 <td className="px-3 py-2 text-slate-500 text-xs">
-                  {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
+                  {row.creation ? new Date(row.creation).toLocaleDateString('en-GB') : '—'}
                 </td>
                 <td className="px-3 py-2 text-slate-500 text-xs">
                    <div className="flex items-center">

@@ -13,6 +13,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
 import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
 import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
+import sereneLogo from '../../assets/serene-logo.png'
 import {
   DOCTOR_DISCHARGE_SCREEN_ID,
   isInpatientDischargeRoute,
@@ -426,8 +427,15 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         } w-[240px]`}
       >
         {/* Logo */}
-        <div className="bg-primary text-white px-4 py-3 border-b border-white/10 flex items-center h-[60px] flex-shrink-0">
-          <div className="font-semibold text-lg">Healthcare</div>
+        <div className="bg-primary px-3 py-3 border-b border-white/10 flex items-center justify-center flex-shrink-0">
+          <div className="w-full rounded-lg bg-white shadow-sm px-3 py-2.5 flex items-center justify-center">
+            <img
+              src={sereneLogo}
+              alt="Serene Psychiatry Hospital"
+              className="w-[180px] max-w-full h-auto object-contain select-none"
+              draggable={false}
+            />
+          </div>
         </div>
 
         <SidebarCareModePicker />

@@ -3534,7 +3534,7 @@ const loadDailyVisitSetup = async () => {
                                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                                           {item.name1 && <span className="text-xs text-slate-500"><span className="font-medium">Contact:</span> {item.name1}</span>}
                                           {item.click && item.date_time && (
-                                            <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString()}</span>
+                                            <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString('en-GB')}</span>
                                           )}
                                           {!rowEditable && !item.click && (
                                             <span className="text-xs text-slate-500">Waiting for {assignedDeptLabel}</span>
@@ -3735,7 +3735,7 @@ const loadDailyVisitSetup = async () => {
                                         <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
                                           {item.name1 && <span className="text-xs text-slate-500"><span className="font-medium">Contact:</span> {item.name1}</span>}
                                           {item.click && item.date_time && (
-                                            <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString()}</span>
+                                            <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString('en-GB')}</span>
                                           )}
                                         </div>
                                         {item.click && (

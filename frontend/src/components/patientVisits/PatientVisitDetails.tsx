@@ -140,7 +140,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
                 {visit.encounter_date && (
                   <div>
                     <span className="font-medium">Encounter Date:</span>{' '}
-                    {new Date(visit.encounter_date).toLocaleDateString()} {visit.encounter_time || ''}
+                    {new Date(visit.encounter_date).toLocaleDateString('en-GB')} {visit.encounter_time || ''}
                   </div>
                 )}
                 {visit.practitioner_name || visit.practitioner ? (

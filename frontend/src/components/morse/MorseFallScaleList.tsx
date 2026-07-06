@@ -64,7 +64,7 @@ function formatDate(value?: string): string {
   if (!value) return '—'
   try {
     const d = new Date(value)
-    if (!isNaN(d.getTime())) return d.toLocaleDateString()
+    if (!isNaN(d.getTime())) return d.toLocaleDateString('en-GB')
   } catch {
     /* ignore */
   }

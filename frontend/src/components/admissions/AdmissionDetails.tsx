@@ -162,13 +162,13 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
           <h3 className="text-sm font-semibold text-slate-700 mb-2">Admission Details</h3>
           <div className="space-y-1 text-sm">
             {admission.scheduled_date && (
-              <div><span className="font-medium">Scheduled Date:</span> {new Date(admission.scheduled_date).toLocaleDateString()}</div>
+              <div><span className="font-medium">Scheduled Date:</span> {new Date(admission.scheduled_date).toLocaleDateString('en-GB')}</div>
             )}
             {admission.admitted_datetime && (
-              <div><span className="font-medium">Admitted:</span> {new Date(admission.admitted_datetime).toLocaleString()}</div>
+              <div><span className="font-medium">Admitted:</span> {new Date(admission.admitted_datetime).toLocaleString('en-GB')}</div>
             )}
             {admission.expected_discharge && (
-              <div><span className="font-medium">Expected Discharge:</span> {new Date(admission.expected_discharge).toLocaleDateString()}</div>
+              <div><span className="font-medium">Expected Discharge:</span> {new Date(admission.expected_discharge).toLocaleDateString('en-GB')}</div>
             )}
           </div>
         </div>
@@ -207,10 +207,10 @@ export const AdmissionDetails = ({ admissionNo, onUpdate }: AdmissionDetailsProp
             <div className="space-y-1 text-sm">
               <div><span className="font-medium">Service Unit:</span> {admission.current_occupancy.service_unit_name || admission.current_occupancy.service_unit || '-'}</div>
               {admission.current_occupancy.check_in && (
-                <div><span className="font-medium">Check In:</span> {new Date(admission.current_occupancy.check_in).toLocaleString()}</div>
+                <div><span className="font-medium">Check In:</span> {new Date(admission.current_occupancy.check_in).toLocaleString('en-GB')}</div>
               )}
               {admission.current_occupancy.check_out && (
-                <div><span className="font-medium">Check Out:</span> {new Date(admission.current_occupancy.check_out).toLocaleString()}</div>
+                <div><span className="font-medium">Check Out:</span> {new Date(admission.current_occupancy.check_out).toLocaleString('en-GB')}</div>
               )}
             </div>
           </div>

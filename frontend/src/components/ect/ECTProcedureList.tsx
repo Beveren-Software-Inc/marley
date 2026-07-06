@@ -98,9 +98,9 @@ export const ECTProcedureList = ({ patient, onPatientClick }: ECTProcedureListPr
                 </td>
                 <td className="px-3 py-2">
                   {row.date_of_session
-                    ? new Date(row.date_of_session).toLocaleDateString()
+                    ? new Date(row.date_of_session).toLocaleDateString('en-GB')
                     : row.date
-                    ? new Date(row.date).toLocaleDateString()
+                    ? new Date(row.date).toLocaleDateString('en-GB')
                     : '-'}
                 </td>
                 {!patient && (

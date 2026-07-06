@@ -276,7 +276,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                 <tr>
                   <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
                     {debouncedQuery
-                      ? 'No patients match your search.'
+                      ? 'No Patient Found.'
                       : fullDirectoryRestricted
                         ? 'Use search above to find a patient.'
                         : 'No patients found.'}

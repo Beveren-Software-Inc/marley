@@ -42,9 +42,9 @@ export const ECTDetailDetails = ({ ectName }: ECTDetailDetailsProps) => {
     load()
   }, [ectName])
 
-  const fmt = (d?: string) => (d ? new Date(d).toLocaleDateString() : undefined)
+  const fmt = (d?: string) => (d ? new Date(d).toLocaleDateString('en-GB') : undefined)
   const fmtTime = (t?: string) => (t ? String(t).slice(0, 8) : undefined)
-  const fmtDt = (d?: string) => (d ? new Date(d).toLocaleString() : undefined)
+  const fmtDt = (d?: string) => (d ? new Date(d).toLocaleString('en-GB') : undefined)
 
   if (loading) {
     return (

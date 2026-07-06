@@ -293,7 +293,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
     }
   }
 
-  const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString() : undefined
+  const formatDate = (d?: string) => d ? new Date(d).toLocaleDateString('en-GB') : undefined
 
   if (loading) return (
     <div className="flex items-center justify-center p-8 text-slate-600">

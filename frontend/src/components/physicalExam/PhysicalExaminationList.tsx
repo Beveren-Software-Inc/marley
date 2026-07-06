@@ -234,7 +234,7 @@ export const PhysicalExaminationList = ({
                     )}
                     <td className="px-3 py-2 text-xs text-slate-500">{row.inpatient_admission || '—'}</td>
                     <td className="px-3 py-2 text-xs text-slate-500">
-                      {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
+                      {row.creation ? new Date(row.creation).toLocaleDateString('en-GB') : '—'}
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-500">
                       <PrintFormatDropdown

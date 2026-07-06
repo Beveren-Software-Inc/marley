@@ -97,14 +97,17 @@ def mark_all_notifications_read():
 		if not frappe.db.exists('DocType', 'Notification Log'):
 			return {'success': False, 'error': 'Notification Log not available'}
 		
+		# `read` is a reserved word in MariaDB — it must be back-quoted, otherwise
+		# this UPDATE raises a syntax error and the unread flags never clear (which
+		# is why the badge count came back after a reload).
 		frappe.db.sql("""
 			UPDATE `tabNotification Log`
-			SET read = 1
-			WHERE for_user = %s AND read = 0
+			SET `read` = 1
+			WHERE for_user = %s AND `read` = 0
 		""", user)
-		
+
 		frappe.db.commit()
-		
+
 		return {'success': True}
 	except Exception as e:
 		frappe.log_error(f"Error marking all notifications as read: {str(e)}")

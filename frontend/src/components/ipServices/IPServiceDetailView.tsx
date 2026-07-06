@@ -78,7 +78,7 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-'
     try {
-      return new Date(dateStr).toLocaleString()
+      return new Date(dateStr).toLocaleString('en-GB')
     } catch {
       return dateStr
     }

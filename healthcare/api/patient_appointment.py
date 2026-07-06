@@ -62,6 +62,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
 	appointments = frappe.get_all(**fetch_args)
 	_enrich_appointments_with_sales_order(appointments)
+	_enrich_appointments_with_file_no(appointments)
 
 	return {"data": appointments, "total_count": total_count}
 
@@ -165,6 +166,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
 
     total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
     appointments = frappe.get_all(**fetch_args)
+    _enrich_appointments_with_file_no(appointments)
 
     return {"data": appointments, "total_count": total_count}
 
@@ -324,6 +326,23 @@ def link_walk_in_appointment_to_patient(appointment_name, patient):
 		"temporary_patient_name": doc.temporary_patient_name,
 		"temporary_mobile_no": doc.temporary_mobile_no,
 	}
+
+
+def _enrich_appointments_with_file_no(appointments):
+	"""Attach each patient's File No. (Patient.file_no) to the appointment rows."""
+	if not appointments:
+		return
+	patient_ids = list({a.get("patient") for a in appointments if a.get("patient")})
+	file_map = {}
+	if patient_ids:
+		file_map = {
+			row.name: row.file_no
+			for row in frappe.get_all(
+				"Patient", filters={"name": ["in", patient_ids]}, fields=["name", "file_no"]
+			)
+		}
+	for apt in appointments:
+		apt["file_no"] = file_map.get(apt.get("patient"))
 
 
 def _enrich_appointments_with_sales_order(appointments):

@@ -19,6 +19,8 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<{ success: boolean; message: string; user?: User }>
   logout: () => Promise<void>
   checkSession: () => Promise<boolean>
+  /** Merge a partial update into the current user (e.g. after editing name/photo) and persist it. */
+  updateUser: (patch: Partial<User>) => void
   loading: boolean
   isAuthenticated: boolean
 }
@@ -203,6 +205,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+  // Merge a partial update into the current user and persist to localStorage.
+  const updateUser = (patch: Partial<User>) => {
+    setUser((prev) => {
+      if (!prev) return prev
+      const next = { ...prev, ...patch }
+      try {
+        localStorage.setItem('user_data', JSON.stringify(next))
+      } catch {
+        /* ignore storage errors */
+      }
+      return next
+    })
+  }
+
   // Method to check if session is still valid
   const checkSession = async () => {
     if (!user) return false
@@ -228,6 +244,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         login,
         logout,
         checkSession,
+        updateUser,
         loading,
         isAuthenticated: !!user,
       }}

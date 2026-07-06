@@ -319,7 +319,7 @@ export const InsurancePatientRegisterList = ({
                   <Field label="National ID / CPR No" value={detailRow.national_id_cpr_no} />
                   <Field label="Linked Patient" value={detailRow.patient} />
                   <Field label="Posting Date" value={detailRow.posting_date
-                    ? new Date(detailRow.posting_date).toLocaleDateString()
+                    ? new Date(detailRow.posting_date).toLocaleDateString('en-GB')
                     : undefined}
                   />
                 </div>

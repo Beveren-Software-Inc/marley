@@ -146,7 +146,7 @@ export const SuicidalAssessmentList = ({
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '—'
     try {
-      return new Date(dateStr).toLocaleDateString()
+      return new Date(dateStr).toLocaleDateString('en-GB')
     } catch {
       return dateStr
     }

@@ -145,7 +145,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
 
   const formatDate = (d?: string) => {
     if (!d) return '—'
-    return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+    return new Date(d).toLocaleDateString('en-GB')
   }
 
   const getRowColorClass = (row: LongActingMedicineRow) => {

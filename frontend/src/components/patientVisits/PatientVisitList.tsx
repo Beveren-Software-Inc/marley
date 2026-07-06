@@ -17,6 +17,7 @@ import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
@@ -62,6 +63,8 @@ interface PatientVisitListProps {
   showAppointmentAmount?: boolean
   /** Hide lab/pharmacy amount columns (e.g. Daily Auto Visits). */
   hideLabPharmacyAmounts?: boolean
+  /** Doctor dashboard: detailed 15-column table (Visit No/Date/Type, File/CPR, amounts, Total Due, Discount, Balance, Doctor, User). */
+  detailedColumns?: boolean
 }
 
 function patientVisitCardMetaFields(
@@ -87,6 +90,7 @@ export const PatientVisitList = ({
   onCreateNew,
   showAppointmentAmount = false,
   hideLabPharmacyAmounts = false,
+  detailedColumns = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -356,7 +360,9 @@ export const PatientVisitList = ({
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
-  const tableColSpan = cardCompactLayout
+  const tableColSpan = detailedColumns
+    ? 15
+    : cardCompactLayout
     ? 3
     : 8 +
       (patient ? 0 : 1) +
@@ -630,14 +636,24 @@ export const PatientVisitList = ({
         ) : (
           <table
             className={
-              cardCompactLayout
+              detailedColumns
+                ? 'w-full min-w-[1500px]'
+                : cardCompactLayout
                 ? 'w-full table-fixed'
                 : `w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`
             }
           >
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {cardCompactLayout ? (
+                {detailedColumns ? (
+                  <>
+                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Status', 'Balance', 'Doctor Name', 'User'].map((h) => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </>
+                ) : cardCompactLayout ? (
                   <>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
                       Visit No
@@ -682,6 +698,31 @@ export const PatientVisitList = ({
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
+              ) : detailedColumns ? (
+                visits.map((visit) => (
+                  <tr key={visit.value} className={dashboardCardRowHoverClass} onClick={() => openVisitRow(visit)}>
+                    <td className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap">{visit.value}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.encounter_date ? formatDate(visit.encounter_date) : '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.file_no || '-'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      onClick={(e) => { if (visit.patient) { e.stopPropagation(); onPatientFromVisit?.(visit.patient) } }}
+                    >
+                      <span className={visit.patient ? 'text-primary hover:underline' : ''}>{visit.patient_name || '-'}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.cpr_no || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.service_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.lab_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.pharmacy_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.total_due ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.discount ?? 0)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap"><StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} /></td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.user || '-'}</td>
+                  </tr>
+                ))
               ) : cardCompactLayout ? (
                 visits.map((visit) => (
                   <tr
@@ -722,7 +763,7 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {visit.encounter_date
-                      ? new Date(visit.encounter_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+                      ? new Date(visit.encounter_date).toLocaleDateString('en-GB')
                       : '-'}
                   </td>
                   {showAppointmentAmount && (

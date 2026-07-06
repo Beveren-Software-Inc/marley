@@ -11,7 +11,7 @@
 
 // function formatDate(d?: string) {
 //   if (!d) return '—'
-//   return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+//   return new Date(d).toLocaleDateString('en-GB')
 // }
 
 // interface LongActingMedicineListProps {
@@ -145,7 +145,7 @@ const statusColors: Record<string, string> = {
 
 function formatDate(d?: string) {
   if (!d) return '—'
-  return new Date(d).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  return new Date(d).toLocaleDateString('en-GB')
 }
 
 function getRowColorClass(nextRunDate?: string) {
