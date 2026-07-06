@@ -17,6 +17,8 @@ export interface PatientVisit {
   inpatient_status?: string
   appointment?: string
   company?: string
+  cost_center?: string
+  encounter_comment?: string
   sales_order?: string
   visit_charge_rate?: number
   visit_charge_error?: string
@@ -299,6 +301,44 @@ const csrf = await ensureCSRF()
   }
   
   return resData.message;
+}
+
+export interface UpdatePatientVisitData {
+  practitioner: string
+  encounter_date: string
+  encounter_time: string
+  visit_type?: string
+  cost_center?: string
+  encounter_comment?: string
+}
+
+export async function updatePatientVisit(
+  name: string,
+  data: UpdatePatientVisitData,
+): Promise<PatientVisit> {
+  const csrf = await ensureCSRF()
+  const response = await fetch('/api/method/healthcare.api.patient_visit.update_patient_visit', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ name, data }),
+  })
+  const resData = await response.json()
+  if (!response.ok || resData?.exc) {
+    throw new Error(
+      typeof resData?.message === 'string'
+        ? resData.message
+        : resData?.exception || 'Failed to update patient visit',
+    )
+  }
+  if (!resData?.message) {
+    throw new Error('Failed to update patient visit')
+  }
+  return resData.message as PatientVisit
 }
 
 export async function updatePatientVisitDocuments(

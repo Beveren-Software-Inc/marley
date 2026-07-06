@@ -1292,23 +1292,35 @@ export const DoctorPage = () => {
   // Show Patient Visit History
   if (screen === 'pvh') {
     return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <DashboardCard
-            title="Patient Visit History"
-            onAdd={() => setShowCreateVisitModal(true)}
-            addButtonTitle="Create Patient Visit"
-            allowCreateOnClosedEpisode
-          >
-            <PatientVisitList
-              patient={selectedPatient}
-              onPatientFromVisit={handlePatientSelect}
-              onVisitActivate={handleVisitActivate}
-            />
-          </DashboardCard>
+      <>
+        <div className="flex flex-col">
+          <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+          <div className="p-4">
+            <DashboardCard
+              title="Patient Visit History"
+              onAdd={() => setShowCreateVisitModal(true)}
+              addButtonTitle="Create Patient Visit"
+              allowCreateOnClosedEpisode
+              noHeightLimit
+            >
+              <PatientVisitList
+                patient={selectedPatient}
+                onPatientFromVisit={handlePatientSelect}
+                onVisitActivate={handleVisitActivate}
+              />
+            </DashboardCard>
+          </div>
         </div>
-      </div>
+        {showCreateVisitModal && (
+          <CreatePatientVisitModal
+            onClose={() => setShowCreateVisitModal(false)}
+            onSuccess={() => {
+              setShowCreateVisitModal(false)
+            }}
+            initialPatient={selectedPatient || undefined}
+          />
+        )}
+      </>
     )
   }
 

@@ -13,6 +13,7 @@ import { PatientVisitDetails } from './PatientVisitDetails'
 import { cancelVisit, createInvoiceForVisit, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
+import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
@@ -185,6 +186,7 @@ export const PatientVisitList = ({
   const [observationVisit, setObservationVisit] = useState<PatientVisitListRow | null>(null)
   const [diagnosisVisit, setDiagnosisVisit] = useState<PatientVisitListRow | null>(null)
   const [uploadDocumentsVisit, setUploadDocumentsVisit] = useState<PatientVisitListRow | null>(null)
+  const [editVisit, setEditVisit] = useState<PatientVisitListRow | null>(null)
 
   // --- Visit No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -760,6 +762,15 @@ export const PatientVisitList = ({
                         triggerRef={menuRef}
                         minWidth={160}
                       >
+                        {visit.status !== 'Cancelled' && (
+                          <button
+                            type="button"
+                            onClick={() => { setEditVisit(visit); setOpenActionRow(null) }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Edit Visit
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
@@ -912,6 +923,18 @@ export const PatientVisitList = ({
           patientName={diagnosisVisit.patient_name}
           onClose={() => setDiagnosisVisit(null)}
           onSuccess={() => setDiagnosisVisit(null)}
+        />
+      )}
+
+      {/* Edit Visit Modal */}
+      {editVisit && (
+        <EditPatientVisitModal
+          visitName={editVisit.value}
+          onClose={() => setEditVisit(null)}
+          onSuccess={() => {
+            setEditVisit(null)
+            fetchVisits()
+          }}
         />
       )}
 

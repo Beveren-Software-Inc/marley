@@ -12,7 +12,7 @@ interface PatientVisitPageProps {
 }
 
 export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {}) => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, guardClinicalCreate } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const searchFromUrl = searchParams.get('search')
   const patientFromUrl = searchParams.get('patient') || initialPatient || ''
@@ -65,7 +65,9 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
               patient={selectedPatient || undefined}
               refreshKey={visitRefreshKey}
               onPatientFromVisit={handlePatientSelect}
-              onCreateNew={() => setShowCreateVisit(true)}
+              onCreateNew={() =>
+                guardClinicalCreate(() => setShowCreateVisit(true), { allowOnClosed: true })
+              }
             />
           </section>
         </div>
@@ -78,6 +80,7 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
             setShowCreateVisit(false)
             setVisitRefreshKey(prev => prev + 1)
           }}
+          initialPatient={selectedPatient || initialPatient || undefined}
         />
       )}
     </>

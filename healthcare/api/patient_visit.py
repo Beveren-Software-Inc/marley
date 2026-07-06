@@ -220,7 +220,9 @@ def get_patient_visit(name):
 		'inpatient_record': visit.inpatient_record,
 		'inpatient_status': visit.inpatient_status,
 		'appointment': visit.appointment,
-		'company': visit.company
+		'company': visit.company,
+		'cost_center': visit.cost_center,
+		'encounter_comment': visit.encounter_comment,
 	}
 
 	# Attach uploaded documents from the Patient Visit's "documents" child table
@@ -957,6 +959,47 @@ def _apply_patient_visit_documents(doc, documents_data):
 				"document": document_url or None,
 			},
 		)
+
+
+@frappe.whitelist()
+def update_patient_visit(name, data):
+	"""Update editable Patient Visit fields from the portal."""
+	assert_editing_allowed()
+	if isinstance(data, str):
+		data = json.loads(data)
+	data = data or {}
+
+	name = (name or data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Patient Visit name is required"))
+	if not frappe.db.exists("Patient Visit", name):
+		frappe.throw(_("Patient Visit {0} not found").format(name))
+
+	doc = frappe.get_doc("Patient Visit", name)
+	if doc.status == "Cancelled":
+		frappe.throw(_("Cancelled visits cannot be edited"))
+
+	required_fields = ("practitioner", "encounter_date", "encounter_time")
+	for field in required_fields:
+		value = data.get(field, doc.get(field))
+		if not value:
+			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))
+
+	allowed_fields = (
+		"practitioner",
+		"encounter_date",
+		"encounter_time",
+		"visit_type",
+		"cost_center",
+		"encounter_comment",
+	)
+	for field in allowed_fields:
+		if field in data:
+			doc.set(field, data.get(field))
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return get_patient_visit(doc.name)
 
 
 @frappe.whitelist()
