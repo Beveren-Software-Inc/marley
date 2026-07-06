@@ -2,6 +2,7 @@ export interface WarningMessage {
   name: string
   patient?: string
   patient_name?: string
+  file_no?: string
   posting_date?: string
   practitioner?: string
   practitioner_name?: string

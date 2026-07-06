@@ -55,7 +55,7 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, limit=20, offset=0):
+def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, cost_center=None, limit=20, offset=0):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
 	Always enforces Cost Center User Permissions so that users restricted to a
@@ -69,7 +69,7 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 	exclude_cancelled = cint(exclude_cancelled)
 
 	# Use SQL path when we have search, practitioner, date, status, or exclude_cancelled filters
-	use_sql = bool(search or practitioner or from_date or to_date or status or exclude_cancelled)
+	use_sql = bool(search or practitioner or from_date or to_date or status or exclude_cancelled or cost_center)
 
 	if use_sql:
 		conditions = ["1=1"]
@@ -94,6 +94,9 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		if to_date:
 			conditions.append("ia.scheduled_date <= %(to_date)s")
 			params['to_date'] = to_date
+		if cost_center:
+			conditions.append("ia.cost_center = %(cost_center_filter)s")
+			params['cost_center_filter'] = cost_center
 
 		# ── Cost-centre User Permission enforcement ──────────────────────────
 		if permitted_cc is not None:
@@ -136,6 +139,14 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				ia.secondary_practitioner,
 				ia.admission_encounter,
 				ia.expected_length_of_stay,
+				ia.case_no,
+				ia.admission_by_doctor,
+				ia.admission_doctor_name,
+				ia.resident_doctor_name,
+				ia.psychologist_doctor_name,
+				ia.room_service_no,
+				ia.bed_no,
+				p.file_no AS file_no,
 				ia.cost_center
 			FROM `tabInpatient Admission` ia
 			LEFT JOIN `tabPatient` p ON ia.patient = p.name
@@ -187,12 +198,28 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				'secondary_practitioner',
 				'admission_encounter',
 				'expected_length_of_stay',
+				'case_no',
+				'admission_by_doctor',
+				'admission_doctor_name',
+				'resident_doctor_name',
+				'psychologist_doctor_name',
+				'room_service_no',
+				'bed_no',
 				'cost_center',
 			],
 			order_by='scheduled_date desc',
 			limit=limit,
 			start=offset,
 		)
+		# get_all path has no Patient join — attach File No. per patient
+		_patient_ids = list({r.patient for r in records if r.get("patient")})
+		if _patient_ids:
+			_file_map = {
+				row.name: row.file_no
+				for row in frappe.get_all("Patient", filters={"name": ["in", _patient_ids]}, fields=["name", "file_no"])
+			}
+			for r in records:
+				r["file_no"] = _file_map.get(r.get("patient"))
 
 	return {"data": records, "total_count": total_count}
 

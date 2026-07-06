@@ -22,6 +22,9 @@ export interface InpatientRecord {
   name: string
   patient: string
   patient_name: string
+  case_no?: string
+  file_no?: string
+  room_service_no?: string
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
   scheduled_date: string
   admitted_datetime?: string
@@ -174,7 +177,8 @@ export async function fetchInpatientRecords(
   toDate?: string,
   limit?: number,
   offset?: number,
-  excludeCancelled?: boolean
+  excludeCancelled?: boolean,
+  costCenter?: string
 ): Promise<InpatientRecordsPaginatedResponse> {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
@@ -184,6 +188,7 @@ export async function fetchInpatientRecords(
   if (fromDate) params.append('from_date', fromDate)
   if (toDate) params.append('to_date', toDate)
   if (excludeCancelled) params.append('exclude_cancelled', '1')
+  if (costCenter) params.append('cost_center', costCenter)
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
 

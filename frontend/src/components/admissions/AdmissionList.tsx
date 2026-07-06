@@ -4,7 +4,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -163,6 +164,20 @@ export const AdmissionList = ({
 
   const excludeCancelled = Boolean(effectivePatient && !selectedStatus && !effectiveNameFilter)
 
+  // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
+  const [filterBranch, setFilterBranch] = useState('')
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
+    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const branchLabel = (cc?: string) => {
+    if (!cc) return '-'
+    return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
+  }
+
   // IP mode: apply defaults before paint when switching into IP (avoids one unfiltered fetch).
   useLayoutEffect(() => {
     if (!shouldUseIpDefaults) return
@@ -231,13 +246,14 @@ export const AdmissionList = ({
     refreshKey,
     pageSize,
     (page - 1) * pageSize,
-    excludeCancelled
+    excludeCancelled,
+    filterBranch || undefined
   )
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled])
+  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled, filterBranch])
 
   // --- Admission No: debounced search when dropdown is open ---
   useEffect(() => {
@@ -410,10 +426,11 @@ export const AdmissionList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
+    setFilterBranch('')
   }
 
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
-  const hasActiveFilters = admissionNoFilter || practitionerFilter || dateFrom || dateTo || selectedStatus
+  const hasActiveFilters = admissionNoFilter || practitionerFilter || dateFrom || dateTo || selectedStatus || filterBranch
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const exportFilteredCsv = () => {
@@ -602,6 +619,19 @@ export const AdmissionList = ({
             />
           </div>
 
+          {/* Branch — dropdown (defaults to global branch) */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+            <select
+              value={filterBranch}
+              onChange={e => setFilterBranch(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">All branches</option>
+              {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
+            </select>
+          </div>
+
           {/* Status — dropdown */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
@@ -626,24 +656,31 @@ export const AdmissionList = ({
         {/* Records Table */}
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full min-w-[900px]">
+          <table className="w-full min-w-[1400px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Case No</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Case No.</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">File No.</th>
                 {!patient && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Patient Name</th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission by Doctor</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Resident Doctor</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Psychologist</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Room No.</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Days</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Branch</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Status</th>
                 {onAdmissionSelect && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Actions</th>
                 )}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={onAdmissionSelect ? (patient ? 4 : 5) : (patient ? 3 : 4)} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={(patient ? 10 : 11) + (onAdmissionSelect ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
                     {hasActiveFilters ? 'No admissions match your filters.' : 'No admissions found'}
                   </td>
                 </tr>
@@ -655,20 +692,21 @@ export const AdmissionList = ({
                     onClick={() => openAdmissionDetail(record)}
                   >
                     {/* Case No — select patient + IP in header (doctor/nurse home) */}
-                    <td className="px-4 py-3 text-sm font-medium" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3 text-sm font-medium whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={(e) => handleAdmissionIdClick(e, record)}
                         className="text-primary hover:underline text-left focus:outline-none"
                         title="Select this admission in header"
                       >
-                        {record.name}
+                        {record.case_no || record.name}
                       </button>
                     </td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.file_no || '-'}</td>
 
                     {!patient && (
                       <td
-                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer whitespace-nowrap"
                         onClick={(e) => {
                           e.stopPropagation()
                           if (record.patient) onPatientFromAdmission?.(record.patient)
@@ -677,10 +715,16 @@ export const AdmissionList = ({
                         <span className="font-medium text-primary hover:underline">{record.patient_name || record.patient || '-'}</span>
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm text-slate-700">
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
                       {formatAdmissionDate(record)}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.admission_doctor_name || record.admission_by_doctor || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.resident_doctor_name || record.residents_doctor_no || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.psychologist_doctor_name || record.psychologist_doctor || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.room_service_no || record.bed_no || '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap text-center">{record.expected_length_of_stay ?? '-'}</td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
                       <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
                     </td>
 

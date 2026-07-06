@@ -62,6 +62,7 @@ export interface PatientVisitListRow {
   discount?: number
   total_due?: number
   balance?: number
+  cost_center?: string
 }
 
 export interface PatientVisitsPaginatedResponse {
@@ -81,7 +82,8 @@ export async function fetchPatientVisitsFull(
   status?: string,
   visitType?: string,
   limit?: number,
-  offset?: number
+  offset?: number,
+  costCenter?: string
 ): Promise<PatientVisitsPaginatedResponse> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
@@ -91,6 +93,7 @@ export async function fetchPatientVisitsFull(
   if (toDate) params.append('to_date', toDate)
   if (status) params.append('status', status)
   if (visitType) params.append('visit_type', visitType)
+  if (costCenter) params.append('cost_center', costCenter)
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
   try {
@@ -125,6 +128,7 @@ export async function fetchPatientVisitsFull(
         discount: Number(m.discount ?? 0),
         total_due: Number(m.total_due ?? 0),
         balance: Number(m.balance ?? 0),
+        cost_center: m.cost_center ?? '',
       })),
       total_count: msg.total_count ?? rows.length,
     }

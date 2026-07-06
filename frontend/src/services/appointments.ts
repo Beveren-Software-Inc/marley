@@ -115,6 +115,9 @@ export async function fetchPractitionerAppointments(
   search?: string,
   date_from?: string,
   date_to?: string,
+  file_no?: string,
+  patient_name?: string,
+  cost_center?: string,
 ): Promise<AppointmentPage> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -123,6 +126,9 @@ export async function fetchPractitionerAppointments(
   if (search) params.append('search', search)
   if (date_from) params.append('date_from', date_from)
   if (date_to) params.append('date_to', date_to)
+  if (file_no) params.append('file_no', file_no)
+  if (patient_name) params.append('patient_name', patient_name)
+  if (cost_center) params.append('cost_center', cost_center)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient_appointment.get_practitioner_appointments?${params.toString()}`
@@ -152,6 +158,9 @@ export async function fetchAllAppointments(
   practitioner?: string,
   date_from?: string,
   date_to?: string,
+  file_no?: string,
+  patient_name?: string,
+  cost_center?: string,
 ): Promise<AppointmentPage> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -162,6 +171,9 @@ export async function fetchAllAppointments(
   if (practitioner) params.append('practitioner', practitioner)
   if (date_from) params.append('date_from', date_from)
   if (date_to) params.append('date_to', date_to)
+  if (file_no) params.append('file_no', file_no)
+  if (patient_name) params.append('patient_name', patient_name)
+  if (cost_center) params.append('cost_center', cost_center)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient_appointment.get_all_appointments?${params.toString()}`

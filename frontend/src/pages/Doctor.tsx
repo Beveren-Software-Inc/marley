@@ -1885,36 +1885,6 @@ export const DoctorPage = () => {
     </DashboardCard>
   )
 
-  const currentOpCard = (
-    <DashboardCard fixedHeight title="Current OP" listingScreen="pvh">
-      <PatientVisitList
-        detailedColumns
-        onPatientFromVisit={(p) => {
-          setSelectedPatient(p)
-          const sp = new URLSearchParams(searchParams)
-          sp.set('patient', p)
-          setSearchParams(sp, { replace: true })
-        }}
-        onVisitActivate={handleVisitActivate}
-      />
-    </DashboardCard>
-  )
-
-  const currentIpCard = (
-    <DashboardCard fixedHeight title="Current IP" listingScreen="admission">
-      <AdmissionList
-        patient={selectedPatient || undefined}
-        onAdmissionActivate={handleAdmissionActivate}
-        onPatientFromAdmission={(p) => {
-          setSelectedPatient(p)
-          const sp = new URLSearchParams(searchParams)
-          sp.set('patient', p)
-          setSearchParams(sp, { replace: true })
-        }}
-      />
-    </DashboardCard>
-  )
-
   return (
   <div className="flex flex-col">
     <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1924,22 +1894,9 @@ export const DoctorPage = () => {
     <div className="flex flex-col gap-4 p-4">
       {doctorAppointmentsCard}
 
-      {/* Current OP / Current IP — follows the top-bar OP/IP button.
-          No mode selected → show both, Current OP first then Current IP. */}
-      {mode === 'IP' ? (
-        currentIpCard
-      ) : mode === 'OP' ? (
-        currentOpCard
-      ) : (
-        <>
-          {currentOpCard}
-          {currentIpCard}
-        </>
-      )}
-
       <DashboardCard
         fixedHeight
-        title="Patient Visits"
+        title="Outpatient Visit Details"
         onAdd={() => setShowCreateVisitModal(true)}
         addButtonTitle="Create Patient Visit"
         listingScreen="pvh"
@@ -1979,7 +1936,7 @@ export const DoctorPage = () => {
       >
         <WarningMessagesList
           patient={selectedPatient || undefined}
-          noPatientScope="organisation"
+          noPatientScope="all"
           key={warningRefreshKey}
           onPatientClick={handlePatientSelect}
         />

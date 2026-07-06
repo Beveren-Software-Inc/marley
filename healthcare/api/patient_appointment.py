@@ -13,7 +13,8 @@ from healthcare.healthcare.editing_lock import assert_editing_allowed
 @frappe.whitelist()
 def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          search=None, practitioner=None,
-                         date_from=None, date_to=None):
+                         date_from=None, date_to=None,
+                         file_no=None, patient_name=None, cost_center=None):
 	"""Get all appointments (for receptionist) with server-side pagination."""
 	filters = {}
 	or_filters = {}
@@ -24,6 +25,13 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		filters['patient'] = patient
 	if practitioner:
 		filters['practitioner'] = practitioner
+	if patient_name:
+		filters['patient_name'] = ['like', f"%{patient_name}%"]
+	if cost_center:
+		filters['cost_center'] = cost_center
+	if file_no and 'patient' not in filters:
+		matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
+		filters['patient'] = ['in', matched or ['__no_match__']]
 	if date_from:
 		filters['appointment_date'] = ['>=', date_from]
 	if date_to:
@@ -112,7 +120,8 @@ def update_appointment_doctor_note(appointment_name, note):
 
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None,
-                                  search=None, date_from=None, date_to=None):
+                                  search=None, date_from=None, date_to=None,
+                                  file_no=None, patient_name=None, cost_center=None):
     """Get appointments for the current user's healthcare practitioner with server-side pagination."""
     user = frappe.session.user
 
@@ -131,6 +140,13 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
 
     if status:
         filters['status'] = status
+    if patient_name:
+        filters['patient_name'] = ['like', f"%{patient_name}%"]
+    if cost_center:
+        filters['cost_center'] = cost_center
+    if file_no and 'patient' not in filters:
+        matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
+        filters['patient'] = ['in', matched or ['__no_match__']]
     if date_from:
         filters['appointment_date'] = ['>=', date_from]
     if date_to:

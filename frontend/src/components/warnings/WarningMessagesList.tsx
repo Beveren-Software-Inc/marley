@@ -2,14 +2,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import type { NoPatientWarningScope, WarningMessage, WarningMessageListQuery } from '../../services/warningMessages'
 import { WarningMessageDetailPanel } from './WarningMessageDetailPanel'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import {
-  CardRowMetaHint,
-  dashboardCardRowHoverClass,
-  formatDashboardDate,
-} from '../ui/dashboardCardListing'
+import { dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+
+// Format a datetime as "dd/mm/yyyy" + "HH:mm" (24h, no seconds)
+const formatPostingDateTime = (val?: string | null): { date: string; time: string } => {
+  if (!val) return { date: '-', time: '' }
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return { date: val, time: '' }
+  return {
+    date: d.toLocaleDateString('en-GB'),
+    time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false }),
+  }
+}
 
 // Helper function to strip HTML tags and clean text
 const stripHtml = (html: string | undefined): string => {
@@ -44,7 +51,6 @@ export const WarningMessagesList = ({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
-  const compactClinical = useDashboardCompactClinical()
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -245,100 +251,58 @@ export const WarningMessagesList = ({
             <div className="text-slate-500">No warning messages found</div>
           </div>
         )}
-        {warnings.length > 0 && compactClinical ? (
+        {warnings.length > 0 ? (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[28%]">
-                  Date
-                </th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Warning</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">ID</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Posting Date</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">File No.</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-[120px]">Patient Name</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Doctor Name</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Medical Role</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Type</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-full">Warnings &amp; Messages</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {warnings.map((warning) => {
-                const metaFields = [
-                  ['ID', warning.name],
-                  ['Type', warning.type_of_warning || 'Medical'],
-                  ['Practitioner', warning.practitioner_name || warning.practitioner],
-                  ['Reference', warning.reference_name ? `${warning.reference_doc}: ${warning.reference_name}` : ''],
-                ] as const
                 const text = stripHtml(warning.warning)
+                const posted = formatPostingDateTime(warning.posting_date)
                 return (
                   <tr
                     key={warning.name}
                     className={dashboardCardRowHoverClass}
                     onClick={() => setDetailWarning(warning)}
                   >
-                    <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
-                      {formatDashboardDate(warning.posting_date)}
-                      <CardRowMetaHint fields={metaFields} />
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.name}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-600 whitespace-nowrap w-px align-top">
+                      <div>{posted.date}</div>
+                      {posted.time && <div className="text-xs text-slate-400">{posted.time}</div>}
                     </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.file_no || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm w-[120px] align-top">
+                      {warning.patient ? (
+                        <button
+                          type="button"
+                          className="font-medium text-primary hover:underline text-left break-words whitespace-normal"
+                          onClick={(e) => { e.stopPropagation(); onPatientClick?.(warning.patient!) }}
+                        >
+                          {warning.patient_name || warning.patient}
+                        </button>
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.practitioner_name || warning.practitioner || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.medical_role || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.type_of_warning || 'Medical'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-800 align-top">
-                      <div className="line-clamp-4 font-medium">{text}</div>
+                      <div className="line-clamp-3 font-medium" title={text}>{text}</div>
                     </td>
                   </tr>
                 )
               })}
-            </tbody>
-          </table>
-        ) : warnings.length > 0 ? (
-          <table className="w-full min-w-[800px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                {!patient && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
-                )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Type</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Posting Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Warning</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Reference</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {warnings.map((warning) => (
-                <tr key={warning.name} className="hover:bg-slate-50">
-                  {!patient && (
-                    <td
-                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                      onClick={() => warning.patient && onPatientClick?.(warning.patient)}
-                    >
-                      <span className="font-medium text-primary hover:underline">
-                        {warning.patient_name || warning.patient || '-'}
-                      </span>
-                      {warning.gender && <div className="text-xs text-slate-500">{warning.gender}</div>}
-                    </td>
-                  )}
-                  <td className="px-4 py-3 text-sm text-slate-700">{warning.type_of_warning || 'Medical'}</td>
-                  <td
-                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                    onClick={() => setDetailWarning(warning)}
-                  >
-                    <span className="text-primary hover:underline">
-                      {warning.posting_date ? new Date(warning.posting_date).toLocaleString('en-GB') : '-'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {warning.practitioner_name || warning.practitioner || '-'}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    <div className="max-w-md" title={stripHtml(warning.warning)}>
-                      {stripHtml(warning.warning)}
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
-                    {warning.reference_name ? (
-                      <div>
-                        <div className="text-xs text-slate-500">{warning.reference_doc}</div>
-                        <div>{warning.reference_name}</div>
-                      </div>
-                    ) : (
-                      '-'
-                    )}
-                  </td>
-                </tr>
-              ))}
             </tbody>
           </table>
         ) : null}

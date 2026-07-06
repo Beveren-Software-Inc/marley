@@ -15,7 +15,8 @@ import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -128,6 +129,19 @@ export const PatientVisitList = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
+  // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
+  const [filterBranch, setFilterBranch] = useState('')
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
+    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const branchLabel = (cc?: string) => {
+    if (!cc) return '-'
+    return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
+  }
   const [defaultsReady, setDefaultsReady] = useState(!shouldUseOpDefaults)
 
   const [dateFrom, setDateFrom] = useState(() => opDefaultsOnMount?.dateFrom ?? '')
@@ -239,6 +253,7 @@ export const PatientVisitList = ({
         visitType || undefined,
         pageSize,
         (page - 1) * pageSize,
+        filterBranch || undefined,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
@@ -252,12 +267,12 @@ export const PatientVisitList = ({
   useEffect(() => {
     if (!defaultsReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, defaultsReady])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch, defaultsReady])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, filterBranch])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -350,16 +365,17 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
+    setFilterBranch('')
   }
 
   const hasActiveFilters = Boolean(
-    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo,
+    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch,
   )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const tableColSpan = detailedColumns
-    ? 15
+    ? 16
     : cardCompactLayout
     ? 3
     : 8 +
@@ -591,6 +607,19 @@ export const PatientVisitList = ({
           />
         </div>
 
+        {/* Branch */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+          <select
+            value={filterBranch}
+            onChange={e => setFilterBranch(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">All branches</option>
+            {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
+          </select>
+        </div>
+
         {/* Status */}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
@@ -645,7 +674,7 @@ export const PatientVisitList = ({
               <tr>
                 {detailedColumns ? (
                   <>
-                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Status', 'Balance', 'Doctor Name', 'User'].map((h) => (
+                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'User'].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -715,6 +744,7 @@ export const PatientVisitList = ({
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.pharmacy_amount)}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.total_due ?? 0)}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.discount ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={visit.cost_center || undefined}>{branchLabel(visit.cost_center)}</td>
                     <td className="px-3 py-2.5 whitespace-nowrap"><StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} /></td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>

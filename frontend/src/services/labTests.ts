@@ -22,6 +22,7 @@ export interface LabTest {
   docstatus?: number
   patient: string
   patient_name?: string
+  file_no?: string
   patient_age?: string
   patient_sex?: string
   gender?: string

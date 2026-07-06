@@ -247,7 +247,7 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, limit=20, offset=0):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, limit=20, offset=0):
 	"""
 	Fetch patient visits with all filters and pagination.
 	Returns { data: [...], total_count: N }
@@ -271,6 +271,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 
 	if status:
 		filters.append(["status", "=", status])
+
+	if cost_center:
+		filters.append(["cost_center", "=", cost_center])
 
 	if from_date:
 		filters.append(["encounter_date", ">=", from_date])
@@ -305,6 +308,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"inpatient_status",
 			"appointment",
 			"company",
+			"cost_center",
 			"invoice_created",
 			"owner"
 		],
@@ -494,6 +498,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				"lab_amount": lab_amount_map.get(v.name, 0),
 				"service_amount": service_amount_map.get(v.name, 0),
 				"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
+				"cost_center": v.get("cost_center") or '',
 				"visit_type": v.get("visit_type") or '',
 				"file_no": v.get("file_number") or (cpr_map.get(v.patient) or {}).get("file_no") or '',
 				"cpr_no": (cpr_map.get(v.patient) or {}).get("id_number") or '',
