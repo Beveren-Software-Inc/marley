@@ -984,6 +984,7 @@ export const ReceptionistPage = () => {
             setPatientVisitRefreshKey(prev => prev + 1)
             setShowPatientVisitModal(false)
           }}
+          initialPatient={selectedPatient || undefined}
         />
       )}
 

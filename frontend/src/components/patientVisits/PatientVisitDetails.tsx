@@ -4,6 +4,7 @@ import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
+import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
@@ -21,6 +22,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showAdmissionModal, setShowAdmissionModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
 
@@ -163,6 +165,16 @@ const handleCancelVisitConfirm = async (reason: string) => {
           <div className="border-t border-slate-200 pt-4">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Actions</h3>
             <div className="flex flex-wrap gap-2">
+              {visit.status !== 'Cancelled' && (
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(true)}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                >
+                  Edit Visit
+                </button>
+              )}
+
               {/* Create Invoice (green) */}
               {visit.status === 'Completed' && (
                 <button
@@ -300,6 +312,18 @@ const handleCancelVisitConfirm = async (reason: string) => {
           initialPatient={visit.patient}
           onClose={() => setShowObservationModal(false)}
           onSuccess={() => setShowObservationModal(false)}
+        />
+      )}
+
+      {showEditModal && visit && (
+        <EditPatientVisitModal
+          visitName={visit.name}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => {
+            setShowEditModal(false)
+            loadVisit()
+            onUpdate?.()
+          }}
         />
       )}
     </div>
