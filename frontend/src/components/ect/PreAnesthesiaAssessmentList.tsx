@@ -112,7 +112,7 @@ export const PreAnesthesiaAssessmentList = ({ patient, refreshKey, onPatientClic
                     : <span className="text-slate-400 text-xs">—</span>}
                 </td>
                 <td className="px-3 py-2 text-slate-500 text-xs">
-                  {row.assessment_date ? new Date(row.assessment_date).toLocaleDateString() : '—'}
+                  {row.assessment_date ? new Date(row.assessment_date).toLocaleDateString('en-GB') : '—'}
                 </td>
 
                 <td className="px-3 py-2 text-slate-500 text-xs">

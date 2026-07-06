@@ -119,7 +119,7 @@ export const EmployeePage = () => {
                       {data.checkins.map((row) => (
                         <tr key={row.name}>
                           <td className="px-2 py-1">
-                            {row.time ? new Date(row.time).toLocaleString() : '-'}
+                            {row.time ? new Date(row.time).toLocaleString('en-GB') : '-'}
                           </td>
                           <td className="px-2 py-1">{row.log_type || '-'}</td>
                           <td className="px-2 py-1">{row.device_id || '-'}</td>
@@ -159,7 +159,7 @@ export const EmployeePage = () => {
                       {data.room_access_logs.map((row) => (
                         <tr key={row.name}>
                           <td className="px-2 py-1">
-                            {row.access_time ? new Date(row.access_time).toLocaleString() : '-'}
+                            {row.access_time ? new Date(row.access_time).toLocaleString('en-GB') : '-'}
                           </td>
                           <td className="px-2 py-1">{row.location || '-'}</td>
                           <td className="px-2 py-1">{row.access_type || '-'}</td>
@@ -197,7 +197,7 @@ export const EmployeePage = () => {
                         <tr key={row.name}>
                           <td className="px-2 py-1">
                             {row.attendance_date
-                              ? new Date(row.attendance_date).toLocaleDateString()
+                              ? new Date(row.attendance_date).toLocaleDateString('en-GB')
                               : '-'}
                           </td>
                           <td className="px-2 py-1">{row.status}</td>

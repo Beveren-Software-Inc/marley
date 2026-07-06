@@ -2,6 +2,8 @@ export interface Appointment {
   name: string
   patient?: string
   patient_name?: string
+  /** Patient's File No. (joined from Patient in the appointment list APIs). */
+  file_no?: string
   patient_sex?: string
   patient_age?: string
   appointment_date?: string
@@ -52,7 +54,7 @@ export function formatAppointmentDateTime(
   apt?: { appointment_time?: string | null; old_time?: string | null }
 ): string {
   if (!date) return '-'
-  const dateStr = new Date(date).toLocaleDateString()
+  const dateStr = new Date(date).toLocaleDateString('en-GB')
   const time = apt ? getAppointmentDisplayTime(apt) : undefined
   return time ? `${dateStr} ${time}` : dateStr
 }

@@ -243,7 +243,7 @@ export const LabTestReviewModal = ({
     setStep(2)
   }
 
-  const formatDt = (d?: string) => (d ? new Date(d).toLocaleString() : '—')
+  const formatDt = (d?: string) => (d ? new Date(d).toLocaleString('en-GB') : '—')
 
   const subtitle = isBulk ? (
     <>

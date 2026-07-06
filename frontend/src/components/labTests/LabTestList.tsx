@@ -794,7 +794,7 @@
     
 //     try {
 //       const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
-//       const issuedOn = new Date().toLocaleString()
+//       const issuedOn = new Date().toLocaleString('en-GB')
 //       const first = fullTests[0]
 //       const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
 //       const rowsHtml = fullTests.map((test) => {
@@ -1012,7 +1012,7 @@
 //                         </div>
 //                       </td>
 //                       <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-//                       <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
+//                       <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString('en-GB') : '-'}</td>
 //                       <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>
 //                       <td className="px-3 py-1.5 text-sm text-slate-700">
 //                         <div className="flex items-center gap-2">
@@ -1071,7 +1071,7 @@
 //                             : <span className="text-slate-400 text-xs">—</span>}
 //                         </td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700">
-//                           {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
+//                           {child.result_date ? new Date(child.result_date).toLocaleDateString('en-GB') : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString('en-GB') : '-'}
 //                         </td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
 //                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
@@ -1115,7 +1115,7 @@
 //                       : <span className="text-slate-400 text-xs">—</span>}
 //                   </td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700">
-//                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString() : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString() : '-'}
+//                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString('en-GB') : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString('en-GB') : '-'}
 //                   </td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
 //                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
@@ -3217,7 +3217,7 @@ export const LabTestList = ({
     
     try {
       const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
-      const issuedOn = new Date().toLocaleString()
+      const issuedOn = new Date().toLocaleString('en-GB')
       const first = fullTests[0]
       const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
       const rowsHtml = fullTests.map((test) => {
@@ -3554,7 +3554,7 @@ export const LabTestList = ({
                         </div>
                        </td>
                       <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
+                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString('en-GB') : '-'}</td>
                       <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
                       <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
                       {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
@@ -3592,7 +3592,7 @@ export const LabTestList = ({
                             : <span className="text-slate-400 text-xs">—</span>}
                         </td>
                         <td className="px-3 py-1.5 text-sm text-slate-700">
-                          {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
+                          {child.result_date ? new Date(child.result_date).toLocaleDateString('en-GB') : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString('en-GB') : '-'}
                         </td>
                         {renderTechnicianCell(child)}
                         <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
@@ -3665,11 +3665,11 @@ export const LabTestList = ({
                   </td>
                   <td className="px-3 py-1.5 text-sm text-slate-700">
                     {labTest.result_date
-                      ? new Date(labTest.result_date).toLocaleDateString()
+                      ? new Date(labTest.result_date).toLocaleDateString('en-GB')
                       : labTest.date
-                        ? new Date(labTest.date).toLocaleDateString()
+                        ? new Date(labTest.date).toLocaleDateString('en-GB')
                         : labTest.submitted_date
-                          ? new Date(labTest.submitted_date).toLocaleDateString()
+                          ? new Date(labTest.submitted_date).toLocaleDateString('en-GB')
                           : '-'}
                   </td>
                   {renderTechnicianCell(labTest)}

@@ -252,7 +252,7 @@ function SummaryCard({
 
       {row.last_activity && (
         <p className="text-[10px] text-slate-400 mt-3">
-          Last active: {new Date(row.last_activity).toLocaleString()}
+          Last active: {new Date(row.last_activity).toLocaleString('en-GB')}
         </p>
       )}
 
@@ -692,7 +692,7 @@ export function UserActivityAuditReport() {
                     {rows.map((row, idx) => (
                       <tr key={`${row.timestamp}-${row.user}-${idx}`} className="hover:bg-slate-50">
                         <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
-                          {row.timestamp ? new Date(row.timestamp).toLocaleString() : '—'}
+                          {row.timestamp ? new Date(row.timestamp).toLocaleString('en-GB') : '—'}
                         </td>
                         <td className="px-3 py-2">
                           <div className="font-medium text-slate-800">{row.full_name || row.user}</div>

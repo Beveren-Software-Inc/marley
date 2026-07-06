@@ -56,7 +56,7 @@ export function formatDateTimeDisplay(value?: string | null, fallback = '—'): 
   if (!dt) return raw
 
   if (!hasTimeComponent(raw)) {
-    return dt.toLocaleDateString(undefined, DATE_OPTS)
+    return dt.toLocaleDateString('en-GB')
   }
 
   return dt.toLocaleString(undefined, DATE_TIME_OPTS)
@@ -72,7 +72,7 @@ export function formatDateOnlyDisplay(value?: string | null, fallback = '—'): 
   if (!raw) return fallback
   const dt = parseDate(raw)
   if (!dt) return raw
-  return dt.toLocaleDateString(undefined, DATE_OPTS)
+  return dt.toLocaleDateString('en-GB')
 }
 
 /** Admission date, or admission → discharge when discharged (dates only, no time). */
@@ -97,7 +97,7 @@ export function formatAdmissionDate(
   if (!dt) return opts?.fallback ?? '—'
 
   if (opts?.includeTime === false) {
-    return dt.toLocaleDateString(undefined, DATE_OPTS)
+    return dt.toLocaleDateString('en-GB')
   }
 
   const hasTime =
@@ -108,7 +108,7 @@ export function formatAdmissionDate(
     Boolean(record.admitted_datetime?.includes(':'))
 
   if (!hasTime) {
-    return dt.toLocaleDateString(undefined, DATE_OPTS)
+    return dt.toLocaleDateString('en-GB')
   }
 
   return dt.toLocaleString(undefined, DATE_TIME_OPTS)

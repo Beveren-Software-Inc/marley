@@ -23,7 +23,7 @@ interface Props {
 
 function formatDate(iso?: string) {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
+  return new Date(iso).toLocaleDateString('en-GB')
 }
 
 // ── Detail slide-over ──────────────────────────────────────────────────────────

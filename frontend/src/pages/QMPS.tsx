@@ -406,7 +406,7 @@ export const QMPSPage = () => {
                   {events.map((e) => (
                     <tr key={e.name} className="hover:bg-slate-50">
                       <td className="px-3 py-2 text-slate-700">
-                        {e.event_datetime ? new Date(e.event_datetime).toLocaleString() : '-'}
+                        {e.event_datetime ? new Date(e.event_datetime).toLocaleString('en-GB') : '-'}
                       </td>
                       <td className="px-3 py-2 text-slate-800">
                         <div className="font-medium">{e.event_type}</div>

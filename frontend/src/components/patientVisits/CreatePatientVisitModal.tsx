@@ -800,7 +800,7 @@ export const CreatePatientVisitModal = ({
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No patients match your search.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
                     </div>
                   )}
                 </div>

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchNotifications, markNotificationRead, markAllNotificationsRead, type Notification } from '../../services/notifications'
+import { fetchNotifications, markAllNotificationsRead, type Notification } from '../../services/notifications'
+import { formatDate } from '../../utils/formatDate'
 
 type NotificationBellProps = {
   placement?: 'header' | 'sidebar'
@@ -50,25 +51,6 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
       document.removeEventListener('mousedown', handleClickOutside)
     }
   }, [isOpen])
-
-  const handleNotificationClick = async (notification: Notification) => {
-    if (!notification.read) {
-      try {
-        await markNotificationRead(notification.id)
-        setNotifications(prev => 
-          prev.map(n => n.id === notification.id ? { ...n, read: 1 } : n)
-        )
-        setUnreadCount(prev => Math.max(0, prev - 1))
-      } catch (error) {
-        console.error('Failed to mark notification as read:', error)
-      }
-    }
-
-    // Navigate to document if available
-    if (notification.document_type && notification.document_name) {
-      window.open(`/app/${notification.document_type}/${notification.document_name}`, '_blank')
-    }
-  }
 
   const handleMarkAllRead = async () => {
     try {
@@ -149,12 +131,9 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
             ) : (
               <div className="divide-y divide-slate-100">
                 {notifications.map((notification) => (
-                  <button
+                  <div
                     key={notification.id}
-                    onClick={() => handleNotificationClick(notification)}
-                    className={`w-full text-left p-4 hover:bg-slate-50 transition-colors ${
-                      !notification.read ? 'bg-blue-50' : ''
-                    }`}
+                    className={`w-full text-left p-4 ${!notification.read ? 'bg-blue-50' : ''}`}
                   >
                     <div className="flex items-start gap-3">
                       <div className={`flex-shrink-0 w-2 h-2 rounded-full mt-2 ${
@@ -169,7 +148,7 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
                           </p>
                           {notification.created && (
                             <span className="text-xs text-slate-500 ml-2">
-                              {new Date(notification.created).toLocaleDateString()}
+                              {formatDate(notification.created)}
                             </span>
                           )}
                         </div>
@@ -185,7 +164,7 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
                         )}
                       </div>
                     </div>
-                  </button>
+                  </div>
                 ))}
               </div>
             )}

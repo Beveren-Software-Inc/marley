@@ -44,13 +44,7 @@ function formatHistoryDateOnly(val?: string) {
 function formatHistoryDateTime(val?: string) {
   if (!val) return '—'
   try {
-    return new Date(val).toLocaleString(undefined, {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return new Date(val).toLocaleString('en-GB')
   } catch {
     return val
   }

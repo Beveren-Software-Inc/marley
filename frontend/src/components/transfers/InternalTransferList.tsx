@@ -65,7 +65,7 @@ export const InternalTransferList = ({ patient, refreshKey, onPatientClick }: In
                   </td>
                 )}
                 <td className="px-3 py-2 text-slate-600">{row.inpatient_admission}</td>
-                <td className="px-3 py-2 text-slate-600">{row.transfer_datetime ? new Date(row.transfer_datetime).toLocaleString() : '—'}</td>
+                <td className="px-3 py-2 text-slate-600">{row.transfer_datetime ? new Date(row.transfer_datetime).toLocaleString('en-GB') : '—'}</td>
                 <td className="px-3 py-2 text-slate-600">{row.from_cost_center}</td>
                 <td className="px-3 py-2 text-slate-600">{row.to_cost_center}</td>
                 <td className="px-3 py-2 text-slate-600">{row.reason || '—'}</td>

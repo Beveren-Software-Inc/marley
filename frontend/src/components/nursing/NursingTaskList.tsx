@@ -152,7 +152,7 @@ export const NursingTaskList = ({ patient, myTasks, onPatientClick }: NursingTas
                   <td className="px-3 py-2 text-slate-800">{t.inpatient_record || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">{t.service_unit || '—'}</td>
                   <td className="px-3 py-2 text-slate-800">
-                    {requested ? new Date(requested).toLocaleString() : '—'}
+                    {requested ? new Date(requested).toLocaleString('en-GB') : '—'}
                   </td>
                   <td className="px-3 py-2">
                     <span

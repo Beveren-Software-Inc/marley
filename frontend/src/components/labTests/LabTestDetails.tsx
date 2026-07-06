@@ -153,8 +153,8 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
     return <div className="p-8 text-center text-slate-500">Lab test not found</div>
   }
 
-  const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString() : undefined)
-  const formatDatetime = (d?: string) => (d ? new Date(d).toLocaleString() : undefined)
+  const formatDate = (d?: string) => (d ? new Date(d).toLocaleDateString('en-GB') : undefined)
+  const formatDatetime = (d?: string) => (d ? new Date(d).toLocaleString('en-GB') : undefined)
   const followUps = parseFollowUpActions(labTest.review_follow_up_actions)
   const reviewRecorded = hasDoctorReviewData(labTest)
   const isReviewFinal = labTest.status === 'Reviewed' || labTest.status === 'Rejected'

@@ -254,7 +254,7 @@ export const SleepingPatternList = ({
                 {rows.map((row) => (
                   <tr key={row.name} className="cursor-pointer hover:bg-slate-50" onClick={() => openDetail(row)}>
                     <td className="px-4 py-3 text-sm text-slate-800">
-                      {row.date ? new Date(row.date).toLocaleDateString() : '—'}
+                      {row.date ? new Date(row.date).toLocaleDateString('en-GB') : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{row.admission_no}</td>
                     {!patient ? (
@@ -318,7 +318,7 @@ export const SleepingPatternList = ({
                   <div key={row.name} className="space-y-1">
                     <div className="flex justify-between text-[11px] text-slate-600">
                       <span>
-                        {row.date ? new Date(row.date).toLocaleDateString() : '—'} —{' '}
+                        {row.date ? new Date(row.date).toLocaleDateString('en-GB') : '—'} —{' '}
                         {row.patient_name || row.file_no || '—'}
                       </span>
                       <span className="text-slate-500">

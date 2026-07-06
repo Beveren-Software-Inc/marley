@@ -138,7 +138,7 @@ export const AddVisitorModal = ({ admission, onClose, onSuccess }: AddVisitorMod
                 </label>
                 <input
                   type="text"
-                  value={new Date().toLocaleDateString()}
+                  value={new Date().toLocaleDateString('en-GB')}
                   className="w-full rounded-md border border-slate-200 px-3 py-1.5 text-sm bg-slate-50 text-slate-500"
                   readOnly
                 />

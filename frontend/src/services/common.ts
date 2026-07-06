@@ -660,6 +660,22 @@ export async function fetchCostCenters(company?: string, search?: string): Promi
   return []
 }
 
+/**
+ * Branches shown in the portal branch/cost-center filter (BranchSelector).
+ * Backend restricts this to the clinical branches (Jau + Serene Hospital) only,
+ * unlike fetchCostCenters which returns the full cost-center list for pickers.
+ */
+export async function fetchBranchOptions(): Promise<LinkFieldOption[]> {
+  const response = await fetch('/api/method/healthcare.api.common.get_branch_options')
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+
+  return []
+}
+
 export async function fetchBranches(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)

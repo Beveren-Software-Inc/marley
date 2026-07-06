@@ -615,9 +615,9 @@ export const PrescriptionList = ({
               </td>
               <td className="px-4 py-3 text-sm text-slate-700">
                 {row.start_date
-                  ? new Date(row.start_date).toLocaleDateString()
+                  ? new Date(row.start_date).toLocaleDateString('en-GB')
                   : '-'}
-                {row.end_date ? ` – ${new Date(row.end_date).toLocaleDateString()}` : ''}
+                {row.end_date ? ` – ${new Date(row.end_date).toLocaleDateString('en-GB')}` : ''}
               </td>
               <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">

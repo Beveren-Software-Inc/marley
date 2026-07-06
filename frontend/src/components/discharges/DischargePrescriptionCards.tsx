@@ -13,11 +13,7 @@ import { toast } from '../../hooks/useToast'
 function formatStartDate(value?: string | null): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return new Date(value).toLocaleDateString('en-GB')
   } catch {
     return value
   }

@@ -51,7 +51,7 @@ const FilterToggleButton = ({
 const formatNursingNoteDate = (val: string | null | undefined) => {
   if (!val) return '—'
   try {
-    return new Date(val).toLocaleDateString()
+    return new Date(val).toLocaleDateString('en-GB')
   } catch {
     return val
   }

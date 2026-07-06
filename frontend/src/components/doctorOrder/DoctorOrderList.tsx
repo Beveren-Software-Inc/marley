@@ -167,7 +167,7 @@ export const DoctorOrderList = ({
   const formatDateTime = (val: string | null | undefined) => {
     if (!val) return '—'
     try {
-      return new Date(val).toLocaleString()
+      return new Date(val).toLocaleString('en-GB')
     } catch {
       return val
     }

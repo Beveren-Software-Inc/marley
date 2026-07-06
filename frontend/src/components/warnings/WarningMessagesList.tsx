@@ -316,7 +316,7 @@ export const WarningMessagesList = ({
                     onClick={() => setDetailWarning(warning)}
                   >
                     <span className="text-primary hover:underline">
-                      {warning.posting_date ? new Date(warning.posting_date).toLocaleString() : '-'}
+                      {warning.posting_date ? new Date(warning.posting_date).toLocaleString('en-GB') : '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">

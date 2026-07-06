@@ -73,7 +73,7 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
             <div>
               <div className="text-xs font-medium text-slate-500">Date of Birth</div>
               <div className="text-slate-900">
-                {summary.dob ? new Date(summary.dob).toLocaleDateString() : '-'}
+                {summary.dob ? new Date(summary.dob).toLocaleDateString('en-GB') : '-'}
               </div>
             </div>
             <div>

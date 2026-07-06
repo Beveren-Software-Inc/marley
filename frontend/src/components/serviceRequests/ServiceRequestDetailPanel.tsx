@@ -29,7 +29,7 @@ function formatDateTime(date?: string, time?: string) {
   if (!date) return '—'
   try {
     const iso = time ? `${date}T${time}` : date
-    return new Date(iso).toLocaleString()
+    return new Date(iso).toLocaleString('en-GB')
   } catch {
     return [date, time].filter(Boolean).join(' ')
   }

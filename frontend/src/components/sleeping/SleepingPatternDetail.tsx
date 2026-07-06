@@ -59,7 +59,7 @@ export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
           <div>
             <div className="text-slate-500">Date</div>
             <div className="text-slate-900">
-              {doc.date ? new Date(doc.date).toLocaleDateString() : '-'}
+              {doc.date ? new Date(doc.date).toLocaleDateString('en-GB') : '-'}
             </div>
           </div>
           <div>

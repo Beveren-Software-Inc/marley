@@ -123,7 +123,7 @@ export const MentalStateList = ({
   const formatDate = (val: string | null | undefined) => {
     if (!val) return '—'
     try {
-      return new Date(val).toLocaleString()
+      return new Date(val).toLocaleString('en-GB')
     } catch {
       return val
     }

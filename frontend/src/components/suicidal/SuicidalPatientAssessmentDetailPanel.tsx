@@ -84,11 +84,7 @@ function asString(value: unknown): string | undefined {
 function formatDate(value?: string): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return new Date(value).toLocaleDateString('en-GB')
   } catch {
     return value
   }

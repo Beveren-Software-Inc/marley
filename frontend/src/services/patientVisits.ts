@@ -55,6 +55,13 @@ export interface PatientVisitListRow {
   service_amount: number
   pharmacy_amount: number
   appointment_amount: number
+  visit_type?: string
+  file_no?: string
+  cpr_no?: string
+  user?: string
+  discount?: number
+  total_due?: number
+  balance?: number
 }
 
 export interface PatientVisitsPaginatedResponse {
@@ -111,6 +118,13 @@ export async function fetchPatientVisitsFull(
         service_amount: Number(m.service_amount ?? 0),
         pharmacy_amount: Number(m.pharmacy_amount ?? 0),
         appointment_amount: Number(m.appointment_amount ?? 0),
+        visit_type: m.visit_type ?? '',
+        file_no: m.file_no ?? '',
+        cpr_no: m.cpr_no ?? '',
+        user: m.user ?? '',
+        discount: Number(m.discount ?? 0),
+        total_due: Number(m.total_due ?? 0),
+        balance: Number(m.balance ?? 0),
       })),
       total_count: msg.total_count ?? rows.length,
     }

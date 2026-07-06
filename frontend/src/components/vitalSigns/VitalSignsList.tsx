@@ -124,7 +124,7 @@ export const VitalSignsList = ({
   const openDetail = (vs: VitalSign) => {
     setDetailName(vs.name)
     const when = vs.signs_date
-      ? `${new Date(vs.signs_date).toLocaleDateString()}${vs.signs_time ? ` ${vs.signs_time}` : ''}`
+      ? `${new Date(vs.signs_date).toLocaleDateString('en-GB')}${vs.signs_time ? ` ${vs.signs_time}` : ''}`
       : undefined
     const parts = [vs.patient_name || vs.patient, vs.trans_no || vs.name, when].filter(Boolean)
     setDetailSubtitle(parts.length ? parts.join(' · ') : undefined)
@@ -297,7 +297,7 @@ export const VitalSignsList = ({
                     className="px-4 py-3 text-sm text-primary cursor-pointer hover:underline"
                     onClick={() => openDetail(vs)}
                   >
-                    {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString() : '-'}
+                    {vs.signs_date ? new Date(vs.signs_date).toLocaleDateString('en-GB') : '-'}
                     {vs.signs_time && ` ${vs.signs_time}`}
                   </td>
                   {!patient && (

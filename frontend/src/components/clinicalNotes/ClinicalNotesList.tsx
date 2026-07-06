@@ -330,7 +330,7 @@ export const ClinicalNotesList = ({
               >
                 <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
                   <span className="text-primary font-medium">
-                    {note.posting_date ? new Date(note.posting_date).toLocaleString() : '-'}
+                    {note.posting_date ? new Date(note.posting_date).toLocaleString('en-GB') : '-'}
                   </span>
                   <CardRowMetaHint fields={metaFields} />
                 </td>
@@ -407,7 +407,7 @@ export const ClinicalNotesList = ({
                     onClick={() => setDetailName(note.name)}
                   >
                     <span className="text-primary hover:underline">
-                      {note.posting_date ? new Date(note.posting_date).toLocaleString() : '-'}
+                      {note.posting_date ? new Date(note.posting_date).toLocaleString('en-GB') : '-'}
                     </span>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 align-top max-w-xl">
@@ -456,7 +456,7 @@ export const ClinicalNotesList = ({
                   >
                     <span className="text-primary hover:underline">
                       {note.posting_date
-                        ? new Date(note.posting_date).toLocaleString()
+                        ? new Date(note.posting_date).toLocaleString('en-GB')
                         : '-'}
                     </span>
                   </td>

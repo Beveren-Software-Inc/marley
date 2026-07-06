@@ -97,7 +97,7 @@ export const ECTAdmissionList = ({ patient, onPatientClick }: ECTAdmissionListPr
                   </button>
                 </td>
                 <td className="px-3 py-2">
-                  {row.date ? new Date(row.date).toLocaleDateString() : '-'}
+                  {row.date ? new Date(row.date).toLocaleDateString('en-GB') : '-'}
                 </td>
                 {!patient && (
                   <td
