@@ -13,6 +13,10 @@ export interface LinkFieldOption {
   is_group?: number | boolean
   medical_role?: string
   item_code?: string
+  /** Prescription drug (get_prescription_items): scientific / generic name of the drug */
+  scientific_name?: string
+  /** Patient Visit (get_patient_visits): visit status (Open/Ordered/Completed/Cancelled) */
+  status?: string
   /** Appointment Type: default slot length in minutes */
   default_duration?: number
   /** Appointment Type: 1 when marked Default in master */

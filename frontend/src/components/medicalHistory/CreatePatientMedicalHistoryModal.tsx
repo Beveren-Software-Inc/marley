@@ -57,6 +57,9 @@ export const CreatePatientMedicalHistoryModal = ({
     return ''
   })
   const [selectedVisitLabel, setSelectedVisitLabel] = useState<string>('')
+  // PMH can only be added for an Open/Ordered visit; completed/cancelled = view-only.
+  const WRITABLE_VISIT_STATUSES = ['Open', 'Ordered']
+  const [visitBlockedStatus, setVisitBlockedStatus] = useState<string>('')
 
   useEffect(() => {
     if (isIPMode) {
@@ -70,10 +73,18 @@ export const CreatePatientMedicalHistoryModal = ({
     if (isOPMode && patient) {
       fetchPatientVisits(patient, undefined)
         .then((visits) => {
-          setVisitOptions(visits)
+          const writable = visits.filter((v) => WRITABLE_VISIT_STATUSES.includes(v.status || ''))
+          setVisitOptions(writable)
           if (activeVisit) {
-            const matched = visits.find((v) => v.name === activeVisit)
-            if (matched) setSelectedVisitLabel(matched.label)
+            const active = visits.find((v) => v.name === activeVisit)
+            if (active && !WRITABLE_VISIT_STATUSES.includes(active.status || '')) {
+              // Current visit is Completed/Cancelled — history is view-only, block adding.
+              setVisitBlockedStatus(active.status || 'not open')
+              setSelectedVisit('')
+            } else if (active) {
+              setSelectedVisitLabel(active.label)
+              setVisitBlockedStatus('')
+            }
           }
         })
         .catch(() => setVisitOptions([]))
@@ -86,6 +97,13 @@ export const CreatePatientMedicalHistoryModal = ({
 
     if (isIPMode && !selectedAdmission) {
       setError('Please select an inpatient admission for this medical history.')
+      return
+    }
+
+    if (isOPMode && visitBlockedStatus) {
+      setError(
+        `This visit is ${visitBlockedStatus}. Past medical history can only be added for an Open or Ordered visit — it is view-only.`,
+      )
       return
     }
 
@@ -218,7 +236,12 @@ export const CreatePatientMedicalHistoryModal = ({
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Patient Visit <span className="text-red-500">*</span>
                 </label>
-                {activeVisit ? (
+                {visitBlockedStatus ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                    This visit is <strong>{visitBlockedStatus}</strong>. Past medical history can only be added for an{' '}
+                    <strong>Open</strong> or <strong>Ordered</strong> visit — this one is view-only.
+                  </div>
+                ) : activeVisit ? (
                   <>
                     <input
                       type="text"
@@ -229,23 +252,30 @@ export const CreatePatientMedicalHistoryModal = ({
                     <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
                   </>
                 ) : (
-                  <select
-                    value={selectedVisit}
-                    onChange={(e) => {
-                      setSelectedVisit(e.target.value)
-                      const selected = visitOptions.find((v) => v.name === e.target.value)
-                      if (selected) setSelectedVisitLabel(selected.label)
-                    }}
-                    className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
-                    required
-                  >
-                    <option value="">— Select Visit —</option>
-                    {visitOptions.map((v) => (
-                      <option key={v.name} value={v.name}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
+                  <>
+                    <select
+                      value={selectedVisit}
+                      onChange={(e) => {
+                        setSelectedVisit(e.target.value)
+                        const selected = visitOptions.find((v) => v.name === e.target.value)
+                        if (selected) setSelectedVisitLabel(selected.label)
+                      }}
+                      className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
+                      required
+                    >
+                      <option value="">— Select Visit —</option>
+                      {visitOptions.map((v) => (
+                        <option key={v.name} value={v.name}>
+                          {v.label}
+                        </option>
+                      ))}
+                    </select>
+                    {visitOptions.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-1">
+                        No Open or Ordered visit available — past medical history can only be added for an active visit.
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
@@ -263,7 +293,8 @@ export const CreatePatientMedicalHistoryModal = ({
                 saving ||
                 !hasPastMedicalHistoryContent(fields) ||
                 (isIPMode && !selectedAdmission) ||
-                (isOPMode && !selectedVisit)
+                (isOPMode && !selectedVisit) ||
+                (isOPMode && !!visitBlockedStatus)
               }
               className={CM_BTN_PRIMARY}
             >

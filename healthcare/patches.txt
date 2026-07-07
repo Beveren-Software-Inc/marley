@@ -26,3 +26,4 @@ healthcare.patches.v15_0.fix_patient_appointment_department_link
 healthcare.patches.v15_0.set_default_practitioner_schedule_flag
 healthcare.patches.v16_0.create_default_panss_terms
 healthcare.patches.v16_0.ensure_discharge_finance_checklist_page
+healthcare.patches.v16_0.create_item_scientific_name_field

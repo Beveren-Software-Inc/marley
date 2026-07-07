@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
-import { fetchPrescription, type Prescription } from '../../services/prescriptions'
+import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction } from '../../services/prescriptions'
+import { useAuth } from '../../providers/AuthProvider'
+import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { SignPrescriptionPanel } from './SignPrescriptionPanel'
 import {
@@ -148,11 +150,15 @@ const MedicationRow = ({
   parentStartDate,
   parentEndDate,
   prescriptionPractitioner,
+  canManage,
+  onAction,
 }: {
   order: any
   parentStartDate?: string
   parentEndDate?: string
   prescriptionPractitioner: { healthcare_practitioner_name?: string; practitioner?: string; user_name?: string }
+  canManage?: boolean
+  onAction?: (entry: string, drug: string, action: MedicationAction) => void
 }) => {
   const color = getTypeColor(order.medication_type)
   const rowStyle: React.CSSProperties = isHex(color)
@@ -213,6 +219,25 @@ const MedicationRow = ({
         {order.returned_to_store && (
           <div className="mt-1"><SmallBadge cls="bg-slate-100 text-slate-500">Returned</SmallBadge></div>
         )}
+        {order.medication_status === 'On Hold' && (
+          <div className="mt-1"><SmallBadge cls="bg-orange-100 text-orange-700 border border-orange-200">On Hold</SmallBadge></div>
+        )}
+        {order.medication_status === 'Discontinued' && (
+          <div className="mt-1"><SmallBadge cls="bg-red-100 text-red-700 border border-red-200">Discontinued</SmallBadge></div>
+        )}
+        {canManage && onAction && !isLegacyRow && order.medication_status !== 'Discontinued' && (
+          <div className="mt-1.5 flex flex-wrap gap-1">
+            {order.medication_status === 'On Hold' ? (
+              <button type="button" onClick={() => onAction(order.name, displayDrugName, 'Continue')}
+                className="px-2 py-0.5 text-xs rounded border border-green-600 text-green-700 hover:bg-green-50">Continue</button>
+            ) : (
+              <button type="button" onClick={() => onAction(order.name, displayDrugName, 'Hold')}
+                className="px-2 py-0.5 text-xs rounded border border-amber-600 text-amber-700 hover:bg-amber-50">Hold</button>
+            )}
+            <button type="button" onClick={() => onAction(order.name, displayDrugName, 'Discontinue')}
+              className="px-2 py-0.5 text-xs rounded border border-red-600 text-red-700 hover:bg-red-50">Discontinue</button>
+          </div>
+        )}
       </td>
     </tr>
   )
@@ -266,6 +291,15 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeType, setActiveType]     = useState('All')
 
+  // Per-drug Hold / Continue / Discontinue (doctor only)
+  const { user } = useAuth()
+  const canManageMeds = (user?.roles || []).some((r) =>
+    ['Doctor', 'Physician', 'Healthcare Administrator', 'System Manager'].includes(r),
+  )
+  const [pendingAction, setPendingAction] = useState<{ entry: string; drug: string; action: MedicationAction } | null>(null)
+  const [reasonText, setReasonText] = useState('')
+  const [savingAction, setSavingAction] = useState(false)
+
   const load = async () => {
     try {
       setLoading(true)
@@ -290,6 +324,34 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
       console.error(e)
     } finally {
       setActionLoading(null)
+    }
+  }
+
+  const runMedAction = async (entry: string, action: MedicationAction, reason?: string) => {
+    if (!prescription) return
+    setSavingAction(true)
+    try {
+      await setMedicationEntryStatus(prescription.name, entry, action, reason)
+      toast.success(
+        action === 'Continue' ? 'Medicine continued' : action === 'Hold' ? 'Medicine put on hold' : 'Medicine discontinued',
+      )
+      setPendingAction(null)
+      setReasonText('')
+      await load()
+      onUpdate?.()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Action failed')
+    } finally {
+      setSavingAction(false)
+    }
+  }
+
+  const handleMedAction = (entry: string, drug: string, action: MedicationAction) => {
+    if (action === 'Continue') {
+      void runMedAction(entry, action)
+    } else {
+      setReasonText('')
+      setPendingAction({ entry, drug, action })
     }
   }
 
@@ -462,6 +524,8 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                           practitioner: prescription.practitioner,
                           user_name: prescription.user_name,
                         }}
+                        canManage={canManageMeds}
+                        onAction={handleMedAction}
                       />
                     ))}
                   </tbody>
@@ -478,6 +542,59 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ── Reason prompt for Hold / Discontinue ── */}
+      {pendingAction && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4"
+          onClick={() => !savingAction && setPendingAction(null)}
+        >
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold text-slate-900 mb-1">
+              {pendingAction.action === 'Hold' ? 'Hold medicine' : 'Discontinue medicine'}
+            </h3>
+            <p className="text-sm text-slate-500 mb-3">
+              {pendingAction.drug}
+              {pendingAction.action === 'Discontinue' && (
+                <span className="block text-red-600 mt-1">
+                  This is permanent — a discontinued medicine cannot be continued again.
+                </span>
+              )}
+            </p>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Reason <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={reasonText}
+              onChange={(e) => setReasonText(e.target.value)}
+              rows={3}
+              autoFocus
+              placeholder={`Reason to ${pendingAction.action.toLowerCase()} this medicine`}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <button
+                type="button"
+                onClick={() => setPendingAction(null)}
+                disabled={savingAction}
+                className="px-3 py-1.5 text-sm rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={savingAction || !reasonText.trim()}
+                onClick={() => runMedAction(pendingAction.entry, pendingAction.action, reasonText.trim())}
+                className={`px-3 py-1.5 text-sm rounded-md text-white disabled:opacity-50 ${
+                  pendingAction.action === 'Discontinue' ? 'bg-red-600 hover:bg-red-700' : 'bg-amber-600 hover:bg-amber-700'
+                }`}
+              >
+                {savingAction ? 'Saving…' : pendingAction.action}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

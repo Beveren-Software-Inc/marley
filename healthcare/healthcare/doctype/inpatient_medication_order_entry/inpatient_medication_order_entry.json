@@ -14,6 +14,7 @@
   "dosage_form",
   "quantity",
   "instructions",
+  "medication_status",
   "stopped",
   "reason_stopped",
   "is_prn",
@@ -76,6 +77,15 @@
    "in_list_view": 1,
    "label": "Drug",
    "options": "Item"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "",
+   "fieldname": "medication_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Medication Status",
+   "options": "\nOn Hold\nDiscontinued"
   },
   {
    "allow_on_submit": 1,

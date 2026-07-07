@@ -3,8 +3,10 @@ import { Plus, MoreVertical, PenLine, ChevronRight, ClipboardList } from 'lucide
 import {
   fetchPatientMedicalHistories,
   fetchPatientMedicalHistoryDetail,
+  setPatientMedicalHistoryStatus,
   type PatientMedicalHistory,
 } from '../../services/patients'
+import { toast } from '../../hooks/useToast'
 import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
 import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
@@ -217,16 +219,32 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [togglingStatus, setTogglingStatus] = useState<string | null>(null)
   const filteredItems = useMemo(() => {
     return items.filter((it) => {
       const day = creationDay(it.creation)
       if (fromDate && day && day < fromDate) return false
       if (toDate && day && day > toDate) return false
+      if (statusFilter && (it.status || 'Active') !== statusFilter) return false
       return true
     })
-  }, [items, fromDate, toDate])
+  }, [items, fromDate, toDate, statusFilter])
 
-  const hasActiveFilters = Boolean(fromDate || toDate)
+  const hasActiveFilters = Boolean(fromDate || toDate || statusFilter)
+
+  const handleToggleStatus = (it: PatientMedicalHistory) => {
+    if (!it.name) return
+    const next = (it.status || 'Active') === 'Active' ? 'Inactive' : 'Active'
+    setTogglingStatus(it.name)
+    setPatientMedicalHistoryStatus(it.name, next)
+      .then(() => {
+        toast.success(`Marked ${next}`)
+        setInternalRefresh((v) => v + 1)
+      })
+      .catch((e) => toast.error(e instanceof Error ? e.message : 'Failed to update status'))
+      .finally(() => setTogglingStatus(null))
+  }
 
   const load = useCallback(() => {
     if (!patient) return
@@ -304,11 +322,24 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className="text-xs font-medium text-slate-500">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">All</option>
+              <option value="Active">Active</option>
+              <option value="Inactive">Inactive</option>
+            </select>
+          </div>
           {hasActiveFilters ? (
             <ClearFiltersButton
               onClick={() => {
                 setFromDate('')
                 setToDate('')
+                setStatusFilter('')
               }}
             />
           ) : null}
@@ -343,6 +374,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               onClick={() => {
                 setFromDate('')
                 setToDate('')
+                setStatusFilter('')
               }}
             />
           </div>
@@ -394,6 +426,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
               <tr>
                 <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Summary</th>
                 <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Admission</th>
+                <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2.5 text-left font-semibold text-slate-600">Date</th>
                 <th className="px-3 py-2.5 w-8" />
               </tr>
@@ -417,6 +450,21 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
                   </td>
                   <td className="px-3 py-2.5 text-slate-600">
                     {item.inpatient_admission || <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
+                    <button
+                      type="button"
+                      disabled={togglingStatus === item.name}
+                      onClick={() => guardClinicalEdit(() => handleToggleStatus(item))}
+                      title="Click to toggle Active / Inactive"
+                      className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border transition-colors disabled:opacity-50 ${
+                        (item.status || 'Active') === 'Active'
+                          ? 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200'
+                          : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                      }`}
+                    >
+                      {togglingStatus === item.name ? '…' : item.status || 'Active'}
+                    </button>
                   </td>
                   <td className="px-3 py-2.5 text-slate-500 whitespace-nowrap">
                     {formatDate(item.creation)}

@@ -254,8 +254,11 @@ export const LONG_ACTING_FREQUENCY_OPTIONS: LongActingFrequency[] = [
 ]
 
 export interface MedicationOrderRow {
+  name?: string
   drug: string
   drug_name?: string
+  /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
+  medication_status?: string
   medication?: string
   old_medicine_code?: string
   old_medicine_name?: string
@@ -306,6 +309,8 @@ export interface MedicationOrderEntry {
   dosage_form: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
+  /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
+  medication_status?: string
   medication_type?: string
   /** When set, this line is treated as stopped (no longer given) */
   reason_stopped?: string
@@ -385,6 +390,48 @@ export async function fetchMedicationOrders(
   return []
 }
 
+
+export type MedicationAction = 'Hold' | 'Continue' | 'Discontinue'
+
+/** Doctor action to Hold / Continue / Discontinue a single prescribed drug. */
+export async function setMedicationEntryStatus(
+  order: string,
+  entry: string,
+  action: MedicationAction,
+  reason?: string,
+): Promise<{ entry: string; medication_status: string; action: string }> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest('/api/method/healthcare.api.patient_medication_order.set_medication_entry_status', {
+    method: 'POST',
+    body: JSON.stringify({ order, entry, action, reason: reason || undefined }),
+  })
+}
+
+export interface MedicationStatusLogRow {
+  name: string
+  medication_entry?: string
+  drug?: string
+  drug_name?: string
+  action: string
+  new_status?: string
+  reason?: string
+  owner?: string
+  creation?: string
+}
+
+/** Hold/Continue/Discontinue history for a prescription (optionally one drug row). */
+export async function getMedicationStatusLog(
+  order: string,
+  entry?: string,
+): Promise<MedicationStatusLogRow[]> {
+  const params = new URLSearchParams({ order })
+  if (entry) params.append('entry', entry)
+  const res = await fetch(
+    `/api/method/healthcare.api.patient_medication_order.get_medication_status_log?${params.toString()}`,
+  )
+  const data = await res.json()
+  return Array.isArray(data?.message) ? (data.message as MedicationStatusLogRow[]) : []
+}
 
 export async function fetchPrescriptionByInpatientOrEncounter(
   inpatientRecordId?: string | null,

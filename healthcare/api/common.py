@@ -619,10 +619,13 @@ def get_prescription_items(search=None):
 
 	item_meta = frappe.get_meta('Item')
 	route_field = 'custom_route_of_administration' if item_meta.has_field('custom_route_of_administration') else None
+	sci_field = 'custom_scientific_name' if item_meta.has_field('custom_scientific_name') else None
 
 	fields = ['name', 'item_code', 'item_name', 'item_group', 'stock_uom']
 	if route_field:
 		fields.append(route_field)
+	if sci_field:
+		fields.append(sci_field)
 
 	or_filters = None
 	search = (search or '').strip()
@@ -631,6 +634,9 @@ def get_prescription_items(search=None):
 			'item_name': ['like', f'%{search}%'],
 			'item_code': ['like', f'%{search}%'],
 		}
+		# Allow searching drugs by their scientific / generic name too.
+		if sci_field:
+			or_filters[sci_field] = ['like', f'%{search}%']
 
 	items = frappe.get_all(
 		'Item',
@@ -668,6 +674,10 @@ def get_prescription_items(search=None):
 			route_val = row.get(route_field)
 			if route_val:
 				entry['default_route_of_administration'] = route_val
+		if sci_field:
+			sci_val = (row.get(sci_field) or '').strip()
+			if sci_val:
+				entry['scientific_name'] = sci_val
 
 		out.append(entry)
 		if len(out) >= 50:
@@ -1672,16 +1682,17 @@ def get_patient_visits(search=None, patient=None, limit=20):
 	visits = frappe.get_all(
 		"Patient Visit",
 		filters=filters,
-		fields=["name", "patient", "practitioner", "cost_center"],
+		fields=["name", "patient", "practitioner", "cost_center", "status"],
 		limit=limit,
 		order_by="creation desc",
 	)
-	
+
 	return [
 		{
 			"name": v.name,
 			"label": f"{v.name} - {v.patient or ''}",
 			"cost_center": v.get("cost_center"),
+			"status": v.get("status"),
 		}
 		for v in visits
 	]
