@@ -29,15 +29,6 @@ function formatDate(value?: string | null): string {
   }
 }
 
-function formatDateTime(value?: string | null): string {
-  if (!value) return '—'
-  try {
-    return new Date(value).toLocaleString('en-GB')
-  } catch {
-    return value
-  }
-}
-
 function InfoTile({
   icon,
   label,

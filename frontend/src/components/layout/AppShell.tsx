@@ -484,12 +484,12 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         } w-[240px]`}
       >
         {/* Logo */}
-        <div className="bg-primary px-3 py-3 border-b border-white/10 flex items-center justify-center flex-shrink-0">
-          <div className="w-full rounded-lg bg-white shadow-sm px-3 py-2.5 flex items-center justify-center">
+        <div className="bg-primary px-2 py-2 border-b border-white/10 flex items-center justify-center flex-shrink-0">
+          <div className="w-full rounded-md bg-white shadow-sm px-2 py-1.5 flex items-center justify-center">
             <img
               src={sereneLogo}
               alt="Serene Psychiatry Hospital"
-              className="w-[180px] max-w-full h-auto object-contain select-none"
+              className="w-[120px] max-w-full max-h-9 h-auto object-contain select-none"
               draggable={false}
             />
           </div>

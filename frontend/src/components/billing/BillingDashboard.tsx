@@ -1,5 +1,5 @@
 // components/billing/BillingDashboard.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 
 import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { 
@@ -66,6 +66,11 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'dv' | 'unpaid' | 'paid' | 'payments'
 
+function normalizePatientId(value?: string | null): string | undefined {
+  const trimmed = value?.trim()
+  return trimmed || undefined
+}
+
 // Navigation Button Component
 const NavButton = ({ 
   icon: Icon, 
@@ -121,7 +126,7 @@ interface BillingDashboardProps {
 }
 
 export const BillingDashboard = ({ patient, admission, visit }: BillingDashboardProps) => {
-  const { mode, activeAdmission, activeVisit, selectedPatient, costCenterCareScope } = useCareContext()
+  const { mode, activeAdmission, activeVisit, costCenterCareScope } = useCareContext()
   const shiftContext = useReceptionistShift()
   const formatCurrency = useFormatMoney()
 
@@ -146,6 +151,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [dvBalances, setDvBalances] = useState<OutpatientBalance[]>([])
   const [filteredDv, setFilteredDv] = useState<OutpatientBalance[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+  const loadGenerationRef = useRef(0)
   const [recentOrders, setRecentOrders] = useState<ServiceOrder[]>([])
   const [recentInvoices, setRecentInvoices] = useState<ServiceInvoice[]>([])
   const [inpatientFilter, setInpatientFilter] = useState<'all' | 'paid' | 'unpaid' | 'partial' | 'overdue'>('all')
@@ -182,11 +189,20 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const shiftFilterActive = Boolean(shiftContext?.shiftRequired && filterByOpenShift)
   const openShiftName = shiftContext?.context?.open_shift?.name
 
-  const effectivePatient = patient ?? selectedPatient
-  const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
-  const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
-  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
-  const scopedReferenceName = effectiveReferenceName || undefined
+  // Patient filter comes from the parent page; do not fall back to context (avoids stale ID after navbar clear).
+  const effectivePatient = normalizePatientId(patient)
+  const rawReferenceName =
+    mode === 'IP'
+      ? normalizePatientId(admission) ?? activeAdmission
+      : normalizePatientId(visit) ?? activeVisit
+  const scopedReferenceName = effectivePatient ? rawReferenceName || undefined : undefined
+  const scopedReferenceType = scopedReferenceName
+    ? mode === 'IP'
+      ? 'Inpatient Admission'
+      : 'Patient Visit'
+    : undefined
+  const effectiveReferenceType = scopedReferenceType
+  const effectiveReferenceName = scopedReferenceName
 
   // Save view to localStorage
   const handleViewChange = (view: DashboardView) => {
@@ -306,20 +322,23 @@ const handleMakePayment = async (
     handlePaymentSuccess()
   }
 
-  const loadDashboardData = async () => {
-    if (!effectivePatient && !effectiveReferenceName) {
+  const loadDashboardData = async (isStale?: () => boolean) => {
+    if (!effectivePatient && !scopedReferenceName) {
       try {
-        setLoading(true)
+        if (!hasLoadedOnce) setLoading(true)
         const [paymentRows, paySummary] = await Promise.all([
           fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
           fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
         ])
+        if (isStale?.()) return
         setPayments(paymentRows)
         setPaymentSummary(paySummary)
       } catch {
+        if (isStale?.()) return
         setPayments([])
         setPaymentSummary(null)
       } finally {
+        if (isStale?.()) return
         setOrderSummary(null)
         setInvoiceSummary(null)
         setRecentOrders([])
@@ -327,18 +346,21 @@ const handleMakePayment = async (
         setBillingCcRestricted(null)
         setCcBreakdown([])
         setLoading(false)
+        setHasLoadedOnce(true)
       }
       return
     }
 
     try {
-      setLoading(true)
+      if (!hasLoadedOnce) setLoading(true)
       const [ordersSummary, invSummary, recentOrdersData, recentInvoicesData] = await Promise.all([
         fetchServiceOrderSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined),
         fetchInvoiceSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, undefined, shiftFilterActive),
         fetchServiceOrders(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined),
         fetchServiceInvoices(scopedReferenceType, scopedReferenceName, effectivePatient, undefined, fromDate || undefined, toDate || undefined, undefined, shiftFilterActive),
       ])
+
+      if (isStale?.()) return
 
       setOrderSummary(ordersSummary)
       setInvoiceSummary(invSummary)
@@ -356,77 +378,98 @@ const handleMakePayment = async (
           fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
           fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
         ])
+        if (isStale?.()) return
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
         setPayments(paymentRows)
         setPaymentSummary(paySummary)
       } catch {
+        if (isStale?.()) return
         setBillingCcRestricted(null)
         setCcBreakdown([])
         setPayments([])
         setPaymentSummary(null)
       }
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load dashboard data:', error)
       toast.error('Failed to load dashboard data')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }
 
-  const loadInpatientBalances = async () => {
+  const loadInpatientBalances = async (isStale?: () => boolean) => {
     try {
-      setLoading(true)
+      if (!hasLoadedOnce) setLoading(true)
       const balances = await fetchInpatientBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      if (isStale?.()) return
       setInpatientBalances(balances)
       setFilteredInpatient(balances)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load inpatient balances:', error)
       toast.error('Failed to load inpatient balances')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }
 
-  const loadOutpatientBalances = async () => {
+  const loadOutpatientBalances = async (isStale?: () => boolean) => {
     try {
-      setLoading(true)
+      if (!hasLoadedOnce) setLoading(true)
       const balances = await fetchOutpatientBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      if (isStale?.()) return
       setOutpatientBalances(balances)
       setFilteredOutpatient(balances)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load outpatient balances:', error)
       toast.error('Failed to load outpatient balances')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }
 
-  const loadIopBalances = async () => {
+  const loadIopBalances = async (isStale?: () => boolean) => {
     try {
-      setLoading(true)
+      if (!hasLoadedOnce) setLoading(true)
       const balances = await fetchIopBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      if (isStale?.()) return
       setIopBalances(balances)
       setFilteredIop(balances)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load IOP balances:', error)
       toast.error('Failed to load IOP balances')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }
 
-  const loadDailyAutoVisitBalances = async () => {
+  const loadDailyAutoVisitBalances = async (isStale?: () => boolean) => {
     try {
-      setLoading(true)
+      if (!hasLoadedOnce) setLoading(true)
       const balances = await fetchDailyAutoVisitBalances(effectivePatient, fromDate || undefined, toDate || undefined)
+      if (isStale?.()) return
       setDvBalances(balances)
       setFilteredDv(balances)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load daily auto visit balances:', error)
       toast.error('Failed to load daily auto visit balances')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }
 
@@ -446,18 +489,26 @@ const handleMakePayment = async (
   }
 
   useEffect(() => {
+    const generation = ++loadGenerationRef.current
+    let cancelled = false
+    const isStale = () => cancelled || generation !== loadGenerationRef.current
+
     if (currentView === 'inpatient') {
-      loadInpatientBalances()
+      void loadInpatientBalances(isStale)
     } else if (currentView === 'outpatient') {
-      loadOutpatientBalances()
+      void loadOutpatientBalances(isStale)
     } else if (currentView === 'iop') {
-      loadIopBalances()
+      void loadIopBalances(isStale)
     } else if (currentView === 'dv') {
-      loadDailyAutoVisitBalances()
+      void loadDailyAutoVisitBalances(isStale)
     } else {
-      loadDashboardData()
+      void loadDashboardData(isStale)
     }
-  }, [currentView, effectivePatient, effectiveReferenceName, fromDate, toDate, paymentModeFilter, shiftFilterActive])
+
+    return () => {
+      cancelled = true
+    }
+  }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, shiftFilterActive])
 
   useEffect(() => {
     fetchModeOfPayments()
@@ -769,7 +820,7 @@ const handleMakePayment = async (
     </>
   )
 
-  if (loading && (currentView === 'inpatient' || currentView === 'outpatient' || currentView === 'iop')) {
+  if (loading && !hasLoadedOnce && (currentView === 'inpatient' || currentView === 'outpatient' || currentView === 'iop')) {
     return (
       <div className="space-y-4">
         <NavigationRow />
@@ -782,7 +833,7 @@ const handleMakePayment = async (
     )
   }
 
-  if (loading) {
+  if (loading && !hasLoadedOnce) {
     return (
       <div className="flex items-center justify-center h-96">
         <div className="text-slate-500">Loading dashboard...</div>

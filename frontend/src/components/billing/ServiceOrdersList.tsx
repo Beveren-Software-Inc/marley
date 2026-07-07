@@ -25,7 +25,7 @@ interface ServiceOrdersListProps {
 }
 
 export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate, onViewOrder }: ServiceOrdersListProps) => {
-  const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
+  const { mode, activeAdmission, activeVisit } = useCareContext()
   const formatCurrency = useFormatMoney()
   const [orders, setOrders] = useState<ServiceOrder[]>([])
   const [summary, setSummary] = useState<OrderSummary | null>(null)
@@ -40,15 +40,25 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
     return () => clearTimeout(t)
   }, [caseSearch])
 
-  const effectivePatient = patient ?? selectedPatient
-  const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
-  const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
-  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
-  const scopedReferenceName = effectiveReferenceName || undefined
+  const effectivePatient = (() => {
+    const trimmed = patient?.trim()
+    return trimmed || undefined
+  })()
+  const rawReferenceName =
+    mode === 'IP'
+      ? (admission?.trim() || activeAdmission)
+      : (visit?.trim() || activeVisit)
+  const scopedReferenceName = effectivePatient ? rawReferenceName || undefined : undefined
+  const scopedReferenceType = scopedReferenceName
+    ? mode === 'IP'
+      ? 'Inpatient Admission'
+      : 'Patient Visit'
+    : undefined
   const hasCaseSearch = Boolean(debouncedCaseSearch)
 
-  const loadData = async () => {
-    if (!effectivePatient && !effectiveReferenceName && !hasCaseSearch) {
+  const loadData = async (isStale?: () => boolean) => {
+    if (!effectivePatient && !scopedReferenceName && !hasCaseSearch) {
+      if (isStale?.()) return
       setOrders([])
       setSummary(null)
       setLoading(false)
@@ -76,19 +86,26 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
           debouncedCaseSearch || undefined
         ),
       ])
+      if (isStale?.()) return
       setOrders(ordersData)
       setSummary(summaryData)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load service orders:', error)
       toast.error('Failed to load service orders')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType])
+    let cancelled = false
+    void loadData(() => cancelled)
+    return () => {
+      cancelled = true
+    }
+  }, [effectivePatient, scopedReferenceName, statusFilter, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, scopedReferenceType])
 
   const billableOrders = orders.filter(isBillableServiceOrder)
 
@@ -174,7 +191,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
         </div>
         <div className="flex gap-2">
           <button
-            onClick={loadData}
+            onClick={() => void loadData()}
             className="p-2 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100"
             title="Refresh"
           >
@@ -197,7 +214,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
           <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
           <p>No service orders found</p>
-          {!effectivePatient && !effectiveReferenceName && !hasCaseSearch && (
+          {!effectivePatient && !scopedReferenceName && !hasCaseSearch && (
             <p className="text-xs mt-2">Select a patient or search by IP/OP case no or sales order ID.</p>
           )}
         </div>

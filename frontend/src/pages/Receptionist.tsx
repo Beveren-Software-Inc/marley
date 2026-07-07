@@ -74,6 +74,8 @@ export const ReceptionistPage = () => {
     setSelectedPatient: setGlobalPatient,
     activeAdmission,
     activeVisit,
+    setActiveAdmission,
+    setActiveVisit,
     mode,
     costCenterCareScope,
     userRole,
@@ -118,8 +120,13 @@ export const ReceptionistPage = () => {
 
 
   const handlePatientSelect = (patient: string | undefined) => {
-    setSelectedPatient(patient || '')
+    const nextPatient = patient || ''
+    setSelectedPatient(nextPatient)
     setGlobalPatient(patient)
+    if (!patient) {
+      setActiveVisit(undefined)
+      setActiveAdmission(undefined)
+    }
     const newSearchParams = new URLSearchParams(searchParams)
     if (patient) {
       newSearchParams.set('patient', patient)
@@ -129,19 +136,13 @@ export const ReceptionistPage = () => {
     setSearchParams(newSearchParams, { replace: true })
   }
 
+  // Sync local + global patient from URL on navigation only (never depend on selectedPatient —
+  // that caused a restore loop when clearing the navbar patient while billing was open).
   useEffect(() => {
-    const patientParam = searchParams.get('patient')
-    if (patientParam && patientParam !== selectedPatient) {
-      setSelectedPatient(patientParam)
-    }
-  }, [searchParams, selectedPatient])
-
-  // Keep local state in sync when the global patient is cleared (e.g. via the navbar X button)
-  useEffect(() => {
-    if (!globalPatient && selectedPatient) {
-      setSelectedPatient('')
-    }
-  }, [globalPatient, selectedPatient])
+    const patientFromUrlNow = searchParams.get('patient') || ''
+    setSelectedPatient((current) => (current === patientFromUrlNow ? current : patientFromUrlNow))
+    setGlobalPatient(patientFromUrlNow || undefined)
+  }, [searchParams, setGlobalPatient])
 
   useLayoutEffect(() => {
     if (dischargeAdmission) return
@@ -539,7 +540,7 @@ export const ReceptionistPage = () => {
             <div className="p-4">
               <div className="bg-white border border-slate-200 rounded-lg p-6">
                 <BillingDashboard
-                  patient={selectedPatient}
+                  patient={selectedPatient || undefined}
                   admission={activeAdmission}
                   visit={activeVisit}
                 />
