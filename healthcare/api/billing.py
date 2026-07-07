@@ -377,7 +377,11 @@ def get_inpatient_balances(patient=None, from_date=None, to_date=None):
     Get inpatient balances for all patients or a specific patient
     Returns list of admissions with outstanding balances
     """
+    from healthcare.api.common import apply_cost_center_scope_to_filters
+
     adm_filters = {}
+    if apply_cost_center_scope_to_filters(adm_filters):
+        return []
     if patient:
         adm_filters["patient"] = patient
 
@@ -471,8 +475,11 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
     iop_only: True = IOP visits only, False = non-IOP OP visits, None = all visits.
     """
     from healthcare.api.care_episode import patient_visit_type_info
+    from healthcare.api.common import apply_cost_center_scope_to_filters
 
     visit_filters = {}
+    if apply_cost_center_scope_to_filters(visit_filters):
+        return []
     if patient:
         visit_filters["patient"] = patient
     if from_date and to_date:
@@ -1502,15 +1509,29 @@ def _attach_sales_order_items(rows):
         if so_name:
             try:
                 doc = frappe.get_doc("Sales Order", so_name)
+                from healthcare.api.pos_dispense_return import (
+                    enrich_sales_order_billable_fields,
+                    get_net_billable_qty_for_so_item,
+                    get_returned_qty_for_so_item,
+                    is_pos_dispense_sales_order,
+                )
+
+                enrich_sales_order_billable_fields(row)
                 for it in doc.get("items") or []:
+                    returned_qty = (
+                        get_returned_qty_for_so_item(doc, it) if is_pos_dispense_sales_order(doc) else 0
+                    )
+                    billable_qty = get_net_billable_qty_for_so_item(doc, it)
                     items.append(
                         {
                             "item_code": it.item_code,
                             "item_name": (it.item_name or it.item_code or "").strip(),
                             "description": (getattr(it, "description", None) or "").strip(),
-                            "qty": it.qty,
+                            "qty": billable_qty,
+                            "original_qty": it.qty,
+                            "returned_qty": returned_qty,
                             "rate": it.rate,
-                            "amount": it.amount,
+                            "amount": flt(billable_qty) * flt(it.rate),
                         }
                     )
             except frappe.PermissionError:
@@ -1639,21 +1660,14 @@ def create_additional_collection_invoice(
         if not so_name:
             continue
         so_doc = frappe.get_doc("Sales Order", so_name)
+        from healthcare.api.sales_order_cost_center import sales_invoice_item_from_sales_order_item
+
         for item in so_doc.items:
-            invoice.append(
-                "items",
-                {
-                    "item_code": item.item_code,
-                    "item_name": item.item_name,
-                    "description": item.description,
-                    "qty": item.qty,
-                    "uom": item.uom,
-                    "rate": item.rate,
-                    # "income_account": item.income_account,
-                    "cost_center": item.cost_center or created_at_cost_center,
-                    "warehouse": item.warehouse,
-                },
-            )
+            line = sales_invoice_item_from_sales_order_item(so_doc, item)
+            if not line:
+                continue
+            line["cost_center"] = line.get("cost_center") or created_at_cost_center
+            invoice.append("items", line)
 
     for row in additional_items:
         if not isinstance(row, dict):
@@ -1852,7 +1866,10 @@ def create_internal_employee_invoice_from_sales_order(sales_order_name):
 
     items_added = 0
     for item in so.items:
-        invoice.append("items", sales_invoice_item_from_sales_order_item(so, item))
+        line = sales_invoice_item_from_sales_order_item(so, item)
+        if not line:
+            continue
+        invoice.append("items", line)
         items_added += 1
 
     if not items_added:

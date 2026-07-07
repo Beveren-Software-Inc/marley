@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { CreditCard, AlertCircle, Loader2, Building2, MapPin, Briefcase } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/serviceOrders'
-import { fetchCompanies, fetchCostCenters, fetchDepartments, type LinkFieldOption } from '../../services/common'
+import { fetchCompanies, fetchCostCenters, fetchDepartments, fetchModeOfPayments, type LinkFieldOption } from '../../services/common'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
 import {
   CreateModalHeader,
@@ -45,7 +45,8 @@ export const PaymentModal = ({
   onPaymentSuccess,
 }: PaymentModalProps) => {
   const [paymentAmount, setPaymentAmount] = useState(outstandingAmount)
-  const [paymentMode, setPaymentMode] = useState('Cash')
+  const [paymentModes, setPaymentModes] = useState<string[]>([])
+  const [paymentMode, setPaymentMode] = useState('')
   const [costCenter, setCostCenter] = useState(defaultCostCenter || '')
   const [company, setCompany] = useState(defaultCompany || '')
   const [department, setDepartment] = useState(defaultDepartment || '')
@@ -133,6 +134,20 @@ export const PaymentModal = ({
     return () => clearTimeout(timeoutId)
   }, [departmentQuery, departmentOpen, isOpen])
 
+  useEffect(() => {
+    if (!isOpen) return
+    fetchModeOfPayments()
+      .then((modes) => {
+        const names = modes.map((m) => m.name)
+        setPaymentModes(names)
+        setPaymentMode((prev) => (prev && names.includes(prev) ? prev : names[0] || ''))
+      })
+      .catch((err) => {
+        console.error('Failed to load modes of payment:', err)
+        setPaymentModes([])
+      })
+  }, [isOpen])
+
   // When modal opens or defaults change, sync from invoice
   useEffect(() => {
     if (!isOpen) return
@@ -181,6 +196,11 @@ export const PaymentModal = ({
       return
     }
 
+    if (!paymentMode) {
+      toast.error('Please select a mode of payment')
+      return
+    }
+
     try {
       setLoading(true)
       const result = await createPaymentEntry(
@@ -197,7 +217,7 @@ export const PaymentModal = ({
         onPaymentSuccess()
         onClose()
         setPaymentAmount(outstandingAmount)
-        setPaymentMode('Cash')
+        setPaymentMode(paymentModes[0] || '')
         setCostCenter('')
         if (!isSingleCompany && !defaultCompany) {
           setCompany('')
@@ -217,8 +237,6 @@ export const PaymentModal = ({
       setLoading(false)
     }
   }
-
-  const paymentModes = ['Cash', 'Bank Transfer', 'M-Pesa', 'Cheque', 'Card']
 
   const closeAllDropdowns = () => {
     setCompanyOpen(false)
@@ -474,6 +492,9 @@ export const PaymentModal = ({
                   required
                   className={fieldClass}
                 >
+                  <option value="" disabled>
+                    Select mode of payment...
+                  </option>
                   {paymentModes.map((mode) => (
                     <option key={mode} value={mode}>
                       {mode}
@@ -518,6 +539,7 @@ export const PaymentModal = ({
               disabled={
                 loading ||
                 paymentAmount <= 0 ||
+                !paymentMode ||
                 (!company && !isSingleCompany) ||
                 !costCenter ||
                 !department

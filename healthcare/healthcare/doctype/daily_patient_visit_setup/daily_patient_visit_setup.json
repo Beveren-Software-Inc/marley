@@ -16,14 +16,19 @@
   "to_date",
   "time",
   "section_break_lgcw",
-  "session",
+  "services",
   "is_active",
-  "column_break_ntqu",
-  "amount",
   "reference_section",
   "admission",
   "column_break_anrz",
-  "discharge"
+  "discharge",
+  "section_break_wjgm",
+  "trans_num",
+  "cr_id",
+  "cr_date",
+  "column_break_ooqu",
+  "up_date",
+  "up_id"
  ],
  "fields": [
   {
@@ -45,11 +50,15 @@
   {
    "fieldname": "from_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "From Date"
   },
   {
    "fieldname": "to_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "To Date"
   },
   {
@@ -59,28 +68,20 @@
   },
   {
    "fieldname": "section_break_lgcw",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Sessions"
   },
   {
-   "fieldname": "session",
-   "fieldtype": "Link",
-   "label": "Session",
-   "options": "IOP Session Type"
+   "fieldname": "services",
+   "fieldtype": "Table",
+   "label": "Services",
+   "options": "Daily Patient Visit Setup Service"
   },
   {
    "default": "0",
    "fieldname": "is_active",
    "fieldtype": "Check",
    "label": "Is Active"
-  },
-  {
-   "fieldname": "column_break_ntqu",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "amount",
-   "fieldtype": "Currency",
-   "label": "Amount"
   },
   {
    "fieldname": "reference_section",
@@ -110,8 +111,11 @@
    "options": "Healthcare Practitioner"
   },
   {
+   "fetch_from": "practioner.practitioner_name",
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Practitioner Name"
   },
   {
@@ -119,12 +123,47 @@
    "fieldname": "posting_date",
    "fieldtype": "Data",
    "label": "Posting Date"
+  },
+  {
+   "fieldname": "section_break_wjgm",
+   "fieldtype": "Section Break",
+   "label": "Legacy"
+  },
+  {
+   "fieldname": "trans_num",
+   "fieldtype": "Data",
+   "label": "Trans Num",
+   "unique": 1
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "column_break_ooqu",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-10 00:53:40.452319",
+ "modified": "2026-07-08 01:20:09.717938",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Daily Patient Visit Setup",

@@ -76,6 +76,9 @@
   "visit_bp_1",
   "visit_bp2",
   "daily_transfer_no",
+  "year_month",
+  "old_trans_num",
+  "inv_num",
   "sb_refs",
   "amended_from",
   "encounter_details_tab",
@@ -677,6 +680,21 @@
    "fieldname": "during_discharge",
    "fieldtype": "Check",
    "label": "During Discharge"
+  },
+  {
+   "fieldname": "year_month",
+   "fieldtype": "Data",
+   "label": "YEAR_MONTH"
+  },
+  {
+   "fieldname": "old_trans_num",
+   "fieldtype": "Data",
+   "label": "Old Trans Num"
+  },
+  {
+   "fieldname": "inv_num",
+   "fieldtype": "Data",
+   "label": "INV Num"
   }
  ],
  "is_submittable": 1,
@@ -722,7 +740,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-06-08 13:33:32.758985",
+ "modified": "2026-07-08 01:00:52.146101",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

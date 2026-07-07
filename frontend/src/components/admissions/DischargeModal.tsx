@@ -3407,6 +3407,9 @@ const loadDailyVisitSetup = async () => {
                     currentMedications={prescriptionSections.current_medications}
                     dischargedMedications={prescriptionSections.discharged_medications}
                     stoppedMedications={prescriptionSections.stopped_medications}
+                    allowEditDischarged
+                    patient={admission.patient}
+                    onDischargedChanged={loadPrescriptionSections}
                   />
                 )}
               </section>

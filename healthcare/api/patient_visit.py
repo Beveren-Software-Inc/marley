@@ -4,10 +4,11 @@
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate, now_datetime
+from frappe.utils import nowdate, now_datetime, flt
 import json
 
 from healthcare.api.patient_visit_practitioner import (
+	enrich_patient_visit_patient_names,
 	enrich_patient_visit_practitioner_names,
 	resolve_patient_visit_practitioner_name,
 )
@@ -130,7 +131,12 @@ def get_patient_visits(
 	:param from_date: Filter visits from this date (YYYY-MM-DD)
 	:param to_date: Filter visits up to this date (YYYY-MM-DD)
 	"""
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {}
+
+	if apply_cost_center_scope_to_filters(filters):
+		return []
 
 	if status:
 		filters["status"] = status
@@ -177,6 +183,7 @@ def get_patient_visits(
 	)
 
 	enrich_patient_visit_practitioner_names(visits)
+	enrich_patient_visit_patient_names(visits)
 
 	# Optional: further search filtering
 	if search:
@@ -255,10 +262,14 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	Returns { data: [...], total_count: N }
 	"""
 	from frappe.utils import cint
+	from healthcare.api.common import apply_cost_center_scope_to_list_filters
+
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
 
 	filters = [["docstatus", "!=", 2]]
+	if apply_cost_center_scope_to_list_filters(filters):
+		return {"data": [], "total_count": 0}
 	if patient:
 		filters.append(["patient", "=", patient])
 
@@ -315,6 +326,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	)
 
 	enrich_patient_visit_practitioner_names(visits)
+	enrich_patient_visit_patient_names(visits)
 
 	visit_names = [v.name for v in visits if v.get("name")]
 	lab_amount_map = {}
@@ -458,7 +470,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		"data": [
 			{
 				"name": v.name,
-				"label": v.name,
+				"label": f"{v.name} - {v.patient_name}" if v.get("patient_name") else v.name,
 				"patient": v.patient or '',
 				"patient_name": v.patient_name or '',
 				"encounter_date": str(v.encounter_date) if v.encounter_date else None,
@@ -668,18 +680,26 @@ def create_invoice(reference_doctype: str, reference_name: str):
 
         # Add items from this Sales Order
         for item in sales_order_doc.items:
+            line = sales_invoice_item_from_sales_order_item(sales_order_doc, item)
+            if not line:
+                continue
+
             # Check if item already exists in invoice
             existing_item = None
             for inv_item in invoice.items:
-                if inv_item.item_code == item.item_code and inv_item.description == item.description:
+                if inv_item.item_code == line["item_code"] and inv_item.so_detail == line.get("so_detail"):
+                    existing_item = inv_item
+                    break
+                if inv_item.item_code == line["item_code"] and inv_item.description == line.get("description"):
                     existing_item = inv_item
                     break
 
             if existing_item:
                 # Combine quantities
-                existing_item.qty += item.qty
+                existing_item.qty += line["qty"]
+                existing_item.amount = flt(existing_item.qty) * flt(existing_item.rate)
             else:
-                invoice.append("items", sales_invoice_item_from_sales_order_item(sales_order_doc, item))
+                invoice.append("items", line)
         
         # Combine taxes from all Sales Orders
         for tax in sales_order_doc.taxes:

@@ -16,6 +16,7 @@ from healthcare.api.ip_patient_assessment_import import (
 
 # ── Batch sizes (tune for ~1h runs on large datasets) ─────────────────────────
 PATIENT_BATCH_SIZE = 2000
+PATIENT_CUSTOMER_NAME_BATCH_SIZE = 500
 ADMISSION_BATCH_SIZE = 2000
 VISIT_BATCH_SIZE = 25
 APPOINTMENT_BATCH_SIZE = 2000
@@ -4491,6 +4492,205 @@ def process_patient_visit_import_batch(offset: int = 0) -> None:
 			_release_lock(job)
 			frappe.log_error(
 				title="Patient Visit import (VISIT_00_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Daily Patient Visit Setup Excel import (Oracle DAILY_PATIENTS_01) ─────────
+
+
+@frappe.whitelist()
+def start_daily_patient_visit_setup_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.daily_patient_visit_setup_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the DAILY_PATIENTS_01 Excel file."))
+
+	job = "daily_patient_visit_setup_import"
+	_acquire_lock(job)
+	from healthcare.api.daily_patient_visit_setup_import import (
+		_build_preview_summary,
+		_cache_is_warm,
+		_load_cached_rows,
+	)
+
+	if _cache_is_warm(file_url):
+		summary = _build_preview_summary(list(_load_cached_rows().values()))
+	else:
+		summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_setups=summary.get("setups"),
+		excel_rows=summary.get("excel_rows"),
+		existing_setups=summary.get("existing_setups"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_daily_patient_visit_setup_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_daily_patient_visit_setup_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Daily Patient Visit Setup import started ({0} setups, {1} existing, {2} patients will be auto-created)."
+		).format(
+			summary.get("setups") or 0,
+			summary.get("existing_setups") or 0,
+			summary.get("patients_to_create") or 0,
+		),
+	}
+
+
+def process_daily_patient_visit_setup_import_batch(offset: int = 0) -> None:
+	from healthcare.api.daily_patient_visit_setup_import import run_daily_patient_visit_setup_import_batch
+
+	job = "daily_patient_visit_setup_import"
+	try:
+		result = run_daily_patient_visit_setup_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			total_setups=prev.get("total_setups"),
+			excel_rows=prev.get("excel_rows"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_daily_patient_visit_setup_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_daily_patient_visit_setup_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Daily Patient Visit Setup import (DAILY_PATIENTS_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Daily Auto Visit Excel import (Oracle DAILY_PATIENTS_02) ──────────────────
+
+
+@frappe.whitelist()
+def start_daily_auto_visit_import_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.daily_auto_visit_import import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the DAILY_PATIENTS_02 Excel file."))
+
+	job = "daily_auto_visit_import"
+	_acquire_lock(job)
+	from healthcare.api.daily_auto_visit_import import _build_preview_summary, _cache_is_warm, _load_cached_rows
+
+	if _cache_is_warm(file_url):
+		summary = _build_preview_summary(list(_load_cached_rows().values()))
+	else:
+		summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_visits=summary.get("visits"),
+		excel_rows=summary.get("excel_rows"),
+		existing_visits=summary.get("existing_visits"),
+		patients_to_create=summary.get("patients_to_create"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_daily_auto_visit_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_daily_auto_visit_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Daily Auto Visit import started ({0} visits, {1} existing, {2} patients will be auto-created)."
+		).format(
+			summary.get("visits") or 0,
+			summary.get("existing_visits") or 0,
+			summary.get("patients_to_create") or 0,
+		),
+	}
+
+
+def process_daily_auto_visit_import_batch(offset: int = 0) -> None:
+	from healthcare.api.daily_auto_visit_import import run_daily_auto_visit_import_batch
+
+	job = "daily_auto_visit_import"
+	try:
+		result = run_daily_auto_visit_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skipped=cint(prev.get("skipped", 0)) + cint(result.get("skipped", 0)),
+			submitted=cint(prev.get("submitted", 0)) + cint(result.get("submitted", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0)) + cint(result.get("skip_no_patient", 0)),
+			skip_no_date=cint(prev.get("skip_no_date", 0)) + cint(result.get("skip_no_date", 0)),
+			skip_no_case_no=cint(prev.get("skip_no_case_no", 0)) + cint(result.get("skip_no_case_no", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_visits=prev.get("total_visits"),
+			excel_rows=prev.get("excel_rows"),
+			patients_to_create=prev.get("patients_to_create"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_daily_auto_visit_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_daily_auto_visit_import_{processed}",
+			)
+		else:
+			stats = frappe.cache().get_value(_job_progress_key(job)) or {}
+			_set_progress(
+				job,
+				processed,
+				done=True,
+				created=stats.get("created", 0),
+				updated=stats.get("updated", 0),
+				skipped=stats.get("skipped", 0),
+				submitted=stats.get("submitted", 0),
+				skip_no_patient=stats.get("skip_no_patient", 0),
+				skip_no_date=stats.get("skip_no_date", 0),
+				skip_no_case_no=stats.get("skip_no_case_no", 0),
+				errors=stats.get("errors", 0),
+				total_visits=stats.get("total_visits"),
+				excel_rows=stats.get("excel_rows"),
+				patients_to_create=stats.get("patients_to_create"),
+			)
+			_release_lock(job)
+			frappe.log_error(
+				title="Daily Auto Visit import (DAILY_PATIENTS_02) complete",
 				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:

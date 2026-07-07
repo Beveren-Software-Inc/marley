@@ -5,6 +5,8 @@ export type ServiceOrderLine = {
   item_name?: string
   description?: string
   qty?: number
+  original_qty?: number
+  returned_qty?: number
 }
 
 export type ServiceOrderWithDisplay = ServiceOrder & {
@@ -48,6 +50,13 @@ export function ServiceOrderServiceCell({ order }: { order: ServiceOrderWithDisp
             >
               {line.item_name || line.description || line.item_code || '—'}
               {line.qty != null && line.qty !== 1 ? ` × ${line.qty}` : ''}
+              {(line.returned_qty ?? 0) > 0 ? (
+                <span className="text-purple-700 font-medium">
+                  {' '}
+                  (returned {line.returned_qty}
+                  {line.original_qty != null ? ` of ${line.original_qty}` : ''})
+                </span>
+              ) : null}
             </li>
           ))}
           {lines.length > 3 ? (

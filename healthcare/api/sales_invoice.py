@@ -2,6 +2,15 @@ import frappe
 from frappe.utils import today, flt
 from collections import defaultdict
 
+
+def _effective_paid_amount(grand_total, outstanding_amount, paid_amount=None) -> float:
+	"""Amount received against invoice (Payment Entry updates outstanding, not always paid_amount)."""
+	computed = flt(grand_total) - flt(outstanding_amount)
+	if computed > 0:
+		return computed
+	return max(flt(paid_amount), 0.0)
+
+
 @frappe.whitelist()
 def get_service_invoices(
     reference_type=None,
@@ -114,6 +123,9 @@ def get_service_invoices(
             distinct=True
         )
         inv.order_count = len(orders)
+        inv.paid_amount = _effective_paid_amount(
+            inv.grand_total, inv.outstanding_amount, inv.get('paid_amount')
+        )
 
     cc_keys = list({inv.get('cost_center') for inv in invoices if inv.get('cost_center')})
     cc_labels = {}
@@ -222,6 +234,11 @@ def get_invoice_summary(
                 invoices.append(frappe._dict(inv))
                 seen.add(row_name)
     
+    for inv in invoices:
+        inv.paid_amount = _effective_paid_amount(
+            inv.grand_total, inv.outstanding_amount, inv.get('paid_amount')
+        )
+
     summary = {
         'total_invoices': len(invoices),
         'total_amount': sum(inv.grand_total for inv in invoices),

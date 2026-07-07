@@ -1562,7 +1562,11 @@ def get_cost_centers(search=None, company=None):
 
 @frappe.whitelist()
 def get_patient_visits(search=None, patient=None, limit=20):
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {"docstatus": ["!=", 2]}
+	if apply_cost_center_scope_to_filters(filters):
+		return []
 
 	if patient:
 		filters["patient"] = patient
@@ -1621,7 +1625,11 @@ def get_ip_risk_analyses(search=None, patient=None, admission=None, limit=20):
 @frappe.whitelist()
 def get_inpatient_admissions(search=None, patient=None, limit=20):
 	# filters = {"docstatus": ["!=", 2]}
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {}
+	if apply_cost_center_scope_to_filters(filters):
+		return []
 
 	if patient:
 		filters["patient"] = patient
@@ -1739,6 +1747,49 @@ def get_permitted_cost_centers():
 		return None  # No restriction — see everything
 
 	return [p["for_value"] for p in perms]
+
+
+def apply_cost_center_scope_to_filters(filters):
+	"""Apply User Permission cost-center restriction to a frappe filters dict.
+
+	Returns ``True`` when the user is restricted but has no permitted cost centers
+	(caller should return empty results).
+	"""
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is None:
+		return False
+	if not permitted_cc:
+		return True
+	filters["cost_center"] = ["in", permitted_cc]
+	return False
+
+
+def apply_cost_center_scope_to_list_filters(filters):
+	"""Same as :func:`apply_cost_center_scope_to_filters` for list-style filters."""
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is None:
+		return False
+	if not permitted_cc:
+		return True
+	filters.append(["cost_center", "in", permitted_cc])
+	return False
+
+
+def resolve_cost_center_filter(requested=None):
+	"""Resolve an optional UI cost-center filter against User Permission scope.
+
+	Returns ``None`` when unrestricted, a single cost center string, a list for
+	``['in', ...]``, or ``False`` when results must be empty.
+	"""
+	permitted_cc = get_permitted_cost_centers()
+	requested = (requested or "").strip() or None
+	if permitted_cc is None:
+		return requested
+	if not permitted_cc:
+		return False
+	if requested:
+		return requested if requested in permitted_cc else False
+	return permitted_cc
 
 
 @frappe.whitelist()
@@ -4214,7 +4265,11 @@ def get_patient_unpaid_invoices(patient):
 @frappe.whitelist()
 def get_patient_referrals(patient=None, referral_status=None, date_from=None, date_to=None, limit=50, offset=0):
 	"""Return a list of Patient Referral records."""
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {}
+	if apply_cost_center_scope_to_filters(filters):
+		return []
 	if patient:
 		filters["patient"] = patient
 	if referral_status:

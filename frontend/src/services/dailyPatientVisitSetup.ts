@@ -1,5 +1,11 @@
 // services/dailyPatientVisit.ts
 
+export interface DailyPatientVisitSetupServiceLine {
+  name?: string
+  session: string
+  amount: number
+}
+
 export interface DailyPatientVisitSetup {
   name?: string
   patient: string
@@ -10,13 +16,17 @@ export interface DailyPatientVisitSetup {
   practitioner_name?: string
   posting_date?: string
   creation?: string
+  cr_date?: string
   admission?: string
   discharge?: string
   from_date: string
   to_date: string
   time: string
+  /** First service session (legacy display). */
   session?: string
+  services?: DailyPatientVisitSetupServiceLine[]
   is_active: boolean
+  /** Sum of service line amounts. */
   amount: number
 }
 
@@ -115,4 +125,17 @@ export async function stopDailyPatientVisitSetup(name: string): Promise<void> {
       'Failed to stop Daily Patient Visit Setup'
     throw new Error(typeof msg === 'string' ? msg : String(msg))
   }
+}
+
+export function normalizeSetupServices(setup: Partial<DailyPatientVisitSetup>): DailyPatientVisitSetupServiceLine[] {
+  if (setup.services?.length) {
+    return setup.services.map((line) => ({
+      session: line.session || '',
+      amount: Number(line.amount) || 0,
+    }))
+  }
+  if (setup.session || setup.amount) {
+    return [{ session: setup.session || '', amount: Number(setup.amount) || 0 }]
+  }
+  return [{ session: '', amount: 0 }]
 }

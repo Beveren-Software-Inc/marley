@@ -30,6 +30,60 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Sync Customer Name from File No'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_customer_name_sync.preview_patient_customer_name_sync',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.patient}: Customer ID “${row.from_id}” → “${row.to_id}”`
+								+ (row.from_name && row.from_name !== row.from_id
+									? ` (name was “${row.from_name}”)`
+									: '')
+						)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Run in background: rename each linked Customer document ID to the Patient File No (or ID Number if File No is empty). Customer Name will also be set to the same value.\n\n'
+							+ 'This updates Customer links on Sales Invoices, Orders, Payment Entries, and other transactions automatically.\n\n'
+							+ 'Patients with customer: {0}\n'
+							+ 'Customers to rename (ID change): {1}\n'
+							+ 'Customers name-only fix: {2}\n'
+							+ 'Skipped (no File No / ID): {3}\n'
+							+ 'Skipped (File No already used by another customer): {4}\n\n'
+							+ 'Sample renames:\n{5}\n\nContinue?',
+							[
+								counts.patients_with_customer || 0,
+								counts.needs_rename || 0,
+								counts.needs_name_only || 0,
+								counts.skipped_no_id || 0,
+								counts.skipped_conflict || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_customer_name_sync.start_patient_customer_name_sync',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_customer_name_sync');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Discharge Scheduled Admissions'), () => {
 			frappe.confirm(
 				__(
@@ -1342,6 +1396,62 @@ frappe.ui.form.on('Healthcare Settings', {
 							counts.existing_visits || 0,
 							createBlock,
 							(counts.sample_case_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Daily Patient Visit Setup — DAILY_PATIENTS_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Daily Patient Visit Setup Upload (DAILY_PATIENTS_01)'),
+				preview_method:
+					'healthcare.api.daily_patient_visit_setup_import.preview_daily_patient_visit_setup_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_daily_patient_visit_setup_import_migration',
+				job_key: 'daily_patient_visit_setup_import',
+				build_confirm_message: (counts) => {
+					return __(
+						'Import Daily Patient Visit Setup from DAILY_PATIENTS_01?\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Setups (TRANS_NUM): {1}\n'
+							+ 'Existing setups: {2}\n'
+							+ 'Patients to auto-create: {3}\n\n'
+							+ 'Mapping: PATIENT_NUM → Patient, DOC_NUM → Practitioner, '
+							+ 'START_DATE/END_DATE → from/to date, CR_DATE → entry/posting date, SERVICE_NUM/SERVICE_AMT (+ _2, _3) → services child table, '
+							+ 'TRANS_NUM → trans_num (upsert key).\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.setups || 0,
+							counts.existing_setups || 0,
+							counts.patients_to_create || 0,
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Daily Auto Visit — DAILY_PATIENTS_02'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Daily Auto Visit Upload (DAILY_PATIENTS_02)'),
+				preview_method: 'healthcare.api.daily_auto_visit_import.preview_daily_auto_visit_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_daily_auto_visit_import_migration',
+				job_key: 'daily_auto_visit_import',
+				build_confirm_message: (counts) => {
+					return __(
+						'Import Daily Auto Visits from DAILY_PATIENTS_02?\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Visits: {1}\n'
+							+ 'Existing visits: {2}\n'
+							+ 'Patients to auto-create: {3}\n\n'
+							+ 'Mapping: PATIENT_NUM → Patient, CR_DATE → encounter date (fallback YEAR_MONTH), '
+							+ 'INV_NUM → case_no + inv_num, TRANS_NUM → old_trans_num, visit type Daily Auto Visit.\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.visits || 0,
+							counts.existing_visits || 0,
+							counts.patients_to_create || 0,
 						]
 					);
 				},
@@ -3809,6 +3919,25 @@ function poll_migration_status(jobKey) {
 								errN,
 							]
 						);
+					} else if (jobKey === 'daily_patient_visit_setup_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} skipped, {4} errors.',
+							[jobKey, s.created || 0, s.updated || 0, s.skipped || 0, errN]
+						);
+					} else if (jobKey === 'daily_auto_visit_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} submitted, {4} skipped, {5} skipped (no patient), {6} skipped (no date), {7} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.submitted || 0,
+								s.skipped || 0,
+								s.skip_no_patient || 0,
+								s.skip_no_date || 0,
+								errN,
+							]
+						);
 					} else if (jobKey === 'service_request_visit_import') {
 						msg = __(
 							'{0} finished: {1} created, {2} updated, {3} submitted, {4} visits auto-created, {5} patients auto-created, {6} skipped (no visit), {7} skipped (no template), {8} errors.',
@@ -4209,6 +4338,20 @@ function poll_migration_status(jobKey) {
 								s.skipped_existing || 0,
 								s.skipped_no_patient || 0,
 								s.errors || 0,
+							]
+						);
+					} else if (jobKey === 'patient_customer_name_sync') {
+						msg = __(
+							'{0} finished: {1} renamed, {2} name-only updates, {3} already correct, {4} no File No/ID, {5} ID conflicts, {6} errors (scanned {7}).',
+							[
+								jobKey,
+								s.renamed || 0,
+								s.updated_name || 0,
+								s.skipped_already_ok || 0,
+								s.skipped_no_id || 0,
+								s.skipped_conflict || 0,
+								s.errors || 0,
+								s.processed || 0,
 							]
 						);
 					} else {

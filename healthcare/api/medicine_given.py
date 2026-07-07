@@ -1776,6 +1776,42 @@ def _inpatient_admission_pmo_names(admission: str) -> list[str]:
 	)
 
 
+def _after_discharge_pmo_names_for_admission(admission: str) -> list[str]:
+	"""After-discharge PMOs for an admission (via linked visits or discharge_id)."""
+	if not admission:
+		return []
+
+	names: set[str] = set()
+	base_filters = {"after_discharge": 1, "docstatus": ["!=", 2]}
+
+	visit_names = frappe.get_all(
+		"Patient Visit",
+		filters={"inpatient_record": admission},
+		pluck="name",
+	)
+	if visit_names:
+		names.update(
+			frappe.get_all(
+				"Patient Medication Order",
+				filters={**base_filters, "patient_encounter": ["in", visit_names]},
+				pluck="name",
+			)
+		)
+
+	# Discharge.name = admission (autoname field:admission). PMOs may link here even when
+	# the Patient Visit was reused without inpatient_record set.
+	if frappe.db.has_column("Patient Medication Order", "discharge_id"):
+		names.update(
+			frappe.get_all(
+				"Patient Medication Order",
+				filters={**base_filters, "discharge_id": admission},
+				pluck="name",
+			)
+		)
+
+	return sorted(names)
+
+
 @frappe.whitelist()
 def get_discharge_prescription_sections(admission: str) -> dict:
 	"""Current, discharged, and stopped medications for discharge prescription UI."""
@@ -1815,43 +1851,29 @@ def get_discharge_prescription_sections(admission: str) -> dict:
 				current_medications.append(formatted)
 
 	discharged_medications: list[dict] = []
-	visit_names = frappe.get_all(
-		"Patient Visit",
-		filters={"inpatient_record": admission},
-		pluck="name",
-	)
-	if visit_names:
-		discharge_pmo_names = frappe.get_all(
-			"Patient Medication Order",
-			filters={
-				"after_discharge": 1,
-				"patient_encounter": ["in", visit_names],
-				"docstatus": ["!=", 2],
-			},
-			pluck="name",
-		)
-		if discharge_pmo_names:
-			pmo_meta = {
-				row.name: row
-				for row in frappe.get_all(
-					"Patient Medication Order",
-					filters={"name": ["in", discharge_pmo_names]},
-					fields=["name", "start_date", "patient_encounter"],
-				)
-			}
-			discharge_entries = frappe.get_all(
-				"Inpatient Medication Order Entry",
-				filters={"parent": ["in", discharge_pmo_names]},
-				fields=_inpatient_medication_entry_fields(),
-				order_by="date asc, creation asc",
+	discharge_pmo_names = _after_discharge_pmo_names_for_admission(admission)
+	if discharge_pmo_names:
+		pmo_meta = {
+			row.name: row
+			for row in frappe.get_all(
+				"Patient Medication Order",
+				filters={"name": ["in", discharge_pmo_names]},
+				fields=["name", "start_date", "patient_encounter"],
 			)
-			for entry in discharge_entries:
-				parent = entry.get("parent")
-				formatted = _format_discharge_prescription_entry(
-					entry, parent_start_date=(pmo_meta.get(parent) or {}).get("start_date")
-				)
-				formatted["patient_visit"] = (pmo_meta.get(parent) or {}).get("patient_encounter")
-				discharged_medications.append(formatted)
+		}
+		discharge_entries = frappe.get_all(
+			"Inpatient Medication Order Entry",
+			filters={"parent": ["in", discharge_pmo_names]},
+			fields=_inpatient_medication_entry_fields(),
+			order_by="date asc, creation asc",
+		)
+		for entry in discharge_entries:
+			parent = entry.get("parent")
+			formatted = _format_discharge_prescription_entry(
+				entry, parent_start_date=(pmo_meta.get(parent) or {}).get("start_date")
+			)
+			formatted["patient_visit"] = (pmo_meta.get(parent) or {}).get("patient_encounter")
+			discharged_medications.append(formatted)
 
 	return {
 		"current_medications": current_medications,
@@ -2239,6 +2261,16 @@ def create_visit_and_prescription_on_discharge(
 		pv = frappe.get_doc("Patient Visit", patient_encounter)
 		if pv.patient != patient:
 			frappe.throw(_("Selected Patient Visit does not belong to this patient"))
+		visit_dirty = False
+		if not pv.inpatient_record:
+			pv.inpatient_record = admission
+			visit_dirty = True
+		if not cint(getattr(pv, "during_discharge", 0)):
+			pv.during_discharge = 1
+			visit_dirty = True
+		if visit_dirty:
+			pv.save(ignore_permissions=True)
+			frappe.db.commit()
 	else:
 		visit_type = "Follow-up for the Psychiatrist"
 		pv = frappe.new_doc("Patient Visit")

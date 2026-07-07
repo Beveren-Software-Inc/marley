@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
-import { Pill } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Pencil, Pill } from 'lucide-react'
 import {
   getDischargePrescriptionSections,
   getDischargeTransferRows,
@@ -7,8 +7,65 @@ import {
   type DischargePrescriptionSections,
   type DischargeTransferRow,
 } from '../../services/medicineGiven'
+import { fetchPrescription, type Prescription } from '../../services/prescriptions'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { toast } from '../../hooks/useToast'
+
+function uniquePrescriptionIds(items: DischargePrescriptionMedication[]): string[] {
+  const ids = new Set<string>()
+  for (const med of items) {
+    const id = (med.prescription || '').trim()
+    if (id) ids.add(id)
+  }
+  return [...ids].sort()
+}
+
+function useDischargePrescriptionEditor(patient?: string, onChanged?: () => void | Promise<void>) {
+  const [editOpen, setEditOpen] = useState(false)
+  const [editPrescription, setEditPrescription] = useState<Prescription | null>(null)
+  const [editLoadingId, setEditLoadingId] = useState<string | null>(null)
+
+  const openEdit = useCallback(async (prescriptionName: string) => {
+    if (!prescriptionName) return
+    setEditLoadingId(prescriptionName)
+    try {
+      const rx = await fetchPrescription(prescriptionName)
+      if (!rx) {
+        toast.error('Prescription not found')
+        return
+      }
+      setEditPrescription(rx)
+      setEditOpen(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load prescription')
+    } finally {
+      setEditLoadingId(null)
+    }
+  }, [])
+
+  const closeEdit = useCallback(() => {
+    setEditOpen(false)
+    setEditPrescription(null)
+  }, [])
+
+  const handleEditSuccess = useCallback(async () => {
+    closeEdit()
+    await onChanged?.()
+  }, [closeEdit, onChanged])
+
+  const editModal =
+    editOpen && editPrescription && patient ? (
+      <CreatePrescriptionModal
+        editMode
+        prescriptionData={editPrescription}
+        initialPatient={patient}
+        onClose={closeEdit}
+        onSuccess={handleEditSuccess}
+      />
+    ) : null
+
+  return { openEdit, editLoadingId, editModal }
+}
 
 function formatStartDate(value?: string | null): string {
   if (!value) return '—'
@@ -160,12 +217,27 @@ export function DischargePrescriptionCardsReadonly({
   dischargedMedications = [],
   stoppedMedications = [],
   alwaysShow = false,
+  allowEditDischarged = false,
+  patient,
+  onDischargedChanged,
 }: {
   currentMedications?: DischargePrescriptionMedication[]
   dischargedMedications?: DischargePrescriptionMedication[]
   stoppedMedications?: DischargePrescriptionMedication[]
   alwaysShow?: boolean
+  allowEditDischarged?: boolean
+  patient?: string
+  onDischargedChanged?: () => void | Promise<void>
 }) {
+  const { openEdit, editLoadingId, editModal } = useDischargePrescriptionEditor(
+    patient,
+    onDischargedChanged,
+  )
+  const dischargedPrescriptionIds = useMemo(
+    () => uniquePrescriptionIds(dischargedMedications),
+    [dischargedMedications],
+  )
+
   const hasAny =
     currentMedications.length > 0 ||
     dischargedMedications.length > 0 ||
@@ -174,6 +246,7 @@ export function DischargePrescriptionCardsReadonly({
 
   return (
     <div className="space-y-4">
+      {editModal}
       <PrescriptionCard
         title="Current medicine"
         subtitle="Medicines used during this admission"
@@ -185,6 +258,24 @@ export function DischargePrescriptionCardsReadonly({
         title="Discharged medication"
         subtitle="Medicines prescribed to continue at home"
         accent="emerald"
+        actions={
+          allowEditDischarged && dischargedPrescriptionIds.length > 0 ? (
+            <>
+              {dischargedPrescriptionIds.map((prescriptionId) => (
+                <button
+                  key={prescriptionId}
+                  type="button"
+                  disabled={editLoadingId === prescriptionId}
+                  onClick={() => void openEdit(prescriptionId)}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-600 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Pencil className="h-3 w-3" />
+                  {editLoadingId === prescriptionId ? 'Opening…' : `Edit ${prescriptionId}`}
+                </button>
+              ))}
+            </>
+          ) : null
+        }
       >
         <MedicationList items={dischargedMedications} emptyText="No discharged medicines recorded." />
       </PrescriptionCard>
@@ -254,6 +345,20 @@ export function DischargePrescriptionCardsEditable({
     void load()
   }, [load])
 
+  const handleAfterPrescriptionEdit = useCallback(async () => {
+    await load()
+    await onChanged?.()
+  }, [load, onChanged])
+
+  const { openEdit, editLoadingId, editModal } = useDischargePrescriptionEditor(
+    patient,
+    handleAfterPrescriptionEdit,
+  )
+  const dischargedPrescriptionIds = useMemo(
+    () => uniquePrescriptionIds(sections.discharged_medications),
+    [sections.discharged_medications],
+  )
+
   const toggleCurrent = (name: string) => {
     setSelectedCurrent((prev) => {
       const next = new Set(prev)
@@ -291,6 +396,7 @@ export function DischargePrescriptionCardsEditable({
 
   return (
     <div className="space-y-4">
+      {editModal}
       {error ? (
         <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
           {error}
@@ -333,6 +439,24 @@ export function DischargePrescriptionCardsEditable({
         title="Discharged medication"
         subtitle="Created when you discharge medicines for home use"
         accent="emerald"
+        actions={
+          dischargedPrescriptionIds.length > 0 ? (
+            <>
+              {dischargedPrescriptionIds.map((prescriptionId) => (
+                <button
+                  key={prescriptionId}
+                  type="button"
+                  disabled={editLoadingId === prescriptionId}
+                  onClick={() => void openEdit(prescriptionId)}
+                  className="inline-flex items-center gap-1 rounded-md border border-emerald-600 bg-white px-3 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Pencil className="h-3 w-3" />
+                  {editLoadingId === prescriptionId ? 'Opening…' : `Edit ${prescriptionId}`}
+                </button>
+              ))}
+            </>
+          ) : null
+        }
       >
         <MedicationList
           items={sections.discharged_medications}

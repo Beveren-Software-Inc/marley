@@ -45,13 +45,18 @@ def get_follow_ups(
 	offset=0,
 ):
 	"""List Patient Follow Up for UI with filters. Returns {data, total_count}."""
+	from healthcare.api.common import resolve_cost_center_filter
+
 	filters = {}
 	if status:
 		filters["status"] = status
 	if status != "No Follow Up Required":
 		filters["no_follow_up_required"] = 0
-	if cost_center:
-		filters["cost_center"] = cost_center
+	resolved_cc = resolve_cost_center_filter(cost_center)
+	if resolved_cc is False:
+		return {"data": [], "total_count": 0}
+	if resolved_cc:
+		filters["cost_center"] = resolved_cc if isinstance(resolved_cc, str) else ["in", resolved_cc]
 	if patient:
 		filters["patient"] = patient
 	# if follow_up_type:
@@ -159,15 +164,26 @@ def _get_latest_reference_rows(
 ):
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
+	from healthcare.api.common import resolve_cost_center_filter
+
 	params = {}
 	conditions = ["p.is_follow_up = 1", "base.patient IS NOT NULL", "base.patient != ''"]
 
 	if patient:
 		conditions.append("base.patient = %(patient)s")
 		params["patient"] = patient
-	if cost_center:
-		conditions.append("base.cost_center = %(cost_center)s")
-		params["cost_center"] = cost_center
+	resolved_cc = resolve_cost_center_filter(cost_center)
+	if resolved_cc is False:
+		return {"data": [], "total_count": 0}
+	if resolved_cc:
+		if isinstance(resolved_cc, str):
+			conditions.append("base.cost_center = %(cost_center)s")
+			params["cost_center"] = resolved_cc
+		else:
+			placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(resolved_cc)))
+			for i, cc in enumerate(resolved_cc):
+				params[f"cc_{i}"] = cc
+			conditions.append(f"base.cost_center IN ({placeholders})")
 
 	if reference_doctype == "Patient Visit":
 		base_table = "`tabPatient Visit` base"

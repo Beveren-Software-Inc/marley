@@ -7,6 +7,7 @@ import {
   type OrderSummary,
 } from '../../services/serviceOrders'
 import { BulkInvoiceModal, isBillableServiceOrder } from './BulkInvoiceModal'
+import { getServiceOrderBillableTotal } from '../../services/serviceOrders'
 import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { RefreshCw, FileText, AlertCircle, CheckCircle, Clock, Package } from 'lucide-react'
@@ -229,7 +230,14 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
                         {order.custom_reference_type}: {order.custom_reference_name}
                       </p>
                     </td>
-                    <td className="px-4 py-3 text-sm font-medium text-slate-900">{formatCurrency(order.grand_total)}</td>
+                    <td className="px-4 py-3 text-sm font-medium text-slate-900">
+                      <div>{formatCurrency(getServiceOrderBillableTotal(order))}</div>
+                      {order.has_dispense_returns && (order.returned_amount ?? 0) > 0 ? (
+                        <div className="text-[10px] font-normal text-purple-700">
+                          Returned {formatCurrency(order.returned_amount ?? 0)}
+                        </div>
+                      ) : null}
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-700 max-w-[200px]">
                       <span className="truncate block" title={order.cost_center_name || order.cost_center || undefined}>
                         {order.cost_center_name || order.cost_center || '—'}

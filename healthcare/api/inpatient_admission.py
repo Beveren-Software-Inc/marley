@@ -123,6 +123,7 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 				ia.name,
 				ia.patient,
 				ia.patient_name,
+				p.file_no,
 				ia.status,
 				ia.scheduled_date,
 				ia.admitted_datetime,
@@ -193,8 +194,31 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 			limit=limit,
 			start=offset,
 		)
+		records = _enrich_inpatient_records_with_file_no(records)
 
 	return {"data": records, "total_count": total_count}
+
+
+def _enrich_inpatient_records_with_file_no(records):
+	"""Attach Patient.file_no for admission list display."""
+	if not records:
+		return records
+	patient_ids = list({r.get("patient") for r in records if r.get("patient")})
+	if not patient_ids:
+		for row in records:
+			row["file_no"] = None
+		return records
+	file_map = {
+		row.name: row.file_no
+		for row in frappe.get_all(
+			"Patient",
+			filters={"name": ["in", patient_ids]},
+			fields=["name", "file_no"],
+		)
+	}
+	for row in records:
+		row["file_no"] = file_map.get(row.get("patient"))
+	return records
 
 
 @frappe.whitelist()

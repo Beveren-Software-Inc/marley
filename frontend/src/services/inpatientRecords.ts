@@ -22,6 +22,7 @@ export interface InpatientRecord {
   name: string
   patient: string
   patient_name: string
+  file_no?: string
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
   scheduled_date: string
   admitted_datetime?: string

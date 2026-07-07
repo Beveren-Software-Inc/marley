@@ -19,13 +19,75 @@ from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 DAILY_AUTO_VISIT_TYPE = "Daily Auto Visit"
 
+
+def _setup_total_amount(setup) -> float:
+    """Sum service line amounts; supports doc, dict, or setup name."""
+    if hasattr(setup, "services") and setup.services:
+        return sum(flt(line.amount) for line in setup.services)
+
+    name = setup.name if hasattr(setup, "name") else (setup.get("name") if isinstance(setup, dict) else setup)
+    if name:
+        rows = frappe.get_all(
+            "Daily Patient Visit Setup Service",
+            filters={"parent": name},
+            fields=["amount"],
+        )
+        if rows:
+            return sum(flt(row.amount) for row in rows)
+
+    if isinstance(setup, dict):
+        return flt(setup.get("amount"))
+    return flt(getattr(setup, "amount", 0))
+
+
+def _apply_services_to_doc(doc, data: dict):
+    services = data.pop("services", None)
+    if services is None:
+        session = data.pop("session", None)
+        amount = data.pop("amount", None)
+        if session or amount:
+            services = [{"session": session, "amount": amount}]
+    else:
+        data.pop("session", None)
+        data.pop("amount", None)
+
+    if services is None:
+        return
+
+    doc.set("services", [])
+    for line in services or []:
+        session = (line.get("session") or "").strip()
+        amount = flt(line.get("amount"))
+        if not session and not amount:
+            continue
+        doc.append("services", {"session": session, "amount": amount})
+
+
+def _services_for_setup_names(names: list[str]) -> dict[str, list[dict]]:
+    if not names:
+        return {}
+    rows = frappe.get_all(
+        "Daily Patient Visit Setup Service",
+        filters={"parent": ["in", names]},
+        fields=["parent", "session", "amount", "name", "idx"],
+        order_by="parent asc, idx asc",
+    )
+    grouped: dict[str, list[dict]] = {}
+    for row in rows:
+        grouped.setdefault(row.parent, []).append(
+            {"name": row.name, "session": row.session, "amount": flt(row.amount)}
+        )
+    return grouped
+
+
 @frappe.whitelist()
 def create_daily_patient_visit_setup(data):
     """Create a new Daily Patient Visit Setup document"""
     if isinstance(data, str):
         import json
         data = json.loads(data)
-    
+
+    data = dict(data or {})
     practioner = data.get('practioner') or data.get('practitioner') or data.get('doctor')
     practitioner_name = data.get('practitioner_name')
     if practioner and not practitioner_name:
@@ -44,10 +106,9 @@ def create_daily_patient_visit_setup(data):
         'from_date': data.get('from_date'),
         'to_date': data.get('to_date'),
         'time': data.get('time'),
-        'session': data.get('session'),
         'is_active': data.get('is_active', 0),
-        'amount': data.get('amount', 0)
     })
+    _apply_services_to_doc(doc, data)
     doc.insert(ignore_permissions=True)
     frappe.db.commit()
 
@@ -61,6 +122,7 @@ def update_daily_patient_visit_setup(name, data):
         import json
         data = json.loads(data)
     
+    data = dict(data or {})
     doc = frappe.get_doc('Daily Patient Visit Setup', name)
     practioner = data.pop('practioner', None) or data.pop('practitioner', None) or data.pop('doctor', None)
     if practioner is not None:
@@ -69,6 +131,7 @@ def update_daily_patient_visit_setup(name, data):
             data.pop('practitioner_name', None)
             or frappe.db.get_value('Healthcare Practitioner', practioner, 'practitioner_name')
         )
+    _apply_services_to_doc(doc, data)
     doc.update(data)
     doc.save()
     frappe.db.commit()
@@ -93,6 +156,14 @@ def _serialize_daily_patient_visit_setup(doc):
     patient = data.get('patient')
     if patient:
         data['file_no'] = frappe.db.get_value('Patient', patient, 'file_no')
+    services = [
+        {"name": row.name, "session": row.session, "amount": flt(row.amount)}
+        for row in (doc.services if hasattr(doc, "services") else data.get("services") or [])
+    ]
+    data["services"] = services
+    data["amount"] = _setup_total_amount(doc)
+    if services:
+        data["session"] = services[0].get("session")
     return data
 
 
@@ -125,21 +196,25 @@ def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
             "practitioner_name",
             "posting_date",
             "creation",
+            "cr_date",
             "admission",
             "discharge",
             "from_date",
             "to_date",
             "time",
-            "session",
             "is_active",
-            "amount",
         ],
         order_by="creation desc",
         limit_page_length=int(limit or 100),
     )
     file_map = _patient_file_no_map([row.get("patient") for row in rows])
+    services_map = _services_for_setup_names([row.get("name") for row in rows if row.get("name")])
     for row in rows:
         row["file_no"] = file_map.get(row.get("patient"))
+        services = services_map.get(row.get("name"), [])
+        row["services"] = services
+        row["amount"] = sum(flt(line.get("amount")) for line in services)
+        row["session"] = services[0].get("session") if services else None
     return rows
 
 
@@ -334,7 +409,7 @@ def _ensure_daily_auto_visit_billing(setup, visit_name, visit_date):
     if visit_type_no_charges(DAILY_AUTO_VISIT_TYPE):
         return
     cost_center = _resolve_setup_cost_center(setup)
-    amount = flt(setup.amount)
+    amount = _setup_total_amount(setup)
     if amount > 0:
         add_op_charge_to_patient_visit(visit_name, amount, visit_date)
         item_code = get_or_create_daily_session_charge_item()
@@ -377,7 +452,7 @@ def _create_daily_auto_visit_for_date(setup, visit_date):
     if visit_type_no_charges(DAILY_AUTO_VISIT_TYPE):
         return visit.name
 
-    amount = flt(setup.amount)
+    amount = _setup_total_amount(setup)
     if amount > 0:
         add_op_charge_to_patient_visit(visit.name, amount, visit_date)
         create_daily_auto_visit_sales_order(
@@ -419,14 +494,15 @@ def process_daily_patient_visits():
             'from_date',
             'to_date',
             'time',
-            'session',
-            'amount',
         ]
     )
+    services_map = _services_for_setup_names([row.get("name") for row in setups if row.get("name")])
     for setup in setups:
         try:
             if not setup.patient:
                 continue
+            setup["services"] = services_map.get(setup.name, [])
+            setup["amount"] = sum(flt(line.get("amount")) for line in setup["services"])
 
             visit_dates = _visit_dates_for_setup(setup, current_date)
             if not visit_dates:
