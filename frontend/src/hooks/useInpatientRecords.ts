@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { fetchInpatientRecords, type InpatientRecord } from '../services/inpatientRecords'
 
 export function useInpatientRecords(
@@ -17,11 +17,17 @@ export function useInpatientRecords(
   const [records, setRecords] = useState<InpatientRecord[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const recordsRef = useRef<InpatientRecord[]>([])
 
   const loadRecords = useCallback(async () => {
     try {
-      setLoading(true)
+      if (recordsRef.current.length === 0) {
+        setLoading(true)
+      } else {
+        setRefreshing(true)
+      }
       setError(null)
       const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter)
       setRecords(response.data)
@@ -30,6 +36,7 @@ export function useInpatientRecords(
       setError(err instanceof Error ? err : new Error('Failed to fetch inpatient records'))
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter, refreshKey])
 
@@ -41,6 +48,7 @@ export function useInpatientRecords(
     records,
     totalCount,
     loading,
+    refreshing,
     error,
     refetch: loadRecords,
   }

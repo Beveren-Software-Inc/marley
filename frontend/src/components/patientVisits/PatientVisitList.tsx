@@ -68,13 +68,17 @@ interface PatientVisitListProps {
   detailedColumns?: boolean
 }
 
+function visitPatientDisplayName(visit: PatientVisitListRow): string {
+  return visit.patient_name || visit.label?.split(' - ')[1]?.trim() || '-'
+}
+
 function patientVisitCardMetaFields(
   visit: PatientVisitListRow,
   opts: { patient?: string },
 ): readonly CardMetaField[] {
   const fields: CardMetaField[] = [['Visit No', visit.value]]
   if (!opts.patient) {
-    fields.push(['Patient', visit.patient_name || visit.label?.split(' - ')[1]])
+    fields.push(['Patient', visitPatientDisplayName(visit)])
   }
   fields.push(['Practitioner', visit.practitioner_name])
   return fields
@@ -237,10 +241,17 @@ export const PatientVisitList = ({
   // --- Fetch main visit list ---
   const [visits, setVisits] = useState<PatientVisitListRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const visitsRef = useRef<PatientVisitListRow[]>([])
+  visitsRef.current = visits
 
   const fetchVisits = async () => {
-    setLoading(true)
+    if (visitsRef.current.length === 0) {
+      setLoading(true)
+    } else {
+      setRefreshing(true)
+    }
     setError(null)
     try {
       const visitSearch =
@@ -263,6 +274,7 @@ export const PatientVisitList = ({
       setError(err instanceof Error ? err : new Error('Failed to fetch visits'))
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -453,7 +465,7 @@ export const PatientVisitList = ({
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full min-w-0">
+    <div className={`flex flex-col flex-1 min-h-0 h-full min-w-0 transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
       {/* Global-context active visit banner */}
       {effectiveVisitFilter && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-800 text-xs mb-2">
@@ -644,7 +656,7 @@ export const PatientVisitList = ({
       {/* --- Visits Table --- */}
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-0">
         <div className="flex-1 min-h-0 overflow-auto overflow-x-auto">
-        {loading ? (
+        {loading && visits.length === 0 ? (
           <div className="flex items-center justify-center p-10 text-slate-500 text-sm">
             <svg className="animate-spin w-4 h-4 mr-2 text-primary" fill="none" viewBox="0 0 24 24">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -787,7 +799,7 @@ export const PatientVisitList = ({
                       className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
                       onClick={() => { if (visit.patient) onPatientFromVisit?.(visit.patient) }}
                     >
-                      <span className="font-medium text-primary hover:underline">{visit.label?.split(' - ')[1] || '-'}</span>
+                      <span className="font-medium text-primary hover:underline">{visitPatientDisplayName(visit)}</span>
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
@@ -1079,7 +1091,7 @@ export const PatientVisitList = ({
       {showPaymentModal && paymentVisit && (
         <CreatePaymentModal
           visitName={paymentVisit.value}
-          patientName={paymentVisit.label?.split(' - ')[1] || ''}
+          patientName={paymentVisit.patient_name || paymentVisit.label?.split(' - ')[1] || ''}
           onClose={() => { setShowPaymentModal(false); setPaymentVisit(null) }}
           onSuccess={() => { setShowPaymentModal(false); setPaymentVisit(null); fetchVisits() }}
         />
@@ -1088,7 +1100,7 @@ export const PatientVisitList = ({
       {/* Admission Modal */}
       {admissionModalVisit && (
         <CreateAdmissionModal
-          patientName={admissionModalVisit.label?.split(' - ')[1] || ''}
+          patientName={admissionModalVisit.patient_name || admissionModalVisit.label?.split(' - ')[1] || ''}
           encounterName={admissionModalVisit.value}
           onClose={() => setAdmissionModalVisit(null)}
           onSuccess={() => { setAdmissionModalVisit(null); fetchVisits() }}

@@ -1,5 +1,5 @@
 import frappe
-from frappe.utils import cint, today, getdate
+from frappe.utils import cint, today, getdate, flt
 
 from healthcare.api.sales_order_cost_center import (
 	apply_cost_center_to_sales_order,
@@ -120,6 +120,11 @@ def get_service_orders(
         cc = so.get('cost_center')
         so['cost_center_name'] = cc_labels.get(cc) if cc else ''
 
+    from healthcare.api.pos_dispense_return import enrich_sales_order_billable_fields
+
+    for so in sales_orders:
+        enrich_sales_order_billable_fields(so)
+
     from healthcare.api.billing import _attach_sales_order_items
 
     _attach_sales_order_items(sales_orders)
@@ -191,7 +196,7 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     
     summary = {
         'total_orders': len(sales_orders),
-        'total_amount': sum(so.grand_total for so in sales_orders),
+        'total_amount': 0,
         'draft': {'count': 0, 'amount': 0},
         'submitted': {'count': 0, 'amount': 0},
         'cancelled': {'count': 0, 'amount': 0},
@@ -199,8 +204,18 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
         'partially_invoiced': {'count': 0, 'amount': 0},
         'not_invoiced': {'count': 0, 'amount': 0}
     }
+
+    from healthcare.api.pos_dispense_return import enrich_sales_order_billable_fields
+
+    def _summary_amount(so_row):
+        enrich_sales_order_billable_fields(so_row)
+        if so_row.get("billable_grand_total") is not None:
+            return flt(so_row.get("billable_grand_total") or 0)
+        return flt(so_row.grand_total or 0)
     
     for so in sales_orders:
+        order_amount = _summary_amount(so)
+        summary['total_amount'] += order_amount
         # Check if invoice exists
         invoice_exists = frappe.db.exists('Sales Invoice Item', {'sales_order': so.name})
         
@@ -210,21 +225,23 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
             
             if invoice_status == 'Paid':
                 summary['invoiced']['count'] += 1
-                summary['invoiced']['amount'] += so.grand_total
+                summary['invoiced']['amount'] += order_amount
             elif invoice_status in ['Unpaid', 'Overdue']:
                 summary['partially_invoiced']['count'] += 1
-                summary['partially_invoiced']['amount'] += so.grand_total
+                summary['partially_invoiced']['amount'] += order_amount
         else:
+            if order_amount <= 0:
+                continue
             summary['not_invoiced']['count'] += 1
-            summary['not_invoiced']['amount'] += so.grand_total
+            summary['not_invoiced']['amount'] += order_amount
         
         # Status from sales order
         if so.status == 'Draft':
             summary['draft']['count'] += 1
-            summary['draft']['amount'] += so.grand_total
+            summary['draft']['amount'] += order_amount
         elif so.status == 'To Bill':
             summary['submitted']['count'] += 1
-            summary['submitted']['amount'] += so.grand_total
+            summary['submitted']['amount'] += order_amount
     
     return summary
 
@@ -281,6 +298,15 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     
 #     return invoice.name
 
+def _sales_order_has_billable_qty(sales_order_name, so_doc=None):
+	from healthcare.api.pos_dispense_return import is_pos_dispense_sales_order, sales_order_has_billable_qty
+
+	so = so_doc or frappe.get_doc("Sales Order", sales_order_name)
+	if not is_pos_dispense_sales_order(so):
+		return True
+	return sales_order_has_billable_qty(so)
+
+
 def _load_billable_sales_orders_by_names(names):
 	"""Return submitted, not-yet-invoiced Sales Order docs for the given names."""
 	import json
@@ -322,6 +348,12 @@ def _load_billable_sales_orders_by_names(names):
 		if customer and so.customer != customer:
 			frappe.throw(frappe._("All selected orders must belong to the same customer."))
 		customer = so.customer
+		if not _sales_order_has_billable_qty(so.name, so_doc=so):
+			frappe.throw(
+				frappe._("Sales Order {0} has no billable quantity remaining (items may be fully returned).").format(
+					name
+				)
+			)
 		docs.append(so)
 
 	if not docs:
@@ -420,7 +452,9 @@ def _pending_billable_sales_order_names(
 			filters["cost_center"] = ["in", permitted_cc]
 
 		for row in frappe.get_all("Sales Order", filters=filters, fields=["name"]):
-			if not frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
+			if frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
+				continue
+			if _sales_order_has_billable_qty(row.name):
 				names.append(row.name)
 
 	if patient:
@@ -503,7 +537,10 @@ def _create_invoice_from_sales_orders(sales_orders, reference_type=None, referen
 		if not header_cc and so_cc:
 			header_cc = so_cc
 		for item in so.items:
-			invoice.append("items", sales_invoice_item_from_sales_order_item(so, item))
+			line = sales_invoice_item_from_sales_order_item(so, item)
+			if not line:
+				continue
+			invoice.append("items", line)
 			items_added += 1
 
 	if items_added == 0:

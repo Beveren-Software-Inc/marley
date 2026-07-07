@@ -1,12 +1,13 @@
 import { useMemo, type ReactNode } from 'react'
 import { CalendarClock, CalendarDays, Clock, DollarSign, Stethoscope, User } from 'lucide-react'
 import { type DailyPatientVisitSetup } from '../../services/dailyPatientVisitSetup'
+import { type IOPSessionType } from '../../services/iop'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 
 interface DailyPatientVisitSetupDetailPanelProps {
   row: DailyPatientVisitSetup
-  sessionLabel?: string
+  sessionTypes?: IOPSessionType[]
   onClose: () => void
   onPatientClick?: (patient: string) => void
 }
@@ -77,10 +78,23 @@ function InfoTile({
 
 export function DailyPatientVisitSetupDetailPanel({
   row,
-  sessionLabel,
+  sessionTypes = [],
   onClose,
   onPatientClick,
 }: DailyPatientVisitSetupDetailPanelProps) {
+  const sessionLabelMap = useMemo(
+    () => new Map(sessionTypes.map((t) => [t.name, t.session_type_name || t.name])),
+    [sessionTypes]
+  )
+
+  const services = row.services?.length
+    ? row.services
+    : row.session || row.amount
+      ? [{ session: row.session || '', amount: row.amount || 0 }]
+      : []
+
+  const totalAmount = services.reduce((sum, line) => sum + (Number(line.amount) || 0), row.amount || 0)
+
   const headerSubtitle = useMemo(() => {
     const parts = [
       row.patient_name || row.patient,
@@ -116,7 +130,7 @@ export function DailyPatientVisitSetupDetailPanel({
           <h3 className={MODAL_SECTION_TITLE_CLASS}>Overview</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Date" value={formatDate(row.posting_date)} />
-            <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Entry Date" value={formatDateTime(row.creation)} />
+            <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Entry Date" value={formatDate(row.cr_date || row.creation)} />
             <InfoTile icon={<User className="h-4 w-4" />} label="File No." value={displayValue(row.file_no)} />
             <InfoTile
               icon={<User className="h-4 w-4" />}
@@ -125,7 +139,7 @@ export function DailyPatientVisitSetupDetailPanel({
               onClick={row.patient && onPatientClick ? () => onPatientClick(row.patient) : undefined}
             />
             <InfoTile icon={<Stethoscope className="h-4 w-4" />} label="Doctor" value={displayValue(row.practitioner_name || row.practioner)} />
-            <InfoTile icon={<DollarSign className="h-4 w-4" />} label="Amount" value={(row.amount || 0).toFixed(2)} />
+            <InfoTile icon={<DollarSign className="h-4 w-4" />} label="Total Amount" value={totalAmount.toFixed(2)} />
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Start Date" value={formatDate(row.from_date)} />
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="End Date" value={formatDate(row.to_date)} />
             <InfoTile
@@ -140,9 +154,36 @@ export function DailyPatientVisitSetupDetailPanel({
           <h3 className={MODAL_SECTION_TITLE_CLASS}>Schedule</h3>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <InfoTile icon={<Clock className="h-4 w-4" />} label="Time" value={displayValue(row.time)} />
-            <InfoTile icon={<CalendarClock className="h-4 w-4" />} label="Session" value={displayValue(sessionLabel || row.session)} />
           </div>
         </section>
+
+        {services.length > 0 && (
+          <section className={MODAL_SECTION_CLASS}>
+            <h3 className={MODAL_SECTION_TITLE_CLASS}>Services</h3>
+            <div className="overflow-x-auto rounded-lg border border-emerald-100">
+              <table className="w-full min-w-[320px] text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Session</th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-600">Amount</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {services.map((line, index) => (
+                    <tr key={line.name || `service-${index}`}>
+                      <td className="px-3 py-2 text-slate-700">
+                        {sessionLabelMap.get(line.session) || line.session || '—'}
+                      </td>
+                      <td className="px-3 py-2 text-right text-slate-700">
+                        {(Number(line.amount) || 0).toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+        )}
 
         {(row.admission || row.discharge || row.name) && (
           <section className={MODAL_SECTION_CLASS}>

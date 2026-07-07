@@ -45,7 +45,10 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
 
   const [discharges, setDischarges] = useState<Discharge[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<Error | null>(null)
+  const dischargesRef = useRef<Discharge[]>([])
+  dischargesRef.current = discharges
   const [detailRow, setDetailRow] = useState<Discharge | null>(null)
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [typeFilter, setTypeFilter] = useState<string>('')
@@ -76,9 +79,15 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [selectedAdmissionOpt, setSelectedAdmissionOpt] = useState<{ value: string; label: string } | null>(null)
 
   useEffect(() => {
+    let cancelled = false
+
     const loadDischarges = async () => {
       try {
-        setLoading(true)
+        if (dischargesRef.current.length === 0) {
+          setLoading(true)
+        } else {
+          setRefreshing(true)
+        }
         setError(null)
         const resolvedAdmission = dischargeIdFilter ? undefined : (admissionFilter || effectiveAdmission)
         const search = dischargeIdFilter || undefined
@@ -94,16 +103,25 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
           typeFilter || undefined,
           excludeCancelled
         )
+        if (cancelled) return
         setDischarges(response.data)
         setTotalCount(response.total_count)
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error('Failed to fetch discharges'))
+        }
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       }
     }
 
     loadDischarges()
+    return () => {
+      cancelled = true
+    }
   }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, page, pageSize, excludeCancelled])
 
   // Reset page when filters change
@@ -273,7 +291,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
     setOpenActionRow(null)
   }
 
-  if (loading) {
+  if (loading && discharges.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-slate-600">Loading discharges...</div>
@@ -293,7 +311,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   }
 
   return (
-    <div className={`flex flex-col flex-1 min-h-0 h-full ${isInsideCard ? '' : 'bg-white border border-slate-200 rounded-lg'}`}>
+    <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''} ${isInsideCard ? '' : 'bg-white border border-slate-200 rounded-lg'}`}>
       {/* Global-context active admission banner */}
       {effectiveAdmission && mode === 'IP' && activeAdmission && (
         <div className="flex items-center gap-2 px-4 py-2 rounded-t-lg bg-blue-50 border-b border-blue-200 text-blue-800 text-xs">

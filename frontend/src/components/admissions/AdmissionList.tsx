@@ -64,6 +64,13 @@ function getIpDefaultFilters() {
   return { status: 'Admitted', dateFrom: today, dateTo: today }
 }
 
+function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
+  const name = (record.patient_name || record.patient || '').trim()
+  const fileNo = (record.file_no || '').trim()
+  if (fileNo && name) return `${fileNo}: ${name}`
+  return name || fileNo || '-'
+}
+
 interface AdmissionListProps {
   onAdmissionSelect?: (admissionName: string) => void
   /** Select admission in navbar (IP mode) and go to doctor/nurse home — used from clinical portals */
@@ -236,7 +243,7 @@ export const AdmissionList = ({
     navigate(`${portal}?${params.toString()}`, { replace: onPortal })
   }
 
-  const { records, totalCount, loading, error, refetch } = useInpatientRecords(
+  const { records, totalCount, loading, refreshing, error, refetch } = useInpatientRecords(
     effectiveNameFilter ? undefined : (selectedStatus || undefined),
     effectiveNameFilter ?? (admissionNoFilter || externalSearchQuery || undefined),
     effectiveNameFilter ? undefined : effectivePatient,
@@ -437,7 +444,7 @@ export const AdmissionList = ({
     const headers = ['Case No', 'Patient', 'Admission Date', 'Status']
     const rows = records.map((r) => [
       r.name,
-      r.patient_name || r.patient || '',
+      formatAdmissionPatientLabel(r),
       formatAdmissionDate(r, { fallback: '' }),
       r.status || '',
     ])
@@ -454,13 +461,13 @@ export const AdmissionList = ({
   const printFilteredList = () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
-    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${r.patient_name || r.patient || ''}</td><td>${formatAdmissionDate(r, { fallback: '' })}</td><td>${r.status || ''}</td></tr>`).join('')
+    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${formatAdmissionPatientLabel(r)}</td><td>${formatAdmissionDate(r, { fallback: '' })}</td><td>${r.status || ''}</td></tr>`).join('')
     win.document.write(`<html><head><title>Inpatient Admission Listing</title></head><body><h3>Inpatient Admission Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Case No</th><th>Patient</th><th>Admission Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
 
-  if (loading) {
+  if (loading && records.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-slate-600">Loading admissions...</div>
@@ -486,7 +493,7 @@ export const AdmissionList = ({
   }
 
   return (
-    <div className="flex flex-col flex-1 min-h-0 h-full">
+    <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
       <div className="flex flex-col flex-1 min-h-0 gap-4">
         {!isInsideCard && (
         <div className="flex items-center justify-between gap-2">
@@ -712,7 +719,7 @@ export const AdmissionList = ({
                           if (record.patient) onPatientFromAdmission?.(record.patient)
                         }}
                       >
-                        <span className="font-medium text-primary hover:underline">{record.patient_name || record.patient || '-'}</span>
+                        <span className="font-medium text-primary hover:underline">{formatAdmissionPatientLabel(record)}</span>
                       </td>
                     )}
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">

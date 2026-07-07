@@ -92,7 +92,11 @@ def get_observations(
 	dc_date_to=None,
 ):
 	"""Get list of Observations with optional patient, level, and date filters."""
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {}
+	if apply_cost_center_scope_to_filters(filters):
+		return []
 
 	if patient:
 		filters["patient"] = patient

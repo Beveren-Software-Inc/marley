@@ -16,7 +16,11 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          date_from=None, date_to=None,
                          file_no=None, patient_name=None, cost_center=None):
 	"""Get all appointments (for receptionist) with server-side pagination."""
+	from healthcare.api.common import apply_cost_center_scope_to_filters
+
 	filters = {}
+	if apply_cost_center_scope_to_filters(filters):
+		return {"data": [], "total_count": 0}
 	or_filters = {}
 
 	if status:
@@ -123,6 +127,8 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
                                   search=None, date_from=None, date_to=None,
                                   file_no=None, patient_name=None, cost_center=None):
     """Get appointments for the current user's healthcare practitioner with server-side pagination."""
+    from healthcare.api.common import apply_cost_center_scope_to_filters
+
     user = frappe.session.user
 
     practitioner = frappe.db.get_value('Healthcare Practitioner', {'user_id': user}, 'name')
@@ -154,6 +160,9 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
             filters['appointment_date'] = ['between', [date_from, date_to]]
         else:
             filters['appointment_date'] = ['<=', date_to]
+
+    if apply_cost_center_scope_to_filters(filters):
+        return {"data": [], "total_count": 0}
 
     or_filters = {}
     if search:

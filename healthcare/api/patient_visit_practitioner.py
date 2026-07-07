@@ -182,3 +182,29 @@ def enrich_patient_visit_practitioner_names(visits: list[dict]) -> None:
 
 		if name:
 			visit["practitioner_name"] = name
+
+
+def enrich_patient_visit_patient_names(visits: list[dict]) -> None:
+	"""Backfill patient_name / file_number on visit dicts when missing."""
+	if not visits:
+		return
+
+	patient_ids = {visit.get("patient") for visit in visits if visit.get("patient")}
+	if not patient_ids:
+		return
+
+	rows = frappe.get_all(
+		"Patient",
+		filters={"name": ["in", list(patient_ids)]},
+		fields=["name", "patient_name", "file_no"],
+	)
+	by_name = {row.name: row for row in rows}
+
+	for visit in visits:
+		patient = by_name.get(visit.get("patient"))
+		if not patient:
+			continue
+		if not visit.get("patient_name"):
+			visit["patient_name"] = patient.patient_name or patient.name
+		if not visit.get("file_number") and patient.file_no:
+			visit["file_number"] = patient.file_no

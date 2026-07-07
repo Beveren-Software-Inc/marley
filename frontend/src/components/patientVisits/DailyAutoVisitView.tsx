@@ -10,11 +10,12 @@ import {
   fetchDailyPatientVisitSetups,
   stopDailyPatientVisitSetup,
   type DailyPatientVisitSetup,
+  type DailyPatientVisitSetupServiceLine,
 } from '../../services/dailyPatientVisitSetup'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { fetchIOPSessionTypes, type IOPSessionType } from '../../services/iop'
-import { IOPSessionTypeSelect } from '../ui/IOPSessionTypeSelect'
+import { SetupServicesEditor } from './SetupServicesEditor'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -92,10 +93,10 @@ const CreateSetupModal = ({
     from_date: '',
     to_date: '',
     time: '',
-    session: '',
     practioner: '',
     is_active: true,
     amount: 0,
+    services: [{ session: '', amount: 0 }],
   })
 
   const [patientQuery, setPatientQuery] = useState('')
@@ -196,7 +197,13 @@ const CreateSetupModal = ({
     }
     try {
       setSaving(true)
-      await createDailyPatientVisitSetup(form)
+      const services = (form.services || []).filter((line) => line.session || line.amount)
+      const payload = {
+        ...form,
+        services,
+        amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
+      }
+      await createDailyPatientVisitSetup(payload)
       toast.success('Daily Patient Visit Setup created')
       onCreated()
       onClose()
@@ -340,45 +347,32 @@ const CreateSetupModal = ({
                     required
                   />
                 </div>
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Session</label>
-                  <IOPSessionTypeSelect
-                    value={form.session || ''}
-                    onChange={(value) => update({ session: value })}
-                    types={sessionTypes}
-                    onTypesUpdated={setSessionTypes}
-                    placeholder="Search session type..."
-                  />
-                </div>
               </div>
             </section>
 
             <section className={MODAL_SECTION_CLASS}>
-              <h3 className={MODAL_SECTION_TITLE_CLASS}>Billing &amp; status</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
-                <div>
-                  <label className={MODAL_LABEL_CLASS}>Amount</label>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>Services &amp; billing</h3>
+              <SetupServicesEditor
+                services={form.services || [{ session: '', amount: 0 }]}
+                onChange={(services: DailyPatientVisitSetupServiceLine[]) =>
+                  update({
+                    services,
+                    amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
+                  })
+                }
+                sessionTypes={sessionTypes}
+                onSessionTypesUpdated={setSessionTypes}
+              />
+              <div className="mt-4">
+                <label className="inline-flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-900 cursor-pointer">
                   <input
-                    type="number"
-                    value={form.amount || 0}
-                    onChange={(e) => update({ amount: Number(e.target.value) || 0 })}
-                    placeholder="0.00"
-                    min={0}
-                    step="0.01"
-                    className={MODAL_FIELD_CLASS}
+                    type="checkbox"
+                    checked={!!form.is_active}
+                    onChange={(e) => update({ is_active: e.target.checked })}
+                    className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
                   />
-                </div>
-                <div>
-                  <label className="inline-flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-900 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!form.is_active}
-                      onChange={(e) => update({ is_active: e.target.checked })}
-                      className="h-4 w-4 rounded border-emerald-300 text-emerald-600 focus:ring-emerald-500"
-                    />
-                    Active — scheduler will create visits daily
-                  </label>
-                </div>
+                  Active — scheduler will create visits daily
+                </label>
               </div>
             </section>
           </div>
@@ -411,11 +405,6 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeCount = useMemo(() => setups.filter((s) => !!s.is_active).length, [setups])
-
-  const sessionTypeLabel = useMemo(() => {
-    const map = new Map(sessionTypes.map((t) => [t.name, t.session_type_name || t.name]))
-    return (sessionId?: string) => (sessionId ? map.get(sessionId) || sessionId : '—')
-  }, [sessionTypes])
 
   const loadSetups = async () => {
     try {
@@ -549,7 +538,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                         {formatSetupDate(row.posting_date || row.creation)}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
-                        {formatEntryDate(row.creation)}
+                        {formatEntryDate(row.cr_date || row.creation)}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">{row.file_no || '—'}</td>
                       <td
@@ -659,7 +648,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
       {detailSetup && (
         <DailyPatientVisitSetupDetailPanel
           row={detailSetup}
-          sessionLabel={sessionTypeLabel(detailSetup.session)}
+          sessionTypes={sessionTypes}
           onClose={() => setDetailSetup(null)}
         />
       )}

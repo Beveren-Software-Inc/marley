@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Building2,
   Calendar,
@@ -216,6 +216,17 @@ export function DischargeDetailPanel({
   const [doc, setDoc] = useState<DischargeDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const reloadDoc = useCallback(() => {
+    setLoading(true)
+    setError(null)
+    return fetchDischarge(name)
+      .then((data) => setDoc(data))
+      .catch((err) => {
+        setError(err instanceof Error ? err.message : 'Failed to load discharge')
+      })
+      .finally(() => setLoading(false))
+  }, [name])
 
   useEffect(() => {
     let cancelled = false
@@ -468,6 +479,9 @@ export function DischargeDetailPanel({
                 currentMedications={currentMedications}
                 dischargedMedications={dischargedMedications}
                 stoppedMedications={stoppedMedications}
+                allowEditDischarged
+                patient={doc?.file_no || preview?.file_no || undefined}
+                onDischargedChanged={reloadDoc}
               />
             </div>
           </section>

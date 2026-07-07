@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { NavLink, useLocation } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
 import { UserMenu } from '../user/UserMenu'
@@ -11,6 +11,7 @@ import { doctorScreenGroups } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
+import type { ScreenItem } from '../../config/doctorScreens'
 import { SHOW_EMPLOYEE_PORTAL } from '../../config/features'
 import { careScopeFromCostCenterField, filterDoctorScreenGroups, filterNurseScreenGroups, filterReceptionScreenGroups } from '../../config/costCenterCareScope'
 import sereneLogo from '../../assets/serene-logo.png'
@@ -287,29 +288,35 @@ function buildRoleHomePath(basePath: string, currentSearch: string): string {
 
 // ─── Sidebar nav styling ──────────────────────────────────────────────────────
 
-/** Active items keep their normal sidebar fill; highlight with a thick green border. */
-const SIDEBAR_ACTIVE_BORDER = 'border-[3px] border-emerald-400'
+/** Active items keep the translucent fill and get a thin green outline. */
+const SIDEBAR_ACTIVE_BORDER = 'border border-emerald-300'
 
 const SIDEBAR_LINK =
-  'flex-1 px-3 py-2 rounded-md bg-white/10 text-white border-[3px] border-transparent hover:bg-white/20 transition-colors'
+  'flex-1 px-3 py-2 rounded-md bg-white/10 text-white border hover:bg-white/20 transition-colors'
+const SIDEBAR_LINK_IDLE = 'border-transparent'
 const SIDEBAR_LINK_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-semibold`
 
 const SIDEBAR_GROUP =
-  'flex items-center gap-1.5 w-full px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left text-white/80 border-[3px] border-transparent hover:bg-white/20'
-const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white`
+  'flex items-center gap-1.5 w-full min-w-0 px-2 py-1.5 rounded-md text-xs font-semibold tracking-wide transition-colors text-left hover:bg-white/20 border'
+const SIDEBAR_GROUP_IDLE = 'border-transparent text-white/80'
+const SIDEBAR_GROUP_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} text-white bg-white/10`
+
+const SIDEBAR_CHEVRON =
+  'p-1 rounded flex-shrink-0 text-white/70 hover:bg-white/20 transition-colors'
 
 const SIDEBAR_SCREEN =
-  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border-[3px] border-transparent hover:bg-white/20 transition-colors'
+  'px-3 py-1.5 rounded-md text-xs bg-white/10 text-white border hover:bg-white/20 transition-colors'
+const SIDEBAR_SCREEN_IDLE = 'border-transparent'
 const SIDEBAR_SCREEN_ACTIVE = `${SIDEBAR_ACTIVE_BORDER} bg-white/10 text-white font-medium`
 
 const OBSERVATION_SCREEN_IDS = new Set(['n-ob', 'r-observation', 'obs'])
 const OBSERVATION_GROUP_TITLES = new Set(['Observation & Monitoring', 'Observation'])
-/** Observation nav uses a filled green background when active (exception to border-only sidebar). */
+/** Observation nav keeps a soft green fill when active. */
 const SIDEBAR_OBSERVATION_ACTIVE =
-  'bg-green-200 text-emerald-900 border-[3px] border-emerald-500 font-medium'
+  'bg-emerald-200/90 text-emerald-950 border border-emerald-400 font-medium'
 
 function sidebarScreenClass(screenId: string, isActive: boolean): string {
-  if (!isActive) return SIDEBAR_SCREEN
+  if (!isActive) return `${SIDEBAR_SCREEN} ${SIDEBAR_SCREEN_IDLE}`
   if (OBSERVATION_SCREEN_IDS.has(screenId)) {
     return `${SIDEBAR_SCREEN} ${SIDEBAR_OBSERVATION_ACTIVE}`
   }
@@ -317,11 +324,15 @@ function sidebarScreenClass(screenId: string, isActive: boolean): string {
 }
 
 function sidebarGroupClass(groupTitle: string, isActive: boolean): string {
-  if (!isActive) return SIDEBAR_GROUP
+  if (!isActive) return `${SIDEBAR_GROUP} ${SIDEBAR_GROUP_IDLE}`
   if (OBSERVATION_GROUP_TITLES.has(groupTitle)) {
     return `${SIDEBAR_GROUP} ${SIDEBAR_OBSERVATION_ACTIVE}`
   }
   return `${SIDEBAR_GROUP} ${SIDEBAR_GROUP_ACTIVE}`
+}
+
+function sidebarRoleClass(isActive: boolean): string {
+  return `${SIDEBAR_LINK} ${isActive ? SIDEBAR_LINK_ACTIVE : SIDEBAR_LINK_IDLE}`
 }
 
 // ─── AppShell ─────────────────────────────────────────────────────────────────
@@ -412,6 +423,52 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
     [sidebarOpen],
   )
 
+  /** Keep role + folder expanded for the current route and active screen. */
+  useEffect(() => {
+    const pathname = location.pathname
+    const screen = activeScreen
+
+    setExpandedTopics((prev) => {
+      const next = new Set(prev)
+      for (const link of mainLinks) {
+        const prefix = link.prefix || link.to
+        if (pathname.startsWith(prefix)) {
+          next.add(link.to)
+        }
+      }
+      return next
+    })
+
+    if (!screen) return
+
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      for (const link of mainLinks) {
+        const prefix = link.prefix || link.to
+        if (!pathname.startsWith(prefix)) continue
+        for (const group of link.screenGroups ?? []) {
+          if (group.screens.some((s) => s.id === screen)) {
+            next.add(`${link.to}||${group.groupTitle}`)
+          }
+        }
+      }
+      return next
+    })
+  }, [location.pathname, activeScreen, mainLinks])
+
+  const isRolePathActive = (prefix: string) => location.pathname.startsWith(prefix)
+
+  /** Role row is highlighted when on that role (including any nested screen). */
+  const isRoleNavActive = (prefix: string) => isRolePathActive(prefix)
+
+  /** Folder row is highlighted when it contains the current screen on this role. */
+  const isGroupNavActive = (prefix: string, screens: ScreenItem[]) =>
+    isRolePathActive(prefix) && !!activeScreen && screens.some((s) => s.id === activeScreen)
+
+  /** Leaf screen row is highlighted when it matches the current screen on this role. */
+  const isScreenNavActive = (prefix: string, screenId: string) =>
+    isRolePathActive(prefix) && activeScreen === screenId
+
   return (
     <AppShellContext.Provider value={shellContextValue}>
     <div className="h-screen overflow-hidden flex bg-muted">
@@ -443,19 +500,22 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         {/* Nav */}
         <nav className="flex-1 min-h-0 overflow-y-auto p-4 flex flex-col gap-1 text-sm">
           {mainLinks.map((link) => {
+            const rolePrefix = link.prefix || link.to
             const isExpanded  = expandedTopics.has(link.to)
             const hasGroups   = (link.screenGroups?.length ?? 0) > 0
             const hasScreens  = (link.screens?.length ?? 0) > 0
             const hasChildren = hasGroups || hasScreens
+            const roleIsActive = isRoleNavActive(rolePrefix)
 
             return (
               <div key={link.to} className="flex flex-col gap-0.5">
-                {/* Top-level link row */}
-                <div className="flex items-center">
+                {/* Top-level link row — border on label only, not chevron */}
+                <div className="flex items-center gap-0.5">
                   {hasChildren && (
                     <button
+                      type="button"
                       onClick={() => toggleTopic(link.to)}
-                      className="p-1 hover:bg-white/20 rounded mr-1 flex-shrink-0"
+                      className={SIDEBAR_CHEVRON}
                       aria-label={isExpanded ? 'Collapse' : 'Expand'}
                     >
                       {isExpanded
@@ -465,10 +525,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                   )}
                   <NavLink
                     to={buildRoleHomePath(link.to, location.search)}
-                    onClick={closeSidebar}
-                    className={({ isActive }) =>
-                      `${SIDEBAR_LINK} ${isActive ? SIDEBAR_LINK_ACTIVE : ''}`
-                    }
+                    onClick={() => {
+                      if (hasChildren) {
+                        setExpandedTopics((prev) => new Set(prev).add(link.to))
+                      }
+                      closeSidebar()
+                    }}
+                    className={sidebarRoleClass(roleIsActive)}
                   >
                     {link.label}
                   </NavLink>
@@ -480,20 +543,30 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.screenGroups.map((group) => {
                       const groupKey      = `${link.to}||${group.groupTitle}`
                       const groupExpanded = expandedGroups.has(groupKey)
-                      const groupIsActive = group.screens.some((s) => s.id === activeScreen)
+                      const groupIsActive = isGroupNavActive(rolePrefix, group.screens)
 
                       return (
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">
-                          <button
-                            onClick={() => toggleGroup(link.to, group.groupTitle)}
-                            className={sidebarGroupClass(group.groupTitle, groupIsActive)}
-                          >
-                            <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
-                            <span className="flex-1 truncate">{group.groupTitle}</span>
-                            {groupExpanded
-                              ? <ChevronDown className="w-3 h-3 flex-shrink-0 opacity-60" />
-                              : <ChevronRight className="w-3 h-3 flex-shrink-0 opacity-60" />}
-                          </button>
+                          <div className="flex items-center gap-0.5">
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(link.to, group.groupTitle)}
+                              className={SIDEBAR_CHEVRON}
+                              aria-label={groupExpanded ? 'Collapse folder' : 'Expand folder'}
+                            >
+                              {groupExpanded
+                                ? <ChevronDown className="w-3 h-3" />
+                                : <ChevronRight className="w-3 h-3" />}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => toggleGroup(link.to, group.groupTitle)}
+                              className={sidebarGroupClass(group.groupTitle, groupIsActive)}
+                            >
+                              <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />
+                              <span className="flex-1 truncate">{group.groupTitle}</span>
+                            </button>
+                          </div>
 
                           {groupExpanded && (
                             <nav className="flex flex-col gap-0.5 ml-4">
@@ -502,7 +575,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                                   key={s.id}
                                   to={buildScreenPath(link.to, s.id, location.search)}
                                   onClick={closeSidebar}
-                                  className={sidebarScreenClass(s.id, activeScreen === s.id)}
+                                  className={sidebarScreenClass(
+                                    s.id,
+                                    isScreenNavActive(rolePrefix, s.id),
+                                  )}
                                 >
                                   {s.title}
                                 </NavLink>
@@ -523,7 +599,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                         key={s.id}
                         to={buildScreenPath(link.to, s.id, location.search)}
                         onClick={closeSidebar}
-                        className={sidebarScreenClass(s.id, activeScreen === s.id)}
+                        className={sidebarScreenClass(
+                          s.id,
+                          isScreenNavActive(rolePrefix, s.id),
+                        )}
                       >
                         {s.title}
                       </NavLink>

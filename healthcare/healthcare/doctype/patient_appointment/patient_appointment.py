@@ -220,7 +220,7 @@ class PatientAppointment(Document):
 			# if not self.get(appointment_for_field):
 			# 	frappe.throw(
 			# 		_("Please enter {}").format(frappe.bold(self.appointment_for)),
-			# 		frappe.MandatoryError,
+			# 		frappe.MandatoryErrors,
 			# 	)
 
 			if self.appointment_for == "Practitioner":

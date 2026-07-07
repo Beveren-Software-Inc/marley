@@ -8,6 +8,9 @@ export interface ServiceOrder {
   transaction_date: string
   status: string
   grand_total: number
+  billable_grand_total?: number
+  returned_amount?: number
+  has_dispense_returns?: boolean
   total: number
   custom_reference_type: 'Patient Visit' | 'Inpatient Admission'
   custom_reference_name: string
@@ -28,9 +31,18 @@ export interface ServiceOrder {
     item_name?: string
     description?: string
     qty?: number
+    original_qty?: number
+    returned_qty?: number
     rate?: number
     amount?: number
   }[]
+}
+
+export function getServiceOrderBillableTotal(order: ServiceOrder): number {
+  if (order.billable_grand_total != null) {
+    return Number(order.billable_grand_total) || 0
+  }
+  return Number(order.grand_total) || 0
 }
 
 export interface OutpatientBalance {

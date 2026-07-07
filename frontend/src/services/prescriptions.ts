@@ -463,25 +463,14 @@ export async function fetchPrescriptionByInpatientOrEncounter(
 }
 
 export async function updatePrescription(data: any): Promise<any> {
-  const response = await fetch('/api/method/healthcare.api.patient_medication_order.update_medication_order', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<any>(
+    '/api/method/healthcare.api.patient_medication_order.update_medication_order',
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
     },
-    body: JSON.stringify(data),
-  })
-
-  const resData = await response.json()
-
-  if (resData?.message) {
-    return resData.message
-  }
-
-  if (resData?.exc_type) {
-    throw new Error(resData?.message || 'Failed to update prescription')
-  }
-
-  throw new Error('Failed to update prescription')
+  )
 }
 
 export async function signPrescription(

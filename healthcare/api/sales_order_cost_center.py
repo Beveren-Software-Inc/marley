@@ -5,6 +5,7 @@
 """Propagate cost center onto Sales Orders created from clinical documents."""
 
 import frappe
+from frappe.utils import flt
 
 
 def apply_cost_center_to_sales_order(so, cost_center):
@@ -141,14 +142,21 @@ def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 
 def sales_invoice_item_from_sales_order_item(so, item):
 	"""Map a Sales Order Item row to a Sales Invoice Item dict (incl. cost center)."""
+	from healthcare.api.pos_dispense_return import get_net_billable_qty_for_so_item
+
 	so_cc = cost_center_from_sales_order(so)
 	item_cc = getattr(item, "cost_center", None) or so_cc
+	net_qty = get_net_billable_qty_for_so_item(so, item)
+	if net_qty <= 0:
+		return None
+
+	rate = flt(item.rate)
 	line = {
 		"item_code": item.item_code,
 		"item_name": item.item_name or item.item_code,
-		"qty": item.qty,
-		"rate": item.rate,
-		"amount": item.amount,
+		"qty": net_qty,
+		"rate": rate,
+		"amount": flt(net_qty * rate, item.precision("amount") if hasattr(item, "precision") else 2),
 		"description": item.description or frappe._("Order: {0}").format(so.name),
 		"sales_order": so.name,
 		"so_detail": item.name,

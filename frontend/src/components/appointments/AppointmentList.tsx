@@ -861,9 +861,17 @@ export const AppointmentList = ({
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
+<<<<<<< ft/dev_50
+  const [refreshing, setRefreshing] = useState(false)
+=======
   /** True after the first fetch completes — keeps filters/inputs mounted during later re-fetches (avoids losing cursor focus). */
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+>>>>>>> version-16
   const [error, setError] = useState<Error | null>(null)
+  const appointmentsRef = useRef(appointments)
+  appointmentsRef.current = appointments
+  const availabilityCacheRef = useRef<Map<string, AvailabilityResponse>>(new Map())
+  const availabilityInflightRef = useRef<Set<string>>(new Set())
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -1060,9 +1068,15 @@ export const AppointmentList = ({
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
     const loadAppointments = async () => {
       try {
-        setLoading(true)
+        if (appointmentsRef.current.length === 0) {
+          setLoading(true)
+        } else {
+          setRefreshing(true)
+        }
         setError(null)
         const offset = (page - 1) * pageSize
 
@@ -1096,31 +1110,56 @@ export const AppointmentList = ({
           )
         }
 
+        if (cancelled) return
+
         setAppointments(response.data)
         setTotalCount(response.total_count)
 
-        if (!cardCompactLayout) {
+        // Skip leave checks on compact dashboard tiles and when filtering by patient (reception header).
+        if (!cardCompactLayout && !patient) {
           for (const apt of response.data) {
-            if (apt.practitioner && apt.appointment_date && !practitionerAvailability[apt.name]) {
-              setAvailabilityLoading(prev => ({ ...prev, [apt.name]: true }))
-              checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
-                .then(availabilityResponse => {
-                  setPractitionerAvailability(prev => ({ ...prev, [apt.name]: availabilityResponse }))
-                })
-                .finally(() => {
-                  setAvailabilityLoading(prev => ({ ...prev, [apt.name]: false }))
-                })
+            if (!apt.practitioner || !apt.appointment_date) continue
+
+            const cacheKey = `${apt.practitioner}|${apt.appointment_date}`
+            const cached = availabilityCacheRef.current.get(cacheKey)
+            if (cached) {
+              setPractitionerAvailability((prev) =>
+                prev[apt.name] === cached ? prev : { ...prev, [apt.name]: cached },
+              )
+              continue
             }
+            if (availabilityInflightRef.current.has(cacheKey)) continue
+
+            availabilityInflightRef.current.add(cacheKey)
+            setAvailabilityLoading((prev) => ({ ...prev, [apt.name]: true }))
+            checkPractitionerAvailability(apt.practitioner, apt.appointment_date)
+              .then((availabilityResponse) => {
+                if (cancelled) return
+                availabilityCacheRef.current.set(cacheKey, availabilityResponse)
+                setPractitionerAvailability((prev) => ({ ...prev, [apt.name]: availabilityResponse }))
+              })
+              .finally(() => {
+                availabilityInflightRef.current.delete(cacheKey)
+                if (cancelled) return
+                setAvailabilityLoading((prev) => ({ ...prev, [apt.name]: false }))
+              })
           }
         }
       } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch appointments'))
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error('Failed to fetch appointments'))
+        }
       } finally {
-        setLoading(false)
-        setHasLoadedOnce(true)
+        if (!cancelled) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       }
     }
     loadAppointments()
+    return () => {
+      cancelled = true
+    }
   }, [
     refreshKey, useAllAppointmentsApi, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
@@ -1368,7 +1407,11 @@ export const AppointmentList = ({
       filterPractitioner
     : practitionerQuery
 
+<<<<<<< ft/dev_50
+  if (loading && appointments.length === 0) {
+=======
   if (loading && !hasLoadedOnce) {
+>>>>>>> version-16
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
   }
 
@@ -1385,7 +1428,7 @@ export const AppointmentList = ({
 
   return (
     <>
-      <div className="flex flex-col flex-1 min-h-0 h-full">
+      <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
       {doctorScheduleMode && !patient && filterPractitioner && (
         <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-xs">
           <span>

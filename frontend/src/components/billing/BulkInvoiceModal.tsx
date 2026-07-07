@@ -5,13 +5,13 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createBulkInvoice, type ServiceOrder } from '../../services/serviceOrders'
+import { createBulkInvoice, getServiceOrderBillableTotal, type ServiceOrder } from '../../services/serviceOrders'
 import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 export function isBillableServiceOrder(order: ServiceOrder): boolean {
-  return order.docstatus === 1 && !order.invoice_name
+  return order.docstatus === 1 && !order.invoice_name && getServiceOrderBillableTotal(order) > 0
 }
 
 interface BulkInvoiceModalProps {
@@ -39,7 +39,7 @@ export const BulkInvoiceModal = ({
   const allSelected = billable.length > 0 && selected.size === billable.length
   const selectedTotal = billable
     .filter((o) => selected.has(o.name))
-    .reduce((sum, o) => sum + (Number(o.grand_total) || 0), 0)
+    .reduce((sum, o) => sum + getServiceOrderBillableTotal(o), 0)
 
   const toggle = (name: string) => {
     setSelected((prev) => {
@@ -174,7 +174,12 @@ export const BulkInvoiceModal = ({
                         <ServiceOrderServiceCell order={order} />
                       </td>
                       <td className="px-3 py-2.5 text-right font-medium text-slate-900 tabular-nums">
-                        {formatCurrency(order.grand_total)}
+                        <div>{formatCurrency(getServiceOrderBillableTotal(order))}</div>
+                        {order.has_dispense_returns && (order.returned_amount ?? 0) > 0 ? (
+                          <div className="text-[10px] font-normal text-purple-700">
+                            Returned {formatCurrency(order.returned_amount ?? 0)}
+                          </div>
+                        ) : null}
                       </td>
                     </tr>
                   ))}
