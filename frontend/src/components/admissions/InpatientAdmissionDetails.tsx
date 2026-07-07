@@ -74,7 +74,7 @@ const SafeDate = ({ date, format = 'date' }: { date?: string | null; format?: 'd
     if (isNaN(parsedDate.getTime())) return <>{date}</>
 
     const formatted = format === 'date'
-      ? parsedDate.toLocaleDateString()
+      ? parsedDate.toLocaleDateString('en-GB')
       : parsedDate.toLocaleString()
 
     return <>{formatted}</>
@@ -133,7 +133,7 @@ const useDateFormatter = () => {
   const formatDate = useCallback((date?: string) => {
     if (!date) return undefined
     try {
-      return new Date(date).toLocaleDateString()
+      return new Date(date).toLocaleDateString('en-GB')
     } catch {
       return date
     }
@@ -142,7 +142,7 @@ const useDateFormatter = () => {
   const formatDateTime = useCallback((date?: string) => {
     if (!date) return undefined
     try {
-      return new Date(date).toLocaleString()
+      return new Date(date).toLocaleString('en-GB')
     } catch {
       return date
     }

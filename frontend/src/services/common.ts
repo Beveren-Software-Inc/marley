@@ -13,6 +13,10 @@ export interface LinkFieldOption {
   is_group?: number | boolean
   medical_role?: string
   item_code?: string
+  /** Prescription drug (get_prescription_items): scientific / generic name of the drug */
+  scientific_name?: string
+  /** Patient Visit (get_patient_visits): visit status (Open/Ordered/Completed/Cancelled) */
+  status?: string
   /** Appointment Type: default slot length in minutes */
   default_duration?: number
   /** Appointment Type: 1 when marked Default in master */
@@ -651,6 +655,22 @@ export async function fetchCostCenters(company?: string, search?: string): Promi
     (params.toString() ? `?${params.toString()}` : '')
 
   const response = await fetch(url)
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+
+  return []
+}
+
+/**
+ * Branches shown in the portal branch/cost-center filter (BranchSelector).
+ * Backend restricts this to the clinical branches (Jau + Serene Hospital) only,
+ * unlike fetchCostCenters which returns the full cost-center list for pickers.
+ */
+export async function fetchBranchOptions(): Promise<LinkFieldOption[]> {
+  const response = await fetch('/api/method/healthcare.api.common.get_branch_options')
   const resData = await response.json()
 
   if (resData?.message && Array.isArray(resData.message)) {

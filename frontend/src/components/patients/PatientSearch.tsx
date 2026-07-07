@@ -543,7 +543,7 @@ export const PatientSearch = ({
             }
           }}
           onFocus={() => setSecondaryOpen(true)}
-          placeholder={mode === 'OP' ? 'Search OP visits…' : 'Search IP admissions…'}
+          placeholder={mode === 'OP' ? 'Search for Visits' : 'Search for Admissions'}
           className="w-full rounded-md border border-white/60 bg-white/10 px-2 py-1.5 pr-8 text-xs text-white placeholder:text-white/70 focus:outline-none focus:ring-2 focus:ring-white"
         />
         {hasSecondarySelection && (
@@ -628,36 +628,35 @@ export const PatientSearch = ({
       </div>
     ) : null
 
-  const desktopCareModeControls = (
-    <>
-      {costCenterCareScope !== 'ip_only' && (
-        <button
-          type="button"
-          onClick={handleOpModeClick}
-          className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-            mode === 'OP'
-              ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
-              : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-          }`}
-        >
-          OP{mode === 'OP' && isIOPVisit ? ' · IOP' : ''}
-        </button>
-      )}
-      {costCenterCareScope !== 'op_only' && (
-        <button
-          type="button"
-          onClick={handleIpModeClick}
-          className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
-            mode === 'IP'
-              ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
-              : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
-          }`}
-        >
-          IP
-        </button>
-      )}
-    </>
-  )
+  const opButton =
+    costCenterCareScope !== 'ip_only' ? (
+      <button
+        type="button"
+        onClick={handleOpModeClick}
+        className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+          mode === 'OP'
+            ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
+            : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+        }`}
+      >
+        OP{mode === 'OP' && isIOPVisit ? ' · IOP' : ''}
+      </button>
+    ) : null
+
+  const ipButton =
+    costCenterCareScope !== 'op_only' ? (
+      <button
+        type="button"
+        onClick={handleIpModeClick}
+        className={`shrink-0 px-2.5 py-1 rounded-full text-[10px] md:text-xs font-semibold border transition-colors ${
+          mode === 'IP'
+            ? 'bg-green-200 text-primary border-green-200/80 shadow-sm'
+            : 'bg-white/10 text-white/90 border-white/40 hover:bg-white/20'
+        }`}
+      >
+        IP
+      </button>
+    ) : null
 
   const secondaryWithDates =
     mode === 'OP' || mode === 'IP' ? (
@@ -712,7 +711,9 @@ export const PatientSearch = ({
                 }
               }}
               onFocus={() => setPatientOpen(true)}
-              placeholder={selectedPatientName || 'Search patient...'}
+              placeholder={selectedPatientName || 'Search Patient by File No. / Name / CPR No.'}
+              title="Search Patient by File No. / Name / CPR No."
+              aria-label="Search Patient by File No. / Name / CPR No."
               className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
             />
             <div className="absolute inset-y-0 right-2 flex items-center gap-1">
@@ -803,9 +804,9 @@ export const PatientSearch = ({
                   <div className="px-3 py-2 text-xs text-slate-600 space-y-1">
                     <p>
                       {patientQuery
-                        ? 'No patients match your search.'
+                        ? 'No Patient Found.'
                         : fullDirectoryRestricted
-                          ? 'Full patient list is restricted. Start typing to search by name, file number, or ID.'
+                          ? 'Start Typing .....'
                           : 'No patients found.'}
                     </p>
                   </div>
@@ -830,8 +831,13 @@ export const PatientSearch = ({
         ) : (
           <div className="flex w-full min-w-0 items-center gap-2">
             <div className="min-w-0 w-full max-w-sm">{patientField}</div>
-            <div className="flex shrink-0 items-center gap-1.5">{desktopCareModeControls}</div>
-            {secondaryWithDates}
+            {/* OP | (Visits search when OP active) | IP | (Admissions search when IP active) */}
+            <div className="flex shrink-0 items-center gap-1.5">
+              {opButton}
+              {mode === 'OP' && secondaryWithDates}
+              {ipButton}
+              {mode === 'IP' && secondaryWithDates}
+            </div>
           </div>
         )}
       </div>

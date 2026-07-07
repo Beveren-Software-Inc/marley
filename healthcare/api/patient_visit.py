@@ -256,7 +256,7 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, limit=20, offset=0):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, limit=20, offset=0):
 	"""
 	Fetch patient visits with all filters and pagination.
 	Returns { data: [...], total_count: N }
@@ -284,6 +284,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 
 	if status:
 		filters.append(["status", "=", status])
+
+	if cost_center:
+		filters.append(["cost_center", "=", cost_center])
 
 	if from_date:
 		filters.append(["encounter_date", ">=", from_date])
@@ -318,7 +321,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"inpatient_status",
 			"appointment",
 			"company",
-			"invoice_created"
+			"cost_center",
+			"invoice_created",
+			"owner"
 		],
 		limit=limit,
 		start=offset,
@@ -328,17 +333,27 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	enrich_patient_visit_practitioner_names(visits)
 	enrich_patient_visit_patient_names(visits)
 
+	patient_ids = list({v.patient for v in visits if v.get("patient")})
+	cpr_map = {}
+	if patient_ids:
+		for row in frappe.get_all("Patient", filters={"name": ["in", patient_ids]}, fields=["name", "id_number", "file_no"]):
+			cpr_map[row.name] = row
+
 	visit_names = [v.name for v in visits if v.get("name")]
 	lab_amount_map = {}
 	service_amount_map = {}
 	pharmacy_amount_map = {}
+	discount_map = {}
+	paid_map = {}
 
 	if visit_names:
 		lab_rows = frappe.db.sql(
 			"""
 			SELECT
 				sr.patient_visit AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabService Request` sr
 			INNER JOIN `tabSales Order` so
 				ON (
@@ -360,12 +375,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		)
 		for row in lab_rows:
 			lab_amount_map[row.visit_name] = float(row.amount or 0)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 		service_rows = frappe.db.sql(
 			"""
 			SELECT
 				sr.patient_visit AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabService Request` sr
 			INNER JOIN `tabSales Order` so
 				ON (
@@ -387,12 +406,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		)
 		for row in service_rows:
 			service_amount_map[row.visit_name] = float(row.amount or 0)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 		direct_visit_charge_rows = frappe.db.sql(
 			"""
 			SELECT
 				so.custom_reference_name AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabSales Order` so
 			WHERE
 				so.custom_reference_name IN %(visit_names)s
@@ -408,12 +431,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			service_amount_map[row.visit_name] = service_amount_map.get(row.visit_name, 0) + float(
 				row.amount or 0
 			)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 		ip_service_rows = frappe.db.sql(
 			"""
 			SELECT
 				so.custom_reference_name AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabSales Order` so
 			WHERE
 				so.custom_reference_name IN %(visit_names)s
@@ -429,12 +456,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			service_amount_map[row.visit_name] = service_amount_map.get(row.visit_name, 0) + float(
 				row.amount or 0
 			)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 		pharmacy_rows = frappe.db.sql(
 			"""
 			SELECT
 				pmo.patient_encounter AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabPatient Medication Order` pmo
 			INNER JOIN `tabSales Order` so
 				ON (
@@ -455,6 +486,8 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		)
 		for row in pharmacy_rows:
 			pharmacy_amount_map[row.visit_name] = float(row.amount or 0)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 	appointment_amount_map = {}
 	appointment_names = [v.appointment for v in visits if v.get("appointment")]
@@ -479,6 +512,14 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				"lab_amount": lab_amount_map.get(v.name, 0),
 				"service_amount": service_amount_map.get(v.name, 0),
 				"pharmacy_amount": pharmacy_amount_map.get(v.name, 0),
+				"cost_center": v.get("cost_center") or '',
+				"visit_type": v.get("visit_type") or '',
+				"file_no": v.get("file_number") or (cpr_map.get(v.patient) or {}).get("file_no") or '',
+				"cpr_no": (cpr_map.get(v.patient) or {}).get("id_number") or '',
+				"user": v.get("owner") or '',
+				"discount": discount_map.get(v.name, 0),
+				"total_due": lab_amount_map.get(v.name, 0) + service_amount_map.get(v.name, 0) + pharmacy_amount_map.get(v.name, 0),
+				"balance": (lab_amount_map.get(v.name, 0) + service_amount_map.get(v.name, 0) + pharmacy_amount_map.get(v.name, 0)) - paid_map.get(v.name, 0),
 				"appointment_amount": appointment_amount_map.get(v.appointment, 0)
 				if v.get("appointment")
 				else 0,

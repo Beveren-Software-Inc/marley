@@ -78,11 +78,7 @@
 
 //   const formatDate = (dateStr: string) => {
 //     if (!dateStr) return 'Unknown'
-//     return new Date(dateStr).toLocaleDateString('en-US', {
-//       year: 'numeric',
-//       month: 'short',
-//       day: 'numeric'
-//     })
+//     return new Date(dateStr).toLocaleDateString('en-GB')
 //   }
 
 //   return (
@@ -232,7 +228,7 @@
 
 //   const formatDateTime = (date?: string, time?: string): string => {
 //     if (!date) return '-'
-//     const dateStr = new Date(date).toLocaleDateString()
+//     const dateStr = new Date(date).toLocaleDateString('en-GB')
 //     return time ? `${dateStr} ${time}` : dateStr
 //   }
 
@@ -676,8 +672,13 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
   fetchHealthcarePractitioners,
   getCurrentUserPractitioner,
+  fetchBranchOptions,
   type LinkFieldOption,
 } from '../../services/common'
+import { formatDate } from '../../utils/formatDate'
+import { useAuth } from '../../providers/AuthProvider'
+import { isAdmin } from '../../config/permissions'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -705,6 +706,8 @@ interface AppointmentListProps {
   doctorScheduleMode?: boolean
   /** Dashboard card preview: ID, date/time, patient (if none selected), status only */
   compact?: boolean
+  /** Doctor dashboard: render a detailed 7-column table (File No., Patient, Date, Time, Doctor, Branch, Status). */
+  detailedColumns?: boolean
   patient?: string
   onAddAppointment?: () => void
   onPatientClick?: (patient: string) => void
@@ -783,11 +786,7 @@ const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; 
 
   const formatDate = (dateStr: string) => {
     if (!dateStr) return 'Unknown'
-    return new Date(dateStr).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric'
-    })
+    return new Date(dateStr).toLocaleDateString('en-GB')
   }
 
   return (
@@ -853,6 +852,7 @@ export const AppointmentList = ({
   showAll = false,
   doctorScheduleMode = false,
   compact = false,
+  detailedColumns = false,
   patient,
   onPatientClick,
   onOpenVisitInHeader,
@@ -861,7 +861,12 @@ export const AppointmentList = ({
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
+<<<<<<< ft/dev_50
   const [refreshing, setRefreshing] = useState(false)
+=======
+  /** True after the first fetch completes — keeps filters/inputs mounted during later re-fetches (avoids losing cursor focus). */
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
+>>>>>>> version-16
   const [error, setError] = useState<Error | null>(null)
   const appointmentsRef = useRef(appointments)
   appointmentsRef.current = appointments
@@ -898,10 +903,52 @@ export const AppointmentList = ({
   const cardCompactLayout = compactClinical || (compact && isInsideCard)
   /** Full table in card only when not using compact clinical layout (e.g. wide reception tile). */
   const cardHorizontalScroll = isInsideCard && !cardCompactLayout
+
+  // Doctor-dashboard detailed columns: map each appointment's cost center to its
+  // friendly branch label (same labels as the navbar branch filter).
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchBranchOptions()
+      .then((opts) => { if (!cancelled) setBranchOptions(opts) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // Default the Branch filter to the top-bar branch (cost-centre permission). Changing the
+  // top-bar branch reloads the app, so this re-syncs automatically; users can still override
+  // the card's Branch filter individually within the session.
+  useEffect(() => {
+    let cancelled = false
+    getUserCostCenterPermission()
+      .then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  /** Friendly branch label; falls back to the cost centre with its company suffix stripped. */
+  const branchLabel = (cc?: string) => {
+    if (!cc) return '—'
+    return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
+  }
+  /** Appointment time as HH:mm (no seconds). */
+  const apptTime = (apt: Appointment) =>
+    apt.appointment_time ? apt.appointment_time.slice(0, 5) : apt.old_time || '—'
+
+  // Only admins / system managers can change the doctor (practitioner) filter.
+  // For a doctor it stays locked to their own linked practitioner.
+  const { user } = useAuth()
+  const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
+  const canChangePractitioner = isAdmin(authRoles)
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
+  const [filterBranch, setFilterBranch] = useState<string>('')
+  const [filterFileNo, setFilterFileNo] = useState<string>('')
+  const [fileNoInput, setFileNoInput] = useState<string>('')
+  const [filterPatientName, setFilterPatientName] = useState<string>('')
+  const [patientNameInput, setPatientNameInput] = useState<string>('')
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -1001,6 +1048,16 @@ export const AppointmentList = ({
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [searchInput])
 
+  // Debounce File No. + Patient Name filter inputs
+  useEffect(() => {
+    const id = setTimeout(() => { setFilterFileNo(fileNoInput); setPage(1) }, 400)
+    return () => clearTimeout(id)
+  }, [fileNoInput])
+  useEffect(() => {
+    const id = setTimeout(() => { setFilterPatientName(patientNameInput); setPage(1) }, 400)
+    return () => clearTimeout(id)
+  }, [patientNameInput])
+
   const handleFilterStatusChange = useCallback((v: string) => { setFilterStatus(v); setPage(1) }, [])
   const handleFilterDateFromChange = useCallback((v: string) => { setFilterDateFrom(v); setPage(1) }, [])
   const handleFilterDateToChange = useCallback((v: string) => { setFilterDateTo(v); setPage(1) }, [])
@@ -1035,6 +1092,9 @@ export const AppointmentList = ({
             filterPractitioner || undefined,
             filterDateFrom || undefined,
             filterDateTo || undefined,
+            filterFileNo || undefined,
+            filterPatientName || undefined,
+            filterBranch || undefined,
           )
         } else {
           response = await fetchPractitionerAppointments(
@@ -1044,6 +1104,9 @@ export const AppointmentList = ({
             searchQuery || undefined,
             filterDateFrom || undefined,
             filterDateTo || undefined,
+            filterFileNo || undefined,
+            filterPatientName || undefined,
+            filterBranch || undefined,
           )
         }
 
@@ -1100,6 +1163,7 @@ export const AppointmentList = ({
   }, [
     refreshKey, useAllAppointmentsApi, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
+    filterFileNo, filterPatientName, filterBranch,
   ])
 
   useEffect(() => {
@@ -1324,13 +1388,18 @@ export const AppointmentList = ({
     setPractitionerOpen(false)
     setSearchInput('')
     setSearchQuery('')
+    setFileNoInput('')
+    setFilterFileNo('')
+    setPatientNameInput('')
+    setFilterPatientName('')
+    setFilterBranch('')
     setPage(1)
     setFilterDateFrom('')
     setFilterDateTo('')
   }
 
   const hasActiveFilters =
-    Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery)
+    Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery || filterFileNo || filterPatientName || filterBranch)
 
   const practitionerFilterDisplayValue = filterPractitioner
     ? practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.label ||
@@ -1338,7 +1407,11 @@ export const AppointmentList = ({
       filterPractitioner
     : practitionerQuery
 
+<<<<<<< ft/dev_50
   if (loading && appointments.length === 0) {
+=======
+  if (loading && !hasLoadedOnce) {
+>>>>>>> version-16
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
   }
 
@@ -1361,19 +1434,16 @@ export const AppointmentList = ({
           <span>
             Showing appointments for <span className="font-semibold">{practitionerFilterDisplayValue || filterPractitioner}</span> only.
           </span>
-          <button
-            type="button"
-            onClick={clearFilters}
-            className="underline font-medium hover:text-blue-700"
-          >
-            Show all doctors
-          </button>
+          {canChangePractitioner && (
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="underline font-medium hover:text-blue-700"
+            >
+              Show all doctors
+            </button>
+          )}
         </div>
-      )}
-      {doctorScheduleMode && !patient && schedulePractitionerResolved && !myPractitionerId && (
-        <p className="text-xs text-amber-700 mb-2">
-          No doctor is linked to your user. Appointments may be empty unless you have a reception/admin role.
-        </p>
       )}
       {/* Header row */}
       {!isInsideCard && !embedded && (
@@ -1397,34 +1467,53 @@ export const AppointmentList = ({
       <div className="mb-3 space-y-2">
         {/* Top row: filters */}
         <div className="flex flex-wrap items-end gap-3">
-          {/* Search — full listing only */}
-          {!cardCompactLayout && (
-          <div className="flex flex-col gap-1 min-w-[180px]">
-            <label className={FILTER_LABEL_CLASS}>Search</label>
+          {/* File No. */}
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className={FILTER_LABEL_CLASS}>File No.</label>
             <input
               type="text"
-              value={searchInput}
-              onChange={(e) => setSearchInput(e.target.value)}
-              placeholder="Patient, doctor, ID…"
+              value={fileNoInput}
+              onChange={(e) => setFileNoInput(e.target.value)}
+              placeholder="File No."
               className={FILTER_CONTROL_CLASS}
             />
           </div>
-          )}
 
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => handleFilterStatusChange(e.target.value)}
+          {/* Patient Name */}
+          <div className="flex flex-col gap-1 min-w-[160px]">
+            <label className={FILTER_LABEL_CLASS}>Patient Name</label>
+            <input
+              type="text"
+              value={patientNameInput}
+              onChange={(e) => setPatientNameInput(e.target.value)}
+              placeholder="Patient name"
               className={FILTER_CONTROL_CLASS}
-            >
-              <option value="">All statuses</option>
-              {ALL_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
+            />
           </div>
 
+          {/* From Date */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>From Date</label>
+            <input
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => handleFilterDateFromChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+
+          {/* To Date */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>To Date</label>
+            <input
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => handleFilterDateToChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+
+          {/* Doctor */}
           {useAllAppointmentsApi && (
             <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
               <label className={FILTER_LABEL_CLASS}>Doctor</label>
@@ -1432,17 +1521,19 @@ export const AppointmentList = ({
                 <input
                   type="text"
                   value={practitionerFilterDisplayValue}
+                  disabled={!canChangePractitioner}
+                  title={!canChangePractitioner ? 'Locked to your linked practitioner' : undefined}
                   onChange={(e) => {
                     setPractitionerQuery(e.target.value)
                     setFilterPractitioner('')
                     setPractitionerOpen(true)
                     setPage(1)
                   }}
-                  onFocus={() => setPractitionerOpen(true)}
+                  onFocus={() => canChangePractitioner && setPractitionerOpen(true)}
                   placeholder="Search doctor..."
-                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}`}
+                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}${!canChangePractitioner ? ' bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
                 />
-                {filterPractitioner && (
+                {filterPractitioner && canChangePractitioner && (
                   <button
                     type="button"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
@@ -1457,22 +1548,22 @@ export const AppointmentList = ({
                     ×
                   </button>
                 )}
-                {practitionerOpen && practitionerDropdownOptions.length > 0 && (
+                {practitionerOpen && canChangePractitioner && practitionerDropdownOptions.length > 0 && (
                   <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
-                    {practitionerDropdownOptions.map((p) => (
+                    {practitionerDropdownOptions.map((pr) => (
                       <button
-                        key={p.name}
+                        key={pr.name}
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
                         onClick={() => {
-                          setFilterPractitioner(p.name)
-                          setPractitionerQuery(p.label || p.name)
+                          setFilterPractitioner(pr.name)
+                          setPractitionerQuery(pr.label || pr.name)
                           setPractitionerOpen(false)
                           setPage(1)
                         }}
                       >
-                        {p.label || p.name}
-                        {p.name === myPractitionerId ? ' (you)' : ''}
+                        {pr.label || pr.name}
+                        {pr.name === myPractitionerId ? ' (you)' : ''}
                       </button>
                     ))}
                   </div>
@@ -1481,25 +1572,36 @@ export const AppointmentList = ({
             </div>
           )}
 
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>From</label>
-            <input
-              type="date"
-              value={filterDateFrom}
-              onChange={(e) => handleFilterDateFromChange(e.target.value)}
+          {/* Branch */}
+          <div className="flex flex-col gap-1 min-w-[150px]">
+            <label className={FILTER_LABEL_CLASS}>Branch</label>
+            <select
+              value={filterBranch}
+              onChange={(e) => { setFilterBranch(e.target.value); setPage(1) }}
               className={FILTER_CONTROL_CLASS}
-            />
+            >
+              <option value="">All branches</option>
+              {branchOptions.map((b) => (
+                <option key={b.name} value={b.name}>{b.label}</option>
+              ))}
+            </select>
           </div>
+
+          {/* Status */}
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>To</label>
-            <input
-              type="date"
-              value={filterDateTo}
-              onChange={(e) => handleFilterDateToChange(e.target.value)}
+            <label className={FILTER_LABEL_CLASS}>Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => handleFilterStatusChange(e.target.value)}
               className={FILTER_CONTROL_CLASS}
-            />
+            >
+              <option value="">All statuses</option>
+              {ALL_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
-          
+
           <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
 
           {/* Spacer + Bulk Reminder (full listing only) */}
@@ -1575,7 +1677,64 @@ export const AppointmentList = ({
         </div>
       ) : (
         <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
-          {cardCompactLayout ? (
+          {(detailedColumns || isInsideCard) ? (
+            <table className="w-full min-w-[760px] table-auto">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {['File No.', 'Patient Name', 'Date', 'Time', 'Doctor Name', 'Branch', 'Status'].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {appointments.map((apt) => (
+                  <tr key={apt.name} className={dashboardCardRowHoverClass} onClick={() => setDetailApt(apt)}>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '—'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      onClick={(e) => {
+                        if (apt.patient) {
+                          e.stopPropagation()
+                          onPatientClick?.(apt.patient)
+                        }
+                      }}
+                    >
+                      <span
+                        className={apt.patient ? 'font-medium text-primary hover:underline' : ''}
+                        title={apt.patient_name || apt.patient || apt.temporary_patient_name || undefined}
+                      >
+                        {apt.patient_name || apt.patient || apt.temporary_patient_name || '—'}
+                      </span>
+                      {isWalkInAppointment(apt) && (
+                        <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                          Walk-in
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.appointment_date ? formatDate(apt.appointment_date) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.practitioner_name || apt.practitioner || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={apt.cost_center || undefined}>
+                      {branchLabel(apt.cost_center)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {apt.status ? (
+                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                      ) : (
+                        <span className="text-sm text-slate-500">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : cardCompactLayout ? (
             <table className="w-full table-fixed">
               <colgroup>
                 <col className={patient ? 'w-[48%]' : 'w-[34%]'} />
@@ -1654,25 +1813,25 @@ export const AppointmentList = ({
           >
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th
-                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[7.5rem]' : 'w-[7.5rem]'}`}
-                >
-                  Appointment ID
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Appointment Type
                 </th>
-                <th
-                  className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[9.5rem]' : 'w-[9.5rem]'}`}
-                >
-                  Date & Time
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
+                  File No.
                 </th>
                 {!patient && (
-                  <th
-                    className={`px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap ${cardHorizontalScroll ? 'min-w-[10rem]' : 'w-[28%] max-w-[220px]'}`}
-                  >
-                    Patient
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[10rem]">
+                    Patient Name
                   </th>
                 )}
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
-                  Type
+                  Date
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[5rem]">
+                  Time
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Doctor Name
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
                   Branch
@@ -1680,17 +1839,10 @@ export const AppointmentList = ({
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   Status
                 </th>
-                {showPractitionerColumn && (
-                  <>
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                      Doctor
-                    </th>
-                    {showAll && (
-                    <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[9.5rem]">
-                      Doctor Status
-                    </th>
-                    )}
-                  </>
+                {showPractitionerColumn && showAll && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[9.5rem]">
+                    Doctor Status
+                  </th>
                 )}
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                   Actions
@@ -1710,16 +1862,8 @@ export const AppointmentList = ({
                     key={apt.name}
                     className="group hover:bg-slate-50"
                   >
-                    <td
-                      className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap cursor-pointer hover:underline"
-                      onClick={() => setDetailApt(apt)}
-                      title={apt.name}
-                    >
-                      {apt.name}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
-                      {formatAppointmentDateTime(apt.appointment_date, apt)}
-                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '-'}</td>
                     {!patient && (
                       <td
                         className={`px-3 py-2.5 text-sm text-slate-700 ${cardHorizontalScroll ? 'whitespace-nowrap' : 'max-w-[220px]'}`}
@@ -1740,39 +1884,36 @@ export const AppointmentList = ({
                         </span>
                       </td>
                     )}
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_date ? formatDate(apt.appointment_date) : '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.practitioner_name || apt.practitioner || '-'}</td>
                     <td
                       className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap max-w-[12rem] truncate"
                       title={apt.cost_center || undefined}
                     >
-                      {apt.cost_center || '-'}
+                      {branchLabel(apt.cost_center)}
                     </td>
                     <td className="px-3 py-2.5 whitespace-nowrap">
                       {apt.status
                         ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
                         : <span className="text-sm text-slate-500">-</span>}
                     </td>
-                    {showPractitionerColumn && (
-                      <>
-                        <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.practitioner_name || apt.practitioner || '-'}</td>
-                        {showAll && (
-                        <td className="px-3 py-2.5">
-                          {showPractitionerStatus && (
-                            isLoadingAvailability ? (
-                              <div className="flex items-center gap-2">
-                                <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-pulse" />
-                                <span className="text-sm text-slate-400">Checking...</span>
-                              </div>
-                            ) : (
-                              <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
-                            )
-                          )}
-                          {!apt.practitioner && (
-                            <span className="text-sm text-slate-400">No doctor assigned</span>
-                          )}
-                        </td>
+                    {showPractitionerColumn && showAll && (
+                      <td className="px-3 py-2.5">
+                        {showPractitionerStatus && (
+                          isLoadingAvailability ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-pulse" />
+                              <span className="text-sm text-slate-400">Checking...</span>
+                            </div>
+                          ) : (
+                            <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
+                          )
                         )}
-                      </>
+                        {!apt.practitioner && (
+                          <span className="text-sm text-slate-400">No doctor assigned</span>
+                        )}
+                      </td>
                     )}
                     <td className={`px-3 py-2 align-middle ${cardHorizontalScroll ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]' : ''}`}>
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>

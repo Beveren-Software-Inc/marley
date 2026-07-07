@@ -176,7 +176,7 @@ export const GAD7AssessmentList = ({
   const fmt = (val: string | null | undefined) => {
     if (!val) return '—'
     try {
-      return new Date(val).toLocaleDateString()
+      return new Date(val).toLocaleDateString('en-GB')
     } catch {
       return val
     }

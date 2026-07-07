@@ -53,8 +53,9 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
       .substring(0, 2)
   }
 
-  const displayName = user?.name || "Guest User"
-  const initials = getInitials(displayName)
+  const fullName = user?.full_name || user?.name || "Guest User"
+  const userId = user?.name || user?.email || ""
+  const initials = getInitials(fullName)
 
   const handleLogout = async () => {
     try {
@@ -113,7 +114,7 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
           Editing locked
         </span>
       )}
-      <div className={isSidebar ? 'w-full' : 'flex flex-col items-center'}>
+      <div className={isSidebar ? 'w-full' : 'flex items-center'}>
       {isSidebar && lockEditingData && (
         <span
           className="mb-2 inline-flex w-full items-center gap-1.5 rounded-md bg-amber-500/20 px-2.5 py-1.5 text-[11px] font-semibold text-amber-100"
@@ -128,34 +129,28 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
         className={
           isSidebar
             ? 'flex w-full items-center gap-3 rounded-md bg-white/10 px-3 py-2.5 text-left hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40'
-            : 'w-8 h-8 bg-white rounded-full flex items-center justify-center text-primary hover:bg-gray-100 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 cursor-pointer'
+            : 'flex items-center gap-2 rounded-lg px-1.5 py-1 text-left hover:bg-white/10 transition-colors focus:outline-none focus:ring-2 focus:ring-white/40 cursor-pointer'
         }
         aria-label="User menu"
+        title={userId ? `${fullName} · ${userId}` : fullName}
         type="button"
       >
         <span
-          className={
-            isSidebar
-              ? 'w-9 h-9 shrink-0 bg-white rounded-full flex items-center justify-center text-primary text-sm font-medium'
-              : 'text-primary text-sm font-medium pointer-events-none'
-          }
+          className={`${isSidebar ? 'h-9 w-9' : 'h-8 w-8'} shrink-0 overflow-hidden rounded-full bg-white flex items-center justify-center text-primary text-sm font-medium`}
         >
-          {initials}
+          {user?.user_image ? (
+            <img src={user.user_image} alt="" className="h-full w-full object-cover" />
+          ) : (
+            initials
+          )}
         </span>
-        {isSidebar && (
-          <span className="flex-1 min-w-0">
-            <span className="block text-sm font-medium text-white truncate">{displayName}</span>
-            <span className="block text-xs text-white/70 truncate">
-              {shiftOpen ? 'Shift open' : user?.role || 'Account'}
-            </span>
-          </span>
-        )}
+        <span className={`min-w-0 ${isSidebar ? 'flex-1' : 'max-w-[180px]'}`}>
+          <span className="block text-sm font-bold text-white leading-tight break-words">{fullName}</span>
+          {userId && (
+            <span className="mt-0.5 block text-xs text-white/70 leading-tight [overflow-wrap:anywhere]">{userId}</span>
+          )}
+        </span>
       </button>
-      {!isSidebar && (
-        <div className="text-xs text-white mt-1 text-center max-w-[60px] truncate" title={displayName}>
-          {displayName}
-        </div>
-      )}
       </div>
 
       {/* User dropdown menu */}
@@ -167,21 +162,6 @@ export const UserMenu = ({ placement = 'header' }: UserMenuProps) => {
               : 'top-full right-0 mt-2'
           }`}
         >
-          {/* User info header */}
-          <div className="px-4 py-3 border-b border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-700">
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center flex-shrink-0 border border-gray-200">
-                <span className="text-primary font-medium text-sm">{initials}</span>
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 dark:text-white truncate">{displayName}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {shiftOpen ? 'Shift open' : user?.role || 'User'}
-                </p>
-              </div>
-            </div>
-          </div>
-
           {/* Menu items */}
           <div className="py-1">
             {shiftOpen && (

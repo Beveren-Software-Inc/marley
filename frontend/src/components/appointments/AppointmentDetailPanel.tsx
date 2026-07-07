@@ -26,7 +26,7 @@ const statusColorMap: Record<string, string> = {
 function formatDate(val?: string | null): string {
   if (!val) return '—'
   try {
-    return new Date(val).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+    return new Date(val).toLocaleDateString('en-GB')
   } catch {
     return val
   }

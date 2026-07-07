@@ -16,7 +16,9 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
@@ -62,6 +64,8 @@ interface PatientVisitListProps {
   showAppointmentAmount?: boolean
   /** Hide lab/pharmacy amount columns (e.g. Daily Auto Visits). */
   hideLabPharmacyAmounts?: boolean
+  /** Doctor dashboard: detailed 15-column table (Visit No/Date/Type, File/CPR, amounts, Total Due, Discount, Balance, Doctor, User). */
+  detailedColumns?: boolean
 }
 
 function visitPatientDisplayName(visit: PatientVisitListRow): string {
@@ -91,6 +95,7 @@ export const PatientVisitList = ({
   onCreateNew,
   showAppointmentAmount = false,
   hideLabPharmacyAmounts = false,
+  detailedColumns = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -129,6 +134,19 @@ export const PatientVisitList = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
+  // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
+  const [filterBranch, setFilterBranch] = useState('')
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  useEffect(() => {
+    let cancelled = false
+    fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
+    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+  const branchLabel = (cc?: string) => {
+    if (!cc) return '-'
+    return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
+  }
   const [defaultsReady, setDefaultsReady] = useState(!shouldUseOpDefaults)
 
   const [dateFrom, setDateFrom] = useState(() => opDefaultsOnMount?.dateFrom ?? '')
@@ -248,6 +266,7 @@ export const PatientVisitList = ({
         visitType || undefined,
         pageSize,
         (page - 1) * pageSize,
+        filterBranch || undefined,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
@@ -262,12 +281,12 @@ export const PatientVisitList = ({
   useEffect(() => {
     if (!defaultsReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, defaultsReady])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch, defaultsReady])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType])
+  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, filterBranch])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -360,15 +379,18 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
+    setFilterBranch('')
   }
 
   const hasActiveFilters = Boolean(
-    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo,
+    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch,
   )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
-  const tableColSpan = cardCompactLayout
+  const tableColSpan = detailedColumns
+    ? 16
+    : cardCompactLayout
     ? 3
     : 8 +
       (patient ? 0 : 1) +
@@ -599,6 +621,19 @@ export const PatientVisitList = ({
           />
         </div>
 
+        {/* Branch */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
+          <select
+            value={filterBranch}
+            onChange={e => setFilterBranch(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">All branches</option>
+            {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
+          </select>
+        </div>
+
         {/* Status */}
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
@@ -642,14 +677,24 @@ export const PatientVisitList = ({
         ) : (
           <table
             className={
-              cardCompactLayout
+              detailedColumns
+                ? 'w-full min-w-[1500px]'
+                : cardCompactLayout
                 ? 'w-full table-fixed'
                 : `w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`
             }
           >
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                {cardCompactLayout ? (
+                {detailedColumns ? (
+                  <>
+                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'User'].map((h) => (
+                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
+                        {h}
+                      </th>
+                    ))}
+                  </>
+                ) : cardCompactLayout ? (
                   <>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
                       Visit No
@@ -694,6 +739,32 @@ export const PatientVisitList = ({
                     {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
                   </td>
                 </tr>
+              ) : detailedColumns ? (
+                visits.map((visit) => (
+                  <tr key={visit.value} className={dashboardCardRowHoverClass} onClick={() => openVisitRow(visit)}>
+                    <td className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap">{visit.value}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.encounter_date ? formatDate(visit.encounter_date) : '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.file_no || '-'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      onClick={(e) => { if (visit.patient) { e.stopPropagation(); onPatientFromVisit?.(visit.patient) } }}
+                    >
+                      <span className={visit.patient ? 'text-primary hover:underline' : ''}>{visit.patient_name || '-'}</span>
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.cpr_no || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.service_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.lab_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.pharmacy_amount)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.total_due ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.discount ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={visit.cost_center || undefined}>{branchLabel(visit.cost_center)}</td>
+                    <td className="px-3 py-2.5 whitespace-nowrap"><StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} /></td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.user || '-'}</td>
+                  </tr>
+                ))
               ) : cardCompactLayout ? (
                 visits.map((visit) => (
                   <tr
@@ -734,7 +805,7 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">
                     {visit.encounter_date
-                      ? new Date(visit.encounter_date).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
+                      ? new Date(visit.encounter_date).toLocaleDateString('en-GB')
                       : '-'}
                   </td>
                   {showAppointmentAmount && (

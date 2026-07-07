@@ -38,9 +38,11 @@ def _enrich_warning_message_row(warning) -> dict:
 		row = dict(warning)
 
 	if row.get("patient"):
-		row["patient_name"] = (
-			frappe.db.get_value("Patient", row["patient"], "patient_name") or row["patient"]
-		)
+		pinfo = frappe.db.get_value(
+			"Patient", row["patient"], ["patient_name", "file_no"], as_dict=True
+		) or {}
+		row["patient_name"] = pinfo.get("patient_name") or row["patient"]
+		row["file_no"] = pinfo.get("file_no") or ""
 
 	if row.get("practitioner"):
 		row["practitioner_name"] = (

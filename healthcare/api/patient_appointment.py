@@ -13,7 +13,8 @@ from healthcare.healthcare.editing_lock import assert_editing_allowed
 @frappe.whitelist()
 def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          search=None, practitioner=None,
-                         date_from=None, date_to=None):
+                         date_from=None, date_to=None,
+                         file_no=None, patient_name=None, cost_center=None):
 	"""Get all appointments (for receptionist) with server-side pagination."""
 	from healthcare.api.common import apply_cost_center_scope_to_filters
 
@@ -28,6 +29,13 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		filters['patient'] = patient
 	if practitioner:
 		filters['practitioner'] = practitioner
+	if patient_name:
+		filters['patient_name'] = ['like', f"%{patient_name}%"]
+	if cost_center:
+		filters['cost_center'] = cost_center
+	if file_no and 'patient' not in filters:
+		matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
+		filters['patient'] = ['in', matched or ['__no_match__']]
 	if date_from:
 		filters['appointment_date'] = ['>=', date_from]
 	if date_to:
@@ -66,6 +74,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
 	appointments = frappe.get_all(**fetch_args)
 	_enrich_appointments_with_sales_order(appointments)
+	_enrich_appointments_with_file_no(appointments)
 
 	return {"data": appointments, "total_count": total_count}
 
@@ -115,7 +124,8 @@ def update_appointment_doctor_note(appointment_name, note):
 
 @frappe.whitelist()
 def get_practitioner_appointments(limit=50, offset=0, status=None,
-                                  search=None, date_from=None, date_to=None):
+                                  search=None, date_from=None, date_to=None,
+                                  file_no=None, patient_name=None, cost_center=None):
     """Get appointments for the current user's healthcare practitioner with server-side pagination."""
     from healthcare.api.common import apply_cost_center_scope_to_filters
 
@@ -136,6 +146,13 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
 
     if status:
         filters['status'] = status
+    if patient_name:
+        filters['patient_name'] = ['like', f"%{patient_name}%"]
+    if cost_center:
+        filters['cost_center'] = cost_center
+    if file_no and 'patient' not in filters:
+        matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
+        filters['patient'] = ['in', matched or ['__no_match__']]
     if date_from:
         filters['appointment_date'] = ['>=', date_from]
     if date_to:
@@ -174,6 +191,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
 
     total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
     appointments = frappe.get_all(**fetch_args)
+    _enrich_appointments_with_file_no(appointments)
 
     return {"data": appointments, "total_count": total_count}
 
@@ -333,6 +351,23 @@ def link_walk_in_appointment_to_patient(appointment_name, patient):
 		"temporary_patient_name": doc.temporary_patient_name,
 		"temporary_mobile_no": doc.temporary_mobile_no,
 	}
+
+
+def _enrich_appointments_with_file_no(appointments):
+	"""Attach each patient's File No. (Patient.file_no) to the appointment rows."""
+	if not appointments:
+		return
+	patient_ids = list({a.get("patient") for a in appointments if a.get("patient")})
+	file_map = {}
+	if patient_ids:
+		file_map = {
+			row.name: row.file_no
+			for row in frappe.get_all(
+				"Patient", filters={"name": ["in", patient_ids]}, fields=["name", "file_no"]
+			)
+		}
+	for apt in appointments:
+		apt["file_no"] = file_map.get(apt.get("patient"))
 
 
 def _enrich_appointments_with_sales_order(appointments):

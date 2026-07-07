@@ -11,7 +11,8 @@ export function useInpatientRecords(
   refreshKey?: string | number,
   limit?: number,
   offset?: number,
-  excludeCancelled?: boolean
+  excludeCancelled?: boolean,
+  costCenter?: string
 ) {
   const [records, setRecords] = useState<InpatientRecord[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -28,8 +29,7 @@ export function useInpatientRecords(
         setRefreshing(true)
       }
       setError(null)
-      const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled)
-      recordsRef.current = response.data
+      const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter)
       setRecords(response.data)
       setTotalCount(response.total_count)
     } catch (err) {
@@ -38,7 +38,7 @@ export function useInpatientRecords(
       setLoading(false)
       setRefreshing(false)
     }
-  }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, refreshKey])
+  }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter, refreshKey])
 
   useEffect(() => {
     loadRecords()

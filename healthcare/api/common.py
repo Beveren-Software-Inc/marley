@@ -619,10 +619,13 @@ def get_prescription_items(search=None):
 
 	item_meta = frappe.get_meta('Item')
 	route_field = 'custom_route_of_administration' if item_meta.has_field('custom_route_of_administration') else None
+	sci_field = 'custom_scientific_name' if item_meta.has_field('custom_scientific_name') else None
 
 	fields = ['name', 'item_code', 'item_name', 'item_group', 'stock_uom']
 	if route_field:
 		fields.append(route_field)
+	if sci_field:
+		fields.append(sci_field)
 
 	or_filters = None
 	search = (search or '').strip()
@@ -631,6 +634,9 @@ def get_prescription_items(search=None):
 			'item_name': ['like', f'%{search}%'],
 			'item_code': ['like', f'%{search}%'],
 		}
+		# Allow searching drugs by their scientific / generic name too.
+		if sci_field:
+			or_filters[sci_field] = ['like', f'%{search}%']
 
 	items = frappe.get_all(
 		'Item',
@@ -668,6 +674,10 @@ def get_prescription_items(search=None):
 			route_val = row.get(route_field)
 			if route_val:
 				entry['default_route_of_administration'] = route_val
+		if sci_field:
+			sci_val = (row.get(sci_field) or '').strip()
+			if sci_val:
+				entry['scientific_name'] = sci_val
 
 		out.append(entry)
 		if len(out) >= 50:
@@ -1560,6 +1570,105 @@ def get_cost_centers(search=None, company=None):
 	return [{"name": c.name, "label": c.name} for c in cost_centers]
 
 
+# Branches offered in the portal branch/cost-center filter, as (cost center name, label).
+# Order here = order shown in the dropdown. Only these branches are selectable; every
+# other cost center is hidden from the branch filter. Edit this list to change which
+# branches appear or how they are labelled.
+BRANCH_FILTER_COST_CENTERS = [
+	("Serene Hospital - SPH", "Juffair Branch"),
+	("Jau Hospital - SPH", "Jau Branch"),
+	("British Medical Center W.L.L - SPH", "BMC W.L.L"),
+	("Dr. Abdul Karim Clinic - SPH", "Dr. Abdul Karim Clinic"),
+]
+
+
+@frappe.whitelist()
+def get_branch_options():
+	"""Cost centers shown in the portal branch filter.
+
+	Deliberately limited to a fixed allowlist (see BRANCH_FILTER_COST_CENTERS) so the
+	branch selector only exposes the chosen branches. This does NOT affect the general
+	cost-center pickers used elsewhere (see get_cost_centers). Selecting "All branches"
+	in the UI still means "no filter".
+	"""
+	found = set(
+		frappe.get_all(
+			"Cost Center",
+			filters={"name": ["in", [name for name, _label in BRANCH_FILTER_COST_CENTERS]], "disabled": 0},
+			pluck="name",
+		)
+	)
+	# Preserve the order defined in BRANCH_FILTER_COST_CENTERS.
+	return [
+		{"name": name, "label": label}
+		for name, label in BRANCH_FILTER_COST_CENTERS
+		if name in found
+	]
+
+
+@frappe.whitelist()
+def get_portal_company():
+	"""Default company name, used for portal branding (e.g. the Settings header)."""
+	company = frappe.defaults.get_global_default("company")
+	if not company:
+		try:
+			import erpnext
+
+			company = erpnext.get_default_company()
+		except Exception:
+			company = None
+	return {"company": company or ""}
+
+
+@frappe.whitelist()
+def update_display_name(full_name=None):
+	"""Update the logged-in user's display name (User.full_name)."""
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Not permitted"))
+	full_name = (full_name or "").strip()
+	if not full_name:
+		frappe.throw(_("Display name cannot be empty"))
+	frappe.db.set_value("User", user, "full_name", full_name)
+	frappe.db.commit()
+	return {"full_name": full_name}
+
+
+@frappe.whitelist()
+def set_profile_photo():
+	"""Set the logged-in user's profile photo from an uploaded image file.
+
+	Only ever touches the session user's own record.
+	"""
+	user = frappe.session.user
+	if user == "Guest":
+		frappe.throw(_("Not permitted"))
+
+	file = frappe.request.files.get("file") if (frappe.request and frappe.request.files) else None
+	if not file:
+		frappe.throw(_("No image uploaded"))
+
+	content = file.stream.read()
+	if not content:
+		frappe.throw(_("Uploaded image is empty"))
+
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": file.filename or f"{frappe.scrub(user)}.png",
+			"attached_to_doctype": "User",
+			"attached_to_name": user,
+			"attached_to_field": "user_image",
+			"is_private": 0,
+			"content": content,
+		}
+	).insert(ignore_permissions=True)
+
+	frappe.db.set_value("User", user, "user_image", file_doc.file_url)
+	frappe.db.commit()
+	return {"user_image": file_doc.file_url}
+
+
 @frappe.whitelist()
 def get_patient_visits(search=None, patient=None, limit=20):
 	from healthcare.api.common import apply_cost_center_scope_to_filters
@@ -1577,16 +1686,17 @@ def get_patient_visits(search=None, patient=None, limit=20):
 	visits = frappe.get_all(
 		"Patient Visit",
 		filters=filters,
-		fields=["name", "patient", "practitioner", "cost_center"],
+		fields=["name", "patient", "practitioner", "cost_center", "status"],
 		limit=limit,
 		order_by="creation desc",
 	)
-	
+
 	return [
 		{
 			"name": v.name,
 			"label": f"{v.name} - {v.patient or ''}",
 			"cost_center": v.get("cost_center"),
+			"status": v.get("status"),
 		}
 		for v in visits
 	]

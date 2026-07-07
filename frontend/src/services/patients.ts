@@ -24,6 +24,8 @@ export interface PatientMedicalHistory {
   template?: string | null
   inpatient_admission?: string | null
   patient_visit?: string | null
+  /** Active (default) | Inactive */
+  status?: string
   creation?: string
   summary?: string
   heart_disease?: string
@@ -443,6 +445,29 @@ export async function fetchPatientMedicalHistories(patient: string): Promise<Pat
   return Array.isArray(data?.message) ? (data.message as PatientMedicalHistory[]) : []
 }
 
+/** Mark a past medical history record Active / Inactive (allowed even on closed visits). */
+export async function setPatientMedicalHistoryStatus(
+  name: string,
+  status: 'Active' | 'Inactive',
+): Promise<void> {
+  const csrf = (window as any).csrf_token || (await (await import('./apiClient')).ensureCSRF())
+  const res = await fetch(`/api/resource/Patient%20Medical%20History/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ status }),
+  })
+  const out = await res.json().catch(() => ({} as any))
+  if (!res.ok || out?.exc) {
+    const { messageFromFrappeResponse } = await import('./patients')
+    throw new Error(messageFromFrappeResponse(out as any) || 'Failed to update status')
+  }
+}
+
 export async function fetchPatientMedicalHistoryDetail(name: string): Promise<PatientMedicalHistory> {
   const res = await fetch(
     `/api/method/healthcare.api.patient.get_patient_medical_history_detail?name=${encodeURIComponent(name)}`
@@ -461,6 +486,7 @@ export async function savePatientMedicalHistory(
     template: history.template || null,
     inpatient_admission: history.inpatient_admission || null,
     patient_visit: history.patient_visit || null,
+    status: history.status || 'Active',
     heart_disease: history.heart_disease || '',
     diabetes: history.diabetes || '',
     asthma: history.asthma || '',

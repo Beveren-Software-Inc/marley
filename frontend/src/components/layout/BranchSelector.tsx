@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Building2, ChevronDown } from 'lucide-react'
-import { fetchCostCenters } from '../../services/common'
+import { fetchBranchOptions } from '../../services/common'
 import {
   getUserCostCenterPermission,
   setUserCostCenterPermission,
@@ -37,7 +37,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
       try {
         const [perm, options] = await Promise.all([
           getUserCostCenterPermission(),
-          fetchCostCenters(),
+          fetchBranchOptions(),
         ])
         if (cancelled) return
         setSelected(perm.cost_center || '')
@@ -93,7 +93,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   const activeLabel =
     selected
       ? branches.find((b) => b.name === selected)?.label || selected
-      : 'All branches'
+      : 'Select Branch'
 
   if (loading) {
     return (
@@ -101,7 +101,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         className={
           isSidebar
             ? 'h-9 w-full rounded-md bg-white/10 animate-pulse'
-            : 'h-8 w-28 rounded-md bg-white/10 animate-pulse'
+            : 'h-9 w-56 rounded-lg bg-white/10 animate-pulse'
         }
         aria-hidden
       />
@@ -119,12 +119,12 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
           aria-label="Choose branch"
         >
           <Building2 className="h-4 w-4 shrink-0 opacity-80" />
-          <span className="flex-1 truncate">{activeLabel}</span>
+          <span className={`flex-1 truncate ${selected ? '' : 'text-white/70'}`}>{activeLabel}</span>
           <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
         </button>
         {open && (
           <div className="absolute bottom-full left-0 right-0 z-[110] mb-1 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-            <BranchOption label="All branches" active={!selected} onSelect={() => void handleSelect('')} />
+            <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
             {branches.map((b) => (
               <BranchOption
                 key={b.name}
@@ -140,29 +140,28 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   }
 
   return (
-    <div ref={ref} className="relative flex-shrink-0 max-w-[220px]">
+    <div ref={ref} className="relative flex-shrink-0 w-56 mr-2">
       <button
         type="button"
         onClick={() => setOpen(!open)}
         disabled={saving}
-        className="flex items-center gap-1.5 rounded-md border border-white/30 bg-white/10 px-2.5 py-1.5 text-xs text-white hover:bg-white/20 focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60 whitespace-nowrap"
+        className="flex w-full items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
         aria-label="Choose branch"
-        title={selected ? `Branch: ${activeLabel}` : 'All branches'}
+        title={selected ? `Branch: ${activeLabel}` : undefined}
       >
-        <Building2 className="h-3.5 w-3.5 shrink-0 opacity-90" />
-        <span className="truncate max-w-[140px]">{saving ? 'Saving…' : activeLabel}</span>
-        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <Building2 className="h-4 w-4 shrink-0 opacity-90" />
+        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-white/70'}`}>{saving ? 'Saving…' : activeLabel}</span>
+        <ChevronDown className={`h-4 w-4 shrink-0 opacity-90 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full right-0 z-[110] mt-1 min-w-[220px] max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
-          <BranchOption label="All branches" active={!selected} onSelect={() => void handleSelect('')} dark={false} />
+        <div className="absolute top-full right-0 z-[110] mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
+          <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
           {branches.map((b) => (
             <BranchOption
               key={b.name}
               label={b.label}
               active={selected === b.name}
               onSelect={() => void handleSelect(b.name)}
-              dark={false}
             />
           ))}
         </div>
@@ -175,28 +174,20 @@ function BranchOption({
   label,
   active,
   onSelect,
-  dark = true,
 }: {
   label: string
   active: boolean
   onSelect: () => void
-  dark?: boolean
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={
-        active
-          ? dark
-            ? 'w-full px-3 py-2 text-left text-sm bg-primary/10 text-primary font-medium'
-            : 'w-full px-3 py-2 text-left text-sm bg-primary/10 text-primary font-medium'
-          : dark
-            ? 'w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50'
-            : 'w-full px-3 py-2 text-left text-sm text-gray-800 hover:bg-gray-50'
-      }
+      className={`flex min-h-[2.25rem] w-full items-center px-3 py-2 text-left text-sm transition-colors ${
+        active ? 'bg-primary/10 text-primary font-medium' : 'text-gray-800 hover:bg-gray-50'
+      }`}
     >
-      {label}
+      {label || ' '}
     </button>
   )
 }

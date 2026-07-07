@@ -262,7 +262,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                       >
                         <td className="px-3 py-2.5 text-xs text-slate-700 whitespace-nowrap align-top">
                           <span className="text-primary font-medium">
-                            {row.posting_date ? new Date(row.posting_date).toLocaleString() : '—'}
+                            {row.posting_date ? new Date(row.posting_date).toLocaleString('en-GB') : '—'}
                           </span>
                           <CardRowMetaHint fields={metaFields} />
                         </td>
@@ -304,7 +304,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                         onClick={() => setDetailName(row.name)}
                       >
                         <span className="text-primary hover:underline">
-                          {row.posting_date ? new Date(row.posting_date).toLocaleString() : '—'}
+                          {row.posting_date ? new Date(row.posting_date).toLocaleString('en-GB') : '—'}
                         </span>
                       </td>
                       <td

@@ -339,6 +339,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 	if template_cache is None:
 		template_cache = {}
 
+	patient_file_no_cache = {}
 	for lab_test in lab_tests:
 		lab_test["female_min_range"] = None
 		lab_test["female_max_range"] = None
@@ -358,6 +359,14 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 			lab_test["min_range"] = template_doc.get("min_range")
 			lab_test["max_range"] = template_doc.get("max_range")
 
+		if lab_test.patient:
+			if lab_test.patient not in patient_file_no_cache:
+				patient_file_no_cache[lab_test.patient] = (
+					frappe.db.get_value("Patient", lab_test.patient, "file_no") or ""
+				)
+			lab_test["file_no"] = patient_file_no_cache[lab_test.patient]
+		else:
+			lab_test["file_no"] = ""
 		if lab_test.patient and not lab_test.patient_name:
 			lab_test["patient_name"] = (
 				frappe.db.get_value("Patient", lab_test.patient, "patient_name") or lab_test.patient

@@ -861,6 +861,17 @@ def create_medicine_given(
 				).format(frappe.bold(pmo.name))
 			)
 
+		# Block giving a drug the doctor has put On Hold or Discontinued (per-drug status).
+		_entry_status = None
+		for _e in pmo.get("medication_orders") or []:
+			if (order_entry and _e.name == order_entry) or (not order_entry and item_code and _e.drug == item_code):
+				_entry_status = (_e.get("medication_status") or "").strip()
+				break
+		if _entry_status == "On Hold":
+			frappe.throw(_("This medicine is On Hold by the doctor and cannot be given until it is continued."))
+		if _entry_status == "Discontinued":
+			frappe.throw(_("This medicine has been discontinued by the doctor and cannot be given."))
+
 	# Derive defaults: quantity is units given; dose is the clinical amount (e.g. 50mg).
 	if qty is None:
 		qty = 1

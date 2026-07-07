@@ -30,7 +30,7 @@ def user_can_browse_full_patient_directory() -> bool:
 
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
-	"""Search patients by name or file number"""
+	"""Search patients by name, patient ID, file number, or CPR/ID number."""
 	search = (search or "").strip()
 	if not search:
 		return []
@@ -802,6 +802,7 @@ def _serialize_patient_medical_history(doc):
 		"patient_name": getattr(doc, "patient_name", None),
 		"template": doc.get("template"),
 		"inpatient_admission": doc.get("inpatient_admission"),
+		"status": doc.get("status") or "Active",
 		"creation": str(doc.creation) if doc.creation else None,
 		"heart_disease": doc.get("heart_disease") or "",
 		"diabetes": doc.get("diabetes") or "",
@@ -866,6 +867,7 @@ def get_patient_medical_histories(patient):
 			"patient_name",
 			"template",
 			"inpatient_admission",
+			"status",
 			"creation",
 			"heart_disease",
 			"diabetes",

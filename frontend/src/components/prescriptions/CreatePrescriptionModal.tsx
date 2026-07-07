@@ -326,6 +326,8 @@ export const CreatePrescriptionModal = ({
   ])
 
   const [drugQueries, setDrugQueries] = useState<Record<number, string>>({})
+  // Scientific / generic name of the drug selected per row (for display under the field).
+  const [drugScientific, setDrugScientific] = useState<Record<number, string>>({})
   const [drugOptions, setDrugOptions] = useState<Record<number, LinkFieldOption[]>>({})
   const [drugLoading, setDrugLoading] = useState<Record<number, boolean>>({})
 
@@ -425,6 +427,7 @@ export const CreatePrescriptionModal = ({
     })
     setUomQueries((prev) => ({ ...prev, [index]: stockUom }))
     setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+    setDrugScientific((prev) => ({ ...prev, [index]: (opt.scientific_name || '').trim() }))
     if (route) {
       let routes = routeOptions
       if (!routes.length) {
@@ -1240,7 +1243,7 @@ export const CreatePrescriptionModal = ({
                             <Combobox
                               value={row.drug}
                               displayValue={drugQueries[index] ?? (row.drug ? (row.drug_name || row.drug) : '')}
-                              placeholder="Search drug..."
+                              placeholder="Search by commercial or scientific name..."
                               options={drugOptions[index] || []}
                               loading={drugLoading[index]}
                               onQueryChange={(q) => {
@@ -1251,7 +1254,20 @@ export const CreatePrescriptionModal = ({
                               onSelect={(opt) => {
                                 void applyDrugSelection(index, opt)
                               }}
+                              renderOption={(opt) => (
+                                <div className="flex flex-col">
+                                  <span>{opt.label || opt.name}</span>
+                                  {opt.scientific_name && (
+                                    <span className="text-xs text-slate-500 italic">{opt.scientific_name}</span>
+                                  )}
+                                </div>
+                              )}
                             />
+                            {row.drug && drugScientific[index] && (
+                              <p className="mt-1 text-xs text-slate-500">
+                                Scientific name: <span className="italic">{drugScientific[index]}</span>
+                              </p>
+                            )}
                           </div>
 
                           <div className="grid grid-cols-2 gap-3">

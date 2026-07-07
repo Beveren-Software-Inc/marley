@@ -1105,7 +1105,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No patients match your search.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
                     </div>
                   )}
                 </div>
@@ -1922,7 +1922,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                               <label className="block text-xs font-medium text-slate-700 mb-1">Entered Date</label>
                               <input
                                 type="text"
-                                value={row.entered_date || new Date().toLocaleDateString()}
+                                value={row.entered_date || new Date().toLocaleDateString('en-GB')}
                                 readOnly
                                 className="w-full rounded-md border border-slate-200 px-2 py-1.5 text-xs bg-slate-50 text-slate-500"
                               />

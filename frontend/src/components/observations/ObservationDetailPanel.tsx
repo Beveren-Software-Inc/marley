@@ -30,11 +30,7 @@ function displayValue(value: unknown): string {
 function formatDate(value?: string): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleDateString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
+    return new Date(value).toLocaleDateString('en-GB')
   } catch {
     return value
   }
@@ -43,13 +39,7 @@ function formatDate(value?: string): string {
 function formatDateTime(value?: string): string {
   if (!value) return '—'
   try {
-    return new Date(value).toLocaleString(undefined, {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
+    return new Date(value).toLocaleString('en-GB')
   } catch {
     return value
   }

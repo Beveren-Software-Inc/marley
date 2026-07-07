@@ -1,12 +1,11 @@
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, type ChangeEvent } from "react"
 import { useNavigate } from "react-router-dom"
 import { useAuth } from "../providers/AuthProvider"
 import { useTheme } from "../hooks/useTheme"
 import { toast } from "../hooks/useToast"
-import {
-  getUserCostCenterPermission,
-  setUserCostCenterPermission,
-} from "../services/costCenterPermission"
+import { getUserCostCenterPermission } from "../services/costCenterPermission"
+import { fetchBranchOptions } from "../services/common"
+import { fetchPortalCompany, updateDisplayName, uploadProfilePhoto } from "../services/profile"
 import {
   ArrowLeft,
   User,
@@ -16,138 +15,33 @@ import {
   Monitor,
   LogOut,
   Building2,
-  ChevronDown,
-  X,
   ShieldCheck,
   Info,
+  Camera,
 } from "lucide-react"
-
-// ─── Cost-centre combobox ────────────────────────────────────────────────────
-
-interface CostCenterOption { name: string; label: string }
-
-async function fetchCostCenters(search: string): Promise<CostCenterOption[]> {
-  try {
-    const params = new URLSearchParams({
-      doctype: "Cost Center",
-      txt: search || "",
-      page_length: "20",
-      fields: JSON.stringify(["name"]),
-    })
-    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
-    const data = await res.json()
-    const list = Array.isArray(data?.message) ? data.message : []
-    return list.map((r: any) => ({ name: r.name, label: r.name }))
-  } catch { return [] }
-}
-
-interface CostCenterComboboxProps {
-  value: string
-  onChange: (v: string) => void
-  disabled?: boolean
-}
-
-const CostCenterCombobox = ({ value, onChange, disabled }: CostCenterComboboxProps) => {
-  const [query, setQuery] = useState(value)
-  const [options, setOptions] = useState<CostCenterOption[]>([])
-  const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => { setQuery(value) }, [value])
-
-  useEffect(() => {
-    if (!open) return
-    const t = setTimeout(async () => {
-      setLoading(true)
-      try { setOptions(await fetchCostCenters(query)) }
-      catch { setOptions([]) }
-      finally { setLoading(false) }
-    }, query.trim() === "" ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [query, open])
-
-  useEffect(() => {
-    const h = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", h)
-    return () => document.removeEventListener("mousedown", h)
-  }, [])
-
-  const handleSelect = (opt: CostCenterOption) => {
-    setQuery(opt.label)
-    onChange(opt.name)
-    setOpen(false)
-  }
-
-  const handleClear = () => {
-    setQuery("")
-    onChange("")
-    setOpen(false)
-  }
-
-  return (
-    <div ref={ref} className="relative">
-      <div className="relative flex items-center">
-        <input
-          type="text"
-          value={query}
-          disabled={disabled}
-          onChange={e => { setQuery(e.target.value); onChange(""); setOpen(true) }}
-          onFocus={() => !disabled && setOpen(true)}
-          placeholder="Search branches…"
-          autoComplete="off"
-          className="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 pr-16 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-gray-100 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
-        />
-        <div className="absolute inset-y-0 right-0 flex items-center gap-1 pr-2">
-          {query && !disabled && (
-            <button type="button" onClick={handleClear}
-              className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
-          {loading
-            ? <span className="w-3.5 h-3.5 border-2 border-gray-300 border-t-primary rounded-full animate-spin" />
-            : <ChevronDown className="w-4 h-4 text-gray-400" />}
-        </div>
-      </div>
-
-      {open && !disabled && (
-        <div className="absolute z-30 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-          {options.length === 0
-            ? <div className="px-3 py-3 text-sm text-gray-400 dark:text-gray-500">
-                {loading ? "Searching…" : "No branches found"}
-              </div>
-            : options.map(opt => (
-              <button key={opt.name} type="button"
-                onClick={() => handleSelect(opt)}
-                className="w-full text-left px-3 py-2 text-sm text-gray-800 dark:text-gray-200 hover:bg-primary/5 dark:hover:bg-primary/10">
-                {opt.label}
-              </button>
-            ))}
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Preferences section ─────────────────────────────────────────────────────
 
 const PreferencesSection = () => {
   const [costCenter, setCostCenter] = useState("")
-  const [savedCostCenter, setSavedCostCenter] = useState("")
   const [isExempt, setIsExempt] = useState(false)
+  const [labels, setLabels] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const result = await getUserCostCenterPermission()
-        setCostCenter(result.cost_center)
-        setSavedCostCenter(result.cost_center)
-        setIsExempt(result.is_exempt)
+        const [perm, options] = await Promise.all([
+          getUserCostCenterPermission(),
+          fetchBranchOptions(),
+        ])
+        setCostCenter(perm.cost_center)
+        setIsExempt(perm.is_exempt)
+        const map: Record<string, string> = {}
+        options.forEach((o) => {
+          map[o.name] = o.label
+        })
+        setLabels(map)
       } catch {
         toast.error("Failed to load branch preference.")
       } finally {
@@ -157,25 +51,7 @@ const PreferencesSection = () => {
     load()
   }, [])
 
-  const handleSave = async () => {
-    setSaving(true)
-    try {
-      const result = await setUserCostCenterPermission(costCenter)
-      if (result.status === 'cleared') {
-        toast.success("Branch restriction removed. You can now see all data.")
-        setSavedCostCenter("")
-      } else {
-        toast.success(`Branch set to "${result.cost_center}". Data will be filtered accordingly.`)
-        setSavedCostCenter(result.cost_center)
-      }
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to save.")
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  const isDirty = costCenter !== savedCostCenter
+  const currentLabel = costCenter ? labels[costCenter] || costCenter : ""
 
   if (loading) {
     return (
@@ -191,8 +67,8 @@ const PreferencesSection = () => {
       <div>
         <h3 className="text-lg font-semibold text-gray-900 dark:text-white mb-1">Branch Filter</h3>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-5">
-          Restrict your view to a specific branch. When set, only records belonging to that branch will be visible to you.
-          Leave blank to see all data. You can also switch branches from the navbar at any time.
+          Your active branch filter. Set or change it from the branch selector in the top navbar —
+          your choice appears here automatically.
         </p>
 
         {isExempt && (
@@ -202,56 +78,26 @@ const PreferencesSection = () => {
               <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Elevated privileges</p>
               <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
                 Your account has <strong>Administrator</strong>, <strong>System Manager</strong>, or <strong>Healthcare Administrator</strong> role.
-                With no branch selected you see all data. Choose a branch here or from the navbar to filter your view.
+                With no branch selected you see all data. Choose a branch from the top navbar to filter your view.
               </p>
             </div>
           </div>
         )}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center gap-1.5">
-              <Building2 className="w-4 h-4 text-gray-400" />
-              Branch
-            </label>
-            <CostCenterCombobox
-              value={costCenter}
-              onChange={setCostCenter}
-            />
-            <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500 flex items-center gap-1">
-              <Info className="w-3.5 h-3.5 shrink-0" />
-              Clear the field and save to remove the restriction.
-            </p>
+        <div className="max-w-md">
+          <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">
+            <Building2 className="w-4 h-4 text-gray-400" />
+            Current Branch
+          </label>
+          <div className="flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-3 py-2 text-sm text-gray-600 dark:text-gray-400 cursor-not-allowed">
+            <Building2 className="w-4 h-4 shrink-0 text-gray-400" />
+            <span>{currentLabel || "All branches (no filter)"}</span>
           </div>
-
-          {savedCostCenter && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5">Current Active Restriction</label>
-              <div className="flex items-center gap-2 px-3 py-2 bg-primary/5 dark:bg-primary/10 border border-primary/20 rounded-lg text-sm text-primary font-medium">
-                <Building2 className="w-4 h-4 shrink-0" />
-                {savedCostCenter}
-              </div>
-            </div>
-          )}
+          <p className="mt-1.5 flex items-center gap-1 text-xs text-gray-400 dark:text-gray-500">
+            <Info className="w-3.5 h-3.5 shrink-0" />
+            Branch is set from the top navbar and can’t be changed here.
+          </p>
         </div>
-      </div>
-
-      <div className="pt-4 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between gap-3">
-        <div className="text-xs text-gray-400 dark:text-gray-500">
-          {isDirty
-            ? <span className="text-amber-600 dark:text-amber-400 font-medium">Unsaved changes</span>
-            : savedCostCenter
-              ? <span>Active restriction: <strong>{savedCostCenter}</strong></span>
-              : "No restriction active — you see all branches."}
-        </div>
-        <button
-          type="button"
-          onClick={handleSave}
-          disabled={saving || !isDirty}
-          className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {saving ? "Saving…" : "Save Preference"}
-        </button>
       </div>
     </div>
   )
@@ -261,7 +107,7 @@ const PreferencesSection = () => {
 
 export const SettingsPage = () => {
   const navigate = useNavigate()
-  const { user, logout } = useAuth()
+  const { user, logout, updateUser } = useAuth()
   const { theme, setTheme } = useTheme()
   const [activeSection, setActiveSection] = useState("profile")
 
@@ -280,43 +126,145 @@ export const SettingsPage = () => {
     { id: "preferences",  name: "Preferences",   icon: Building2 },
   ]
 
-  const displayName = user?.name || "Guest User"
-  const initials = displayName
+  const fullName = user?.full_name || user?.name || "Guest User"
+  const userId = user?.name || user?.email || ""
+  const rolesText = (
+    user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
+  ).join(" | ")
+  const initials = fullName
     .split(" ")
     .map(w => w.charAt(0).toUpperCase())
     .join("")
     .substring(0, 2)
 
+  const [company, setCompany] = useState("")
+  const [displayName, setDisplayName] = useState(fullName)
+  const [photoUrl, setPhotoUrl] = useState(user?.user_image || "")
+  const [savingName, setSavingName] = useState(false)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    fetchPortalCompany().then(setCompany).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    setDisplayName(user?.full_name || user?.name || "")
+    setPhotoUrl(user?.user_image || "")
+  }, [user])
+
+  const handlePhotoPick = () => fileInputRef.current?.click()
+
+  const handlePhotoChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please choose an image file.")
+      return
+    }
+    setUploadingPhoto(true)
+    try {
+      const url = await uploadProfilePhoto(file)
+      setPhotoUrl(url)
+      updateUser({ user_image: url })
+      toast.success("Photo updated.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to upload photo.")
+    } finally {
+      setUploadingPhoto(false)
+      if (fileInputRef.current) fileInputRef.current.value = ""
+    }
+  }
+
+  const handleSaveDisplayName = async () => {
+    const name = displayName.trim()
+    if (!name) {
+      toast.error("Display name cannot be empty.")
+      return
+    }
+    setSavingName(true)
+    try {
+      const saved = await updateDisplayName(name)
+      updateUser({ full_name: saved })
+      toast.success("Display name updated.")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save display name.")
+    } finally {
+      setSavingName(false)
+    }
+  }
+
   const renderProfileSettings = () => (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <div className="w-20 h-20 bg-primary rounded-full flex items-center justify-center">
-          <span className="text-white font-bold text-2xl">{initials}</span>
-        </div>
-        <div>
-          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">{displayName}</h3>
-          <p className="text-gray-600 dark:text-gray-400">{user?.role || "User"}</p>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handlePhotoChange}
+      />
+      <div className="flex items-center gap-5">
+        <button
+          type="button"
+          onClick={handlePhotoPick}
+          disabled={uploadingPhoto}
+          title="Edit photo"
+          className="group relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-primary ring-2 ring-primary/20 focus:outline-none focus:ring-4 focus:ring-primary/30"
+        >
+          {photoUrl ? (
+            <img src={photoUrl} alt={fullName} className="h-full w-full object-cover" />
+          ) : (
+            <span className="flex h-full w-full items-center justify-center text-2xl font-bold text-white">
+              {initials}
+            </span>
+          )}
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1 bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100">
+            {uploadingPhoto ? (
+              <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+            ) : (
+              <>
+                <Camera className="h-5 w-5" />
+                <span className="text-[10px] font-semibold uppercase tracking-wide">Edit photo</span>
+              </>
+            )}
+          </span>
+        </button>
+        <div className="min-w-0">
+          <h3 className="text-xl font-semibold text-gray-900 dark:text-white break-words">{fullName}</h3>
+          {userId && (
+            <p className="text-gray-600 dark:text-gray-400 [overflow-wrap:anywhere]">{userId}</p>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Full Name</label>
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Display Name</label>
           <input
             type="text"
-            defaultValue={displayName}
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Your display name"
             className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Role</label>
-          <input
-            type="text"
-            defaultValue={user?.role || "User"}
-            disabled
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 cursor-not-allowed"
-          />
+          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Roles</label>
+          <div className="min-h-[2.625rem] w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 px-3 py-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400 [overflow-wrap:anywhere]">
+            {rolesText || "User"}
+          </div>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button
+          type="button"
+          onClick={handleSaveDisplayName}
+          disabled={savingName || displayName.trim() === "" || displayName.trim() === fullName}
+          className="px-5 py-2 text-sm font-semibold text-white bg-primary rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {savingName ? "Saving…" : "Save"}
+        </button>
       </div>
     </div>
   )
@@ -373,7 +321,7 @@ export const SettingsPage = () => {
     }
   }
 
-  const showSaveBar = activeSection === "profile" || activeSection === "display"
+  const showSaveBar = activeSection === "display"
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -428,9 +376,15 @@ export const SettingsPage = () => {
           {/* Content */}
           <div className="lg:col-span-3">
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-              <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
-                {settingsSections.find(s => s.id === activeSection)?.name}
-              </h2>
+              {activeSection === "profile" ? (
+                <h2 className="mb-6 bg-gradient-to-r from-primary via-sky-500 to-indigo-500 bg-clip-text text-2xl font-extrabold tracking-tight text-transparent">
+                  {company || "Profile"}
+                </h2>
+              ) : (
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-6">
+                  {settingsSections.find(s => s.id === activeSection)?.name}
+                </h2>
+              )}
 
               {renderContent()}
 

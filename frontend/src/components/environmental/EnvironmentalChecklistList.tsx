@@ -311,7 +311,7 @@ export const EnvironmentalChecklistList = ({
                     className="px-4 py-3 text-sm text-slate-500 cursor-pointer"
                     onClick={() => handleView(row)}
                   >
-                    {row.creation ? new Date(row.creation).toLocaleDateString() : '—'}
+                    {row.creation ? new Date(row.creation).toLocaleDateString('en-GB') : '—'}
                   </td>
                   <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end gap-1.5">

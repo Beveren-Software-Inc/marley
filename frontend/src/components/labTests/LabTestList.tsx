@@ -794,7 +794,7 @@
     
 //     try {
 //       const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
-//       const issuedOn = new Date().toLocaleString()
+//       const issuedOn = new Date().toLocaleString('en-GB')
 //       const first = fullTests[0]
 //       const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
 //       const rowsHtml = fullTests.map((test) => {
@@ -1012,7 +1012,7 @@
 //                         </div>
 //                       </td>
 //                       <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-//                       <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
+//                       <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString('en-GB') : '-'}</td>
 //                       <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>
 //                       <td className="px-3 py-1.5 text-sm text-slate-700">
 //                         <div className="flex items-center gap-2">
@@ -1071,7 +1071,7 @@
 //                             : <span className="text-slate-400 text-xs">—</span>}
 //                         </td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700">
-//                           {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
+//                           {child.result_date ? new Date(child.result_date).toLocaleDateString('en-GB') : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString('en-GB') : '-'}
 //                         </td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
 //                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
@@ -1115,7 +1115,7 @@
 //                       : <span className="text-slate-400 text-xs">—</span>}
 //                   </td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700">
-//                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString() : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString() : '-'}
+//                     {labTest.result_date ? new Date(labTest.result_date).toLocaleDateString('en-GB') : labTest.submitted_date ? new Date(labTest.submitted_date).toLocaleDateString('en-GB') : '-'}
 //                   </td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
 //                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
@@ -3217,7 +3217,7 @@ export const LabTestList = ({
     
     try {
       const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
-      const issuedOn = new Date().toLocaleString()
+      const issuedOn = new Date().toLocaleString('en-GB')
       const first = fullTests[0]
       const { content: letterHeadContent, footer: letterHeadFooter } = await fetchCostCenterLetterHead((first as any)?.cost_center)
       const rowsHtml = fullTests.map((test) => {
@@ -3416,24 +3416,26 @@ export const LabTestList = ({
           <table className="w-full min-w-[1300px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab Test ID</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 {!patient && (
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">File No.</th>
                 )}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Test Name</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                {!patient && (
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient Name</th>
+                )}
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Test</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 {rangeHeaders.showFemale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Max</th></>}
                 {rangeHeaders.showMale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th></>}
                 {rangeHeaders.showGeneric && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Max</th></>}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Result Flag</th>
                 <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600 uppercase w-10" title="Result trend">↑↓</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
                 {!hideAmount && <th className="px-3 py-1.5 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>}
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -3457,12 +3459,13 @@ export const LabTestList = ({
                 return (
                   <Fragment key={`group-${serviceRequest}`}>
                     <tr className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400">
-                      <td className="px-3 py-1.5 text-sm font-medium text-indigo-800">
-                        <div className="flex items-center gap-1.5">
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700">GROUP</span>
-                          <span className="text-xs text-indigo-600 truncate max-w-[100px]" title={serviceRequest}>{serviceRequest}</span>
-                        </div>
-                       </td>
+                      {/* Date */}
+                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString('en-GB') : '-'}</td>
+                      {/* File No */}
+                      {!patient && (
+                        <td className="px-3 py-1.5 text-sm text-slate-600">{representativeChild.file_no || '-'}</td>
+                      )}
+                      {/* Patient Name */}
                       {!patient && (
                         <td
                           className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer"
@@ -3471,15 +3474,38 @@ export const LabTestList = ({
                           <span className="font-medium text-primary hover:underline">{representativeChild.patient_name || representativeChild.patient || '-'}</span>
                         </td>
                       )}
+                      {/* Test (group) */}
                       <td className="px-3 py-1.5 text-sm">
-                        <button type="button" data-no-row-click
-                          onClick={(e) => { e.stopPropagation(); setExpandedGroupKeys(prev => ({ ...prev, [serviceRequest]: !isExpanded })) }}
-                          className="flex items-center gap-2 text-indigo-700 font-semibold hover:text-indigo-900">
-                          {isExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-                          <span>{groupLabel}</span>
-                          <span className="text-xs font-normal text-indigo-500">({children.length} tests)</span>
-                        </button>
+                        <div className="flex items-center gap-1.5">
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700 shrink-0">GROUP</span>
+                          <button type="button" data-no-row-click
+                            onClick={(e) => { e.stopPropagation(); setExpandedGroupKeys(prev => ({ ...prev, [serviceRequest]: !isExpanded })) }}
+                            className="flex items-center gap-2 text-indigo-700 font-semibold hover:text-indigo-900">
+                            {isExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
+                            <span>{groupLabel}</span>
+                            <span className="text-xs font-normal text-indigo-500">({children.length} tests)</span>
+                          </button>
+                        </div>
                        </td>
+                      {/* Results */}
+                      <td className="px-3 py-1.5 text-xs text-indigo-400 italic">— group —</td>
+                      {/* Min / Max */}
+                      {rangeHeaders.showFemale && <><td /><td /></>}
+                      {rangeHeaders.showMale && <><td /><td /></>}
+                      {rangeHeaders.showGeneric && <><td /><td /></>}
+                      {/* Result Flag */}
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      {/* Result Trend */}
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      {/* Lab technician */}
+                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      {/* Doctor */}
+                      <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
+                      {/* Outsourced */}
+                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
+                      {/* Amount */}
+                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
+                      {/* Status */}
                       <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${
@@ -3500,12 +3526,7 @@ export const LabTestList = ({
                           )}
                         </div>
                        </td>
-                      {rangeHeaders.showFemale && <><td /><td /></>}
-                      {rangeHeaders.showMale && <><td /><td /></>}
-                      {rangeHeaders.showGeneric && <><td /><td /></>}
-                      <td className="px-3 py-1.5 text-xs text-indigo-400 italic">— group —</td>
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
+                      {/* Actions */}
                       <td className="px-3 py-1.5 text-sm text-slate-700">
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
@@ -3553,24 +3574,19 @@ export const LabTestList = ({
                           )}
                         </div>
                        </td>
-                      <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString() : '-'}</td>
-                      <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
-                      {!hideAmount && <td className="px-3 py-1.5 text-sm font-semibold text-indigo-700 text-right">{combinedAmount > 0 ? combinedAmount.toFixed(3) : '-'}</td>}
                     </tr>
 
                     {isExpanded && children.map((child) => (
                       <tr key={child.name} className="bg-indigo-50/30 hover:bg-indigo-50">
-                        <td 
-                          className="px-3 py-1.5 text-sm font-medium text-slate-700 pl-8 cursor-pointer hover:text-indigo-600"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedLabTestForDetails(child.name);
-                          }}
-                        >
-                          ↳ {child.name}
+                        {/* Date */}
+                        <td className="px-3 py-1.5 text-sm text-slate-700">
+                          {child.result_date ? new Date(child.result_date).toLocaleDateString('en-GB') : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString('en-GB') : '-'}
                         </td>
+                        {/* File No */}
+                        {!patient && (
+                          <td className="px-3 py-1.5 text-sm text-slate-500">{child.file_no || '-'}</td>
+                        )}
+                        {/* Patient Name */}
                         {!patient && (
                           <td
                             className="px-3 py-1.5 text-sm text-slate-500 cursor-pointer"
@@ -3579,26 +3595,39 @@ export const LabTestList = ({
                             <span className="font-medium text-primary hover:underline">{child.patient_name || child.patient || '-'}</span>
                           </td>
                         )}
-                        <td className="px-3 py-1.5 text-sm text-slate-700 pl-6">{child.lab_test_name || child.template || '-'}</td>
-                        <td className="px-3 py-1.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
-                        {renderRangeCells(child)}
+                        {/* Test */}
+                        <td
+                          className="px-3 py-1.5 text-sm text-slate-700 pl-6 cursor-pointer hover:text-indigo-600"
+                          onClick={(e) => { e.stopPropagation(); setSelectedLabTestForDetails(child.name); }}
+                        >
+                          <span className="text-slate-400 mr-1">↳</span>{child.lab_test_name || child.template || '-'}
+                        </td>
+                        {/* Results */}
                         {renderResultCell(child)}
+                        {/* Min / Max */}
+                        {renderRangeCells(child)}
+                        {/* Result Flag */}
                         {renderResultFlagCell(child)}
+                        {/* Result Trend */}
                         {renderResultArrowCell(child)}
-                        {renderActionsCell(child)}
+                        {/* Lab technician */}
+                        {renderTechnicianCell(child)}
+                        {/* Doctor */}
+                        <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
+                        {/* Outsourced */}
                         <td className="px-3 py-1.5">
                           {child.is_outsourced
                             ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
                             : <span className="text-slate-400 text-xs">—</span>}
                         </td>
-                        <td className="px-3 py-1.5 text-sm text-slate-700">
-                          {child.result_date ? new Date(child.result_date).toLocaleDateString() : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString() : '-'}
-                        </td>
-                        {renderTechnicianCell(child)}
-                        <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
+                        {/* Amount */}
                         {!hideAmount && <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
                         </td>}
+                        {/* Status */}
+                        <td className="px-3 py-1.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
+                        {/* Actions */}
+                        {renderActionsCell(child)}
                       </tr>
                     ))}
                   </Fragment>
@@ -3620,20 +3649,21 @@ export const LabTestList = ({
                       : `hover:bg-slate-50${isFocusedRow ? ' bg-primary/5 ring-2 ring-inset ring-primary' : ''}`
                   }
                 >
-                  <td 
-                    className="px-3 py-1.5 text-sm font-medium text-slate-900 cursor-pointer hover:text-primary"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedLabTestForDetails(detailsName);
-                    }}
-                  >
-                    <div className="flex flex-col gap-0.5">
-                      <span>{detailsName}</span>
-                      {isLegacyHistoryLabRow(labTest) && labTest.lab_test_group && (
-                        <span className="text-[10px] font-normal text-slate-500">{labTest.lab_test_group}</span>
-                      )}
-                    </div>
+                  {/* Date */}
+                  <td className="px-3 py-1.5 text-sm text-slate-700">
+                    {labTest.result_date
+                      ? new Date(labTest.result_date).toLocaleDateString('en-GB')
+                      : labTest.date
+                        ? new Date(labTest.date).toLocaleDateString('en-GB')
+                        : labTest.submitted_date
+                          ? new Date(labTest.submitted_date).toLocaleDateString('en-GB')
+                          : '-'}
                   </td>
+                  {/* File No */}
+                  {!patient && (
+                    <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.file_no || '-'}</td>
+                  )}
+                  {/* Patient Name */}
                   {!patient && (
                     <td
                       className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer"
@@ -3642,41 +3672,49 @@ export const LabTestList = ({
                       <span className="font-medium text-primary hover:underline">{labTest.patient_name || labTest.patient || '-'}</span>
                     </td>
                   )}
-                  <td className="px-3 py-1.5 text-sm text-slate-700">
+                  {/* Test */}
+                  <td
+                    className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer hover:text-primary"
+                    onClick={(e) => { e.stopPropagation(); setSelectedLabTestForDetails(detailsName); }}
+                  >
                     <div className="flex items-center gap-1.5 min-w-0">
                       {isLegacyHistoryLabRow(labTest) && (
                         <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800">
                           History
                         </span>
                       )}
-                      <span className="truncate">{labTest.lab_test_name || labTest.template || '-'}</span>
+                      <span className="truncate font-medium">{labTest.lab_test_name || labTest.template || '-'}</span>
                     </div>
+                    {isLegacyHistoryLabRow(labTest) && labTest.lab_test_group && (
+                      <span className="text-[10px] font-normal text-slate-500">{labTest.lab_test_group}</span>
+                    )}
                   </td>
-                  <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
-                  {renderRangeCells(labTest)}
+                  {/* Results */}
                   {renderResultCell(labTest)}
+                  {/* Min / Max */}
+                  {renderRangeCells(labTest)}
+                  {/* Result Flag */}
                   {renderResultFlagCell(labTest)}
+                  {/* Result Trend */}
                   {renderResultArrowCell(labTest)}
-                  {renderActionsCell(labTest)}
+                  {/* Lab technician */}
+                  {renderTechnicianCell(labTest)}
+                  {/* Doctor */}
+                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
+                  {/* Outsourced */}
                   <td className="px-3 py-1.5">
                     {labTest.is_outsourced
                       ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
                       : <span className="text-slate-400 text-xs">—</span>}
                   </td>
-                  <td className="px-3 py-1.5 text-sm text-slate-700">
-                    {labTest.result_date
-                      ? new Date(labTest.result_date).toLocaleDateString()
-                      : labTest.date
-                        ? new Date(labTest.date).toLocaleDateString()
-                        : labTest.submitted_date
-                          ? new Date(labTest.submitted_date).toLocaleDateString()
-                          : '-'}
-                  </td>
-                  {renderTechnicianCell(labTest)}
-                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
+                  {/* Amount */}
                   {!hideAmount && <td className="px-3 py-1.5 text-sm text-slate-700 text-right">
                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
                   </td>}
+                  {/* Status */}
+                  <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
+                  {/* Actions */}
+                  {renderActionsCell(labTest)}
                 </tr>
                 )
               })}

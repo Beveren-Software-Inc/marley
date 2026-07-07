@@ -174,7 +174,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
     if (obs.result_float !== undefined && obs.result_float !== null) return obs.result_float.toString()
     if (obs.result_select) return obs.result_select
     if (obs.result_boolean !== undefined && obs.result_boolean !== null) return obs.result_boolean ? 'Yes' : 'No'
-    if (obs.result_datetime) return new Date(obs.result_datetime).toLocaleString()
+    if (obs.result_datetime) return new Date(obs.result_datetime).toLocaleString('en-GB')
     if (obs.result_time) return obs.result_time
     if (obs.result_data) return obs.result_data
     return '-'
@@ -388,11 +388,11 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                         </td>
                       )}
                       <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.start_date ? new Date(obs.start_date).toLocaleDateString() : '-'}
+                        {obs.start_date ? new Date(obs.start_date).toLocaleDateString('en-GB') : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.dc_date ? (
-                          new Date(obs.dc_date).toLocaleDateString()
+                          new Date(obs.dc_date).toLocaleDateString('en-GB')
                         ) : isObservationActive(obs) ? (
                           <span className="inline-flex items-center rounded-full border border-emerald-600 bg-white px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
                             Active

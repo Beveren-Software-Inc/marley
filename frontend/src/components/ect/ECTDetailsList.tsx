@@ -113,7 +113,7 @@ export const ECTDetailsList = ({ patient, refreshKey, onPatientClick }: ECTDetai
                   </button>
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">
-                  {ect.date ? new Date(ect.date).toLocaleDateString() : '-'}
+                  {ect.date ? new Date(ect.date).toLocaleDateString('en-GB') : '-'}
                   {ect.time && ` ${String(ect.time).slice(0, 5)}`}
                 </td>
                 {!patient && (

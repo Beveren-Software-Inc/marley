@@ -109,7 +109,8 @@ fixtures = [
                    "Material Request-custom_lab_inventory",
                    
                    "Item-custom_maximum_dose_limit",
-                    
+                   "Item-custom_scientific_name",
+
                 ),
             ]
         ],

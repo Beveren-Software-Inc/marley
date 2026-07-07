@@ -107,7 +107,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   const formatDateTime = (date?: string, time?: string): string => {
     if (!date) return '—'
-    const dateStr = new Date(date).toLocaleDateString()
+    const dateStr = new Date(date).toLocaleDateString('en-GB')
     return time ? `${dateStr} ${time}` : dateStr
   }
 

@@ -607,6 +607,92 @@ def get_medication_order_by_id(name):
 		doc.invoice = _invoice_for_sales_order(doc.reference_document_name)
 
 	return doc
+
+
+# Roles allowed to hold / continue / discontinue a prescribed drug (prescriber decision).
+MEDICATION_ACTION_ROLES = frozenset(
+	{"Administrator", "System Manager", "Healthcare Administrator", "Doctor", "Physician"}
+)
+
+
+@frappe.whitelist()
+def set_medication_entry_status(order, entry, action, reason=None):
+	"""Doctor action to Hold / Continue / Discontinue an individual prescribed drug.
+
+	Rules (per drug, not the whole prescription):
+	- Hold: active -> On Hold. Blocks the nurse from giving this drug. Reversible. Reason required.
+	- Continue: On Hold -> active (usual). Re-enables giving. No reason required.
+	- Discontinue: active/On Hold -> Discontinued. Doctor stopping the drug early. Reason required.
+	- Discontinued is terminal: no further transitions are allowed.
+	Every action is written to Medication Status Log (who/when via owner/creation).
+	"""
+	action = (action or "").strip().capitalize()
+	if action not in ("Hold", "Continue", "Discontinue"):
+		frappe.throw(_("Invalid action"))
+
+	if not (MEDICATION_ACTION_ROLES & set(frappe.get_roles(frappe.session.user))):
+		frappe.throw(_("Only a doctor can hold, continue or discontinue a medicine."), frappe.PermissionError)
+
+	doc = frappe.get_doc("Patient Medication Order", order)
+	_ensure_pmo_write_permission(doc)
+
+	row = None
+	for r in doc.get("medication_orders") or []:
+		if r.name == entry:
+			row = r
+			break
+	if not row:
+		frappe.throw(_("Medication row not found on this prescription"))
+
+	current = (row.get("medication_status") or "").strip()
+	if current == "Discontinued":
+		frappe.throw(_("This medicine has been discontinued and cannot be changed."))
+
+	reason = (reason or "").strip()
+	if action in ("Hold", "Discontinue") and not reason:
+		frappe.throw(_("A reason is required to {0} this medicine.").format(action.lower()))
+
+	if action == "Hold":
+		if current == "On Hold":
+			frappe.throw(_("This medicine is already on hold."))
+		new_status = "On Hold"
+	elif action == "Continue":
+		if current != "On Hold":
+			frappe.throw(_("Only a medicine that is on hold can be continued."))
+		new_status = ""
+	else:  # Discontinue
+		new_status = "Discontinued"
+
+	frappe.db.set_value("Inpatient Medication Order Entry", entry, "medication_status", new_status)
+
+	log = frappe.new_doc("Medication Status Log")
+	log.patient_medication_order = order
+	log.medication_entry = entry
+	log.patient = doc.get("patient")
+	log.drug = row.get("drug")
+	log.drug_name = row.get("drug_name")
+	log.action = action
+	log.new_status = new_status or "Active"
+	log.reason = reason or None
+	log.insert(ignore_permissions=True)
+
+	return {"entry": entry, "medication_status": new_status, "action": action}
+
+
+@frappe.whitelist()
+def get_medication_status_log(order, entry=None):
+	"""Return the Hold/Continue/Discontinue history for a prescription (optionally one drug row)."""
+	filters = {"patient_medication_order": order}
+	if entry:
+		filters["medication_entry"] = entry
+	return frappe.get_all(
+		"Medication Status Log",
+		filters=filters,
+		fields=["name", "medication_entry", "drug", "drug_name", "action", "new_status", "reason", "owner", "creation"],
+		order_by="creation desc",
+	)
+
+
 @frappe.whitelist()
 def create_sales_order_from_medication_order(name: str):
     """Create (or return existing) Sales Order for a Patient Medication Order.

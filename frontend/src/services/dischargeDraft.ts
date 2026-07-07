@@ -86,6 +86,6 @@ export function draftSavedAt(admissionName: string): string | null {
   const draft = loadDischargeDraft(admissionName)
   if (!draft?.savedAt) return null
   try {
-    return new Date(draft.savedAt).toLocaleString()
+    return new Date(draft.savedAt).toLocaleString('en-GB')
   } catch { return draft.savedAt }
 }

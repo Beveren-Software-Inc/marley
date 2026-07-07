@@ -96,7 +96,7 @@ export const AdmissionAssessmentList = ({
   const formatDate = (row: AssessmentRecord) => {
     const value = isSuicidal ? row.assessment_date : row.creation
     if (!value) return '—'
-    return new Date(value).toLocaleDateString()
+    return new Date(value).toLocaleDateString('en-GB')
   }
 
   if (loading) {

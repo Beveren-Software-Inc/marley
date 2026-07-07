@@ -41,7 +41,7 @@ function formatSignsDateTime(doc: VitalSignDoc): string {
   }
   if (date) {
     try {
-      return new Date(date).toLocaleDateString()
+      return new Date(date).toLocaleDateString('en-GB')
     } catch {
       return date
     }

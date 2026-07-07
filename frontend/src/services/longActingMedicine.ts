@@ -164,7 +164,12 @@ export async function fetchLongActingMedicineList(
   if (data?.exc) {
     throw new Error(data?.message || 'Failed to fetch long acting medicine list')
   }
-  return Array.isArray(data?.message) ? (data.message as LongActingMedicineRow[]) : []
+  const rows = Array.isArray(data?.message) ? (data.message as LongActingMedicineRow[]) : []
+  // Show latest first — sort by start date (then next-due) descending.
+  const ts = (d?: string) => (d ? new Date(d).getTime() || 0 : 0)
+  return rows
+    .slice()
+    .sort((a, b) => (ts(b.start_date) - ts(a.start_date)) || (ts(b.next_run_date) - ts(a.next_run_date)))
 }
 
 export async function recordLongActingMedicineGiveOut(

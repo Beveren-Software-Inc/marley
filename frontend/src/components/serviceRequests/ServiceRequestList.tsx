@@ -786,7 +786,7 @@ export const ServiceRequestList = ({
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">
                   {sr.order_date
-                    ? new Date(sr.order_date).toLocaleDateString()
+                    ? new Date(sr.order_date).toLocaleDateString('en-GB')
                     : '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700 tabular-nums">

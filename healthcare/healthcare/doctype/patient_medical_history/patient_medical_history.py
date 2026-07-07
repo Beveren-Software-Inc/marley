@@ -12,6 +12,37 @@ class PatientMedicalHistory(Document):
 	def validate(self):
 		if cint(self.no_known_allergies):
 			self.allergies = ""
+		self._validate_visit_writable()
+
+	def _validate_visit_writable(self):
+		"""Past medical history can only be written for an Open or Ordered visit.
+		Completed / cancelled visits are view-only. A pure Active/Inactive status
+		change is still allowed (curation, not writing history)."""
+		if not self.get("patient_visit"):
+			return
+		# On update, allow if only the Active/Inactive status (not clinical content) changed.
+		if not self.is_new():
+			before = self.get_doc_before_save()
+			if before:
+				content_fields = (
+					"heart_disease", "diabetes", "asthma", "strokes", "other_ongoing_illness",
+					"previous_surgical_history", "current_and_past_medications", "no_known_allergies",
+					"allergies", "social_history", "addiction", "smoking", "patient_visit",
+					"inpatient_admission", "template",
+				)
+				content_changed = any(
+					(self.get(f) or "") != (before.get(f) or "") for f in content_fields
+				)
+				if not content_changed:
+					return
+		status = frappe.db.get_value("Patient Visit", self.patient_visit, "status")
+		if status and status not in ("Open", "Ordered"):
+			frappe.throw(
+				frappe._(
+					"Past medical history can only be added for an Open or Ordered visit. "
+					"Visit {0} is {1} — it is view-only."
+				).format(self.patient_visit, status)
+			)
 
 	def after_insert(self):
 		self._sync_allergy_warning()

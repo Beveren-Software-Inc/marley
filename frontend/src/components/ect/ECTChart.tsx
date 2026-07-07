@@ -153,7 +153,7 @@ export const ECTChart = ({ patient }: ECTChartProps) => {
                     <div>
                       <div className="text-sm font-semibold text-slate-900">{session.name}</div>
                       <div className="text-xs text-slate-500 mt-1">
-                        {session.date ? new Date(session.date).toLocaleDateString() : '-'}
+                        {session.date ? new Date(session.date).toLocaleDateString('en-GB') : '-'}
                         {session.time ? ` ${String(session.time).slice(0, 5)}` : ''}
                       </div>
                     </div>
@@ -240,9 +240,9 @@ export const ECTChart = ({ patient }: ECTChartProps) => {
                     <div className="text-sm font-semibold text-slate-900">{procedure.name}</div>
                     <div className="text-xs text-slate-500 mt-1">
                       {procedure.date_of_session
-                        ? new Date(procedure.date_of_session).toLocaleDateString()
+                        ? new Date(procedure.date_of_session).toLocaleDateString('en-GB')
                         : procedure.date
-                        ? new Date(procedure.date).toLocaleDateString()
+                        ? new Date(procedure.date).toLocaleDateString('en-GB')
                         : '-'}
                     </div>
                   </div>
