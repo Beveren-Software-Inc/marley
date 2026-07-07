@@ -861,12 +861,9 @@ export const AppointmentList = ({
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
-<<<<<<< ft/dev_50
   const [refreshing, setRefreshing] = useState(false)
-=======
   /** True after the first fetch completes — keeps filters/inputs mounted during later re-fetches (avoids losing cursor focus). */
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
->>>>>>> version-16
   const [error, setError] = useState<Error | null>(null)
   const appointmentsRef = useRef(appointments)
   appointmentsRef.current = appointments
@@ -1153,6 +1150,7 @@ export const AppointmentList = ({
         if (!cancelled) {
           setLoading(false)
           setRefreshing(false)
+          setHasLoadedOnce(true)
         }
       }
     }
@@ -1407,11 +1405,7 @@ export const AppointmentList = ({
       filterPractitioner
     : practitionerQuery
 
-<<<<<<< ft/dev_50
-  if (loading && appointments.length === 0) {
-=======
   if (loading && !hasLoadedOnce) {
->>>>>>> version-16
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading appointments...</div>
   }
 

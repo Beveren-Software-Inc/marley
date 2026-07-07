@@ -48,7 +48,7 @@ export const ServiceInvoicesList = ({
   invoiceRefreshKey = 0,
   onAfterInvoiceMutation,
 }: ServiceInvoicesListProps) => {
-  const { mode, activeAdmission, activeVisit, selectedPatient } = useCareContext()
+  const { mode, activeAdmission, activeVisit } = useCareContext()
   const formatCurrency = useFormatMoney()
   const [invoices, setInvoices] = useState<ServiceInvoice[]>([])
   const [summary, setSummary] = useState<InvoiceSummary | null>(null)
@@ -72,15 +72,25 @@ export const ServiceInvoicesList = ({
     }
   }, [propStatusFilter])
 
-  const effectivePatient = patient ?? selectedPatient
-  const effectiveReferenceType = mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit'
-  const effectiveReferenceName = mode === 'IP' ? (admission ?? activeAdmission) : (visit ?? activeVisit)
-  const scopedReferenceType = effectiveReferenceName ? effectiveReferenceType : undefined
-  const scopedReferenceName = effectiveReferenceName || undefined
+  const effectivePatient = (() => {
+    const trimmed = patient?.trim()
+    return trimmed || undefined
+  })()
+  const rawReferenceName =
+    mode === 'IP'
+      ? (admission?.trim() || activeAdmission)
+      : (visit?.trim() || activeVisit)
+  const scopedReferenceName = effectivePatient ? rawReferenceName || undefined : undefined
+  const scopedReferenceType = scopedReferenceName
+    ? mode === 'IP'
+      ? 'Inpatient Admission'
+      : 'Patient Visit'
+    : undefined
   const hasCaseSearch = Boolean(debouncedCaseSearch)
 
-  const loadData = async () => {
-    if (!effectivePatient && !effectiveReferenceName && !hasCaseSearch) {
+  const loadData = async (isStale?: () => boolean) => {
+    if (!effectivePatient && !scopedReferenceName && !hasCaseSearch) {
+      if (isStale?.()) return
       setInvoices([])
       setSummary(null)
       setLoading(false)
@@ -109,19 +119,26 @@ export const ServiceInvoicesList = ({
           filterByOpenShift
         ),
       ])
+      if (isStale?.()) return
       setInvoices(invoicesData)
       setSummary(summaryData)
     } catch (error) {
+      if (isStale?.()) return
       console.error('Failed to load service invoices:', error)
       toast.error('Failed to load invoices')
     } finally {
+      if (isStale?.()) return
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    void loadData()
-  }, [effectivePatient, effectiveReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, effectiveReferenceType, filterByOpenShift])
+    let cancelled = false
+    void loadData(() => cancelled)
+    return () => {
+      cancelled = true
+    }
+  }, [effectivePatient, scopedReferenceName, statusFilter, invoiceRefreshKey, fromDate, toDate, debouncedCaseSearch, hasCaseSearch, scopedReferenceType, filterByOpenShift])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -266,7 +283,7 @@ export const ServiceInvoicesList = ({
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
           <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
           <p>No invoices found</p>
-          {!effectivePatient && !effectiveReferenceName && !hasCaseSearch && (
+          {!effectivePatient && !scopedReferenceName && !hasCaseSearch && (
             <p className="text-xs mt-2">Select a patient or search by IP/OP case no or invoice ID.</p>
           )}
         </div>
