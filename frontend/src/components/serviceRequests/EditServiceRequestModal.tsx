@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   searchPatients,
   fetchPatients,
@@ -14,9 +14,20 @@ import {
 } from '../../services/common'
 import {
   fetchServiceRequest,
+  getMultiLabRequestPricing,
   updateServiceRequest,
+  type LabRequestItem,
+  type MultiLabRequestPricing,
   type UpdateServiceRequestData
 } from '../../services/serviceRequests'
+import { LabTestLineDiscountTable } from './LabTestLineDiscountTable'
+import {
+  defaultLineDiscount,
+  extractLineDiscountsFromBasket,
+  mergeDiscountsIntoBasket,
+  parseLabRequestItems,
+  type LabLineDiscount,
+} from '../../utils/labTestDiscounts'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -108,6 +119,22 @@ export const EditServiceRequestModal = ({
   const [pricing, setPricing] = useState<PricingRow[]>([])
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
   const [patientCategory, setPatientCategory] = useState('')
+  const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
+  const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
+  const [basketPricing, setBasketPricing] = useState<MultiLabRequestPricing>({ lines: [], subtotal: 0 })
+
+  const hasMultiLabItems = labBasket.length > 0
+  const basketWithDiscounts = useMemo(
+    () => mergeDiscountsIntoBasket(labBasket, lineDiscounts),
+    [labBasket, lineDiscounts]
+  )
+
+  const handleLineDiscountChange = (template: string, patch: Partial<LabLineDiscount>) => {
+    setLineDiscounts((prev) => ({
+      ...prev,
+      [template]: { ...(prev[template] || defaultLineDiscount()), ...patch },
+    }))
+  }
 
   const [formData, setFormData] = useState(defaultFormData)
   const [readOnly, setReadOnly] = useState<Record<string, unknown>>({})
@@ -180,6 +207,10 @@ export const EditServiceRequestModal = ({
 
         setSelectedPrice((doc.cost as number) ?? null)
 
+        const parsedLabItems = parseLabRequestItems(doc.lab_request_items)
+        setLabBasket(parsedLabItems)
+        setLineDiscounts(extractLineDiscountsFromBasket(parsedLabItems))
+
         // Load patient category for pricing highlight
         const patientId = (doc.patient as string) || ''
         if (patientId) {
@@ -218,6 +249,17 @@ export const EditServiceRequestModal = ({
     }
     load()
   }, [serviceRequestName])
+
+  useEffect(() => {
+    if (!hasMultiLabItems || !selectedPatient) {
+      setBasketPricing({ lines: [], subtotal: 0 })
+      return
+    }
+    const careType = formData.patient_visit ? 'OP' : formData.inpatient_record ? 'IP' : undefined
+    getMultiLabRequestPricing(basketWithDiscounts, selectedPatient.name, careType)
+      .then(setBasketPricing)
+      .catch(() => setBasketPricing({ lines: [], subtotal: 0 }))
+  }, [hasMultiLabItems, selectedPatient, basketWithDiscounts, formData.patient_visit, formData.inpatient_record])
 
   /* ────────────── TEMPLATE CHANGE ────────────── */
 
@@ -297,13 +339,15 @@ export const EditServiceRequestModal = ({
   /* ────────────── RECALCULATE GRAND TOTAL ────────────── */
 
   useEffect(() => {
+    if (hasMultiLabItems) return
     if (selectedPrice === null) {
       setFormData(prev => ({ ...prev, grand_total: 0, discount_amount: 0 }))
       return
     }
 
     let total = selectedPrice
-    const isPercentage = formData.discount_value !== 'Fixed Amount'
+    const isPercentage =
+      formData.discount_value !== 'Fixed Amount' && formData.discount_value !== 'Amount'
 
     if (isPercentage && formData.discount > 0) {
       const discAmt = (total * formData.discount) / 100
@@ -316,7 +360,17 @@ export const EditServiceRequestModal = ({
     }
 
     setFormData(prev => ({ ...prev, grand_total: Math.max(0, total) }))
-  }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount])
+  }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount, hasMultiLabItems])
+
+  useEffect(() => {
+    if (!hasMultiLabItems) return
+    setFormData((prev) => ({
+      ...prev,
+      cost: basketPricing.subtotal,
+      discount_amount: basketPricing.discount_amount || 0,
+      grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
+    }))
+  }, [hasMultiLabItems, basketPricing])
 
   /* ────────────── SUBMIT ────────────── */
 
@@ -375,6 +429,14 @@ export const EditServiceRequestModal = ({
         discount: formData.discount,
         discount_amount: formData.discount_amount,
         grand_total: formData.grand_total
+      }
+
+      if (hasMultiLabItems) {
+        payload.lab_request_items = basketWithDiscounts
+        payload.cost = basketPricing.subtotal
+        payload.discount_amount = basketPricing.discount_amount || 0
+        payload.grand_total = basketPricing.grand_total ?? basketPricing.subtotal
+        payload.discount = 0
       }
       
       await updateServiceRequest(serviceRequestName, payload)
@@ -848,7 +910,27 @@ export const EditServiceRequestModal = ({
                 )}
 
                 {/* DISCOUNT SECTION */}
-                {selectedPrice !== null && (
+                {hasMultiLabItems && basketPricing.lines.length > 0 ? (
+                  <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
+                    <label className="block text-sm font-semibold text-slate-900 mb-1">
+                      Per-test discounts
+                    </label>
+                    <p className="text-xs text-slate-500 mb-4">
+                      Set percentage or fixed amount discount on each lab test separately.
+                    </p>
+                    <LabTestLineDiscountTable
+                      lines={basketPricing.lines}
+                      lineDiscounts={lineDiscounts}
+                      onChange={handleLineDiscountChange}
+                    />
+                    <div className="mt-4 bg-white rounded-md border border-slate-200 p-3 flex items-center justify-between">
+                      <span className="text-sm font-semibold text-slate-900">Grand Total</span>
+                      <span className="text-lg font-bold text-primary">
+                        {(basketPricing.grand_total ?? basketPricing.subtotal).toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+                ) : selectedPrice !== null && (
                   <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                     <label className="block text-sm font-semibold text-slate-900 mb-1">
                       Discount Management
@@ -866,22 +948,29 @@ export const EditServiceRequestModal = ({
                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white"
                         >
                           <option value="Percentage">Percentage (%)</option>
-                          <option value="Fixed Amount">Fixed Amount</option>
+                          <option value="Amount">Fixed Amount</option>
+                          <option value="Fixed Amount">Fixed Amount (legacy)</option>
                         </select>
                       </div>
 
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-2">
-                          {formData.discount_value === 'Fixed Amount' ? 'Discount Amount' : 'Discount (%)'}
+                          {formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
+                            ? 'Discount Amount'
+                            : 'Discount (%)'}
                         </label>
                         <input
                           type="number"
                           min="0"
                           step="any"
-                          value={formData.discount_value === 'Fixed Amount' ? formData.discount_amount : formData.discount}
+                          value={
+                            formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
+                              ? formData.discount_amount
+                              : formData.discount
+                          }
                           onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0
-                            if (formData.discount_value === 'Fixed Amount') {
+                            if (formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount') {
                               set('discount_amount', val)
                             } else {
                               set('discount', val)

@@ -201,6 +201,7 @@ def get_lab_test_template_info(template):
 def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 	"""Return pricing breakdown for a multi-line lab basket."""
 	from healthcare.healthcare.lab_request_items import (
+		apply_discounts_to_specs,
 		expand_lab_test_specs,
 		lab_request_items_summary,
 	)
@@ -217,11 +218,18 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 		return {"lines": [], "subtotal": 0, "summary": ""}
 
 	specs = expand_lab_test_specs(items, patient, patient_care_type=patient_care_type)
+	specs = apply_discounts_to_specs(specs, items)
 	lines = []
 	subtotal = 0.0
+	grand_total = 0.0
+	discount_amount = 0.0
 	for spec in specs:
 		amount = float(spec.get("amount") or 0)
+		net = float(spec.get("net_amount") if spec.get("net_amount") is not None else amount)
+		applied = float(spec.get("discount_applied") or max(0, amount - net))
 		subtotal += amount
+		grand_total += net
+		discount_amount += applied
 		tpl = spec.get("template")
 		lines.append(
 			{
@@ -229,11 +237,18 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 				"lab_test_name": frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl,
 				"parent_group": spec.get("parent_group"),
 				"amount": amount,
+				"discount_type": spec.get("discount_type") or "Percentage",
+				"discount_rate": float(spec.get("discount_rate") or 0),
+				"discount": float(spec.get("discount") or 0),
+				"discount_applied": applied,
+				"net_amount": net,
 			}
 		)
 	return {
 		"lines": lines,
 		"subtotal": subtotal,
+		"grand_total": grand_total,
+		"discount_amount": discount_amount,
 		"summary": lab_request_items_summary(items),
 	}
 
@@ -588,8 +603,10 @@ def create_service_request(data):
 		frappe.throw(_("Template Type is required"))
 	
 	from healthcare.healthcare.lab_request_items import (
+		apply_discounts_to_specs,
 		expand_lab_test_specs,
 		primary_template_dn_for_items,
+		totals_from_specs,
 	)
 
 	lab_request_items = data.get("lab_request_items")
@@ -603,13 +620,21 @@ def create_service_request(data):
 
 	if lab_request_items and data.get("template_dt") == "Lab Test Template":
 		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
+		patient_care_type = (
+			"OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None
+		)
 		specs = expand_lab_test_specs(
 			lab_request_items,
 			data.get("patient"),
-			patient_care_type="OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None,
+			patient_care_type=patient_care_type,
 		)
-		if specs and not data.get("cost"):
-			data["cost"] = sum(float(s.get("amount") or 0) for s in specs)
+		specs = apply_discounts_to_specs(specs, lab_request_items)
+		totals = totals_from_specs(specs)
+		data["cost"] = totals["cost"]
+		data["grand_total"] = totals["grand_total"]
+		data["discount_amount"] = totals["discount_amount"]
+		data["discount"] = 0
+		data["discount_margin"] = ""
 
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
@@ -680,9 +705,9 @@ def create_service_request(data):
 		'occurrence_date': data.get('occurrence_date'),
 		'occurrence_time': data.get('occurrence_time'),
 		'naming_series': naming_series,
-		# Discount fields
+		# Discount fields (header discount for non-basket requests; basket uses per-test discounts in JSON)
 		'discount': frappe.utils.flt(data.get('discount') or 0),
-		'discount_value': data.get('discount_value') or '',
+		'discount_margin': data.get('discount_margin') or data.get('discount_value') or '',
 		'discount_amount': frappe.utils.flt(data.get('discount_amount') or 0),
 		'grand_total': frappe.utils.flt(data.get('grand_total') or data.get('cost') or 0),
 		'selected_group_templates': frappe.as_json(selected_group_templates),
@@ -765,6 +790,7 @@ def update_service_request(name, data):
 	# Exclude set_only_once fields: practitioner, referring_practitioner, source (cannot be changed after set).
 	allowed = {
 		"patient", "patient_visit", "inpatient_record", "template_dt", "template_dn",
+		"lab_request_items",
 		"order_date", "order_time", "medical_department", "department",
 		"status", "priority", "intent", "quantity", "occurrence_date", "occurrence_time",
 		"order_group", "order_description", "patient_instructions", "expected_date",
@@ -772,13 +798,41 @@ def update_service_request(name, data):
 		"staff_role", "patient_care_type", "healthcare_service_unit_type", "as_needed",
 		"dosage_form", "dosage", "period", "cost_center",
 		# Discount fields
-		"discount", "discount_value", "discount_amount", "grand_total",
+		"discount", "discount_margin", "discount_value", "discount_amount", "grand_total",
 	}
 	for key, value in data.items():
 		if key == "department":
 			doc.medical_department = value
+		elif key == "discount_value" and hasattr(doc, "discount_margin"):
+			doc.discount_margin = value
+		elif key == "lab_request_items":
+			if isinstance(value, list):
+				doc.lab_request_items = frappe.as_json(value) if value else None
+			else:
+				doc.lab_request_items = value
 		elif key in allowed and hasattr(doc, key):
 			doc.set(key, value)
+
+	if doc.template_dt == "Lab Test Template" and doc.lab_request_items and doc.patient:
+		from healthcare.healthcare.lab_request_items import (
+			apply_discounts_to_specs,
+			expand_lab_test_specs,
+			parse_lab_request_items,
+			totals_from_specs,
+		)
+
+		request_items = parse_lab_request_items(doc)
+		patient_care_type = (
+			"OP" if doc.patient_visit else "IP" if doc.inpatient_record else None
+		)
+		specs = expand_lab_test_specs(request_items, doc.patient, patient_care_type=patient_care_type)
+		specs = apply_discounts_to_specs(specs, request_items)
+		totals = totals_from_specs(specs)
+		doc.cost = totals["cost"]
+		doc.grand_total = totals["grand_total"]
+		doc.discount_amount = totals["discount_amount"]
+		if request_items:
+			doc.discount = 0
 	doc.save()
 	return {"name": doc.name, "status": doc.status}
 

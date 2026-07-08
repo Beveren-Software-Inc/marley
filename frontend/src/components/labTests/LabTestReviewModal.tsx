@@ -18,6 +18,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { LabTestReviewFormBody } from './LabTestReviewFormBody'
+import { LabTestRejectionReasonModal } from './LabTestRejectionReasonModal'
 import {
   bucketLabTestsForBulkReview,
   labTestResultPreview,
@@ -77,6 +78,7 @@ export const LabTestReviewModal = ({
   const [labTest, setLabTest] = useState<LabTest | null>(null)
   const [options, setOptions] = useState<Awaited<ReturnType<typeof fetchDoctorReviewFormOptions>> | null>(null)
   const [formValues, setFormValues] = useState<ReviewFormValues>(defaultFormValues)
+  const [rejectionModalOpen, setRejectionModalOpen] = useState(false)
 
   const buckets = useMemo(
     () => (bulkTests ? bucketLabTestsForBulkReview(bulkTests) : null),
@@ -152,9 +154,13 @@ export const LabTestReviewModal = ({
     })
   }
 
-  const saveSingleReview = async (outcome: 'Reviewed' | 'Rejected') => {
+  const saveSingleReview = async (
+    outcome: 'Reviewed' | 'Rejected',
+    valuesOverride?: ReviewFormValues
+  ) => {
     if (!labTestName) return
-    const validationError = validateReviewForm(formValues, outcome)
+    const activeValues = valuesOverride ?? formValues
+    const validationError = validateReviewForm(activeValues, outcome)
     if (validationError) {
       setError(validationError)
       return
@@ -163,7 +169,7 @@ export const LabTestReviewModal = ({
     setSubmitting(true)
     setError(null)
     try {
-      await submitDoctorLabTestReview(reviewFormToPayload(labTestName, formValues, outcome))
+      await submitDoctorLabTestReview(reviewFormToPayload(labTestName, activeValues, outcome))
       toast.success(outcome === 'Reviewed' ? 'Lab test reviewed' : 'Lab test rejected')
       onSuccess()
       onClose()
@@ -176,9 +182,13 @@ export const LabTestReviewModal = ({
     }
   }
 
-  const saveBulkReview = async (outcome: 'Reviewed' | 'Rejected') => {
+  const saveBulkReview = async (
+    outcome: 'Reviewed' | 'Rejected',
+    valuesOverride?: ReviewFormValues
+  ) => {
     if (!buckets) return
-    const validationError = validateReviewForm(formValues, outcome)
+    const activeValues = valuesOverride ?? formValues
+    const validationError = validateReviewForm(activeValues, outcome)
     if (validationError) {
       setError(validationError)
       return
@@ -198,7 +208,7 @@ export const LabTestReviewModal = ({
       for (const test of buckets.toReview) {
         const label = test.lab_test_name || test.template || test.name
         try {
-          await submitDoctorLabTestReview(reviewFormToPayload(test.name, formValues, outcome))
+          await submitDoctorLabTestReview(reviewFormToPayload(test.name, activeValues, outcome))
           reviewed.push(label)
         } catch (err) {
           failed.push({
@@ -242,6 +252,27 @@ export const LabTestReviewModal = ({
     setError(null)
     setStep(2)
   }
+
+  const requestRejection = () => {
+    if (!formValues.resultIndicator) {
+      setError('Please select a result indicator before rejecting.')
+      return
+    }
+    setError(null)
+    setRejectionModalOpen(true)
+  }
+
+  const confirmRejection = (reason: string) => {
+    const nextValues = { ...formValues, comments: reason }
+    setFormValues(nextValues)
+    setRejectionModalOpen(false)
+    if (isBulk) void saveBulkReview('Rejected', nextValues)
+    else void saveSingleReview('Rejected', nextValues)
+  }
+
+  const rejectionTestLabel = isBulk
+    ? `${groupLabel || 'Group review'}${buckets?.toReview.length ? ` · ${buckets.toReview.length} test${buckets.toReview.length !== 1 ? 's' : ''}` : ''}`
+    : labTest?.lab_test_name || labTestName
 
   const formatDt = (d?: string) => (d ? new Date(d).toLocaleString('en-GB') : '—')
 
@@ -376,6 +407,7 @@ export const LabTestReviewModal = ({
               e.preventDefault()
               if (isBulk && step === 1) goToConfirmStep()
               else if (isBulk) void saveBulkReview(initialOutcome)
+              else if (initialOutcome === 'Rejected') requestRejection()
               else void saveSingleReview(initialOutcome)
             }}
             className="flex min-h-0 flex-1 flex-col"
@@ -439,9 +471,7 @@ export const LabTestReviewModal = ({
                   <button
                     type="button"
                     disabled={submitting}
-                    onClick={() =>
-                      void (isBulk ? saveBulkReview('Rejected') : saveSingleReview('Rejected'))
-                    }
+                    onClick={requestRejection}
                     className="rounded-lg border border-red-200/80 bg-white px-4 py-2.5 text-sm font-medium text-red-700 shadow-sm transition hover:bg-red-50 disabled:opacity-50"
                   >
                     Reject
@@ -461,6 +491,17 @@ export const LabTestReviewModal = ({
           </form>
         )}
       </div>
+
+      <LabTestRejectionReasonModal
+        open={rejectionModalOpen}
+        loading={submitting}
+        testLabel={rejectionTestLabel}
+        initialReason={formValues.comments}
+        onClose={() => {
+          if (!submitting) setRejectionModalOpen(false)
+        }}
+        onConfirm={confirmRejection}
+      />
     </div>
   )
 }

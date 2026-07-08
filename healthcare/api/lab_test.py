@@ -450,6 +450,60 @@ def _build_template_match_or_filters(template):
 	]
 
 
+def _resolve_lab_test_names_for_template_filter(template, base_filters):
+	"""Lab Test document names matching template picker (direct, group parent/child, legacy lines)."""
+	template = (template or "").strip()
+	if not template:
+		return None
+
+	match_filters = {k: v for k, v in base_filters.items() if k != "name"}
+	names = set()
+
+	or_conditions = _build_template_match_or_filters(template)
+	if or_conditions:
+		names.update(
+			frappe.get_all(
+				"Lab Test",
+				filters=match_filters,
+				or_filters=or_conditions,
+				pluck="name",
+				limit=0,
+			)
+		)
+
+	# Legacy import rows store the child template on Lab Test Line.lab_sub_num
+	line_parents = frappe.get_all(
+		"Lab Test Line",
+		filters={"lab_sub_num": template, "parenttype": "Lab Test"},
+		pluck="parent",
+		limit=0,
+	)
+	if line_parents:
+		parent_ids = list({p for p in line_parents if p})
+		if parent_ids:
+			legacy_filters = dict(match_filters)
+			legacy_filters["name"] = ["in", parent_ids]
+			names.update(
+				frappe.get_all("Lab Test", filters=legacy_filters, pluck="name", limit=0)
+			)
+
+	# Match display name on Lab Test when template link differs from visible test name
+	if frappe.db.exists("Lab Test Template", template):
+		label = (frappe.db.get_value("Lab Test Template", template, "lab_test_name") or "").strip()
+		if label:
+			names.update(
+				frappe.get_all(
+					"Lab Test",
+					filters=match_filters,
+					or_filters=[["lab_test_name", "=", label]],
+					pluck="name",
+					limit=0,
+				)
+			)
+
+	return list(names)
+
+
 def _apply_lab_test_template_list_filter(filters, template, nurse_templates=None):
 	"""Apply template filter. Returns (or_filters, is_empty)."""
 	if not template:
@@ -493,6 +547,7 @@ def get_lab_test_template_filter_options(search=None, patient=None, by_nurse=Non
 			"name": row.name,
 			"label": row.lab_test_name or row.name,
 			"lab_test_code": getattr(row, "lab_test_code", None),
+			"is_group": cint(getattr(row, "is_group", 0) or 0),
 		}
 		for row in rows
 	]
@@ -565,6 +620,13 @@ def get_lab_tests(
 	)
 	if template_empty:
 		return {"data": [], "total_count": 0}
+
+	if template:
+		matched_names = _resolve_lab_test_names_for_template_filter(template, filters)
+		if not matched_names:
+			return {"data": [], "total_count": 0}
+		filters["name"] = ["in", matched_names]
+		or_filters = []
 
 	# OP / IP filter based on inpatient_record link (legacy; prefer practitioner filter in portal)
 	if patient_type == "IP":
@@ -1061,24 +1123,34 @@ def get_lab_test_history_matrix(
 			filtered.append(lt)
 		lab_tests = filtered
 
-	columns = []
+	columns_by_date: dict[str, dict] = {}
 	rows_map = {}
 	template_cache: dict[str, dict] = {}
 	template_info_cache: dict[str, dict] = {}
 
 	for lt in lab_tests:
-		col_key = lt.name
 		eff_date = _effective_date(lt)
-		columns.append(
-			{
+		if not eff_date:
+			continue
+		col_key = str(eff_date)
+		if col_key not in columns_by_date:
+			columns_by_date[col_key] = {
 				"key": col_key,
-				"date": str(eff_date) if eff_date else "",
+				"date": col_key,
 				"time": _format_time(lt.time),
 				"lab_test": lt.name,
 				"lab_test_name": lt.lab_test_name or lt.template or lt.name,
 				"status": lt.status,
 			}
-		)
+		else:
+			# Same calendar day — keep one column; prefer latest time for header hint.
+			col = columns_by_date[col_key]
+			lt_time = _format_time(lt.time)
+			if lt_time:
+				col["time"] = lt_time
+			col["lab_test"] = lt.name
+			col["lab_test_name"] = lt.lab_test_name or lt.template or lt.name
+			col["status"] = lt.status
 
 		items = frappe.get_all(
 			"Normal Test Result",
@@ -1182,6 +1254,7 @@ def get_lab_test_history_matrix(
 				rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 
 	rows = sorted(rows_map.values(), key=lambda r: r["label"].lower())
+	columns = sorted(columns_by_date.values(), key=lambda c: c["date"])
 
 	return {
 		"columns": columns,
@@ -2254,6 +2327,9 @@ def get_sample_collection_for_lab_sample(lab_test_name: str, row_index: int):
 			sample_doc.referring_practitioner,
 			"practitioner_name",
 		)
+	collected_by_name = None
+	if sample_doc.collected_by:
+		collected_by_name = frappe.db.get_value("User", sample_doc.collected_by, "full_name")
 
 	return {
 		"sample_collection": sample_doc.name,
@@ -2263,6 +2339,8 @@ def get_sample_collection_for_lab_sample(lab_test_name: str, row_index: int):
 			sample_doc.sample_details or getattr(row, "sample_details", None)
 		),
 		"collection_point": sample_doc.collection_point,
+		"collected_by": sample_doc.collected_by,
+		"collected_by_name": collected_by_name,
 		"referring_practitioner": sample_doc.referring_practitioner,
 		"referring_practitioner_name": referring_practitioner_name,
 		"observation_rows": _serialize_observation_sample_rows(sample_doc),
@@ -2277,6 +2355,7 @@ def update_sample_collection_for_lab_sample(
 	sample_details: str | None = None,
 	collection_point: str | None = None,
 	referring_practitioner: str | None = None,
+	collected_by: str | None = None,
 	observation_rows: str | list | None = None,
 	sample_qty: float | int | str | None = None,
 ):
@@ -2330,6 +2409,11 @@ def update_sample_collection_for_lab_sample(
 	if collection_point is not None:
 		sample_doc.collection_point = collection_point
 
+	if collected_by is not None:
+		sample_doc.collected_by = collected_by or None
+		if collected_by:
+			sample_doc.collected_time = frappe.utils.now_datetime()
+
 	if referring_practitioner is not None:
 		sample_doc.referring_practitioner = referring_practitioner or None
 
@@ -2356,6 +2440,7 @@ def create_sample_collection_for_lab_sample(
 	sample_details: str | None = None,
 	collection_point: str | None = None,
 	referring_practitioner: str | None = None,
+	collected_by: str | None = None,
 	observation_rows: str | list | None = None,
 	sample_qty: float | int | str | None = None,
 ):
@@ -2430,6 +2515,9 @@ def create_sample_collection_for_lab_sample(
 		sample_doc.company = doc.company
 	if collection_point:
 		sample_doc.collection_point = collection_point
+	if collected_by:
+		sample_doc.collected_by = collected_by
+		sample_doc.collected_time = frappe.utils.now_datetime()
 	if referring_practitioner:
 		sample_doc.referring_practitioner = referring_practitioner
 
