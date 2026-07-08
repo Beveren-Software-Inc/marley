@@ -57,7 +57,7 @@
 //       {open && (
 //         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
 //           {options.length === 0
-//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
 //             : options.map(opt => (
 //               <button key={opt.name} type="button"
 //                 onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}
@@ -401,7 +401,7 @@
 //                 {rows.length === 0 ? (
 //                   <div className="flex flex-col items-center justify-center py-14 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
 //                     <BookOpen className="w-8 h-8 text-slate-300 mb-2" />
-//                     <p className="text-sm text-slate-500 mb-1">No history items yet</p>
+//                     <p className="text-sm text-slate-500 mb-1">NO HISTORY ITEMS YET</p>
 //                     <p className="text-xs text-slate-400 mb-4">Choose a template on the General tab or add items manually</p>
 //                     <button type="button" onClick={addRow}
 //                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">
@@ -604,7 +604,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && !disabled && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
           {options.length === 0
-            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button"
                 onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}
@@ -1061,7 +1061,7 @@ export const PatientHistoryModal = ({
                 {rows.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-14 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
                     <BookOpen className="w-8 h-8 text-slate-300 mb-2" />
-                    <p className="text-sm text-slate-500 mb-1">No history items yet</p>
+                    <p className="text-sm text-slate-500 mb-1">NO HISTORY ITEMS YET</p>
                     <p className="text-xs text-slate-400 mb-4">Choose a template on the General tab or add items manually</p>
                     <button type="button" onClick={addRow}
                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">

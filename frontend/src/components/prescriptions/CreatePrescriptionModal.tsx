@@ -271,7 +271,7 @@ const Combobox = ({
                   + Use "{customValue}"
                 </button>
               ) : (
-                'No results found'
+                'NO RESULTS FOUND'
               )}
             </div>
           )}
@@ -412,7 +412,8 @@ export const CreatePrescriptionModal = ({
 
   const applyDrugSelection = async (index: number, opt: LinkFieldOption) => {
     const route = opt.default_route_of_administration?.trim()
-    const stockUom = (opt.stock_uom || '').trim()
+    // UOM defaults to UNITS on every prescription line (editable if it differs).
+    const stockUom = 'UNITS'
     setMedications((prev) => {
       const next = [...prev]
       if (!next[index]) return prev
@@ -507,7 +508,8 @@ export const CreatePrescriptionModal = ({
           dosage_form: med.dosage_form || '',
           instructions: med.instructions || '',
           date: med.date || formData.start_date,
-          end_date: med.end_date || addDays(formData.start_date, 1),
+          // Long-acting meds may legitimately have no end date — don't force a default for them.
+          end_date: med.end_date || (isLongActingPrescriptionType(String(med.medication_type)) ? '' : addDays(formData.start_date, 1)),
           time: med.time || '',
           patient_frequency: med.patient_frequency || '',
           is_pink: med.is_pink || false,
@@ -730,7 +732,9 @@ export const CreatePrescriptionModal = ({
       }
 
       const isIP = mode === 'IP'
-      if (!isIP && (field === 'date' || field === 'end_date' || field === 'no_of_days')) {
+      // Long-acting medicines may have an empty end date — don't auto-compute it for them.
+      const rowIsLongActing = row.is_long_acting || isLongActingPrescriptionType(String(row.medication_type))
+      if (!isIP && !rowIsLongActing && (field === 'date' || field === 'end_date' || field === 'no_of_days')) {
         const start = row.date || ''
         const end = (field === 'end_date' ? value : row.end_date) as string
         const days = (field === 'no_of_days' ? value : row.no_of_days) as number
@@ -780,6 +784,13 @@ export const CreatePrescriptionModal = ({
     if (!selectedPatient) { setError('Please select a patient'); setActiveTab('details'); return }
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
     if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }
+    // A prescription can only be created against the current visit / admission.
+    if (formData.care_context === 'Patient Visit' && !formData.patient_encounter) {
+      setError('A prescription can only be created for the current patient visit.'); setActiveTab('details'); return
+    }
+    if (formData.care_context === 'Inpatient Admission' && !formData.inpatient_record) {
+      setError('A prescription can only be created for the current admission.'); setActiveTab('details'); return
+    }
     if (validMedications.length === 0) {
       setError('Please add at least one medication with Drug, Dosage, Dosage Form, and Date')
       setActiveTab('medications'); return
@@ -1033,30 +1044,34 @@ export const CreatePrescriptionModal = ({
                   {formData.care_context === 'Patient Visit' ? (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Patient Visit
+                        Patient Visit <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={formData.patient_encounter}
                         onChange={(e) => setFormData((p) => ({ ...p, patient_encounter: e.target.value }))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                        disabled={!!activeVisit}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:cursor-not-allowed"
                       >
                         <option value="">Select visit...</option>
                         {visits.map((v) => <option key={v.name} value={v.name}>{v.label || v.name}</option>)}
                       </select>
+                      {activeVisit && <p className="text-xs text-slate-400 mt-1">Locked to the current visit</p>}
                     </div>
                   ) : (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Inpatient Admission
+                        Inpatient Admission <span className="text-red-500">*</span>
                       </label>
                       <select
                         value={formData.inpatient_record}
                         onChange={(e) => setFormData((p) => ({ ...p, inpatient_record: e.target.value }))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                        disabled={!!activeAdmission}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:cursor-not-allowed"
                       >
                         <option value="">Select admission...</option>
                         {admissions.map((a) => <option key={a.name} value={a.name}>{a.label || a.name}</option>)}
                       </select>
+                      {activeAdmission && <p className="text-xs text-slate-400 mt-1">Locked to the current admission</p>}
                     </div>
                   )}
                 </div>
@@ -1091,11 +1106,11 @@ export const CreatePrescriptionModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                     <Combobox
                       value={formData.practitioner}
                       displayValue={practitionerDisplay}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       options={practitioners}
                       onQueryChange={(q) => {
                         setPractQuery(q)
@@ -1552,7 +1567,7 @@ export const CreatePrescriptionModal = ({
                   {medications.length === 0 && (
                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
                       <Pill className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No medications added yet</p>
+                      <p className="text-sm">NO MEDICATIONS ADDED YET</p>
                       <button
                         type="button"
                         onClick={addMedicationRow}

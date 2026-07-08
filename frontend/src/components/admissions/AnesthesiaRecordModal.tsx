@@ -284,7 +284,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && !disabled && (
         <div className={linkComboboxDropdownClass}>
           {options.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
           ) : (
             options.map(opt => (
               <button
@@ -584,7 +584,7 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
               setAnesthetistLabel('')
             }}
             fetchOptions={fetchPractitioners}
-            placeholder="Search practitioners..."
+            placeholder="Search doctors..."
           />
           <Field label="Anesthetist Full Name">
             <input
@@ -611,7 +611,7 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
               setPsychiatristLabel('')
             }}
             fetchOptions={fetchPractitioners}
-            placeholder="Search practitioners..."
+            placeholder="Search doctors..."
           />
           <Field label="Psychiatrist / Assistant Name">
             <input

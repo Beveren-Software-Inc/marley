@@ -222,6 +222,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 			for r in records:
 				r["file_no"] = _file_map.get(r.get("patient"))
 
+	from healthcare.api.common import fill_missing_patient_names
+	fill_missing_patient_names(records)
 	return {"data": records, "total_count": total_count}
 
 

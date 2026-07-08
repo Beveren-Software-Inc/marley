@@ -184,7 +184,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                     setPractOpen(true)
                   }}
                   onFocus={() => setPractOpen(true)}
-                  placeholder="Search Healthcare Practitioner..."
+                  placeholder="Search doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button
@@ -219,7 +219,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                 )}
                 {practOpen && practitioners.length === 0 && practQuery && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg top-full">
-                    <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                   </div>
                 )}
               </div>

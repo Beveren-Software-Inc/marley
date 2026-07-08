@@ -158,7 +158,7 @@ const Combobox = ({
               </button>
             ))
           ) : (
-            <div className="px-3 py-2 text-xs text-slate-500">No results found</div>
+            <div className="px-3 py-2 text-xs text-slate-500">NO RESULTS FOUND</div>
           )}
         </div>
       )}
@@ -592,7 +592,7 @@ export const CreateMedicineGivenModal = ({
       return
     }
     if (!admission) {
-      toast.error('No active admission found')
+      toast.error('NO ACTIVE ADMISSION FOUND')
       return
     }
     if (!isEdit) {
@@ -971,7 +971,7 @@ export const CreateMedicineGivenModal = ({
                     </select>
                   ) : stockOptions.requires_dispensing_lot ? (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                      No batches in stock. Select batch after stock is available.
+                      NO BATCHES IN STOCK. SELECT BATCH AFTER STOCK IS AVAILABLE.
                     </div>
                   ) : (
                     <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">

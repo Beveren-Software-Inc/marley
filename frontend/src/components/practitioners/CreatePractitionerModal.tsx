@@ -470,7 +470,7 @@ export const CreatePractitionerModal = ({ onClose, onSuccess }: CreatePractition
 
               {scheduleRows.length === 0 ? (
                 <div className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center">
-                  <p className="text-sm text-slate-500 mb-3">No schedules added yet</p>
+                  <p className="text-sm text-slate-500 mb-3">NO SCHEDULES ADDED YET</p>
                   <button
                     type="button"
                     onClick={addScheduleRow}

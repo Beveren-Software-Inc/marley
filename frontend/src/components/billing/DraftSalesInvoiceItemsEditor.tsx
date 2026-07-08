@@ -324,7 +324,7 @@ function DraftInvoiceItemSearch({
                   </button>
                 ))
               ) : (
-                <div className="px-3 py-2 text-xs text-slate-500">No items found.</div>
+                <div className="px-3 py-2 text-xs text-slate-500">NO ITEMS FOUND.</div>
               )}
             </div>,
             document.body,

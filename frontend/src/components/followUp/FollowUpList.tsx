@@ -7,6 +7,7 @@ import {
   sendFollowUpRemindersBulk,
   sendFollowUpRemindersSelected,
   updateFollowUpStatus,
+  updateFollowUpRemarks,
   getCostCenters,
   type PatientFollowUpRow,
   type FollowUpCandidateRow,
@@ -20,6 +21,7 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -87,6 +89,20 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [sendingBulk, setSendingBulk] = useState(false)
   const [bulkMenuMode, setBulkMenuMode] = useState<'selected' | 'all' | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  // Inline remark editing (reception follow-up dashboard)
+  const [editingRemark, setEditingRemark] = useState<string | null>(null)
+  const [remarkDraft, setRemarkDraft] = useState('')
+  const saveRemark = async (name: string) => {
+    const value = remarkDraft.trim()
+    setEditingRemark(null)
+    try {
+      await updateFollowUpRemarks(name, value)
+      setNormalList((prev) => prev.map((r) => (r.name === name ? { ...r, remarks: value } : r)))
+      toast.success('Remark saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save remark')
+    }
+  }
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -461,7 +477,23 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
+            <DateFilterInput
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
+            <DateFilterInput
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
           <div className="flex flex-col gap-1 min-w-[180px] flex-1">
             <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Search</label>
             <input
@@ -493,29 +525,11 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
               onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All</option>
+              <option value="">Select All</option>
               {costCenterOptions.map((cc) => (
                 <option key={cc.name} value={cc.name}>{cc.name}</option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            />
           </div>
           <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
           <div className="flex flex-wrap gap-2 ml-auto">
@@ -566,7 +580,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           <div className="p-8 text-center text-slate-500">
             {isNormal
               ? 'No follow-up records match the filters. Try “All statuses” or check the OP/IP tabs.'
-              : 'No patients with follow-up enabled match the filters.'}
+              : 'NO PATIENTS WITH FOLLOW-UP ENABLED MATCH THE FILTERS.'}
           </div>
         ) : (
           <div className="overflow-x-auto overflow-y-visible flex-1">
@@ -639,8 +653,34 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                             </span>
                           </td>
                           <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
-                          <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.remarks || ''}>
-                            {remarksPreview(row.remarks)}
+                          <td className="px-4 py-2 text-slate-600 max-w-[220px]" title={row.remarks || ''}>
+                            {editingRemark === row.name ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={remarkDraft}
+                                onChange={(e) => setRemarkDraft(e.target.value)}
+                                onBlur={() => void saveRemark(row.name)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void saveRemark(row.name)
+                                  if (e.key === 'Escape') setEditingRemark(null)
+                                }}
+                                className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className="block w-full truncate text-left hover:text-primary"
+                                title="Click to edit remark"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingRemark(row.name)
+                                  setRemarkDraft(row.remarks || '')
+                                }}
+                              >
+                                {remarksPreview(row.remarks) || <span className="text-slate-400">Add remark…</span>}
+                              </button>
+                            )}
                           </td>
                           <td className="px-4 py-2 text-right">
                             <div

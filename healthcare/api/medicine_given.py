@@ -516,10 +516,14 @@ def _apply_medicine_given_batch_lot(
 
 
 @frappe.whitelist()
-def get_medicine_given_stock_options(admission: str, item_code: str, warehouse: str | None = None) -> dict:
-	"""Return warehouse, batch list, and whether lots (serials) apply for given medicine."""
-	if not admission:
-		frappe.throw(_("Admission is required"))
+def get_medicine_given_stock_options(admission: str = None, item_code: str = None, warehouse: str | None = None) -> dict:
+	"""Return warehouse, batch list, and whether lots (serials) apply for given medicine.
+
+	Admission resolves the warehouse when none is given; an explicit warehouse
+	(e.g. OP pharmacy give-out) works without an admission.
+	"""
+	if not admission and not warehouse:
+		frappe.throw(_("Admission or warehouse is required"))
 	if not item_code:
 		frappe.throw(_("Item code is required"))
 
@@ -555,8 +559,11 @@ def get_medicine_given_dispensing_lots(
 	batch_no: str | None = None,
 	warehouse: str | None = None,
 ) -> list[dict]:
-	"""Dispensing lots for an item at the admission warehouse (optionally filtered by batch)."""
-	if not admission or not item_code:
+	"""Dispensing lots for an item at the admission warehouse (optionally filtered by batch).
+
+	An explicit warehouse (e.g. OP pharmacy give-out) works without an admission.
+	"""
+	if (not admission and not warehouse) or not item_code:
 		return []
 	return _get_dispensing_lots_for_item(
 		item_code.strip(),

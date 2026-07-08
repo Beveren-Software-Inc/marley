@@ -418,7 +418,7 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
           ) : reconciliations.length === 0 ? (
             <div className="p-8 text-center">
               <CheckCircle className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-500">No reconciliation records found</p>
+              <p className="text-slate-500">NO RECONCILIATION RECORDS FOUND</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">

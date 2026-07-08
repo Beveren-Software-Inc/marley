@@ -18,7 +18,7 @@ export function PatientCareHeader({
   skipStoredPatientRestore,
 }: PatientCareHeaderProps) {
   return (
-    <div className="sticky top-0 z-20 flex flex-col flex-shrink-0">
+    <div className="sticky top-0 z-30 flex flex-col flex-shrink-0">
       <PortalPatientHeader
         selectedPatient={selectedPatient}
         onPatientSelect={onPatientSelect}

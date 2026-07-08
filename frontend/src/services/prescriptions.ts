@@ -16,6 +16,9 @@ export interface Prescription {
   total_orders?: number
   completed_orders?: number
   company?: string
+  cost_center?: string
+  owner?: string
+  owner_full_name?: string
   reference_doctype?: string
   reference_document_name?: string
   invoice?: string
@@ -307,6 +310,12 @@ export interface MedicationOrderEntry {
   uom?: string
   quantity?: number
   dosage_form: string
+  route_of_administration?: string
+  patient_frequency?: string
+  /** Start date of this medication line */
+  date?: string
+  end_date?: string
+  instructions?: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
@@ -604,10 +613,11 @@ export async function getGivenStatusForPrescription(
   )
 }
 
-/** Nursing pharmacy give-out: PMO + submitted Sales Order in one step. */
+/** Nursing pharmacy give-out: PMO + submitted Sales Order in one step (IP admission or OP visit). */
 export async function createNursingPharmacyGiveOut(input: {
   patient: string
-  inpatient_record: string
+  inpatient_record?: string
+  patient_visit?: string
   medication_orders: MedicationOrderRow[]
   source_prescription?: string
   practitioner?: string
@@ -620,7 +630,8 @@ export async function createNursingPharmacyGiveOut(input: {
       method: 'POST',
       body: JSON.stringify({
         patient: input.patient,
-        inpatient_record: input.inpatient_record,
+        inpatient_record: input.inpatient_record || undefined,
+        patient_visit: input.patient_visit || undefined,
         medication_orders: input.medication_orders,
         source_prescription: input.source_prescription || undefined,
         practitioner: input.practitioner || undefined,

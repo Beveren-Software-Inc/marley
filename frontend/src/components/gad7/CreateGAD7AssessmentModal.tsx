@@ -449,7 +449,7 @@ export const CreateGAD7AssessmentModal = ({
               </div>
 
               <div className="relative md:col-span-2">
-                <label className="block text-xs font-medium text-slate-600 mb-1">Practitioner</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Doctor Name</label>
                 <input
                   type="text"
                   value={practitioner ? practitionerLabel : practitionerQuery}
@@ -460,7 +460,7 @@ export const CreateGAD7AssessmentModal = ({
                     setPractitionerOpen(true)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search practitioner…"
+                  placeholder="Search doctor…"
                   className={MODAL_FIELD_CLASS}
                 />
                 {practitionerOpen && practitionerOptions.length > 0 && (

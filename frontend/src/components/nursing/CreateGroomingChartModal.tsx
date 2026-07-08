@@ -54,8 +54,8 @@ const CheckField = ({
 
 export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: CreateGroomingChartModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
-  
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
+
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
@@ -122,6 +122,17 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
   const [ccOpen, setCcOpen] = useState(false)
   const [ccQuery, setCcQuery] = useState('')
   const [selectedCc, setSelectedCc] = useState<LinkFieldOption | null>(null)
+
+  // Global branch is the default; care-episode sync overrides it when set.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setCostCenter((prev) => {
+      if (prev) return prev
+      setCcQuery((q) => q || userCostCenter)
+      setSelectedCc((s) => s || { name: userCostCenter, label: userCostCenter })
+      return userCostCenter
+    })
+  }, [userCostCenter])
 
   // Load initial patient label if patient prop provided
   useEffect(() => {

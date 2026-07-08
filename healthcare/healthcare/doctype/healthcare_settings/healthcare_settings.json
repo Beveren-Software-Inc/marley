@@ -70,6 +70,7 @@
   "registration_msg",
   "send_appointment_confirmation",
   "appointment_confirmation_msg",
+  "whatsapp_appointment_reminder_template",
   "avoid_confirmation",
   "column_break_16",
   "send_appointment_reminder",
@@ -357,6 +358,12 @@
    "fieldtype": "Small Text",
    "ignore_xss_filter": 1,
    "label": "Confirmation Message"
+  },
+  {
+   "fieldname": "whatsapp_appointment_reminder_template",
+   "fieldtype": "Small Text",
+   "label": "WhatsApp Appointment Reminder Template",
+   "description": "Placeholders: {patient_name}, {doctor}, {date}, {time}, {when}, {branch}. Leave empty for the default message."
   },
   {
    "default": "0",

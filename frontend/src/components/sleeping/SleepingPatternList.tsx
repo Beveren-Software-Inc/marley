@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useState } from 'react'
 import { fetchSleepingPatterns, type SleepingPattern } from '../../services/sleepingPattern'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchDoctorPractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { SleepingPatternDetailPanel } from './SleepingPatternDetailPanel'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SleepingPatternListProps {
   patient?: string
@@ -102,7 +103,7 @@ export const SleepingPatternList = ({
     if (!practitionerOpen) return
     const t = setTimeout(async () => {
       try {
-        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        const opts = await fetchDoctorPractitioners(practitionerQuery || undefined)
         setPractitionerOptions(opts)
       } catch {
         setPractitionerOptions([])
@@ -166,27 +167,25 @@ export const SleepingPatternList = ({
         )}
 
         {showFilters ? (
-          <div className="flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
+          <div className="card-filter-bar flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
             <div className="flex min-w-[130px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Date from</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">From Date</label>
+              <DateFilterInput
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
               />
             </div>
             <div className="flex min-w-[130px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Date to</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">To Date</label>
+              <DateFilterInput
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
               />
             </div>
             <div data-sp-practitioner-filter className="relative flex min-w-[200px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Practitioner</label>
+              <label className="text-xs font-medium text-slate-500">Doctor</label>
               <input
                 type="text"
                 value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
@@ -196,7 +195,7 @@ export const SleepingPatternList = ({
                   if (!e.target.value) setPractitionerFilter('')
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner…"
+                placeholder="Search doctor…"
                 className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
               />
               {practitionerOpen && practitionerOptions.length > 0 ? (
@@ -231,7 +230,7 @@ export const SleepingPatternList = ({
 
         {!loading && !error && rows.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
-            No sleeping pattern records found.
+            NO SLEEPING PATTERN RECORDS FOUND.
           </div>
         ) : null}
 

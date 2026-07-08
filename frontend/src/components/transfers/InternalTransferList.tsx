@@ -49,7 +49,7 @@ export const InternalTransferList = ({ patient, refreshKey, onPatientClick }: In
             </tr>
           ) : rows.length === 0 ? (
             <tr>
-              <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">No internal transfers found</td>
+              <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">NO INTERNAL TRANSFERS FOUND</td>
             </tr>
           ) : (
             rows.map((row) => (

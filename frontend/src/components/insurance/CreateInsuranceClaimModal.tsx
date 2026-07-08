@@ -641,7 +641,7 @@ export const CreateInsuranceClaimModal = ({
                             ))
                           ) : (
                             <div className="px-3 py-2 text-xs text-slate-500">
-                              {patientQuery ? 'No Patient Found.' : 'No patients found.'}
+                              {patientQuery ? 'No Patient Found.' : 'NO PATIENTS FOUND.'}
                             </div>
                           )}
                         </div>

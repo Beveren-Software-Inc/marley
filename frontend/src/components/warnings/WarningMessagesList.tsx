@@ -6,6 +6,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // Format a datetime as "dd/mm/yyyy" + "HH:mm" (24h, no seconds)
 const formatPostingDateTime = (val?: string | null): { date: string; time: string } => {
@@ -105,6 +106,17 @@ export const WarningMessagesList = ({
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
 
+  // No list until a patient is in scope — prompt to use the global patient search.
+  if (!patient) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-10 text-center">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          Search for patient to view the list
+        </p>
+      </div>
+    )
+  }
+
   if (loading && warnings.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -166,7 +178,7 @@ export const WarningMessagesList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">
           {noPatientScope !== 'organisation' && (
             <div className="flex flex-col gap-1 min-w-[140px]">
               <label className="text-xs font-medium text-slate-500">Type</label>
@@ -175,7 +187,7 @@ export const WarningMessagesList = ({
                 onChange={(e) => setTypeFilter((e.target.value as 'Medical' | 'Organisation' | '') || '')}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
               >
-                <option value="">All types</option>
+                <option value="">Select All</option>
                 <option value="Medical">Medical</option>
                 <option value="Organisation">Organisation</option>
               </select>
@@ -185,25 +197,23 @@ export const WarningMessagesList = ({
             <div className="text-xs text-slate-600 self-end pb-1">Organisation notices only</div>
           )} */}
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Posting from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Posting to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[200px] relative">
-            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
             <input
               type="text"
               value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
@@ -214,7 +224,7 @@ export const WarningMessagesList = ({
               }}
               onFocus={() => setPractitionerOpen(true)}
               onBlur={() => setTimeout(() => setPractitionerOpen(false), 150)}
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
             />
             {practitionerOpen && practitionerOptions.length > 0 && (
@@ -248,17 +258,14 @@ export const WarningMessagesList = ({
         )}
         {warnings.length === 0 && !loading && (
           <div className="flex items-center justify-center p-8">
-            <div className="text-slate-500">No warning messages found</div>
+            <div className="text-slate-500">NO WARNING MESSAGES FOUND</div>
           </div>
         )}
         {warnings.length > 0 ? (
           <table className="w-full text-sm">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">ID</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Posting Date</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">File No.</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-[120px]">Patient Name</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Doctor Name</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Medical Role</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Type</th>
@@ -275,24 +282,9 @@ export const WarningMessagesList = ({
                     className={dashboardCardRowHoverClass}
                     onClick={() => setDetailWarning(warning)}
                   >
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.name}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-600 whitespace-nowrap w-px align-top">
                       <div>{posted.date}</div>
                       {posted.time && <div className="text-xs text-slate-400">{posted.time}</div>}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.file_no || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm w-[120px] align-top">
-                      {warning.patient ? (
-                        <button
-                          type="button"
-                          className="font-medium text-primary hover:underline text-left break-words whitespace-normal"
-                          onClick={(e) => { e.stopPropagation(); onPatientClick?.(warning.patient!) }}
-                        >
-                          {warning.patient_name || warning.patient}
-                        </button>
-                      ) : (
-                        <span className="text-slate-500">-</span>
-                      )}
                     </td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.practitioner_name || warning.practitioner || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.medical_role || '-'}</td>

@@ -207,7 +207,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
           <div className="text-sm text-slate-500 bg-slate-50 rounded-md px-3 py-2 mb-2">
             Showing patients matching: <span className="font-medium text-slate-700">{searchQuery}</span>
             {patients.length === 0 && !loading && (
-              <span className="ml-2 text-amber-600">No results found</span>
+              <span className="ml-2 text-amber-600">NO RESULTS FOUND</span>
             )}
           </div>
         )}
@@ -279,7 +279,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       ? 'No Patient Found.'
                       : fullDirectoryRestricted
                         ? 'Use search above to find a patient.'
-                        : 'No patients found.'}
+                        : 'NO PATIENTS FOUND.'}
                   </td>
                 </tr>
               ) : (

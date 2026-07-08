@@ -71,7 +71,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //       {open && !disabled && (
 //         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
 //           {options.length === 0
-//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
 //             : options.map(opt => (
 //               <button key={opt.name} type="button"
 //                 className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
@@ -481,7 +481,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 
 //                 {rows.length === 0 ? (
 //                   <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-//                     <p className="text-sm text-slate-500 mb-1">No score attributes yet.</p>
+//                     <p className="text-sm text-slate-500 mb-1">NO SCORE ATTRIBUTES YET.</p>
 //                     <p className="text-xs text-slate-400 mb-4">Select a template on the General tab, or add rows manually.</p>
 //                     <button type="button" onClick={addRow}
 //                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">
@@ -700,7 +700,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && !disabled && (
         <div className={linkComboboxDropdownClass}>
           {options.length === 0
-            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button"
                 className={linkComboboxOptionClassCompact}
@@ -1133,7 +1133,7 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
 
                 {rows.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-                    <p className="text-sm text-slate-500 mb-1">No score attributes yet.</p>
+                    <p className="text-sm text-slate-500 mb-1">NO SCORE ATTRIBUTES YET.</p>
                     <p className="text-xs text-slate-400 mb-4">Select a template on the General tab, or add rows manually.</p>
                     <button type="button" onClick={addRow}
                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">

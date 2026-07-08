@@ -149,7 +149,7 @@ export const PackageSelectionModal = ({
                 </div>
               ) : (
                 <div className="text-center py-8 text-slate-600">
-                  <p>No active packages available.</p>
+                  <p>NO ACTIVE PACKAGES AVAILABLE.</p>
                   <p className="text-sm mt-2">Please create Inpatient Package records in the system and ensure they are marked as Active.</p>
                 </div>
               )}

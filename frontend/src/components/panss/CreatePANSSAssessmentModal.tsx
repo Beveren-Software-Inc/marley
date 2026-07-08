@@ -465,7 +465,7 @@ export const CreatePANSSAssessmentModal = ({
                         setPractitionerOpen(true)
                       }}
                       onFocus={() => setPractitionerOpen(true)}
-                      placeholder="Search practitioner…"
+                      placeholder="Search doctor…"
                       className={MODAL_FIELD_CLASS}
                     />
                     {practitionerOpen && practitionerOptions.length > 0 && (

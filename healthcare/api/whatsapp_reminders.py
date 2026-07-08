@@ -39,6 +39,7 @@ def send_appointment_whatsapp_reminders(days_before: int = 1):
 			"appointment_date",
 			"appointment_time",
 			"practitioner_name",
+			"cost_center",
 			"temporary_mobile_no",
 			"whatsapp_template",
 		],
@@ -160,6 +161,25 @@ def _build_appointment_message(appointment: dict, days_before: int) -> str:
 	time_text = (appointment.get("appointment_time") or "").strip() or "-"
 	patient_name = appointment.get("patient_name") or appointment.get("patient") or "Patient"
 	practitioner = appointment.get("practitioner_name") or "your doctor"
+	branch = (appointment.get("cost_center") or "").replace(" - SPH", "") or "our clinic"
+
+	# System Manager-editable template (Healthcare Settings); falls back to the default text.
+	template = (
+		frappe.db.get_single_value("Healthcare Settings", "whatsapp_appointment_reminder_template") or ""
+	).strip()
+	if template:
+		message = template
+		for key, value in {
+			"{patient_name}": str(patient_name),
+			"{doctor}": str(practitioner),
+			"{date}": str(date_text),
+			"{time}": str(time_text),
+			"{when}": str(when_text),
+			"{branch}": str(branch),
+		}.items():
+			message = message.replace(key, value)
+		return message
+
 	return (
 		f"Dear {patient_name}, this is a reminder that you have an appointment {when_text} "
 		f"({date_text} at {time_text}) with {practitioner}. Please arrive on time."

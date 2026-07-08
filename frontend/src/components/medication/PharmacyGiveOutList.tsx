@@ -209,7 +209,7 @@ export function PharmacyGiveOutList({
     return (
       <>
         <div className="flex flex-col items-center justify-center p-6 text-center text-sm text-slate-500">
-          <p>No nursing pharmacy give-out records yet.</p>
+          <p>NO NURSING PHARMACY GIVE-OUT RECORDS YET.</p>
           <p className="text-xs text-slate-400 mt-1">Use + to create one from the current prescription.</p>
         </div>
         {slideOver}

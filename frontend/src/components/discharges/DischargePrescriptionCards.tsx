@@ -248,7 +248,7 @@ export function DischargePrescriptionCardsReadonly({
         subtitle="Medicines used during this admission"
         accent="slate"
       >
-        <MedicationList items={currentMedications} emptyText="No current medicines on record." />
+        <MedicationList items={currentMedications} emptyText="NO CURRENT MEDICINES ON RECORD." />
       </PrescriptionCard>
       <PrescriptionCard
         title="Discharged medication"
@@ -273,7 +273,7 @@ export function DischargePrescriptionCardsReadonly({
           ) : null
         }
       >
-        <MedicationList items={dischargedMedications} emptyText="No discharged medicines recorded." />
+        <MedicationList items={dischargedMedications} emptyText="NO DISCHARGED MEDICINES RECORDED." />
       </PrescriptionCard>
       <PrescriptionCard
         title="Stopped medication"
@@ -282,7 +282,7 @@ export function DischargePrescriptionCardsReadonly({
       >
         <MedicationList
           items={stoppedMedications}
-          emptyText="No stopped medicines recorded."
+          emptyText="NO STOPPED MEDICINES RECORDED."
           showReason
         />
       </PrescriptionCard>
@@ -467,7 +467,7 @@ export function DischargePrescriptionCardsEditable({
       >
         <MedicationList
           items={sections.stopped_medications}
-          emptyText="No stopped medicines recorded."
+          emptyText="NO STOPPED MEDICINES RECORDED."
           showReason
         />
       </PrescriptionCard>

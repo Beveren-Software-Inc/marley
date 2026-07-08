@@ -147,7 +147,7 @@ export function IOPSessionTypeSelect({
           <div className={linkComboboxDropdownClassShort}>
             {filteredTypes.length === 0 ? (
               <div className="px-3 py-2 text-xs text-slate-500">
-                {query.trim() ? 'No session types match your search.' : 'No session types found.'}
+                {query.trim() ? 'No session types match your search.' : 'NO SESSION TYPES FOUND.'}
               </div>
             ) : (
               filteredTypes.map((opt) => (

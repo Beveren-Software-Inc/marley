@@ -435,7 +435,7 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
                   {items.length === 0 && (
                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
                       <Package className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No items added yet</p>
+                      <p className="text-sm">NO ITEMS ADDED YET</p>
                       <button
                         type="button"
                         onClick={addItem}

@@ -236,6 +236,27 @@ export function isNurseRole(roles: string[] | undefined): boolean {
   return hasExactRole(roles, ['Nurse']) || roleMatches(roles, (r) => r.includes('nurse') || r.includes('nursing'))
 }
 
+/** Clinical staff who may see long-acting medicine details (drug/dose/frequency/notes).
+ * Reception and other non-clinical roles get these details masked (they see only due dates). */
+export function canSeeLongActingMedDetails(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return roleMatches(
+    roles,
+    (r) =>
+      r.includes('doctor') ||
+      r.includes('physician') ||
+      r.includes('practitioner') ||
+      r.includes('nurse') ||
+      r.includes('nursing') ||
+      r.includes('psychologist') ||
+      r.includes('psychiatrist') ||
+      r.includes('anesthesiologist') ||
+      r.includes('therapist') ||
+      r.includes('nutritionist'),
+  )
+}
+
 /** Nurse, physician/doctor, or admin — may view clinical summary and clinical history cards. */
 export function canViewClinicalPatientHistory(roles: string[] | undefined): boolean {
   if (!roles?.length) return false

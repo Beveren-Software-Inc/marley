@@ -305,7 +305,7 @@ export function ClinicalNoteDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Practitioner"
+                label="Doctor Name"
                 value={displayValue(
                   doc?.practitioner_name ||
                     doc?.practitioner ||

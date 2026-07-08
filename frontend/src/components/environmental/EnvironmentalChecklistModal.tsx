@@ -114,7 +114,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
         <div className={linkComboboxDropdownClass}>
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400">
-              {loadingOptions ? 'Searching…' : 'No results found'}
+              {loadingOptions ? 'Searching…' : 'NO RESULTS FOUND'}
             </div>
           ) : (
             options.map((opt) => (
@@ -492,9 +492,9 @@ export function EnvironmentalChecklistModal({
               )}
 
               <LinkCombobox
-                label="Practitioner"
+                label="Doctor Name"
                 value={practitionerLabel}
-                placeholder="Search practitioner..."
+                placeholder="Search doctor..."
                 fetchOptions={fetchPractitionerOptions}
                 onSelect={(opt) => {
                   setPractitioner(opt.name)

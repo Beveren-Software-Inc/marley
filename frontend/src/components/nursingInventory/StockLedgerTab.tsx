@@ -183,7 +183,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
               onChange={(e) => setFilterCategory(e.target.value)}
               className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
             >
-              <option value="">All Item Groups</option>
+              <option value="">Select All</option>
               {itemGroups.map(group => (
                 <option key={group.name} value={group.name}>{group.label}</option>
               ))}

@@ -16,8 +16,7 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { fetchDoctorPractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -30,6 +29,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
   'Open': 'warning',
@@ -80,7 +80,7 @@ function patientVisitCardMetaFields(
   if (!opts.patient) {
     fields.push(['Patient', visitPatientDisplayName(visit)])
   }
-  fields.push(['Practitioner', visit.practitioner_name])
+  fields.push(['Doctor', visit.practitioner_name])
   return fields
 }
 
@@ -106,7 +106,8 @@ export const PatientVisitList = ({
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** OP browse (no active visit, not a typed sub-list): today + linked practitioner. */
-  const shouldUseOpDefaults = mode === 'OP' && !effectiveVisitFilter && !visitType && !onVisitActivate
+  // All lists start unfiltered — no default date/practitioner filters (nurse-dept request).
+  const shouldUseOpDefaults = false
   const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -121,13 +122,6 @@ export const PatientVisitList = ({
   const [admissionModalVisit, setAdmissionModalVisit] = useState<PatientVisitListRow | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
-  // --- Filter: Visit No (custom searchable dropdown) ---
-  const [visitQuery, setVisitQuery] = useState('')
-  const [visitOptions, setVisitOptions] = useState<{ value: string; label: string }[]>([])
-  const [visitOpen, setVisitOpen] = useState(false)
-  const [selectedVisit, setSelectedVisit] = useState<{ value: string; label: string } | null>(null)
-  const [visitIdFilter, setVisitIdFilter] = useState('')
-
   // --- Filter: Practitioner (custom searchable dropdown) ---
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
@@ -140,7 +134,6 @@ export const PatientVisitList = ({
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
-    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
   const branchLabel = (cc?: string) => {
@@ -173,7 +166,7 @@ export const PatientVisitList = ({
         if (practId) {
           setPractitionerFilter(practId)
           try {
-            const options = await fetchHealthcarePractitioners()
+            const options = await fetchDoctorPractitioners()
             const match = options.find((p) => p.name === practId)
             if (match) {
               setSelectedPractitioner(match)
@@ -210,26 +203,13 @@ export const PatientVisitList = ({
   const [uploadDocumentsVisit, setUploadDocumentsVisit] = useState<PatientVisitListRow | null>(null)
   const [editVisit, setEditVisit] = useState<PatientVisitListRow | null>(null)
 
-  // --- Visit No: debounced search when dropdown is open ---
-  useEffect(() => {
-    if (!visitOpen) return
-    const t = setTimeout(async () => {
-      try {
-        const response = await fetchPatientVisitsFull(effectivePatient, visitQuery || undefined)
-        setVisitOptions(response.data.map(r => ({ value: r.value, label: r.label })))
-      } catch (err) {
-        console.error('Failed to load visit options', err)
-      }
-    }, visitQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [visitQuery, visitOpen, effectivePatient])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {
     if (!practitionerOpen) return
     const t = setTimeout(async () => {
       try {
-        const options = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        const options = await fetchDoctorPractitioners(practitionerQuery || undefined)
         setPractitionerOptions(options)
       } catch (err) {
         console.error('Failed to load practitioners', err)
@@ -255,7 +235,7 @@ export const PatientVisitList = ({
     setError(null)
     try {
       const visitSearch =
-        visitIdFilter || externalSearchQuery || effectiveVisitFilter || undefined
+        externalSearchQuery || effectiveVisitFilter || undefined
       const response = await fetchPatientVisitsFull(
         effectivePatient,
         visitSearch,
@@ -281,12 +261,12 @@ export const PatientVisitList = ({
   useEffect(() => {
     if (!defaultsReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch, defaultsReady])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch, defaultsReady])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, visitIdFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, filterBranch])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, filterBranch])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -306,7 +286,6 @@ export const PatientVisitList = ({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-filter-dropdown]')) {
-        setVisitOpen(false)
         setPractitionerOpen(false)
       }
     }
@@ -315,13 +294,6 @@ export const PatientVisitList = ({
   }, [])
 
   // --- Handlers ---
-  const handleVisitSelect = (opt: { value: string; label: string }) => {
-    setSelectedVisit(opt)
-    setVisitIdFilter(opt.value)
-    setVisitQuery('')
-    setVisitOpen(false)
-  }
-
   const handlePractitionerSelect = (opt: LinkFieldOption) => {
     setSelectedPractitioner(opt)
     setPractitionerFilter(opt.name)  // opt.name is the docname sent to backend; opt.value is display text
@@ -370,9 +342,6 @@ export const PatientVisitList = ({
   }
 
   const handleClearFilters = () => {
-    setVisitIdFilter('')
-    setVisitQuery('')
-    setSelectedVisit(null)
     setPractitionerFilter('')
     setPractitionerQuery('')
     setSelectedPractitioner(null)
@@ -383,7 +352,7 @@ export const PatientVisitList = ({
   }
 
   const hasActiveFilters = Boolean(
-    visitIdFilter || selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch,
+    selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch,
   )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
@@ -412,7 +381,7 @@ export const PatientVisitList = ({
     const headers = [
       'Visit No',
       'Patient',
-      'Practitioner',
+      'Doctor',
       'Encounter Date',
       ...(showAppointmentAmount ? ['Appointment Amount'] : []),
       ...(!hideLabPharmacyAmounts ? ['Lab Amount', 'Pharmacy Amount'] : []),
@@ -459,7 +428,7 @@ export const PatientVisitList = ({
     const billingTh = hideLabPharmacyAmounts
       ? '<th>Service</th>'
       : '<th>Lab</th><th>Pharmacy</th><th>Service</th>'
-    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Practitioner</th><th>Encounter Date</th>${apptTh}${billingTh}<th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Doctor</th><th>Encounter Date</th>${apptTh}${billingTh}<th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -530,46 +499,27 @@ export const PatientVisitList = ({
       )}
 
       {showFilters && (
-      <div className="flex flex-wrap gap-3 mb-4 items-end">
-
-        {/* Visit No — custom searchable dropdown (matches Title style) */}
-        <div data-filter-dropdown className="relative">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Visit No</label>
-          <input
-            type="text"
-            value={selectedVisit ? selectedVisit.value : visitQuery}
-            onChange={e => {
-              setVisitQuery(e.target.value)
-              setSelectedVisit(null)
-              setVisitIdFilter('')
-              setVisitOpen(true)
-            }}
-            onFocus={() => setVisitOpen(true)}
-            placeholder="Search visit..."
-            className={`${inputClass} w-44`}
+      <div className="card-filter-bar flex flex-wrap gap-3 mb-4 items-end">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
+          <DateFilterInput
+            value={dateFrom}
+            onChange={e => setDateFrom(e.target.value)}
+            className={inputClass}
           />
-          {visitOpen && visitOptions.length > 0 && (
-            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-              {visitOptions.map(opt => (
-                <button
-                  key={opt.value}
-                  type="button"
-                  onClick={() => handleVisitSelect(opt)}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                >
-                  <div className="font-medium text-slate-800">{opt.value}</div>
-                  {opt.label !== opt.value && (
-                    <div className="text-xs text-slate-500 truncate">{opt.label}</div>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
+          <DateFilterInput
+            value={dateTo}
+            onChange={e => setDateTo(e.target.value)}
+            className={inputClass}
+          />
         </div>
 
-        {/* Practitioner — custom searchable dropdown (matches Title style) */}
+        {/* Doctor — custom searchable dropdown (matches Title style) */}
         <div data-filter-dropdown className="relative">
-          <label className="block text-xs font-medium text-slate-600 mb-1">Practitioner</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
           <input
             type="text"
             value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
@@ -580,7 +530,7 @@ export const PatientVisitList = ({
               setPractitionerOpen(true)
             }}
             onFocus={() => setPractitionerOpen(true)}
-            placeholder="Search practitioner..."
+            placeholder="Search doctor..."
             className={`${inputClass} w-48`}
           />
           {practitionerOpen && practitionerOptions.length > 0 && (
@@ -600,26 +550,8 @@ export const PatientVisitList = ({
         </div>
 
         {/* Date From */}
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={e => setDateFrom(e.target.value)}
-            className={inputClass}
-          />
-        </div>
 
         {/* Date To */}
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={e => setDateTo(e.target.value)}
-            className={inputClass}
-          />
-        </div>
 
         {/* Branch */}
         <div>
@@ -629,7 +561,7 @@ export const PatientVisitList = ({
             onChange={e => setFilterBranch(e.target.value)}
             className={inputClass}
           >
-            <option value="">All branches</option>
+            <option value="">Select All</option>
             {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
           </select>
         </div>
@@ -642,7 +574,7 @@ export const PatientVisitList = ({
             onChange={e => setSelectedStatus(e.target.value)}
             className={inputClass}
           >
-            <option value="">All</option>
+            <option value="">Select All</option>
             {statuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
@@ -712,7 +644,7 @@ export const PatientVisitList = ({
                     {!patient && (
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
                     )}
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Practitioner</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Doctor</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
                     {showAppointmentAmount && (
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -736,7 +668,7 @@ export const PatientVisitList = ({
               {visits.length === 0 ? (
                 <tr>
                   <td colSpan={tableColSpan} className="px-4 py-10 text-center text-slate-400 text-sm">
-                    {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
+                    {hasActiveFilters ? 'NO VISITS MATCH YOUR FILTERS.' : 'NO PATIENT VISITS FOUND.'}
                   </td>
                 </tr>
               ) : detailedColumns ? (

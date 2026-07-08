@@ -296,7 +296,7 @@ export const CreateInsurancePatientRegisterModal = ({
                         </div>
                       )}
                       {patientOpen && patientOpts.length === 0 && patientQuery.trim() && (
-                        <div className={linkComboboxEmptyPanelClass}>No patients found</div>
+                        <div className={linkComboboxEmptyPanelClass}>NO PATIENTS FOUND</div>
                       )}
                     </div>
                   </div>

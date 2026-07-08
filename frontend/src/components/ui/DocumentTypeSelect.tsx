@@ -147,7 +147,7 @@ export function DocumentTypeSelect({
           <div className={linkComboboxDropdownClassShort}>
             {filteredTypes.length === 0 ? (
               <div className="px-3 py-2 text-xs text-slate-500">
-                {query.trim() ? 'No document types match your search.' : 'No document types found.'}
+                {query.trim() ? 'No document types match your search.' : 'NO DOCUMENT TYPES FOUND.'}
               </div>
             ) : (
               filteredTypes.map((opt) => (

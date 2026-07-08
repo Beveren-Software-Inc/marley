@@ -836,7 +836,7 @@ export const CreatePatientVisitModal = ({
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'NO PATIENTS FOUND.'}
                     </div>
                   )}
                 </div>
@@ -847,7 +847,7 @@ export const CreatePatientVisitModal = ({
             {/* Practitioner */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Practitioner <span className="text-red-500">*</span>
+                Doctor <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
                 <input
@@ -861,7 +861,7 @@ export const CreatePatientVisitModal = ({
                     }
                   }}
                   onFocus={() => setPractOpen(true)}
-                  placeholder="Search Healthcare Practitioner..."
+                  placeholder="Search doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
                 />
                 <div className="absolute right-2 flex items-center gap-1">
@@ -915,7 +915,7 @@ export const CreatePatientVisitModal = ({
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -961,7 +961,7 @@ export const CreatePatientVisitModal = ({
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO BRANCHES FOUND</div>
                   )}
                 </div>
               )}

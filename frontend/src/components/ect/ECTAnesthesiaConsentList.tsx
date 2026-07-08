@@ -68,7 +68,7 @@ export const ECTAnesthesiaConsentList = ({ patient, refreshKey, onPatientClick }
   if (!items.length) {
     return (
       <div className="flex items-center justify-center p-4 text-sm text-slate-400">
-        No ECT Anesthesia Consent records found
+        NO ECT ANESTHESIA CONSENT RECORDS FOUND
       </div>
     )
   }

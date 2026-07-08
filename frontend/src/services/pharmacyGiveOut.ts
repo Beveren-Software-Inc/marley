@@ -5,11 +5,13 @@ export interface PharmacyGiveOutWarehouseOptions {
 }
 
 export async function fetchPharmacyGiveOutWarehouses(
-  inpatientRecord: string
+  inpatientRecord?: string,
+  patientVisit?: string
 ): Promise<PharmacyGiveOutWarehouseOptions> {
   const { apiRequest } = await import('./apiClient')
   const params = new URLSearchParams()
-  params.append('inpatient_record', inpatientRecord)
+  if (inpatientRecord) params.append('inpatient_record', inpatientRecord)
+  if (patientVisit) params.append('patient_visit', patientVisit)
   return apiRequest<PharmacyGiveOutWarehouseOptions>(
     `/api/method/healthcare.api.patient_medication_order.get_nursing_pharmacy_giveout_warehouses?${params.toString()}`
   )

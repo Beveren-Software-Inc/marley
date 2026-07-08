@@ -139,14 +139,14 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
             </div>
           )}
           <div className="flex items-center gap-2">
-            <label className="text-xs font-medium text-slate-600">From</label>
+            <label className="text-xs font-medium text-slate-600">From Date</label>
             <input
               type="date"
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary"
             />
-            <label className="text-xs font-medium text-slate-600">To</label>
+            <label className="text-xs font-medium text-slate-600">To Date</label>
             <input
               type="date"
               value={toDate}
@@ -165,7 +165,7 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
           </div>
           <div>
             <span className="font-semibold text-slate-600">Patient</span>
-            <p className="text-slate-900">{sheet.patient_name || sheet.patient}</p>
+            <p className="text-slate-900">{sheet.patient_name || '-'}</p>
           </div>
           <div>
             <span className="font-semibold text-slate-600">Current prescription</span>

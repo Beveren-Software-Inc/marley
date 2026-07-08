@@ -12,6 +12,7 @@ import { useCardFilters, useDashboardCompactClinical } from '../../contexts/Card
 import { CardRowMetaHint, dashboardCardRowHoverClass, stripHtmlToText } from '../ui/dashboardCardListing'
 import { EditDoctorMedicationPlanModal } from './EditDoctorMedicationPlanModal'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface DoctorMedicationPlanListProps {
   patient?: string
@@ -155,27 +156,25 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
       )}
 
       {showFilters && !compactClinical && (
-        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-3 px-1 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[140px]">
-            <label className="text-xs font-medium text-slate-500">From date</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[140px]">
-            <label className="text-xs font-medium text-slate-500">To date</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[180px] relative">
-            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
             <input
               type="text"
               value={
@@ -190,7 +189,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                 setPractitionerOpen(true)
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-full"
             />
             {practitionerOpen && practitionerOptions.length > 0 && (
@@ -224,7 +223,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
             <div className="flex flex-col items-center justify-center p-8">
               <div className="text-slate-500 text-center">
                 {contextLabel && <p className="text-sm text-slate-600 mb-2">{contextLabel}</p>}
-                <p>{hasActiveFilters ? 'No plans match the filters.' : "No doctors' plans found yet"}</p>
+                <p>{hasActiveFilters ? 'NO PLANS MATCH THE FILTERS.' : "No doctors' plans found yet"}</p>
               </div>
             </div>
           ) : compactClinical ? (
@@ -291,7 +290,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
                     {!patient && (
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                     )}
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">{referenceColumnLabel}</th>
                     <th className="px-4 py-3 text-center text-xs font-semibold text-slate-600 uppercase">Actions</th>
                   </tr>

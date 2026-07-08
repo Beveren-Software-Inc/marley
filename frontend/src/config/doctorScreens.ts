@@ -54,17 +54,17 @@ export interface ScreenGroup {
   screens: ScreenItem[]
 }
 
-// Doctor screens organized into groups
+// Doctor screens organized into groups. Groups with an empty groupTitle render as
+// direct sidebar items (no folder). Cards already on the dashboard (warnings,
+// prescriptions, appointments, visits) have no sidebar duplicates.
 export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Overview',
     screens: [
-      { id: 'warn', title: 'Warning Messages' },
       { id: 'mh', title: 'Past Medical History' },
       { id: 'physical-exam', title: 'Physical Examination' },
       { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
-      {id:'patients', title: 'Patients List'},
-      // { id: 'fall', title: 'Morse Fall Scale' }, // Risk Assessment
+      { id: 'patient-history', title: 'Patient History Form' },
     ],
   },
 
@@ -79,70 +79,54 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'nut', title: 'Nutritionist Notes' },
       { id: 'ther', title: 'Therapist Notes' },
       { id: 'nurse', title: 'Nursing Notes' },
-      { id: 'patient-history', title: 'History Form' },
     ],
   },
   {
-    groupTitle: 'Medication & Pharmacy',
-    screens: [
-      { id: 'single-prescription', title: 'Current Prescription' },
-      { id: 'rx', title: 'All Prescriptions' },
-      // { id: 'dmc', title: 'Doctor Medication Chart' },
-      { id: 'gm', title: 'Given Medicines' },
-      { id: 'd-long-acting-meds', title: 'Long Acting Med Reminder' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'gm', title: 'Given Medicines' }],
   },
   {
-    groupTitle: 'Laboratory & Diagnostics',
-    screens: [
-      { id: 'lab-req', title: 'Lab Requests' },
-      { id: 'lab', title: 'Laboratory' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'd-long-acting-meds', title: 'Long Acting Medicines' }],
   },
   {
-    groupTitle: 'Patient Visit',
-    screens: [
-      { id: 'appointments', title: 'Appointments' },
-      { id: 'op', title: 'Patient Visit' },
-      { id: 'pvh', title: 'Patient Visit History' },
-      { id: 'iop', title: 'IOP Dashboard' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'lab', title: 'Laboratory' }],
   },
   {
-    groupTitle: 'Admission & Discharge',
-    screens: [
-      { id: 'admission', title: 'Admission Form' },
-      { id: 'df', title: 'Discharge Form' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'iop', title: 'IOP Dashboard' }],
   },
   {
-    groupTitle: 'ECT Forms',
-    screens: [
-      { id: 'ect', title: 'ECT Forms' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'df', title: 'Discharge Form' }],
   },
   {
-    groupTitle: 'Observation',
-    screens: [
-      { id: 'obs', title: 'Observation Level' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'ect', title: 'ECT Forms' }],
   },
   {
-    groupTitle: 'Scales & Assessments',
-    screens: [
-      { id: 'fall', title: 'Morse Fall Scale' },
-      { id: 'adhd', title: 'ADHD Assessment' },
-      { id: 'depression', title: 'Depression Assessment' },
-      { id: 'mood', title: 'Mood Disorder Assessment' },
-      { id: 'gad7', title: 'GAD7 Assessment' },
-      { id: 'phq9', title: 'PHQ9 Assessment' },
-      { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
-      { id: 'ybocs', title: 'YBOCS Assessment' },
-      { id: 'ymrs', title: 'YMRS Assessment' },
-      { id: 'panss', title: 'PANSS Assessment' },
-      { id: 'suicide', title: 'Suicide Assessment' }
-    ],
-  }
+    groupTitle: '',
+    screens: [{ id: 'obs', title: 'Observation Level' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'fall', title: 'Morse Fall Scale' }],
+  },
+]
+
+// Psychologists run the standard assessments — shown in their sidebar, not the doctor's.
+export const assessmentScreens: ScreenItem[] = [
+  { id: 'adhd', title: 'ADHD Assessment' },
+  { id: 'depression', title: 'Depression Assessment' },
+  { id: 'mood', title: 'Mood Disorder Assessment' },
+  { id: 'gad7', title: 'GAD7 Assessment' },
+  { id: 'phq9', title: 'PHQ9 Assessment' },
+  { id: 'homicide-risk', title: 'Homicide Risk Assessment' },
+  { id: 'ybocs', title: 'YBOCS Assessment' },
+  { id: 'ymrs', title: 'YMRS Assessment' },
+  { id: 'panss', title: 'PANSS Assessment' },
+  { id: 'suicide', title: 'Suicide Assessment' },
 ]
 
 

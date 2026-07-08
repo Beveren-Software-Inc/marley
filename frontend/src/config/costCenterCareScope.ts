@@ -45,7 +45,6 @@ const IP_ONLY_DOCTOR_SCREEN_IDS = new Set(['iop', 'pvh', 'op'])
 const OP_ONLY_NURSE_SCREEN_IDS = new Set([
   'single-prescription',
   'n-given',
-  'n-pharmacy-giveout',
   'n-daily-med',
   'n-sick',
   'n-reg',
@@ -64,8 +63,9 @@ const OP_ONLY_NURSE_SCREEN_IDS = new Set([
 
 const OP_ONLY_NURSE_GROUP_TITLES = new Set(['Daily Routine Care', 'Admission & Discharge'])
 
-/** Nurse screens hidden when the active mode is OP (regardless of branch scope) */
-const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-pharmacy-giveout', 'n-reg', 'n-discharge', 'n-package', 'n-ob'])
+/** Nurse screens hidden when the active mode is OP (regardless of branch scope).
+    Pharmacy Give Out is NOT here — it works for both OP (visit) and IP (admission). */
+const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-reg', 'n-discharge', 'n-package', 'n-ob'])
 const OP_MODE_NURSE_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation & Monitoring'])
 
 const IP_ONLY_NURSE_SCREEN_IDS = new Set(['n-op'])

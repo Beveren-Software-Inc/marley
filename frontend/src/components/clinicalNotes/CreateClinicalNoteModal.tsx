@@ -1081,7 +1081,7 @@ export const CreateClinicalNoteModal = ({
                       setPractitionerOpen(true)
                     }}
                     onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search practitioner..."
+                    placeholder="Search doctor..."
                     className={linkComboboxInputWithClearClass}
                   />
                   <button
@@ -1242,7 +1242,7 @@ export const CreateClinicalNoteModal = ({
                           </button>
                         ))
                       ) : (
-                        <div className="px-4 py-2 text-sm text-slate-500">No branches found</div>
+                        <div className="px-4 py-2 text-sm text-slate-500">NO BRANCHES FOUND</div>
                       )}
                     </div>
                   )}

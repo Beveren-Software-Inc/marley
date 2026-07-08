@@ -246,7 +246,7 @@ const ServiceUnitSelect = ({
         <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
           {serviceUnits.length === 0 ? (
             <div className="px-3 py-3 text-xs text-slate-400 text-center">
-              {query ? 'No beds match your search' : 'No vacant beds available'}
+              {query ? 'No beds match your search' : 'NO VACANT BEDS AVAILABLE'}
             </div>
           ) : (
             serviceUnits.map((unit) => {

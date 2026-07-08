@@ -156,7 +156,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
             {costCenterOpen && (
               <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                 {costCenterOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
+                  <div className="px-3 py-2 text-xs text-slate-500">NO BRANCHES FOUND</div>
                 ) : (
                   costCenterOptions.map((cc) => (
                     <button

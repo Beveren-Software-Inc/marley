@@ -506,9 +506,6 @@ export const ReceptionistPage = () => {
 
         {currentView === 'long-acting-medicine' && (
           <div className="p-4">
-            <p className="text-sm text-slate-600 mb-4">
-              View long acting medicines across patients. Filter by start date and frequency. Click a row for details.
-            </p>
             <DashboardCard
               title="Long Acting Medicine"
               onAdd={() => setShowCreateLongActing(true)}
@@ -678,6 +675,7 @@ export const ReceptionistPage = () => {
             >
               <AppointmentList
                 showAll={true}
+                defaultTodayDates
                 receptionWalkInActions
                 patient={selectedPatient || undefined}
                 refreshKey={appointmentRefreshKey}
@@ -799,6 +797,7 @@ export const ReceptionistPage = () => {
                 >
                   <AppointmentList
                     showAll
+                    defaultTodayDates
                     receptionWalkInActions
                     patient={selectedPatient || undefined}
                     refreshKey={appointmentRefreshKey}

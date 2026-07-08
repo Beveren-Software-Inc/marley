@@ -155,7 +155,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //       {open && (
 //         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
 //           {options.length === 0
-//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
 //             : options.map(opt => (
 //               <button key={opt.name} type="button"
 //                 className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
@@ -395,7 +395,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 
 //       {events.length === 0 ? (
 //         <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-//           <p className="text-sm text-slate-500 mb-3">No events recorded yet.</p>
+//           <p className="text-sm text-slate-500 mb-3">NO EVENTS RECORDED YET.</p>
 //           <button
 //             type="button"
 //             onClick={addEvent}
@@ -858,7 +858,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && !disabled && (
         <div className={linkComboboxDropdownClass}>
           {options.length === 0
-            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button"
                 className={linkComboboxOptionClassCompact}
@@ -1139,7 +1139,7 @@ function EventsTab({
 
       {events.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-          <p className="text-sm text-slate-500 mb-3">No events recorded yet.</p>
+          <p className="text-sm text-slate-500 mb-3">NO EVENTS RECORDED YET.</p>
           <button
             type="button"
             onClick={addEvent}

@@ -4,6 +4,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const TASK_TYPE_ICONS: Record<string, string> = {
   'Medication Administration': '💊',
@@ -294,20 +295,18 @@ export const NurseTaskList = ({
       )}
 
       {showFilters ? (
-        <div className="flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
+        <div className="card-filter-bar flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
           <div className="flex min-w-[130px] flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex min-w-[130px] flex-col gap-1">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
@@ -370,7 +369,7 @@ export const NurseTaskList = ({
 
       {!loading && !error && tasks.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-sm">
-          No nurse tasks found.
+          NO NURSE TASKS FOUND.
         </div>
       ) : null}
 

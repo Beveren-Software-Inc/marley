@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { ArrowUpRight } from 'lucide-react'
+import { useEffect, useState, type ReactNode } from 'react'
+import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
@@ -31,9 +31,14 @@ export function CardHeaderActions({
   openListingTitle = 'Open full list',
   createDisabled = false,
   createDisabledTitle,
+  expanded = false,
+  collapseTitle = 'Collapse',
 }: CardHeaderActionsProps & {
   createDisabled?: boolean
   createDisabledTitle?: string
+  /** When true, the ↗ button becomes a ↙ collapse toggle. */
+  expanded?: boolean
+  collapseTitle?: string
 }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const handleOpenListing =
@@ -67,11 +72,20 @@ export function CardHeaderActions({
         <button
           type="button"
           onClick={handleOpenListing}
-          className="w-6 h-6 rounded-md border border-slate-300 bg-white flex items-center justify-center hover:bg-slate-50 transition-colors flex-shrink-0"
-          title={openListingTitle}
-          aria-label={openListingTitle}
+          className={`w-6 h-6 rounded-md border flex items-center justify-center transition-colors flex-shrink-0 ${
+            expanded
+              ? 'border-primary bg-primary/10 hover:bg-primary/20'
+              : 'border-slate-300 bg-white hover:bg-slate-50'
+          }`}
+          title={expanded ? collapseTitle : openListingTitle}
+          aria-label={expanded ? collapseTitle : openListingTitle}
+          aria-expanded={expanded}
         >
-          <ArrowUpRight className="w-3.5 h-3.5 text-primary" strokeWidth={2.25} />
+          {expanded ? (
+            <ArrowDownLeft className="w-3.5 h-3.5 text-primary" strokeWidth={2.25} />
+          ) : (
+            <ArrowUpRight className="w-3.5 h-3.5 text-primary" strokeWidth={2.25} />
+          )}
         </button>
       )}
     </div>
@@ -83,8 +97,6 @@ export const DashboardCard = ({
   titleAddon,
   headerExtra,
   onAdd,
-  onOpenListing,
-  listingScreen,
   openListingTitle,
   children,
   className = '',
@@ -126,12 +138,27 @@ export const DashboardCard = ({
   /** Allow + even when the active visit/admission is closed (new OP visit / IP admission cards). */
   allowCreateOnClosedEpisode?: boolean
 }) => {
-  const [showFilters, setShowFilters] = useState(false)
+  // Filters are shown inline on the card (no toggle button) whenever the card is filterable.
+  const showFilters = filterable
   const { guardClinicalCreate, isActiveCareEpisodeClosed, activeCareBlockReason } = useCareContext()
-  const compactClinical =
-    compactClinicalLayout ?? (fixedHeight && !noHeightLimit)
+
+  // ↗ toggles an in-place full-screen expand of this card (no route change); ↙ collapses it.
+  const [expanded, setExpanded] = useState(false)
+  useEffect(() => {
+    if (!expanded) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setExpanded(false)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [expanded])
+
+  // When expanded, show the full listing (all columns/rows), not the compact tile layout.
+  const fullList = noHeightLimit || expanded
+  const useFixedHeight = fixedHeight && !fullList
+  const compactClinical = compactClinicalLayout ?? useFixedHeight
   const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
-  const resolvedOpenListingTitle = openListingTitle ?? `Open full ${title} list`
+  const resolvedOpenListingTitle = openListingTitle ?? `Expand ${title}`
   const createBlocked =
     disableCreate ?? (isActiveCareEpisodeClosed && !allowCreateOnClosedEpisode)
   const handleAdd = onAdd
@@ -139,79 +166,76 @@ export const DashboardCard = ({
     : undefined
 
   return (
-    <section
-      className={`rounded-lg p-3 sm:p-4 shadow-sm flex flex-col min-w-0 ${
-        requiresAttention
-          ? 'bg-red-50/80 border-2 border-red-300/90 ring-1 ring-red-200/60'
-          : 'bg-white border border-slate-200'
-      } ${
-        fixedHeight && !noHeightLimit
-          ? 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
-          : ''
-      } ${className}`}
-    >
-      <div className="font-semibold mb-3 sm:mb-4 flex flex-wrap items-center justify-between flex-shrink-0 gap-x-2 gap-y-2">
-        <div className="flex items-center gap-2 min-w-0 flex-1 basis-[min(100%,12rem)]">
-          <span className={`truncate text-sm sm:text-base ${requiresAttention ? 'text-red-950' : undefined}`}>
-            {title}
-          </span>
-          {titleAddon}
-          {requiresAttention && (
-            <span
-              className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
-              title={attentionLabel}
-            >
-              Required
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {headerExtra}
-          {filterable && (
-            <button
-              type="button"
-              onClick={() => setShowFilters((prev) => !prev)}
-              className={`p-1 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-              title={showFilters ? 'Hide filters' : 'Show filters'}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"
-                />
-              </svg>
-            </button>
-          )}
-          <CardHeaderActions
-            onAdd={handleAdd}
-            addButtonTitle={resolvedAddTitle}
-            onOpenListing={onOpenListing}
-            listingScreen={listingScreen}
-            openListingTitle={resolvedOpenListingTitle}
-            createDisabled={createBlocked}
-            createDisabledTitle={activeCareBlockReason}
-          />
-        </div>
-      </div>
-      {/*
-        Avoid overflow-y on this wrapper: it clips native <select> menus and absolute filter dropdowns.
-        Fixed-height cards rely on children using flex-1 min-h-0 overflow-auto on the table region.
-      */}
-      <div
-        className={
-          fixedHeight && !noHeightLimit
-            ? `flex flex-col flex-1 min-h-0 dense-listing ${showFilters ? 'overflow-visible' : 'overflow-hidden'}`
-            : 'overflow-x-auto overflow-visible dense-listing'
-        }
+    <>
+      {expanded && (
+        <div
+          className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-[1px]"
+          onClick={() => setExpanded(false)}
+          aria-hidden
+        />
+      )}
+      <section
+        className={`dashboard-card rounded-lg p-3 sm:p-4 shadow-sm flex flex-col min-w-0 border ${
+          requiresAttention ? '!bg-red-50/80 border-2 border-red-300/90 ring-1 ring-red-200/60' : 'border-slate-200/70'
+        } ${
+          expanded
+            ? 'fixed inset-2 sm:inset-4 z-50 max-h-none overflow-auto shadow-2xl'
+            : useFixedHeight
+              ? 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
+              : ''
+        } ${className}`}
         style={{ scrollbarWidth: 'thin' }}
       >
-        <DashboardFullListingContext.Provider value={Boolean(noHeightLimit)}>
-          <DashboardCompactClinicalContext.Provider value={compactClinical}>
-            <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
-          </DashboardCompactClinicalContext.Provider>
-        </DashboardFullListingContext.Provider>
-      </div>
-    </section>
+        <div className={`dashboard-card-head font-semibold mb-3 sm:mb-4 flex flex-wrap items-center justify-between flex-shrink-0 gap-x-2 gap-y-1.5 rounded-md px-3 py-2 text-slate-800 ${requiresAttention ? '!bg-red-200/70 !text-red-900' : ''}`}>
+          <div className="flex items-center gap-2 min-w-0 flex-1 basis-[min(100%,12rem)]">
+            <span className="truncate text-sm sm:text-base">
+              {title}
+            </span>
+            {titleAddon}
+            {requiresAttention && (
+              <span
+                className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
+                title={attentionLabel}
+              >
+                Required
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {headerExtra}
+            <CardHeaderActions
+              onAdd={handleAdd}
+              addButtonTitle={resolvedAddTitle}
+              onOpenListing={() => setExpanded((v) => !v)}
+              openListingTitle={resolvedOpenListingTitle}
+              collapseTitle={`Collapse ${title}`}
+              expanded={expanded}
+              createDisabled={createBlocked}
+              createDisabledTitle={activeCareBlockReason}
+            />
+          </div>
+        </div>
+        {/*
+          Avoid overflow-y on this wrapper: it clips native <select> menus and absolute filter dropdowns.
+          Fixed-height cards rely on children using flex-1 min-h-0 overflow-auto on the table region.
+        */}
+        <div
+          className={
+            useFixedHeight
+              ? `flex flex-col flex-1 min-h-0 dense-listing ${showFilters ? 'overflow-visible' : 'overflow-hidden'}`
+              : expanded
+                ? 'flex flex-col flex-1 min-h-0 overflow-visible dense-listing'
+                : 'overflow-x-auto overflow-visible dense-listing'
+          }
+          style={{ scrollbarWidth: 'thin' }}
+        >
+          <DashboardFullListingContext.Provider value={fullList}>
+            <DashboardCompactClinicalContext.Provider value={compactClinical}>
+              <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+            </DashboardCompactClinicalContext.Provider>
+          </DashboardFullListingContext.Provider>
+        </div>
+      </section>
+    </>
   )
 }

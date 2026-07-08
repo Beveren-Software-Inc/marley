@@ -73,7 +73,7 @@ export const InvoiceList = ({
     return (
       <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
         <FileText className="w-12 h-12 mx-auto mb-2 opacity-30" />
-        <p>No invoices found</p>
+        <p>NO INVOICES FOUND</p>
       </div>
     )
   }

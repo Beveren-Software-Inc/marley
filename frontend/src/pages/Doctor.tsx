@@ -30,6 +30,7 @@ import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskA
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { LabTestList } from '../components/labTests/LabTestList'
+import { LabTestHistory } from '../components/labTests/LabTestHistory'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
@@ -50,6 +51,7 @@ import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
+import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
 import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
@@ -137,6 +139,7 @@ export const DoctorPage = () => {
   const syncingPatientSelectionRef = useRef(false)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
+  const [showLabTrends, setShowLabTrends] = useState(false)
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
@@ -215,6 +218,8 @@ export const DoctorPage = () => {
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
   const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
+  const [showCreateAdmission, setShowCreateAdmission] = useState(false)
+  const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
 
   const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
   const showOpRequiredDocs = Boolean(selectedPatient && mode === 'OP' && activeVisit)
@@ -1233,10 +1238,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
-            <p className="text-sm text-slate-600 mt-1">
-              View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
-            </p>
+            <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicines</h2>
           </div>
           <DashboardCard title="Long Acting Medicines" noHeightLimit>
             <ReceptionLongActingMedicineList
@@ -1327,7 +1329,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Warnings & Allergies" 
+            title="Warnings & Messages"
             onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
             addButtonTitle="Add Warning Message"
           >
@@ -1926,8 +1928,16 @@ export const DoctorPage = () => {
         />
       </DashboardCard>
 
-      <DashboardCard fixedHeight title="Inpatient Admissions" listingScreen="admission">
+      <DashboardCard
+        fixedHeight
+        title="Inpatient Admissions"
+        onAdd={() => setShowCreateAdmission(true)}
+        addButtonTitle="Create Admission"
+        listingScreen="admission"
+        allowCreateOnClosedEpisode
+      >
         <AdmissionList
+          key={admissionRefreshKey}
           patient={selectedPatient || undefined}
           onAdmissionActivate={handleAdmissionActivate}
           onPatientFromAdmission={(p) => {
@@ -1960,6 +1970,18 @@ export const DoctorPage = () => {
         onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
         addButtonTitle="Add Lab Test Report"
         listingScreen="lab"
+        headerExtra={
+          selectedPatient ? (
+            <button
+              type="button"
+              onClick={() => setShowLabTrends(true)}
+              className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+              title="Lab results over time — dates in columns, tests in rows"
+            >
+              📈 Lab Trends
+            </button>
+          ) : undefined
+        }
       >
         <LabTestList
           patient={selectedPatient || undefined}
@@ -2007,6 +2029,34 @@ export const DoctorPage = () => {
         }}
         initialPatient={selectedPatient}
       />
+    )}
+
+    {showLabTrends && (
+      <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setShowLabTrends(false)}>
+        <div className="absolute inset-0 bg-primary/15 backdrop-blur-[2px]" />
+        <div
+          className="relative z-10 flex h-full w-full max-w-5xl flex-col border-l border-slate-200 bg-white shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lab Trends</p>
+              <p className="text-sm font-semibold text-slate-900">Results over time — dates in columns, tests in rows</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowLabTrends(false)}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+              aria-label="Close"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <LabTestHistory patientId={selectedPatient || undefined} onPatientChange={handlePatientSelect} />
+          </div>
+        </div>
+      </div>
     )}
 
     {showLabTestModal && (
@@ -2090,6 +2140,18 @@ export const DoctorPage = () => {
           setShowCreateVisitModal(false)
         }}
         initialPatient={selectedPatient || undefined}
+      />
+    )}
+
+    {showCreateAdmission && (
+      <CreateAdmissionModal
+        onClose={() => setShowCreateAdmission(false)}
+        onSuccess={() => {
+          setShowCreateAdmission(false)
+          setAdmissionRefreshKey((prev) => prev + 1)
+          toast.success('Inpatient admission created successfully')
+        }}
+        patientName={selectedPatient || undefined}
       />
     )}
 

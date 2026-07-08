@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, strip_html
+from frappe.utils import cint, flt, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
@@ -2103,10 +2103,12 @@ def create_lab_test(data):
 		'template': data.get('template'),
 		'practitioner': data.get('practitioner'),
 		'date': data.get('date') or frappe.utils.today(),
-		'time': data.get('time') or frappe.utils.now_time(),
+		'time': data.get('time') or frappe.utils.nowtime(),
 		# 'department': data.get('department'),
 		'service_unit': data.get('service_unit'),
 		'status': data.get('status') or 'Draft',
+		'repeat_daily': 1 if str(data.get('repeat_daily') or '').lower() in ('1', 'true', 'yes') else 0,
+		'repeat_until': data.get('repeat_until') or None,
 		'naming_series': naming_series
 	})
 	
@@ -2702,3 +2704,52 @@ def finish_group_lab_tests(service_request_name: str):
 	)
 
 	return {"ok": True, "service_request": service_request_name, "finished": True}
+
+def create_daily_repeat_lab_tests():
+	"""Daily scheduler: lab tests flagged 'Repeat Daily' spawn a fresh test each day
+	until Repeat Until (doctor orders once; nurses perform the daily tests)."""
+	today = frappe.utils.today()
+	origins = frappe.get_all(
+		"Lab Test",
+		filters={"repeat_daily": 1, "repeat_until": [">=", today], "docstatus": ["<", 2]},
+		fields=[
+			"name", "patient", "patient_sex", "cost_center", "template",
+			"practitioner", "service_unit", "naming_series", "date",
+		],
+	)
+	created = 0
+	for o in origins:
+		if str(o.date) == today:
+			continue  # the origin itself covers its own day
+		if frappe.db.exists("Lab Test", {"repeated_from": o.name, "date": today}):
+			continue  # already generated today (idempotent)
+		try:
+			from healthcare.healthcare.doctype.service_request.service_request import (
+				generate_lab_test_trans_num,
+			)
+
+			doc = frappe.get_doc({
+				"doctype": "Lab Test",
+				"trans_num": generate_lab_test_trans_num(format_type="prefixed", prefix="LT-", padding=6),
+				"patient": o.patient,
+				"patient_sex": o.patient_sex,
+				"cost_center": o.cost_center,
+				"template": o.template,
+				"practitioner": o.practitioner,
+				"service_unit": o.service_unit,
+				"naming_series": o.naming_series or "HLC-LAB-.YYYY.-",
+				"date": today,
+				"time": "06:00:00",
+				"status": "Draft",
+				"repeated_from": o.name,
+			})
+			doc.insert(ignore_permissions=True)
+			created += 1
+		except Exception:
+			frappe.log_error(
+				message=frappe.get_traceback(),
+				title=f"Daily repeat lab test failed: {o.name}",
+			)
+	if created:
+		frappe.db.commit()
+	return created

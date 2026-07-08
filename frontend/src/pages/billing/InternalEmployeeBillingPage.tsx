@@ -275,7 +275,7 @@ export function InternalEmployeeBillingPage({ patient }: InternalEmployeeBilling
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-xs">No internal employee invoices yet.</div>
+          <div className="py-12 text-center text-slate-500 text-xs">NO INTERNAL EMPLOYEE INVOICES YET.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">

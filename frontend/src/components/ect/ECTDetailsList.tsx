@@ -54,7 +54,7 @@ export const ECTDetailsList = ({ patient, refreshKey, onPatientClick }: ECTDetai
   if (ectDetails.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No ECT details found</div>
+        <div className="text-slate-500">NO ECT DETAILS FOUND</div>
       </div>
     )
   }

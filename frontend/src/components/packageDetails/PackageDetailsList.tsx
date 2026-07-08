@@ -56,7 +56,7 @@ export const PackageDetailsList = ({ patient, admission_no }: PackageDetailsList
   if (packages.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="text-slate-500">No package details found</div>
+        <div className="text-slate-500">NO PACKAGE DETAILS FOUND</div>
       </div>
     )
   }

@@ -50,7 +50,7 @@ export const ECTAdmissionList = ({ patient, onPatientClick }: ECTAdmissionListPr
   if (!items.length) {
     return (
       <div className="flex items-center justify-center p-4 text-sm text-slate-500">
-        No ECT Admission records found
+        NO ECT ADMISSION RECORDS FOUND
       </div>
     )
   }

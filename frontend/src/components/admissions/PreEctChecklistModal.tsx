@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { uploadPatientFile } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle , ClipboardList } from 'lucide-react'
 
@@ -223,7 +223,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
           {options.length === 0
-            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button"
                 className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5 focus:outline-none"
@@ -320,6 +320,28 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
 
   const setField = <K extends keyof FormState>(k: K, v: FormState[K]) =>
     setFormState(prev => ({ ...prev, [k]: v }))
+
+  // Staff nurse defaults to the logged-in user's linked practitioner.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const practId = await getCurrentUserPractitioner()
+      if (cancelled || !practId) return
+      let label = practId
+      try {
+        const opts = await fetchHealthcarePractitioners(practId)
+        label = opts.find((o) => o.name === practId)?.label || practId
+      } catch { /* keep id as label */ }
+      setFormState(prev => {
+        if (prev.staff_nurse || prev.nurse_name) return prev
+        return { ...prev, staff_nurse: practId, nurse_name: label }
+      })
+      setNurseLabel((prevLabel) => prevLabel || label)
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const fetchPractitioners = useCallback(
     (search: string) => fetchHealthcarePractitioners(search || undefined),
@@ -543,7 +565,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
                         setNurseLabel('')
                       }}
                       fetchOptions={fetchPractitioners}
-                      placeholder="Search practitioners..."
+                      placeholder="Search doctors..."
                     />
                     <div>
                       <label className={labelClass}>Nurse Name</label>
@@ -606,7 +628,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
 
                 {checklist.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
-                    <p className="text-sm text-slate-500 mb-1">No checklist items yet.</p>
+                    <p className="text-sm text-slate-500 mb-1">NO CHECKLIST ITEMS YET.</p>
                     <p className="text-xs text-slate-400 mb-4">Select a template on the General tab, or add items manually.</p>
                     <button type="button" onClick={addRow}
                       className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">

@@ -362,7 +362,7 @@ export function AppointmentDetailPanel({
             </svg>
           }
         >
-          <InfoRow label="Doctor" value={str(doc.practitioner_name || doc.practitioner)} />
+          <InfoRow label="Doctor Name" value={str(doc.practitioner_name || doc.practitioner)} />
           <InfoRow label="Department" value={str(doc.department)} />
           {!!doc.referring_practitioner && (
             <InfoRow label="Referring Doctor" value={str(doc.referring_practitioner)} />
@@ -439,7 +439,7 @@ export function AppointmentDetailPanel({
             {doc.remarks ? (
               <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{str(doc.remarks)}</p>
             ) : (
-              <p className="text-sm text-slate-400 italic">No reception remarks added.</p>
+              <p className="text-sm text-slate-400 italic">NO RECEPTION REMARKS ADDED.</p>
             )}
           </div>
           <div className="border-t border-slate-100 pt-3">
@@ -447,7 +447,7 @@ export function AppointmentDetailPanel({
             {doc.notes ? (
               <p className="text-sm text-slate-700 whitespace-pre-wrap leading-relaxed">{str(doc.notes)}</p>
             ) : (
-              <p className="text-sm text-slate-400 italic">No doctor&apos;s note added.</p>
+              <p className="text-sm text-slate-400 italic">NO DOCTOR&APOS;S NOTE ADDED.</p>
             )}
           </div>
         </div>

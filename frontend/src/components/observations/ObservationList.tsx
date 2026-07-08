@@ -14,6 +14,7 @@ import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
 import { isObservationActive } from './observationDisplayUtils'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ObservationListProps {
   patient?: string
@@ -198,7 +199,23 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
           <div ref={levelFilterRef} className="flex flex-col gap-1 min-w-[200px]">
             <label className="text-xs font-medium text-slate-500">Observation level</label>
             <div className="relative">
@@ -251,36 +268,16 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
             </div>
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Start date from</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Start date to</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">DC date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">DC From Date</label>
+            <DateFilterInput
               value={dcDateFrom}
               onChange={(e) => setDcDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">DC date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">DC To Date</label>
+            <DateFilterInput
               value={dcDateTo}
               onChange={(e) => setDcDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
@@ -346,7 +343,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                     Amount
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Duration
+                    Frequency
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Practitioner

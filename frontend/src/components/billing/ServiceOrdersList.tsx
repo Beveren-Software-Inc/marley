@@ -183,7 +183,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
           >
-            <option value="">All Status</option>
+            <option value="">Select All</option>
             <option value="Draft">Draft</option>
             <option value="To Bill">To Bill</option>
             <option value="Completed">Completed</option>
@@ -213,7 +213,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
       {orders.length === 0 ? (
         <div className="bg-white border border-slate-200 rounded-lg p-8 text-center text-slate-400">
           <Package className="w-12 h-12 mx-auto mb-2 opacity-30" />
-          <p>No service orders found</p>
+          <p>NO SERVICE ORDERS FOUND</p>
           {!effectivePatient && !scopedReferenceName && !hasCaseSearch && (
             <p className="text-xs mt-2">Select a patient or search by IP/OP case no or sales order ID.</p>
           )}

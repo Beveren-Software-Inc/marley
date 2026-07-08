@@ -126,7 +126,7 @@ const FilterBar = ({
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
   return (
-    <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
+    <div className="card-filter-bar flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
       {showPatientPicker ? (
         <div className="flex flex-col gap-1 min-w-[220px] relative">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient</label>
@@ -389,7 +389,7 @@ export const LabTestHistory = ({
           <Search className="w-10 h-10 mb-3 opacity-30" />
           <p className="text-sm">
             {activeCount > 0
-              ? 'No lab results match the current filters.'
+              ? 'NO LAB RESULTS MATCH THE CURRENT FILTERS.'
               : 'No lab results found for this patient in the selected date range.'}
           </p>
           {activeCount > 0 ? (
@@ -471,7 +471,7 @@ export const LabTestHistory = ({
                       colSpan={displayColumns.length + 1}
                       className="px-4 py-8 text-center text-sm text-slate-400"
                     >
-                      No test rows match the current filters.
+                      NO TEST ROWS MATCH THE CURRENT FILTERS.
                     </td>
                   </tr>
                 ) : (

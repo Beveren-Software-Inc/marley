@@ -77,7 +77,7 @@ export const SampleCollectionList = ({ patient, refreshKey = 0 }: SampleCollecti
       ) : rows.length === 0 ? (
         <div className="text-center py-12 text-slate-400">
           <Droplet className="w-8 h-8 mx-auto mb-2 opacity-30" />
-          <p className="text-sm font-medium">No sample collections found</p>
+          <p className="text-sm font-medium">NO SAMPLE COLLECTIONS FOUND</p>
         </div>
       ) : (
         <div className="overflow-x-auto rounded-lg border border-slate-200">

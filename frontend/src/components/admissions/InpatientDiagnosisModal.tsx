@@ -360,7 +360,7 @@ export const InpatientDiagnosisModal = ({
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-xs text-slate-500">No diagnoses found</div>
+                              <div className="px-3 py-2 text-xs text-slate-500">NO DIAGNOSES FOUND</div>
                             )}
                           </div>
                         )}
@@ -373,7 +373,7 @@ export const InpatientDiagnosisModal = ({
                     {/* Practitioner Selection */}
                     <div className="relative">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Practitioner <span className="text-red-500">*</span>
+                        Doctor <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
                         <input
@@ -385,7 +385,7 @@ export const InpatientDiagnosisModal = ({
                             updateDiagnosis(index, 'practitioner', '')
                           }}
                           onFocus={() => setPractitionerOpen(prev => ({ ...prev, [index]: true }))}
-                          placeholder="Search practitioner..."
+                          placeholder="Search doctor..."
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                           required
                         />
@@ -411,7 +411,7 @@ export const InpatientDiagnosisModal = ({
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                              <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                             )}
                           </div>
                         )}

@@ -235,7 +235,7 @@ export function PatientAssessmentDetailPanel({
               <p className="text-sm text-slate-500 py-6 text-center">Loading parameters…</p>
             ) : sheet.length === 0 ? (
               <p className="text-sm text-slate-500 py-6 text-center">
-                No assessment parameters recorded.
+                NO ASSESSMENT PARAMETERS RECORDED.
               </p>
             ) : (
               <ul className="space-y-2.5">
@@ -321,7 +321,7 @@ export function PatientAssessmentDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Practitioner"
+                label="Doctor Name"
                 value={displayValue(
                   doc?.practitioner_name ||
                     doc?.healthcare_practitioner ||

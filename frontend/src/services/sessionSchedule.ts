@@ -35,13 +35,15 @@ export async function fetchSessionSchedules(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
-  admissionNumber?: string
+  admissionNumber?: string,
+  roleGroup?: string
 ): Promise<SessionSchedule[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
   if (admissionNumber) params.append('admission_number', admissionNumber)
+  if (roleGroup) params.append('role_group', roleGroup)
 
   const response = await fetch(
     `/api/method/healthcare.api.session_schedule.get_session_schedules?${params.toString()}`

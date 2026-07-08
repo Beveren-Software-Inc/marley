@@ -5,13 +5,14 @@ import {
   type HomicideRiskAssessmentRow,
 } from '../../services/homicideRisk'
 import {
-  fetchHealthcarePractitioners,
+  fetchDoctorPractitioners,
   type LinkFieldOption,
 } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { HomicideRiskAssessmentDetailPanel } from './HomicideRiskAssessmentDetailPanel'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface HomicideRiskAssessmentListProps {
   patient?: string
@@ -140,7 +141,7 @@ export const HomicideRiskAssessmentList = ({
     if (!practitionerOpen) return
     const t = setTimeout(async () => {
       try {
-        const opts = await fetchHealthcarePractitioners(practitionerQuery || undefined)
+        const opts = await fetchDoctorPractitioners(practitionerQuery || undefined)
         setPractitionerOptions(opts)
       } catch {
         setPractitionerOptions([])
@@ -201,27 +202,25 @@ export const HomicideRiskAssessmentList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 mb-1 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-1 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div data-homicide-practitioner-filter className="flex flex-col gap-1 min-w-[200px]">
-            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
             <div className="relative">
               <input
                 type="text"
@@ -238,7 +237,7 @@ export const HomicideRiskAssessmentList = ({
                   setPractitionerOpen(true)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner…"
+                placeholder="Search doctor…"
                 className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
                   practitionerFilter ? 'pr-8' : ''
                 }`}
@@ -247,7 +246,7 @@ export const HomicideRiskAssessmentList = ({
                 <button
                   type="button"
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  aria-label="Clear practitioner filter"
+                  aria-label="Clear doctor filter"
                   onClick={() => {
                     setPractitionerFilter('')
                     setPractitionerQuery('')
@@ -297,7 +296,7 @@ export const HomicideRiskAssessmentList = ({
               <tr>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">ID</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Practitioner</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Doctor</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk Level</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>

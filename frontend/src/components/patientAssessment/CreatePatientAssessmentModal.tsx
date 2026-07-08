@@ -627,7 +627,7 @@
 //                 {sheetRows.length === 0 ? (
 //                   <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg">
 //                     <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-//                     <p className="text-sm text-slate-500 mb-1">No parameters yet.</p>
+//                     <p className="text-sm text-slate-500 mb-1">NO PARAMETERS YET.</p>
 //                     <p className="text-xs text-slate-400 mb-4">Select a template on the Details tab to auto-load parameters, or add rows manually.</p>
 //                     <button type="button" onClick={addSheetRow}
 //                       className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90">
@@ -1450,7 +1450,7 @@ export const CreatePatientAssessmentModal = ({
 
                 {/* Practitioner + Company */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Combo label="Healthcare Practitioner" placeholder="Search practitioner…"
+                  <Combo label="Doctor Name" placeholder="Search doctor…"
                     displayValue={practOpen ? practQuery : (selectedPract?.label ?? practQuery)}
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
                     onOpen={() => setPractOpen(true)} open={practOpen} options={practOptions}
@@ -1491,7 +1491,7 @@ export const CreatePatientAssessmentModal = ({
                 {sheetRows.length === 0 ? (
                   <div className="text-center py-12 border border-dashed border-slate-300 rounded-lg">
                     <ClipboardList className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-                    <p className="text-sm text-slate-500 mb-1">No parameters yet.</p>
+                    <p className="text-sm text-slate-500 mb-1">NO PARAMETERS YET.</p>
                     <p className="text-xs text-slate-400 mb-4">Select a template on the Details tab to auto-load parameters, or add rows manually.</p>
                     <button type="button" onClick={addSheetRow}
                       className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90">

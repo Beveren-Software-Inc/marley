@@ -404,7 +404,7 @@ export const CreateDoctorMedicationPlanModal = ({
             )}
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -414,7 +414,7 @@ export const CreateDoctorMedicationPlanModal = ({
                     setPractitionerOpen(true)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search practitioner..."
+                  placeholder="Search doctor..."
                   className={linkComboboxInputWithClearClass}
                 />
                 <button

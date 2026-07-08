@@ -942,11 +942,11 @@ const handleMakePayment = async (
     return (
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-slate-600 mb-1">From</label>
+          <label className="block text-xs text-slate-600 mb-1">From Date</label>
           <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div>
-          <label className="block text-xs text-slate-600 mb-1">To</label>
+          <label className="block text-xs text-slate-600 mb-1">To Date</label>
           <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <button type="button" onClick={() => { setFromDate(''); setToDate('') }} className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-md">
@@ -960,7 +960,7 @@ const handleMakePayment = async (
               onChange={(e) => setPaymentModeFilter(e.target.value)}
               className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
             >
-              <option value="">All modes</option>
+              <option value="">Select All</option>
               {paymentModes.map((mode) => (
                 <option key={mode.name} value={mode.name}>{mode.label}</option>
               ))}
@@ -1080,7 +1080,7 @@ const handleMakePayment = async (
                   )
                 })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1139,7 +1139,7 @@ const handleMakePayment = async (
         {filteredInpatient.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Users className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No inpatient balances found</p>
+            <p className="text-slate-500">NO INPATIENT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1278,7 +1278,7 @@ const handleMakePayment = async (
         {filteredOutpatient.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <User className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No outpatient balances found</p>
+            <p className="text-slate-500">NO OUTPATIENT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1299,7 +1299,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
@@ -1418,7 +1418,7 @@ const handleMakePayment = async (
         {filteredIop.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Activity className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No IOP visit balances found</p>
+            <p className="text-slate-500">NO IOP VISIT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1440,7 +1440,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>
@@ -1559,7 +1559,7 @@ const handleMakePayment = async (
         {filteredDv.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <CalendarClock className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No daily auto visit balances found</p>
+            <p className="text-slate-500">NO DAILY AUTO VISIT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1583,7 +1583,7 @@ const handleMakePayment = async (
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-sm">
                         <div><p className="text-xs text-slate-400">Visit ID</p><p className="text-slate-700 font-mono text-xs">{balance.visit_id}</p></div>
                         <div><p className="text-xs text-slate-400">Visit Date</p><p className="text-slate-700">{balance.visit_date}</p></div>
-                        <div><p className="text-xs text-slate-400">Practitioner</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
+                        <div><p className="text-xs text-slate-400">Doctor</p><p className="text-slate-700">{balance.practitioner || '—'}</p></div>
                         <div><p className="text-xs text-slate-400">Branch</p><p className="text-slate-700">{balance.cost_center || '—'}</p></div>
                         {balance.days_overdue > 0 && <div><p className="text-xs text-slate-400">Days Overdue</p><p className="text-red-600 font-medium">{balance.days_overdue} days</p></div>}
                       </div>

@@ -18,7 +18,6 @@ import { PackageDetailView } from '../components/packageDetails/PackageDetailVie
 import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
-import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
@@ -35,6 +34,9 @@ import {
 import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
+import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
+import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
+import { LabTestHistory } from '../components/labTests/LabTestHistory'
 import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
@@ -48,7 +50,6 @@ import { PharmacyGiveOutList } from '../components/medication/PharmacyGiveOutLis
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
-import { LongActingMedicineList } from '../components/medication/LongActingMedicineList'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
@@ -128,6 +129,10 @@ export const NursePage = () => {
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
+  const [showCreateAdmission, setShowCreateAdmission] = useState(false)
+  const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
+  const [showLabTrends, setShowLabTrends] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
     const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
@@ -183,7 +188,7 @@ export const NursePage = () => {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
   const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
-  const { status: ipDocStatus } = useIpDoctorRequirements(
+  useIpDoctorRequirements(
     selectedPatient,
     activeAdmission,
     showIpRequiredDocs,
@@ -1002,8 +1007,8 @@ export const NursePage = () => {
     )
   }
 
-  // Pharmacy Give Out — IP only
-  if (screen === 'n-pharmacy-giveout' && mode !== 'OP') {
+  // Pharmacy Give Out — OP and IP
+  if (screen === 'n-pharmacy-giveout') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1131,10 +1136,7 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <p className="text-sm text-slate-600 mb-4">
-            View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
-          </p>
-          <DashboardCard title="Long Acting Med Reminder" noHeightLimit>
+          <DashboardCard title="Long Acting Medicines" noHeightLimit>
             <ReceptionLongActingMedicineList
               patient={selectedPatient || undefined}
               onPatientClick={handlePatientSelect}
@@ -1284,6 +1286,7 @@ export const NursePage = () => {
                 {activeSessionTab === 'session-schedule' ? (
                   <SessionScheduleList
                     embedded
+                    roleGroup="Nurse"
                     patient={selectedPatient}
                     admissionNumber={activeAdmission}
                     refreshKey={sessionScheduleRefreshKey}
@@ -1597,299 +1600,146 @@ export const NursePage = () => {
     <div className="flex min-h-full flex-col">
       <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
-      {/* OP / IP mode: list at top — hides once a patient is selected */}
-      {((mode === 'OP') || (costCenterCareScope !== 'op_only' && mode === 'IP')) &&
-      !selectedPatient ? (
-        <div className={`px-4 pt-4 pb-0 ${mode === 'IP' ? 'grid gap-4 md:grid-cols-2 auto-rows-fr' : ''}`}>
-          {mode === 'OP' ? (
-            <DashboardCard
-              title="Patient Visits (OP)"
-              fixedHeight
-              listingScreen="n-op"
-            >
-              <PatientVisitList
-                patient={selectedPatient || undefined}
-                onPatientFromVisit={(p) => {
-                  setSelectedPatient(p)
-                  const sp = new URLSearchParams(searchParams)
-                  sp.set('patient', p)
-                  setSearchParams(sp, { replace: true })
-                }}
-                onVisitActivate={handleVisitActivate}
-              />
-            </DashboardCard>
-          ) : (
-            <>
-              <DashboardCard
-                title="Inpatient Admissions (IP)"
-                fixedHeight
-                listingScreen="n-reg"
-              >
-                <AdmissionList
-                  patient={selectedPatient || undefined}
-                  onAdmissionActivate={handleAdmissionActivate}
-                  onPatientFromAdmission={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                />
-              </DashboardCard>
-              <DashboardCard fixedHeight title="Patient Visits" listingScreen="n-op">
-                <PatientVisitList
-                  onPatientFromVisit={(p) => {
-                    setSelectedPatient(p)
-                    const sp = new URLSearchParams(searchParams)
-                    sp.set('patient', p)
-                    setSearchParams(sp, { replace: true })
-                  }}
-                  onVisitActivate={handleVisitActivate}
-                />
-              </DashboardCard>
-            </>
-          )}
-        </div>
-      ) : null}
+      {/* Same card stack as the doctor dashboard (minus appointments) — nurse-dept request. */}
+      <div className="flex flex-col gap-4 p-4">
+        <DashboardCard
+          fixedHeight
+          title="Outpatient Visit Details"
+          onAdd={() => setShowCreateVisitModal(true)}
+          addButtonTitle="Create Patient Visit"
+          listingScreen="n-op"
+          allowCreateOnClosedEpisode
+        >
+          <PatientVisitList
+            detailedColumns
+            onPatientFromVisit={(p) => {
+              setSelectedPatient(p)
+              const sp = new URLSearchParams(searchParams)
+              sp.set('patient', p)
+              setSearchParams(sp, { replace: true })
+            }}
+            onVisitActivate={handleVisitActivate}
+          />
+        </DashboardCard>
 
-      {selectedPatient ? (
-        <>
-          {/* Row 1: Given Medicines + Long Acting Med Reminder — hidden when OP mode or OP-only branch */}
+        <DashboardCard
+          fixedHeight
+          title="Inpatient Admissions"
+          onAdd={() => setShowCreateAdmission(true)}
+          addButtonTitle="Create Admission"
+          listingScreen="n-reg"
+          allowCreateOnClosedEpisode
+        >
+          <AdmissionList
+            key={admissionRefreshKey}
+            patient={selectedPatient || undefined}
+            onAdmissionActivate={handleAdmissionActivate}
+            onPatientFromAdmission={(p) => {
+              setSelectedPatient(p)
+              const sp = new URLSearchParams(searchParams)
+              sp.set('patient', p)
+              setSearchParams(sp, { replace: true })
+            }}
+          />
+        </DashboardCard>
+
+        <DashboardCard
+          fixedHeight
+          title="Warnings & Messages"
+          onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
+          addButtonTitle="Add Warning / Message"
+          listingScreen="n-first"
+        >
+          <WarningMessagesList
+            patient={selectedPatient || undefined}
+            noPatientScope="all"
+            key={warningRefreshKey}
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+
+        <DashboardCard
+          fixedHeight
+          title="Lab Test Report - Pending for Review"
+          onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
+          addButtonTitle="Add Lab Test Report"
+          listingScreen="n-lab"
+          headerExtra={
+            selectedPatient ? (
+              <button
+                type="button"
+                onClick={() => setShowLabTrends(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+                title="Lab results over time — dates in columns, tests in rows"
+              >
+                📈 Lab Trends
+              </button>
+            ) : undefined
+          }
+        >
+          <LabTestList
+            patient={selectedPatient || undefined}
+            defaultStatus="Pending Review"
+            byNurse={true}
+            key={labTestRefreshKey}
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+
+        <DashboardCard fixedHeight title="Prescription" listingScreen="rx">
+          <PrescriptionList
+            patient={selectedPatient || undefined}
+            refreshKey={prescriptionRefreshKey}
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+      </div>
+
+      {showCreateVisitModal && (
+        <CreatePatientVisitModal
+          onClose={() => setShowCreateVisitModal(false)}
+          onSuccess={() => setShowCreateVisitModal(false)}
+          initialPatient={selectedPatient || undefined}
+        />
+      )}
+
+      {showCreateAdmission && (
+        <CreateAdmissionModal
+          onClose={() => setShowCreateAdmission(false)}
+          onSuccess={() => {
+            setShowCreateAdmission(false)
+            setAdmissionRefreshKey((prev) => prev + 1)
+            toast.success('Inpatient admission created successfully')
+          }}
+          patientName={selectedPatient || undefined}
+        />
+      )}
+
+      {showLabTrends && (
+        <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setShowLabTrends(false)}>
+          <div className="absolute inset-0 bg-primary/15 backdrop-blur-[2px]" />
           <div
-            className={`grid gap-4 p-4 auto-rows-fr ${(costCenterCareScope === 'op_only' || mode === 'OP') ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
+            className="relative z-10 flex h-full w-full max-w-5xl flex-col border-l border-slate-200 bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            {costCenterCareScope !== 'op_only' && mode !== 'OP' && (
-              <DashboardCard
-                fixedHeight
-                title="Given Medicines"
-                listingScreen="n-given"
-                openListingTitle="Open full Given Medicines list"
-                filterable={false}
-                headerExtra={
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-slate-50/90 p-1">
-                    <button
-                      type="button"
-                      onClick={handleReconcileGiven}
-                      disabled={reconcileLoading}
-                      className={`${gmIconBtn} text-emerald-800 border-emerald-200/80 hover:bg-emerald-50`}
-                      title="Reconcile for discharge — create stock entry for remaining medicines to return"
-                    >
-                      {reconcileLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                      ) : (
-                        <PackageSearch className="h-4 w-4" aria-hidden />
-                      )}
-                      <span className="sr-only">Reconcile for discharge</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowGivenMedicineModal(true)}
-                      className={gmIconBtnPrimary}
-                      title="Record given medicine"
-                    >
-                      <Plus className="h-4 w-4" strokeWidth={2.5} aria-hidden />
-                      <span className="sr-only">Add given medicine</span>
-                    </button>
-                  </div>
-                }
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3">
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lab Trends</p>
+                <p className="text-sm font-semibold text-slate-900">Results over time — dates in columns, tests in rows</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowLabTrends(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                aria-label="Close"
               >
-                <MedicineGivenList patient={selectedPatient} refreshKey={givenRefreshKey} />
-              </DashboardCard>
-            )}
-
-            <DashboardCard
-              fixedHeight
-              title="Long Acting Med Reminder"
-              listingScreen="n-reminder"
-              openListingTitle="Open full Long Acting Med Reminder list"
-            >
-              <LongActingMedicineList
-                patient={selectedPatient}
-                onPatientClick={handlePatientSelect}
-              />
-            </DashboardCard>
-          </div>
-
-          {/* Row 2: Lab Test Reports + Service Requests */}
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-            {/* Lab Test Reports */}
-            <DashboardCard title="Lab Test" fixedHeight listingScreen="n-lab">
-              <LabTestList patient={selectedPatient} byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
-            </DashboardCard>
-
-            {/* Service Requests */}
-            <DashboardCard
-              title="Service Requests"
-              fixedHeight
-              onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
-              addButtonTitle="Add Service Request"
-              listingScreen="n-ip-services"
-            >
-              <ServiceRequestList
-                patient={selectedPatient}
-                refreshKey={serviceRequestRefreshKey}
-                isNurseContext={true}
-                onPatientClick={handlePatientSelect}
-              />
-            </DashboardCard>
-          </div>
-
-          {/* Row 3: Prescription + Doctors Notes — OP-only sites omit inpatient-style prescription grid */}
-          <div
-            className={`grid gap-4 auto-rows-fr px-4 pb-4 ${costCenterCareScope === 'op_only' ? 'md:grid-cols-1' : 'md:grid-cols-2'}`}
-          >
-            {costCenterCareScope !== 'op_only' && (
-              <DashboardCard
-                fixedHeight
-                title="Prescription"
-                listingScreen="rx"
-                openListingTitle="Open full Prescription list"
-              >
-                <PrescriptionList
-                  patient={selectedPatient}
-                  refreshKey={prescriptionRefreshKey}
-                  onPatientClick={handlePatientSelect}
-                />
-              </DashboardCard>
-            )}
-
-            <DashboardCard
-              fixedHeight
-              title="Doctors Notes"
-              titleAddon={
-                <span className="text-xs font-normal text-slate-400 italic shrink-0">Read-only</span>
-              }
-              listingScreen="n-doc-notes"
-              openListingTitle="Open full Doctors Notes list"
-            >
-              <ClinicalNotesList
-                patient={selectedPatient}
-                clinicalNoteType="Doctors Note"
-                key={clinicalNotesRefreshKey}
-                onPatientClick={handlePatientSelect}
-              />
-            </DashboardCard>
-          </div>
-
-          {/* Row 4: Patient Summary + Warnings & Allergies */}
-          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-            <DashboardCard fixedHeight title="Patient Information" filterable={false}>
-              <PatientSummaryCard patient={selectedPatient} />
-            </DashboardCard>
-
-            <DashboardCard
-              fixedHeight
-              title="Warnings & Allergies"
-              onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
-              addButtonTitle="Add Warning Message"
-              listingScreen="n-first"
-              openListingTitle="Open full Warnings & Allergies list"
-            >
-              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-            </DashboardCard>
-          </div>
-
-          {/* IP: patient visits + Morse Fall Scale */}
-          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
-            <div className="grid gap-4 md:grid-cols-2 auto-rows-fr px-4 pb-4">
-              <DashboardCard fixedHeight title="Patient Visits" listingScreen="n-op">
-                <PatientVisitList
-                  patient={selectedPatient}
-                  onPatientFromVisit={handlePatientSelect}
-                  onVisitActivate={handleVisitActivate}
-                />
-              </DashboardCard>
-
-              <DashboardCard
-                fixedHeight
-                title="Morse Fall Scale"
-                listingScreen="n-fall"
-                requiresAttention={showIpRequiredDocs && ipDocStatus !== null && !ipDocStatus.morse_fall_scale}
-                attentionLabel="Required for this IP admission — complete Morse Fall Scale"
-              >
-                <MorseFallScaleList
-                  patient={selectedPatient}
-                  refreshKey={morseFallRefreshKey}
-                  onPatientClick={handlePatientSelect}
-                  defaultAdmission={activeAdmission || undefined}
-                  onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
-                />
-              </DashboardCard>
+                ✕
+              </button>
             </div>
-          )}
-
-          {/* Discharges — IP mode only */}
-          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
-            <div className="px-4 pb-4">
-              <DashboardCard
-                fixedHeight
-                title="Discharges"
-                listingScreen="n-discharge"
-                openListingTitle="Open full Discharge list"
-              >
-                <DischargeList patient={selectedPatient} key={dischargeRefreshKey} onPatientClick={handlePatientSelect} />
-              </DashboardCard>
+            <div className="min-h-0 flex-1 overflow-auto p-4">
+              <LabTestHistory patientId={selectedPatient || undefined} onPatientChange={handlePatientSelect} />
             </div>
-          )}
-
-          {/* Pharmacy Give Out — last card on IP nurse dashboard (full width, same layout as Discharges) */}
-          {costCenterCareScope !== 'op_only' && mode === 'IP' && (
-            <div className="px-4 pb-4">
-              <DashboardCard
-                fixedHeight
-                title="Pharmacy Give Out"
-                filterable={false}
-                listingScreen="n-pharmacy-giveout"
-                openListingTitle="Open Pharmacy Give Out"
-                onAdd={() => guardClinicalCreate(() => setShowPharmacyGiveOutModal(true))}
-                addButtonTitle="New pharmacy give-out from current prescription"
-              >
-                <PharmacyGiveOutList
-                  patient={selectedPatient}
-                  refreshKey={pharmacyGiveOutRefreshKey}
-                  onPatientClick={handlePatientSelect}
-                />
-              </DashboardCard>
-            </div>
-          )}
-
-          {/* <div className="px-4 pb-4">
-            <DoctorServiceDetailsTable 
-              patient={selectedPatient} 
-              onAddService={() => setShowServiceModal(true)}
-            />
-          </div> */}
-        </>
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 auto-rows-fr p-4">
-          <DashboardCard
-            fixedHeight
-            title="IP Warning Messages / Medications / Allergy"
-            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
-            addButtonTitle="Add Warning Message"
-            listingScreen="n-first"
-          >
-            <WarningMessagesList patient={undefined} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
-
-          <DashboardCard
-            fixedHeight
-            title="Lab Reports List & Status"
-            onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
-            addButtonTitle="Add Lab Test Report"
-            listingScreen="n-labs"
-          >
-            <LabTestList defaultStatus="Pending Review" byNurse={true} key={labTestRefreshKey} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
-
-          <DashboardCard
-            fixedHeight
-            title="Prescription"
-            listingScreen="rx"
-            openListingTitle="Open full Prescription list"
-          >
-            <PrescriptionList refreshKey={prescriptionRefreshKey} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+          </div>
         </div>
       )}
 

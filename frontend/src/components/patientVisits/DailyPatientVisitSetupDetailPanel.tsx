@@ -129,7 +129,7 @@ export function DailyPatientVisitSetupDetailPanel({
               value={displayValue(row.patient_name || row.patient)}
               onClick={row.patient && onPatientClick ? () => onPatientClick(row.patient) : undefined}
             />
-            <InfoTile icon={<Stethoscope className="h-4 w-4" />} label="Doctor" value={displayValue(row.practitioner_name || row.practioner)} />
+            <InfoTile icon={<Stethoscope className="h-4 w-4" />} label="Doctor Name" value={displayValue(row.practitioner_name || row.practioner)} />
             <InfoTile icon={<DollarSign className="h-4 w-4" />} label="Total Amount" value={totalAmount.toFixed(2)} />
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Start Date" value={formatDate(row.from_date)} />
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="End Date" value={formatDate(row.to_date)} />

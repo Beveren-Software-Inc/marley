@@ -15,6 +15,8 @@ import { Check } from 'lucide-react'
 import { searchPatients, fetchPatients, fetchPatientDoc, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { apiRequest } from '../../services/apiClient'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { isDoctorRole } from '../../config/permissions'
 import {
   fetchInpatientRecord,
   updateInpatientAdmission,
@@ -186,6 +188,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [loadingRecord, setLoadingRecord] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const { userRole, userCostCenter } = useCareContext()
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   const [practitionerFieldType, setPractitionerFieldType] = useState<'consultant' | 'psychologist' | 'resident' | null>(null)
@@ -447,6 +450,12 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     return () => clearTimeout(timeoutId)
   }, [formData.company, costCenterQuery, costCenterOpen])
 
+  // Global branch auto-applies on new admissions (edit keeps the record's own branch).
+  useEffect(() => {
+    if (editAdmissionName || !userCostCenter) return
+    setFormData((prev) => (prev.cost_center ? prev : { ...prev, cost_center: userCostCenter }))
+  }, [editAdmissionName, userCostCenter])
+
   // Search/fetch patients
   useEffect(() => {
     if (!patientOpen) return
@@ -684,8 +693,16 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         setActiveCreateTab('observation')
         return
       }
-      if (!observationForm.room) {
-        setError('Room / service unit is required for the observation')
+      // #24: role-based mandatory fields. Doctors must record Notes (Room optional for them);
+      // reception / management must assign a Room (Notes optional for them).
+      if (isDoctorRole(userRole)) {
+        if (!observationForm.note?.trim()) {
+          setError('Notes are required.')
+          setActiveCreateTab('observation')
+          return
+        }
+      } else if (!observationForm.room) {
+        setError('Room / service unit is required.')
         setActiveCreateTab('observation')
         return
       }
@@ -1105,7 +1122,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'NO PATIENTS FOUND.'}
                     </div>
                   )}
                 </div>
@@ -1158,7 +1175,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           </button>
                         ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No companies found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO COMPANIES FOUND</div>
                     )}
                   </div>
                 )}
@@ -1201,7 +1218,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO BRANCHES FOUND</div>
                   )}
                 </div>
               )}
@@ -1245,7 +1262,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No departments found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO DEPARTMENTS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1307,7 +1324,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1368,7 +1385,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1429,7 +1446,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1538,7 +1555,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No observation levels found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO OBSERVATION LEVELS FOUND</div>
                             )}
                           </div>
                         )}
@@ -1584,7 +1601,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
                             )}
                           </div>
                         )}
@@ -1647,7 +1664,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1659,7 +1676,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                             setObservationForm((prev) => ({ ...prev, practitioner: '' }))
                           }}
                           onFocus={() => setObsPractitionerOpen(true)}
-                          placeholder="Search practitioner..."
+                          placeholder="Search doctor..."
                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         {obsPractitionerOpen && obsPractitionerOptions.length > 0 && (
@@ -1756,7 +1773,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 </div>
                 {relatives.length === 0 ? (
                   <div className="px-3 py-6 text-center text-sm text-slate-500">
-                    No relatives added yet.
+                    NO RELATIVES ADDED YET.
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-200">
@@ -1874,7 +1891,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   </div>
                   {visitors.length === 0 ? (
                     <div className="px-3 py-6 text-center text-sm text-slate-500">
-                      No visitors added yet.
+                      NO VISITORS ADDED YET.
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-200">
@@ -1975,7 +1992,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               </p>
               {documents.length === 0 && (
                 <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
-                  No documents added yet.
+                  NO DOCUMENTS ADDED YET.
                 </div>
               )}
               {documents.map((row, idx) => (

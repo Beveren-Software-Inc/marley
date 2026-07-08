@@ -239,7 +239,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100/80 ring-1 ring-emerald-200/60">
                 <BookOpen className="h-6 w-6 text-emerald-600/70" />
               </div>
-              <p className="text-sm text-emerald-900/70">No history sections have been filled in yet.</p>
+              <p className="text-sm text-emerald-900/70">NO HISTORY SECTIONS HAVE BEEN FILLED IN YET.</p>
             </div>
           )}
           {!loading && detail && visibleRows.length > 0 && (

@@ -243,7 +243,7 @@ export const MedicineReconciliationList = ({
   if (!admission) {
     return (
       <div className="text-sm text-slate-600">
-        No admission selected.
+        NO ADMISSION SELECTED.
       </div>
     )
   }

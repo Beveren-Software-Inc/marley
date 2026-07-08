@@ -73,7 +73,7 @@ export const NursingTaskList = ({ patient, myTasks, onPatientClick }: NursingTas
   if (!tasks.length) {
     return (
       <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
-        No nursing tasks found.
+        NO NURSING TASKS FOUND.
       </div>
     )
   }

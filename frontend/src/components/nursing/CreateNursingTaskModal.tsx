@@ -753,7 +753,7 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
                 }}
                 onFocus={() => setNurseOpen(true)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="Search Healthcare Practitioner..."
+                placeholder="Search doctor..."
               />
               {nurseOpen && nurseOptions.length > 0 && (
                 <div className="mt-1 max-h-40 overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg text-sm">

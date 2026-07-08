@@ -175,3 +175,26 @@ export async function scheduleObservationDischarge(
     }
   )
 }
+
+/** Latest observation record for an admission — discharge form auto-fill. */
+export async function fetchLatestObservationForAdmission(admission: string): Promise<{
+  name: string
+  observation_level?: string
+  room?: string
+  start_date?: string
+  duration?: string
+  amount?: number
+  healthcare_practitioner?: string
+  practitioner_name?: string
+  medical_department?: string
+  designated_security_personel?: string
+  note?: string
+} | null> {
+  const { apiRequest } = await import('./apiClient')
+  const params = new URLSearchParams()
+  params.append('admission', admission)
+  const res = await apiRequest<any>(
+    `/api/method/healthcare.api.observation.get_latest_observation_for_admission?${params.toString()}`
+  )
+  return res || null
+}

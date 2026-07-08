@@ -88,7 +88,7 @@ def get_medication_orders(
 		'inpatient_record', 'practitioner', 'user_name', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
 		'reference_doctype', 'reference_document_name', 'cost_center',
-		'new_system', 'doctors_signature',
+		'new_system', 'doctors_signature', 'owner', 'creation',
 	]
 
 	if use_sql:
@@ -179,6 +179,71 @@ def get_medication_orders(
 			order_by='posting_date desc, creation desc',
 		)
 
+	# Child medication rows for the medicine-level prescription listing
+	entries_by_parent = {}
+	if orders:
+		entries = frappe.get_all(
+			'Inpatient Medication Order Entry',
+			filters={
+				'parenttype': 'Patient Medication Order',
+				'parent': ['in', [o['name'] for o in orders]],
+			},
+			fields=[
+				'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
+				'route_of_administration', 'patient_frequency', 'date', 'end_date',
+				'instructions', 'medication_status', 'is_prn', 'medication_type',
+				'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
+				'written_frequency', 'old_medicine_code',
+			],
+			order_by='parent, idx',
+			limit_page_length=0,
+		)
+
+		# Oldest legacy rows only carry an Oracle medicine code — resolve names
+		# through the ITEM_00_01 legacy medicine master in one batched query.
+		def _legacy_code(e):
+			raw = (e.get('old_medicine_code') or e.get('medicine_no') or '').strip()
+			return raw.lstrip('0') or raw if raw else ''
+
+		unresolved_codes = {
+			_legacy_code(e)
+			for e in entries
+			if not (e.get('drug_name') or e.get('medication')) and _legacy_code(e)
+		}
+		legacy_master = {}
+		if unresolved_codes and frappe.db.exists('DocType', 'ITEM_00_01'):
+			for m in frappe.get_all(
+				'ITEM_00_01',
+				filters={'name': ['in', list(unresolved_codes)]},
+				fields=['name', 'item_nam', 'item_strenght', 'item_unit_of_strength', 'item_regis_num'],
+			):
+				legacy_master[m['name']] = m
+
+		for e in entries:
+			# Legacy (Oracle-imported) rows store the medicine in `medication` /
+			# `medicine_no` instead of the drug link — fall back so the listing
+			# shows the same values as the detail view.
+			if not e.get('drug_name') and e.get('medication'):
+				e['drug_name'] = e['medication']
+			if not e.get('drug_name'):
+				m = legacy_master.get(_legacy_code(e))
+				if m:
+					strength = ' '.join(
+						str(x) for x in (m.get('item_strenght'), m.get('item_unit_of_strength')) if x
+					)
+					e['drug_name'] = f"{m['item_nam']} {strength}".strip() if m.get('item_nam') else e.get('drug_name')
+					if not e.get('drug') and m.get('item_regis_num'):
+						e['drug'] = m['item_regis_num']
+			if not e.get('drug') and e.get('medicine_no'):
+				e['drug'] = e['medicine_no']
+			if not e.get('patient_frequency') and e.get('written_frequency'):
+				e['patient_frequency'] = e['written_frequency']
+			entries_by_parent.setdefault(e.pop('parent'), []).append(e)
+
+	from healthcare.api.common import fill_missing_patient_names
+	fill_missing_patient_names(orders)
+
+	fullname_cache = {}
 	for o in orders:
 		if o.get('practitioner'):
 			o['healthcare_practitioner_name'] = frappe.db.get_value(
@@ -186,6 +251,11 @@ def get_medication_orders(
 			) or o['practitioner']
 		else:
 			o['healthcare_practitioner_name'] = None
+		owner = o.get('owner')
+		if owner and owner not in fullname_cache:
+			fullname_cache[owner] = frappe.utils.get_fullname(owner)
+		o['owner_full_name'] = fullname_cache.get(owner)
+		o['medication_orders'] = entries_by_parent.get(o['name'], [])
 
 	return orders
 
@@ -1717,14 +1787,13 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 	return so
 
 
-def _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse=None):
+def _resolve_nursing_pharmacy_giveout_warehouse(cost_center, warehouse=None):
 	"""Validate and resolve warehouse for pharmacy give-out from Healthcare Settings."""
 	from healthcare.api.common import (
 		get_pharmacy_giveout_warehouses,
 		resolve_pharmacy_giveout_default_warehouse,
 	)
 
-	cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
 	allowed = get_pharmacy_giveout_warehouses()
 	if not allowed:
 		frappe.throw(
@@ -1755,14 +1824,19 @@ def _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse=None
 
 
 @frappe.whitelist()
-def get_nursing_pharmacy_giveout_warehouses(inpatient_record):
-	"""Warehouses allowed for nursing pharmacy give-out plus default (nurse mini warehouse when listed)."""
+def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit=None):
+	"""Warehouses allowed for nursing pharmacy give-out plus default (nurse mini warehouse when listed).
+
+	IP give-outs pass inpatient_record; OP give-outs pass patient_visit instead.
+	"""
 	if not _user_can_access_patient_medication_order_portal():
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
-	if not inpatient_record:
-		frappe.throw(_("Inpatient Admission is required"))
-	if not frappe.db.exists("Inpatient Admission", inpatient_record):
+	if not inpatient_record and not patient_visit:
+		frappe.throw(_("Inpatient Admission or Patient Visit is required"))
+	if inpatient_record and not frappe.db.exists("Inpatient Admission", inpatient_record):
 		frappe.throw(_("Inpatient Admission {0} does not exist").format(inpatient_record))
+	if not inpatient_record and not frappe.db.exists("Patient Visit", patient_visit):
+		frappe.throw(_("Patient Visit {0} does not exist").format(patient_visit))
 
 	from healthcare.api.common import (
 		get_pharmacy_giveout_warehouses,
@@ -1770,7 +1844,10 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record):
 		resolve_pharmacy_giveout_default_warehouse,
 	)
 
-	cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+	if inpatient_record:
+		cost_center = frappe.db.get_value("Inpatient Admission", inpatient_record, "cost_center")
+	else:
+		cost_center = frappe.db.get_value("Patient Visit", patient_visit, "cost_center")
 	warehouses = get_pharmacy_giveout_warehouses()
 	default_warehouse, _allowed = resolve_pharmacy_giveout_default_warehouse(cost_center)
 	mini_warehouse = get_warehouse_for_cost_center(cost_center) if cost_center else None
@@ -1836,22 +1913,28 @@ def _format_pharmacy_giveout_error(exc, warehouse=None):
 @frappe.whitelist()
 def create_nursing_pharmacy_giveout(
 	patient,
-	inpatient_record,
-	medication_orders,
+	inpatient_record=None,
+	medication_orders=None,
 	source_prescription=None,
 	practitioner=None,
 	warehouse=None,
+	patient_visit=None,
 ):
-	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order."""
+	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order.
+
+	IP give-outs pass inpatient_record; OP give-outs pass patient_visit instead.
+	"""
 	if not _user_can_access_patient_medication_order_portal():
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	if not inpatient_record:
-		frappe.throw(_("Inpatient Admission is required"))
-	if not frappe.db.exists("Inpatient Admission", inpatient_record):
+	if not inpatient_record and not patient_visit:
+		frappe.throw(_("Inpatient Admission or Patient Visit is required"))
+	if inpatient_record and not frappe.db.exists("Inpatient Admission", inpatient_record):
 		frappe.throw(_("Inpatient Admission {0} does not exist").format(inpatient_record))
+	if not inpatient_record and not frappe.db.exists("Patient Visit", patient_visit):
+		frappe.throw(_("Patient Visit {0} does not exist").format(patient_visit))
 
 	if isinstance(medication_orders, str):
 		import json
@@ -1865,35 +1948,40 @@ def create_nursing_pharmacy_giveout(
 	if not valid_rows:
 		frappe.throw(_("At least one medication with a drug is required"))
 
-	admission_doc = frappe.get_doc("Inpatient Admission", inpatient_record)
-	if admission_doc.patient and admission_doc.patient != patient:
-		frappe.throw(_("Patient does not match the selected Inpatient Admission"))
+	if inpatient_record:
+		context_doc = frappe.get_doc("Inpatient Admission", inpatient_record)
+		context_label = _("Inpatient Admission {0}").format(inpatient_record)
+	else:
+		context_doc = frappe.get_doc("Patient Visit", patient_visit)
+		context_label = _("Patient Visit {0}").format(patient_visit)
+	if context_doc.patient and context_doc.patient != patient:
+		frappe.throw(_("Patient does not match the selected care episode"))
 
-	company = admission_doc.company or frappe.defaults.get_user_default("Company")
+	company = context_doc.get("company") or frappe.defaults.get_user_default("Company")
 	if not company:
-		frappe.throw(_("Company is required on Inpatient Admission {0}").format(inpatient_record))
+		frappe.throw(_("Company is required on {0}").format(context_label))
 
-	cost_center = _cost_center_from_inpatient_admission(inpatient_record)
+	if inpatient_record:
+		cost_center = _cost_center_from_inpatient_admission(inpatient_record)
+	else:
+		cost_center = context_doc.get("cost_center")
 	if not cost_center:
-		frappe.throw(
-			_("Cost Center is not set on Inpatient Admission {0}. Please set it on the admission record.").format(
-				inpatient_record
-			)
-		)
+		frappe.throw(_("Cost Center is not set on {0}. Please set it on the record.").format(context_label))
 
-	warehouse = _resolve_nursing_pharmacy_giveout_warehouse(inpatient_record, warehouse)
+	warehouse = _resolve_nursing_pharmacy_giveout_warehouse(cost_center, warehouse)
 
 	try:
 		return _create_nursing_pharmacy_giveout_documents(
 			patient=patient,
 			inpatient_record=inpatient_record,
 			valid_rows=valid_rows,
-			admission_doc=admission_doc,
+			context_doc=context_doc,
 			company=company,
 			cost_center=cost_center,
 			practitioner=practitioner,
 			source_prescription=source_prescription,
 			warehouse=warehouse,
+			patient_visit=patient_visit,
 		)
 	except frappe.ValidationError as exc:
 		frappe.throw(_format_pharmacy_giveout_error(exc, warehouse=warehouse), exc=exc)
@@ -1906,12 +1994,13 @@ def _create_nursing_pharmacy_giveout_documents(
 	patient,
 	inpatient_record,
 	valid_rows,
-	admission_doc,
+	context_doc,
 	company,
 	cost_center,
 	practitioner=None,
 	source_prescription=None,
 	warehouse=None,
+	patient_visit=None,
 ):
 	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
 
@@ -1920,18 +2009,24 @@ def _create_nursing_pharmacy_giveout_documents(
 	doc = frappe.new_doc("Patient Medication Order")
 	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
 	doc.patient = patient
-	doc.care_context = "Inpatient Admission"
 	doc.company = company
 	doc.start_date = start_date
-	doc.inpatient_record = inpatient_record
-	doc.patient_name = admission_doc.patient_name
+	if inpatient_record:
+		doc.care_context = "Inpatient Admission"
+		doc.inpatient_record = inpatient_record
+	else:
+		doc.care_context = "Patient Visit"
+		doc.patient_encounter = patient_visit
+	doc.patient_name = context_doc.get("patient_name")
 	doc.cost_center = cost_center
 	if practitioner:
 		doc.practitioner = practitioner
-	elif admission_doc.get("primary_practitioner"):
-		doc.practitioner = admission_doc.primary_practitioner
-	elif admission_doc.get("secondary_practitioner"):
-		doc.practitioner = admission_doc.secondary_practitioner
+	elif context_doc.get("primary_practitioner"):
+		doc.practitioner = context_doc.primary_practitioner
+	elif context_doc.get("secondary_practitioner"):
+		doc.practitioner = context_doc.secondary_practitioner
+	elif context_doc.get("practitioner"):
+		doc.practitioner = context_doc.practitioner
 
 	doc.nursing_pharmacy_giveout = 1
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):

@@ -373,7 +373,7 @@
 //               <div>
 //                 <label className="block text-xs font-medium text-slateate-600 mb-1">Patient</label>
 //                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-//                   {patient || <span className="text-slate-400">No patient selected</span>}
+//                   {patient || <span className="text-slate-400">NO PATIENT SELECTED</span>}
 //                 </div>
 //               </div>
 
@@ -816,7 +816,7 @@ export const CreateNurseTaskModal = ({
   defaultScheduledTime,
 }: CreateNurseTaskModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -873,6 +873,16 @@ export const CreateNurseTaskModal = ({
   const [costCenter, setCostCenter] = useState('')
   const [costCenterDisplay, setCostCenterDisplay] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+
+  // Global branch auto-applies as the default.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setCostCenter((prev) => {
+      if (prev) return prev
+      setCostCenterDisplay((d) => d || userCostCenter)
+      return userCostCenter
+    })
+  }, [userCostCenter])
 
   // ── Frequency (Prescription Frequency) ──
   const [frequency, setFrequency] = useState('')
@@ -1158,7 +1168,7 @@ export const CreateNurseTaskModal = ({
                   Patient <span className="text-red-500">*</span>
                 </label>
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  {effectivePatient || <span className="text-slate-400">No patient selected</span>}
+                  {effectivePatient || <span className="text-slate-400">NO PATIENT SELECTED</span>}
                 </div>
                 {contextPatient && (
                   <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>
@@ -1285,7 +1295,7 @@ export const CreateNurseTaskModal = ({
                   <Combo
                     value={assignedNurse}
                     display={nurseDisplay}
-                    placeholder="Search practitioner…"
+                    placeholder="Search doctor…"
                     options={nurseOptions}
                     onOpen={() => loadNurseOptions()}
                     onSearch={(q) => { setNurseDisplay(q); setAssignedNurse(''); loadNurseOptions(q) }}

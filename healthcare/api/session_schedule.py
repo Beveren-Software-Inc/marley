@@ -158,17 +158,44 @@ def _create_session_schedule_sales_order(doc):
 
 
 @frappe.whitelist()
-def get_session_schedules(limit: int = 50, offset: int = 0, patient: str = None, admission_number: str = None):
-	"""Fetch session schedules with optional filtering by patient or admission number."""
+def get_session_schedules(
+	limit: int = 50,
+	offset: int = 0,
+	patient: str = None,
+	admission_number: str = None,
+	role_group: str = None,
+):
+	"""Fetch session schedules with optional filtering by patient or admission number.
+
+	role_group ('Doctor' / 'Nurse' / 'Consultant' / ...) limits rows to sessions whose
+	assigned practitioner's Medical Role falls under that group — plus unassigned
+	sessions, so nothing scheduled but not yet assigned disappears.
+	"""
 	filters = {}
+	or_filters = None
 	if patient:
 		filters["patient_num"] = patient
 	if admission_number:
 		filters["admission_number"] = admission_number
 
+	if role_group:
+		from healthcare.api.common import get_medical_roles_under
+
+		roles = list(get_medical_roles_under(role_group))
+		practitioners = frappe.get_all(
+			"Healthcare Practitioner",
+			filters={"medical_role": ["in", roles]},
+			pluck="name",
+		) or ["__none__"]
+		or_filters = [
+			["doctor", "in", practitioners],
+			["doctor", "is", "not set"],
+		]
+
 	schedules = frappe.get_list(
 		"Session Schedule",
 		filters=filters,
+		or_filters=or_filters,
 		fields=[
 			"name",
 			"date",

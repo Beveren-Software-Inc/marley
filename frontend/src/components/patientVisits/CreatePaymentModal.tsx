@@ -75,7 +75,7 @@ const LinkField = ({
     )}
     {open && options.length === 0 && query.length > 0 && (
       <div className={linkComboboxEmptyPanelClass}>
-        No results found
+        NO RESULTS FOUND
       </div>
     )}
   </div>
@@ -124,6 +124,7 @@ export const CreatePaymentModal = ({
   const [paymentMode, setPaymentMode] = useState('')
   const [amount, setAmount] = useState('')
   const [remarks, setRemarks] = useState('')
+  const [referenceNo, setReferenceNo] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Load payment modes once
@@ -208,6 +209,7 @@ export const CreatePaymentModal = ({
         paid_amount: parseFloat(amount),
         mode_of_payment: paymentMode,
         remarks: remarks.trim() || undefined,
+        reference_no: referenceNo.trim() || undefined,
         patient,
       })
       toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
@@ -334,6 +336,18 @@ export const CreatePaymentModal = ({
                 <option key={m} value={m}>{m}</option>
               ))}
             </select>
+          </div>
+
+          {/* Reference No. — bank/card transaction reference */}
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1.5">Reference No.</label>
+            <input
+              type="text"
+              value={referenceNo}
+              onChange={e => setReferenceNo(e.target.value)}
+              placeholder="Bank / card transaction reference (optional)"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
 
           {/* Remarks */}

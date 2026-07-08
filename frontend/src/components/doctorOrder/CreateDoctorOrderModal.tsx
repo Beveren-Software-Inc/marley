@@ -31,7 +31,7 @@ export const CreateDoctorOrderModal = ({
   patient: patientProp,
   title = 'Add Doctors Order',
 }: CreateDoctorOrderModalProps) => {
-  const { mode, activeAdmission, costCenterCompany } = useCareContext()
+  const { mode, activeAdmission, costCenterCompany, userCostCenter } = useCareContext()
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -49,6 +49,12 @@ export const CreateDoctorOrderModal = ({
   const [costCenter, setCostCenter] = useState('')
   const [doctor, setDoctor] = useState('')
   const [doctorName, setDoctorName] = useState('')
+
+  // Global branch is the default; care-episode sync below overrides it when set.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setCostCenter((prev) => prev || userCostCenter)
+  }, [userCostCenter])
 
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
@@ -297,7 +303,7 @@ export const CreateDoctorOrderModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Doctor</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Doctor Name</label>
             <input
               type="text"
               value={doctorQuery}
@@ -308,7 +314,7 @@ export const CreateDoctorOrderModal = ({
               }}
               onFocus={() => setDoctorOpen(true)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
             />
             {doctorOpen && doctorOptions.length > 0 && (
               <div className="mt-1 border border-slate-200 rounded-md bg-white shadow-lg max-h-36 overflow-auto">

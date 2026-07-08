@@ -463,3 +463,40 @@ def get_long_acting_medicine_give_outs(name):
 		fields=LONG_ACTING_GIVE_OUT_FIELDS,
 		order_by="date desc, time desc, creation desc",
 	)
+
+
+@frappe.whitelist()
+def get_long_acting_give_outs_for_patient(patient=None, limit=200):
+	"""Merged give-out history across long-acting medicines, latest first.
+
+	Scoped to one patient when ``patient`` is given; otherwise across all
+	patients (for the cross-patient reception / doctor list view)."""
+	go_filters = {"parenttype": "Long Acting Medicine"}
+	if patient:
+		parents = frappe.get_all("Long Acting Medicine", filters={"patient": patient}, pluck="name")
+		if not parents:
+			return []
+		go_filters["parent"] = ["in", parents]
+	rows = frappe.get_all(
+		"Long Acting Medicine Give Out",
+		filters=go_filters,
+		fields=LONG_ACTING_GIVE_OUT_FIELDS + ["parent"],
+		order_by="date desc, time desc, creation desc",
+		limit=cint(limit) or 200,
+	)
+	if not rows:
+		return []
+	parent_names = list({r.get("parent") for r in rows if r.get("parent")})
+	labels = _first_medication_labels_for_parents(parent_names)
+	pat_map = {}
+	for lam in frappe.get_all(
+		"Long Acting Medicine", filters={"name": ["in", parent_names]}, fields=["name", "patient", "patient_name"]
+	):
+		pat_map[lam.name] = (lam.patient, lam.patient_name)
+	for r in rows:
+		r["medicine"] = r.get("parent")
+		r["medicine_label"] = labels.get(r.get("parent")) or r.get("medication") or r.get("parent")
+		pat, pat_name = pat_map.get(r.get("parent")) or (None, None)
+		r["patient"] = pat
+		r["patient_name"] = pat_name or pat
+	return rows

@@ -63,7 +63,7 @@ export const PreAnesthesiaAssessmentList = ({ patient, refreshKey, onPatientClic
     return <div className="p-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-md">{error.message}</div>
   }
   if (!items.length) {
-    return <div className="flex items-center justify-center p-4 text-sm text-slate-400">No Pre Anesthesia Assessment records found</div>
+    return <div className="flex items-center justify-center p-4 text-sm text-slate-400">NO PRE ANESTHESIA ASSESSMENT RECORDS FOUND</div>
   }
 
   return (

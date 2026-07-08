@@ -629,7 +629,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                       ))
                     ) : (
                       <div className="px-3 py-2 text-sm text-slate-500">
-                        No observation levels found
+                        NO OBSERVATION LEVELS FOUND
                       </div>
                     )}
                   </div>
@@ -706,7 +706,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     setPractitionerOpen(true)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search practitioner..."
+                  placeholder="Search doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {practitionerOpen && practitionerOptions.length > 0 && (
@@ -883,7 +883,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                       {roomLoading ? (
                         <div className="px-3 py-3 text-sm text-slate-500">Loading rooms...</div>
                       ) : roomOptions.length === 0 ? (
-                        <div className="px-3 py-3 text-sm text-slate-500">No vacant rooms found.</div>
+                        <div className="px-3 py-3 text-sm text-slate-500">NO VACANT ROOMS FOUND.</div>
                       ) : (
                         roomOptions.map((unit) => (
                           <button
@@ -939,7 +939,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Duration
+                Frequency
               </label>
               <input
                 type="text"

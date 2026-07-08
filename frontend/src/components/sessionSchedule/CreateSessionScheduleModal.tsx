@@ -11,6 +11,7 @@ import {
   type HealthcareServiceTemplateOption,
 } from '../../services/sessionSchedule'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown } from 'lucide-react'
@@ -122,7 +123,7 @@ const Combobox = ({
             ))
           ) : (
             <div className="px-3 py-2 text-xs text-slate-500">
-              No results found
+              NO RESULTS FOUND
             </div>
           )}
         </div>
@@ -165,6 +166,17 @@ export const CreateSessionScheduleModal = ({
   // Branchs
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
+
+  // Global branch auto-applies as the default.
+  useEffect(() => {
+    getUserCostCenterPermission()
+      .then((perm) => {
+        const cc = perm?.cost_center
+        if (!cc) return
+        setFormData((prev) => (prev.cost_center ? prev : { ...prev, cost_center: cc }))
+      })
+      .catch(() => {})
+  }, [])
 
   // Admissions
   const [admissionOptions, setAdmissionOptions] = useState<InpatientRecord[]>([])

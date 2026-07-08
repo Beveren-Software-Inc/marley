@@ -11,6 +11,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -18,6 +19,8 @@ interface SessionScheduleListProps {
   admissionNumber?: string
   onAddSessionSchedule?: () => void
   embedded?: boolean
+  /** Filter sessions to practitioners in this Medical Role group (plus unassigned). */
+  roleGroup?: string
 }
 
 const statusColors: Record<string, string> = {
@@ -44,7 +47,7 @@ function formatAmount(value?: number): string {
   })
 }
 
-export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embedded }: SessionScheduleListProps) => {
+export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embedded, roleGroup }: SessionScheduleListProps) => {
   const [schedules, setSchedules] = useState<SessionSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -66,7 +69,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchSessionSchedules(50, 0, patient, admissionNumber)
+      const response = await fetchSessionSchedules(50, 0, patient, admissionNumber, roleGroup)
       setSchedules(response)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch session schedules'))
@@ -78,7 +81,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   useEffect(() => {
     loadSchedules()
-  }, [refreshKey, patient, admissionNumber, refreshTrigger])
+  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -207,21 +210,19 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
       )}
 
       {showFilters && (
-        <div className="mb-3 space-y-2">
+        <div className="card-filter-bar mb-3 space-y-2">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">From</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">From Date</label>
+              <DateFilterInput
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">To</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">To Date</label>
+              <DateFilterInput
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -234,7 +235,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="">All statuses</option>
+                <option value="">Select All</option>
                 {SESSION_STATUS_FILTER_OPTIONS.map((status) => (
                   <option key={status} value={status}>
                     {status}
@@ -253,7 +254,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
       {filtered.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500">
-          {schedules.length === 0 ? 'No session schedules found' : 'No session schedules match the current filters'}
+          {schedules.length === 0 ? 'NO SESSION SCHEDULES FOUND' : 'NO SESSION SCHEDULES MATCH THE CURRENT FILTERS'}
         </div>
       ) : (
         <div className="min-w-full overflow-x-auto">

@@ -16,11 +16,9 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
                          date_from=None, date_to=None,
                          file_no=None, patient_name=None, cost_center=None):
 	"""Get all appointments (for receptionist) with server-side pagination."""
-	from healthcare.api.common import apply_cost_center_scope_to_filters
+	from healthcare.api.common import resolve_cost_center_filter
 
 	filters = {}
-	if apply_cost_center_scope_to_filters(filters):
-		return {"data": [], "total_count": 0}
 	or_filters = {}
 
 	if status:
@@ -31,8 +29,16 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		filters['practitioner'] = practitioner
 	if patient_name:
 		filters['patient_name'] = ['like', f"%{patient_name}%"]
-	if cost_center:
-		filters['cost_center'] = cost_center
+
+	# Explicit card branch filter validated against User Permission scope;
+	# otherwise scope to all permitted branches (global branch filter).
+	resolved_cc = resolve_cost_center_filter(cost_center)
+	if resolved_cc is False:
+		return {"data": [], "total_count": 0}
+	if isinstance(resolved_cc, list):
+		filters['cost_center'] = ['in', resolved_cc]
+	elif resolved_cc:
+		filters['cost_center'] = resolved_cc
 	if file_no and 'patient' not in filters:
 		matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
 		filters['patient'] = ['in', matched or ['__no_match__']]
@@ -75,8 +81,42 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	appointments = frappe.get_all(**fetch_args)
 	_enrich_appointments_with_sales_order(appointments)
 	_enrich_appointments_with_file_no(appointments)
+	from healthcare.api.common import fill_missing_patient_names
+	fill_missing_patient_names(appointments)
 
 	return {"data": appointments, "total_count": total_count}
+
+@frappe.whitelist()
+def get_practitioner_branch_for_date(practitioner, date=None):
+	"""Doctor roster: the practitioner's HR Shift Assignment location on a date maps
+	one-to-one to a branch (Shift Location.custom_cost_center) for new appointments."""
+	if not practitioner:
+		return None
+	date = date or nowdate()
+	employee = frappe.db.get_value("Healthcare Practitioner", practitioner, "employee")
+	if not employee:
+		return None
+	rows = frappe.get_all(
+		"Shift Assignment",
+		filters={
+			"employee": employee,
+			"status": "Active",
+			"docstatus": ["<", 2],
+			"start_date": ["<=", date],
+			"shift_location": ["is", "set"],
+		},
+		or_filters=[
+			["end_date", ">=", date],
+			["end_date", "is", "not set"],
+		],
+		fields=["shift_location"],
+		order_by="start_date desc",
+		limit=1,
+	)
+	if not rows:
+		return None
+	return frappe.db.get_value("Shift Location", rows[0].shift_location, "custom_cost_center")
+
 
 @frappe.whitelist()
 def update_appointment_ad_remark(appointment_name, remark):
@@ -127,7 +167,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
                                   search=None, date_from=None, date_to=None,
                                   file_no=None, patient_name=None, cost_center=None):
     """Get appointments for the current user's healthcare practitioner with server-side pagination."""
-    from healthcare.api.common import apply_cost_center_scope_to_filters
+    from healthcare.api.common import resolve_cost_center_filter
 
     user = frappe.session.user
 
@@ -148,8 +188,17 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
         filters['status'] = status
     if patient_name:
         filters['patient_name'] = ['like', f"%{patient_name}%"]
-    if cost_center:
-        filters['cost_center'] = cost_center
+
+    # Explicit card branch filter validated against User Permission scope;
+    # otherwise scope to all permitted branches (global branch filter).
+    resolved_cc = resolve_cost_center_filter(cost_center)
+    if resolved_cc is False:
+        return {"data": [], "total_count": 0}
+    if isinstance(resolved_cc, list):
+        filters['cost_center'] = ['in', resolved_cc]
+    elif resolved_cc:
+        filters['cost_center'] = resolved_cc
+
     if file_no and 'patient' not in filters:
         matched = frappe.get_all("Patient", filters={"file_no": ["like", f"%{file_no}%"]}, pluck="name")
         filters['patient'] = ['in', matched or ['__no_match__']]
@@ -160,9 +209,6 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
             filters['appointment_date'] = ['between', [date_from, date_to]]
         else:
             filters['appointment_date'] = ['<=', date_to]
-
-    if apply_cost_center_scope_to_filters(filters):
-        return {"data": [], "total_count": 0}
 
     or_filters = {}
     if search:
@@ -192,6 +238,8 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
     total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
     appointments = frappe.get_all(**fetch_args)
     _enrich_appointments_with_file_no(appointments)
+    from healthcare.api.common import fill_missing_patient_names
+    fill_missing_patient_names(appointments)
 
     return {"data": appointments, "total_count": total_count}
 

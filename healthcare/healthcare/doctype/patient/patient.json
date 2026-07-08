@@ -164,6 +164,7 @@
   "cprigama_front_photo",
   "column_break_eodk",
   "cprigama_back_photo",
+  "passport_photo",
   "dashboard_tab"
  ],
  "fields": [
@@ -730,6 +731,11 @@
    "fieldname": "cprigama_back_photo",
    "fieldtype": "Attach",
    "label": "CPR/Igama Back Photo"
+  },
+  {
+   "fieldname": "passport_photo",
+   "fieldtype": "Attach",
+   "label": "Passport Photo"
   },
   {
    "fieldname": "category",

@@ -221,7 +221,7 @@ export const DoctorOrderList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 flex-shrink-0 pb-2 border-b border-slate-100">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 flex-shrink-0 pb-2 border-b border-slate-100">
           <div data-doctor-order-filter className="relative min-w-[180px]">
             <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
             <input
@@ -334,7 +334,7 @@ export const DoctorOrderList = ({
 
       {!loading && !error && records.length === 0 && (
         <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
-          No doctor orders found.
+          NO DOCTOR ORDERS FOUND.
         </div>
       )}
 

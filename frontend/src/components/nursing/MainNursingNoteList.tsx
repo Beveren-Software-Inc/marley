@@ -9,6 +9,7 @@ import { CardRowTextHint } from '../ui/dashboardCardListing'
 import { NURSING_SHIFTS } from '../../constants/nursingShift'
 import { EditMainNursingNoteModal } from './EditMainNursingNoteModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface MainNursingNoteListProps {
   patient?: string
@@ -198,7 +199,7 @@ export const MainNursingNoteList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
           {!patient && (
             <div className="flex flex-col gap-1 min-w-[180px]">
               <label className="text-xs font-medium text-slate-500">Search patient</label>
@@ -212,18 +213,16 @@ export const MainNursingNoteList = ({
             </div>
           )}
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
@@ -236,7 +235,7 @@ export const MainNursingNoteList = ({
               onChange={(e) => setShiftFilter(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             >
-              <option value="">All shifts</option>
+              <option value="">Select All</option>
               {NURSING_SHIFTS.map((shift) => (
                 <option key={shift} value={shift}>
                   {shift}
@@ -255,7 +254,7 @@ export const MainNursingNoteList = ({
                 if (!e.target.value) setPractitionerFilter('')
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
             />
             {practitionerOpen && practitionerOptions.length > 0 && (
@@ -290,7 +289,7 @@ export const MainNursingNoteList = ({
 
       {!loading && !error && records.length === 0 && (
         <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
-          No nursing notes found.
+          NO NURSING NOTES FOUND.
         </div>
       )}
 

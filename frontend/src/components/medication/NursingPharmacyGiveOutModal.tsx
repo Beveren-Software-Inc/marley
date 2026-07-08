@@ -293,7 +293,7 @@ function SearchCombobox({
         {loading ? (
           <div className="px-3 py-2 text-xs text-slate-500">Loading…</div>
         ) : options.length === 0 ? (
-          <div className="px-3 py-2 text-xs text-slate-500">No options found</div>
+          <div className="px-3 py-2 text-xs text-slate-500">NO OPTIONS FOUND</div>
         ) : (
           options.map((opt) => (
             <button
@@ -387,7 +387,7 @@ export function NursingPharmacyGiveOutModal({
   initialPatient,
   inpatientRecord: propInpatientRecord,
 }: NursingPharmacyGiveOutModalProps) {
-  const { activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { activeAdmission, activeVisit, mode, selectedPatient: contextPatient } = useCareContext()
   const blockIfClosed = useBlockIfActiveCareClosed()
   const patient = initialPatient || contextPatient || ''
   const startDate = todayStr()
@@ -396,6 +396,8 @@ export function NursingPharmacyGiveOutModal({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [admissionId, setAdmissionId] = useState(propInpatientRecord || activeAdmission || '')
+  // OP give-outs run against the active Patient Visit instead of an admission.
+  const [visitId, setVisitId] = useState('')
   const [sourcePrescription, setSourcePrescription] = useState('')
   const [practitioner, setPractitioner] = useState('')
   const [rows, setRows] = useState<GiveOutRow[]>([])
@@ -434,20 +436,30 @@ export function NursingPharmacyGiveOutModal({
         setError(null)
 
         let admission = propInpatientRecord || activeAdmission || ''
-        if (!admission) {
+        let visit = ''
+        if (!admission && mode !== 'OP') {
           const adm = await getPatientActiveAdmission(patient)
           admission = adm?.name || ''
         }
         if (!admission) {
-          setError('No active inpatient admission found for this patient')
+          // OP flow: give out against the active Patient Visit.
+          visit = activeVisit || ''
+        }
+        if (!admission && !visit) {
+          setError(
+            mode === 'OP'
+              ? 'No active patient visit selected. Select a visit first.'
+              : 'No active inpatient admission found for this patient'
+          )
           return
         }
         if (cancelled) return
         setAdmissionId(admission)
+        setVisitId(visit)
 
         setLoadingWarehouses(true)
         try {
-          const whOpts = await fetchPharmacyGiveOutWarehouses(admission)
+          const whOpts = await fetchPharmacyGiveOutWarehouses(admission || undefined, visit || undefined)
           if (cancelled) return
           setGiveOutWarehouses(whOpts.warehouses)
           setMiniWarehouse(whOpts.mini_warehouse)
@@ -473,7 +485,7 @@ export function NursingPharmacyGiveOutModal({
           if (!cancelled) setLoadingWarehouses(false)
         }
 
-        const currentRx = await fetchPrescriptionByInpatientOrEncounter(admission, null)
+        const currentRx = await fetchPrescriptionByInpatientOrEncounter(admission || null, visit || null)
         if (cancelled) return
 
         if (!currentRx) {
@@ -541,7 +553,7 @@ export function NursingPharmacyGiveOutModal({
     warehouse: string
   ) => {
     const drug = drugCode.trim()
-    if (!drug || !admission || !warehouse) {
+    if (!drug || !warehouse) {
       setRowStock((prev) => {
         const next = { ...prev }
         delete next[index]
@@ -585,7 +597,7 @@ export function NursingPharmacyGiveOutModal({
   }
 
   useEffect(() => {
-    if (!admissionId || !selectedWarehouse || rows.length === 0) return
+    if (!selectedWarehouse || rows.length === 0) return
     rows.forEach((row, index) => {
       if (row.drug?.trim()) {
         void loadRowStock(index, row.drug, admissionId, selectedWarehouse)
@@ -625,7 +637,7 @@ export function NursingPharmacyGiveOutModal({
     const stock = rowStock[index]?.options
     const admission = admissionId
     const drugCode = (row.drug || '').trim()
-    if (!admission || !drugCode) {
+    if ((!admission && !selectedWarehouse) || !drugCode) {
       setRowStock((prev) => ({
         ...prev,
         [index]: {
@@ -731,7 +743,7 @@ export function NursingPharmacyGiveOutModal({
       setUomQueries((prev) => ({ ...prev, [index]: stockUom }))
     }
     setDrugOptions((prev) => ({ ...prev, [index]: [] }))
-    if (admissionId && selectedWarehouse) {
+    if (selectedWarehouse) {
       void loadRowStock(index, opt.name, admissionId, selectedWarehouse)
     }
   }
@@ -788,8 +800,8 @@ export function NursingPharmacyGiveOutModal({
         }
       }
     }
-    if (!admissionId) {
-      setError('Inpatient admission is required')
+    if (!admissionId && !visitId) {
+      setError('Inpatient admission or patient visit is required')
       return
     }
     if (!selectedWarehouse) {
@@ -810,7 +822,8 @@ export function NursingPharmacyGiveOutModal({
       }))
       const result = await createNursingPharmacyGiveOut({
         patient,
-        inpatient_record: admissionId,
+        inpatient_record: admissionId || undefined,
+        patient_visit: visitId || undefined,
         medication_orders: payload,
         source_prescription: sourcePrescription || undefined,
         practitioner: practitioner || undefined,

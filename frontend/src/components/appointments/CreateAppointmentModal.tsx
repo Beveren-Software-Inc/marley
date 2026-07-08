@@ -175,6 +175,29 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   /** True when user has exactly one permitted branch (User Permission). */
   const [costCenterLocked, setCostCenterLocked] = useState(false)
 
+  // Doctor roster: the practitioner's HR Shift Assignment location on the chosen
+  // date auto-sets the branch (reception request). Manual choice still possible.
+  useEffect(() => {
+    if (!formData.practitioner || !formData.appointment_date || costCenterLocked) return
+    let cancelled = false
+    const params = new URLSearchParams()
+    params.append('practitioner', formData.practitioner)
+    params.append('date', formData.appointment_date)
+    fetch(`/api/method/healthcare.api.patient_appointment.get_practitioner_branch_for_date?${params.toString()}`, {
+      credentials: 'include',
+    })
+      .then((r) => r.json())
+      .then((d) => {
+        if (cancelled) return
+        const cc = d?.message
+        if (cc && typeof cc === 'string') setCostCenter(cc)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [formData.practitioner, formData.appointment_date, costCenterLocked])
+
   const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
     const n = parseInt(raw.trim(), 10)
     return Number.isFinite(n) && n >= 1 ? n : fallback

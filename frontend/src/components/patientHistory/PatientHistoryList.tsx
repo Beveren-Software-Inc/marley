@@ -4,6 +4,7 @@ import { PatientHistoryDetailPanel } from './PatientHistoryDetailPanel'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useCardFilters, useDashboardCompactClinical, useInDashboardCard } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
@@ -145,20 +146,18 @@ export const PatientHistoryList = ({
   return (
     <div className="flex flex-col gap-2 h-full flex-1 min-h-0">
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 py-2 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 py-2 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
@@ -172,7 +171,7 @@ export const PatientHistoryList = ({
                 onChange={(e) => setAdmissionFilter(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
               >
-                <option value="">All admissions</option>
+                <option value="">Select All</option>
                 {admissionOptions.map((a) => (
                   <option key={a} value={a}>
                     {a}
@@ -203,7 +202,7 @@ export const PatientHistoryList = ({
       {filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center flex-1">
           <BookOpen className="w-8 h-8 text-slate-300 mb-2" />
-          <p className="text-sm text-slate-500 mb-1">No patient history records yet</p>
+          <p className="text-sm text-slate-500 mb-1">NO PATIENT HISTORY RECORDS YET</p>
           <p className="text-xs text-slate-400">Use the + button to record a new history</p>
         </div>
       ) : compactClinical ? (

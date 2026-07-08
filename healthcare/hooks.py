@@ -417,6 +417,7 @@ scheduler_events = {
 		"healthcare.api.nursing_inventory.create_daily_medicine_sales_orders",
 		"healthcare.api.daily_patient_visit.process_daily_patient_visits",
 		"healthcare.api.whatsapp_reminders.send_daily_whatsapp_reminders",
+		"healthcare.api.lab_test.create_daily_repeat_lab_tests",
 	],
 	"monthly": [
 		"healthcare.healthcare.doctype.patient_follow_up.follow_up_crm_messages.send_follow_up_mid_end_year_messages",

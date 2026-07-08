@@ -119,7 +119,7 @@ export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Prop
     <div className="flex flex-col gap-3">
       {/* Filter bar */}
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="card-filter-bar flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={search}
@@ -183,7 +183,7 @@ export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Prop
       {error && <div className="py-2 text-sm text-red-600">{error}</div>}
 
       {!loading && rows.length === 0 && (
-        <div className="py-10 text-center text-sm text-slate-400">No health insurance records found.</div>
+        <div className="py-10 text-center text-sm text-slate-400">NO HEALTH INSURANCE RECORDS FOUND.</div>
       )}
 
       {rows.length > 0 && (

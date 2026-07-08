@@ -3,9 +3,7 @@ import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
-import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -43,6 +41,7 @@ import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocuments
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -65,10 +64,8 @@ function getIpDefaultFilters() {
 }
 
 function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
-  const name = (record.patient_name || record.patient || '').trim()
-  const fileNo = (record.file_no || '').trim()
-  if (fileNo && name) return `${fileNo}: ${name}`
-  return name || fileNo || '-'
+  // Patient column shows the name only — no file no / patient id prefix.
+  return (record.patient_name || '').trim() || '-'
 }
 
 interface AdmissionListProps {
@@ -106,7 +103,8 @@ export const AdmissionList = ({
   // When IP mode has a specific admission selected globally, lock the list to that admission
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
-  const shouldUseIpDefaults = mode === 'IP' && !effectiveNameFilter && !effectivePatient
+  // All lists start unfiltered — no default status/date filters (nurse-dept request).
+  const shouldUseIpDefaults = false
   const ipDefaultsOnMount = shouldUseIpDefaults ? getIpDefaultFilters() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>(() => ipDefaultsOnMount?.status ?? '')
@@ -153,11 +151,6 @@ export const AdmissionList = ({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   // --- Filter: Admission No (searchable dropdown) ---
-  const [admissionNoQuery, setAdmissionNoQuery] = useState('')
-  const [admissionOptions, setAdmissionOptions] = useState<{ value: string; label: string }[]>([])
-  const [admissionOpen, setAdmissionOpen] = useState(false)
-  const [selectedAdmissionOpt, setSelectedAdmissionOpt] = useState<{ value: string; label: string } | null>(null)
-  const [admissionNoFilter, setAdmissionNoFilter] = useState('')
 
   // --- Filter: Practitioner (searchable dropdown) ---
   const [practitionerQuery, setPractitionerQuery] = useState('')
@@ -177,7 +170,6 @@ export const AdmissionList = ({
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
-    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
   const branchLabel = (cc?: string) => {
@@ -245,7 +237,7 @@ export const AdmissionList = ({
 
   const { records, totalCount, loading, refreshing, error, refetch } = useInpatientRecords(
     effectiveNameFilter ? undefined : (selectedStatus || undefined),
-    effectiveNameFilter ?? (admissionNoFilter || externalSearchQuery || undefined),
+    effectiveNameFilter ?? (externalSearchQuery || undefined),
     effectiveNameFilter ? undefined : effectivePatient,
     effectiveNameFilter ? undefined : (practitionerFilter || undefined),
     effectiveNameFilter ? undefined : (dateFrom || undefined),
@@ -260,22 +252,7 @@ export const AdmissionList = ({
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, admissionNoFilter, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled, filterBranch])
-
-  // --- Admission No: debounced search when dropdown is open ---
-  useEffect(() => {
-    if (!admissionOpen) return
-    const t = setTimeout(async () => {
-      try {
-        const response = await fetchInpatientRecords(undefined, admissionNoQuery || undefined, effectivePatient, undefined, undefined, undefined, 30, 0, excludeCancelled)
-        setAdmissionOptions(response.data.slice(0, 30).map(r => ({ value: r.name, label: `${r.name} - ${r.patient_name || r.patient || ''}` })))
-      } catch (err) {
-        console.error('Failed to load admission options', err)
-        setAdmissionOptions([])
-      }
-    }, admissionNoQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [admissionNoQuery, admissionOpen, effectivePatient, excludeCancelled])
+  }, [selectedStatus, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled, filterBranch])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {
@@ -401,20 +378,12 @@ export const AdmissionList = ({
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!(e.target as HTMLElement).closest('[data-filter-dropdown]')) {
-        setAdmissionOpen(false)
         setPractitionerOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
-
-  const handleAdmissionNoSelect = (opt: { value: string; label: string }) => {
-    setSelectedAdmissionOpt(opt)
-    setAdmissionNoFilter(opt.value)
-    setAdmissionNoQuery('')
-    setAdmissionOpen(false)
-  }
 
   const handlePractitionerSelect = (opt: LinkFieldOption) => {
     setSelectedPractitioner(opt)
@@ -424,9 +393,6 @@ export const AdmissionList = ({
   }
 
   const handleClearFilters = () => {
-    setAdmissionNoFilter('')
-    setAdmissionNoQuery('')
-    setSelectedAdmissionOpt(null)
     setPractitionerFilter('')
     setPractitionerQuery('')
     setSelectedPractitioner(null)
@@ -437,7 +403,7 @@ export const AdmissionList = ({
   }
 
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
-  const hasActiveFilters = admissionNoFilter || practitionerFilter || dateFrom || dateTo || selectedStatus || filterBranch
+  const hasActiveFilters = practitionerFilter || dateFrom || dateTo || selectedStatus || filterBranch
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const exportFilteredCsv = () => {
@@ -536,45 +502,26 @@ export const AdmissionList = ({
 
         {/* Filters — same layout as Patient Visit List */}
         {!effectiveNameFilter && showFilters && (
-        <div className="flex flex-wrap gap-3 mb-4 items-end">
-          {/* Admission No — searchable dropdown */}
-          <div data-filter-dropdown className="relative">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Case No</label>
-            <input
-              type="text"
-              value={selectedAdmissionOpt ? selectedAdmissionOpt.value : admissionNoQuery}
-              onChange={e => {
-                setAdmissionNoQuery(e.target.value)
-                setSelectedAdmissionOpt(null)
-                setAdmissionNoFilter('')
-                setAdmissionOpen(true)
-              }}
-              onFocus={() => setAdmissionOpen(true)}
-              placeholder="Search admission..."
-              className={`${inputClass} w-44`}
+        <div className="card-filter-bar flex flex-wrap gap-3 mb-4 items-end">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
+            <DateFilterInput
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className={inputClass}
             />
-            {admissionOpen && admissionOptions.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                {admissionOptions.map(opt => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => handleAdmissionNoSelect(opt)}
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
-                  >
-                    <div className="font-medium text-slate-800">{opt.value}</div>
-                    {opt.label !== opt.value && (
-                      <div className="text-xs text-slate-500 truncate">{opt.label}</div>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
-
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
+            <DateFilterInput
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className={inputClass}
+            />
+          </div>
           {/* Practitioner — searchable dropdown */}
           <div data-filter-dropdown className="relative">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Practitioner</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
             <input
               type="text"
               value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
@@ -585,7 +532,7 @@ export const AdmissionList = ({
                 setPractitionerOpen(true)
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search practitioner..."
+              placeholder="Search doctor..."
               className={`${inputClass} w-48`}
             />
             {practitionerOpen && practitionerOptions.length > 0 && (
@@ -605,26 +552,8 @@ export const AdmissionList = ({
           </div>
 
           {/* Date From */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              className={inputClass}
-            />
-          </div>
 
           {/* Date To */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              className={inputClass}
-            />
-          </div>
 
           {/* Branch — dropdown (defaults to global branch) */}
           <div>
@@ -634,7 +563,7 @@ export const AdmissionList = ({
               onChange={e => setFilterBranch(e.target.value)}
               className={inputClass}
             >
-              <option value="">All branches</option>
+              <option value="">Select All</option>
               {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
             </select>
           </div>
@@ -647,7 +576,7 @@ export const AdmissionList = ({
               onChange={e => setSelectedStatus(e.target.value)}
               className={inputClass}
             >
-              <option value="">All</option>
+              <option value="">Select All</option>
               {statuses.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -688,7 +617,7 @@ export const AdmissionList = ({
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={(patient ? 10 : 11) + (onAdmissionSelect ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
-                    {hasActiveFilters ? 'No admissions match your filters.' : 'No admissions found'}
+                    {hasActiveFilters ? 'NO ADMISSIONS MATCH YOUR FILTERS.' : 'NO ADMISSIONS FOUND'}
                   </td>
                 </tr>
               ) : (
