@@ -114,9 +114,9 @@ export const InsurancePatientRegisterList = ({
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col flex-1 min-h-0 h-full min-w-0 gap-3">
       {showFilters && (
-        <div>
+        <div className="flex-shrink-0">
           <input
             type="text" value={search}
             onChange={e => setSearch(e.target.value)}
@@ -126,11 +126,11 @@ export const InsurancePatientRegisterList = ({
         </div>
       )}
 
-      {loading && <div className="text-center text-sm text-slate-400 py-6">Loading…</div>}
-      {error && <div className="text-sm text-red-600 py-2">{error}</div>}
+      {loading && <div className="text-center text-sm text-slate-400 py-6 flex-shrink-0">Loading…</div>}
+      {error && <div className="text-sm text-red-600 py-2 flex-shrink-0">{error}</div>}
 
       {!loading && !error && (
-        <div className="overflow-x-auto">
+        <div className="flex-1 min-h-0 overflow-auto overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-left">

@@ -32,7 +32,6 @@ import { fetchHealthcarePractitioners, fetchCostCenters, type LinkFieldOption } 
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useAuth } from '../../providers/AuthProvider'
 import { isDoctorRole, isAdmin } from '../../config/permissions'
-import { apiRequest } from '../../services/apiClient'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
