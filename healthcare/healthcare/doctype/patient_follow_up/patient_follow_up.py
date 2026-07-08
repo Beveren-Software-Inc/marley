@@ -33,6 +33,16 @@ def _search_sql(search, columns):
 
 
 @frappe.whitelist()
+def update_follow_up_remarks(name, remarks=None):
+	"""Reception follow-up dashboard: save/update the remark on a follow-up."""
+	if not name or not frappe.db.exists("Patient Follow Up", name):
+		frappe.throw(_("Follow Up {0} not found").format(name))
+	frappe.db.set_value("Patient Follow Up", name, "remarks", (remarks or "").strip(), update_modified=True)
+	frappe.db.commit()
+	return {"name": name, "remarks": (remarks or "").strip()}
+
+
+@frappe.whitelist()
 def get_follow_ups(
 	status=None,
 	cost_center=None,

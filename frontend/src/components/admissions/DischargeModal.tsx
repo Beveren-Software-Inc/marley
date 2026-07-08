@@ -49,7 +49,7 @@ import {
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { fetchAfterDischargePrescriptions } from '../../services/prescriptions'
 import { fetchObservationLevels } from '../../services/common'
-import { fetchObservationLevelDetails } from '../../services/observations'
+import { fetchObservationLevelDetails, fetchLatestObservationForAdmission } from '../../services/observations'
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -1109,6 +1109,51 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [obsPractitionerOpen, setObsPractitionerOpen] = useState(false)
   const [obsPractitionerQuery, setObsPractitionerQuery] = useState('')
   const [selectedObsPractitioner, setSelectedObsPractitioner] = useState<LinkFieldOption | null>(null)
+
+  // Observation level & related details auto-fetch from the admission's latest
+  // observation record (reception request) — only when the section is untouched.
+  useEffect(() => {
+    const admissionId = typeof admission === 'string' ? admission : admission?.name
+    if (!admissionId) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const obs = await fetchLatestObservationForAdmission(admissionId)
+        if (cancelled || !obs || !obs.observation_level) return
+        setFormData((prev) => {
+          if (prev.observation_level) return prev
+          return {
+            ...prev,
+            observation_level: obs.observation_level || '',
+            observation_room: obs.room || prev.observation_room,
+            observation_start_date: obs.start_date || prev.observation_start_date,
+            observation_duration: obs.duration || prev.observation_duration,
+            observation_amount: obs.amount ?? prev.observation_amount,
+            observation_practitioner: obs.healthcare_practitioner || prev.observation_practitioner,
+            observation_department: obs.medical_department || prev.observation_department,
+            observation_designated_security_personel:
+              obs.designated_security_personel || prev.observation_designated_security_personel,
+            observation_note: obs.note || prev.observation_note,
+            observation_record: obs.name || prev.observation_record,
+          }
+        })
+        setSelectedObservationLevel({ name: obs.observation_level, label: obs.observation_level })
+        setObservationLevelQuery(obs.observation_level)
+        if (obs.healthcare_practitioner) {
+          setSelectedObsPractitioner({
+            name: obs.healthcare_practitioner,
+            label: obs.practitioner_name || obs.healthcare_practitioner,
+          })
+          setObsPractitionerQuery(obs.practitioner_name || obs.healthcare_practitioner)
+        }
+      } catch {
+        /* manual entry stays available */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [typeof admission === 'string' ? admission : admission?.name])
   const [admissionMedicalDepartment, setAdmissionMedicalDepartment] = useState('')
   const [admissionRoomDefault, setAdmissionRoomDefault] = useState<AdmissionRoomDefault | null>(null)
 

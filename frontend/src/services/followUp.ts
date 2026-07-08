@@ -259,3 +259,12 @@ export async function updateFollowUpStatus(patientFollowUpName: string, newStatu
     throw new Error(data._server_messages ? JSON.parse(data._server_messages)[0] : 'Failed to update status')
   }
 }
+
+/** Reception follow-up dashboard: save/update the remark on a follow-up row. */
+export async function updateFollowUpRemarks(name: string, remarks: string): Promise<void> {
+  const { apiRequest } = await import('./apiClient')
+  await apiRequest(
+    '/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.update_follow_up_remarks',
+    { method: 'POST', body: JSON.stringify({ name, remarks }) }
+  )
+}

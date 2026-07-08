@@ -56,6 +56,47 @@ class PatientAppointment(Document):
 			or not self.practitioner
 		):
 			update_fee_validity(self)
+		self._create_visit_on_patient_arrived()
+
+	def _create_visit_on_patient_arrived(self):
+		"""Reception flow: marking the appointment 'Patient Arrived' auto-creates the
+		Patient Visit (unbilled — reception completes billing as usual)."""
+		if self.status != "Patient Arrived" or not self.patient:
+			return
+		before = self.get_doc_before_save()
+		if before and before.status == "Patient Arrived":
+			return
+		if frappe.db.exists("Patient Visit", {"appointment": self.name, "docstatus": ["!=", 2]}):
+			return
+		try:
+			visit = frappe.new_doc("Patient Visit")
+			visit.patient = self.patient
+			visit.patient_name = self.patient_name
+			visit.appointment = self.name
+			if self.get("appointment_type"):
+				visit.appointment_type = self.appointment_type
+			if self.get("practitioner"):
+				visit.practitioner = self.practitioner
+			if self.get("cost_center"):
+				visit.cost_center = self.cost_center
+			if self.get("company"):
+				visit.company = self.company
+			visit.encounter_date = frappe.utils.nowdate()
+			visit.encounter_time = frappe.utils.nowtime()
+			visit.status = "Open"
+			visit.flags.ignore_mandatory = True
+			visit.flags.ignore_permissions = True
+			visit.insert()
+			frappe.msgprint(
+				frappe._("Patient Visit {0} created for arrived patient").format(visit.name),
+				alert=True,
+				indicator="green",
+			)
+		except Exception:
+			frappe.log_error(
+				message=frappe.get_traceback(),
+				title=f"Auto visit on Patient Arrived failed: {self.name}",
+			)
 
 	def after_insert(self):
 		if getattr(self.flags, "legacy_import", False):

@@ -49,6 +49,16 @@ class Patient(Document):
 
 	def before_insert(self):
 		self.set_missing_customer_details()
+		# Reception flow: new patients get their file no automatically.
+		if not self.get("file_no"):
+			try:
+				from healthcare.api.patient import get_next_patient_file_no
+
+				self.file_no = get_next_patient_file_no()
+			except Exception:
+				frappe.log_error(
+					message=frappe.get_traceback(), title="Auto file_no assignment failed"
+				)
 
 	def after_insert(self):
 		if frappe.db.get_single_value("Healthcare Settings", "collect_registration_fee"):

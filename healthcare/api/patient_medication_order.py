@@ -192,13 +192,56 @@ def get_medication_orders(
 				'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
 				'route_of_administration', 'patient_frequency', 'date', 'end_date',
 				'instructions', 'medication_status', 'is_prn', 'medication_type',
-				'reason_stopped', 'quantity', 'uom',
+				'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
+				'written_frequency', 'old_medicine_code',
 			],
 			order_by='parent, idx',
 			limit_page_length=0,
 		)
+
+		# Oldest legacy rows only carry an Oracle medicine code — resolve names
+		# through the ITEM_00_01 legacy medicine master in one batched query.
+		def _legacy_code(e):
+			raw = (e.get('old_medicine_code') or e.get('medicine_no') or '').strip()
+			return raw.lstrip('0') or raw if raw else ''
+
+		unresolved_codes = {
+			_legacy_code(e)
+			for e in entries
+			if not (e.get('drug_name') or e.get('medication')) and _legacy_code(e)
+		}
+		legacy_master = {}
+		if unresolved_codes and frappe.db.exists('DocType', 'ITEM_00_01'):
+			for m in frappe.get_all(
+				'ITEM_00_01',
+				filters={'name': ['in', list(unresolved_codes)]},
+				fields=['name', 'item_nam', 'item_strenght', 'item_unit_of_strength', 'item_regis_num'],
+			):
+				legacy_master[m['name']] = m
+
 		for e in entries:
+			# Legacy (Oracle-imported) rows store the medicine in `medication` /
+			# `medicine_no` instead of the drug link — fall back so the listing
+			# shows the same values as the detail view.
+			if not e.get('drug_name') and e.get('medication'):
+				e['drug_name'] = e['medication']
+			if not e.get('drug_name'):
+				m = legacy_master.get(_legacy_code(e))
+				if m:
+					strength = ' '.join(
+						str(x) for x in (m.get('item_strenght'), m.get('item_unit_of_strength')) if x
+					)
+					e['drug_name'] = f"{m['item_nam']} {strength}".strip() if m.get('item_nam') else e.get('drug_name')
+					if not e.get('drug') and m.get('item_regis_num'):
+						e['drug'] = m['item_regis_num']
+			if not e.get('drug') and e.get('medicine_no'):
+				e['drug'] = e['medicine_no']
+			if not e.get('patient_frequency') and e.get('written_frequency'):
+				e['patient_frequency'] = e['written_frequency']
 			entries_by_parent.setdefault(e.pop('parent'), []).append(e)
+
+	from healthcare.api.common import fill_missing_patient_names
+	fill_missing_patient_names(orders)
 
 	fullname_cache = {}
 	for o in orders:

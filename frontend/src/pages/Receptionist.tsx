@@ -675,6 +675,7 @@ export const ReceptionistPage = () => {
             >
               <AppointmentList
                 showAll={true}
+                defaultTodayDates
                 receptionWalkInActions
                 patient={selectedPatient || undefined}
                 refreshKey={appointmentRefreshKey}
@@ -796,6 +797,7 @@ export const ReceptionistPage = () => {
                 >
                   <AppointmentList
                     showAll
+                    defaultTodayDates
                     receptionWalkInActions
                     patient={selectedPatient || undefined}
                     refreshKey={appointmentRefreshKey}

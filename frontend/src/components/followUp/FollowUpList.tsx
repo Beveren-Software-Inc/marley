@@ -7,6 +7,7 @@ import {
   sendFollowUpRemindersBulk,
   sendFollowUpRemindersSelected,
   updateFollowUpStatus,
+  updateFollowUpRemarks,
   getCostCenters,
   type PatientFollowUpRow,
   type FollowUpCandidateRow,
@@ -88,6 +89,20 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [sendingBulk, setSendingBulk] = useState(false)
   const [bulkMenuMode, setBulkMenuMode] = useState<'selected' | 'all' | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  // Inline remark editing (reception follow-up dashboard)
+  const [editingRemark, setEditingRemark] = useState<string | null>(null)
+  const [remarkDraft, setRemarkDraft] = useState('')
+  const saveRemark = async (name: string) => {
+    const value = remarkDraft.trim()
+    setEditingRemark(null)
+    try {
+      await updateFollowUpRemarks(name, value)
+      setNormalList((prev) => prev.map((r) => (r.name === name ? { ...r, remarks: value } : r)))
+      toast.success('Remark saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to save remark')
+    }
+  }
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -638,8 +653,34 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                             </span>
                           </td>
                           <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
-                          <td className="px-4 py-2 text-slate-600 max-w-[200px] truncate" title={row.remarks || ''}>
-                            {remarksPreview(row.remarks)}
+                          <td className="px-4 py-2 text-slate-600 max-w-[220px]" title={row.remarks || ''}>
+                            {editingRemark === row.name ? (
+                              <input
+                                type="text"
+                                autoFocus
+                                value={remarkDraft}
+                                onChange={(e) => setRemarkDraft(e.target.value)}
+                                onBlur={() => void saveRemark(row.name)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void saveRemark(row.name)
+                                  if (e.key === 'Escape') setEditingRemark(null)
+                                }}
+                                className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className="block w-full truncate text-left hover:text-primary"
+                                title="Click to edit remark"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  setEditingRemark(row.name)
+                                  setRemarkDraft(row.remarks || '')
+                                }}
+                              >
+                                {remarksPreview(row.remarks) || <span className="text-slate-400">Add remark…</span>}
+                              </button>
+                            )}
                           </td>
                           <td className="px-4 py-2 text-right">
                             <div

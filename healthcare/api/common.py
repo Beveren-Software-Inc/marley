@@ -174,11 +174,31 @@ def get_healthcare_practitioners(search=None, department=None):
 DOCTOR_PARENT_MEDICAL_ROLE = "Doctor"
 
 
-def _get_doctor_medical_roles():
-	"""Medical Role names that count as 'Doctor': the 'Doctor' group and every role under it.
+def fill_missing_patient_names(rows, patient_field="patient", name_field="patient_name"):
+	"""List display: when a row has a patient id but no stored patient_name, resolve
+	the name from the Patient master (one batched query)."""
+	missing = list({
+		r.get(patient_field)
+		for r in rows or []
+		if r.get(patient_field) and not (r.get(name_field) or "").strip()
+	})
+	if not missing:
+		return rows
+	name_map = {
+		p.name: p.patient_name
+		for p in frappe.get_all("Patient", filters={"name": ["in", missing]}, fields=["name", "patient_name"])
+	}
+	for r in rows:
+		if r.get(patient_field) and not (r.get(name_field) or "").strip():
+			r[name_field] = name_map.get(r.get(patient_field)) or r.get(name_field)
+	return rows
 
-	Walks the Medical Role tree via parent_medical_role (the group 'Doctor' is self-parented,
-	so a visited-set guards the loop). Returns e.g. {Doctor, CEO, Consultant, Doctors GP}.
+
+def get_medical_roles_under(group):
+	"""Medical Role names in a group: the group itself and every role under it.
+
+	Walks the Medical Role tree via parent_medical_role (groups may be
+	self-parented, so a visited-set guards the loop).
 	"""
 	all_roles = frappe.get_all('Medical Role', fields=['name', 'parent_medical_role'])
 	children = {}
@@ -186,7 +206,7 @@ def _get_doctor_medical_roles():
 		children.setdefault(r.parent_medical_role, []).append(r.name)
 
 	result = set()
-	stack = [DOCTOR_PARENT_MEDICAL_ROLE]
+	stack = [group]
 	while stack:
 		node = stack.pop()
 		if node in result:
@@ -194,6 +214,11 @@ def _get_doctor_medical_roles():
 		result.add(node)
 		stack.extend(children.get(node, []))
 	return result
+
+
+def _get_doctor_medical_roles():
+	"""Medical Role names that count as 'Doctor' (the Doctor group + descendants)."""
+	return get_medical_roles_under(DOCTOR_PARENT_MEDICAL_ROLE)
 
 
 @frappe.whitelist()

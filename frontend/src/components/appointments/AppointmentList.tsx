@@ -715,6 +715,8 @@ interface AppointmentListProps {
   onOpenVisitInHeader?: () => void
   /** Reception: walk-in actions (register, create visit, patient arrived) in the ⋮ menu. */
   receptionWalkInActions?: boolean
+  /** Reception: From/To date filters default to today (other lists start unfiltered). */
+  defaultTodayDates?: boolean
   /** Hide standalone page title when embedded in a tabbed shell (e.g. nurse Sessions). */
   embedded?: boolean
 }
@@ -857,6 +859,7 @@ export const AppointmentList = ({
   onPatientClick,
   onOpenVisitInHeader,
   receptionWalkInActions = false,
+  defaultTodayDates = false,
   embedded = false,
 }: AppointmentListProps) => {
   const [appointments, setAppointments] = useState<Appointment[]>([])
@@ -930,8 +933,9 @@ export const AppointmentList = ({
   const canChangePractitioner = isAdmin(authRoles)
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
-  const [filterDateFrom, setFilterDateFrom] = useState<string>('')
-  const [filterDateTo, setFilterDateTo] = useState<string>('')
+  const todayISO = new Date().toISOString().split('T')[0]
+  const [filterDateFrom, setFilterDateFrom] = useState<string>(defaultTodayDates ? todayISO : '')
+  const [filterDateTo, setFilterDateTo] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterBranch, setFilterBranch] = useState<string>('')
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)

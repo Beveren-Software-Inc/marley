@@ -9,6 +9,8 @@ export interface CreatePaymentEntryData {
   mode_of_payment: string
   remarks?: string
   patient?: string
+  /** Bank/card transaction reference shown on the Payment Entry. */
+  reference_no?: string
 }
 
 export interface SalesInvoiceSummary {

@@ -169,6 +169,10 @@ def create_patient_visit_charge_sales_order(
 
 	service_name = config.get("service_name") or _("Patient Visit Charge")
 	rate = flt(config.get("rate"))
+	# Doctor-set price/discount on the visit override the configured rate.
+	if flt(visit.get("visit_price")):
+		rate = flt(visit.get("visit_price"))
+	doctor_discount = min(flt(visit.get("discount_amount")), rate) if flt(visit.get("discount_amount")) else 0
 	visit_label = visit.case_no or visit.name
 
 	so = frappe.new_doc("Sales Order")
@@ -199,6 +203,10 @@ def create_patient_visit_charge_sales_order(
 			"price_list_rate": rate,
 		},
 	)
+
+	if doctor_discount:
+		so.apply_discount_on = "Grand Total"
+		so.discount_amount = doctor_discount
 
 	cc = (cost_center or visit.cost_center or "").strip() or None
 	apply_cost_center_to_sales_order(so, cc)
@@ -414,3 +422,81 @@ def maybe_create_iop_enrollment_visit_charge_sales_order(
 	except Exception:
 		frappe.log_error(title=f"IOP enrollment visit charge failed: {visit_name}")
 		return {"error": True}
+
+
+DOCTOR_PRICING_ROLES = frozenset(
+	{"Administrator", "System Manager", "Healthcare Administrator", "Doctor", "Physician"}
+)
+
+
+@frappe.whitelist()
+def set_visit_price_discount(visit, visit_price=None, discount_percentage=None, discount_amount=None):
+	"""Doctor sets/edits the visit price and discount (% and amount validate each other).
+
+	Updates the linked visit-charge Sales Order while it is still Draft; once the
+	Sales Order is submitted, reception must amend billing.
+	"""
+	if not set(frappe.get_roles()) & DOCTOR_PRICING_ROLES:
+		frappe.throw(_("Only a doctor can change the visit price"), frappe.PermissionError)
+	if not visit or not frappe.db.exists("Patient Visit", visit):
+		frappe.throw(_("Patient Visit not found"))
+
+	doc = frappe.get_doc("Patient Visit", visit)
+	price = flt(visit_price) if visit_price not in (None, "") else flt(doc.get("visit_price"))
+	pct = flt(discount_percentage) if discount_percentage not in (None, "") else 0
+	amt = flt(discount_amount) if discount_amount not in (None, "") else 0
+
+	if price < 0 or pct < 0 or amt < 0:
+		frappe.throw(_("Price and discount cannot be negative"))
+	if pct > 100:
+		frappe.throw(_("Discount percentage cannot exceed 100%"))
+	if price:
+		if pct and amt:
+			expected = round(price * pct / 100, 3)
+			if abs(expected - amt) > 0.05:
+				frappe.throw(
+					_("Discount % and amount do not match: {0}% of {1} is {2}, not {3}").format(
+						pct, price, expected, amt
+					)
+				)
+		elif pct:
+			amt = round(price * pct / 100, 3)
+		elif amt:
+			if amt > price:
+				frappe.throw(_("Discount amount cannot exceed the visit price"))
+			pct = round(amt / price * 100, 2)
+
+	doc.db_set("visit_price", price, update_modified=True)
+	doc.db_set("discount_percentage", pct)
+	doc.db_set("discount_amount", amt)
+
+	# Update the linked visit-charge Sales Order while still draft.
+	so_name = frappe.db.get_value(
+		"Sales Order",
+		{"custom_base_reference": "Patient Visit", "custom_base_reference_name": visit, "docstatus": ["<", 2]},
+		"name",
+	)
+	so_status = None
+	if so_name:
+		so = frappe.get_doc("Sales Order", so_name)
+		if so.docstatus == 0:
+			if price and so.items:
+				so.items[0].rate = price
+				so.items[0].price_list_rate = price
+			so.apply_discount_on = "Grand Total"
+			so.discount_amount = amt
+			so.flags.ignore_permissions = True
+			so.save()
+			so_status = "updated"
+		else:
+			so_status = "submitted-unchanged"
+
+	frappe.db.commit()
+	return {
+		"visit": visit,
+		"visit_price": price,
+		"discount_percentage": pct,
+		"discount_amount": amt,
+		"sales_order": so_name,
+		"sales_order_status": so_status,
+	}

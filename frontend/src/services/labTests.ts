@@ -248,6 +248,9 @@ export interface CreateLabTestData {
   department?: string
   service_unit?: string
   status?: string
+  /** Doctor orders once; a scheduler creates the test daily until repeat_until. */
+  repeat_daily?: 0 | 1
+  repeat_until?: string
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
 }
 

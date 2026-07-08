@@ -81,8 +81,42 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	appointments = frappe.get_all(**fetch_args)
 	_enrich_appointments_with_sales_order(appointments)
 	_enrich_appointments_with_file_no(appointments)
+	from healthcare.api.common import fill_missing_patient_names
+	fill_missing_patient_names(appointments)
 
 	return {"data": appointments, "total_count": total_count}
+
+@frappe.whitelist()
+def get_practitioner_branch_for_date(practitioner, date=None):
+	"""Doctor roster: the practitioner's HR Shift Assignment location on a date maps
+	one-to-one to a branch (Shift Location.custom_cost_center) for new appointments."""
+	if not practitioner:
+		return None
+	date = date or nowdate()
+	employee = frappe.db.get_value("Healthcare Practitioner", practitioner, "employee")
+	if not employee:
+		return None
+	rows = frappe.get_all(
+		"Shift Assignment",
+		filters={
+			"employee": employee,
+			"status": "Active",
+			"docstatus": ["<", 2],
+			"start_date": ["<=", date],
+			"shift_location": ["is", "set"],
+		},
+		or_filters=[
+			["end_date", ">=", date],
+			["end_date", "is", "not set"],
+		],
+		fields=["shift_location"],
+		order_by="start_date desc",
+		limit=1,
+	)
+	if not rows:
+		return None
+	return frappe.db.get_value("Shift Location", rows[0].shift_location, "custom_cost_center")
+
 
 @frappe.whitelist()
 def update_appointment_ad_remark(appointment_name, remark):
@@ -204,6 +238,8 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
     total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
     appointments = frappe.get_all(**fetch_args)
     _enrich_appointments_with_file_no(appointments)
+    from healthcare.api.common import fill_missing_patient_names
+    fill_missing_patient_names(appointments)
 
     return {"data": appointments, "total_count": total_count}
 

@@ -27,6 +27,9 @@ import {
 } from '../../services/patientVisits'
 import { fetchHealthcarePractitioners, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useAuth } from '../../providers/AuthProvider'
+import { isDoctorRole, isAdmin } from '../../config/permissions'
+import { apiRequest } from '../../services/apiClient'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { toast } from '../../hooks/useToast'
@@ -52,6 +55,25 @@ export const EditPatientVisitModal = ({
   useRejectEditModeWhenLocked(true, onClose)
   const blockIfEditingLocked = useBlockIfEditingLocked()
   const { costCenterCompany } = useCareContext()
+  const { user } = useAuth()
+  const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
+  const canEditPricing = isDoctorRole(authRoles) || isAdmin(authRoles)
+  // Visit price & discount (doctor) — % and amount compute/validate each other.
+  const [visitPrice, setVisitPrice] = useState('')
+  const [discountPct, setDiscountPct] = useState('')
+  const [discountAmt, setDiscountAmt] = useState('')
+  const applyPct = (v: string) => {
+    setDiscountPct(v)
+    const p = parseFloat(visitPrice) || 0
+    const pct = Math.min(100, Math.max(0, parseFloat(v) || 0))
+    setDiscountAmt(p && v !== '' ? ((p * pct) / 100).toFixed(3) : v === '' ? '' : discountAmt)
+  }
+  const applyAmt = (v: string) => {
+    setDiscountAmt(v)
+    const p = parseFloat(visitPrice) || 0
+    const amt = Math.max(0, parseFloat(v) || 0)
+    setDiscountPct(p && v !== '' ? Math.min(100, (amt / p) * 100).toFixed(2) : v === '' ? '' : discountPct)
+  }
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -95,6 +117,9 @@ export const EditPatientVisitModal = ({
         setEncounterDate(data.encounter_date || '')
         setEncounterTime(normalizeTime(data.encounter_time))
         setEncounterComment(data.encounter_comment || '')
+        setVisitPrice((data as any).visit_price ? String((data as any).visit_price) : '')
+        setDiscountPct((data as any).discount_percentage ? String((data as any).discount_percentage) : '')
+        setDiscountAmt((data as any).discount_amount ? String((data as any).discount_amount) : '')
       })
       .catch((err) => {
         if (!cancelled) {
@@ -181,6 +206,23 @@ export const EditPatientVisitModal = ({
         cost_center: costCenter || undefined,
         encounter_comment: encounterComment.trim() || undefined,
       })
+      if (canEditPricing && (visitPrice || discountPct || discountAmt)) {
+        const res = await apiRequest<any>(
+          '/api/method/healthcare.api.patient_visit_charge.set_visit_price_discount',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              visit: visit.name,
+              visit_price: visitPrice || undefined,
+              discount_percentage: discountPct || undefined,
+              discount_amount: discountAmt || undefined,
+            }),
+          }
+        )
+        if (res?.sales_order_status === 'submitted-unchanged') {
+          toast.info('Price saved on the visit — the Sales Order is already submitted, billing must be amended by reception')
+        }
+      }
       toast.success(`Visit ${visit.name} updated`)
       onSuccess()
       onClose()
@@ -401,6 +443,45 @@ export const EditPatientVisitModal = ({
                   />
                 </div>
 
+                {canEditPricing && (
+                  <div className="md:col-span-2 grid grid-cols-1 gap-3 rounded-lg border border-emerald-200 bg-emerald-50/50 p-3 sm:grid-cols-3">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Visit Price</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={visitPrice}
+                        onChange={(e) => setVisitPrice(e.target.value)}
+                        placeholder="Configured rate"
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Discount (%)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={discountPct}
+                        onChange={(e) => applyPct(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-600 mb-1">Discount Amount</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.001"
+                        value={discountAmt}
+                        onChange={(e) => applyAmt(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                )}
                 <div className="md:col-span-2">
                   <label className={MODAL_LABEL_CLASS}>Review Details</label>
                   <textarea

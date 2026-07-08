@@ -71,9 +71,18 @@ def create_sleeping_pattern(**data):
 	)
 	patient_name = frappe.db.get_value("Patient", patient, "patient_name") if patient else None
 
-	doc = frappe.new_doc("Sleeping Pattern")
-	doc.trans_no = get_next_transaction_number("Sleeping Pattern", fieldname="trans_no")
-	doc.date = data.get("date") or nowdate()
+	# One record per admission per day: a second save on the same day appends the
+	# newly filled periods (morning/evening/night) to the existing record.
+	target_date = data.get("date") or nowdate()
+	existing = frappe.db.get_value(
+		"Sleeping Pattern", {"admission_no": admission, "date": target_date}, "name"
+	)
+	if existing:
+		doc = frappe.get_doc("Sleeping Pattern", existing)
+	else:
+		doc = frappe.new_doc("Sleeping Pattern")
+		doc.trans_no = get_next_transaction_number("Sleeping Pattern", fieldname="trans_no")
+	doc.date = target_date
 	doc.admission_no = admission
 	doc.file_no = patient
 	doc.patient_name = patient_name
@@ -96,7 +105,10 @@ def create_sleeping_pattern(**data):
 		if fieldname in data and data.get(fieldname) not in (None, ""):
 			doc.set(fieldname, data.get(fieldname))
 
-	doc.insert(ignore_permissions=True)
+	if doc.get("__islocal") or not doc.name:
+		doc.insert(ignore_permissions=True)
+	else:
+		doc.save(ignore_permissions=True)
 	frappe.db.commit()
 
 	return _serialize_sleeping_pattern(doc.as_dict())

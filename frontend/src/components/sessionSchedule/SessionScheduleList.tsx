@@ -19,6 +19,8 @@ interface SessionScheduleListProps {
   admissionNumber?: string
   onAddSessionSchedule?: () => void
   embedded?: boolean
+  /** Filter sessions to practitioners in this Medical Role group (plus unassigned). */
+  roleGroup?: string
 }
 
 const statusColors: Record<string, string> = {
@@ -45,7 +47,7 @@ function formatAmount(value?: number): string {
   })
 }
 
-export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embedded }: SessionScheduleListProps) => {
+export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embedded, roleGroup }: SessionScheduleListProps) => {
   const [schedules, setSchedules] = useState<SessionSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -67,7 +69,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchSessionSchedules(50, 0, patient, admissionNumber)
+      const response = await fetchSessionSchedules(50, 0, patient, admissionNumber, roleGroup)
       setSchedules(response)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch session schedules'))
@@ -79,7 +81,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   useEffect(() => {
     loadSchedules()
-  }, [refreshKey, patient, admissionNumber, refreshTrigger])
+  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

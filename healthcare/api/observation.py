@@ -81,6 +81,25 @@ def _observation_visit_admission_refs(obs_doc):
 
 
 @frappe.whitelist()
+def get_latest_observation_for_admission(admission):
+	"""Latest observation record for an admission — discharge form auto-fill."""
+	if not admission:
+		return None
+	rows = frappe.get_all(
+		'Observation',
+		filters={'admission_no': admission, 'docstatus': ['!=', 2]},
+		fields=[
+			'name', 'observation_level', 'room', 'start_date', 'duration', 'amount',
+			'healthcare_practitioner', 'practitioner_name', 'medical_department',
+			'designated_security_personel', 'note',
+		],
+		order_by='posting_date desc, start_date desc',
+		limit=1,
+	)
+	return rows[0] if rows else None
+
+
+@frappe.whitelist()
 def get_observations(
 	limit=50,
 	offset=0,

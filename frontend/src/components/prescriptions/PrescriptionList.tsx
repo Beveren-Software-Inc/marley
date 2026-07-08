@@ -554,6 +554,9 @@ export const PrescriptionList = ({
             <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
               Date of Creation
             </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Prescription
+            </th>
             <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase w-[110px]">
               Actions
             </th>
@@ -614,6 +617,9 @@ export const PrescriptionList = ({
                 {row.owner_full_name || row.owner || '-'}
               </td>
               <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{fmtDate(row.creation)}</td>
+              <td className="px-3 py-2 whitespace-nowrap">
+                <span className="font-medium text-primary hover:underline">{row.name}</span>
+              </td>
               <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">
                   <div

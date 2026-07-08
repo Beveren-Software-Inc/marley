@@ -230,6 +230,9 @@ def get_patient_visit(name):
 		'company': visit.company,
 		'cost_center': visit.cost_center,
 		'encounter_comment': visit.encounter_comment,
+		'visit_price': visit.get('visit_price'),
+		'discount_percentage': visit.get('discount_percentage'),
+		'discount_amount': visit.get('discount_amount'),
 	}
 
 	# Attach uploaded documents from the Patient Visit's "documents" child table

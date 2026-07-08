@@ -1286,6 +1286,7 @@ export const NursePage = () => {
                 {activeSessionTab === 'session-schedule' ? (
                   <SessionScheduleList
                     embedded
+                    roleGroup="Nurse"
                     patient={selectedPatient}
                     admissionNumber={activeAdmission}
                     refreshKey={sessionScheduleRefreshKey}

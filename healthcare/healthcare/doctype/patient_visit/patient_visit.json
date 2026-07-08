@@ -99,6 +99,10 @@
   "medicines_tab",
   "medicine_charges",
   "charges_and_payments_tab",
+  "visit_pricing_section",
+  "visit_price",
+  "discount_percentage",
+  "discount_amount",
   "charges",
   "invoice_created",
   "uploaded_documents_tab",
@@ -516,6 +520,26 @@
    "fieldname": "charges_and_payments_tab",
    "fieldtype": "Tab Break",
    "label": "Charges and Payments"
+  },
+  {
+   "fieldname": "visit_pricing_section",
+   "fieldtype": "Section Break",
+   "label": "Visit Price & Discount"
+  },
+  {
+   "fieldname": "visit_price",
+   "fieldtype": "Currency",
+   "label": "Visit Price"
+  },
+  {
+   "fieldname": "discount_percentage",
+   "fieldtype": "Percent",
+   "label": "Discount (%)"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
   },
   {
    "fieldname": "charges",
