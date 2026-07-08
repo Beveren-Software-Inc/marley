@@ -1122,7 +1122,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'NO PATIENTS FOUND.'}
                     </div>
                   )}
                 </div>
@@ -1175,7 +1175,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           </button>
                         ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No companies found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO COMPANIES FOUND</div>
                     )}
                   </div>
                 )}
@@ -1218,7 +1218,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO BRANCHES FOUND</div>
                   )}
                 </div>
               )}
@@ -1262,7 +1262,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No departments found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO DEPARTMENTS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1324,7 +1324,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1385,7 +1385,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1446,7 +1446,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -1555,7 +1555,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No observation levels found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO OBSERVATION LEVELS FOUND</div>
                             )}
                           </div>
                         )}
@@ -1601,7 +1601,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
                             )}
                           </div>
                         )}
@@ -1664,7 +1664,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1773,7 +1773,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 </div>
                 {relatives.length === 0 ? (
                   <div className="px-3 py-6 text-center text-sm text-slate-500">
-                    No relatives added yet.
+                    NO RELATIVES ADDED YET.
                   </div>
                 ) : (
                   <div className="divide-y divide-slate-200">
@@ -1891,7 +1891,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   </div>
                   {visitors.length === 0 ? (
                     <div className="px-3 py-6 text-center text-sm text-slate-500">
-                      No visitors added yet.
+                      NO VISITORS ADDED YET.
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-200">
@@ -1992,7 +1992,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               </p>
               {documents.length === 0 && (
                 <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
-                  No documents added yet.
+                  NO DOCUMENTS ADDED YET.
                 </div>
               )}
               {documents.map((row, idx) => (

@@ -145,7 +145,7 @@ function MedicalHistoryDetailPanel({
             !detail.smoking &&
             (!detail.patient_history_details || detail.patient_history_details.length === 0) && (
               <div className="flex items-center justify-center py-16 text-sm text-slate-400">
-                No details recorded.
+                NO DETAILS RECORDED.
               </div>
             )}
         </>
@@ -352,7 +352,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         )}
         {!loading && items.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
-            <p className="text-sm text-slate-500">No past medical history has been recorded yet.</p>
+            <p className="text-sm text-slate-500">NO PAST MEDICAL HISTORY HAS BEEN RECORDED YET.</p>
             {!inDashboardCard && (
               <button
                 type="button"
@@ -367,7 +367,7 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
         )}
         {!loading && items.length > 0 && filteredItems.length === 0 && (
           <div className="flex flex-col items-center justify-center py-10 gap-2">
-            <p className="text-sm text-slate-500">No records match the current filters.</p>
+            <p className="text-sm text-slate-500">NO RECORDS MATCH THE CURRENT FILTERS.</p>
             <ClearFiltersButton
               className="self-center"
               onClick={() => {

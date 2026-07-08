@@ -934,7 +934,7 @@
 //       ) : labTests.length === 0 ? (
 //         <div className="flex flex-col items-center justify-center p-12 text-slate-400">
 //           <Search className="w-10 h-10 mb-3 opacity-30" />
-//           <p className="text-sm">{activeCount > 0 ? 'No lab tests match the current filters.' : 'No lab tests found.'}</p>
+//           <p className="text-sm">{activeCount > 0 ? 'NO LAB TESTS MATCH THE CURRENT FILTERS.' : 'NO LAB TESTS FOUND.'}</p>
 //           {activeCount > 0 && <button onClick={() => setFilters(makeEmptyFilters())} className="mt-3 text-sm text-primary hover:underline">Clear filters</button>}
 //         </div>
 //       ) : (
@@ -2000,12 +2000,12 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
 
   return (
     <div className="card-filter-bar relative z-10 flex flex-wrap items-end gap-3 px-1 py-2 bg-slate-50/80 border-b border-slate-100 rounded-md overflow-visible">
-      <div className="flex flex-col gap-1 min-w-[150px]">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
         <DateFilterInput value={filters.fromDate} onChange={(e) => set('fromDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
       </div>
-      <div className="flex flex-col gap-1 min-w-[150px]">
+      <div className="flex flex-col gap-1">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
         <DateFilterInput value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -2138,7 +2138,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
               <div className="px-3 py-2 text-sm text-slate-500">
                 {templateQuery.trim()
                   ? `No template matches “${templateQuery.trim()}”`
-                  : 'No lab test templates available'}
+                  : 'NO LAB TEST TEMPLATES AVAILABLE'}
               </div>
             )}
           </div>
@@ -2254,8 +2254,9 @@ export const LabTestList = ({
     status: defaultStatus ?? '',
   }))
 
+  // All lists start unfiltered — no default practitioner filter (nurse-dept request).
   useEffect(() => {
-    if (!doctorLabDefaults) {
+    if (true) {
       setDefaultsReady(true)
       return
     }
@@ -3314,7 +3315,7 @@ export const LabTestList = ({
       ) : labTests.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-12 text-slate-400">
           <Search className="w-10 h-10 mb-3 opacity-30" />
-          <p className="text-sm">{activeCount > 0 ? 'No lab tests match the current filters.' : 'No lab tests found.'}</p>
+          <p className="text-sm">{activeCount > 0 ? 'NO LAB TESTS MATCH THE CURRENT FILTERS.' : 'NO LAB TESTS FOUND.'}</p>
           {activeCount > 0 ? (
             <ClearFiltersButton className="mt-3 self-center" onClick={handleClearFilters} />
           ) : null}

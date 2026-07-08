@@ -98,7 +98,7 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
   const hasActiveFilters = Boolean(fromDate || toDate || practitionerFilter)
 
   if (!patient) {
-    return <p className="text-sm text-slate-400 italic px-1">No patient selected.</p>
+    return <p className="text-sm text-slate-400 italic px-1">NO PATIENT SELECTED.</p>
   }
 
   if (loading) {
@@ -204,7 +204,7 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
 
       {filteredRows.length === 0 ? (
         <p className="text-sm text-slate-400 italic px-1">
-          {hasActiveFilters ? 'No diagnoses match the filters.' : 'No diagnoses recorded yet.'}
+          {hasActiveFilters ? 'NO DIAGNOSES MATCH THE FILTERS.' : 'NO DIAGNOSES RECORDED YET.'}
         </p>
       ) : (
         <div className="overflow-x-auto flex-1 min-h-0">

@@ -179,9 +179,9 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
   )
 
   const emptyMessage = useMemo(() => {
-    if (search.trim() || hasActiveFilters) return 'No diagnoses match your filters.'
+    if (search.trim() || hasActiveFilters) return 'NO DIAGNOSES MATCH YOUR FILTERS.'
     if (hasRefContext || selectedPatient) return 'No diagnoses for the current care context.'
-    return 'No Medical Diagnosis Entry records yet.'
+    return 'NO MEDICAL DIAGNOSIS ENTRY RECORDS YET.'
   }, [search, hasActiveFilters, hasRefContext, selectedPatient])
 
   return (

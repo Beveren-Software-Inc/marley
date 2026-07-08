@@ -629,7 +629,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                       ))
                     ) : (
                       <div className="px-3 py-2 text-sm text-slate-500">
-                        No observation levels found
+                        NO OBSERVATION LEVELS FOUND
                       </div>
                     )}
                   </div>
@@ -883,7 +883,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                       {roomLoading ? (
                         <div className="px-3 py-3 text-sm text-slate-500">Loading rooms...</div>
                       ) : roomOptions.length === 0 ? (
-                        <div className="px-3 py-3 text-sm text-slate-500">No vacant rooms found.</div>
+                        <div className="px-3 py-3 text-sm text-slate-500">NO VACANT ROOMS FOUND.</div>
                       ) : (
                         roomOptions.map((unit) => (
                           <button

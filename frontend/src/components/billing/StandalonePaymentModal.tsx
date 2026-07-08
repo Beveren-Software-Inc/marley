@@ -107,7 +107,7 @@ const LinkField = ({
     )}
     {open && !loading && options.length === 0 && (
       <div className={linkComboboxEmptyPanelClass}>
-        {query.trim() ? 'No results found' : 'No matching records. Try searching by ID, customer, or patient name.'}
+        {query.trim() ? 'NO RESULTS FOUND' : 'No matching records. Try searching by ID, customer, or patient name.'}
       </div>
     )}
   </div>

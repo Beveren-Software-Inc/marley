@@ -386,7 +386,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
           ) : requests.length === 0 ? (
             <div className="p-8 text-center">
               <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-500">No material requests found</p>
+              <p className="text-slate-500">NO MATERIAL REQUESTS FOUND</p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">

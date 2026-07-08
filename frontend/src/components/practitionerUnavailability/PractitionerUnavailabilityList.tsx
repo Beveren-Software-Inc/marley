@@ -103,7 +103,7 @@ export const PractitionerUnavailabilityList = ({
             ) : rows.length === 0 ? (
               <tr>
                 <td colSpan={8} className="px-3 py-8 text-center text-slate-400 text-xs">
-                  No practitioner unavailability records found
+                  NO PRACTITIONER UNAVAILABILITY RECORDS FOUND
                 </td>
               </tr>
             ) : (

@@ -212,7 +212,7 @@ export const SickLeaveList = ({
 
       {!loading && !error && records.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
-          No sick leave records found.
+          NO SICK LEAVE RECORDS FOUND.
         </div>
       ) : null}
 

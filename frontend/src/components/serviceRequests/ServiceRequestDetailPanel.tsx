@@ -255,7 +255,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
             <InfoTile icon={<User className="h-4 w-4" />} label="Patient" value={patientLabel} />
             <InfoTile
               icon={<Stethoscope className="h-4 w-4" />}
-              label="Doctor"
+              label="Doctor Name"
               value={practitionerLabel}
             />
             <InfoTile

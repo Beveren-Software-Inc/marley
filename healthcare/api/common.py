@@ -703,6 +703,19 @@ def get_prescription_items(search=None):
 	if exclude_names:
 		filters['name'] = ['not in', exclude_names]
 
+	# Drug searches offer NHRA Medicine items only (nurse-department requirement).
+	NHRA_MEDICINE_ITEM_GROUP = 'NHRA Medicine'
+	if frappe.db.exists('Item Group', NHRA_MEDICINE_ITEM_GROUP):
+		from frappe.utils.nestedset import get_descendants_of
+
+		try:
+			nhra_groups = [NHRA_MEDICINE_ITEM_GROUP] + list(
+				get_descendants_of('Item Group', NHRA_MEDICINE_ITEM_GROUP) or []
+			)
+		except Exception:
+			nhra_groups = [NHRA_MEDICINE_ITEM_GROUP]
+		filters['item_group'] = ['in', nhra_groups]
+
 	ig_meta_has_field = frappe.get_meta('Item Group').has_field('custom_added_in_prescription')
 
 	item_meta = frappe.get_meta('Item')

@@ -249,7 +249,7 @@ export function DocDetailView({ doctype, name }: DocDetailViewProps) {
                 )
               ) : isRemarks ? (
                 isEmpty ? (
-                  <span className="text-slate-400 italic text-sm">No remarks added yet.</span>
+                  <span className="text-slate-400 italic text-sm">NO REMARKS ADDED YET.</span>
                 ) : (
                   <div className="whitespace-pre-wrap bg-amber-50 border border-amber-200 rounded-md px-3 py-2 text-sm text-slate-800 leading-relaxed">
                     {formatValue(value)}

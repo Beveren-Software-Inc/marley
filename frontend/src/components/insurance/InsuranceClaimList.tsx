@@ -479,7 +479,7 @@ export const InsuranceClaimList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={patient ? 10 : 11} className="text-center text-slate-400 py-8">No insurance claims found</td>
+                  <td colSpan={patient ? 10 : 11} className="text-center text-slate-400 py-8">NO INSURANCE CLAIMS FOUND</td>
                 </tr>
               )}
               {rows.map(row => (

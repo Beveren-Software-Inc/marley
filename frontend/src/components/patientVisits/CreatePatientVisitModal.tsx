@@ -800,7 +800,7 @@ export const CreatePatientVisitModal = ({
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {patientQuery ? 'No Patient Found.' : 'No patients found.'}
+                      {patientQuery ? 'No Patient Found.' : 'NO PATIENTS FOUND.'}
                     </div>
                   )}
                 </div>
@@ -879,7 +879,7 @@ export const CreatePatientVisitModal = ({
                         </button>
                       ))
                     ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                      <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                     )}
                   </div>
                 )}
@@ -941,7 +941,7 @@ export const CreatePatientVisitModal = ({
                     ))
                   ) : (
                     <div className="px-3 py-2 text-xs text-slate-500">
-                      {visitTypeQuery ? 'No visit types match your search.' : 'No visit types found.'}
+                      {visitTypeQuery ? 'No visit types match your search.' : 'NO VISIT TYPES FOUND.'}
                     </div>
                   )}
                 </div>
@@ -1021,7 +1021,7 @@ export const CreatePatientVisitModal = ({
                       </button>
                     ))
                   ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">No branches found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO BRANCHES FOUND</div>
                   )}
                 </div>
               )}

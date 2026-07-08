@@ -163,7 +163,7 @@ function UserSearchCombobox({
           {loading ? (
             <div className="px-3 py-2 text-slate-500 text-xs">Searching…</div>
           ) : options.length === 0 ? (
-            <div className="px-3 py-2 text-slate-500 text-xs">No users found</div>
+            <div className="px-3 py-2 text-slate-500 text-xs">NO USERS FOUND</div>
           ) : (
             options.map((u) => (
               <button
@@ -588,7 +588,7 @@ export function UserActivityAuditReport() {
               <div className="text-sm text-slate-500 py-12 text-center">Loading user summaries…</div>
             ) : summaryRows.length === 0 ? (
               <div className="text-sm text-slate-500 py-12 text-center">
-                No user activity found for the selected filters.
+                NO USER ACTIVITY FOUND FOR THE SELECTED FILTERS.
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -633,7 +633,7 @@ export function UserActivityAuditReport() {
               <div className="text-sm text-slate-500 py-12 text-center">Loading activity…</div>
             ) : rows.length === 0 ? (
               <div className="text-sm text-slate-500 py-12 text-center">
-                No activity found for the selected filters.
+                NO ACTIVITY FOUND FOR THE SELECTED FILTERS.
               </div>
             ) : (
               <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">

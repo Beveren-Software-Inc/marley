@@ -510,7 +510,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
           {loading ? (
             <div className="py-8 text-sm text-slate-500 text-center">Loading setups...</div>
           ) : setups.length === 0 ? (
-            <div className="py-8 text-sm text-slate-400 text-center">No Daily Patient Visit Setup found.</div>
+            <div className="py-8 text-sm text-slate-400 text-center">NO DAILY PATIENT VISIT SETUP FOUND.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1100px]">

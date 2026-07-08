@@ -224,7 +224,7 @@ export const MentalStateList = ({
 
       {!loading && !error && records.length === 0 ? (
         <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
-          No mental state records found.
+          NO MENTAL STATE RECORDS FOUND.
         </div>
       ) : null}
 

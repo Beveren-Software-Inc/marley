@@ -383,7 +383,7 @@ export const RescheduleAppointmentModal = ({
             <div className="bg-slate-50 border border-slate-200 rounded-md p-4 text-center">
               <CalendarOff className="w-8 h-8 text-slate-400 mx-auto mb-2" />
               <p className="text-sm text-slate-600">
-                No slots available. Please select a different date when the doctor is available.
+                NO SLOTS AVAILABLE. PLEASE SELECT A DIFFERENT DATE WHEN THE DOCTOR IS AVAILABLE.
               </p>
             </div>
           )}

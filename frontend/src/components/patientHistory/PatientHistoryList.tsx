@@ -202,7 +202,7 @@ export const PatientHistoryList = ({
       {filteredItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-10 text-center flex-1">
           <BookOpen className="w-8 h-8 text-slate-300 mb-2" />
-          <p className="text-sm text-slate-500 mb-1">No patient history records yet</p>
+          <p className="text-sm text-slate-500 mb-1">NO PATIENT HISTORY RECORDS YET</p>
           <p className="text-xs text-slate-400">Use the + button to record a new history</p>
         </div>
       ) : compactClinical ? (

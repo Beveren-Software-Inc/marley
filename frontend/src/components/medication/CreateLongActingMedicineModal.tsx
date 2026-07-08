@@ -16,8 +16,8 @@ import {
   getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
-import type { LongActingFrequency } from '../../services/prescriptions'
-import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
+import type { LongActingFrequency, MedicationOrderEntry } from '../../services/prescriptions'
+import { LONG_ACTING_FREQUENCY_OPTIONS, fetchPrescriptions } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
 
@@ -139,7 +139,7 @@ const Combobox = ({
               </button>
             ))
           ) : (
-            <div className="px-3 py-2 text-xs text-slate-500">No results found</div>
+            <div className="px-3 py-2 text-xs text-slate-500">NO RESULTS FOUND</div>
           )}
         </div>
       )}
@@ -157,6 +157,9 @@ export const CreateLongActingMedicineModal = ({
 
   // Patient selection
   const [patientQuery, setPatientQuery] = useState('')
+  // Prescription medicine lines for the selected patient — dosage auto-fills from
+  // the prescription and stays read-only (nurse-department rule).
+  const [rxEntries, setRxEntries] = useState<MedicationOrderEntry[]>([])
   const [selectedPatient, setSelectedPatient] = useState<PatientListItem | null>(null)
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [loadingPatients, setLoadingPatients] = useState(false)
@@ -215,6 +218,26 @@ export const CreateLongActingMedicineModal = ({
         .catch(() => setSelectedPatient({ name: initialPatient, patient_name: initialPatient }))
     }
   }, [initialPatient])
+
+  // Prescription lines for dosage auto-fill (latest prescriptions for the patient).
+  useEffect(() => {
+    if (!selectedPatient?.name) {
+      setRxEntries([])
+      return
+    }
+    let cancelled = false
+    fetchPrescriptions(20, 0, { patient: selectedPatient.name })
+      .then((rxs) => {
+        if (cancelled) return
+        setRxEntries(rxs.flatMap((p) => p.medication_orders || []))
+      })
+      .catch(() => {
+        if (!cancelled) setRxEntries([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPatient?.name])
 
   // Load dropdown options
   useEffect(() => {
@@ -707,6 +730,12 @@ export const CreateLongActingMedicineModal = ({
                                 onSelect={(opt) => {
                                   updateMedicationRow(index, 'drug', opt.name)
                                   updateMedicationRow(index, 'drug_name', opt.label || opt.name)
+                                  const rx = rxEntries.find((e) => e.drug === opt.name)
+                                  if (rx) {
+                                    updateMedicationRow(index, 'dosage', rx.dosage || '')
+                                    if (rx.dosage_form) updateMedicationRow(index, 'dosage_form', rx.dosage_form)
+                                    if (rx.patient_frequency) updateMedicationRow(index, 'patient_frequency', rx.patient_frequency)
+                                  }
                                   setDrugQueries((prev) => ({
                                     ...prev,
                                     [index]: opt.label || opt.name,
@@ -727,11 +756,13 @@ export const CreateLongActingMedicineModal = ({
                               <input
                                 type="text"
                                 value={row.dosage}
+                                readOnly={rxEntries.some((e) => e.drug === row.drug)}
                                 onChange={(e) =>
                                   updateMedicationRow(index, 'dosage', e.target.value)
                                 }
                                 placeholder="e.g. 1-0-1"
-                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                                title={rxEntries.some((e) => e.drug === row.drug) ? 'Dosage comes from the prescription' : undefined}
+                                className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${rxEntries.some((e) => e.drug === row.drug) ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white'}`}
                               />
                             </div>
                           </div>
@@ -875,7 +906,7 @@ export const CreateLongActingMedicineModal = ({
 
                   {medications.length === 0 && (
                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
-                      <p className="text-sm mb-3">No medications added yet</p>
+                      <p className="text-sm mb-3">NO MEDICATIONS ADDED YET</p>
                       <button
                         type="button"
                         onClick={addMedicationRow}

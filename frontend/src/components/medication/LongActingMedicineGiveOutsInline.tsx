@@ -56,7 +56,7 @@ interface LongActingMedicineGiveOutsInlineProps {
 
 function GiveOutsTable({ rows }: { rows: LongActingMedicineGiveOutRow[] }) {
   if (rows.length === 0) {
-    return <p className="text-sm text-slate-500 py-2">No give-outs recorded yet.</p>
+    return <p className="text-sm text-slate-500 py-2">NO GIVE-OUTS RECORDED YET.</p>
   }
 
   return (

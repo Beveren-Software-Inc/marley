@@ -230,7 +230,7 @@ export const SleepingPatternList = ({
 
         {!loading && !error && rows.length === 0 ? (
           <div className="rounded-md border border-dashed border-slate-300 p-4 text-center text-sm text-slate-600">
-            No sleeping pattern records found.
+            NO SLEEPING PATTERN RECORDS FOUND.
           </div>
         ) : null}
 

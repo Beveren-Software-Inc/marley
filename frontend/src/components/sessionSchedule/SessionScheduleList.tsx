@@ -252,7 +252,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
       {filtered.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500">
-          {schedules.length === 0 ? 'No session schedules found' : 'No session schedules match the current filters'}
+          {schedules.length === 0 ? 'NO SESSION SCHEDULES FOUND' : 'NO SESSION SCHEDULES MATCH THE CURRENT FILTERS'}
         </div>
       ) : (
         <div className="min-w-full overflow-x-auto">

@@ -121,7 +121,7 @@ function LinkCombobox({
         <div className={linkComboboxDropdownClass}>
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400">
-              {loadingOptions ? 'Searching…' : 'No results found'}
+              {loadingOptions ? 'Searching…' : 'NO RESULTS FOUND'}
             </div>
           ) : (
             options.map((opt) => (
@@ -423,7 +423,7 @@ export function CreateMorseFallScaleModal({
 
                   <div>
                     <LinkCombobox
-                      label="Doctor"
+                      label="Doctor Name"
                       required
                       value={practitionerLabel}
                       fetchOptions={fetchPractitionerOptions}

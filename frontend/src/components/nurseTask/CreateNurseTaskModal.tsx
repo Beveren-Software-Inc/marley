@@ -373,7 +373,7 @@
 //               <div>
 //                 <label className="block text-xs font-medium text-slateate-600 mb-1">Patient</label>
 //                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-//                   {patient || <span className="text-slate-400">No patient selected</span>}
+//                   {patient || <span className="text-slate-400">NO PATIENT SELECTED</span>}
 //                 </div>
 //               </div>
 
@@ -1168,7 +1168,7 @@ export const CreateNurseTaskModal = ({
                   Patient <span className="text-red-500">*</span>
                 </label>
                 <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
-                  {effectivePatient || <span className="text-slate-400">No patient selected</span>}
+                  {effectivePatient || <span className="text-slate-400">NO PATIENT SELECTED</span>}
                 </div>
                 {contextPatient && (
                   <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>

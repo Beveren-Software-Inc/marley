@@ -155,7 +155,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
             <Loader2 className="w-6 h-6 animate-spin" />
           </div>
         ) : rows.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 text-xs">No Cross‑Branch Payment invoices yet.</div>
+          <div className="py-12 text-center text-slate-500 text-xs">NO CROSS‑BRANCH PAYMENT INVOICES YET.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">

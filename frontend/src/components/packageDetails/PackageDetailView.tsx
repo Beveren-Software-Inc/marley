@@ -214,7 +214,7 @@ export const PackageDetailView = ({ patient }: PackageDetailViewProps) => {
           <p className="text-xs text-slate-500 mt-0.5">Treatment packages (Inpatient Package) — assigned via quotation on admission</p>
         </div>
         {available_packages.length === 0 ? (
-          <div className="p-4 text-sm text-slate-500 text-center">No active packages found.</div>
+          <div className="p-4 text-sm text-slate-500 text-center">NO ACTIVE PACKAGES FOUND.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">

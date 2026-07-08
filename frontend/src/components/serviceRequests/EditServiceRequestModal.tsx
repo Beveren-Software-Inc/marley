@@ -558,7 +558,7 @@ export const EditServiceRequestModal = ({
                             </button>
                           ))
                         ) : (
-                          <div className="px-3 py-2 text-xs text-slate-500">No patients found</div>
+                          <div className="px-3 py-2 text-xs text-slate-500">NO PATIENTS FOUND</div>
                         )}
                       </div>
                     )}

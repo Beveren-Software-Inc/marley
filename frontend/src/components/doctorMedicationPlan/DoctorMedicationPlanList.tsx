@@ -223,7 +223,7 @@ export const DoctorMedicationPlanList = ({ patient, onPatientClick }: DoctorMedi
             <div className="flex flex-col items-center justify-center p-8">
               <div className="text-slate-500 text-center">
                 {contextLabel && <p className="text-sm text-slate-600 mb-2">{contextLabel}</p>}
-                <p>{hasActiveFilters ? 'No plans match the filters.' : "No doctors' plans found yet"}</p>
+                <p>{hasActiveFilters ? 'NO PLANS MATCH THE FILTERS.' : "No doctors' plans found yet"}</p>
               </div>
             </div>
           ) : compactClinical ? (

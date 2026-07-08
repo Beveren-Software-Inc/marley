@@ -115,9 +115,9 @@ export const PrescriptionList = ({
   const [searchQuery, setSearchQuery] = useState('')
   const [defaultsReady, setDefaultsReady] = useState(!doctorPrescriptionDefaults)
 
-  // Doctor dashboard: default practitioner = logged-in user's link (if any).
+  // All lists start unfiltered — no default practitioner filter (nurse-dept request).
   useEffect(() => {
-    if (!doctorPrescriptionDefaults) {
+    if (true) {
       setDefaultsReady(true)
       return
     }
@@ -501,16 +501,6 @@ export const PrescriptionList = ({
             )}
           </div>
         </div>
-        <div className="flex flex-col gap-1 min-w-[160px]">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Search</label>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Prescription / patient..."
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
         <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />
       </div>
       )}
@@ -520,7 +510,7 @@ export const PrescriptionList = ({
       {prescriptions.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-500">
-            {hasActiveFilters ? 'No prescriptions match your filters.' : 'No prescriptions found'}
+            {hasActiveFilters ? 'NO PRESCRIPTIONS MATCH YOUR FILTERS.' : 'NO PRESCRIPTIONS FOUND'}
           </div>
         </div>
       ) : (

@@ -690,7 +690,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
                                             </option>
                                           ))
                                         ) : (
-                                          <option value="" disabled>No batches available</option>
+                                          <option value="" disabled>NO BATCHES AVAILABLE</option>
                                         )}
                                       </select>
                                     )}
@@ -832,7 +832,7 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
               
               <div className="border rounded-lg max-h-48 overflow-y-auto">
                 {selectedItemForSerial.serial_nos.length === 0 ? (
-                  <p className="text-center text-slate-500 py-4">No serial numbers added</p>
+                  <p className="text-center text-slate-500 py-4">NO SERIAL NUMBERS ADDED</p>
                 ) : (
                   <ul className="divide-y">
                     {selectedItemForSerial.serial_nos.map((serial, idx) => (

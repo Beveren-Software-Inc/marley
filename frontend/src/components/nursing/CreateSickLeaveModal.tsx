@@ -340,7 +340,7 @@
 //             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 //               {/* Doctor */}
 //               <LinkField
-//                 label="Doctor"
+//                 label="Doctor Name"
 //                 isOpen={doctorOpen}
 //                 query={doctorQuery}
 //                 selectedLabel={selectedDoctor?.label}
@@ -918,7 +918,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Doctor */}
               <LinkField
-                label="Doctor"
+                label="Doctor Name"
                 isOpen={doctorOpen}
                 query={doctorQuery}
                 selectedLabel={selectedDoctor?.label}

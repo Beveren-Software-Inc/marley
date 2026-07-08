@@ -141,7 +141,7 @@ export const InsurancePatientRegisterList = ({
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={9} className="text-center text-slate-400 py-8">
-                    No insurance patient registers found
+                    NO INSURANCE PATIENT REGISTERS FOUND
                   </td>
                 </tr>
               )}

@@ -17,7 +17,6 @@ import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { fetchDoctorPractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -107,7 +106,8 @@ export const PatientVisitList = ({
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** OP browse (no active visit, not a typed sub-list): today + linked practitioner. */
-  const shouldUseOpDefaults = mode === 'OP' && !effectiveVisitFilter && !visitType && !onVisitActivate
+  // All lists start unfiltered — no default date/practitioner filters (nurse-dept request).
+  const shouldUseOpDefaults = false
   const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -134,7 +134,6 @@ export const PatientVisitList = ({
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
-    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
   const branchLabel = (cc?: string) => {
@@ -669,7 +668,7 @@ export const PatientVisitList = ({
               {visits.length === 0 ? (
                 <tr>
                   <td colSpan={tableColSpan} className="px-4 py-10 text-center text-slate-400 text-sm">
-                    {hasActiveFilters ? 'No visits match your filters.' : 'No patient visits found.'}
+                    {hasActiveFilters ? 'NO VISITS MATCH YOUR FILTERS.' : 'NO PATIENT VISITS FOUND.'}
                   </td>
                 </tr>
               ) : detailedColumns ? (

@@ -361,7 +361,7 @@ export const PaymentModal = ({
                               </button>
                             ))
                         ) : (
-                          <div className="px-3 py-2 text-xs text-emerald-800/60">No companies found</div>
+                          <div className="px-3 py-2 text-xs text-emerald-800/60">NO COMPANIES FOUND</div>
                         )}
                       </div>
                     )}
@@ -411,7 +411,7 @@ export const PaymentModal = ({
                           </button>
                         ))
                       ) : (
-                        <div className="px-3 py-2 text-xs text-emerald-800/60">No branches found</div>
+                        <div className="px-3 py-2 text-xs text-emerald-800/60">NO BRANCHES FOUND</div>
                       )}
                     </div>
                   )}
@@ -459,7 +459,7 @@ export const PaymentModal = ({
                           </button>
                         ))
                       ) : (
-                        <div className="px-3 py-2 text-xs text-emerald-800/60">No departments found</div>
+                        <div className="px-3 py-2 text-xs text-emerald-800/60">NO DEPARTMENTS FOUND</div>
                       )}
                     </div>
                   )}

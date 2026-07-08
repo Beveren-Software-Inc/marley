@@ -289,7 +289,7 @@ export const MainNursingNoteList = ({
 
       {!loading && !error && records.length === 0 && (
         <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center">
-          No nursing notes found.
+          NO NURSING NOTES FOUND.
         </div>
       )}
 

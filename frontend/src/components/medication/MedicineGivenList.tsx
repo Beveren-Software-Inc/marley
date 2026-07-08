@@ -343,7 +343,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
 
   const handleCreateSalesOrder = async () => {
     if (!admission?.name) {
-      toast.error('No active inpatient admission found')
+      toast.error('NO ACTIVE INPATIENT ADMISSION FOUND')
       return
     }
 

@@ -430,7 +430,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
         </div>
       ) : formattedRows.length === 0 ? (
         <div className="text-sm text-slate-500 py-4">
-          No long acting medicines found for the selected filters.
+          NO LONG ACTING MEDICINES FOUND FOR THE SELECTED FILTERS.
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto overflow-y-visible">

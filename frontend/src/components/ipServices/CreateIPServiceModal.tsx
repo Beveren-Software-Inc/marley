@@ -407,7 +407,7 @@ function TemplateRowEditor({ row, onUpdate, onRemove }: TemplateRowEditorProps) 
         className="overflow-y-auto rounded-xl border border-emerald-200/80 bg-white py-1 text-slate-900 shadow-lg ring-1 ring-emerald-300/40"
       >
         {options.length === 0 ? (
-          <div className="px-3 py-2 text-sm text-slate-500">No ECT templates found.</div>
+          <div className="px-3 py-2 text-sm text-slate-500">NO ECT TEMPLATES FOUND.</div>
         ) : (
           options.map((opt) => (
             <button

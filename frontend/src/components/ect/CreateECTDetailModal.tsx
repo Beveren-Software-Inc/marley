@@ -112,6 +112,24 @@ export const CreateECTDetailModal = ({
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  // Nurse name defaults to the logged-in user's linked practitioner.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      const practId = await getCurrentUserPractitioner()
+      if (cancelled || !practId) return
+      let label = practId
+      try {
+        const opts = await fetchHealthcarePractitioners(practId)
+        label = opts.find((o) => o.name === practId)?.label || practId
+      } catch { /* keep id as label */ }
+      setFormData(prev => (prev.nurse_name ? prev : { ...prev, nurse_name: label }))
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 

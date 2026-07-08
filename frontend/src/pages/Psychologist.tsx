@@ -13,6 +13,43 @@ import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
+import type { ComponentType } from 'react'
+import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
+import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
+import { CreateDepressionAssessmentModal } from '../components/depression/CreateDepressionAssessmentModal'
+import { DepressionAssessmentList } from '../components/depression/DepressionAssessmentList'
+import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
+import { GAD7AssessmentList } from '../components/gad7/GAD7AssessmentList'
+import { CreateHomicideRiskAssessmentModal } from '../components/homicide/CreateHomicideRiskAssessmentModal'
+import { HomicideRiskAssessmentList } from '../components/homicide/HomicideRiskAssessmentList'
+import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
+import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
+import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
+import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
+import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
+import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
+import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
+import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
+import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
+import { YMRSAssessmentList } from '../components/ymrs/YMRSAssessmentList'
+import { SuicidalAssessmentList } from '../components/suicidal/SuicidalAssessmentList'
+import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
+import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
+import { CreateMorseFallScaleModal } from '../components/morse/CreateMorseFallScaleModal'
+
+// Standard assessments — psychologists run these (moved from the doctor sidebar).
+const ASSESSMENT_SCREENS: Record<string, { title: string; List: ComponentType<any>; CreateModal: ComponentType<any> }> = {
+  fall: { title: 'Morse Fall Scale', List: MorseFallScaleList, CreateModal: CreateMorseFallScaleModal },
+  adhd: { title: 'ADHD Assessments', List: ADHDAssessmentList, CreateModal: CreateADHDAssessmentModal },
+  depression: { title: 'Depression Assessments', List: DepressionAssessmentList, CreateModal: CreateDepressionAssessmentModal },
+  mood: { title: 'Mood Disorder Assessments', List: MoodDisorderAssessmentList, CreateModal: CreateMoodDisorderAssessmentModal },
+  gad7: { title: 'GAD7 Assessments', List: GAD7AssessmentList, CreateModal: CreateGAD7AssessmentModal },
+  phq9: { title: 'PHQ9 Assessments', List: PHQ9AssessmentList, CreateModal: CreatePHQ9AssessmentModal },
+  'homicide-risk': { title: 'Homicide Risk Assessments', List: HomicideRiskAssessmentList, CreateModal: CreateHomicideRiskAssessmentModal },
+  ybocs: { title: 'YBOCS Assessments', List: YBOCSAssessmentList, CreateModal: CreateYBOCSAssessmentModal },
+  ymrs: { title: 'YMRS Assessments', List: YMRSAssessmentList, CreateModal: CreateYMRSAssessmentModal },
+  panss: { title: 'PANSS Assessments', List: PANSSAssessmentList, CreateModal: CreatePANSSAssessmentModal },
+}
 
 export const PsychologistPage = () => {
   const {
@@ -20,6 +57,7 @@ export const PsychologistPage = () => {
     setSelectedPatient: setGlobalPatient,
     guardClinicalCreate,
     activeAdmission,
+    activeVisit,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
@@ -31,6 +69,8 @@ export const PsychologistPage = () => {
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
 
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
+  const [showAssessmentCreate, setShowAssessmentCreate] = useState(false)
+  const [assessmentRefreshKey, setAssessmentRefreshKey] = useState(0)
   const [therapyNotesRefreshKey, setTherapyNotesRefreshKey] = useState(0)
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0)
 
@@ -65,6 +105,73 @@ export const PsychologistPage = () => {
   const header = (
     <PatientCareHeader selectedPatient={headerPatient} onPatientSelect={handlePatientSelect} patients={[]} />
   )
+
+  // ── Scales & Assessments ──────────────────────────────────────────────────────
+  const assessment = ASSESSMENT_SCREENS[screen]
+  if (assessment) {
+    const { title, List, CreateModal } = assessment
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <DashboardCard
+            title={title}
+            noHeightLimit
+            onAdd={() => guardClinicalCreate(() => setShowAssessmentCreate(true))}
+            addButtonTitle={`Create ${title}`}
+          >
+            <List patient={selectedPatient} refreshKey={assessmentRefreshKey} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
+        </div>
+        {showAssessmentCreate && (
+          <CreateModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            defaultVisit={activeVisit || undefined}
+            onClose={() => setShowAssessmentCreate(false)}
+            onSuccess={() => {
+              setShowAssessmentCreate(false)
+              setAssessmentRefreshKey((k) => k + 1)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'suicide') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <DashboardCard
+            title="Suicidal Assessments"
+            noHeightLimit
+            onAdd={() => guardClinicalCreate(() => setShowAssessmentCreate(true))}
+            addButtonTitle="Add Suicidal Assessment"
+          >
+            <SuicidalAssessmentList
+              patient={selectedPatient}
+              admission={activeAdmission}
+              refreshKey={assessmentRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+        {showAssessmentCreate && (
+          <SuicidalPatientAssessmentModal
+            admissionNo={activeAdmission || ''}
+            patient={selectedPatient || ''}
+            patientName=""
+            onClose={() => setShowAssessmentCreate(false)}
+            onSuccess={() => {
+              setShowAssessmentCreate(false)
+              setAssessmentRefreshKey((k) => k + 1)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
 
   // ── Psychologist Notes ────────────────────────────────────────────────────────
   if (screen === 'p-notes') {

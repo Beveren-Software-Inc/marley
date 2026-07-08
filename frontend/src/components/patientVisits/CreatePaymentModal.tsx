@@ -75,7 +75,7 @@ const LinkField = ({
     )}
     {open && options.length === 0 && query.length > 0 && (
       <div className={linkComboboxEmptyPanelClass}>
-        No results found
+        NO RESULTS FOUND
       </div>
     )}
   </div>

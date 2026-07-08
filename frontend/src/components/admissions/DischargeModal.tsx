@@ -3475,7 +3475,7 @@ const loadDailyVisitSetup = async () => {
                   <Circle className="w-10 h-10 mb-3 opacity-30" />
                   <p className="text-sm">
                     {nursePrimaryUser
-                      ? 'No hospital checklist loaded yet.'
+                      ? 'NO HOSPITAL CHECKLIST LOADED YET.'
                       : 'No checklist items found for the selected template.'}
                   </p>
                 </div>
@@ -3935,7 +3935,7 @@ const loadDailyVisitSetup = async () => {
                                   </button>
                                 ))
                               ) : (
-                                <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                                <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
                               )}
                             </div>
                           )}
@@ -4103,7 +4103,7 @@ const loadDailyVisitSetup = async () => {
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No observation levels found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO OBSERVATION LEVELS FOUND</div>
                             )}
                           </div>
                         )}
@@ -4153,7 +4153,7 @@ const loadDailyVisitSetup = async () => {
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">No vacant rooms found</div>
+                              <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
                             )}
                           </div>
                         )}
@@ -4219,7 +4219,7 @@ const loadDailyVisitSetup = async () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -4399,7 +4399,7 @@ const loadDailyVisitSetup = async () => {
         {medicineSales.prescriptions?.length === 0 ? (
           <tr>
             <td colSpan={5} className="px-4 py-8 text-center text-slate-400">
-              No after-discharge prescriptions found.
+              NO AFTER-DISCHARGE PRESCRIPTIONS FOUND.
             </td>
           </tr>
         ) : (

@@ -389,7 +389,7 @@ export const QMPSPage = () => {
               <div className="text-sm text-slate-500 py-8 text-center">Loading events…</div>
             ) : events.length === 0 ? (
               <div className="text-sm text-slate-500 py-8 text-center">
-                No patient safety events reported yet.
+                NO PATIENT SAFETY EVENTS REPORTED YET.
               </div>
             ) : (
               <table className="w-full text-xs">
@@ -454,7 +454,7 @@ export const QMPSPage = () => {
             </div>
             {ovrs.length === 0 ? (
               <div className="text-xs text-slate-500 py-2">
-                No occurrence / variance reports yet.
+                NO OCCURRENCE / VARIANCE REPORTS YET.
               </div>
             ) : (
               <table className="w-full text-[11px]">
@@ -512,7 +512,7 @@ export const QMPSPage = () => {
             </div>
             {capas.length === 0 ? (
               <div className="text-xs text-slate-500 py-2">
-                No corrective / preventive actions recorded yet.
+                NO CORRECTIVE / PREVENTIVE ACTIONS RECORDED YET.
               </div>
             ) : (
               <table className="w-full text-[11px]">

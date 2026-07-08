@@ -98,7 +98,7 @@ export const PatientReferralList = ({
               </tr>
             ) : rows.length === 0 ? (
               <tr>
-                <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">No referrals found</td>
+                <td colSpan={patient ? 6 : 7} className="px-3 py-8 text-center text-slate-400 text-xs">NO REFERRALS FOUND</td>
               </tr>
             ) : (
               rows.map(row => (

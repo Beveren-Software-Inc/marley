@@ -53,7 +53,7 @@ export const DoctorServiceDetailsTable = ({ patient, onAddService }: DoctorServi
             <tbody>
               <tr>
                 <td colSpan={6} className="px-3 py-6 text-center text-slate-500">
-                  No doctor service details available yet. This table will be wired to invoicing data.
+                  NO DOCTOR SERVICE DETAILS AVAILABLE YET. THIS TABLE WILL BE WIRED TO INVOICING DATA.
                 </td>
               </tr>
             </tbody>

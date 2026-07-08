@@ -189,7 +189,7 @@ export const PhysicalExaminationList = ({
           <div className="flex flex-1 flex-col items-center justify-center py-10 text-center">
             <Stethoscope className="mb-2 h-8 w-8 text-slate-300" />
             <p className="mb-1 text-sm text-slate-500">
-              {items.length > 0 ? 'No examinations match your filters' : 'No physical examinations recorded yet'}
+              {items.length > 0 ? 'NO EXAMINATIONS MATCH YOUR FILTERS' : 'NO PHYSICAL EXAMINATIONS RECORDED YET'}
             </p>
             <p className="text-xs text-slate-400">
               {items.length > 0 ? 'Adjust or clear filters above' : 'Use the + button above to record a new examination'}

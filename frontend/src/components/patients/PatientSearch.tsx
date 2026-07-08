@@ -807,7 +807,7 @@ export const PatientSearch = ({
                         ? 'No Patient Found.'
                         : fullDirectoryRestricted
                           ? 'Start Typing .....'
-                          : 'No patients found.'}
+                          : 'NO PATIENTS FOUND.'}
                     </p>
                   </div>
                 )}

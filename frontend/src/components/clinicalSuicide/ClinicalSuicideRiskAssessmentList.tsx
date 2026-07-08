@@ -224,7 +224,7 @@ export const SuicideRiskAssessmentList = ({
 
       {!loading && !error && filteredRecords.length === 0 && (
         <div className="p-4 text-sm text-slate-600 border border-dashed border-slate-300 rounded-md text-center flex-1">
-          No suicide risk assessments found.
+          NO SUICIDE RISK ASSESSMENTS FOUND.
         </div>
       )}
 

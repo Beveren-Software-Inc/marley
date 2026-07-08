@@ -553,7 +553,7 @@ export const CreateADHDAssessmentModal = ({
                   </div>
 
                   <div className="relative md:col-span-2">
-                    <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">Doctor Name</label>
                     <input
                       type="text"
                       value={practitioner ? practitionerLabel : practitionerQuery}

@@ -226,7 +226,7 @@ export const EditDailyPatientVisitSetupModal = ({
                 </div>
 
                 <div className="md:col-span-2 relative">
-                  <label className={MODAL_LABEL_CLASS}>Doctor</label>
+                  <label className={MODAL_LABEL_CLASS}>Doctor Name</label>
                   <input
                     type="text"
                     value={doctorQuery}

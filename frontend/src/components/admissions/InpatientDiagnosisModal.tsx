@@ -360,7 +360,7 @@ export const InpatientDiagnosisModal = ({
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-xs text-slate-500">No diagnoses found</div>
+                              <div className="px-3 py-2 text-xs text-slate-500">NO DIAGNOSES FOUND</div>
                             )}
                           </div>
                         )}
@@ -411,7 +411,7 @@ export const InpatientDiagnosisModal = ({
                                 </button>
                               ))
                             ) : (
-                              <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                              <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                             )}
                           </div>
                         )}

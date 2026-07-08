@@ -444,7 +444,7 @@
 //       {/* ── Table ── */}
 //       {filtered.length === 0 ? (
 //         <div className="flex items-center justify-center p-8 text-slate-500">
-//           {appointments.length === 0 ? 'No appointments found' : 'No appointments match the current filters'}
+//           {appointments.length === 0 ? 'NO APPOINTMENTS FOUND' : 'NO APPOINTMENTS MATCH THE CURRENT FILTERS'}
 //         </div>
 //       ) : (
 //         <div className="min-w-full">
@@ -678,7 +678,6 @@ import {
 import { formatDate } from '../../utils/formatDate'
 import { useAuth } from '../../providers/AuthProvider'
 import { isAdmin } from '../../config/permissions'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
@@ -913,16 +912,7 @@ export const AppointmentList = ({
     return () => { cancelled = true }
   }, [])
 
-  // Default the Branch filter to the top-bar branch (cost-centre permission). Changing the
-  // top-bar branch reloads the app, so this re-syncs automatically; users can still override
-  // the card's Branch filter individually within the session.
-  useEffect(() => {
-    let cancelled = false
-    getUserCostCenterPermission()
-      .then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) })
-      .catch(() => {})
-    return () => { cancelled = true }
-  }, [])
+  // No default Branch filter — the global branch is enforced server-side.
 
   /** Friendly branch label; falls back to the cost centre with its company suffix stripped. */
   const branchLabel = (cc?: string) => {
@@ -1624,7 +1614,7 @@ export const AppointmentList = ({
       {/* ── Table ── */}
       {appointments.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500">
-          {totalCount === 0 ? 'No appointments found' : 'No appointments match the current filters'}
+          {totalCount === 0 ? 'NO APPOINTMENTS FOUND' : 'NO APPOINTMENTS MATCH THE CURRENT FILTERS'}
         </div>
       ) : (
         <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>

@@ -4,7 +4,6 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchHealthcarePractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -106,7 +105,8 @@ export const AdmissionList = ({
   // When IP mode has a specific admission selected globally, lock the list to that admission
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
-  const shouldUseIpDefaults = mode === 'IP' && !effectiveNameFilter && !effectivePatient
+  // All lists start unfiltered — no default status/date filters (nurse-dept request).
+  const shouldUseIpDefaults = false
   const ipDefaultsOnMount = shouldUseIpDefaults ? getIpDefaultFilters() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>(() => ipDefaultsOnMount?.status ?? '')
@@ -172,7 +172,6 @@ export const AdmissionList = ({
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
-    getUserCostCenterPermission().then((perm) => { if (!cancelled && perm?.cost_center) setFilterBranch(perm.cost_center) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
   const branchLabel = (cc?: string) => {
@@ -620,7 +619,7 @@ export const AdmissionList = ({
               {records.length === 0 ? (
                 <tr>
                   <td colSpan={(patient ? 10 : 11) + (onAdmissionSelect ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
-                    {hasActiveFilters ? 'No admissions match your filters.' : 'No admissions found'}
+                    {hasActiveFilters ? 'NO ADMISSIONS MATCH YOUR FILTERS.' : 'NO ADMISSIONS FOUND'}
                   </td>
                 </tr>
               ) : (

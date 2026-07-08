@@ -217,7 +217,7 @@ export const EditDoctorMedicationPlanModal = ({
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"

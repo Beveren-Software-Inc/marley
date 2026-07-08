@@ -112,8 +112,9 @@ export const ClinicalNotesList = ({
   const showPractitionerPicker =
     showAdvancedNoteFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
 
+  // All lists start unfiltered — no default practitioner filter (nurse-dept request).
   useEffect(() => {
-    if (!applyDefaultPractitionerFilter) {
+    if (true) {
       setPractitionerInitDone(true)
       return
     }
@@ -694,7 +695,7 @@ export const ClinicalNotesList = ({
       ) : clinicalNotes.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
           <div className="text-slate-500 text-center">
-            <p>No clinical notes found</p>
+            <p>NO CLINICAL NOTES FOUND</p>
           </div>
         </div>
       ) : (

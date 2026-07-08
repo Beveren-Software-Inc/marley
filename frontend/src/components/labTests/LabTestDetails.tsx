@@ -381,7 +381,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         <div>
           <SectionTitle title="Requesting Details" />
           <div className="space-y-1">
-            <Field label="Doctor" value={labTest.practitioner_name || labTest.practitioner} />
+            <Field label="Doctor Name" value={labTest.practitioner_name || labTest.practitioner} />
             <Field label="Requesting Department" value={labTest.requesting_department} />
             <Field label="Service Request" value={labTest.service_request} />
             <Field label="Reference" value={labTest.reference_document} />
@@ -392,7 +392,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
           <SectionTitle title="Lab Technician" />
           <div className="space-y-1">
             <Field
-              label="Doctor"
+              label="Doctor Name"
               value={labTest.lab_technician_name || labTest.lab_technician}
             />
             <Field label="Employee (legacy)" value={labTest.employee_name || labTest.employee} />

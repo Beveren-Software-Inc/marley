@@ -258,7 +258,7 @@ export const WarningMessagesList = ({
         )}
         {warnings.length === 0 && !loading && (
           <div className="flex items-center justify-center p-8">
-            <div className="text-slate-500">No warning messages found</div>
+            <div className="text-slate-500">NO WARNING MESSAGES FOUND</div>
           </div>
         )}
         {warnings.length > 0 ? (

@@ -739,7 +739,7 @@ export const CreateServiceRequestModal = ({
                     {templateDropdownOpen && form.template_dt && (
                       <div className={linkComboboxDropdownClass}>
                         {templates.length === 0 ? (
-                          <div className="px-3 py-2.5 text-xs text-slate-500">No templates match. Try another search or filter.</div>
+                          <div className="px-3 py-2.5 text-xs text-slate-500">NO TEMPLATES MATCH. TRY ANOTHER SEARCH OR FILTER.</div>
                         ) : (
                           templates.map((item) => {
                             const group = Number(item.is_group) === 1

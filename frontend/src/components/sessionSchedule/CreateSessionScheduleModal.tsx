@@ -123,7 +123,7 @@ const Combobox = ({
             ))
           ) : (
             <div className="px-3 py-2 text-xs text-slate-500">
-              No results found
+              NO RESULTS FOUND
             </div>
           )}
         </div>

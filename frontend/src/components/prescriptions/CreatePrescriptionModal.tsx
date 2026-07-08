@@ -271,7 +271,7 @@ const Combobox = ({
                   + Use "{customValue}"
                 </button>
               ) : (
-                'No results found'
+                'NO RESULTS FOUND'
               )}
             </div>
           )}
@@ -412,7 +412,9 @@ export const CreatePrescriptionModal = ({
 
   const applyDrugSelection = async (index: number, opt: LinkFieldOption) => {
     const route = opt.default_route_of_administration?.trim()
-    const stockUom = (opt.stock_uom || '').trim()
+    // IP prescriptions always measure in UNITS (nurse-department rule); OP keeps the item's stock UOM.
+    const stockUom =
+      formData.care_context === 'Inpatient Admission' ? 'UNITS' : (opt.stock_uom || '').trim()
     setMedications((prev) => {
       const next = [...prev]
       if (!next[index]) return prev
@@ -1105,7 +1107,7 @@ export const CreatePrescriptionModal = ({
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
                     <Combobox
                       value={formData.practitioner}
                       displayValue={practitionerDisplay}
@@ -1566,7 +1568,7 @@ export const CreatePrescriptionModal = ({
                   {medications.length === 0 && (
                     <div className="text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-lg">
                       <Pill className="w-10 h-10 mx-auto mb-2 opacity-30" />
-                      <p className="text-sm">No medications added yet</p>
+                      <p className="text-sm">NO MEDICATIONS ADDED YET</p>
                       <button
                         type="button"
                         onClick={addMedicationRow}

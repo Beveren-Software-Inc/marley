@@ -1079,7 +1079,7 @@ const handleMakePayment = async (
                   )
                 })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">No payments found for selected filters.</td></tr>
+                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1138,7 +1138,7 @@ const handleMakePayment = async (
         {filteredInpatient.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Users className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No inpatient balances found</p>
+            <p className="text-slate-500">NO INPATIENT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1277,7 +1277,7 @@ const handleMakePayment = async (
         {filteredOutpatient.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <User className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No outpatient balances found</p>
+            <p className="text-slate-500">NO OUTPATIENT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1417,7 +1417,7 @@ const handleMakePayment = async (
         {filteredIop.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <Activity className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No IOP visit balances found</p>
+            <p className="text-slate-500">NO IOP VISIT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -1558,7 +1558,7 @@ const handleMakePayment = async (
         {filteredDv.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
             <CalendarClock className="w-12 h-12 text-slate-400 mx-auto mb-3 opacity-30" />
-            <p className="text-slate-500">No daily auto visit balances found</p>
+            <p className="text-slate-500">NO DAILY AUTO VISIT BALANCES FOUND</p>
           </div>
         ) : (
           <div className="space-y-3">

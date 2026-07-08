@@ -177,7 +177,7 @@ export const PatientAlertsBanner = ({
                   )}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-500">No warnings or allergies recorded.</p>
+                <p className="text-sm text-slate-500">NO WARNINGS OR ALLERGIES RECORDED.</p>
               )}
             </div>
 
@@ -255,7 +255,7 @@ export const PatientAlertsBanner = ({
                   ))}
                 </ul>
               ) : (
-                <p className="text-sm text-slate-500">No past medical history recorded.</p>
+                <p className="text-sm text-slate-500">NO PAST MEDICAL HISTORY RECORDED.</p>
               )}
             </div>
             )}

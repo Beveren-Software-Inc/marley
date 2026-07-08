@@ -369,7 +369,7 @@ export const NurseTaskList = ({
 
       {!loading && !error && tasks.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-sm">
-          No nurse tasks found.
+          NO NURSE TASKS FOUND.
         </div>
       ) : null}
 

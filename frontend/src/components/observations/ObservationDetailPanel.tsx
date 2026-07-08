@@ -244,7 +244,7 @@ export function ObservationDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Doctor"
+                label="Doctor Name"
                 value={displayValue(source.practitioner_name || source.healthcare_practitioner)}
               />
               <InfoTile

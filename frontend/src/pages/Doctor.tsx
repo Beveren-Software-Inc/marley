@@ -1238,10 +1238,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <div className="mb-4">
-            <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicine</h2>
-            <p className="text-sm text-slate-600 mt-1">
-              View long acting medicines for the selected patient. Filter by start date and frequency. Click a row for details.
-            </p>
+            <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicines</h2>
           </div>
           <DashboardCard title="Long Acting Medicines" noHeightLimit>
             <ReceptionLongActingMedicineList

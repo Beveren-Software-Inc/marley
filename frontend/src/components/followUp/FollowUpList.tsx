@@ -565,7 +565,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
           <div className="p-8 text-center text-slate-500">
             {isNormal
               ? 'No follow-up records match the filters. Try “All statuses” or check the OP/IP tabs.'
-              : 'No patients with follow-up enabled match the filters.'}
+              : 'NO PATIENTS WITH FOLLOW-UP ENABLED MATCH THE FILTERS.'}
           </div>
         ) : (
           <div className="overflow-x-auto overflow-y-visible flex-1">

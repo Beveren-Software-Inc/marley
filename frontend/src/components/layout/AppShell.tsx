@@ -7,7 +7,7 @@ import { AppShellContext } from '../../contexts/AppShellContext'
 import { BranchSelector } from './BranchSelector'
 import { NotificationBell } from '../notifications/NotificationBell'
 import { SidebarCareModePicker } from './SidebarCareModePicker'
-import { doctorScreenGroups } from '../../config/doctorScreens'
+import { doctorScreenGroups, assessmentScreens } from '../../config/doctorScreens'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { getVisibleMainLinks, type MainLinkItem, type ScreenGroup } from '../../config/permissions'
@@ -27,38 +27,9 @@ import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 
 const nurseScreenGroups: ScreenGroup[] = [
   {
-    groupTitle: 'Patient Care & Medication',
-    screens: [
-      { id: 'rx',          title: 'All Prescriptions' },
-      { id: 'single-prescription',    title: 'Current Prescription' },
-      // { id: 'n-med',       title: 'Medication' },
-      { id: 'n-given',     title: 'Given Medicines' },
-      { id: 'n-daily-med', title: 'Daily Medication Chart' },
-      { id: 'n-med-sheet', title: 'Medication Sheet' },
-      { id: 'n-reminder',  title: 'Long Acting Med Reminder' },
-      { id: 'n-tpr',          title: 'TPR / Vital Signs' },
-      { id: 'n-pharmacy-giveout', title: 'Pharmacy Give Out' },
-      // { id: 'n-prn',       title: 'PRN' },
-    ],
-  },
-  {
-    groupTitle: 'Clinical Documentation',
-    screens: [
-      { id: 'n-first',       title: 'IP Warnings / Meds / Allergy' },
-      { id: 'n-psy-order',   title: 'Psychologist Order' },
-      { id: 'n-psy-notes',   title: 'Psychologist Notes' },
-      { id: 'n-nut',         title: 'Nutritionist Notes' },
-      { id: 'n-ther',        title: 'Therapist Notes' },
-      { id: 'n-nurse-notes', title: 'Nursing Notes' },
-      { id: 'n-doctor-order', title: 'Doctors Order' },
-      { id: 'n-tpr',         title: 'TPR / Vital Signs' },
-      // { id: 'n-ect',         title: 'ECT Form' },
-      // { id: 'n-obs',         title: 'Observation Level' },
-    ],
-  },
-  {
     groupTitle: 'Daily Routine Care',
     screens: [
+      { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-assess', title: 'Patient Assessment' },
       { id: 'n-groom',  title: 'Grooming Chart' },
       { id: 'n-sleep',  title: 'Sleeping Pattern' },
@@ -68,55 +39,70 @@ const nurseScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    groupTitle: 'Observation & Monitoring',
+    groupTitle: 'Patient Care & Medication',
     screens: [
-      { id: 'n-ob', title: 'Observation' },
+      { id: 'n-med-sheet', title: 'Medication Sheet' },
+      { id: 'n-reminder',  title: 'Long Acting Medicines' },
+      { id: 'n-given',     title: 'Given Medicines' },
+      { id: 'n-pharmacy-giveout', title: 'Pharmacy Give Out' },
     ],
   },
   {
-    groupTitle: 'Admission & Discharge',
+    // Mirrors the doctor's Clinical Documentation (+ TPR); warnings live on the dashboard.
+    groupTitle: 'Clinical Documentation',
     screens: [
-      { id: 'n-reg',             title: 'Admission' },
-      // { id: 'n-ip-adm',          title: 'IP Admission & Detail' },
-      { id: 'n-discharge',       title: 'Discharge Form / Procedure' },
-      { id: 'n-package',         title: 'Package Detail' },
-      { id: 'n-patient-history', title: 'Patient History' },
+      { id: 'n-doctor-order', title: 'Doctors Order' },
+      { id: 'n-psy-notes',   title: 'Psychology Notes' },
+      { id: 'n-psy-order',   title: 'Psychology Order' },
+      { id: 'n-nut',         title: 'Nutritionist Notes' },
+      { id: 'n-ther',        title: 'Therapist Notes' },
+      { id: 'n-nurse-notes', title: 'Nursing Notes' },
+      { id: 'n-tpr',         title: 'TPR / Vital Signs' },
     ],
   },
   {
-    groupTitle: 'ECT Forms & Procedures',
-    screens: [
-      { id: 'n-ect', title: 'ECT Forms' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'n-ob', title: 'Observation' }],
   },
   {
-    groupTitle: 'Laboratory',
-    screens: [
-      { id: 'n-labs', title: 'Lab Reports Status' },
-      { id: 'n-lab',  title: 'Laboratory' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'n-discharge', title: 'Discharge Form' }],
   },
   {
-    groupTitle: 'Additional Care',
-    screens: [
-      { id: 'n-ip-services', title: 'ECT Service' },
-      { id: 'n-other',       title: 'Other Services' },
-      { id: 'n-session',     title: 'Session & Appointments' },
-      { id: 'n-sick',        title: 'Sick Leave' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'n-patient-history', title: 'Patient History Form' }],
   },
   {
-    groupTitle: 'Inventory',
-    screens: [
-      { id: 'n-inventory', title: 'Dashboard Inventory' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'n-ect', title: 'ECT Forms' }],
   },
   {
-    groupTitle: 'Shift',
-    screens: [
-      { id: 'n-my-tasks',    title: 'My Nursing Tasks' },
-      { id: 'n-nurse-tasks', title: 'Nurse Tasks' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'n-lab', title: 'Laboratory' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-ip-services', title: 'ECT Service' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-other', title: 'Other Services' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-session', title: 'Session Scheduling' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-inventory', title: 'Inventory Dashboard' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-my-tasks', title: 'My Tasks' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-nurse-tasks', title: 'Assign Task' }],
   },
 ]
 
@@ -230,6 +216,10 @@ const psychologistScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Psychology',
     screens: psychologyScreens,
+  },
+  {
+    groupTitle: 'Scales & Assessments',
+    screens: [{ id: 'fall', title: 'Morse Fall Scale' }, ...assessmentScreens],
   },
   {
     groupTitle: 'Therapy',
@@ -479,7 +469,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
 
       {/* ── Sidebar ── */}
       <aside
-        className={`bg-primary text-white flex flex-col h-screen overflow-hidden fixed md:static z-40 transition-transform duration-300 ease-in-out ${
+        className={`bg-primary bg-gradient-to-b from-white/[0.07] via-transparent to-black/25 text-white flex flex-col h-screen overflow-hidden fixed md:static z-40 shadow-xl shadow-black/10 transition-transform duration-300 ease-in-out ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
         } w-[240px]`}
       >
@@ -544,6 +534,28 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                       const groupKey      = `${link.to}||${group.groupTitle}`
                       const groupExpanded = expandedGroups.has(groupKey)
                       const groupIsActive = isGroupNavActive(rolePrefix, group.screens)
+
+                      // Folderless entries: an empty groupTitle renders its screens
+                      // as direct sidebar items (no folder row, no indent).
+                      if (!group.groupTitle) {
+                        return (
+                          <nav key={group.screens[0]?.id || 'flat'} className="flex flex-col gap-0.5">
+                            {group.screens.map((s) => (
+                              <NavLink
+                                key={s.id}
+                                to={buildScreenPath(link.to, s.id, location.search)}
+                                onClick={closeSidebar}
+                                className={sidebarScreenClass(
+                                  s.id,
+                                  isScreenNavActive(rolePrefix, s.id),
+                                )}
+                              >
+                                {s.title}
+                              </NavLink>
+                            ))}
+                          </nav>
+                        )
+                      }
 
                       return (
                         <div key={group.groupTitle} className="flex flex-col gap-0.5">

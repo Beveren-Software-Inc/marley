@@ -155,7 +155,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
     return (
       <div className="rounded-xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm">
         <Building2 className="mx-auto mb-3 h-10 w-10 text-slate-300" strokeWidth={1.5} />
-        <p className="font-medium text-slate-700">No inpatient admission on record</p>
+        <p className="font-medium text-slate-700">NO INPATIENT ADMISSION ON RECORD</p>
         <p className="mt-1 text-sm text-slate-500">
           This tab shows clinical documentation from the patient&apos;s most recent hospital stay.
         </p>
@@ -273,7 +273,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
             >
               {!discharge ? (
                 <p className="mb-3 text-sm text-amber-800 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2">
-                  No submitted discharge form — showing admission discharge fields if available.
+                  NO SUBMITTED DISCHARGE FORM — SHOWING ADMISSION DISCHARGE FIELDS IF AVAILABLE.
                 </p>
               ) : null}
               <div className="space-y-3">
@@ -333,7 +333,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
               icon={<AlertTriangle className="h-5 w-5" strokeWidth={2} />}
               title="Allergies & warnings"
               empty={!hasAllergies}
-              emptyMessage="No allergies or warnings on record."
+              emptyMessage="NO ALLERGIES OR WARNINGS ON RECORD."
             >
               <div className="space-y-3">
                 {allergyLines.map((line, idx) => (

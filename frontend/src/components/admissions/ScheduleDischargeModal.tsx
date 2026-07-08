@@ -219,7 +219,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                 )}
                 {practOpen && practitioners.length === 0 && practQuery && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg top-full">
-                    <div className="px-3 py-2 text-xs text-slate-500">No practitioners found</div>
+                    <div className="px-3 py-2 text-xs text-slate-500">NO PRACTITIONERS FOUND</div>
                   </div>
                 )}
               </div>

@@ -303,7 +303,7 @@ export const CreateDoctorOrderModal = ({
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Doctor</label>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Doctor Name</label>
             <input
               type="text"
               value={doctorQuery}

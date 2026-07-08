@@ -50,7 +50,7 @@ export const ECTProcedureList = ({ patient, onPatientClick }: ECTProcedureListPr
   if (!items.length) {
     return (
       <div className="flex items-center justify-center p-4 text-sm text-slate-500">
-        No ECT Procedure records found
+        NO ECT PROCEDURE RECORDS FOUND
       </div>
     )
   }

@@ -17,7 +17,6 @@ import {
 import {
   fetchServiceRequestTemplateTypes,
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
@@ -186,26 +185,9 @@ export const ServiceRequestList = ({
     fetchServiceRequestTemplateTypes().then(setTemplateTypes).catch(() => {})
   }, [])
 
+  // All lists start unfiltered — no default practitioner filter (nurse-dept request).
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      const practId = await getCurrentUserPractitioner()
-      if (cancelled) return
-      if (practId) {
-        setPractitionerFilter(practId)
-        try {
-          const options = await fetchHealthcarePractitioners()
-          const match = options.find((p) => p.name === practId)
-          setPractitionerQuery(match?.label || practId)
-        } catch {
-          setPractitionerQuery(practId)
-        }
-      }
-      setPractitionerInitDone(true)
-    })()
-    return () => {
-      cancelled = true
-    }
+    setPractitionerInitDone(true)
   }, [])
 
   useEffect(() => {
@@ -665,7 +647,7 @@ export const ServiceRequestList = ({
       {loading && serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
       ) : serviceRequests.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">No service requests found</div>
+        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">NO SERVICE REQUESTS FOUND</div>
       ) : compactClinical ? (
       <table className="w-full text-sm">
         <thead className="bg-slate-50 border-b border-slate-200">

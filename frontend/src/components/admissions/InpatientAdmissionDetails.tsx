@@ -612,7 +612,7 @@ const DiagnosesTab = ({
       {loading ? (
         <LoadingSpinner message="Loading diagnoses..." />
       ) : diagnoses.length === 0 ? (
-        <EmptyState icon={Stethoscope} message="No diagnoses recorded yet" />
+        <EmptyState icon={Stethoscope} message="NO DIAGNOSES RECORDED YET" />
       ) : (
         <div className="space-y-3">
           {diagnoses.map((diag) => (
@@ -661,7 +661,7 @@ const LabTestsTab = ({ labTests, loading }: { labTests: LabTest[]; loading: bool
       {loading ? (
         <LoadingSpinner message="Loading lab tests..." />
       ) : labTests.length === 0 ? (
-        <EmptyState icon={FlaskConical} message="No lab tests recorded yet" />
+        <EmptyState icon={FlaskConical} message="NO LAB TESTS RECORDED YET" />
       ) : (
         <div className="space-y-3">
           {labTests.map((test, index) => (
@@ -760,7 +760,7 @@ const MedicineGivenTab = ({
       {loading ? (
         <LoadingSpinner message="Loading medicine records..." />
       ) : medicineGiven.length === 0 && missedMedicine.length === 0 ? (
-        <EmptyState icon={Pill} message="No medicine given/missed records yet" />
+        <EmptyState icon={Pill} message="NO MEDICINE GIVEN/MISSED RECORDS YET" />
       ) : (
         <div className="space-y-4">
           {medicineGiven.length > 0 && (
@@ -856,7 +856,7 @@ const PrescriptionsTab = ({
       {loading ? (
         <LoadingSpinner message="Loading prescriptions..." />
       ) : prescriptions.length === 0 ? (
-        <EmptyState icon={FileText} message="No prescriptions available" />
+        <EmptyState icon={FileText} message="NO PRESCRIPTIONS AVAILABLE" />
       ) : (
         <div className="space-y-4">
           {prescriptions.map((prescription) => {

@@ -252,7 +252,7 @@ export function PHQ9AssessmentDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Doctor"
+                label="Doctor Name"
                 value={displayValue(source.practitioner_name || source.practitioner)}
               />
               <InfoTile

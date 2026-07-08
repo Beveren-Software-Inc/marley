@@ -67,7 +67,7 @@ import {
 //       {open && (
 //         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
 //           {options.length === 0
-//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+//             ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
 //             : options.map(opt => (
 //               <button key={opt.name} type="button" onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}
 //                 className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5">
@@ -469,7 +469,7 @@ const LinkCombobox = ({ label, value, onSelect, onClear, fetchOptions, placehold
       {open && !disabled && (
         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-md shadow-lg max-h-52 overflow-y-auto">
           {options.length === 0
-            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'No results found'}</div>
+            ? <div className="px-3 py-2 text-xs text-slate-400">{loading ? 'Searching…' : 'NO RESULTS FOUND'}</div>
             : options.map(opt => (
               <button key={opt.name} type="button" onClick={() => { onSelect(opt); setQuery(opt.label); setOpen(false) }}
                 className="w-full text-left px-3 py-2 text-sm hover:bg-primary/5">

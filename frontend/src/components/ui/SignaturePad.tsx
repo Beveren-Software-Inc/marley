@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { PenLine, Trash2, Check } from 'lucide-react'
+import { useAuth } from '../../providers/AuthProvider'
+import { isNurseRole, isDoctorRole, isAdmin } from '../../config/permissions'
 
 export function attachFileDisplayUrl(path: string | null | undefined): string | undefined {
   if (!path?.trim()) return undefined
@@ -15,8 +17,15 @@ export interface SignaturePadProps {
   uploading?: boolean
 }
 
-/** Canvas signature capture (admission / discharge / prescription pattern). */
+/** Canvas signature capture (admission / discharge / prescription pattern).
+ *
+ * Nurses cannot create signatures — only doctors sign (nurse-department rule).
+ * Existing signatures still display read-only for nurses.
+ */
 export function SignaturePad({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) {
+  const { user } = useAuth()
+  const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
+  const nurseCannotSign = isNurseRole(authRoles) && !isDoctorRole(authRoles) && !isAdmin(authRoles)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const isDrawing = useRef(false)
   const dprRef = useRef(1)
@@ -134,6 +143,15 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
     }
   }, [mode, setupCanvas])
 
+  if (nurseCannotSign && mode !== 'done') {
+    return (
+      <div className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
+        <PenLine className="w-5 h-5 opacity-50" />
+        <span className="text-xs font-medium">Only a doctor can sign</span>
+      </div>
+    )
+  }
+
   if (mode === 'idle') {
     return (
       <button
@@ -151,16 +169,18 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
     return (
       <div className="w-full min-h-[120px] flex flex-col items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
         <img src={existingUrl} alt="Signature" className="max-h-20 object-contain" />
-        <button
-          type="button"
-          onClick={() => {
-            setMode('drawing')
-            setHasStrokes(false)
-          }}
-          className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
-        >
-          <Trash2 className="w-3 h-3" /> Re-sign
-        </button>
+        {!nurseCannotSign && (
+          <button
+            type="button"
+            onClick={() => {
+              setMode('drawing')
+              setHasStrokes(false)
+            }}
+            className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" /> Re-sign
+          </button>
+        )}
       </div>
     )
   }

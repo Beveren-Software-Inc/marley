@@ -132,7 +132,7 @@ export function IOPHealthcareServiceTemplateSelect({
         <div className={linkComboboxDropdownClassShort}>
           {filteredTemplates.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-500">
-              {query.trim() ? 'No healthcare services match your search.' : 'No healthcare services found.'}
+              {query.trim() ? 'No healthcare services match your search.' : 'NO HEALTHCARE SERVICES FOUND.'}
             </div>
           ) : (
             filteredTemplates.map((opt) => (

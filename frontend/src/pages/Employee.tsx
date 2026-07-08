@@ -129,7 +129,7 @@ export const EmployeePage = () => {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="text-xs text-slate-500">No check-ins found.</div>
+                  <div className="text-xs text-slate-500">NO CHECK-INS FOUND.</div>
                 )}
               </div>
             </section>
@@ -169,7 +169,7 @@ export const EmployeePage = () => {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="text-xs text-slate-500">No room access logs found.</div>
+                  <div className="text-xs text-slate-500">NO ROOM ACCESS LOGS FOUND.</div>
                 )}
               </div>
             </section>
@@ -207,7 +207,7 @@ export const EmployeePage = () => {
                     </tbody>
                   </table>
                 ) : (
-                  <div className="text-xs text-slate-500">No attendance records found.</div>
+                  <div className="text-xs text-slate-500">NO ATTENDANCE RECORDS FOUND.</div>
                 )}
               </div>
             </section>

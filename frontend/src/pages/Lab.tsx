@@ -250,7 +250,7 @@
 //                 {samplesLoading ? (
 //                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
 //                 ) : labSamples.length === 0 ? (
-//                   <div className="text-center text-sm text-slate-400 py-4">No lab test samples yet</div>
+//                   <div className="text-center text-sm text-slate-400 py-4">NO LAB TEST SAMPLES YET</div>
 //                 ) : (
 //                   <table className="min-w-full text-sm">
 //                     <thead>
@@ -290,7 +290,7 @@
 //                 {sampleTypesLoading ? (
 //                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
 //                 ) : sampleTypes.length === 0 ? (
-//                   <div className="text-center text-sm text-slate-400 py-4">No sample types yet</div>
+//                   <div className="text-center text-sm text-slate-400 py-4">NO SAMPLE TYPES YET</div>
 //                 ) : (
 //                   <div className="flex flex-wrap gap-2 p-1">
 //                     {sampleTypes.map(t => (
@@ -944,7 +944,7 @@ export const LabPage = () => {
                 {samplesLoading ? (
                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
                 ) : labSamples.length === 0 ? (
-                  <div className="text-center text-sm text-slate-400 py-4">No lab test samples yet</div>
+                  <div className="text-center text-sm text-slate-400 py-4">NO LAB TEST SAMPLES YET</div>
                 ) : (
                   <table className="min-w-full text-sm">
                     <thead>
@@ -984,7 +984,7 @@ export const LabPage = () => {
                 {sampleTypesLoading ? (
                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
                 ) : sampleTypes.length === 0 ? (
-                  <div className="text-center text-sm text-slate-400 py-4">No sample types yet</div>
+                  <div className="text-center text-sm text-slate-400 py-4">NO SAMPLE TYPES YET</div>
                 ) : (
                   <div className="flex flex-wrap gap-2 p-1">
                     {sampleTypes.map(t => (

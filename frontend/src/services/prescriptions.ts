@@ -613,10 +613,11 @@ export async function getGivenStatusForPrescription(
   )
 }
 
-/** Nursing pharmacy give-out: PMO + submitted Sales Order in one step. */
+/** Nursing pharmacy give-out: PMO + submitted Sales Order in one step (IP admission or OP visit). */
 export async function createNursingPharmacyGiveOut(input: {
   patient: string
-  inpatient_record: string
+  inpatient_record?: string
+  patient_visit?: string
   medication_orders: MedicationOrderRow[]
   source_prescription?: string
   practitioner?: string
@@ -629,7 +630,8 @@ export async function createNursingPharmacyGiveOut(input: {
       method: 'POST',
       body: JSON.stringify({
         patient: input.patient,
-        inpatient_record: input.inpatient_record,
+        inpatient_record: input.inpatient_record || undefined,
+        patient_visit: input.patient_visit || undefined,
         medication_orders: input.medication_orders,
         source_prescription: input.source_prescription || undefined,
         practitioner: input.practitioner || undefined,
