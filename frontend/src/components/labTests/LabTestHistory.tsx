@@ -126,7 +126,7 @@ const FilterBar = ({
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
 
   return (
-    <div className="flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
+    <div className="card-filter-bar flex flex-wrap items-end gap-3 px-4 py-3 bg-white border-b border-slate-200">
       {showPatientPicker ? (
         <div className="flex flex-col gap-1 min-w-[220px] relative">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Patient</label>

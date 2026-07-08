@@ -816,7 +816,7 @@ export const CreateNurseTaskModal = ({
   defaultScheduledTime,
 }: CreateNurseTaskModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -873,6 +873,16 @@ export const CreateNurseTaskModal = ({
   const [costCenter, setCostCenter] = useState('')
   const [costCenterDisplay, setCostCenterDisplay] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+
+  // Global branch auto-applies as the default.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setCostCenter((prev) => {
+      if (prev) return prev
+      setCostCenterDisplay((d) => d || userCostCenter)
+      return userCostCenter
+    })
+  }, [userCostCenter])
 
   // ── Frequency (Prescription Frequency) ──
   const [frequency, setFrequency] = useState('')
@@ -1285,7 +1295,7 @@ export const CreateNurseTaskModal = ({
                   <Combo
                     value={assignedNurse}
                     display={nurseDisplay}
-                    placeholder="Search practitioner…"
+                    placeholder="Search doctor…"
                     options={nurseOptions}
                     onOpen={() => loadNurseOptions()}
                     onSearch={(q) => { setNurseDisplay(q); setAssignedNurse(''); loadNurseOptions(q) }}

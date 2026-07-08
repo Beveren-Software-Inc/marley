@@ -534,7 +534,7 @@ export const ServiceRequestList = ({
       )}
 
       {showFilters && (
-      <div className="mb-4 flex flex-shrink-0 flex-wrap items-center gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
+      <div className="card-filter-bar mb-4 flex flex-shrink-0 flex-wrap items-center gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
         {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -559,7 +559,7 @@ export const ServiceRequestList = ({
             onChange={(e) => setTemplateDtFilter(e.target.value)}
             className="py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white text-slate-700 min-w-[170px]"
           >
-            <option value="">All Template Types</option>
+            <option value="">Select All</option>
             {templateTypes.map((t) => (
               <option key={t.name} value={t.name}>{t.label || t.name}</option>
             ))}
@@ -572,7 +572,7 @@ export const ServiceRequestList = ({
           onChange={(e) => setStatusFilter(e.target.value)}
           className="py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary bg-white text-slate-700 min-w-[140px]"
         >
-          <option value="">All Statuses</option>
+          <option value="">Select All</option>
           {SR_STATUSES.map((s) => (
             <option key={s} value={s}>{s.split('-')[0].replace(/-/g, ' ')
               .split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}</option>
@@ -593,7 +593,7 @@ export const ServiceRequestList = ({
         )}
 
         <div data-filter-dropdown className="relative min-w-[180px]">
-          <label className="sr-only">Practitioner</label>
+          <label className="sr-only">Doctor</label>
           <input
             type="text"
             value={
@@ -607,7 +607,7 @@ export const ServiceRequestList = ({
               setPractitionerOpen(true)
             }}
             onFocus={() => setPractitionerOpen(true)}
-            placeholder="Practitioner…"
+            placeholder="Doctor…"
             className={`w-full py-2 px-3 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary ${practitionerFilter ? 'pr-8' : ''}`}
           />
           {practitionerFilter && (

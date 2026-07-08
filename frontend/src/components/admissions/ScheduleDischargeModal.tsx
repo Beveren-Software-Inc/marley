@@ -184,7 +184,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
                     setPractOpen(true)
                   }}
                   onFocus={() => setPractOpen(true)}
-                  placeholder="Search Healthcare Practitioner..."
+                  placeholder="Search doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 <button

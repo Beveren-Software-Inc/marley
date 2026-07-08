@@ -124,7 +124,7 @@
 //         <div className="relative">
 //           <select value={filters.status} onChange={(e) => set('status', e.target.value)}
 //             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-//             <option value="">All statuses</option>
+//             <option value="">Select All</option>
 //             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
 //           </select>
 //           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
@@ -132,12 +132,12 @@
 //       </div>
 //       <div className="flex flex-col gap-1 min-w-[150px]">
 //         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
-//         <input type="date" value={filters.fromDate} onChange={(e) => set('fromDate', e.target.value)}
+//         <DateFilterInput value={filters.fromDate} onChange={(e) => set('fromDate', e.target.value)}
 //           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
 //       </div>
 //       <div className="flex flex-col gap-1 min-w-[150px]">
 //         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
-//         <input type="date" value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
+//         <DateFilterInput value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
 //           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
 //       </div>
 //       <div className="flex flex-col gap-1 min-w-[140px]">
@@ -145,7 +145,7 @@
 //         <div className="relative">
 //           <select value={filters.opIp} onChange={(e) => set('opIp', e.target.value)}
 //             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-//             <option value="">All</option><option value="OP">OP</option><option value="IP">IP</option>
+//             <option value="">Select All</option><option value="OP">OP</option><option value="IP">IP</option>
 //           </select>
 //           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
 //         </div>
@@ -155,7 +155,7 @@
 //         <div className="relative">
 //           <select value={filters.isOutsourced} onChange={(e) => set('isOutsourced', e.target.value)}
 //             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-//             <option value="">All</option><option value="yes">Yes</option><option value="no">No</option>
+//             <option value="">Select All</option><option value="yes">Yes</option><option value="no">No</option>
 //           </select>
 //           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
 //         </div>
@@ -1714,6 +1714,7 @@ import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   expandLegacyLabTestsForDisplay,
   isLegacyHistoryLabRow,
@@ -1998,30 +1999,30 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
   }, [practitionerOpen, practitionerQuery])
 
   return (
-    <div className="relative z-20 flex flex-wrap items-end gap-3 px-4 py-2 bg-white border-b border-slate-200 overflow-visible">
+    <div className="card-filter-bar relative z-10 flex flex-wrap items-end gap-3 px-1 py-2 bg-slate-50/80 border-b border-slate-100 rounded-md overflow-visible">
+      <div className="flex flex-col gap-1 min-w-[150px]">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
+        <DateFilterInput value={filters.fromDate} onChange={(e) => set('fromDate', e.target.value)}
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
+      <div className="flex flex-col gap-1 min-w-[150px]">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
+        <DateFilterInput value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
+          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
+      </div>
       <div className="flex flex-col gap-1 min-w-[160px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
         <div className="relative">
           <select value={filters.status} onChange={(e) => set('status', e.target.value)}
             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">All statuses</option>
+            <option value="">Select All</option>
             {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
       </div>
-      <div className="flex flex-col gap-1 min-w-[150px]">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
-        <input type="date" value={filters.fromDate} onChange={(e) => set('fromDate', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
-      </div>
-      <div className="flex flex-col gap-1 min-w-[150px]">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
-        <input type="date" value={filters.toDate} onChange={(e) => set('toDate', e.target.value)}
-          className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
-      </div>
       <div className="flex flex-col gap-1 min-w-[200px] relative" ref={practitionerRef}>
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Practitioner</label>
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Doctor</label>
         <div className="relative">
           <input
             type="text"
@@ -2032,7 +2033,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
               setPractitionerOpen(true)
             }}
             onFocus={() => setPractitionerOpen(true)}
-            placeholder="Search practitioner..."
+            placeholder="Search doctor..."
             className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
           />
           {filters.practitioner && (
@@ -2075,7 +2076,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
         <div className="relative">
           <select value={filters.isOutsourced} onChange={(e) => set('isOutsourced', e.target.value)}
             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">All</option><option value="yes">Yes</option><option value="no">No</option>
+            <option value="">Select All</option><option value="yes">Yes</option><option value="no">No</option>
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>

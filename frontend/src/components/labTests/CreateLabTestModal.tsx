@@ -7,6 +7,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
@@ -45,6 +46,21 @@ export const CreateLabTestModal = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [createNurseTaskFlag, setCreateNurseTaskFlag] = useState(false)
+
+  // Global branch auto-applies as the default.
+  useEffect(() => {
+    getUserCostCenterPermission()
+      .then((perm) => {
+        const cc = perm?.cost_center
+        if (!cc) return
+        setFormData((prev) => {
+          if (prev.cost_center) return prev
+          setSelectedCostCenter((s) => s || { name: cc, label: cc })
+          return { ...prev, cost_center: cc }
+        })
+      })
+      .catch(() => {})
+  }, [])
   
   // Patient dropdown state
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -629,7 +645,7 @@ export const CreateLabTestModal = ({
                       setPractitionerOpen(true)
                     }}
                     onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search practitioner..."
+                    placeholder="Search doctor..."
                     className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <button

@@ -643,7 +643,7 @@ const DiagnosesTab = ({
               </div>
               <p className="text-sm text-slate-600 mb-2">{diag.details}</p>
               <div className="text-xs text-slate-500">
-                <span className="font-medium">Practitioner:</span> {diag.practitioner_name || diag.practitioner}
+                <span className="font-medium">Doctor:</span> {diag.practitioner_name || diag.practitioner}
               </div>
             </div>
           ))}
@@ -687,7 +687,7 @@ const LabTestsTab = ({ labTests, loading }: { labTests: LabTest[]; loading: bool
 
               {test.practitioner_name && (
                 <div className="text-xs text-slate-500 mb-2">
-                  <span className="font-medium">Practitioner:</span> {test.practitioner_name}
+                  <span className="font-medium">Doctor:</span> {test.practitioner_name}
                 </div>
               )}
 

@@ -580,7 +580,7 @@ export function PatientDiagnosisModal({
                     {/* Practitioner */}
                     <div className="relative">
                       <label className="block text-xs font-medium text-slate-600 mb-1">
-                        Practitioner <span className="text-red-500">*</span>
+                        Doctor <span className="text-red-500">*</span>
                       </label>
                       <input
                         type="text"
@@ -599,7 +599,7 @@ export function PatientDiagnosisModal({
                           setPractitionerOpen((p) => ({ ...p, [row._id]: true }))
                           updateField(row._id, 'practitioner', '')
                         }}
-                        placeholder="Search practitioner…"
+                        placeholder="Search doctor…"
                         className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                       />
                       {practitionerOpen[row._id] && practitionerOptions.length > 0 && (

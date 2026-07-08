@@ -254,7 +254,7 @@ export const EditPatientVisitModal = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="relative md:col-span-2">
                   <label className={MODAL_LABEL_CLASS}>
-                    Practitioner <span className="text-red-500">*</span>
+                    Doctor <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -271,7 +271,7 @@ export const EditPatientVisitModal = ({
                       if (practitioner) setPractitioner('')
                     }}
                     onFocus={() => setPractOpen(true)}
-                    placeholder="Search practitioner..."
+                    placeholder="Search doctor..."
                     className={linkComboboxInputClass}
                     required
                   />

@@ -162,6 +162,43 @@ export async function fetchDischargeDoctorPractitioners(search?: string): Promis
   return []
 }
 
+/**
+ * Doctors only: active Healthcare Practitioners whose Medical Role is under the
+ * "Doctor" parent group (Doctor / CEO / Consultant / Doctors GP, etc.).
+ * Use for the "Doctor" filter dropdowns and doctor auto-fill on create forms.
+ */
+export async function fetchDoctorPractitioners(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  const url = `/api/method/healthcare.api.common.get_doctor_practitioners${params.toString() ? `?${params.toString()}` : ''}`
+  const response = await fetch(url, { credentials: 'include' })
+  const resData = await response.json()
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as LinkFieldOption[]
+  }
+  return []
+}
+
+/**
+ * If the logged-in user is a doctor (their linked Healthcare Practitioner's Medical Role
+ * is under the "Doctor" group), returns that practitioner name for auto-fill; else null.
+ */
+export async function getCurrentUserDoctor(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.common.get_current_user_doctor', {
+      credentials: 'include',
+    })
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'string') {
+      return resData.message as string
+    }
+    return null
+  } catch (err) {
+    console.error('Failed to fetch current user doctor:', err)
+    return null
+  }
+}
+
 /** Practitioners with Medical Role Lab Technologist or Lab Technician (active only). */
 export async function fetchLabTechnicianPractitioners(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()

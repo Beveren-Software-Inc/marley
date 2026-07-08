@@ -543,7 +543,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
                         setNurseLabel('')
                       }}
                       fetchOptions={fetchPractitioners}
-                      placeholder="Search practitioners..."
+                      placeholder="Search doctors..."
                     />
                     <div>
                       <label className={labelClass}>Nurse Name</label>

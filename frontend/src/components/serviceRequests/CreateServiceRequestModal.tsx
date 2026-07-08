@@ -607,7 +607,7 @@ export const CreateServiceRequestModal = ({
                     onBlur={() => {
                       window.setTimeout(() => setPractitionerDropdownOpen(false), 180)
                     }}
-                    placeholder="Search practitioner name…"
+                    placeholder="Search doctor name…"
                     className={inputClass}
                   />
                   {practitionerDropdownOpen && (

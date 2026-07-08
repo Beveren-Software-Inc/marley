@@ -11,6 +11,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -207,21 +208,19 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
       )}
 
       {showFilters && (
-        <div className="mb-3 space-y-2">
+        <div className="card-filter-bar mb-3 space-y-2">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">From</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">From Date</label>
+              <DateFilterInput
                 value={filterDateFrom}
                 onChange={(e) => setFilterDateFrom(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
             <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">To</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">To Date</label>
+              <DateFilterInput
                 value={filterDateTo}
                 onChange={(e) => setFilterDateTo(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -234,7 +233,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 onChange={(e) => setFilterStatus(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               >
-                <option value="">All statuses</option>
+                <option value="">Select All</option>
                 {SESSION_STATUS_FILTER_OPTIONS.map((status) => (
                   <option key={status} value={status}>
                     {status}

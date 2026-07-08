@@ -441,7 +441,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
         <div>
           <SectionTitle title="Prescribing Details" />
           <div className="space-y-1">
-            <Field label="Practitioner"    value={prescription.healthcare_practitioner_name || prescription.practitioner || prescription.user_name} />
+            <Field label="Doctor"    value={prescription.healthcare_practitioner_name || prescription.practitioner || prescription.user_name} />
             <Field label="Practitioner ID" value={prescription.practitioner} />
             <Field label="Company"         value={prescription.company} />
           </div>

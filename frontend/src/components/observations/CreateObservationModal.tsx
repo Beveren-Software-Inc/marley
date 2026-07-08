@@ -706,7 +706,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     setPractitionerOpen(true)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search practitioner..."
+                  placeholder="Search doctor..."
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {practitionerOpen && practitionerOptions.length > 0 && (
@@ -939,7 +939,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Duration
+                Frequency
               </label>
               <input
                 type="text"

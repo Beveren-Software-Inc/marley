@@ -112,6 +112,29 @@ export async function fetchLongActingMedicineGiveOuts(
   return Array.isArray(data?.message) ? (data.message as LongActingMedicineGiveOutRow[]) : []
 }
 
+/** Merged give-out history across long-acting medicines (latest first). */
+export interface LongActingGiveOutHistoryRow extends LongActingMedicineGiveOutRow {
+  medicine?: string
+  medicine_label?: string
+  patient?: string
+  patient_name?: string
+}
+
+export async function fetchLongActingGiveOutsForPatient(
+  patient?: string,
+): Promise<LongActingGiveOutHistoryRow[]> {
+  const params = new URLSearchParams()
+  if (patient) params.append('patient', patient)
+  const res = await fetch(
+    `/api/method/healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine.get_long_acting_give_outs_for_patient?${params.toString()}`,
+  )
+  const data = await res.json()
+  if (data?.exc || data?.exc_type) {
+    throw new Error(data?.message || 'Failed to load give-out history')
+  }
+  return Array.isArray(data?.message) ? (data.message as LongActingGiveOutHistoryRow[]) : []
+}
+
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
 
 export async function sendLongActingMedicineReminder(

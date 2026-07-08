@@ -121,9 +121,9 @@
 // }
 
 
-import { useEffect, useRef, useState, Fragment } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { fetchLongActingMedicineList, type LongActingMedicineRow } from '../../services/longActingMedicine'
+import { fetchLongActingMedicineList, fetchLongActingGiveOutsForPatient, type LongActingMedicineRow, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
 import { Pill, MoreVertical } from 'lucide-react'
 import { useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import {
@@ -131,10 +131,6 @@ import {
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
-import {
-  GiveOutExpandToggle,
-  LongActingMedicineGiveOutsInline,
-} from './LongActingMedicineGiveOutsInline'
 
 const statusColors: Record<string, string> = {
   Draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -250,16 +246,10 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
   const [error, setError] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
 
   const openDetail = (row: LongActingMedicineRow) => {
     setDetailPreview(row)
     setDetailName(row.name)
-  }
-
-  const toggleGiveOuts = (e: React.MouseEvent, name: string) => {
-    e.stopPropagation()
-    setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }))
   }
 
   useEffect(() => {
@@ -277,6 +267,13 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
         setList([])
       })
       .finally(() => setLoading(false))
+  }, [patient, refreshKey])
+
+  // Merged give-out history across all of the patient's long-acting medicines (latest first).
+  const [history, setHistory] = useState<LongActingGiveOutHistoryRow[]>([])
+  useEffect(() => {
+    if (!patient) { setHistory([]); return }
+    fetchLongActingGiveOutsForPatient(patient).then(setHistory).catch(() => setHistory([]))
   }, [patient, refreshKey])
 
   if (!patient) {
@@ -313,6 +310,44 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
     )
   }
 
+  const historySection = history.length > 0 ? (
+    <div className="mt-5">
+      <h3 className="text-sm font-semibold text-slate-700 mb-2">
+        Give-out history{' '}
+        <span className="font-normal text-slate-400">(all long-acting medicines, latest first)</span>
+      </h3>
+      <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Date</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medicine</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Dose</th>
+              <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Side</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Given by</th>
+              <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Notes</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {history.map((h) => (
+              <tr key={h.name} className={h.is_cancelled ? 'bg-red-50/40 text-slate-400 line-through' : 'hover:bg-slate-50'}>
+                <td className="px-3 py-2 whitespace-nowrap text-slate-700">
+                  {h.date ? new Date(h.date).toLocaleDateString('en-GB') : '-'}
+                  {h.time && <span className="ml-1 text-xs text-slate-400">{String(h.time).slice(0, 5)}</span>}
+                </td>
+                <td className="px-3 py-2 text-slate-800">{h.medicine_label || h.medication || h.medicine || '-'}</td>
+                <td className="px-3 py-2 whitespace-nowrap text-slate-700">{h.dose || '-'}{h.dose_term ? ` ${h.dose_term}` : ''}</td>
+                <td className="px-3 py-2 text-center text-xs text-slate-600">{h.rt_flag ? 'R' : h.lt_flag ? 'L' : '-'}</td>
+                <td className="px-3 py-2 text-slate-600">{h.user || '-'}</td>
+                <td className="px-3 py-2 text-slate-600">{h.is_cancelled ? (h.cancelled_notes || 'Cancelled') : (h.notes || '-')}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  ) : null
+
   if (compactClinical) {
     return (
       <>
@@ -334,23 +369,16 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
                   ['Ends', formatDashboardDate(row.end_date)],
                   ['Remarks', row.remarks],
                 ] as const
-                const expanded = Boolean(expandedRows[row.name])
                 return (
-                  <Fragment key={row.name}>
                     <tr
+                      key={row.name}
                       className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
                       onClick={() => openDetail(row)}
                     >
                       <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
-                        <div className="flex items-start gap-2">
-                          <GiveOutExpandToggle
-                            expanded={expanded}
-                            onToggle={(e) => toggleGiveOuts(e, row.name)}
-                          />
-                          <div className="min-w-0">
-                            {row.frequency || 'Long acting'}
-                            <CardRowMetaHint fields={metaFields} />
-                          </div>
+                        <div className="min-w-0">
+                          {row.frequency || 'Long acting'}
+                          <CardRowMetaHint fields={metaFields} />
                         </div>
                       </td>
                       <td className="px-3 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
@@ -366,18 +394,12 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
                         </span>
                       </td>
                     </tr>
-                    <LongActingMedicineGiveOutsInline
-                      lamName={row.name}
-                      expanded={expanded}
-                      colSpan={3}
-                      refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}`}
-                    />
-                  </Fragment>
                 )
               })}
             </tbody>
           </table>
         </div>
+        {historySection}
         {detailName ? (
           <LongActingMedicineDetailPanel
             name={detailName}
@@ -406,21 +428,14 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
           </thead>
           <tbody className="divide-y divide-slate-100">
             {list.map((row) => {
-              const expanded = Boolean(expandedRows[row.name])
               return (
-                <Fragment key={row.name}>
                   <tr
+                    key={row.name}
                     className={`cursor-pointer transition-colors ${getRowColorClass(row.next_run_date)}`}
                     onClick={() => openDetail(row)}
                   >
                     <td className="px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <GiveOutExpandToggle
-                          expanded={expanded}
-                          onToggle={(e) => toggleGiveOuts(e, row.name)}
-                        />
-                        <span className="text-primary font-medium">{row.name}</span>
-                      </div>
+                      <span className="text-primary font-medium">{row.name}</span>
                     </td>
                     <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
                     <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
@@ -438,18 +453,12 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
                       <RowMenu row={row} />
                     </td>
                   </tr>
-                  <LongActingMedicineGiveOutsInline
-                    lamName={row.name}
-                    expanded={expanded}
-                    colSpan={6}
-                    refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}`}
-                  />
-                </Fragment>
               )
             })}
           </tbody>
         </table>
       </div>
+      {historySection}
       {detailName ? (
         <LongActingMedicineDetailPanel
           name={detailName}

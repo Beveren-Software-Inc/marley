@@ -301,7 +301,7 @@ export function ADHDAssessmentDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Practitioner"
+                label="Doctor"
                 value={displayValue(source.practitioner_name || source.practitioner)}
               />
               <InfoTile

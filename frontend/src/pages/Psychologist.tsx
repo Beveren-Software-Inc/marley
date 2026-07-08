@@ -150,7 +150,7 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard title="Warning Messages" noHeightLimit>
+          <DashboardCard title="Warnings & Messages" noHeightLimit>
             <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
@@ -277,7 +277,7 @@ export const PsychologistPage = () => {
             />
           </DashboardCard>
 
-          <DashboardCard title="Warning Messages" listingScreen="p-warn" fixedHeight>
+          <DashboardCard title="Warnings & Messages" listingScreen="p-warn" fixedHeight>
             <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 

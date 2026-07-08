@@ -1,13 +1,9 @@
-import { useCallback, useEffect, useState, useMemo, useRef, Fragment } from 'react'
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel, InjectionSide } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, suggestedNextInjectionSide } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
 import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
-import {
-  GiveOutExpandToggle,
-  LongActingMedicineGiveOutsInline,
-} from './LongActingMedicineGiveOutsInline'
 import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -15,7 +11,8 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { isDoctorRole, isNurseRole } from '../../config/permissions'
+import { isDoctorRole, isNurseRole, canSeeLongActingMedDetails } from '../../config/permissions'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -26,6 +23,10 @@ interface ReceptionLongActingMedicineListProps {
 export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatientClick }: ReceptionLongActingMedicineListProps) => {
   const { userRole } = useCareContext()
   const canRecordGiveOut = isDoctorRole(userRole) || isNurseRole(userRole)
+  // #11: reception / non-clinical roles see only due dates — medicine details are masked (not removed).
+  const maskMedDetails = !canSeeLongActingMedDetails(userRole)
+  const mask = (value: React.ReactNode) =>
+    maskMedDetails ? <span className="text-slate-400" title="Restricted">••••</span> : value
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -60,7 +61,6 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [giveOutModalLoading, setGiveOutModalLoading] = useState(false)
   const [givingOutId, setGivingOutId] = useState<string | null>(null)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({})
 
   const load = useCallback(async () => {
     try {
@@ -86,6 +86,13 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   useEffect(() => {
     load()
   }, [load, refreshKey])
+
+  // Merged give-out history across all of the patient's long-acting medicines (latest first).
+  const [history, setHistory] = useState<LongActingGiveOutHistoryRow[]>([])
+  const loadHistory = useCallback(() => {
+    fetchLongActingGiveOutsForPatient(patient || undefined).then(setHistory).catch(() => setHistory([]))
+  }, [patient])
+  useEffect(() => { loadHistory() }, [loadHistory, refreshKey])
 
   const clearFilters = () => {
     setStartDate('')
@@ -222,8 +229,8 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
       setRows((prev) =>
         prev.map((item) => (item.name === giveOutModal.name ? { ...item, ...updated } : item)),
       )
-      setExpandedRows((prev) => ({ ...prev, [giveOutModal.name]: true }))
       resetGiveOutModal()
+      loadHistory()
       toast.success('Long acting medicine marked as given out')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to record give-out')
@@ -261,12 +268,6 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     setDetailName(row.name)
   }
 
-  const toggleGiveOuts = (e: React.MouseEvent, name: string) => {
-    e.stopPropagation()
-    setExpandedRows((prev) => ({ ...prev, [name]: !prev[name] }))
-  }
-
-  const tableColSpan = patient ? 9 : 10
 
   const handleBulkSendReminders = async (channel: ReminderChannel) => {
     if (formattedRows.length === 0) {
@@ -341,7 +342,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
         </div>
       )}
 
-      <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+      <div className="card-filter-bar flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
         <div className="relative" ref={bulkMenuRef}>
           <button
             type="button"
@@ -380,8 +381,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
           <>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -395,7 +395,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                 value={frequency}
                 onChange={(e) => setFrequency(e.target.value)}
               >
-                <option value="">All</option>
+                <option value="">Select All</option>
                 {LONG_ACTING_FREQUENCY_OPTIONS.map((opt) => (
                   <option key={opt} value={opt}>
                     {opt}
@@ -452,22 +452,14 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {formattedRows.map((row) => {
-                const expanded = Boolean(expandedRows[row.name])
-                return (
-                  <Fragment key={row.name}>
+              {formattedRows.map((row) => (
                     <tr
+                      key={row.name}
                       className={`cursor-pointer transition-colors ${getRowColorClass(row)}`}
                       onClick={() => handleRowClick(row)}
                     >
                       <td className="px-3 py-2">
-                        <div className="flex items-center gap-2">
-                          <GiveOutExpandToggle
-                            expanded={expanded}
-                            onToggle={(e) => toggleGiveOuts(e, row.name)}
-                          />
-                          <span className="text-primary font-medium">{row.name}</span>
-                        </div>
+                        <span className="text-primary font-medium">{row.name}</span>
                       </td>
                       {!patient && (
                         <td
@@ -480,27 +472,31 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                           </div>
                         </td>
                       )}
-                      <td className="px-3 py-2 text-slate-700">{row.frequency || '—'}</td>
+                      <td className="px-3 py-2 text-slate-700">{mask(row.frequency || '—')}</td>
                       <td className="px-3 py-2 text-slate-700">{formatDate(row.start_date)}</td>
                       <td className="px-3 py-2 text-slate-700">{formatDate(row.next_run_date)}</td>
                       <td className="px-3 py-2 text-slate-700 max-w-[180px]">
-                        <span className="line-clamp-2" title={row.medication_label || undefined}>
-                          {row.medication_label || '—'}
-                        </span>
+                        {mask(
+                          <span className="line-clamp-2" title={row.medication_label || undefined}>
+                            {row.medication_label || '—'}
+                          </span>,
+                        )}
                       </td>
                       <td
                         className="px-3 py-2 text-center text-slate-700 whitespace-nowrap"
                         title={row.injection_given_on ? formatInjectionSide(row.injection_given_on) : undefined}
                       >
-                        <span className="inline-flex items-center justify-center min-w-[1.75rem] rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
-                          {formatInjectionSideShort(row.injection_given_on)}
-                        </span>
+                        {mask(
+                          <span className="inline-flex items-center justify-center min-w-[1.75rem] rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-xs font-semibold text-slate-700">
+                            {formatInjectionSideShort(row.injection_given_on)}
+                          </span>,
+                        )}
                       </td>
                       <td className="px-3 py-2 text-slate-700">
                         <span>{row.status || 'Draft'}</span>
                       </td>
                       <td className="px-3 py-2 text-slate-700">
-                        <span className='text-gray-500'>{row.remarks || 'No remarks'}</span>
+                        <span className='text-gray-500'>{mask(row.remarks || 'No remarks')}</span>
                       </td>
                       {/* Actions column */}
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
@@ -601,17 +597,56 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                         </div>
                       </td>
                     </tr>
-                    <LongActingMedicineGiveOutsInline
-                      lamName={row.name}
-                      expanded={expanded}
-                      colSpan={tableColSpan}
-                      refreshKey={`${row.last_give_out_date}-${row.last_give_out_time}-${row.is_given_out_for_current_run}`}
-                    />
-                  </Fragment>
-                )
-              })}
+              ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Bottom: merged give-out history across long-acting medicines (latest first) */}
+      {history.length > 0 && (
+        <div className="mt-5">
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">
+            Give-out history{' '}
+            <span className="font-normal text-slate-400">(all long-acting medicines, latest first)</span>
+          </h3>
+          <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Date</th>
+                  {!patient && (
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
+                  )}
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medicine</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Dose</th>
+                  <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Side</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Given by</th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {history.map((h) => (
+                  <tr key={h.name} className={h.is_cancelled ? 'bg-red-50/40 text-slate-400 line-through' : 'hover:bg-slate-50'}>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-700">
+                      {h.date ? new Date(h.date).toLocaleDateString('en-GB') : '-'}
+                      {h.time && <span className="ml-1 text-xs text-slate-400">{String(h.time).slice(0, 5)}</span>}
+                    </td>
+                    {!patient && (
+                      <td className="px-3 py-2 text-slate-700">{h.patient_name || h.patient || '-'}</td>
+                    )}
+                    <td className="px-3 py-2 text-slate-800">{mask(h.medicine_label || h.medication || h.medicine || '-')}</td>
+                    <td className="px-3 py-2 whitespace-nowrap text-slate-700">
+                      {mask(<>{h.dose || '-'}{h.dose_term ? ` ${h.dose_term}` : ''}</>)}
+                    </td>
+                    <td className="px-3 py-2 text-center text-xs text-slate-600">{mask(h.rt_flag ? 'R' : h.lt_flag ? 'L' : '-')}</td>
+                    <td className="px-3 py-2 text-slate-600">{h.user || '-'}</td>
+                    <td className="px-3 py-2 text-slate-600">{mask(h.is_cancelled ? (h.cancelled_notes || 'Cancelled') : (h.notes || '-'))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

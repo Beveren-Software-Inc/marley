@@ -221,7 +221,7 @@ export const DoctorOrderList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 flex-shrink-0 pb-2 border-b border-slate-100">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 flex-shrink-0 pb-2 border-b border-slate-100">
           <div data-doctor-order-filter className="relative min-w-[180px]">
             <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
             <input

@@ -6,7 +6,8 @@ import {
 } from '../ui/CreateModalChrome'
 import { createPatientReferral, searchReferralSourceDocs, type ReferralSourceDoc } from '../../services/patientReferral'
 import { searchPatients, type PatientListItem } from '../../services/patients'
-import { fetchCostCenters, fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchCostCenters, fetchDoctorPractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -75,6 +76,13 @@ export const CreatePatientReferralModal = ({
   // ── load option lists ───────────────────────────────────────────
   useEffect(() => {
     fetchCostCenters().then(setCostCenters).catch(() => {})
+    // Global branch auto-applies as the default.
+    getUserCostCenterPermission()
+      .then((perm) => {
+        const cc = perm?.cost_center
+        if (cc) setCostCenter((prev) => prev || cc)
+      })
+      .catch(() => {})
   }, [])
 
   // ── patient search ──────────────────────────────────────────────
@@ -90,7 +98,7 @@ export const CreatePatientReferralModal = ({
   useEffect(() => {
     if (!doctorOpen) return
     const t = setTimeout(() => {
-      fetchHealthcarePractitioners(doctorQuery)
+      fetchDoctorPractitioners(doctorQuery)
         .then(setDoctorResults)
         .catch(() => {})
     }, 300)
@@ -402,7 +410,7 @@ export const CreatePatientReferralModal = ({
               }}
               onFocus={() => setDoctorOpen(true)}
               onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
               className={cls('referralDoctor')}
             />
             {doctorOpen && doctorResults.length > 0 && (

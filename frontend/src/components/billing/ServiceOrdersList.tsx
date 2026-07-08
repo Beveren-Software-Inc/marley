@@ -183,7 +183,7 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
             onChange={(e) => setStatusFilter(e.target.value)}
             className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
           >
-            <option value="">All Status</option>
+            <option value="">Select All</option>
             <option value="Draft">Draft</option>
             <option value="To Bill">To Bill</option>
             <option value="Completed">Completed</option>

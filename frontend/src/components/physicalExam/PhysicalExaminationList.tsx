@@ -5,6 +5,7 @@ import { PhysicalExaminationDetailPanel } from './PhysicalExaminationDetailPanel
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useInDashboardCard } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ExamRecord {
   name: string
@@ -131,20 +132,18 @@ export const PhysicalExaminationList = ({
     <>
       <div className="flex flex-col gap-2 h-full flex-1 min-h-0">
         {showFilters && (
-          <div className="flex flex-wrap items-end gap-3 border-b border-slate-100 bg-slate-50/80 py-2 flex-shrink-0">
+          <div className="card-filter-bar flex flex-wrap items-end gap-3 border-b border-slate-100 bg-slate-50/80 py-2 flex-shrink-0">
             <div className="flex min-w-[120px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Date from</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">From Date</label>
+              <DateFilterInput
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
                 className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
               />
             </div>
             <div className="flex min-w-[120px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Date to</label>
-              <input
-                type="date"
+              <label className="text-xs font-medium text-slate-500">To Date</label>
+              <DateFilterInput
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
@@ -158,7 +157,7 @@ export const PhysicalExaminationList = ({
                   onChange={(e) => setAdmissionFilter(e.target.value)}
                   className="rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
                 >
-                  <option value="">All admissions</option>
+                  <option value="">Select All</option>
                   {admissionOptions.map((a) => (
                     <option key={a} value={a}>
                       {a}

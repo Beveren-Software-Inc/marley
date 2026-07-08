@@ -321,7 +321,7 @@ export function PatientAssessmentDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Practitioner"
+                label="Doctor"
                 value={displayValue(
                   doc?.practitioner_name ||
                     doc?.healthcare_practitioner ||

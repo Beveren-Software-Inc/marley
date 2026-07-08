@@ -243,7 +243,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
         {showFilters ? (
           <div className="flex shrink-0 flex-wrap items-end gap-3 border-b border-slate-100 bg-white px-4 py-3">
             <div className="flex min-w-[120px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">From</label>
+              <label className="text-xs font-medium text-slate-500">From Date</label>
               <input
                 type="date"
                 value={fromDate}
@@ -252,7 +252,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
               />
             </div>
             <div className="flex min-w-[120px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">To</label>
+              <label className="text-xs font-medium text-slate-500">To Date</label>
               <input
                 type="date"
                 value={toDate}
@@ -261,7 +261,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
               />
             </div>
             <div className="relative flex min-w-[180px] flex-col gap-1">
-              <label className="text-xs font-medium text-slate-500">Practitioner</label>
+              <label className="text-xs font-medium text-slate-500">Doctor</label>
               <input
                 type="text"
                 value={
@@ -277,7 +277,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                 }}
                 onFocus={() => setPractitionerOpen(true)}
                 onBlur={() => setTimeout(() => setPractitionerOpen(false), 150)}
-                placeholder="Search practitioner…"
+                placeholder="Search doctor…"
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
               />
               {practitionerOpen && practitionerOptions.length > 0 ? (

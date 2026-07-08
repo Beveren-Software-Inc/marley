@@ -119,7 +119,7 @@ export const HealthInsuranceList = ({ refreshKey = 0, showFilters = true }: Prop
     <div className="flex flex-col gap-3">
       {/* Filter bar */}
       {showFilters && (
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="card-filter-bar flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={search}

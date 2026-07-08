@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, strip_html
+from frappe.utils import cint, flt, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
@@ -2103,7 +2103,7 @@ def create_lab_test(data):
 		'template': data.get('template'),
 		'practitioner': data.get('practitioner'),
 		'date': data.get('date') or frappe.utils.today(),
-		'time': data.get('time') or frappe.utils.now_time(),
+		'time': data.get('time') or frappe.utils.nowtime(),
 		# 'department': data.get('department'),
 		'service_unit': data.get('service_unit'),
 		'status': data.get('status') or 'Draft',

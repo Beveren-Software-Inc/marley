@@ -515,7 +515,7 @@ export function UserActivityAuditReport() {
                   }}
                   className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
                 >
-                  <option value="">All doctypes</option>
+                  <option value="">Select All</option>
                   {doctypeOptions.map((dt) => (
                     <option key={dt} value={dt}>
                       {dt}

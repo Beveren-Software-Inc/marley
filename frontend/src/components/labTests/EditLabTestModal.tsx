@@ -419,7 +419,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                         setPractitionerOpen(true)
                       }}
                       onFocus={() => setTemplateOpen(true)}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm pr-8 focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     {practitionerOpen && practitionerOptions.length > 0 && (

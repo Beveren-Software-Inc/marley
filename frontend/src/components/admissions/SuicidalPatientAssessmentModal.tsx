@@ -423,7 +423,7 @@ function GeneralTab({
           </div>
           <div className="col-span-2">
             <LinkCombobox
-              label="Practitioner"
+              label="Doctor"
               value={form.practitioner}
               onSelect={(opt) => setField('practitioner', opt.name)}
               onClear={() => setField('practitioner', '')}
@@ -431,7 +431,7 @@ function GeneralTab({
                 const result = await fetchHealthcarePractitioners(search || undefined)
                 return result
               }}
-              placeholder="Search practitioner..."
+              placeholder="Search doctor..."
             />
           </div>
         </div>

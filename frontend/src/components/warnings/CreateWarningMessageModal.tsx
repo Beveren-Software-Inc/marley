@@ -335,7 +335,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
@@ -346,7 +346,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                       setPractitionerOpen(true)
                     }}
                     onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search practitioner..."
+                    placeholder="Search doctor..."
                     className={linkComboboxInputWithClearClass}
                   />
                   <button

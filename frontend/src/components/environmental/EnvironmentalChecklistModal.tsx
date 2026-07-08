@@ -492,9 +492,9 @@ export function EnvironmentalChecklistModal({
               )}
 
               <LinkCombobox
-                label="Practitioner"
+                label="Doctor"
                 value={practitionerLabel}
-                placeholder="Search practitioner..."
+                placeholder="Search doctor..."
                 fetchOptions={fetchPractitionerOptions}
                 onSelect={(opt) => {
                   setPractitioner(opt.name)

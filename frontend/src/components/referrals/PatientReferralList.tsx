@@ -57,7 +57,7 @@ export const PatientReferralList = ({
           onChange={e => setStatusFilter(e.target.value)}
           className="border border-slate-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
         >
-          <option value="">All Statuses</option>
+          <option value="">Select All</option>
           <option value="Pending">Pending</option>
           <option value="Completed">Completed</option>
           <option value="Cancelled">Cancelled</option>

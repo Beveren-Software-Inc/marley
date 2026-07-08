@@ -365,8 +365,8 @@
 //           {/* Date From */}
 //           <div className="flex flex-col gap-1">
 //             <label className="text-xs font-medium text-slate-500">From</label>
-//             <input
-//               type="date"
+//             <DateFilterInput
+//
 //               value={filterDateFrom}
 //               onChange={(e) => setFilterDateFrom(e.target.value)}
 //               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -375,8 +375,8 @@
 //           {/* Date To */}
 //           <div className="flex flex-col gap-1">
 //             <label className="text-xs font-medium text-slate-500">To</label>
-//             <input
-//               type="date"
+//             <DateFilterInput
+//
 //               value={filterDateTo}
 //               onChange={(e) => setFilterDateTo(e.target.value)}
 //               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -390,7 +390,7 @@
 //               onChange={(e) => setFilterStatus(e.target.value)}
 //               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
 //             >
-//               <option value="">All statuses</option>
+//               <option value="">Select All</option>
 //               {ALL_STATUSES.map((s) => (
 //                 <option key={s} value={s}>{s}</option>
 //               ))}
@@ -670,7 +670,7 @@ import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
-  fetchHealthcarePractitioners,
+  fetchDoctorPractitioners,
   getCurrentUserPractitioner,
   fetchBranchOptions,
   type LinkFieldOption,
@@ -679,6 +679,7 @@ import { formatDate } from '../../utils/formatDate'
 import { useAuth } from '../../providers/AuthProvider'
 import { isAdmin } from '../../config/permissions'
 import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -942,10 +943,6 @@ export const AppointmentList = ({
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
   const [filterBranch, setFilterBranch] = useState<string>('')
-  const [filterFileNo, setFilterFileNo] = useState<string>('')
-  const [fileNoInput, setFileNoInput] = useState<string>('')
-  const [filterPatientName, setFilterPatientName] = useState<string>('')
-  const [patientNameInput, setPatientNameInput] = useState<string>('')
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -1010,7 +1007,7 @@ export const AppointmentList = ({
     defaultPractitionerFilterApplied.current = true
     if (!myPractitionerId) return
     setFilterPractitioner(myPractitionerId)
-    fetchHealthcarePractitioners()
+    fetchDoctorPractitioners()
       .then((options) => {
         const match = options.find((p) => p.name === myPractitionerId)
         setPractitionerQuery(match?.label || linkedPractitionerName || myPractitionerId)
@@ -1028,7 +1025,7 @@ export const AppointmentList = ({
   useEffect(() => {
     if (!useAllAppointmentsApi || !practitionerOpen) return
     const timeoutId = setTimeout(() => {
-      fetchHealthcarePractitioners(practitionerQuery || undefined)
+      fetchDoctorPractitioners(practitionerQuery || undefined)
         .then(setPractitionerDropdownOptions)
         .catch(() => setPractitionerDropdownOptions([]))
     }, practitionerQuery.trim() === '' ? 0 : 300)
@@ -1044,16 +1041,6 @@ export const AppointmentList = ({
     }, 400)
     return () => { if (searchTimerRef.current) clearTimeout(searchTimerRef.current) }
   }, [searchInput])
-
-  // Debounce File No. + Patient Name filter inputs
-  useEffect(() => {
-    const id = setTimeout(() => { setFilterFileNo(fileNoInput); setPage(1) }, 400)
-    return () => clearTimeout(id)
-  }, [fileNoInput])
-  useEffect(() => {
-    const id = setTimeout(() => { setFilterPatientName(patientNameInput); setPage(1) }, 400)
-    return () => clearTimeout(id)
-  }, [patientNameInput])
 
   const handleFilterStatusChange = useCallback((v: string) => { setFilterStatus(v); setPage(1) }, [])
   const handleFilterDateFromChange = useCallback((v: string) => { setFilterDateFrom(v); setPage(1) }, [])
@@ -1089,8 +1076,8 @@ export const AppointmentList = ({
             filterPractitioner || undefined,
             filterDateFrom || undefined,
             filterDateTo || undefined,
-            filterFileNo || undefined,
-            filterPatientName || undefined,
+            undefined,
+            undefined,
             filterBranch || undefined,
           )
         } else {
@@ -1101,8 +1088,8 @@ export const AppointmentList = ({
             searchQuery || undefined,
             filterDateFrom || undefined,
             filterDateTo || undefined,
-            filterFileNo || undefined,
-            filterPatientName || undefined,
+            undefined,
+            undefined,
             filterBranch || undefined,
           )
         }
@@ -1161,7 +1148,7 @@ export const AppointmentList = ({
   }, [
     refreshKey, useAllAppointmentsApi, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
-    filterFileNo, filterPatientName, filterBranch,
+    filterBranch,
   ])
 
   useEffect(() => {
@@ -1386,10 +1373,6 @@ export const AppointmentList = ({
     setPractitionerOpen(false)
     setSearchInput('')
     setSearchQuery('')
-    setFileNoInput('')
-    setFilterFileNo('')
-    setPatientNameInput('')
-    setFilterPatientName('')
     setFilterBranch('')
     setPage(1)
     setFilterDateFrom('')
@@ -1397,7 +1380,7 @@ export const AppointmentList = ({
   }
 
   const hasActiveFilters =
-    Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery || filterFileNo || filterPatientName || filterBranch)
+    Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery || filterBranch)
 
   const practitionerFilterDisplayValue = filterPractitioner
     ? practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.label ||
@@ -1458,38 +1441,13 @@ export const AppointmentList = ({
 
       {/* ── Filters + Bulk Reminder bar ── */}
       {showFilters && (
-      <div className="mb-3 space-y-2">
+      <div className="card-filter-bar mb-3 space-y-2">
         {/* Top row: filters */}
         <div className="flex flex-wrap items-end gap-3">
-          {/* File No. */}
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className={FILTER_LABEL_CLASS}>File No.</label>
-            <input
-              type="text"
-              value={fileNoInput}
-              onChange={(e) => setFileNoInput(e.target.value)}
-              placeholder="File No."
-              className={FILTER_CONTROL_CLASS}
-            />
-          </div>
-
-          {/* Patient Name */}
-          <div className="flex flex-col gap-1 min-w-[160px]">
-            <label className={FILTER_LABEL_CLASS}>Patient Name</label>
-            <input
-              type="text"
-              value={patientNameInput}
-              onChange={(e) => setPatientNameInput(e.target.value)}
-              placeholder="Patient name"
-              className={FILTER_CONTROL_CLASS}
-            />
-          </div>
-
           {/* From Date */}
           <div className="flex flex-col gap-1 min-w-[120px]">
             <label className={FILTER_LABEL_CLASS}>From Date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={filterDateFrom}
               onChange={(e) => handleFilterDateFromChange(e.target.value)}
               className={FILTER_CONTROL_CLASS}
@@ -1499,8 +1457,7 @@ export const AppointmentList = ({
           {/* To Date */}
           <div className="flex flex-col gap-1 min-w-[120px]">
             <label className={FILTER_LABEL_CLASS}>To Date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={filterDateTo}
               onChange={(e) => handleFilterDateToChange(e.target.value)}
               className={FILTER_CONTROL_CLASS}
@@ -1574,7 +1531,7 @@ export const AppointmentList = ({
               onChange={(e) => { setFilterBranch(e.target.value); setPage(1) }}
               className={FILTER_CONTROL_CLASS}
             >
-              <option value="">All branches</option>
+              <option value="">Select All</option>
               {branchOptions.map((b) => (
                 <option key={b.name} value={b.name}>{b.label}</option>
               ))}
@@ -1589,7 +1546,7 @@ export const AppointmentList = ({
               onChange={(e) => handleFilterStatusChange(e.target.value)}
               className={FILTER_CONTROL_CLASS}
             >
-              <option value="">All statuses</option>
+              <option value="">Select All</option>
               {ALL_STATUSES.map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}

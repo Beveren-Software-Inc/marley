@@ -695,7 +695,7 @@ export const CreateECTDetailModal = ({
                             if (label) setAnaesthesiologistQuery(label)
                           }
                         }}
-                        placeholder="Search Healthcare Practitioner..."
+                        placeholder="Search doctor..."
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       {anaesthesiologistOpen && anaesthesiologistOptions.length > 0 && (
@@ -745,7 +745,7 @@ export const CreateECTDetailModal = ({
                             if (label) setAssistDoctorQuery(label)
                           }
                         }}
-                        placeholder="Search Healthcare Practitioner..."
+                        placeholder="Search doctor..."
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       {assistDoctorOpen && assistDoctorOptions.length > 0 && (
@@ -798,7 +798,7 @@ export const CreateECTDetailModal = ({
                             if (label) setPsychiatristQuery(label)
                           }
                         }}
-                        placeholder="Search Healthcare Practitioner..."
+                        placeholder="Search doctor..."
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       {psychiatristOpen && psychiatristOptions.length > 0 && (
@@ -848,7 +848,7 @@ export const CreateECTDetailModal = ({
                             if (label) setNurseQuery(label)
                           }
                         }}
-                        placeholder="Search Healthcare Practitioner..."
+                        placeholder="Search doctor..."
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                       {nurseOpen && nurseOptions.length > 0 && (
@@ -1007,7 +1007,7 @@ export const CreateECTDetailModal = ({
                           if (label) setPsychologyQuery(label)
                         }
                       }}
-                      placeholder="Search Healthcare Practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     {psychologyOpen && psychologyPractitioners.length > 0 && (
@@ -1052,7 +1052,7 @@ export const CreateECTDetailModal = ({
                           if (label) setAnaestheticQuery(label)
                         }
                       }}
-                      placeholder="Search Healthcare Practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     {anaestheticOpen && anaestheticPractitioners.length > 0 && (

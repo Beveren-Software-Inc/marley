@@ -20,6 +20,7 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -461,7 +462,23 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
       </div>
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/80 p-3">
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
+            <DateFilterInput
+              value={dateFrom}
+              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
+            <DateFilterInput
+              value={dateTo}
+              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
+              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
           <div className="flex flex-col gap-1 min-w-[180px] flex-1">
             <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Search</label>
             <input
@@ -493,29 +510,11 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
               onChange={(e) => { setCostCenter(e.target.value); setPage(1) }}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All</option>
+              <option value="">Select All</option>
               {costCenterOptions.map((cc) => (
                 <option key={cc.name} value={cc.name}>{cc.name}</option>
               ))}
             </select>
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => { setDateFrom(e.target.value); setPage(1) }}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => { setDateTo(e.target.value); setPage(1) }}
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            />
           </div>
           <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
           <div className="flex flex-wrap gap-2 ml-auto">

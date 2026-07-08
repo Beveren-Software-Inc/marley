@@ -553,7 +553,7 @@ export const CreateLongActingMedicineModal = ({
                     <Combobox
                       value={formData.practitioner}
                       displayValue={practitionerDisplay}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       options={practitioners}
                       onQueryChange={(q) => {
                         setPractQuery(q)

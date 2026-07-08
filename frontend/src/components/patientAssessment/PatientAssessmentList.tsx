@@ -11,6 +11,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PatientAssessmentDetailPanel } from './PatientAssessmentDetailPanel'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface PatientAssessmentListProps {
   patient?: string
@@ -241,7 +242,23 @@ export const PatientAssessmentList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md flex-shrink-0">
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
+          <div className="flex flex-col gap-1 min-w-[130px]">
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+          </div>
           <div className="flex flex-col gap-1 min-w-[200px]">
             <label className="text-xs font-medium text-slate-500">Assessment template</label>
             <select
@@ -249,7 +266,7 @@ export const PatientAssessmentList = ({
               onChange={(e) => setTemplateFilter(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             >
-              <option value="">All templates</option>
+              <option value="">Select All</option>
               {templateOptions.map((t) => (
                 <option key={t.name} value={t.name}>
                   {t.label}
@@ -258,29 +275,11 @@ export const PatientAssessmentList = ({
               ))}
             </select>
           </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
-              value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
-          </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
-              value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
-          </div>
           <div
             data-pa-practitioner-filter
             className="flex flex-col gap-1 min-w-[200px] relative"
           >
-            <label className="text-xs font-medium text-slate-500">Practitioner</label>
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
             <input
               type="text"
               value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
@@ -290,7 +289,7 @@ export const PatientAssessmentList = ({
                 if (!e.target.value) setPractitionerFilter('')
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search practitioner…"
+              placeholder="Search doctor…"
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
             />
             {practitionerOpen && practitionerOptions.length > 0 && (

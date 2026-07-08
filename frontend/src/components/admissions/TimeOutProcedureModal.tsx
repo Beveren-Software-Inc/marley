@@ -573,7 +573,7 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
                       onSelect={opt => { setField('nurse', opt.name); setField('nurse_name', opt.label); setNurseLabel(opt.label) }}
                       onClear={() => { setField('nurse', ''); setField('nurse_name', ''); setNurseLabel('') }}
                       fetchOptions={fetchPractitioners}
-                      placeholder="Search practitioners..."
+                      placeholder="Search doctors..."
                     />
                     <div>
                       <label className={labelClass}>Nurse Name</label>

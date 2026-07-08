@@ -370,7 +370,7 @@ export const CreateSuicideRiskAssessmentModal = ({
                       setClinicianOpen(true)
                     }}
                     onFocus={() => setClinicianOpen(true)}
-                    placeholder="Search practitioner…"
+                    placeholder="Search doctor…"
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   {clinicianOpen && clinicianOptions.length > 0 && (

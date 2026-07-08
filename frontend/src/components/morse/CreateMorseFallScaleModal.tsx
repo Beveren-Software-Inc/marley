@@ -423,11 +423,11 @@ export function CreateMorseFallScaleModal({
 
                   <div>
                     <LinkCombobox
-                      label="Practitioner"
+                      label="Doctor"
                       required
                       value={practitionerLabel}
                       fetchOptions={fetchPractitionerOptions}
-                      placeholder="Search practitioner…"
+                      placeholder="Search doctor…"
                       onSelect={(opt) => {
                         setPractitioner(opt.name)
                         setPractitionerLabel(opt.label || opt.name)

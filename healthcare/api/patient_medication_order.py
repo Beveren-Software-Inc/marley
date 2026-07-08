@@ -88,7 +88,7 @@ def get_medication_orders(
 		'inpatient_record', 'practitioner', 'user_name', 'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
 		'reference_doctype', 'reference_document_name', 'cost_center',
-		'new_system', 'doctors_signature',
+		'new_system', 'doctors_signature', 'owner', 'creation',
 	]
 
 	if use_sql:
@@ -179,6 +179,28 @@ def get_medication_orders(
 			order_by='posting_date desc, creation desc',
 		)
 
+	# Child medication rows for the medicine-level prescription listing
+	entries_by_parent = {}
+	if orders:
+		entries = frappe.get_all(
+			'Inpatient Medication Order Entry',
+			filters={
+				'parenttype': 'Patient Medication Order',
+				'parent': ['in', [o['name'] for o in orders]],
+			},
+			fields=[
+				'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
+				'route_of_administration', 'patient_frequency', 'date', 'end_date',
+				'instructions', 'medication_status', 'is_prn', 'medication_type',
+				'reason_stopped', 'quantity', 'uom',
+			],
+			order_by='parent, idx',
+			limit_page_length=0,
+		)
+		for e in entries:
+			entries_by_parent.setdefault(e.pop('parent'), []).append(e)
+
+	fullname_cache = {}
 	for o in orders:
 		if o.get('practitioner'):
 			o['healthcare_practitioner_name'] = frappe.db.get_value(
@@ -186,6 +208,11 @@ def get_medication_orders(
 			) or o['practitioner']
 		else:
 			o['healthcare_practitioner_name'] = None
+		owner = o.get('owner')
+		if owner and owner not in fullname_cache:
+			fullname_cache[owner] = frappe.utils.get_fullname(owner)
+		o['owner_full_name'] = fullname_cache.get(owner)
+		o['medication_orders'] = entries_by_parent.get(o['name'], [])
 
 	return orders
 

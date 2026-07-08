@@ -260,7 +260,7 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
           {/* Practitioner */}
           <div className="dropdown-area">
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Practitioner <span className="text-red-500">*</span>
+              Doctor <span className="text-red-500">*</span>
             </label>
             <div className="relative">
               <input
@@ -273,7 +273,7 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
                   setSlotDetails(null); setSelectedSlot(null); setSlotsError(null)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner..."
+                placeholder="Search doctor..."
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
               />
               {practitionerOpen && practitionerOptions.length > 0 && (

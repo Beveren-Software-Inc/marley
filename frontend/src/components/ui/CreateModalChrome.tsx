@@ -1,6 +1,17 @@
-import type { ReactNode } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { X } from 'lucide-react'
+
+/** Close a dialog/panel when the user presses Escape (browser-standard behaviour). */
+function useEscapeToClose(onClose: () => void) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+}
 
 /** Backdrop — centered create / edit dialogs; scrollable on small screens */
 export const CREATE_MODAL_OVERLAY =
@@ -134,6 +145,7 @@ export function CreateModalHeader({
   alert,
   children,
 }: CreateModalHeaderProps) {
+  useEscapeToClose(onClose)
   return (
     <div className="relative z-10 shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.18),transparent_55%)]" />
@@ -212,6 +224,7 @@ export function DetailSlideOver({
   footer,
   maxWidthClass = 'max-w-2xl',
 }: DetailSlideOverProps) {
+  useEscapeToClose(onClose)
   if (typeof document === 'undefined') return null
 
   return createPortal(

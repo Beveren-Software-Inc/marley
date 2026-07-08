@@ -260,7 +260,7 @@ export const ServiceInvoicesList = ({
               onChange={(e) => setStatusFilter(e.target.value)}
               className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
             >
-              <option value="">All Status</option>
+              <option value="">Select All</option>
               <option value="Paid">Paid</option>
               <option value="Unpaid">Unpaid</option>
               <option value="Overdue">Overdue</option>

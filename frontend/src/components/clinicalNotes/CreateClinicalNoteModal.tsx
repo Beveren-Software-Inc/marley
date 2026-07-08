@@ -1081,7 +1081,7 @@ export const CreateClinicalNoteModal = ({
                       setPractitionerOpen(true)
                     }}
                     onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search practitioner..."
+                    placeholder="Search doctor..."
                     className={linkComboboxInputWithClearClass}
                   />
                   <button

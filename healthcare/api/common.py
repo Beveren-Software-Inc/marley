@@ -171,6 +171,94 @@ def get_healthcare_practitioners(search=None, department=None):
 	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
 
 
+DOCTOR_PARENT_MEDICAL_ROLE = "Doctor"
+
+
+def _get_doctor_medical_roles():
+	"""Medical Role names that count as 'Doctor': the 'Doctor' group and every role under it.
+
+	Walks the Medical Role tree via parent_medical_role (the group 'Doctor' is self-parented,
+	so a visited-set guards the loop). Returns e.g. {Doctor, CEO, Consultant, Doctors GP}.
+	"""
+	all_roles = frappe.get_all('Medical Role', fields=['name', 'parent_medical_role'])
+	children = {}
+	for r in all_roles:
+		children.setdefault(r.parent_medical_role, []).append(r.name)
+
+	result = set()
+	stack = [DOCTOR_PARENT_MEDICAL_ROLE]
+	while stack:
+		node = stack.pop()
+		if node in result:
+			continue
+		result.add(node)
+		stack.extend(children.get(node, []))
+	return result
+
+
+@frappe.whitelist()
+def get_doctor_practitioners(search=None):
+	"""Active Healthcare Practitioners who are doctors (Medical Role under the 'Doctor' group).
+
+	Powers the 'Doctor' filter/dropdowns and doctor auto-fill on create forms.
+	"""
+	doctor_roles = list(_get_doctor_medical_roles())
+	if not doctor_roles:
+		return []
+
+	filters = {'status': 'Active', 'medical_role': ['in', doctor_roles]}
+	or_filters = None
+	if search:
+		or_filters = {
+			'practitioner_name': ['like', f'%{search}%'],
+			'name': ['like', f'%{search}%'],
+		}
+
+	practitioners = frappe.get_all(
+		'Healthcare Practitioner',
+		filters=filters,
+		or_filters=or_filters,
+		fields=['name', 'practitioner_name', 'department', 'medical_role'],
+		limit=100,
+		order_by='practitioner_name',
+	)
+	return [
+		{
+			'name': p.name,
+			'label': p.practitioner_name or p.name,
+			'department': p.department,
+			'medical_role': p.medical_role,
+		}
+		for p in practitioners
+	]
+
+
+@frappe.whitelist()
+def get_current_user_doctor():
+	"""Return the logged-in user's Healthcare Practitioner name IF they are a doctor.
+
+	A doctor = the linked practitioner's Medical Role is under the 'Doctor' group.
+	Returns the practitioner name (str) for auto-fill, or None. Mirrors the branch
+	auto-apply: a doctor's own name is pre-filled on create forms.
+	"""
+	user = frappe.session.user
+	if not user or user == 'Guest':
+		return None
+
+	practitioner = frappe.db.get_value(
+		'Healthcare Practitioner',
+		{'user_id': user, 'status': 'Active'},
+		['name', 'medical_role'],
+		as_dict=True,
+	)
+	if not practitioner or not practitioner.medical_role:
+		return None
+
+	if practitioner.medical_role in _get_doctor_medical_roles():
+		return practitioner.name
+	return None
+
+
 DISCHARGE_NURSE_MEDICAL_ROLE = "Nurse"
 
 
@@ -1576,8 +1664,9 @@ def get_cost_centers(search=None, company=None):
 # branches appear or how they are labelled.
 BRANCH_FILTER_COST_CENTERS = [
 	("Serene Hospital - SPH", "Juffair Branch"),
+	("Serene Center - SPH", "Serene Center"),
 	("Jau Hospital - SPH", "Jau Branch"),
-	("British Medical Center W.L.L - SPH", "BMC W.L.L"),
+	("British Medical Center W.L.L - SPH", "British Medical Center"),
 	("Dr. Abdul Karim Clinic - SPH", "Dr. Abdul Karim Clinic"),
 ]
 

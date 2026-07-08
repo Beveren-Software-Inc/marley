@@ -616,7 +616,7 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Ordered by Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Ordered by Doctor</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -627,7 +627,7 @@ export const EditServiceRequestModal = ({
                         setPractOpen(true)
                       }}
                       onFocus={() => setPractOpen(true)}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {practOpen && (
@@ -678,7 +678,7 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referring Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referring Doctor</label>
                   <div className="relative">
                     <input
                       type="text"
@@ -706,7 +706,7 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referred to Practitioner</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">Referred to Doctor</label>
                   <div className="relative">
                     <input
                       type="text"

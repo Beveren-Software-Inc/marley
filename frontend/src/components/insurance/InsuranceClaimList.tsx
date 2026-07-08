@@ -402,7 +402,7 @@ export const InsuranceClaimList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap gap-2 items-end">
+        <div className="card-filter-bar flex flex-wrap gap-2 items-end">
           <div>
             <label className="block text-xs text-slate-500 mb-0.5">Search</label>
             <input
@@ -420,7 +420,7 @@ export const InsuranceClaimList = ({
               onChange={e => setStatusFilter(e.target.value)}
               className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All statuses</option>
+              <option value="">Select All</option>
               {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
@@ -431,7 +431,7 @@ export const InsuranceClaimList = ({
               onChange={e => setHealthInsuranceFilter(e.target.value)}
               className="rounded border border-slate-300 px-2.5 py-1.5 text-sm min-w-[160px] focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All insurance</option>
+              <option value="">Select All</option>
               {insuranceOptions.map(o => (
                 <option key={o.name} value={o.name}>{o.label || o.name}</option>
               ))}
@@ -444,7 +444,7 @@ export const InsuranceClaimList = ({
               onChange={e => setPatientCategoryFilter(e.target.value)}
               className="rounded border border-slate-300 px-2.5 py-1.5 text-sm min-w-[140px] focus:outline-none focus:ring-2 focus:ring-primary"
             >
-              <option value="">All categories</option>
+              <option value="">Select All</option>
               {categoryOptions.map(o => (
                 <option key={o.name} value={o.name}>{o.label || o.name}</option>
               ))}

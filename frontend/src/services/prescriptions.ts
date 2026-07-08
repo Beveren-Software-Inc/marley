@@ -16,6 +16,9 @@ export interface Prescription {
   total_orders?: number
   completed_orders?: number
   company?: string
+  cost_center?: string
+  owner?: string
+  owner_full_name?: string
   reference_doctype?: string
   reference_document_name?: string
   invoice?: string
@@ -307,6 +310,12 @@ export interface MedicationOrderEntry {
   uom?: string
   quantity?: number
   dosage_form: string
+  route_of_administration?: string
+  patient_frequency?: string
+  /** Start date of this medication line */
+  date?: string
+  end_date?: string
+  instructions?: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */

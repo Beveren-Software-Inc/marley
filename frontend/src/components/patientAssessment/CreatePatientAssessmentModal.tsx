@@ -1450,7 +1450,7 @@ export const CreatePatientAssessmentModal = ({
 
                 {/* Practitioner + Company */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Combo label="Healthcare Practitioner" placeholder="Search practitioner…"
+                  <Combo label="Doctor" placeholder="Search doctor…"
                     displayValue={practOpen ? practQuery : (selectedPract?.label ?? practQuery)}
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
                     onOpen={() => setPractOpen(true)} open={practOpen} options={practOptions}

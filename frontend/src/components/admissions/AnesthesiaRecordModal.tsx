@@ -584,7 +584,7 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
               setAnesthetistLabel('')
             }}
             fetchOptions={fetchPractitioners}
-            placeholder="Search practitioners..."
+            placeholder="Search doctors..."
           />
           <Field label="Anesthetist Full Name">
             <input
@@ -611,7 +611,7 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
               setPsychiatristLabel('')
             }}
             fetchOptions={fetchPractitioners}
-            placeholder="Search practitioners..."
+            placeholder="Search doctors..."
           />
           <Field label="Psychiatrist / Assistant Name">
             <input

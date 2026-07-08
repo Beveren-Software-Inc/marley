@@ -13,6 +13,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PANSSAssessmentDetailPanel } from './PANSSAssessmentDetailPanel'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface PANSSAssessmentListProps {
   patient?: string
@@ -201,20 +202,18 @@ export const PANSSAssessmentList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 mb-1 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-1 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
@@ -238,7 +237,7 @@ export const PANSSAssessmentList = ({
                   setPractitionerOpen(true)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner…"
+                placeholder="Search doctor…"
                 className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
                   practitionerFilter ? 'pr-8' : ''
                 }`}

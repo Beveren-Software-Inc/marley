@@ -1884,7 +1884,7 @@ export const PreAnesthesiaAssessmentModal = ({
                     <LinkCombobox label="Anesthesiologist" value={anesthesiologistLabel}
                       onSelect={handlePractitionerSelect}
                       onClear={() => { setAnesthesiologistId(''); setAnesthesiologistLabel(''); setAnesthesiologistName('') }}
-                      fetchOptions={fetchPractitioners} placeholder="Search practitioners..." />
+                      fetchOptions={fetchPractitioners} placeholder="Search doctors..." />
                     <div>
                       <label className={lc}>Anesthesiologist Name</label>
                       <input type="text" value={anesthesiologistName}

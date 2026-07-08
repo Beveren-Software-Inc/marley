@@ -3166,7 +3166,7 @@ const loadDailyVisitSetup = async () => {
                         setDischargeDoctorOpen(true)
                       }}
                       onFocus={() => setDischargeDoctorOpen(true)}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     {dischargeDoctorOpen && dischargeDoctorOptions.length > 0 && (
@@ -3208,7 +3208,7 @@ const loadDailyVisitSetup = async () => {
                         setDischargeNurseOpen(true)
                       }}
                       onFocus={() => setDischargeNurseOpen(true)}
-                      placeholder="Search practitioner..."
+                      placeholder="Search doctor..."
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                     {dischargeNurseOpen && dischargeNurseOptions.length > 0 && (
@@ -4219,7 +4219,7 @@ const loadDailyVisitSetup = async () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Practitioner</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -4231,7 +4231,7 @@ const loadDailyVisitSetup = async () => {
                             setFormData((prev) => ({ ...prev, observation_practitioner: '' }))
                           }}
                           onFocus={() => setObsPractitionerOpen(true)}
-                          placeholder="Search practitioner..."
+                          placeholder="Search doctor..."
                           className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         {obsPractitionerOpen && obsPractitionerOptions.length > 0 && (

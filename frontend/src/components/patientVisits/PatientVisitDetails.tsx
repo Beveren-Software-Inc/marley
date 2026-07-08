@@ -145,7 +145,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
                 )}
                 {visit.practitioner_name || visit.practitioner ? (
                   <div>
-                    <span className="font-medium">Practitioner:</span>{' '}
+                    <span className="font-medium">Doctor:</span>{' '}
                     {visit.practitioner_name || visit.practitioner}
                   </div>
                 ) : null}

@@ -7,6 +7,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -546,20 +547,18 @@ export const ClinicalNotesList = ({
       )}
 
       {showAdvancedNoteFilters && (
-        <div className="flex flex-wrap items-end gap-3 mb-3 px-1 flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-3 px-1 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Posting from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={postingDateFrom}
               onChange={(e) => setPostingDateFrom(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">Posting to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={postingDateTo}
               onChange={(e) => setPostingDateTo(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -567,7 +566,7 @@ export const ClinicalNotesList = ({
           </div>
           {showPractitionerPicker && (
             <div className="flex flex-col gap-1 min-w-[180px] relative">
-              <label className="text-xs font-medium text-slate-500">Practitioner</label>
+              <label className="text-xs font-medium text-slate-500">Doctor</label>
               <input
                 type="text"
                 value={
@@ -581,7 +580,7 @@ export const ClinicalNotesList = ({
                   setPractitionerOpen(true)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search practitioner…"
+                placeholder="Search doctor…"
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-full"
               />
               {practitionerOpen && practitionerOptions.length > 0 && (

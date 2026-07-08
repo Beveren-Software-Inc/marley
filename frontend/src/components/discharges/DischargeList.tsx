@@ -13,6 +13,7 @@ import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/Pagi
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 import {
   CHECKLIST_STATUS_COLORS,
   CHECKLIST_STATUS_LABELS,
@@ -354,7 +355,23 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
 
       {/* Filters — hidden by default */}
       {showFilters && (
-      <div className="flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
+      <div className="card-filter-bar flex flex-wrap gap-3 mb-4 items-end px-4 pt-3 pb-2 border-b border-slate-200">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
+          <DateFilterInput
+            value={fromDate}
+            onChange={(e) => setFromDate(e.target.value)}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
+          <DateFilterInput
+            value={toDate}
+            onChange={(e) => setToDate(e.target.value)}
+            className={inputClass}
+          />
+        </div>
         {/* Discharge ID — searchable dropdown (link to Discharge) */}
         <div data-discharge-filter-dropdown className="relative">
           <label className="block text-xs font-medium text-slate-600 mb-1">Discharge ID</label>
@@ -425,25 +442,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
           )}
         </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
-          <input
-            type="date"
-            value={fromDate}
-            onChange={(e) => setFromDate(e.target.value)}
-            className={inputClass}
-          />
-        </div>
 
-        <div>
-          <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
-          <input
-            type="date"
-            value={toDate}
-            onChange={(e) => setToDate(e.target.value)}
-            className={inputClass}
-          />
-        </div>
 
         <div>
           <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
@@ -452,7 +451,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
             onChange={(e) => setStatusFilter(e.target.value)}
             className={inputClass}
           >
-            <option value="">All</option>
+            <option value="">Select All</option>
             {statusOptions.map((s) => (
               <option key={s} value={s}>
                 {s}
@@ -468,7 +467,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
             onChange={(e) => setTypeFilter(e.target.value)}
             className={inputClass}
           >
-            <option value="">All</option>
+            <option value="">Select All</option>
             {dischargeTypeOptions.map((t) => (
               <option key={t} value={t}>
                 {t}

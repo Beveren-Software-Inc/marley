@@ -9,6 +9,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { ClinicalSuicideRiskAssessmentDetailPanel } from './ClinicalSuicideRiskAssessmentDetailPanel'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SuicideRiskAssessmentListProps {
   patient?: string
@@ -165,20 +166,18 @@ export const SuicideRiskAssessmentList = ({
       )}
 
       {showFilters && (
-        <div className="flex flex-wrap items-end gap-3 px-0 py-2 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
+        <div className="card-filter-bar flex flex-wrap items-end gap-3 px-0 py-2 border-b border-slate-100 bg-slate-50/80 flex-shrink-0">
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Date from</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">From Date</label>
+            <DateFilterInput
               value={fromDate}
               onChange={(e) => setFromDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             />
           </div>
           <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className="text-xs font-medium text-slate-500">Date to</label>
-            <input
-              type="date"
+            <label className="text-xs font-medium text-slate-500">To Date</label>
+            <DateFilterInput
               value={toDate}
               onChange={(e) => setToDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
@@ -191,7 +190,7 @@ export const SuicideRiskAssessmentList = ({
               onChange={(e) => setRiskLevelFilter(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
             >
-              <option value="">All levels</option>
+              <option value="">Select All</option>
               {riskLevelOptions.map((lvl) => (
                 <option key={lvl} value={lvl}>
                   {lvl}

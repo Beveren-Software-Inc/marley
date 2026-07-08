@@ -240,7 +240,7 @@ export const PatientHistoryPage = () => {
 
           {/* Content cards — single 2-col grid so visible cards flow side by side when clinical cards are hidden */}
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr md:[&>*:last-child:nth-child(odd)]:col-span-2">
-            <DashboardCard fixedHeight title="Warnings & Allergies" {...listingProps('warnings')}>
+            <DashboardCard fixedHeight title="Warnings & Messages" {...listingProps('warnings')}>
               <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 

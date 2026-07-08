@@ -1779,11 +1779,11 @@ export const NursePage = () => {
 
             <DashboardCard
               fixedHeight
-              title="Warnings & Allergies"
+              title="Warnings & Messages"
               onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
               addButtonTitle="Add Warning Message"
               listingScreen="n-first"
-              openListingTitle="Open full Warnings & Allergies list"
+              openListingTitle="Open full Warnings & Messages list"
             >
               <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
             </DashboardCard>

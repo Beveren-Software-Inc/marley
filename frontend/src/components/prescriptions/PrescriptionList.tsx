@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchPrescriptions, type Prescription, type PrescriptionFilters, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { fetchPrescriptions, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
@@ -7,23 +7,41 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
-  formatDashboardDate,
 } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 
 const statusColors: Record<string, string> = {
   'Draft': 'default',
   'Signed': 'success',
+  'Unsigned': 'warning',
   'Submitted': 'info',
   'Pending': 'warning',
   'In Process': 'info',
   'Completed': 'success',
   'Cancelled': 'danger',
+  'On Hold': 'warning',
+  'Discontinued': 'danger',
+}
+
+function fmtDate(value?: string | null): string {
+  if (!value) return '-'
+  try {
+    return new Date(value).toLocaleDateString('en-GB')
+  } catch {
+    return value
+  }
+}
+
+/** Friendly branch label from a Cost Center name (drops the company abbr suffix). */
+function branchLabel(cc?: string): string {
+  if (!cc) return '-'
+  return cc.replace(/\s*-\s*[^-]+$/, '') || cc
 }
 
 const STATUS_OPTIONS = [
@@ -35,13 +53,6 @@ const STATUS_OPTIONS = [
   { value: 'Completed', label: 'Completed' },
   { value: 'Cancelled', label: 'Cancelled' },
 ]
-
-function localDateISO(d = new Date()): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
 
 interface PrescriptionListProps {
   patient?: string
@@ -57,7 +68,6 @@ export const PrescriptionList = ({
   patient,
   refreshKey,
   onPrescriptionSelect,
-  onPatientClick,
   careContext: careContextProp,
   doctorPrescriptionDefaults = false,
 }: PrescriptionListProps) => {
@@ -94,22 +104,18 @@ export const PrescriptionList = ({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
-  const compactClinical = useDashboardCompactClinical()
   const [statusFilter, setStatusFilter] = useState('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
-  const [dateFrom, setDateFrom] = useState(() =>
-    doctorPrescriptionDefaults ? localDateISO() : '',
-  )
-  const [dateTo, setDateTo] = useState(() =>
-    doctorPrescriptionDefaults ? localDateISO() : '',
-  )
+  // No default date range — doctors found the auto "today" filter annoying.
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [defaultsReady, setDefaultsReady] = useState(!doctorPrescriptionDefaults)
 
-  // Doctor dashboard: default From/To = today; practitioner = logged-in user's link (if any).
+  // Doctor dashboard: default practitioner = logged-in user's link (if any).
   useEffect(() => {
     if (!doctorPrescriptionDefaults) {
       setDefaultsReady(true)
@@ -162,6 +168,11 @@ export const PrescriptionList = ({
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
   const load = () => {
+    if (!effectivePatient) {
+      setPrescriptions([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
     setError(null)
     fetchPrescriptions(50, 0, filters)
@@ -312,6 +323,25 @@ export const PrescriptionList = ({
     )
   }
 
+  // No list until a patient is in scope — prompt to use the global patient search.
+  if (!effectivePatient) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-10 text-center">
+        <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
+          Search for patient to view the list
+        </p>
+      </div>
+    )
+  }
+
+  // One row per medicine line; prescriptions without lines still get a single row.
+  const medicineRows: { p: Prescription; m: MedicationOrderEntry | null }[] = prescriptions.flatMap(
+    (p): { p: Prescription; m: MedicationOrderEntry | null }[] =>
+      p.medication_orders && p.medication_orders.length > 0
+        ? p.medication_orders.map((m) => ({ p, m }))
+        : [{ p, m: null }]
+  )
+
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
       {/* Active-context banner — shown when filtering by a specific visit or admission */}
@@ -391,7 +421,23 @@ export const PrescriptionList = ({
 
       {/* Filter bar — toggled from DashboardCard header or standalone list header */}
       {showFilters && (
-      <div className="flex flex-wrap items-end gap-3 mb-3 flex-shrink-0">
+      <div className="card-filter-bar flex flex-wrap items-end gap-3 mb-3 flex-shrink-0">
+        <div className="flex flex-col gap-1 min-w-[120px]">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
+          <DateFilterInput
+            value={dateFrom}
+            onChange={(e) => setDateFrom(e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
+        <div className="flex flex-col gap-1 min-w-[120px]">
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
+          <DateFilterInput
+            value={dateTo}
+            onChange={(e) => setDateTo(e.target.value)}
+            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          />
+        </div>
         <div className="flex flex-col gap-1 min-w-[120px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Status</label>
           <select
@@ -407,7 +453,7 @@ export const PrescriptionList = ({
           </select>
         </div>
         <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Practitioner</label>
+          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Doctor</label>
           <div className="relative">
             <input
               type="text"
@@ -418,7 +464,7 @@ export const PrescriptionList = ({
                 setPractitionerOpen(true)
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search practitioner..."
+              placeholder="Search doctor..."
               className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${practitionerFilter ? 'pr-8' : ''}`}
             />
             {practitionerFilter && (
@@ -455,24 +501,6 @@ export const PrescriptionList = ({
             )}
           </div>
         </div>
-        <div className="flex flex-col gap-1 min-w-[120px]">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From</label>
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        <div className="flex flex-col gap-1 min-w-[120px]">
-          <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To</label>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
         <div className="flex flex-col gap-1 min-w-[160px]">
           <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Search</label>
           <input
@@ -495,140 +523,117 @@ export const PrescriptionList = ({
             {hasActiveFilters ? 'No prescriptions match your filters.' : 'No prescriptions found'}
           </div>
         </div>
-      ) : compactClinical ? (
-      <table className="w-full text-sm">
-        <thead className="bg-slate-50 border-b border-slate-200">
-          <tr>
-            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medications</th>
-            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Period</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {prescriptions.map((row) => {
-            const n = row.total_orders ?? 0
-            const done = row.completed_orders ?? 0
-            const medLabel =
-              n === 0
-                ? 'No medications'
-                : `${n} medication${n !== 1 ? 's' : ''}${done ? ` · ${done} completed` : ''}`
-            const period =
-              row.start_date || row.end_date
-                ? `${row.start_date ? formatDashboardDate(row.start_date) : '—'} – ${row.end_date ? formatDashboardDate(row.end_date) : '—'}`
-                : formatDashboardDate(row.posting_date)
-            const metaFields = [
-              ['Prescription', row.name],
-              ['Practitioner', row.healthcare_practitioner_name || row.practitioner || row.user_name],
-              ['Care context', row.care_context],
-              ['Posting date', row.posting_date ? formatDashboardDate(row.posting_date) : ''],
-              ['Visit', row.patient_encounter],
-              ['Admission', row.inpatient_record],
-            ] as const
-            return (
-              <tr
-                key={row.name}
-                className={dashboardCardRowHoverClass}
-                onClick={() => {
-                  setDetailName(row.name)
-                  onPrescriptionSelect?.(row.name)
-                }}
-              >
-                <td className="px-3 py-2.5 text-slate-800 font-medium align-top">
-                  <span>{medLabel}</span>
-                  {row.is_pink ? (
-                    <span className="ml-1.5 text-[10px] font-semibold text-pink-600">Pink</span>
-                  ) : null}
-                  <CardRowMetaHint fields={metaFields} />
-                </td>
-                <td className="px-3 py-2.5 align-top">
-                  <StatusPill
-                    status={row.status || 'Draft'}
-                    color={statusColors[row.status || ''] || 'default'}
-                  />
-                </td>
-                <td className="px-3 py-2.5 text-xs text-slate-500 whitespace-nowrap align-top">{period}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
       ) : (
-      <table className="w-full min-w-[800px]">
-        <thead className="bg-slate-50 border-b border-slate-200">
+      /* Medicine-level listing — same columns on the dashboard card and the full screen. */
+      <table className="w-full text-sm min-w-[1250px]">
+        <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
           <tr>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Prescription
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Medicine Code
             </th>
-            {!patient && (
-              <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                Patient
-              </th>
-            )}
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Practitioner
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Medicine Name
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Care Context
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Dose
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Route
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Frequency
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Start Date
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              End Date
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+              Remarks
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Branch
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
               Status
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Start / End
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Created By
             </th>
-            <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[140px]">
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Date of Creation
+            </th>
+            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase w-[110px]">
               Actions
             </th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-200">
-          {prescriptions.map((row) => (
-            <tr key={row.name} className="hover:bg-slate-50">
-              <td
-                className="px-4 py-3 text-sm cursor-pointer"
-                onClick={() => {
-                  setDetailName(row.name)
-                  onPrescriptionSelect?.(row.name)
-                }}
-              >
-                <span className="font-medium text-primary hover:underline">{row.name}</span>
+          {medicineRows.map(({ p: row, m }) => {
+            const rowKey = m ? `${row.name}:${m.name}` : row.name
+            const lineStatus = (m?.medication_status || '').trim() || row.status || 'Draft'
+            const metaFields = [
+              ['Prescription', row.name],
+              ['Doctor', row.healthcare_practitioner_name || row.practitioner || row.user_name],
+              ['Care context', row.care_context],
+              ['Visit', row.patient_encounter],
+              ['Admission', row.inpatient_record],
+            ] as const
+            const openDetail = () => {
+              setDetailName(row.name)
+              onPrescriptionSelect?.(row.name)
+            }
+            return (
+            <tr key={rowKey} className={`${dashboardCardRowHoverClass} cursor-pointer`} onClick={openDetail}>
+              <td className="px-3 py-2 text-slate-800 font-medium whitespace-nowrap">
+                {m?.drug || '-'}
+                {row.is_pink ? (
+                  <span className="ml-1.5 text-[10px] font-semibold text-pink-600">Pink</span>
+                ) : null}
+                <CardRowMetaHint fields={metaFields} />
               </td>
-              {!patient && (
-                <td
-                  className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                  onClick={() => row.patient && onPatientClick?.(row.patient)}
-                >
-                  <span className="font-medium text-primary hover:underline">{row.patient_name || row.patient || '-'}</span>
-                </td>
-              )}
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {row.healthcare_practitioner_name || row.practitioner || row.user_name || '-'}
+              <td className="px-3 py-2 text-slate-800">
+                {m?.drug_name || '-'}
+                {m?.is_prn ? (
+                  <span className="ml-1.5 text-[10px] font-semibold text-amber-600">PRN</span>
+                ) : null}
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {row.care_context || '-'}
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                {m?.dosage ? `${m.dosage}${m.uom ? ` ${m.uom}` : ''}` : '-'}
               </td>
-              <td className="px-4 py-3">
+              <td className="px-3 py-2 text-slate-700">{m?.route_of_administration || '-'}</td>
+              <td className="px-3 py-2 text-slate-700">{m?.patient_frequency || '-'}</td>
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                {fmtDate(m?.date || row.start_date)}
+              </td>
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                {fmtDate(m?.end_date || row.end_date)}
+              </td>
+              <td className="px-3 py-2 text-slate-600 max-w-[220px]">
+                <span className="line-clamp-2">{m?.instructions || '-'}</span>
+              </td>
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{branchLabel(row.cost_center)}</td>
+              <td className="px-3 py-2">
                 <StatusPill
-                  status={row.status || 'Draft'}
-                  color={statusColors[row.status || ''] || 'default'}
+                  status={lineStatus}
+                  color={statusColors[lineStatus] || 'default'}
                 />
               </td>
-              <td className="px-4 py-3 text-sm text-slate-700">
-                {row.start_date
-                  ? new Date(row.start_date).toLocaleDateString('en-GB')
-                  : '-'}
-                {row.end_date ? ` – ${new Date(row.end_date).toLocaleDateString('en-GB')}` : ''}
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                {row.owner_full_name || row.owner || '-'}
               </td>
-              <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+              <td className="px-3 py-2 text-slate-700 whitespace-nowrap">{fmtDate(row.creation)}</td>
+              <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">
                   <div
                     className="relative inline-block"
-                    ref={openActionRow === row.name ? menuRef : undefined}
+                    ref={openActionRow === rowKey ? menuRef : undefined}
                   >
                     <button
                       type="button"
                       onClick={() =>
-                        setOpenActionRow((prev) => (prev === row.name ? null : row.name))
+                        setOpenActionRow((prev) => (prev === rowKey ? null : rowKey))
                       }
                       className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
                       aria-label="Actions"
@@ -638,7 +643,7 @@ export const PrescriptionList = ({
                       </svg>
                     </button>
                     <PortalActionsMenu
-                      open={openActionRow === row.name}
+                      open={openActionRow === rowKey}
                       onClose={() => setOpenActionRow(null)}
                       triggerRef={menuRef}
                       minWidth={200}
@@ -686,7 +691,8 @@ export const PrescriptionList = ({
                 </div>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
       )}
