@@ -676,8 +676,6 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
-import { useAuth } from '../../providers/AuthProvider'
-import { isAdmin } from '../../config/permissions'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
