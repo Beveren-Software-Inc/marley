@@ -30,6 +30,8 @@ export interface LinkFieldOption {
   cost_center?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */
   default_route_of_administration?: string
+  /** Prescription drug: item group (or ancestor) has Item Group.custom_is_pink */
+  is_pink?: boolean
   code_value?: string
   country?: string
 }

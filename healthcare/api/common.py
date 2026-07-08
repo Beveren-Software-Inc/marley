@@ -721,6 +721,32 @@ def _item_group_chain_has_prescription_flag(item_group_name, cache, ig_meta_has_
 	return result
 
 
+def _item_group_chain_has_custom_is_pink(item_group_name, cache):
+	"""True if Item Group.custom_is_pink is set on this group or any ancestor."""
+	if not frappe.get_meta('Item Group').has_field('custom_is_pink'):
+		return False
+	if not item_group_name:
+		return False
+	if item_group_name in cache:
+		return cache[item_group_name]
+	row = frappe.db.get_value(
+		'Item Group',
+		item_group_name,
+		['custom_is_pink', 'parent_item_group'],
+		as_dict=True,
+	)
+	if not row:
+		cache[item_group_name] = False
+		return False
+	if row.get('custom_is_pink'):
+		cache[item_group_name] = True
+		return True
+	parent = (row.get('parent_item_group') or '').strip()
+	result = _item_group_chain_has_custom_is_pink(parent, cache) if parent else False
+	cache[item_group_name] = result
+	return result
+
+
 @frappe.whitelist()
 def get_prescription_items(search=None):
 	"""Items for prescription drug search only.
@@ -791,6 +817,7 @@ def get_prescription_items(search=None):
 	)
 
 	group_cache = {}
+	pink_cache = {}
 	out = []
 	seen_labels = {}
 	for row in items:
@@ -812,6 +839,7 @@ def get_prescription_items(search=None):
 			'item_code': row.item_code,
 			'item_group': row.item_group,
 			'stock_uom': row.stock_uom,
+			'is_pink': bool(_item_group_chain_has_custom_is_pink(ig, pink_cache)),
 		}
 		if route_field:
 			route_val = row.get(route_field)

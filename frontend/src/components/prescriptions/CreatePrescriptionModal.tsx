@@ -422,6 +422,7 @@ export const CreatePrescriptionModal = ({
         drug: opt.name,
         drug_name: opt.label || opt.name,
         uom: stockUom,
+        is_pink: Boolean(opt.is_pink),
         ...(route ? { route_of_administration: route } : {}),
       }
       return next

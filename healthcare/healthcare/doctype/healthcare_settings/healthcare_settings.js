@@ -2277,6 +2277,63 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Psychiatric Item Max Dose'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Psychiatric Item Max Dose'),
+				preview_method:
+					'healthcare.api.psychiatric_item_max_dose_import.preview_psychiatric_item_max_dose_import',
+				import_method:
+					'healthcare.api.psychiatric_item_max_dose_import.run_psychiatric_item_max_dose_import',
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Update Item max-dose fields from psychiatric Excel?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Skipped duplicate rows: {2}\n'
+							+ 'Unique item codes: {3}\n'
+							+ 'Matched Items: {4}\n'
+							+ 'Missing Items: {5}\n\n'
+							+ 'Mapping: Item Code → Item lookup, Drug Category → custom_drug_category, '
+							+ 'Max Dose - Per Single Dose → custom_max_dose_per_single_dose, '
+							+ 'Max Dose - Per Day → custom_max_dose_per_day, High Alert? → custom_high_alert, '
+							+ 'Clinical Notes → description.\n'
+							+ 'Import runs immediately (no background job).\n\n'
+							+ 'Sample item codes: {6}\n'
+							+ 'Sample missing codes: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.skipped_duplicate_rows || 0,
+							counts.excel_rows || 0,
+							counts.matched_items || 0,
+							counts.missing_items || 0,
+							(counts.sample_item_codes || []).join(', ') || __('(none)'),
+							(counts.sample_missing_codes || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Total: {0}\n'
+							+ 'Updated: {1}\n'
+							+ 'Not found: {2}\n'
+							+ 'Skipped: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.total || 0,
+							result.updated || 0,
+							result.not_found || 0,
+							result.skipped || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient appointment - APPOINTMENTS_INFO_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Patient Appointment (APPOINTMENTS_INFO_01)'),

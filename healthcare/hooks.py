@@ -110,6 +110,11 @@ fixtures = [
                    
                    "Item-custom_maximum_dose_limit",
                    "Item-custom_scientific_name",
+                   "Item Group-custom_is_pink",
+                   "Item-custom_max_dose_per_day",
+                   "Item-custom_max_dose_per_single_dose",
+                   "Item-custom_high_alert",
+                   "Item-custom_drug_category",
 
                 ),
             ]
