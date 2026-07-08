@@ -4,6 +4,9 @@ import { ensureCSRF } from './apiClient'
 export interface LinkFieldOption {
   name: string
   label: string
+  /** Healthcare Practitioner display helpers */
+  practitioner_name?: string
+  practitioner_id?: string
   /** Diagnosis master (get_diagnosis): ICD-style no / group for display */
   disease_no?: string
   diagnosis_name?: string

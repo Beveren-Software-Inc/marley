@@ -670,7 +670,7 @@ import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
-  fetchDoctorPractitioners,
+  fetchHealthcarePractitioners,
   getCurrentUserPractitioner,
   fetchBranchOptions,
   type LinkFieldOption,
@@ -997,10 +997,10 @@ export const AppointmentList = ({
     defaultPractitionerFilterApplied.current = true
     if (!myPractitionerId) return
     setFilterPractitioner(myPractitionerId)
-    fetchDoctorPractitioners()
+    fetchHealthcarePractitioners()
       .then((options) => {
         const match = options.find((p) => p.name === myPractitionerId)
-        setPractitionerQuery(match?.label || linkedPractitionerName || myPractitionerId)
+        setPractitionerQuery(match?.practitioner_name || match?.label || linkedPractitionerName || myPractitionerId)
       })
       .catch(() => {
         setPractitionerQuery(myPractitionerId)
@@ -1015,7 +1015,7 @@ export const AppointmentList = ({
   useEffect(() => {
     if (!useAllAppointmentsApi || !practitionerOpen) return
     const timeoutId = setTimeout(() => {
-      fetchDoctorPractitioners(practitionerQuery || undefined)
+      fetchHealthcarePractitioners(practitionerQuery || undefined)
         .then(setPractitionerDropdownOptions)
         .catch(() => setPractitionerDropdownOptions([]))
     }, practitionerQuery.trim() === '' ? 0 : 300)
@@ -1373,8 +1373,9 @@ export const AppointmentList = ({
     Boolean(filterStatus || filterPractitioner || filterDateFrom || filterDateTo || searchQuery || filterBranch)
 
   const practitionerFilterDisplayValue = filterPractitioner
-    ? practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.label ||
+    ? practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.practitioner_name ||
       (filterPractitioner === myPractitionerId ? linkedPractitionerName : '') ||
+      practitionerDropdownOptions.find((p) => p.name === filterPractitioner)?.label ||
       filterPractitioner
     : practitionerQuery
 
@@ -1456,7 +1457,7 @@ export const AppointmentList = ({
 
           {/* Doctor */}
           {useAllAppointmentsApi && (
-            <div data-filter-dropdown className="flex flex-col gap-1 min-w-[180px]">
+            <div data-filter-dropdown className="flex flex-col gap-1 min-w-[220px]">
               <label className={FILTER_LABEL_CLASS}>Doctor</label>
               <div className="relative">
                 <input
@@ -1471,7 +1472,7 @@ export const AppointmentList = ({
                     setPage(1)
                   }}
                   onFocus={() => canChangePractitioner && setPractitionerOpen(true)}
-                  placeholder="Search doctor..."
+                  placeholder="Search by ID or name..."
                   className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}${!canChangePractitioner ? ' bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
                 />
                 {filterPractitioner && canChangePractitioner && (
@@ -1491,22 +1492,37 @@ export const AppointmentList = ({
                 )}
                 {practitionerOpen && canChangePractitioner && practitionerDropdownOptions.length > 0 && (
                   <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
-                    {practitionerDropdownOptions.map((pr) => (
+                    {practitionerDropdownOptions.map((pr) => {
+                      const displayId = pr.practitioner_id || pr.name
+                      return (
                       <button
                         key={pr.name}
                         type="button"
                         className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
                         onClick={() => {
                           setFilterPractitioner(pr.name)
-                          setPractitionerQuery(pr.label || pr.name)
+                          setPractitionerQuery(pr.practitioner_name || pr.label || pr.name)
                           setPractitionerOpen(false)
                           setPage(1)
                         }}
                       >
-                        {pr.label || pr.name}
-                        {pr.name === myPractitionerId ? ' (you)' : ''}
+                        {pr.practitioner_name ? (
+                          <>
+                            <div className="font-medium text-slate-900 leading-tight">
+                              {pr.practitioner_name}
+                              {pr.name === myPractitionerId ? ' (you)' : ''}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">{displayId}</div>
+                          </>
+                        ) : (
+                          <div className="font-medium text-slate-900 leading-tight">
+                            {displayId}
+                            {pr.name === myPractitionerId ? ' (you)' : ''}
+                          </div>
+                        )}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 )}
               </div>
