@@ -150,25 +150,42 @@ def get_nationalities(search=None):
 
 @frappe.whitelist()
 def get_healthcare_practitioners(search=None, department=None):
-	"""Get list of Healthcare Practitioners. Searches by name (ID) or full name."""
+	"""Get list of active Healthcare Practitioners. Search by ID, doctors_id, or name."""
 	filters = {'status': 'Active'}
+	if department:
+		filters['department'] = department
 
 	or_filters = None
 	if search:
+		like = f'%{search}%'
 		or_filters = {
-			'practitioner_name': ['like', f'%{search}%'],
-			'name': ['like', f'%{search}%'],
+			'practitioner_name': ['like', like],
+			'name': ['like', like],
+			'doctors_id': ['like', like],
 		}
 
 	practitioners = frappe.get_all(
 		'Healthcare Practitioner',
 		filters=filters,
 		or_filters=or_filters,
-		fields=['name', 'practitioner_name', 'department', 'medical_role'],
-		limit=50,
+		fields=['name', 'practitioner_name', 'doctors_id', 'department', 'medical_role'],
+		limit=100,
 		order_by='practitioner_name',
 	)
-	return [{'name': p.name, 'label': p.practitioner_name or p.name, 'department': p.department, 'medical_role': p.medical_role} for p in practitioners]
+	result = []
+	for p in practitioners:
+		pid = (p.doctors_id or p.name or '').strip()
+		pname = (p.practitioner_name or '').strip()
+		label = pname or pid or p.name
+		result.append({
+			'name': p.name,
+			'label': label,
+			'practitioner_name': pname or None,
+			'practitioner_id': pid or p.name,
+			'department': p.department,
+			'medical_role': p.medical_role,
+		})
+	return result
 
 
 DOCTOR_PARENT_MEDICAL_ROLE = "Doctor"
