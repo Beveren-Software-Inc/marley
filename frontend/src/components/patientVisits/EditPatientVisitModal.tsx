@@ -21,15 +21,27 @@ import {
 import {
   fetchPatientVisit,
   fetchPatientVisitTypes,
+  fetchPatientVisitChargeEditor,
   updatePatientVisit,
+  updatePatientVisitCharge,
   type PatientVisit,
   type PatientVisitTypeOption,
+  type PatientVisitChargeAvailableService,
 } from '../../services/patientVisits'
 import { fetchHealthcarePractitioners, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
+
+interface EditChargeRow {
+  item_code: string
+  item_name: string
+  rate: number
+  qty: number
+  discount: number
+}
 
 interface EditPatientVisitModalProps {
   visitName: string
@@ -77,6 +89,16 @@ export const EditPatientVisitModal = ({
   const [encounterTime, setEncounterTime] = useState('')
   const [encounterComment, setEncounterComment] = useState('')
 
+  const formatMoney = useFormatMoney()
+  const [chargeRows, setChargeRows] = useState<EditChargeRow[]>([])
+  const [chargeEditable, setChargeEditable] = useState(true)
+  const [chargeLockedReason, setChargeLockedReason] = useState<string | null>(null)
+  const [chargeNoCharges, setChargeNoCharges] = useState(false)
+  const [availableServices, setAvailableServices] = useState<PatientVisitChargeAvailableService[]>([])
+  const [chargeLoaded, setChargeLoaded] = useState(false)
+  const [chargeDirty, setChargeDirty] = useState(false)
+  const [addServiceOpen, setAddServiceOpen] = useState(false)
+
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -103,6 +125,41 @@ export const EditPatientVisitModal = ({
       })
       .finally(() => {
         if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [visitName])
+
+  useEffect(() => {
+    let cancelled = false
+    setChargeLoaded(false)
+    fetchPatientVisitChargeEditor(visitName)
+      .then((data) => {
+        if (cancelled) return
+        setChargeEditable(data.editable)
+        setChargeLockedReason(data.locked_reason || null)
+        setChargeNoCharges(data.no_charges)
+        setAvailableServices(data.available_services || [])
+        setChargeRows(
+          (data.lines || []).map((l) => ({
+            item_code: l.item_code,
+            item_name: l.item_name || l.item_code,
+            rate: l.rate || 0,
+            qty: l.qty || 1,
+            discount: l.discount || 0,
+          })),
+        )
+        setChargeDirty(false)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setChargeRows([])
+          setAvailableServices([])
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setChargeLoaded(true)
       })
     return () => {
       cancelled = true
@@ -146,11 +203,39 @@ export const EditPatientVisitModal = ({
         setPractOpen(false)
         setVisitTypeOpen(false)
         setCostCenterOpen(false)
+        setAddServiceOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  const chargeRowNet = (row: EditChargeRow) =>
+    Math.max(0, (row.rate || 0) - Math.max(0, Math.min(row.rate || 0, row.discount || 0)))
+  const chargeTotal = chargeRows.reduce((sum, r) => sum + chargeRowNet(r), 0)
+
+  const updateChargeRow = (idx: number, patch: Partial<EditChargeRow>) => {
+    setChargeRows((prev) => prev.map((r, i) => (i === idx ? { ...r, ...patch } : r)))
+    setChargeDirty(true)
+  }
+  const removeChargeRow = (idx: number) => {
+    setChargeRows((prev) => prev.filter((_, i) => i !== idx))
+    setChargeDirty(true)
+  }
+  const addChargeService = (svc: PatientVisitChargeAvailableService) => {
+    setChargeRows((prev) => [
+      ...prev,
+      {
+        item_code: svc.item_code,
+        item_name: svc.item_name || svc.item_code,
+        rate: svc.rate || 0,
+        qty: 1,
+        discount: 0,
+      },
+    ])
+    setChargeDirty(true)
+    setAddServiceOpen(false)
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -181,6 +266,20 @@ export const EditPatientVisitModal = ({
         cost_center: costCenter || undefined,
         encounter_comment: encounterComment.trim() || undefined,
       })
+
+      if (chargeEditable && chargeDirty) {
+        await updatePatientVisitCharge(
+          visit.name,
+          chargeRows.map((r) => ({
+            item_code: r.item_code,
+            item_name: r.item_name,
+            rate: r.rate,
+            qty: r.qty || 1,
+            discount: r.discount || 0,
+          })),
+        )
+      }
+
       toast.success(`Visit ${visit.name} updated`)
       onSuccess()
       onClose()
@@ -413,6 +512,119 @@ export const EditPatientVisitModal = ({
                 </div>
               </div>
             </section>
+
+            {chargeLoaded && !chargeNoCharges && (chargeRows.length > 0 || availableServices.length > 0) && (
+              <section className={MODAL_SECTION_CLASS}>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={MODAL_SECTION_TITLE_CLASS}>Services &amp; discounts</h3>
+                  <span className="text-xs text-slate-500">
+                    Total{' '}
+                    <span className="font-semibold text-slate-800">{formatMoney(chargeTotal)}</span>
+                  </span>
+                </div>
+
+                {!chargeEditable && (
+                  <div className="mb-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                    {chargeLockedReason === 'invoiced'
+                      ? 'This visit charge has already been invoiced, so services can no longer be changed.'
+                      : 'This visit charge can no longer be edited.'}
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  {chargeRows.length === 0 && (
+                    <p className="text-xs text-slate-500">No services on this visit charge.</p>
+                  )}
+                  {chargeRows.map((row, idx) => {
+                    const net = chargeRowNet(row)
+                    const discounted = net < (row.rate || 0)
+                    return (
+                      <div
+                        key={`${row.item_code}-${idx}`}
+                        className="rounded-md border border-slate-200 bg-white px-2.5 py-2"
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <div className="text-sm font-medium text-slate-800 truncate">
+                              {row.item_name}
+                            </div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              <span className={discounted ? 'line-through' : 'font-semibold text-slate-700'}>
+                                {formatMoney(row.rate || 0)}
+                              </span>
+                              {discounted && (
+                                <span className="ml-1 font-semibold text-slate-800">{formatMoney(net)}</span>
+                              )}
+                            </div>
+                          </div>
+                          {chargeEditable && (
+                            <button
+                              type="button"
+                              className="shrink-0 text-slate-400 hover:text-red-500 leading-none"
+                              onClick={() => removeChargeRow(idx)}
+                              title="Remove service"
+                              aria-label="Remove service"
+                            >
+                              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          )}
+                        </div>
+                        {chargeEditable && (
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-slate-500">Discount amount</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={row.rate || undefined}
+                              step="any"
+                              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
+                              value={row.discount || ''}
+                              placeholder="0"
+                              onChange={(e) =>
+                                updateChargeRow(idx, { discount: parseFloat(e.target.value) || 0 })
+                              }
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+
+                {chargeEditable && availableServices.some(
+                  (s) => !chargeRows.find((r) => r.item_code === s.item_code),
+                ) && (
+                  <div className="relative mt-3">
+                    <button
+                      type="button"
+                      onClick={() => setAddServiceOpen((o) => !o)}
+                      className="text-xs font-medium text-primary hover:text-primary/80"
+                    >
+                      + Add service
+                    </button>
+                    {addServiceOpen && (
+                      <div className="absolute z-10 mt-1 w-64 rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                        {availableServices
+                          .filter((s) => !chargeRows.find((r) => r.item_code === s.item_code))
+                          .map((svc) => (
+                            <button
+                              key={svc.item_code}
+                              type="button"
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                              onClick={() => addChargeService(svc)}
+                            >
+                              <div className="font-medium">{svc.item_name || svc.item_code}</div>
+                              <div className="text-xs text-slate-500">{formatMoney(svc.rate || 0)}</div>
+                            </button>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </section>
+            )}
           </div>
 
           <CreateModalFooter>

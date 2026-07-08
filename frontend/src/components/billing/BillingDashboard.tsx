@@ -52,6 +52,7 @@ import {
   Printer,
   FileDown,
   X,
+  Wallet,
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -1702,11 +1703,12 @@ const handleMakePayment = async (
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-5">
         <StatCard title="Total Orders" value={orderSummary?.total_orders || 0} subValue={`${formatCurrency(orderSummary?.total_amount || 0)} total value`} icon={Package} color="bg-blue-50 text-blue-600" onClick={() => handleViewChange('orders')} />
         <StatCard title="Total Invoices" value={invoiceSummary?.total_invoices || 0} subValue={`${formatCurrency(invoiceSummary?.total_amount || 0)} total value`} icon={Receipt} color="bg-purple-50 text-purple-600" onClick={() => handleViewChange('invoices')} />
         <StatCard title="Paid Amount" value={formatCurrency(invoiceSummary?.total_paid || 0)} subValue={`${invoiceSummary?.paid.count || 0} invoices paid`} icon={CheckCircle} color="bg-green-50 text-green-600" onClick={() => handleViewChange('paid')} />
         <StatCard title="Outstanding" value={formatCurrency(invoiceSummary?.total_outstanding || 0)} subValue={`${(invoiceSummary?.unpaid.count || 0) + (invoiceSummary?.overdue.count || 0)} invoices pending`} icon={AlertCircle} color="bg-red-50 text-red-600" onClick={() => handleViewChange('unpaid')} />
+        <StatCard title="Advance / Credit" value={formatCurrency(paymentSummary?.advance_amount || 0)} subValue={effectivePatient ? 'Unallocated credit on account' : 'Held across branches'} icon={Wallet} color="bg-teal-50 text-teal-600" onClick={() => handleViewChange('payments')} />
       </div>
 
       {showCcBreakdown && (
@@ -1773,6 +1775,16 @@ const handleMakePayment = async (
             <div className="text-xs text-slate-600">Total Paid</div>
             <div className="text-xl font-bold text-green-600">{formatCurrency(paymentSummary?.total_paid || 0)}</div>
             <div className="text-xs text-slate-500">{paymentSummary?.payment_count || 0} payments</div>
+            {(paymentSummary?.advance_amount || 0) > 0 && (
+              <div className="mt-2 flex items-center justify-between rounded-lg bg-teal-50 px-3 py-2">
+                <span className="flex items-center gap-1.5 text-xs font-medium text-teal-700">
+                  <Wallet className="w-3.5 h-3.5" /> Advance / Credit
+                </span>
+                <span className="text-sm font-bold text-teal-700">
+                  {formatCurrency(paymentSummary?.advance_amount || 0)}
+                </span>
+              </div>
+            )}
             <div className="pt-2 border-t border-slate-100 space-y-1">
               {(paymentSummary?.modes || []).slice(0, 5).map((mode) => (
                 <div key={mode.mode_of_payment} className="flex items-center justify-between text-xs">

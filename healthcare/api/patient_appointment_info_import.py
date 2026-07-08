@@ -411,6 +411,322 @@ def parse_and_cache_excel(file_url: str) -> dict:
 	}
 
 
+APPOINTMENT_IMPORT_ERROR_TITLE_PREFIX = "Patient Appointment APPOINTMENTS_INFO_01 import failed:"
+
+APPOINTMENT_IMPORT_REASONS = {
+	"no_app_date": "Row has no APP_DATE — the importer skips appointments that have no date.",
+	"unparseable_date": "APP_DATE could not be read as a valid date.",
+	"error_logged": "The import raised an error for this transaction (see Error Log).",
+	"not_processed": "APP_DATE is present and no error was logged — this row was never processed. Re-run the import to bring it in.",
+}
+
+
+def _failed_app_nums_from_error_log() -> set[str]:
+	"""APP_NUMs the importer explicitly logged as failed (title carries the APP_NUM)."""
+	failed: set[str] = set()
+	titles = frappe.get_all(
+		"Error Log",
+		filters={"method": ["like", f"%{APPOINTMENT_IMPORT_ERROR_TITLE_PREFIX}%"]},
+		pluck="method",
+		limit_page_length=0,
+	)
+	for title in titles:
+		if not title or APPOINTMENT_IMPORT_ERROR_TITLE_PREFIX not in title:
+			continue
+		tail = title.split("failed:", 1)[1]
+		app_num = _clean_oracle_num(tail)
+		if app_num:
+			failed.add(app_num)
+	return failed
+
+
+def _existing_appointment_names(app_nums: list[str]) -> set[str]:
+	"""Patient Appointment is named by trans_no (= APP_NUM); look up in chunks."""
+	existing: set[str] = set()
+	chunk = 5000
+	for start in range(0, len(app_nums), chunk):
+		batch = app_nums[start : start + chunk]
+		if not batch:
+			continue
+		existing.update(
+			frappe.get_all(
+				"Patient Appointment",
+				filters={"name": ["in", batch]},
+				pluck="name",
+			)
+		)
+	return existing
+
+
+def _classify_missing_row(row: dict, failed_app_nums: set[str]) -> str:
+	raw_date = row.get("app_date")
+	if raw_date in (None, ""):
+		return "no_app_date"
+	try:
+		parsed = getdate(raw_date)
+	except Exception:
+		parsed = None
+	if not parsed:
+		return "unparseable_date"
+	if row["app_num"] in failed_app_nums:
+		return "error_logged"
+	return "not_processed"
+
+
+def _write_not_imported_csv(detailed: list[dict]) -> str | None:
+	"""Write a private CSV of every not-imported transaction (with reason) and return its file_url.
+
+	Written straight to the site's private files so it is not subject to the upload size guard
+	(the not-imported list can be large).
+	"""
+	if not detailed:
+		return None
+	import csv
+	import os
+
+	stamp = frappe.utils.now().replace(" ", "_").replace(":", "-")
+	file_name = f"appointments_not_imported_{stamp}.csv"
+	files_dir = frappe.get_site_path("private", "files")
+	os.makedirs(files_dir, exist_ok=True)
+	disk_path = os.path.join(files_dir, file_name)
+
+	with open(disk_path, "w", newline="", encoding="utf-8") as fh:
+		writer = csv.writer(fh)
+		writer.writerow(
+			[
+				"APP_NUM",
+				"APP_DATE",
+				"PATIENT_NUM",
+				"PATIENT_NAME",
+				"DOC_CODE",
+				"APP_STATUS",
+				"REASON",
+				"DETAIL",
+			]
+		)
+		for item in detailed:
+			writer.writerow(
+				[
+					item["app_num"],
+					item["app_date"],
+					item["patient_num"],
+					item["patient_name"],
+					item["doc_code"],
+					item["app_status"],
+					item["reason"],
+					item["detail"],
+				]
+			)
+
+	file_url = f"/private/files/{file_name}"
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": file_name,
+			"is_private": 1,
+			"file_url": file_url,
+		}
+	)
+	file_doc.flags.ignore_duplicate_entry_error = True
+	file_doc.insert(ignore_permissions=True)
+	return file_url
+
+
+@frappe.whitelist()
+def analyze_patient_appointment_info_import(file_url: str) -> dict:
+	"""Report which APPOINTMENTS_INFO_01 transactions (APP_NUM) are NOT in Patient Appointment and why.
+
+	Patient Appointment is named by ``trans_no`` (= ``APP_NUM``), so a transaction counts as imported
+	when a Patient Appointment with that name exists. For each transaction still missing we work out the
+	most likely reason (no date, unreadable date, logged import error, or simply not processed yet).
+	"""
+	_require_admin()
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the APPOINTMENTS_INFO_01 Excel file."))
+
+	rows, sheet_row_counts = _parse_excel_rows(file_url)
+	app_nums = [row["app_num"] for row in rows]
+	raw_excel_rows = sum(sheet_row_counts.values())
+
+	existing = _existing_appointment_names(app_nums)
+	missing_rows = [row for row in rows if row["app_num"] not in existing]
+
+	failed_app_nums = _failed_app_nums_from_error_log() if missing_rows else set()
+
+	reason_counts = {key: 0 for key in APPOINTMENT_IMPORT_REASONS}
+	detailed: list[dict] = []
+	for row in missing_rows:
+		reason = _classify_missing_row(row, failed_app_nums)
+		reason_counts[reason] += 1
+		detailed.append(
+			{
+				"app_num": row["app_num"],
+				"app_date": _cell_text(row.get("app_date")),
+				"patient_num": row.get("patient_num") or "",
+				"patient_name": row.get("patient_name") or "",
+				"doc_code": row.get("doc_code") or "",
+				"app_status": row.get("app_status") or "",
+				"reason": reason,
+				"detail": APPOINTMENT_IMPORT_REASONS[reason],
+			}
+		)
+
+	samples = {
+		reason: [item["app_num"] for item in detailed if item["reason"] == reason][:10]
+		for reason in APPOINTMENT_IMPORT_REASONS
+	}
+
+	return {
+		"excel_unique_app_nums": len(app_nums),
+		"raw_excel_rows": raw_excel_rows,
+		"duplicate_rows_in_file": max(raw_excel_rows - len(app_nums), 0),
+		"sheet_row_counts": sheet_row_counts,
+		"imported": len(existing),
+		"not_imported": len(missing_rows),
+		"reason_counts": reason_counts,
+		"reason_labels": APPOINTMENT_IMPORT_REASONS,
+		"samples": samples,
+		"csv_file_url": _write_not_imported_csv(detailed),
+	}
+
+
+MAX_DIRECT_MISSING_IMPORT = 5000
+
+
+def _fallback_appointment_date(row: dict):
+	"""Pick a date for legacy rows that have no APP_DATE: CR_DATE → UP_DATE → today."""
+	for key in ("cr_date", "up_date"):
+		value = row.get(key)
+		if value in (None, ""):
+			continue
+		try:
+			parsed = getdate(value)
+		except Exception:
+			parsed = None
+		if parsed:
+			return parsed
+	return getdate(frappe.utils.today())
+
+
+def force_upsert_patient_appointment_from_row(row: dict) -> dict:
+	"""Like ``upsert_patient_appointment_from_row`` but never skips on a missing date.
+
+	When the row has no usable APP_DATE, a fallback date (CR_DATE → UP_DATE → today) is applied so
+	the appointment is still created.
+	"""
+	app_num = row.get("app_num")
+	if not app_num:
+		return {"status": "skip_no_app_num"}
+
+	fields, side_stats = _build_appointment_fields(row)
+	used_fallback_date = False
+	if not fields.get("appointment_date"):
+		fields["appointment_date"] = _fallback_appointment_date(row)
+		used_fallback_date = True
+
+	existing = frappe.db.exists("Patient Appointment", app_num)
+	if existing:
+		doc = frappe.get_doc("Patient Appointment", app_num)
+		for key, value in fields.items():
+			if key == "trans_no":
+				continue
+			doc.set(key, value)
+		action = "updated"
+	else:
+		doc = frappe.new_doc("Patient Appointment")
+		doc.update(fields)
+		action = "created"
+
+	doc.flags.ignore_validate = True
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_links = True
+	doc.flags.legacy_import = True
+
+	if existing:
+		doc.save(ignore_permissions=True)
+	else:
+		doc.insert(ignore_permissions=True)
+
+	return {
+		"status": action,
+		"app_num": app_num,
+		"name": doc.name,
+		"used_fallback_date": used_fallback_date,
+		**side_stats,
+	}
+
+
+@frappe.whitelist()
+def import_missing_patient_appointment_info_rows(file_url: str) -> dict:
+	"""Create the appointments still missing from Patient Appointment, forcing rows without a date.
+
+	Intended for the small remainder left after the main import (e.g. rows with no APP_DATE). Runs
+	synchronously; if too many rows are still missing it asks you to run the main import first.
+	"""
+	_require_admin()
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the APPOINTMENTS_INFO_01 Excel file."))
+
+	rows, _sheet_row_counts = _parse_excel_rows(file_url)
+	app_nums = [row["app_num"] for row in rows]
+	existing = _existing_appointment_names(app_nums)
+	missing_rows = [row for row in rows if row["app_num"] not in existing]
+
+	if not missing_rows:
+		return {
+			"total_missing": 0,
+			"created": 0,
+			"updated": 0,
+			"errors": 0,
+			"fallback_date_used": 0,
+			"created_samples": [],
+			"error_samples": [],
+		}
+
+	if len(missing_rows) > MAX_DIRECT_MISSING_IMPORT:
+		frappe.throw(
+			_(
+				"There are {0} appointments not yet imported. Run the main APPOINTMENTS_INFO_01 import first; "
+				"this direct action is only meant for the small remainder."
+			).format(len(missing_rows))
+		)
+
+	created = updated = errors = fallback_used = 0
+	created_samples: list[str] = []
+	error_samples: list[str] = []
+
+	for row in missing_rows:
+		try:
+			result = force_upsert_patient_appointment_from_row(row)
+			status = result.get("status")
+			if status == "created":
+				created += 1
+				if len(created_samples) < 20:
+					created_samples.append(result.get("name"))
+			elif status == "updated":
+				updated += 1
+			if result.get("used_fallback_date"):
+				fallback_used += 1
+		except Exception:
+			errors += 1
+			if len(error_samples) < 10:
+				error_samples.append(row.get("app_num"))
+			frappe.log_error(
+				title=f"{APPOINTMENT_IMPORT_ERROR_TITLE_PREFIX} {row.get('app_num')}"
+			)
+
+	frappe.db.commit()
+	return {
+		"total_missing": len(missing_rows),
+		"created": created,
+		"updated": updated,
+		"errors": errors,
+		"fallback_date_used": fallback_used,
+		"created_samples": created_samples,
+		"error_samples": error_samples,
+	}
+
+
 def _load_cached_rows() -> dict[str, dict]:
 	raw = frappe.cache().get_value(CACHE_KEYS["rows"])
 	if not raw:

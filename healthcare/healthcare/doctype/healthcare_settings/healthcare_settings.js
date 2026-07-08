@@ -2324,6 +2324,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Analyze: Appointments not imported'), () => {
+			open_patient_appointment_import_analysis();
+		}, __('Migration Analysis'));
+
 		frm.add_custom_button(__('Diagnosis OP - VISIT_DIAGNOSES_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Diagnosis OP (VISIT_DIAGNOSES_01)'),
@@ -3048,6 +3052,138 @@ function run_migration_job(frm, method, jobKey, args = {}) {
 			}
 		},
 	});
+}
+
+function open_patient_appointment_import_analysis() {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Analyze Appointment Import (APPOINTMENTS_INFO_01)'),
+		allow_multiple: false,
+		restrictions: { allowed_file_types: ['.xlsx', '.xls'] },
+		on_success(file) {
+			frappe.call({
+				method: 'healthcare.api.patient_appointment_info_import.analyze_patient_appointment_info_import',
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message: __('Analyzing appointments (reading all sheets)…'),
+				callback(r) {
+					show_patient_appointment_import_analysis(r.message || {}, file.file_url);
+				},
+			});
+		},
+	});
+}
+
+function create_missing_patient_appointments(file_url, res, parent_dialog) {
+	// Close the analysis dialog first so the confirmation is not hidden behind it.
+	if (parent_dialog) {
+		parent_dialog.hide();
+	}
+	frappe.confirm(
+		__(
+			'Create the {0} appointment(s) that were not imported?<br><br>'
+				+ 'Rows without APP_DATE will use their creation date (CR_DATE), '
+				+ 'then UP_DATE, then today as a fallback so they can be saved.',
+			[res.not_imported || 0]
+		),
+		() => {
+			frappe.call({
+				method: 'healthcare.api.patient_appointment_info_import.import_missing_patient_appointment_info_rows',
+				args: { file_url },
+				freeze: true,
+				freeze_message: __('Creating missing appointments…'),
+				callback(r) {
+					const out = r.message || {};
+					frappe.msgprint({
+						title: __('Missing appointments created'),
+						indicator: out.errors ? 'orange' : 'green',
+						message: __(
+							'Created: {0}<br>Updated: {1}<br>Used fallback date: {2}<br>Errors: {3}',
+							[out.created || 0, out.updated || 0, out.fallback_date_used || 0, out.errors || 0]
+						),
+					});
+				},
+			});
+		}
+	);
+}
+
+function show_patient_appointment_import_analysis(res, file_url) {
+	const esc = frappe.utils.escape_html;
+	const reasonLabels = res.reason_labels || {};
+	const reasonCounts = res.reason_counts || {};
+	const samples = res.samples || {};
+
+	const sheetRows = Object.entries(res.sheet_row_counts || {})
+		.map(([name, n]) => `<li>${esc(name)}: ${frappe.format(n, { fieldtype: 'Int' })}</li>`)
+		.join('');
+
+	const reasonRows = Object.keys(reasonLabels)
+		.map((key) => {
+			const count = reasonCounts[key] || 0;
+			const sampleList = (samples[key] || []).join(', ');
+			return `
+				<tr>
+					<td><strong>${frappe.format(count, { fieldtype: 'Int' })}</strong></td>
+					<td>${esc(reasonLabels[key])}</td>
+					<td class="text-muted small">${esc(sampleList) || '&mdash;'}</td>
+				</tr>`;
+		})
+		.join('');
+
+	const downloadLink = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">
+				${__('Download full list (CSV)')}
+			</a>`
+		: `<span class="text-muted">${__('Every transaction in the file was imported.')}</span>`;
+
+	const createBtn = (res.not_imported || 0) > 0
+		? `<button class="btn btn-sm btn-primary" data-create-missing-appointments style="margin-left:8px;">
+				${__('Create missing appointments')}
+			</button>`
+		: '';
+
+	const html = `
+		<div class="appointment-import-analysis">
+			<div class="row">
+				<div class="col-sm-4"><div class="text-muted small">${__('Unique transactions (APP_NUM)')}</div>
+					<div class="h4">${frappe.format(res.excel_unique_app_nums || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-4"><div class="text-muted small">${__('Imported')}</div>
+					<div class="h4 text-success">${frappe.format(res.imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-4"><div class="text-muted small">${__('Not imported')}</div>
+					<div class="h4 text-danger">${frappe.format(res.not_imported || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="text-muted small">
+				${__('Raw rows across sheets')}: ${frappe.format(res.raw_excel_rows || 0, { fieldtype: 'Int' })}
+				&nbsp;&middot;&nbsp;
+				${__('Duplicate rows in file')}: ${frappe.format(res.duplicate_rows_in_file || 0, { fieldtype: 'Int' })}
+			</div>
+			<ul class="small text-muted" style="margin-top:6px;">${sheetRows}</ul>
+			<hr>
+			<h5>${__('Why transactions were not imported')}</h5>
+			<table class="table table-bordered table-sm" style="margin-bottom:10px;">
+				<thead><tr>
+					<th style="width:80px;">${__('Count')}</th>
+					<th>${__('Reason')}</th>
+					<th>${__('Sample APP_NUMs')}</th>
+				</tr></thead>
+				<tbody>${reasonRows}</tbody>
+			</table>
+			<div>${downloadLink}${createBtn}</div>
+		</div>`;
+
+	const dialog = frappe.msgprint({
+		title: __('Appointment Import Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.not_imported || 0) > 0 ? 'orange' : 'green',
+	});
+
+	if ((res.not_imported || 0) > 0 && dialog && dialog.$wrapper) {
+		dialog.$wrapper
+			.find('[data-create-missing-appointments]')
+			.on('click', () => create_missing_patient_appointments(file_url, res, dialog));
+	}
 }
 
 function open_direct_excel_upload({

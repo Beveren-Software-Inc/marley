@@ -957,11 +957,15 @@ def create_patient_visit(data):
 	else:
 		from healthcare.api.patient_visit_charge import maybe_create_patient_visit_charge_sales_order
 
+		charge_lines = data.get("charge_lines")
+		if not isinstance(charge_lines, list):
+			charge_lines = None
 		charge_info = maybe_create_patient_visit_charge_sales_order(
 			visit_doc.name,
 			charge_visit=data.get("charge_visit"),
 			visit_type=visit_doc.visit_type,
 			cost_center=cost_center,
+			charge_lines=charge_lines,
 		)
 	if charge_info and charge_info.get("error"):
 		charge_error = _("Visit charge order could not be created. Visit was saved.")

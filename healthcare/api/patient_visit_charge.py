@@ -94,6 +94,85 @@ def get_patient_visit_charge_preview(visit_type: str | None = None) -> dict:
 	return resolve_visit_charge_config(visit_type)
 
 
+def get_default_visit_type() -> str | None:
+	"""The Patient Visit Type flagged as default, if any."""
+	return frappe.db.get_value("Patient Visit Type", {"is_default": 1}, "name")
+
+
+def resolve_visit_charge_lines(visit_type: str | None = None) -> dict:
+	"""Resolve every charge line to bill for a visit.
+
+	Order of resolution:
+	  1. When no visit type is chosen, fall back to the default Patient Visit Type.
+	  2. The visit type's "Services" child table (one charge line per row).
+	  3. Legacy single Patient Visit Type.service_charge.
+	  4. Healthcare Settings Normal Patient Visit Charge Item.
+	All resolved services are included by default; the doctor edits them on the UI.
+	"""
+	visit_type = (visit_type or "").strip()
+
+	used_default_visit_type = False
+	if not visit_type:
+		default_type = get_default_visit_type()
+		if default_type:
+			visit_type = default_type
+			used_default_visit_type = True
+
+	no_charges = visit_type_no_charges(visit_type)
+	lines: list[dict] = []
+	source: str | None = None
+
+	rows = []
+	if visit_type and frappe.db.exists("Patient Visit Type", visit_type):
+		rows = frappe.get_all(
+			"Patient Visit Type Service",
+			filters={"parent": visit_type, "parenttype": "Patient Visit Type"},
+			fields=["service_charge"],
+			order_by="idx asc",
+		)
+
+	if rows:
+		source = "visit_type_services"
+		for row in rows:
+			config = _template_to_config((row.get("service_charge") or "").strip())
+			if not config.get("configured"):
+				continue
+			lines.append({**config, "source": "visit_type"})
+	else:
+		config = resolve_visit_charge_config(visit_type)
+		source = config.get("source")
+		if config.get("configured"):
+			lines.append(
+				{
+					"configured": True,
+					"template": config.get("template"),
+					"service_name": config.get("service_name"),
+					"item_code": config.get("item_code"),
+					"item_name": config.get("item_name"),
+					"rate": config.get("rate"),
+					"source": config.get("source"),
+				}
+			)
+
+	if no_charges:
+		lines = []
+
+	return {
+		"no_charges": no_charges,
+		"visit_type": visit_type or None,
+		"used_default_visit_type": used_default_visit_type,
+		"source": source,
+		"configured": bool(lines),
+		"lines": lines,
+	}
+
+
+@frappe.whitelist()
+def get_patient_visit_charge_lines(visit_type: str | None = None) -> dict:
+	"""API for create-visit UI: list every configured charge line for a visit type."""
+	return resolve_visit_charge_lines(visit_type)
+
+
 def _visit_charge_sales_order_names(
 	visit_name: str,
 	*,
@@ -124,11 +203,88 @@ def _existing_visit_charge_sales_order(visit_name: str, item_code: str) -> str |
 	return names[0] if names else None
 
 
+def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | None) -> list[dict]:
+	"""Turn the requested charge lines (or the auto defaults) into SO line configs.
+
+	`charge_lines` (from the UI) is a list of dicts:
+	    {template, qty?, discount_type?, discount_rate?, discount?}
+	Rates are always resolved server-side from the Healthcare Service Template so
+	the client can only influence discounts, not the base price.
+	When no charge lines are supplied the visit type's default service(s) are used.
+	"""
+	resolved: list[dict] = []
+
+	if charge_lines:
+		for cl in charge_lines:
+			if not isinstance(cl, dict):
+				continue
+			template = (cl.get("template") or "").strip()
+			item_code = (cl.get("item_code") or "").strip()
+			if template:
+				config = _template_to_config(template)
+				if not config.get("configured"):
+					continue
+			elif item_code:
+				config = {
+					"configured": True,
+					"template": None,
+					"service_name": cl.get("item_name") or cl.get("service_name") or item_code,
+					"item_code": item_code,
+					"item_name": cl.get("item_name"),
+					"rate": flt(cl.get("rate")),
+					"source": "manual",
+				}
+			else:
+				continue
+			resolved.append(
+				{
+					**config,
+					"qty": flt(cl.get("qty")) or 1,
+					"discount_type": (cl.get("discount_type") or "").strip(),
+					"discount_rate": flt(cl.get("discount_rate")),
+					"discount": flt(cl.get("discount")),
+				}
+			)
+		return resolved
+
+	data = resolve_visit_charge_lines(visit_type)
+	for line in data.get("lines") or []:
+		if line.get("configured"):
+			resolved.append({**line, "qty": 1})
+	return resolved
+
+
+def _append_charge_line_to_so(so, line: dict, visit_label: str) -> float:
+	"""Append one resolved charge line to the Sales Order. Returns the line net total."""
+	rate = flt(line.get("rate"))
+	qty = flt(line.get("qty")) or 1
+	service_name = line.get("service_name") or _("Patient Visit Charge")
+	item = {
+		"item_code": line["item_code"],
+		"item_name": line.get("item_name") or service_name,
+		"description": _("Visit charge: {0}").format(visit_label),
+		"qty": qty,
+		"price_list_rate": rate,
+		"rate": rate,
+	}
+
+	discount_type = (line.get("discount_type") or "").strip()
+	if rate > 0 and discount_type == "Percentage" and flt(line.get("discount_rate")) > 0:
+		item["discount_percentage"] = min(100.0, flt(line.get("discount_rate")))
+	elif rate > 0 and discount_type == "Amount" and flt(line.get("discount")) > 0:
+		item["discount_amount"] = min(rate, flt(line.get("discount")))
+		item["rate"] = max(0.0, rate - item["discount_amount"])
+
+	so.append("items", item)
+	return flt(item.get("rate")) * qty
+
+
 def create_patient_visit_charge_sales_order(
 	visit_name: str,
 	*,
 	visit_type: str | None = None,
 	cost_center: str | None = None,
+	charge_lines: list | None = None,
 	submit: bool = True,
 ) -> dict:
 	"""Create (or return) a Sales Order for a patient visit registration charge."""
@@ -137,27 +293,28 @@ def create_patient_visit_charge_sales_order(
 
 	visit = frappe.get_doc("Patient Visit", visit_name)
 	visit_type = visit_type or visit.visit_type
-	config = resolve_visit_charge_config(visit_type)
-	if not config.get("configured"):
+
+	lines = _resolve_charge_lines_for_so(visit_type, charge_lines)
+	if not lines:
 		frappe.throw(
 			_(
 				"Patient visit charge is not configured for visit type {0}. "
-				"Set Service Charge on Patient Visit Type or Normal Patient Visit Charge Item in Healthcare Settings."
+				"Add Services to the Patient Visit Type or set the Normal Patient Visit Charge Item in Healthcare Settings."
 			).format(visit_type or _("(default)"))
 		)
 
-	item_code = config["item_code"]
-	existing = _existing_visit_charge_sales_order(visit.name, item_code)
-	if existing:
-		so = frappe.get_doc("Sales Order", existing)
+	existing_names = _existing_visit_charge_sales_orders(visit.name, docstatus=["!=", 2])
+	if existing_names:
+		so = frappe.get_doc("Sales Order", existing_names[0])
 		if submit and so.docstatus == 0:
 			so.flags.ignore_permissions = True
 			so.submit()
+		total_rate = sum(flt(row.rate) * flt(row.qty) for row in so.items)
 		return {
 			"sales_order": so.name,
 			"status": so.status,
 			"existing": True,
-			"rate": config.get("rate"),
+			"rate": total_rate,
 		}
 
 	customer = _ensure_patient_customer(visit.patient)
@@ -167,8 +324,6 @@ def create_patient_visit_charge_sales_order(
 	if not company:
 		frappe.throw(_("Default Company is not set"))
 
-	service_name = config.get("service_name") or _("Patient Visit Charge")
-	rate = flt(config.get("rate"))
 	visit_label = visit.case_no or visit.name
 
 	so = frappe.new_doc("Sales Order")
@@ -188,17 +343,9 @@ def create_patient_visit_charge_sales_order(
 	so.delivery_date = visit.encounter_date or nowdate()
 	so.ignore_pricing_rule = 1
 
-	so.append(
-		"items",
-		{
-			"item_code": item_code,
-			"item_name": config.get("item_name") or service_name,
-			"description": _("Visit charge: {0}").format(visit_label),
-			"qty": 1,
-			"rate": rate,
-			"price_list_rate": rate,
-		},
-	)
+	total_rate = 0.0
+	for line in lines:
+		total_rate += _append_charge_line_to_so(so, line, visit_label)
 
 	cc = (cost_center or visit.cost_center or "").strip() or None
 	apply_cost_center_to_sales_order(so, cc)
@@ -212,7 +359,7 @@ def create_patient_visit_charge_sales_order(
 		"sales_order": so.name,
 		"status": so.status,
 		"existing": False,
-		"rate": rate,
+		"rate": total_rate,
 	}
 
 
@@ -222,6 +369,7 @@ def maybe_create_patient_visit_charge_sales_order(
 	charge_visit: bool | int | None = None,
 	visit_type: str | None = None,
 	cost_center: str | None = None,
+	charge_lines: list | None = None,
 ) -> dict | None:
 	"""Create visit charge SO when requested; return None when skipped."""
 	if charge_visit is None:
@@ -239,11 +387,152 @@ def maybe_create_patient_visit_charge_sales_order(
 			visit_name,
 			visit_type=visit_type,
 			cost_center=cost_center,
+			charge_lines=charge_lines,
 			submit=True,
 		)
 	except Exception:
 		frappe.log_error(title=f"Patient visit charge failed: {visit_name}")
 		return {"error": True}
+
+
+def _sales_order_is_invoiced(so_name: str) -> bool:
+	"""True when a submitted Sales Invoice references this Sales Order."""
+	if not so_name:
+		return False
+	return bool(
+		frappe.db.exists("Sales Invoice Item", {"sales_order": so_name, "docstatus": 1})
+	)
+
+
+def _visit_charge_editor_lines(so) -> list[dict]:
+	lines: list[dict] = []
+	for it in so.items:
+		gross = flt(it.price_list_rate) or flt(it.rate)
+		net = flt(it.rate)
+		discount = flt(it.discount_amount)
+		if not discount and gross > net:
+			discount = gross - net
+		lines.append(
+			{
+				"item_code": it.item_code,
+				"item_name": it.item_name,
+				"rate": gross,
+				"qty": flt(it.qty) or 1,
+				"discount": discount,
+				"net": net,
+			}
+		)
+	return lines
+
+
+@frappe.whitelist()
+def get_patient_visit_charge_editor(visit_name: str) -> dict:
+	"""Return the current visit charge lines (from the Sales Order) plus the
+	visit type's services, so the doctor can edit discounts / add / remove."""
+	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
+		frappe.throw(_("Patient Visit not found"))
+
+	visit = frappe.get_doc("Patient Visit", visit_name)
+	names = _existing_visit_charge_sales_orders(visit_name, docstatus=["!=", 2])
+	sales_order = names[0] if names else None
+
+	lines: list[dict] = []
+	editable = True
+	locked_reason = None
+	if sales_order:
+		so = frappe.get_doc("Sales Order", sales_order)
+		lines = _visit_charge_editor_lines(so)
+		if _sales_order_is_invoiced(so.name):
+			editable = False
+			locked_reason = "invoiced"
+
+	charge_data = resolve_visit_charge_lines(visit.visit_type)
+	available_services = [
+		{
+			"template": line.get("template"),
+			"item_code": line.get("item_code"),
+			"item_name": line.get("item_name") or line.get("service_name"),
+			"rate": flt(line.get("rate")),
+		}
+		for line in charge_data.get("lines") or []
+		if line.get("configured") and line.get("item_code")
+	]
+
+	return {
+		"editable": editable,
+		"locked_reason": locked_reason,
+		"sales_order": sales_order,
+		"no_charges": charge_data.get("no_charges"),
+		"lines": lines,
+		"available_services": available_services,
+	}
+
+
+@frappe.whitelist()
+def update_patient_visit_charge(visit_name: str, lines=None) -> dict:
+	"""Replace the visit charge Sales Order with the supplied lines.
+
+	`lines` is a list of {item_code, item_name, rate, qty, discount} (fixed
+	amount discount). Removing all lines removes the charge entirely.
+	Fails when the existing charge has already been invoiced.
+	"""
+	if isinstance(lines, str):
+		lines = frappe.parse_json(lines)
+	lines = lines or []
+
+	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
+		frappe.throw(_("Patient Visit not found"))
+
+	visit = frappe.get_doc("Patient Visit", visit_name)
+	existing = _existing_visit_charge_sales_orders(visit_name, docstatus=["!=", 2])
+
+	for so_name in existing:
+		if _sales_order_is_invoiced(so_name):
+			frappe.throw(
+				_("This visit charge has already been invoiced and can no longer be edited.")
+			)
+
+	charge_lines: list[dict] = []
+	for cl in lines:
+		if not isinstance(cl, dict):
+			continue
+		item_code = (cl.get("item_code") or "").strip()
+		template = (cl.get("template") or "").strip()
+		if not item_code and not template:
+			continue
+		charge_lines.append(
+			{
+				"item_code": item_code,
+				"template": template,
+				"item_name": cl.get("item_name"),
+				"rate": flt(cl.get("rate")),
+				"qty": flt(cl.get("qty")) or 1,
+				"discount_type": "Amount",
+				"discount": flt(cl.get("discount")),
+			}
+		)
+
+	for so_name in existing:
+		so = frappe.get_doc("Sales Order", so_name)
+		so.flags.ignore_permissions = True
+		if so.docstatus == 1:
+			so.cancel()
+		elif so.docstatus == 0:
+			frappe.delete_doc("Sales Order", so_name, ignore_permissions=True, force=True)
+
+	if not charge_lines:
+		frappe.db.commit()
+		return {"sales_order": None, "removed": True}
+
+	result = create_patient_visit_charge_sales_order(
+		visit_name,
+		visit_type=visit.visit_type,
+		cost_center=visit.cost_center,
+		charge_lines=charge_lines,
+		submit=True,
+	)
+	frappe.db.commit()
+	return result
 
 
 def _resolve_iop_enrollment_charge_lines(enrollment_doc) -> list[dict]:
