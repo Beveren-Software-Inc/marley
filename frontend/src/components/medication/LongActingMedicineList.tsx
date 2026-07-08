@@ -364,7 +364,7 @@ export const LongActingMedicineList = ({ patient, refreshKey, onPatientClick }: 
               {list.map((row) => {
                 const metaFields = [
                   ['Record', row.name],
-                  ['Patient', row.patient_name || row.patient],
+                  ['Patient', row.patient_name],
                   ['Started', formatDashboardDate(row.start_date)],
                   ['Ends', formatDashboardDate(row.end_date)],
                   ['Remarks', row.remarks],

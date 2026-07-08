@@ -100,7 +100,7 @@
 //               return (
 //                 <tr key={`${r.prescription}-${r.order_entry}`} className="hover:bg-slate-50">
 //                   <td className="px-3 py-2 text-slate-900">
-//                     {r.patient_name || r.patient}
+//                     {r.patient_name || '-'}
 //                   </td>
 //                   <td className="px-3 py-2 text-slate-900">{r.drug_name}</td>
 //                   <td className="px-3 py-2 text-slate-700">{r.dosage || '–'}</td>

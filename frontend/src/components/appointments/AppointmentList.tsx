@@ -747,7 +747,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
     ['Department', apt.department],
     ['Branch', apt.cost_center],
     ['Service unit', apt.service_unit],
-    ['Patient', apt.patient_name || apt.patient],
+    ['Patient', apt.patient_name || apt.temporary_patient_name],
     ['Notes', apt.notes],
   ]
   if (isWalkInAppointment(apt)) {
@@ -1644,9 +1644,9 @@ export const AppointmentList = ({
                     >
                       <span
                         className={apt.patient ? 'font-medium text-primary hover:underline' : ''}
-                        title={apt.patient_name || apt.patient || apt.temporary_patient_name || undefined}
+                        title={apt.patient_name || apt.temporary_patient_name || undefined}
                       >
-                        {apt.patient_name || apt.patient || apt.temporary_patient_name || '—'}
+                        {apt.patient_name || apt.temporary_patient_name || '—'}
                       </span>
                       {isWalkInAppointment(apt) && (
                         <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
@@ -1729,9 +1729,9 @@ export const AppointmentList = ({
                       >
                         <span
                           className={`block truncate ${apt.patient ? 'font-medium text-primary hover:underline' : ''}`}
-                          title={apt.patient_name || apt.patient || apt.temporary_patient_name || undefined}
+                          title={apt.patient_name || apt.temporary_patient_name || undefined}
                         >
-                          {apt.patient_name || apt.patient || apt.temporary_patient_name || '—'}
+                          {apt.patient_name || apt.temporary_patient_name || '—'}
                           {isWalkInAppointment(apt) && (
                             <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
                               Walk-in
@@ -1816,7 +1816,7 @@ export const AppointmentList = ({
                         }}
                       >
                         <span className={`${cardHorizontalScroll ? 'inline-flex items-center gap-1.5' : 'truncate block'} ${apt.patient ? 'font-medium text-primary hover:underline cursor-pointer' : ''}`}>
-                          {apt.patient_name || apt.patient || apt.temporary_patient_name || '-'}
+                          {apt.patient_name || apt.temporary_patient_name || '-'}
                           {isWalkInAppointment(apt) && (
                             <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
                               Walk-in

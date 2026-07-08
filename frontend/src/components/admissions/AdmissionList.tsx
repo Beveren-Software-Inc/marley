@@ -64,10 +64,8 @@ function getIpDefaultFilters() {
 }
 
 function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
-  const name = (record.patient_name || record.patient || '').trim()
-  const fileNo = (record.file_no || '').trim()
-  if (fileNo && name) return `${fileNo}: ${name}`
-  return name || fileNo || '-'
+  // Patient column shows the name only — no file no / patient id prefix.
+  return (record.patient_name || '').trim() || '-'
 }
 
 interface AdmissionListProps {

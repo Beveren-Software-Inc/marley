@@ -412,9 +412,8 @@ export const CreatePrescriptionModal = ({
 
   const applyDrugSelection = async (index: number, opt: LinkFieldOption) => {
     const route = opt.default_route_of_administration?.trim()
-    // IP prescriptions always measure in UNITS (nurse-department rule); OP keeps the item's stock UOM.
-    const stockUom =
-      formData.care_context === 'Inpatient Admission' ? 'UNITS' : (opt.stock_uom || '').trim()
+    // UOM defaults to UNITS on every prescription line (editable if it differs).
+    const stockUom = 'UNITS'
     setMedications((prev) => {
       const next = [...prev]
       if (!next[index]) return prev

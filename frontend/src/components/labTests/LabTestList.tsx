@@ -862,13 +862,13 @@
 //             ${letterHeadContent ? `<div class="letter-head-top">${letterHeadContent}</div>` : ''}
 //             <div class="top">
 //               <h1>${escapeHtml(groupLabel)} - Group Test Report</h1>
-//               <div class="meta">Group Reference: ${escapeHtml(serviceRequest)} | Patient: ${escapeHtml(first?.patient_name || first?.patient || '')}</div>
+//               <div class="meta">Group Reference: ${escapeHtml(serviceRequest)} | Patient: ${escapeHtml(first?.patient_name || '')}</div>
 //               <div class="meta">Printed On: ${escapeHtml(issuedOn)} | Total Tests: ${fullTests.length}</div>
 //             </div>
 
 //             <table class="patient-table">
 //               <tr>
-//                 <td class="lbl">Patient Name</td><td>${escapeHtml(first?.patient_name || first?.patient || '')}</td>
+//                 <td class="lbl">Patient Name</td><td>${escapeHtml(first?.patient_name || '')}</td>
 //                 <td class="lbl">Request No.</td><td>${escapeHtml(serviceRequest)}</td>
 //               </tr>
 //               <tr>
@@ -3215,13 +3215,13 @@ export const LabTestList = ({
             ${letterHeadContent ? `<div class="letter-head-top">${letterHeadContent}</div>` : ''}
             <div class="top">
               <h1>${escapeHtml(groupLabel)} - Group Test Report</h1>
-              <div class="meta">Group Reference: ${escapeHtml(serviceRequest)} | Patient: ${escapeHtml(first?.patient_name || first?.patient || '')}</div>
+              <div class="meta">Group Reference: ${escapeHtml(serviceRequest)} | Patient: ${escapeHtml(first?.patient_name || '')}</div>
               <div class="meta">Printed On: ${escapeHtml(issuedOn)} | Total Tests: ${fullTests.length}</div>
             </div>
 
             <table class="patient-table">
               <tr>
-                <td class="lbl">Patient Name</td><td>${escapeHtml(first?.patient_name || first?.patient || '')}</td>
+                <td class="lbl">Patient Name</td><td>${escapeHtml(first?.patient_name || '')}</td>
                 <td class="lbl">Request No.</td><td>${escapeHtml(serviceRequest)}</td>
               </tr>
               <tr>
@@ -3394,7 +3394,7 @@ export const LabTestList = ({
                           className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer"
                           onClick={() => representativeChild.patient && onPatientClick?.(representativeChild.patient)}
                         >
-                          <span className="font-medium text-primary hover:underline">{representativeChild.patient_name || representativeChild.patient || '-'}</span>
+                          <span className="font-medium text-primary hover:underline">{representativeChild.patient_name || '-'}</span>
                         </td>
                       )}
                       {/* Test (group) */}

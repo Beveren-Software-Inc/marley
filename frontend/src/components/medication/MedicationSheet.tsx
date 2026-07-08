@@ -165,7 +165,7 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
           </div>
           <div>
             <span className="font-semibold text-slate-600">Patient</span>
-            <p className="text-slate-900">{sheet.patient_name || sheet.patient}</p>
+            <p className="text-slate-900">{sheet.patient_name || '-'}</p>
           </div>
           <div>
             <span className="font-semibold text-slate-600">Current prescription</span>
