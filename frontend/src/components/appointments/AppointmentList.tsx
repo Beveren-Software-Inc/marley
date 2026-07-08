@@ -926,11 +926,9 @@ export const AppointmentList = ({
   const apptTime = (apt: Appointment) =>
     apt.appointment_time ? apt.appointment_time.slice(0, 5) : apt.old_time || '—'
 
-  // Only admins / system managers can change the doctor (practitioner) filter.
-  // For a doctor it stays locked to their own linked practitioner.
-  const { user } = useAuth()
-  const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
-  const canChangePractitioner = isAdmin(authRoles)
+  // The doctor (practitioner) filter defaults to the logged-in user's linked practitioner,
+  // but it is not locked — anyone can change or clear it.
+  const canChangePractitioner = true
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
   const todayISO = new Date().toISOString().split('T')[0]

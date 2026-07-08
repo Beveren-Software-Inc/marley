@@ -1108,6 +1108,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_ip_admission_bundle_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Insurance Claims — INSURANCE_00_01 + 02'), () => {
+			open_insurance_claim_bundle_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),
@@ -2324,6 +2328,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Analyze: Appointments not imported'), () => {
+			open_patient_appointment_import_analysis();
+		}, __('Migration Analysis'));
+
 		frm.add_custom_button(__('Diagnosis OP - VISIT_DIAGNOSES_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Diagnosis OP (VISIT_DIAGNOSES_01)'),
@@ -3050,6 +3058,138 @@ function run_migration_job(frm, method, jobKey, args = {}) {
 	});
 }
 
+function open_patient_appointment_import_analysis() {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Analyze Appointment Import (APPOINTMENTS_INFO_01)'),
+		allow_multiple: false,
+		restrictions: { allowed_file_types: ['.xlsx', '.xls'] },
+		on_success(file) {
+			frappe.call({
+				method: 'healthcare.api.patient_appointment_info_import.analyze_patient_appointment_info_import',
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message: __('Analyzing appointments (reading all sheets)…'),
+				callback(r) {
+					show_patient_appointment_import_analysis(r.message || {}, file.file_url);
+				},
+			});
+		},
+	});
+}
+
+function create_missing_patient_appointments(file_url, res, parent_dialog) {
+	// Close the analysis dialog first so the confirmation is not hidden behind it.
+	if (parent_dialog) {
+		parent_dialog.hide();
+	}
+	frappe.confirm(
+		__(
+			'Create the {0} appointment(s) that were not imported?<br><br>'
+				+ 'Rows without APP_DATE will use their creation date (CR_DATE), '
+				+ 'then UP_DATE, then today as a fallback so they can be saved.',
+			[res.not_imported || 0]
+		),
+		() => {
+			frappe.call({
+				method: 'healthcare.api.patient_appointment_info_import.import_missing_patient_appointment_info_rows',
+				args: { file_url },
+				freeze: true,
+				freeze_message: __('Creating missing appointments…'),
+				callback(r) {
+					const out = r.message || {};
+					frappe.msgprint({
+						title: __('Missing appointments created'),
+						indicator: out.errors ? 'orange' : 'green',
+						message: __(
+							'Created: {0}<br>Updated: {1}<br>Used fallback date: {2}<br>Errors: {3}',
+							[out.created || 0, out.updated || 0, out.fallback_date_used || 0, out.errors || 0]
+						),
+					});
+				},
+			});
+		}
+	);
+}
+
+function show_patient_appointment_import_analysis(res, file_url) {
+	const esc = frappe.utils.escape_html;
+	const reasonLabels = res.reason_labels || {};
+	const reasonCounts = res.reason_counts || {};
+	const samples = res.samples || {};
+
+	const sheetRows = Object.entries(res.sheet_row_counts || {})
+		.map(([name, n]) => `<li>${esc(name)}: ${frappe.format(n, { fieldtype: 'Int' })}</li>`)
+		.join('');
+
+	const reasonRows = Object.keys(reasonLabels)
+		.map((key) => {
+			const count = reasonCounts[key] || 0;
+			const sampleList = (samples[key] || []).join(', ');
+			return `
+				<tr>
+					<td><strong>${frappe.format(count, { fieldtype: 'Int' })}</strong></td>
+					<td>${esc(reasonLabels[key])}</td>
+					<td class="text-muted small">${esc(sampleList) || '&mdash;'}</td>
+				</tr>`;
+		})
+		.join('');
+
+	const downloadLink = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">
+				${__('Download full list (CSV)')}
+			</a>`
+		: `<span class="text-muted">${__('Every transaction in the file was imported.')}</span>`;
+
+	const createBtn = (res.not_imported || 0) > 0
+		? `<button class="btn btn-sm btn-primary" data-create-missing-appointments style="margin-left:8px;">
+				${__('Create missing appointments')}
+			</button>`
+		: '';
+
+	const html = `
+		<div class="appointment-import-analysis">
+			<div class="row">
+				<div class="col-sm-4"><div class="text-muted small">${__('Unique transactions (APP_NUM)')}</div>
+					<div class="h4">${frappe.format(res.excel_unique_app_nums || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-4"><div class="text-muted small">${__('Imported')}</div>
+					<div class="h4 text-success">${frappe.format(res.imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-4"><div class="text-muted small">${__('Not imported')}</div>
+					<div class="h4 text-danger">${frappe.format(res.not_imported || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="text-muted small">
+				${__('Raw rows across sheets')}: ${frappe.format(res.raw_excel_rows || 0, { fieldtype: 'Int' })}
+				&nbsp;&middot;&nbsp;
+				${__('Duplicate rows in file')}: ${frappe.format(res.duplicate_rows_in_file || 0, { fieldtype: 'Int' })}
+			</div>
+			<ul class="small text-muted" style="margin-top:6px;">${sheetRows}</ul>
+			<hr>
+			<h5>${__('Why transactions were not imported')}</h5>
+			<table class="table table-bordered table-sm" style="margin-bottom:10px;">
+				<thead><tr>
+					<th style="width:80px;">${__('Count')}</th>
+					<th>${__('Reason')}</th>
+					<th>${__('Sample APP_NUMs')}</th>
+				</tr></thead>
+				<tbody>${reasonRows}</tbody>
+			</table>
+			<div>${downloadLink}${createBtn}</div>
+		</div>`;
+
+	const dialog = frappe.msgprint({
+		title: __('Appointment Import Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.not_imported || 0) > 0 ? 'orange' : 'green',
+	});
+
+	if ((res.not_imported || 0) > 0 && dialog && dialog.$wrapper) {
+		dialog.$wrapper
+			.find('[data-create-missing-appointments]')
+			.on('click', () => create_missing_patient_appointments(file_url, res, dialog));
+	}
+}
+
 function open_direct_excel_upload({
 	dialog_title,
 	preview_method,
@@ -3332,6 +3472,133 @@ function open_ip_admission_bundle_upload() {
 
 	dialog.show();
 	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-admission-bundle-status'));
+}
+
+function open_insurance_claim_bundle_upload() {
+	const files = {
+		master: null,
+		services: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload the insurance claim files. INSURANCE_00_01 creates one Insurance Claim per TRANS_NUM (as TRICARE, tagged Legacy); INSURANCE_00_02 service lines are attached by TRANS_NUM. Each patient is marked insured (TRICARE) and gets an Insurance Patient Register if missing. Existing claims (same Trans No) are skipped.'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('INSURANCE_00_01')} (${__('master claims')})</td>
+						<td class="bundle-ins-master-status">${fileLabel(files.master)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ins-master">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('INSURANCE_00_02')} (${__('claim services — optional')})</td>
+						<td class="bundle-ins-services-status">${fileLabel(files.services)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ins-services">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-ins-master').on('click', () => {
+			pickFile(__('INSURANCE_00_01 Excel'), (url) => {
+				files.master = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-ins-services').on('click', () => {
+			pickFile(__('INSURANCE_00_02 Excel'), (url) => {
+				files.services = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Insurance Claims — INSURANCE_00_01 + 02'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="insurance-claim-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Import Claims'),
+		primary_action() {
+			if (!files.master) {
+				frappe.msgprint({
+					title: __('Master file required'),
+					message: __('Please upload the INSURANCE_00_01 master Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.confirm(
+				__(
+					'Import insurance claims as TRICARE (tagged Legacy)? Large files can take a minute. Continue?'
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.healthcare.api.insurance_claim.import_insurance_claims',
+						args: {
+							master_file_url: files.master,
+							child_file_url: files.services,
+						},
+						freeze: true,
+						freeze_message: __('Importing insurance claims…'),
+						callback(r) {
+							const m = r.message || {};
+							dialog.hide();
+							frappe.msgprint({
+								title: __('Insurance Claim Import Complete'),
+								indicator: m.error_count ? 'orange' : 'green',
+								message: __(
+									'Master rows: {0}<br>Created: {1}<br>Updated (existing drafts): {2}<br>Submitted: {3}<br>Skipped (already submitted/blank): {4}<br>Patients insured (TRICARE): {5}<br>Registers created: {6}<br>New patients created: {7}<br>Errors: {8}',
+									[
+										m.total_master_rows || 0,
+										m.created || 0,
+										m.updated || 0,
+										m.submitted || 0,
+										m.skipped || 0,
+										m.patients_insured || 0,
+										m.registers_created || 0,
+										m.patients_created || 0,
+										m.error_count || 0,
+									]
+								),
+							});
+						},
+					});
+				}
+			);
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.insurance-claim-bundle-status'));
 }
 
 function open_lab_test_bundle_upload() {

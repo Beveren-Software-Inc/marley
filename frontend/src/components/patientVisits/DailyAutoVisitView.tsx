@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarClock, ClipboardList, Settings } from 'lucide-react'
+import { CalendarClock, ClipboardList, Settings, Eye, EyeOff, CalendarRange, X } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { PatientVisitList } from './PatientVisitList'
 import { DailyPatientVisitSetupDetailPanel } from './DailyPatientVisitSetupDetailPanel'
@@ -9,6 +9,7 @@ import {
   createDailyPatientVisitSetup,
   fetchDailyPatientVisitSetups,
   stopDailyPatientVisitSetup,
+  updateDailyPatientVisitSetup,
   type DailyPatientVisitSetup,
   type DailyPatientVisitSetupServiceLine,
 } from '../../services/dailyPatientVisitSetup'
@@ -402,9 +403,31 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
   const [detailSetup, setDetailSetup] = useState<DailyPatientVisitSetup | null>(null)
   const [editSetupName, setEditSetupName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [toggling, setToggling] = useState<string | null>(null)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'stopped'>('all')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeCount = useMemo(() => setups.filter((s) => !!s.is_active).length, [setups])
+
+  const filteredSetups = useMemo(() => {
+    return setups.filter((s) => {
+      if (statusFilter === 'active' && !s.is_active) return false
+      if (statusFilter === 'stopped' && s.is_active) return false
+      if (fromDate || toDate) {
+        const start = s.from_date || ''
+        const end = s.to_date || ''
+        if (!start && !end) return false
+        // Keep rows whose schedule window overlaps the selected range.
+        if (fromDate && end && end < fromDate) return false
+        if (toDate && start && start > toDate) return false
+      }
+      return true
+    })
+  }, [setups, statusFilter, fromDate, toDate])
+
+  const filtersActive = !!(fromDate || toDate || statusFilter !== 'all')
 
   const loadSetups = async () => {
     try {
@@ -457,6 +480,24 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
     }
   }
 
+  const toggleSetupActive = async (row: DailyPatientVisitSetup) => {
+    if (!row.name) return
+    const next = !row.is_active
+    try {
+      setToggling(row.name)
+      await updateDailyPatientVisitSetup(row.name, { is_active: next })
+      toast.success(next ? 'Enabled — visits will be created daily' : 'Disabled — no visits will be created')
+      if (detailSetup?.name === row.name) {
+        setDetailSetup((prev) => (prev ? { ...prev, is_active: next } : prev))
+      }
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update')
+    } finally {
+      setToggling(null)
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -495,7 +536,10 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="text-sm font-semibold text-emerald-950">Daily Patient Visit Setup</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Active setups: {activeCount}</p>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Active setups: {activeCount}
+                {filtersActive && ` · Showing ${filteredSetups.length} of ${setups.length}`}
+              </p>
             </div>
             <button
               type="button"
@@ -507,10 +551,64 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
             </button>
           </div>
 
+          <div className="mb-3 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5">
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
+              <div className="relative">
+                <CalendarRange className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(e) => setFromDate(e.target.value)}
+                  className="h-8 rounded-md border border-slate-300 bg-white pl-7 pr-2 text-sm text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
+              <div className="relative">
+                <CalendarRange className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                <input
+                  type="date"
+                  value={toDate}
+                  onChange={(e) => setToDate(e.target.value)}
+                  className="h-8 rounded-md border border-slate-300 bg-white pl-7 pr-2 text-sm text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300"
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1">
+              <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500">Status</label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as 'all' | 'active' | 'stopped')}
+                className="h-8 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300"
+              >
+                <option value="all">All</option>
+                <option value="active">Active</option>
+                <option value="stopped">Stopped</option>
+              </select>
+            </div>
+            {filtersActive && (
+              <button
+                type="button"
+                onClick={() => {
+                  setFromDate('')
+                  setToDate('')
+                  setStatusFilter('all')
+                }}
+                className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-600 hover:bg-slate-100"
+              >
+                <X className="h-3.5 w-3.5" /> Clear
+              </button>
+            )}
+          </div>
+
           {loading ? (
             <div className="py-8 text-sm text-slate-500 text-center">Loading setups...</div>
           ) : setups.length === 0 ? (
-            <div className="py-8 text-sm text-slate-400 text-center">NO DAILY PATIENT VISIT SETUP FOUND.</div>
+            <div className="py-8 text-sm text-slate-400 text-center">No Daily Patient Visit Setup found.</div>
+          ) : filteredSetups.length === 0 ? (
+            <div className="py-8 text-sm text-slate-400 text-center">No setups match the selected filters.</div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1100px]">
@@ -529,7 +627,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {setups.map((row) => (
+                  {filteredSetups.map((row) => (
                     <tr key={row.name} className="hover:bg-slate-50 transition-colors">
                       <td
                         className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer whitespace-nowrap"
@@ -563,7 +661,22 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                         </span>
                       </td>
                       <td className="px-4 py-2 align-middle">
-                        <div className="relative" ref={openActionRow === row.name ? menuRef : undefined}>
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => toggleSetupActive(row)}
+                            disabled={toggling === row.name}
+                            className={`inline-flex items-center justify-center w-8 h-8 rounded border transition disabled:opacity-50 ${
+                              row.is_active
+                                ? 'border-emerald-200 bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                : 'border-slate-300 bg-white text-slate-400 hover:bg-slate-50'
+                            }`}
+                            aria-label={row.is_active ? 'Disable (hide from scheduler)' : 'Enable (show to scheduler)'}
+                            title={row.is_active ? 'Enabled — click to disable' : 'Disabled — click to enable'}
+                          >
+                            {row.is_active ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                          </button>
+                          <div className="relative" ref={openActionRow === row.name ? menuRef : undefined}>
                           <button
                             type="button"
                             onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : row.name || null))}
@@ -599,6 +712,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                               {stopping === row.name ? 'Stopping…' : 'Stop'}
                             </button>
                           </PortalActionsMenu>
+                          </div>
                         </div>
                       </td>
                     </tr>

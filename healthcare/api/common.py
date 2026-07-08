@@ -2125,6 +2125,22 @@ def get_insurance_patient_registers(search=None):
 		limit=100,
 		order_by="creation desc",
 	)
+
+	if records:
+		patient_ids = list({r.patient for r in records if r.patient})
+		patient_map = {}
+		if patient_ids:
+			for p in frappe.get_all(
+				"Patient",
+				filters={"name": ["in", patient_ids]},
+				fields=["name", "patient_name", "file_no"],
+			):
+				patient_map[p.name] = p
+		for r in records:
+			pm = patient_map.get(r.patient) if r.patient else None
+			r["patient_name"] = (pm.patient_name or "") if pm else ""
+			r["patient_file_no"] = (pm.file_no or pm.name or "") if pm else ""
+
 	return records
 
 
@@ -2253,7 +2269,7 @@ def get_insurance_claims(
 			"insurance_payor", "claim_date", "status", "docstatus",
 			"total_claimed", "total_approved", "total_rejected",
 			"total_patient_liability", "sales_invoice",
-			"authorization_no", "remark",
+			"authorization_no", "remark", "vch_status",
 		],
 		limit=200,
 		order_by="creation desc",
@@ -2343,6 +2359,7 @@ def get_insurance_claims_dashboard(patient=None, health_insurance=None):
 		fields=[
 			"name", "status", "health_insurance", "insurance_payor",
 			"total_claimed", "total_approved", "total_rejected", "patient",
+			"legacy",
 		],
 	)
 
@@ -2358,6 +2375,7 @@ def get_insurance_claims_dashboard(patient=None, health_insurance=None):
 			by_insurance[key] = {
 				"health_insurance": key,
 				"total": 0,
+				"legacy": 0,
 				"pending": 0,
 				"submitted": 0,
 				"paid": 0,
@@ -2369,7 +2387,10 @@ def get_insurance_claims_dashboard(patient=None, health_insurance=None):
 		row = by_insurance[key]
 		row["total"] += 1
 		st = c.status or "Draft"
-		if st in ("Draft", "Submitted", "Partially Paid"):
+		# Legacy imports have an unknown workflow state — don't count them as pending.
+		if c.legacy:
+			row["legacy"] += 1
+		elif st in ("Draft", "Submitted", "Partially Paid"):
 			row["pending"] += 1
 		if st == "Submitted":
 			row["submitted"] += 1
@@ -2398,8 +2419,12 @@ def get_insurance_claims_dashboard(patient=None, health_insurance=None):
 		by_category[cat]["count"] += 1
 		by_category[cat]["total_claimed"] += flt(c.total_claimed)
 
-	pending = status_counts.get("Draft", 0) + status_counts.get("Submitted", 0)
-	pending += status_counts.get("Partially Paid", 0)
+	# Legacy imports have an unknown workflow state — exclude them from "pending".
+	pending = sum(
+		1
+		for c in claims
+		if not c.legacy and (c.status or "Draft") in ("Draft", "Submitted", "Partially Paid")
+	)
 
 	return {
 		"totals": {
@@ -2702,6 +2727,18 @@ def save_insurance_claim(data):
 	if submit and doc.status == "Draft":
 		doc.status = "Submitted"
 	_append_claim_items(doc, data.get("claim_items"))
+
+	if not claim_name:
+		# New claim: auto-generate a legacy-style trans_no and make sure an
+		# insurer is attached (fall back to the patient's insurance / TRICARE).
+		from healthcare.healthcare.api.insurance_claim import (
+			ensure_claim_insurance,
+			get_next_insurance_claim_trans_no,
+		)
+
+		if not (getattr(doc, "trans_no", None) or "").strip():
+			doc.trans_no = get_next_insurance_claim_trans_no()
+		ensure_claim_insurance(doc)
 
 	if claim_name:
 		doc.save(ignore_permissions=True)

@@ -27,6 +27,14 @@ function visitsRemaining(row: InsurancePatientRegisterRow): string {
   return String(Math.max(0, approved - used))
 }
 
+function linkedPatientLabel(row: InsurancePatientRegisterRow): string | null {
+  if (!row.patient) return null
+  const fileNo = (row.patient_file_no || row.patient).trim()
+  const name = (row.patient_name || row.full_name || '').trim()
+  if (fileNo && name) return `${fileNo}: ${name}`
+  return fileNo || name || row.patient
+}
+
 function Field({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div>
@@ -183,11 +191,14 @@ export const InsurancePatientRegisterList = ({
                     </span>
                   </td>
                   <td className="px-3 py-2 text-xs">
-                    {row.patient ? (
-                      <span className="text-green-700 font-medium">{row.patient}</span>
-                    ) : (
-                      <span className="text-slate-400 italic">Not linked</span>
-                    )}
+                    {(() => {
+                      const label = linkedPatientLabel(row)
+                      return label ? (
+                        <span className="text-green-700 font-medium">{label}</span>
+                      ) : (
+                        <span className="text-slate-400 italic">Not linked</span>
+                      )
+                    })()}
                   </td>
                   <td className="px-2 py-2" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center justify-end">
@@ -317,7 +328,7 @@ export const InsurancePatientRegisterList = ({
                 <div className="grid grid-cols-2 gap-4">
                   <Field label="Full Name" value={detailRow.full_name} />
                   <Field label="National ID / CPR No" value={detailRow.national_id_cpr_no} />
-                  <Field label="Linked Patient" value={detailRow.patient} />
+                  <Field label="Linked Patient" value={linkedPatientLabel(detailRow)} />
                   <Field label="Posting Date" value={detailRow.posting_date
                     ? new Date(detailRow.posting_date).toLocaleDateString('en-GB')
                     : undefined}

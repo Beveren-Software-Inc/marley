@@ -136,6 +136,7 @@ export interface PaymentModeSummary {
 export interface PaymentSummary {
   payment_count: number
   total_paid: number
+  advance_amount?: number
   modes: PaymentModeSummary[]
 }
 
@@ -623,7 +624,7 @@ export async function fetchPaymentSummary(
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_summary?${params.toString()}`)
   const data = await response.json()
-  return data.message || { payment_count: 0, total_paid: 0, modes: [] }
+  return data.message || { payment_count: 0, total_paid: 0, advance_amount: 0, modes: [] }
 }
 
 

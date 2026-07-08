@@ -11,10 +11,9 @@ import { searchPatients, fetchPatients, type PatientListItem, uploadPatientFile,
 import {
   checkCanCreatePatientVisit,
   fetchPatientVisitTypes,
-  fetchPatientVisitChargePreview,
+  fetchPatientVisitChargeLines,
   type OpenPatientVisitRow,
   type PatientVisitTypeOption,
-  type PatientVisitChargePreview,
   createPatientVisit,
 } from '../../services/patientVisits'
 import { 
@@ -38,6 +37,20 @@ interface SignaturePadProps {
   onClear?: () => void
   existingUrl?: string
   uploading?: boolean
+}
+
+interface ChargeLineRow {
+  template: string
+  service_name: string
+  item_name: string
+  rate: number
+  include: boolean
+  discount: number
+}
+
+function chargeLineNet(row: ChargeLineRow): number {
+  const gross = row.rate || 0
+  return Math.max(0, gross - Math.max(0, row.discount || 0))
 }
 
 const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
@@ -249,8 +262,8 @@ export const CreatePatientVisitModal = ({
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
-  const [chargeVisit, setChargeVisit] = useState(true)
-  const [visitCharge, setVisitCharge] = useState<PatientVisitChargePreview>({ configured: false, rate: 0 })
+  const [chargeNoCharges, setChargeNoCharges] = useState(false)
+  const [chargeLines, setChargeLines] = useState<ChargeLineRow[]>([])
 
   // When opening from IOP enrollment, default visit type to IOP
   useEffect(() => {
@@ -289,13 +302,20 @@ export const CreatePatientVisitModal = ({
   useEffect(() => {
     let cancelled = false
     const loadCharge = async () => {
-      const preview = await fetchPatientVisitChargePreview(formData.visit_type || undefined)
-      if (!cancelled) {
-        setVisitCharge(preview)
-        if (preview.no_charges || !preview.configured) {
-          setChargeVisit(false)
-        }
-      }
+      const data = await fetchPatientVisitChargeLines(formData.visit_type || undefined)
+      if (cancelled) return
+      setChargeNoCharges(data.no_charges)
+      const rows: ChargeLineRow[] = (data.lines || [])
+        .filter((l) => l.template && l.configured !== false)
+        .map((l) => ({
+          template: l.template as string,
+          service_name: l.service_name || l.item_name || 'Visit fee',
+          item_name: l.item_name || '',
+          rate: l.rate || 0,
+          include: true,
+          discount: 0,
+        }))
+      setChargeLines(rows)
     }
     void loadCharge()
     return () => {
@@ -336,6 +356,13 @@ export const CreatePatientVisitModal = ({
   }
   const removeDocumentRow = (idx: number) => {
     setDocuments((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const updateChargeLine = (idx: number, patch: Partial<ChargeLineRow>) => {
+    setChargeLines((prev) => prev.map((row, i) => (i === idx ? { ...row, ...patch } : row)))
+  }
+  const removeChargeLine = (idx: number) => {
+    setChargeLines((prev) => prev.filter((_, i) => i !== idx))
   }
   const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
     setDocuments((prev) => {
@@ -621,6 +648,7 @@ export const CreatePatientVisitModal = ({
 
     try {
       setSubmitting(true)
+      const includedLines = chargeLines.filter((row) => row.include && row.template)
       const createdVisit = await createPatientVisit({
         patient: selectedPatient.name,
         practitioner: formData.practitioner,
@@ -631,7 +659,13 @@ export const CreatePatientVisitModal = ({
         iop_enrollment: initialIOPEnrollment || undefined,
         cost_center: costCenter || undefined,
         status: 'Open',
-        charge_visit: chargeVisit && visitCharge.configured && !visitCharge.no_charges,
+        charge_visit: !chargeNoCharges && includedLines.length > 0,
+        charge_lines: includedLines.map((row) => ({
+          template: row.template,
+          qty: 1,
+          discount_type: 'Amount',
+          discount: row.discount || 0,
+        })),
       })
 
       if (createdVisit?.name) {
@@ -727,7 +761,9 @@ export const CreatePatientVisitModal = ({
         }}>
           {activeTab === 'details' && (
             <>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-5 items-start">
+          {/* LEFT COLUMN: visit details */}
+          <div className="space-y-4">
           {/* Patient */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -886,102 +922,6 @@ export const CreatePatientVisitModal = ({
               </div>
             </div>
 
-            {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
-            <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Visit Type
-              </label>
-              <input
-                type="text"
-                value={formData.visit_type
-                  ? (visitTypeOptions.find(v => v.name === formData.visit_type)?.visit_type || formData.visit_type)
-                  : visitTypeQuery}
-                onChange={(e) => {
-                  setVisitTypeQuery(e.target.value)
-                  setVisitTypeOpen(true)
-                  if (formData.visit_type) {
-                    setFormData({ ...formData, visit_type: '' })
-                  }
-                }}
-                onFocus={() => setVisitTypeOpen(true)}
-                placeholder="Search visit type..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              />
-              {formData.visit_type && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setFormData({ ...formData, visit_type: '' })
-                    setVisitTypeQuery('')
-                  }}
-                  className="absolute right-2 top-[calc(50%+10px)] -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                  title="Clear"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              )}
-              {visitTypeOpen && (
-                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                  {visitTypeOptions.length > 0 ? (
-                    visitTypeOptions.map((vt) => (
-                      <button
-                        key={vt.name}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                        onClick={() => {
-                          setFormData({ ...formData, visit_type: vt.name })
-                          setVisitTypeQuery(vt.visit_type || vt.name)
-                          setVisitTypeOpen(false)
-                        }}
-                      >
-                        {vt.visit_type || vt.name}
-                      </button>
-                    ))
-                  ) : (
-                    <div className="px-3 py-2 text-xs text-slate-500">
-                      {visitTypeQuery ? 'No visit types match your search.' : 'NO VISIT TYPES FOUND.'}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {visitCharge.no_charges ? (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                This visit type is marked <span className="font-medium">No Charges</span> — no visit fee will be created.
-              </div>
-            ) : visitCharge.configured ? (
-              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
-                <label className="flex items-start gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
-                    checked={chargeVisit}
-                    onChange={(e) => setChargeVisit(e.target.checked)}
-                  />
-                  <span className="text-sm text-slate-700">
-                    <span className="font-medium">Charge visit</span>
-                    <span className="block text-xs text-slate-500 mt-0.5">
-                      {visitCharge.service_name || 'Visit fee'}
-                      {visitCharge.item_name ? ` · ${visitCharge.item_name}` : ''}
-                      {visitCharge.source === 'visit_type' ? ' · visit type rate' : ' · default rate'}
-                      {' · '}
-                      <span className="font-semibold text-slate-800">
-                        {formatMoney(visitCharge.rate || 0)}
-                      </span>
-                    </span>
-                  </span>
-                </label>
-              </div>
-            ) : (
-              <p className="text-xs text-amber-700">
-                Visit charge is not configured for this visit type. Set Service Charge on the Patient
-                Visit Type or Normal Patient Visit Charge Item in Healthcare Settings.
-              </p>
-            )}
-
             {/* Branch */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1054,6 +994,166 @@ export const CreatePatientVisitModal = ({
                 required
               />
             </div>
+          </div>
+
+          {/* RIGHT COLUMN: visit type & services */}
+          <div className="space-y-3">
+            {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
+            <div className="relative">
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Visit Type
+              </label>
+              <input
+                type="text"
+                value={formData.visit_type
+                  ? (visitTypeOptions.find(v => v.name === formData.visit_type)?.visit_type || formData.visit_type)
+                  : visitTypeQuery}
+                onChange={(e) => {
+                  setVisitTypeQuery(e.target.value)
+                  setVisitTypeOpen(true)
+                  if (formData.visit_type) {
+                    setFormData({ ...formData, visit_type: '' })
+                  }
+                }}
+                onFocus={() => setVisitTypeOpen(true)}
+                placeholder="Search visit type..."
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+              />
+              {formData.visit_type && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, visit_type: '' })
+                    setVisitTypeQuery('')
+                  }}
+                  className="absolute right-2 top-[calc(50%+10px)] -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  title="Clear"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+              {visitTypeOpen && (
+                <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
+                  {visitTypeOptions.length > 0 ? (
+                    visitTypeOptions.map((vt) => (
+                      <button
+                        key={vt.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
+                        onClick={() => {
+                          setFormData({ ...formData, visit_type: vt.name })
+                          setVisitTypeQuery(vt.visit_type || vt.name)
+                          setVisitTypeOpen(false)
+                        }}
+                      >
+                        {vt.visit_type || vt.name}
+                      </button>
+                    ))
+                  ) : (
+                    <div className="px-3 py-2 text-xs text-slate-500">
+                      {visitTypeQuery ? 'No visit types match your search.' : 'No visit types found.'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {chargeNoCharges ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                This visit type is marked <span className="font-medium">No Charges</span> — no visit fee will be created.
+              </div>
+            ) : chargeLines.length > 0 ? (
+              <div className="rounded-md border border-slate-200 bg-slate-50 p-3 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium text-slate-700">Services</span>
+                  <span className="text-xs text-slate-500">
+                    Total{' '}
+                    <span className="font-semibold text-slate-800">
+                      {formatMoney(
+                        chargeLines
+                          .filter((r) => r.include)
+                          .reduce((sum, r) => sum + chargeLineNet(r), 0),
+                      )}
+                    </span>
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {chargeLines.map((row, idx) => {
+                    const net = chargeLineNet(row)
+                    const discounted = net < (row.rate || 0)
+                    return (
+                      <div
+                        key={`${row.template}-${idx}`}
+                        className={`rounded-md border px-2.5 py-2 ${
+                          row.include ? 'border-slate-200 bg-white' : 'border-dashed border-slate-200 bg-slate-50 opacity-70'
+                        }`}
+                      >
+                        <div className="flex items-start gap-2">
+                          <input
+                            type="checkbox"
+                            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                            checked={row.include}
+                            onChange={(e) => updateChargeLine(idx, { include: e.target.checked })}
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium text-slate-800 truncate">
+                                {row.service_name}
+                              </span>
+                              <button
+                                type="button"
+                                className="shrink-0 text-slate-400 hover:text-red-500 leading-none"
+                                onClick={() => removeChargeLine(idx)}
+                                title="Remove service"
+                                aria-label="Remove service"
+                              >
+                                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            </div>
+                            <div className="mt-0.5 text-xs text-slate-500">
+                              {row.item_name ? `${row.item_name} · ` : ''}
+                              <span className={discounted ? 'line-through' : 'font-semibold text-slate-700'}>
+                                {formatMoney(row.rate || 0)}
+                              </span>
+                              {discounted && (
+                                <span className="ml-1 font-semibold text-slate-800">{formatMoney(net)}</span>
+                              )}
+                            </div>
+                            {row.include && (
+                              <div className="mt-2 flex flex-wrap items-center gap-2">
+                                <span className="text-xs text-slate-500">Discount amount</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={row.rate || undefined}
+                                  step="any"
+                                  className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
+                                  value={row.discount || ''}
+                                  placeholder="0"
+                                  onChange={(e) =>
+                                    updateChargeLine(idx, { discount: parseFloat(e.target.value) || 0 })
+                                  }
+                                />
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              <p className="text-xs text-amber-700">
+                Visit charge is not configured for this visit type. Add Services to the Patient Visit
+                Type or set the Normal Patient Visit Charge Item in Healthcare Settings.
+              </p>
+            )}
+          </div>
           </div>
 
           </>

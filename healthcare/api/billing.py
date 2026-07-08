@@ -862,8 +862,46 @@ def get_payment_summary(
     return {
         "payment_count": len(submitted_rows),
         "total_paid": total_paid,
+        "advance_amount": _compute_patient_advance_amount(patient),
         "modes": modes,
     }
+
+
+def _compute_patient_advance_amount(patient=None):
+    """Unallocated (advance/credit) balance held for a patient's customer.
+
+    This is money the patient has paid that is not yet applied to any invoice.
+    When no patient is scoped, returns the total advance across permitted branches.
+    """
+    conditions = [
+        "docstatus = 1",
+        "payment_type = 'Receive'",
+        "party_type = 'Customer'",
+        "IFNULL(unallocated_amount, 0) > 0",
+    ]
+    params = {}
+
+    if patient:
+        customer = frappe.db.get_value("Patient", patient, "customer")
+        if not customer:
+            return 0.0
+        conditions.append("party = %(customer)s")
+        params["customer"] = customer
+    else:
+        from healthcare.api.common import get_permitted_cost_centers
+
+        permitted_cc = get_permitted_cost_centers()
+        if permitted_cc is not None:
+            if not permitted_cc:
+                return 0.0
+            conditions.append("IFNULL(cost_center, '') IN %(permitted_cc)s")
+            params["permitted_cc"] = tuple(permitted_cc)
+
+    result = frappe.db.sql(
+        f"SELECT SUM(unallocated_amount) FROM `tabPayment Entry` WHERE {' AND '.join(conditions)}",
+        params,
+    )
+    return flt(result[0][0]) if result and result[0][0] else 0.0
 
 
 @frappe.whitelist()

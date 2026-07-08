@@ -24,9 +24,11 @@ class InsuranceClaim(Document):
         self.total_quantity = total_qty
         
     def on_submit(self):
-        # Placeholder for any logic that needs to run on submit, such as updating related documents
-        self.status = "Submitted"
-        self.save()
+        # Preserve an already-computed payment status (e.g. legacy imports set
+        # Paid / Partially Paid from the source amounts); otherwise default to Submitted.
+        if self.status not in ("Paid", "Partially Paid", "Rejected"):
+            self.status = "Submitted"
+        self.db_set("status", self.status, update_modified=False)
         
     def on_cancel(self):
         """Cancel all Payment Entries linked to this Insurance Claim"""

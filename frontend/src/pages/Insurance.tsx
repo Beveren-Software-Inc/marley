@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { ShieldCheck, ClipboardList, FileText, LayoutDashboard, Receipt } from 'lucide-react'
+import { ShieldCheck, ClipboardList, FileText, LayoutDashboard, Receipt, UploadCloud } from 'lucide-react'
+import { ImportInsuranceClaimsModal } from '../components/insurance/ImportInsuranceClaimsModal'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { InsurancePatientRegisterList } from '../components/insurance/InsurancePatientRegisterList'
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
@@ -78,6 +79,7 @@ export const InsurancePage = () => {
 
   const [claimRefreshKey, setClaimRefreshKey] = useState(0)
   const [showCreateClaim, setShowCreateClaim] = useState(false)
+  const [showImportClaims, setShowImportClaims] = useState(false)
   const [editClaimName, setEditClaimName] = useState<string | undefined>()
   const [claimFromInvoice, setClaimFromInvoice] = useState<InvoiceNeedingClaimRow | undefined>()
 
@@ -196,13 +198,23 @@ export const InsurancePage = () => {
                 </button>
               )}
               {activeTab === 'claims' && (
-                <button
-                  onClick={() => openCreateClaim()}
-                  className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                  title="New Insurance Claim"
-                >
-                  +
-                </button>
+                <>
+                  <button
+                    onClick={() => setShowImportClaims(true)}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-slate-300 bg-white px-2.5 h-7 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors"
+                    title="Import legacy insurance claims from Excel"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    Import
+                  </button>
+                  <button
+                    onClick={() => openCreateClaim()}
+                    className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
+                    title="New Insurance Claim"
+                  >
+                    +
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -269,6 +281,13 @@ export const InsurancePage = () => {
             setShowCreateRegister(false)
             setRegisterRefreshKey(k => k + 1)
           }}
+        />
+      )}
+
+      {showImportClaims && (
+        <ImportInsuranceClaimsModal
+          onClose={() => setShowImportClaims(false)}
+          onImported={bumpClaims}
         />
       )}
 

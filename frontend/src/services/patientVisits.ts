@@ -229,6 +229,15 @@ export interface CreatePatientVisitData {
   documents?: Record<string, unknown>[]
   status?: 'Open' | 'Ordered' | 'Completed' | 'Cancelled'
   charge_visit?: boolean
+  charge_lines?: PatientVisitChargeLineInput[]
+}
+
+export interface PatientVisitChargeLineInput {
+  template: string
+  qty?: number
+  discount_type?: 'Percentage' | 'Amount'
+  discount_rate?: number
+  discount?: number
 }
 
 export interface PatientVisitChargePreview {
@@ -261,6 +270,126 @@ export async function fetchPatientVisitChargePreview(
     /* ignore */
   }
   return { configured: false, rate: 0 }
+}
+
+export interface PatientVisitChargeLine {
+  configured: boolean
+  template?: string | null
+  service_name?: string | null
+  item_code?: string | null
+  item_name?: string | null
+  rate?: number
+  source?: 'visit_type' | 'default' | 'template' | null
+}
+
+export interface PatientVisitChargeLines {
+  no_charges: boolean
+  visit_type?: string | null
+  used_default_visit_type?: boolean
+  source?: 'visit_type_services' | 'visit_type' | 'default' | null
+  configured: boolean
+  lines: PatientVisitChargeLine[]
+}
+
+export async function fetchPatientVisitChargeLines(
+  visitType?: string,
+): Promise<PatientVisitChargeLines> {
+  try {
+    const params = new URLSearchParams()
+    if (visitType) params.append('visit_type', visitType)
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_visit_charge.get_patient_visit_charge_lines?${params.toString()}`,
+      { credentials: 'include' },
+    )
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'object') {
+      const msg = resData.message as Partial<PatientVisitChargeLines>
+      return {
+        no_charges: Boolean(msg.no_charges),
+        visit_type: msg.visit_type ?? null,
+        source: msg.source ?? null,
+        configured: Boolean(msg.configured),
+        lines: Array.isArray(msg.lines) ? (msg.lines as PatientVisitChargeLine[]) : [],
+      }
+    }
+  } catch {
+    /* ignore */
+  }
+  return { no_charges: false, configured: false, lines: [] }
+}
+
+export interface PatientVisitChargeEditorLine {
+  item_code: string
+  item_name?: string | null
+  rate: number
+  qty?: number
+  discount: number
+  net?: number
+}
+
+export interface PatientVisitChargeAvailableService {
+  template?: string | null
+  item_code: string
+  item_name?: string | null
+  rate: number
+}
+
+export interface PatientVisitChargeEditor {
+  editable: boolean
+  locked_reason?: string | null
+  sales_order?: string | null
+  no_charges: boolean
+  lines: PatientVisitChargeEditorLine[]
+  available_services: PatientVisitChargeAvailableService[]
+}
+
+export async function fetchPatientVisitChargeEditor(
+  visitName: string,
+): Promise<PatientVisitChargeEditor> {
+  const params = new URLSearchParams({ visit_name: visitName })
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_visit_charge.get_patient_visit_charge_editor?${params.toString()}`,
+    { credentials: 'include' },
+  )
+  const resData = await response.json().catch(() => ({}))
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return {
+      editable: Boolean(msg.editable),
+      locked_reason: msg.locked_reason ?? null,
+      sales_order: msg.sales_order ?? null,
+      no_charges: Boolean(msg.no_charges),
+      lines: Array.isArray(msg.lines) ? (msg.lines as PatientVisitChargeEditorLine[]) : [],
+      available_services: Array.isArray(msg.available_services)
+        ? (msg.available_services as PatientVisitChargeAvailableService[])
+        : [],
+    }
+  }
+  return { editable: false, no_charges: false, lines: [], available_services: [] }
+}
+
+export async function updatePatientVisitCharge(
+  visitName: string,
+  lines: Array<{ item_code?: string; template?: string; item_name?: string; rate: number; qty?: number; discount: number }>,
+): Promise<{ sales_order: string | null; removed?: boolean }> {
+  const csrf = await ensureCSRF()
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_visit_charge.update_patient_visit_charge`,
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ visit_name: visitName, lines }),
+    },
+  )
+  const resData = await response.json().catch(() => ({}))
+  if (!response.ok || resData?.exc) {
+    throw new Error((resData?.message as string) || resData?.exception || 'Failed to update visit charge')
+  }
+  return (resData?.message as { sales_order: string | null; removed?: boolean }) || { sales_order: null }
 }
 
 

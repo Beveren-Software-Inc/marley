@@ -7,8 +7,11 @@
  "engine": "InnoDB",
  "field_order": [
   "visit_type",
+  "is_default",
+  "no_charges",
+  "services_section",
   "service_charge",
-  "no_charges"
+  "services"
  ],
  "fields": [
   {
@@ -20,9 +23,19 @@
    "unique": 1
   },
   {
+   "default": "0",
+   "fieldname": "is_default",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Default Visit Type",
+   "description": "Used automatically when a visit is created without choosing a visit type."
+  },
+  {
    "fieldname": "service_charge",
    "fieldtype": "Link",
-   "label": "Service Charge",
+   "label": "Service Charge (Legacy Single)",
+   "description": "Deprecated: use the Services table below. Kept as a fallback for older visit types.",
    "options": "Healthcare Service Template"
   },
   {
@@ -30,6 +43,19 @@
    "fieldname": "no_charges",
    "fieldtype": "Check",
    "label": "No Charges"
+  },
+  {
+   "fieldname": "services_section",
+   "fieldtype": "Section Break",
+   "label": "Services",
+   "depends_on": "eval:!doc.no_charges"
+  },
+  {
+   "fieldname": "services",
+   "fieldtype": "Table",
+   "label": "Services",
+   "description": "Services charged for this visit type. All services are added to the visit charge; the doctor can discount or remove them on the visit screen.",
+   "options": "Patient Visit Type Service"
   }
  ],
  "grid_page_length": 50,

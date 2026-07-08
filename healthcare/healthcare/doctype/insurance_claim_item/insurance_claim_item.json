@@ -19,7 +19,29 @@
   "co_pay_amount",
   "column_break_kfre",
   "non_covered_amount",
-  "patient_liability"
+  "patient_liability",
+  "paid_amount",
+  "legacy_line_section",
+  "sr_num",
+  "reff_trans_num",
+  "reff_trans_date",
+  "invoice_type",
+  "invoice_source",
+  "visit_num_det",
+  "column_break_legacy_line_1",
+  "bill_amount",
+  "already_paid",
+  "already_discount",
+  "already_adjusted",
+  "already_sales_return",
+  "already_insurance",
+  "column_break_legacy_line_2",
+  "already_jv",
+  "already_abc",
+  "already_def",
+  "balance",
+  "now_discount",
+  "now_paid"
  ],
  "fields": [
   {
@@ -112,6 +134,110 @@
    "in_standard_filter": 1,
    "label": "Item Name/Service",
    "options": "Item"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_line_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Line Data"
+  },
+  {
+   "fieldname": "sr_num",
+   "fieldtype": "Int",
+   "label": "Sr No"
+  },
+  {
+   "fieldname": "reff_trans_num",
+   "fieldtype": "Data",
+   "label": "Reference Trans No"
+  },
+  {
+   "fieldname": "reff_trans_date",
+   "fieldtype": "Date",
+   "label": "Reference Trans Date"
+  },
+  {
+   "fieldname": "invoice_type",
+   "fieldtype": "Data",
+   "label": "Invoice Type"
+  },
+  {
+   "fieldname": "invoice_source",
+   "fieldtype": "Data",
+   "label": "Invoice Source"
+  },
+  {
+   "fieldname": "visit_num_det",
+   "fieldtype": "Data",
+   "label": "Visit Num"
+  },
+  {
+   "fieldname": "column_break_legacy_line_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "bill_amount",
+   "fieldtype": "Currency",
+   "label": "Bill Amount"
+  },
+  {
+   "fieldname": "already_paid",
+   "fieldtype": "Currency",
+   "label": "Already Paid"
+  },
+  {
+   "fieldname": "already_discount",
+   "fieldtype": "Currency",
+   "label": "Already Discount"
+  },
+  {
+   "fieldname": "already_adjusted",
+   "fieldtype": "Currency",
+   "label": "Already Adjusted"
+  },
+  {
+   "fieldname": "already_sales_return",
+   "fieldtype": "Currency",
+   "label": "Already Sales Return"
+  },
+  {
+   "fieldname": "already_insurance",
+   "fieldtype": "Currency",
+   "label": "Already Insurance"
+  },
+  {
+   "fieldname": "column_break_legacy_line_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "already_jv",
+   "fieldtype": "Currency",
+   "label": "Already JV"
+  },
+  {
+   "fieldname": "already_abc",
+   "fieldtype": "Currency",
+   "label": "Already ABC"
+  },
+  {
+   "fieldname": "already_def",
+   "fieldtype": "Currency",
+   "label": "Already DEF"
+  },
+  {
+   "fieldname": "balance",
+   "fieldtype": "Currency",
+   "label": "Balance"
+  },
+  {
+   "fieldname": "now_discount",
+   "fieldtype": "Currency",
+   "label": "Now Discount"
+  },
+  {
+   "fieldname": "now_paid",
+   "fieldtype": "Currency",
+   "label": "Now Paid"
   }
  ],
  "istable": 1,
