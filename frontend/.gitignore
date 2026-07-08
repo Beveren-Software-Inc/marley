@@ -27,3 +27,5 @@ dist-ssr
 test-results/
 playwright-report/
 e2e/.auth/
+e2e/
+playwright.config.ts
