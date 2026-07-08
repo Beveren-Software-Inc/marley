@@ -22,6 +22,20 @@ function fmt(amount: number | null | undefined, currency: string): string {
   return formatMoneyAmount(Number(amount), currency)
 }
 
+// Legacy voucher status codes → human label (e.g. "A" means Approved)
+const VCH_STATUS_LABELS: Record<string, string> = {
+  A: 'Approved',
+  R: 'Rejected',
+  P: 'Pending',
+  C: 'Cancelled',
+}
+
+function vchStatusLabel(value?: string | null): string | null {
+  if (!value) return null
+  const key = value.trim().toUpperCase()
+  return VCH_STATUS_LABELS[key] || value
+}
+
 function Field({ label, value }: { label: string; value?: string | number | null }) {
   return (
     <div>
@@ -472,6 +486,7 @@ export const InsuranceClaimList = ({
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600 text-right">Approved</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600 text-right">Rejected</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Auth No</th>
+                <th className="px-3 py-2 text-xs font-semibold text-slate-600">VCH Status</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600">Status</th>
                 <th className="px-3 py-2 text-xs font-semibold text-slate-600"></th>
               </tr>
@@ -479,7 +494,7 @@ export const InsuranceClaimList = ({
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={patient ? 10 : 11} className="text-center text-slate-400 py-8">No insurance claims found</td>
+                  <td colSpan={patient ? 11 : 12} className="text-center text-slate-400 py-8">No insurance claims found</td>
                 </tr>
               )}
               {rows.map(row => (
@@ -509,6 +524,15 @@ export const InsuranceClaimList = ({
                   <td className="px-3 py-2 text-xs text-right font-mono text-green-700">{fmt(row.total_approved, displayCurrency)}</td>
                   <td className="px-3 py-2 text-xs text-right font-mono text-red-600">{fmt(row.total_rejected, displayCurrency)}</td>
                   <td className="px-3 py-2 text-xs text-slate-500 font-mono">{row.authorization_no || '—'}</td>
+                  <td className="px-3 py-2">
+                    {vchStatusLabel(row.vch_status) ? (
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${vchStatusLabel(row.vch_status) === 'Approved' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
+                        {vchStatusLabel(row.vch_status)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400">—</span>
+                    )}
+                  </td>
                   <td className="px-3 py-2">
                     <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${STATUS_COLORS[row.status] || 'bg-slate-100 text-slate-600'}`}>
                       {row.status || 'Draft'}
@@ -595,6 +619,7 @@ export const InsuranceClaimList = ({
                   <Field label="Health Insurance" value={detailRow.health_insurance} />
                   <Field label="Insurer / Payor" value={detailRow.insurance_payor} />
                   <Field label="Claim Date" value={detailRow.claim_date} />
+                  <Field label="VCH Status" value={vchStatusLabel(detailRow.vch_status)} />
                   <Field label="Sales Invoice" value={detailRow.sales_invoice} />
                   <Field label="Authorization No" value={detailRow.authorization_no} />
                   <div className="col-span-2">

@@ -55,7 +55,7 @@ export function InsuranceClaimsDashboard({ patient, currency = 'USD', refreshKey
                 <p className="text-sm font-semibold text-slate-800 truncate">{row.health_insurance}</p>
                 <div className="grid grid-cols-2 gap-2 mt-2 text-xs">
                   <div><span className="text-slate-500">Claims</span><div className="font-medium">{row.total}</div></div>
-                  <div><span className="text-slate-500">Pending</span><div className="font-medium text-amber-700">{row.pending}</div></div>
+                  <div><span className="text-slate-500">Pending</span><div className="font-medium text-amber-700">{row.total > 0 && (row.legacy ?? 0) === row.total ? '—' : row.pending}</div></div>
                   <div><span className="text-slate-500">Submitted</span><div className="font-medium text-blue-700">{row.submitted}</div></div>
                   <div><span className="text-slate-500">Paid</span><div className="font-medium text-green-700">{row.paid}</div></div>
                   <div><span className="text-slate-500">Claimed</span><div className="font-medium">{fmt(row.total_claimed, currency)}</div></div>

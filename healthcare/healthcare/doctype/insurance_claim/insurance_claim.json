@@ -1,11 +1,14 @@
 {
  "actions": [],
- "autoname": "INS-CLM-.#####",
+ "allow_bulk_edit": 1,
+ "autoname": "field:trans_no",
  "creation": "2026-02-10 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "basic_info_section",
+  "trans_no",
+  "legacy",
   "patient",
   "patient_name",
   "health_insurance",
@@ -30,7 +33,36 @@
   "authorization_no",
   "amended_from",
   "remarks_section",
-  "remark"
+  "remark",
+  "legacy_section",
+  "trans_date",
+  "ip_op_source",
+  "patient_num",
+  "admission_num",
+  "claim_no",
+  "claim_days",
+  "claim_accept_days",
+  "column_break_legacy_1",
+  "due_amount",
+  "paid_amount",
+  "discount_amount",
+  "balance_amount",
+  "approved_amount_usd",
+  "approved_amount_bhd",
+  "exchange_diff_amount",
+  "column_break_legacy_2",
+  "vch_status",
+  "branch_num",
+  "comp_gl_code",
+  "pharmacy_sale_trans_num",
+  "legacy_audit_section",
+  "legacy_cr_id",
+  "legacy_cr_date",
+  "legacy_up_id",
+  "column_break_legacy_3",
+  "legacy_up_date",
+  "legacy_ap_id",
+  "legacy_ap_date"
  ],
  "fields": [
   {
@@ -187,6 +219,166 @@
    "fieldname": "remark",
    "fieldtype": "Small Text",
    "label": "Remark"
+  },
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "label": "Trans No",
+   "unique": 1
+  },
+  {
+   "default": "0",
+   "description": "Ticked for claims imported from the legacy insurance system.",
+   "fieldname": "legacy",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Legacy"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Data"
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Date",
+   "label": "Trans Date"
+  },
+  {
+   "fieldname": "ip_op_source",
+   "fieldtype": "Select",
+   "label": "IP / OP Source",
+   "options": "\nOP\nIP\nPH"
+  },
+  {
+   "fieldname": "patient_num",
+   "fieldtype": "Data",
+   "label": "Patient Num (Legacy)"
+  },
+  {
+   "fieldname": "admission_num",
+   "fieldtype": "Data",
+   "label": "Admission Num (Legacy)"
+  },
+  {
+   "fieldname": "claim_no",
+   "fieldtype": "Data",
+   "label": "Claim No"
+  },
+  {
+   "fieldname": "claim_days",
+   "fieldtype": "Int",
+   "label": "Claim Days"
+  },
+  {
+   "fieldname": "claim_accept_days",
+   "fieldtype": "Int",
+   "label": "Claim Accept Days"
+  },
+  {
+   "fieldname": "column_break_legacy_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "due_amount",
+   "fieldtype": "Currency",
+   "label": "Due Amount"
+  },
+  {
+   "fieldname": "paid_amount",
+   "fieldtype": "Currency",
+   "label": "Paid Amount"
+  },
+  {
+   "fieldname": "discount_amount",
+   "fieldtype": "Currency",
+   "label": "Discount Amount"
+  },
+  {
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "label": "Balance Amount"
+  },
+  {
+   "fieldname": "approved_amount_usd",
+   "fieldtype": "Currency",
+   "label": "Approved Amount (USD)"
+  },
+  {
+   "fieldname": "approved_amount_bhd",
+   "fieldtype": "Currency",
+   "label": "Approved Amount (BHD)"
+  },
+  {
+   "fieldname": "exchange_diff_amount",
+   "fieldtype": "Currency",
+   "label": "Exchange Diff Amount"
+  },
+  {
+   "fieldname": "column_break_legacy_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "vch_status",
+   "fieldtype": "Data",
+   "label": "Voucher Status"
+  },
+  {
+   "fieldname": "branch_num",
+   "fieldtype": "Data",
+   "label": "Branch Num"
+  },
+  {
+   "fieldname": "comp_gl_code",
+   "fieldtype": "Data",
+   "label": "Company GL Code"
+  },
+  {
+   "fieldname": "pharmacy_sale_trans_num",
+   "fieldtype": "Data",
+   "label": "Pharmacy Sale Trans Num"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "legacy_audit_section",
+   "fieldtype": "Section Break",
+   "label": "Legacy Audit"
+  },
+  {
+   "fieldname": "legacy_cr_id",
+   "fieldtype": "Data",
+   "label": "Created By (Legacy)"
+  },
+  {
+   "fieldname": "legacy_cr_date",
+   "fieldtype": "Data",
+   "label": "Created On (Legacy)"
+  },
+  {
+   "fieldname": "legacy_up_id",
+   "fieldtype": "Data",
+   "label": "Updated By (Legacy)"
+  },
+  {
+   "fieldname": "column_break_legacy_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "legacy_up_date",
+   "fieldtype": "Data",
+   "label": "Updated On (Legacy)"
+  },
+  {
+   "fieldname": "legacy_ap_id",
+   "fieldtype": "Data",
+   "label": "Approved By (Legacy)"
+  },
+  {
+   "fieldname": "legacy_ap_date",
+   "fieldtype": "Data",
+   "label": "Approved On (Legacy)"
   }
  ],
  "is_submittable": 1,
@@ -196,11 +388,11 @@
    "link_fieldname": "custom_insurance_claim"
   }
  ],
- "modified": "2026-03-25 03:51:42.662614",
+ "modified": "2026-07-09 00:08:16.178859",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Claim",
- "naming_rule": "Expression",
+ "naming_rule": "By fieldname",
  "owner": "Administrator",
  "permissions": [
   {

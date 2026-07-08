@@ -1308,6 +1308,7 @@ export interface InsuranceClaimRow {
   sales_invoice: string
   authorization_no?: string
   remark?: string
+  vch_status?: string
 }
 
 export interface InsuranceClaimFilters {
@@ -1353,6 +1354,7 @@ export interface InsuranceClaimsDashboard {
   by_insurance: Array<{
     health_insurance: string
     total: number
+    legacy?: number
     pending: number
     submitted: number
     paid: number
@@ -1509,6 +1511,91 @@ export async function rejectInsuranceClaim(claimName: string, remark?: string): 
   })
 }
 
+/** Preview the next auto-generated Insurance Claim trans_no (INS/YYYY/#####). */
+export async function getNextInsuranceClaimNumber(): Promise<string> {
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.api.insurance_claim.get_next_insurance_claim_number'
+  )
+  const data = await res.json().catch(() => ({} as Record<string, unknown>))
+  const message = (data as { message?: { trans_no?: string } })?.message
+  return message?.trans_no || ''
+}
+
+/** Upload an Excel file for the insurance claim importer; returns the stored file_url. */
+export async function uploadInsuranceImportFile(file: File): Promise<string> {
+  const csrf = (window as any).csrf_token || (await ensureCSRF())
+  const form = new FormData()
+  form.append('file', file)
+  form.append('is_private', '1')
+  form.append('folder', 'Home/Attachments')
+  if (csrf) form.append('csrf_token', csrf)
+
+  const base = typeof window !== 'undefined' && window.location?.origin ? window.location.origin : ''
+  const res = await fetch(`${base}/api/method/upload_file`, {
+    method: 'POST',
+    headers: csrf ? { 'X-Frappe-CSRF-Token': csrf } : {},
+    body: form,
+    credentials: 'include',
+  })
+  const data = await res.json().catch(() => ({} as any))
+  if (data?.exc) {
+    let reason = 'Upload failed'
+    try {
+      const msgs = JSON.parse(data._server_messages || '[]')
+      const first = JSON.parse(msgs[0] || '{}')
+      reason = first?.message || data?.message || reason
+    } catch {
+      reason = data?.message || reason
+    }
+    throw new Error(reason)
+  }
+  if (!res.ok) throw new Error(`Upload failed: HTTP ${res.status}`)
+  const doc = data?.message
+  if (doc && typeof doc === 'object' && doc.file_url) return doc.file_url as string
+  if (typeof doc === 'string' && doc.startsWith('/')) return doc
+  throw new Error('Upload failed: no file URL in response')
+}
+
+export interface ImportInsuranceClaimsResult {
+  total_master_rows: number
+  created: number
+  updated: number
+  submitted: number
+  skipped: number
+  patients_created: number
+  patients_insured: number
+  registers_created: number
+  error_count: number
+  errors: { trans_no: string; error: string }[]
+}
+
+/** Import legacy TRICARE insurance claims from the master + services Excel files. */
+export async function importInsuranceClaims(
+  masterFileUrl: string,
+  childFileUrl?: string
+): Promise<ImportInsuranceClaimsResult> {
+  const csrf = (window as any).csrf_token || (await ensureCSRF())
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.api.insurance_claim.import_insurance_claims',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({ master_file_url: masterFileUrl, child_file_url: childFileUrl || null }),
+    }
+  )
+  const data = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (data as { exc?: string })?.exc) {
+    const msg = (data as { message?: unknown; exc_type?: string })?.message
+    throw new Error(typeof msg === 'string' ? msg : (data as { exc_type?: string })?.exc_type || 'Import failed')
+  }
+  return (data as { message: ImportInsuranceClaimsResult }).message
+}
+
 export interface InsurancePatientRegisterRow {
   name: string
   full_name: string
@@ -1520,6 +1607,8 @@ export interface InsurancePatientRegisterRow {
   approval_validitydays: number
   no_of_visits: string
   patient: string
+  patient_name?: string
+  patient_file_no?: string
   no_of_patient_visit?: number
 }
 

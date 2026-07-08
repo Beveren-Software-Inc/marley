@@ -1108,6 +1108,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_ip_admission_bundle_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Insurance Claims — INSURANCE_00_01 + 02'), () => {
+			open_insurance_claim_bundle_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),
@@ -3468,6 +3472,133 @@ function open_ip_admission_bundle_upload() {
 
 	dialog.show();
 	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-admission-bundle-status'));
+}
+
+function open_insurance_claim_bundle_upload() {
+	const files = {
+		master: null,
+		services: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload the insurance claim files. INSURANCE_00_01 creates one Insurance Claim per TRANS_NUM (as TRICARE, tagged Legacy); INSURANCE_00_02 service lines are attached by TRANS_NUM. Each patient is marked insured (TRICARE) and gets an Insurance Patient Register if missing. Existing claims (same Trans No) are skipped.'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('INSURANCE_00_01')} (${__('master claims')})</td>
+						<td class="bundle-ins-master-status">${fileLabel(files.master)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ins-master">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('INSURANCE_00_02')} (${__('claim services — optional')})</td>
+						<td class="bundle-ins-services-status">${fileLabel(files.services)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-ins-services">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-ins-master').on('click', () => {
+			pickFile(__('INSURANCE_00_01 Excel'), (url) => {
+				files.master = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-ins-services').on('click', () => {
+			pickFile(__('INSURANCE_00_02 Excel'), (url) => {
+				files.services = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('Insurance Claims — INSURANCE_00_01 + 02'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="insurance-claim-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Import Claims'),
+		primary_action() {
+			if (!files.master) {
+				frappe.msgprint({
+					title: __('Master file required'),
+					message: __('Please upload the INSURANCE_00_01 master Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			frappe.confirm(
+				__(
+					'Import insurance claims as TRICARE (tagged Legacy)? Large files can take a minute. Continue?'
+				),
+				() => {
+					frappe.call({
+						method: 'healthcare.healthcare.api.insurance_claim.import_insurance_claims',
+						args: {
+							master_file_url: files.master,
+							child_file_url: files.services,
+						},
+						freeze: true,
+						freeze_message: __('Importing insurance claims…'),
+						callback(r) {
+							const m = r.message || {};
+							dialog.hide();
+							frappe.msgprint({
+								title: __('Insurance Claim Import Complete'),
+								indicator: m.error_count ? 'orange' : 'green',
+								message: __(
+									'Master rows: {0}<br>Created: {1}<br>Updated (existing drafts): {2}<br>Submitted: {3}<br>Skipped (already submitted/blank): {4}<br>Patients insured (TRICARE): {5}<br>Registers created: {6}<br>New patients created: {7}<br>Errors: {8}',
+									[
+										m.total_master_rows || 0,
+										m.created || 0,
+										m.updated || 0,
+										m.submitted || 0,
+										m.skipped || 0,
+										m.patients_insured || 0,
+										m.registers_created || 0,
+										m.patients_created || 0,
+										m.error_count || 0,
+									]
+								),
+							});
+						},
+					});
+				}
+			);
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.insurance-claim-bundle-status'));
 }
 
 function open_lab_test_bundle_upload() {
