@@ -51,7 +51,17 @@ function formatStatusLabel(status?: string) {
   return part.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-type LabLine = { label: string; kind?: string }
+type LabLine = { label: string; kind?: string; discountNote?: string }
+
+function formatDiscountNote(row: Record<string, unknown> | undefined): string | undefined {
+  if (!row) return undefined
+  const discType = String(row.discount_type || 'Percentage')
+  const discRate = Number(row.discount_rate || 0)
+  const disc = Number(row.discount || 0)
+  if (discType === 'Amount' && disc > 0) return `Discount: fixed ${disc}`
+  if (discType === 'Percentage' && discRate > 0) return `Discount: ${discRate}%`
+  return undefined
+}
 
 function parseLabLines(raw: unknown): LabLine[] {
   if (!raw) return []
@@ -65,16 +75,37 @@ function parseLabLines(raw: unknown): LabLine[] {
   } else if (Array.isArray(raw)) {
     items = raw
   }
-  return items.map((item) => {
-    if (!item || typeof item !== 'object') return { label: String(item) }
+  const lines: LabLine[] = []
+  for (const item of items) {
+    if (!item || typeof item !== 'object') {
+      lines.push({ label: String(item) })
+      continue
+    }
     const row = item as Record<string, unknown>
     if (row.kind === 'group') {
       const parent = String(row.parent || 'Lab group')
-      const children = Array.isArray(row.children) ? row.children.length : 0
-      return { label: `${parent} (${children} tests)`, kind: 'group' }
+      const children = Array.isArray(row.children) ? (row.children as string[]) : []
+      const childDiscounts = (row.child_discounts || {}) as Record<string, Record<string, unknown>>
+      if (!children.length) {
+        lines.push({ label: parent, kind: 'group' })
+        continue
+      }
+      for (const child of children) {
+        lines.push({
+          label: child,
+          kind: 'group-child',
+          discountNote: formatDiscountNote(childDiscounts[child]),
+        })
+      }
+      continue
     }
-    return { label: String(row.template || row.template_dn || 'Lab test'), kind: 'single' }
-  })
+    lines.push({
+      label: String(row.template || row.template_dn || 'Lab test'),
+      kind: 'single',
+      discountNote: formatDiscountNote(row),
+    })
+  }
+  return lines
 }
 
 function InfoTile({
@@ -259,10 +290,15 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
                 {labLines.map((line, i) => (
                   <li
                     key={i}
-                    className="flex items-center gap-2 rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-slate-800"
+                    className="flex flex-col gap-0.5 rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-slate-800 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span className="text-emerald-600/70">•</span>
-                    {line.label}
+                    <span className="flex items-center gap-2">
+                      <span className="text-emerald-600/70">•</span>
+                      {line.label}
+                    </span>
+                    {line.discountNote ? (
+                      <span className="text-xs font-medium text-emerald-700 sm:pl-4">{line.discountNote}</span>
+                    ) : null}
                   </li>
                 ))}
               </ul>

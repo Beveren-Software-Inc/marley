@@ -613,6 +613,17 @@ def resolve_event_value(event_name: str, index: dict[str, Any], values: dict[str
 	return _parse_float(getattr(row, "result_value", None))
 
 
+def _formula_name_boundary_pattern(name: str) -> str:
+	"""Regex for a whole formula operand (supports dots/hyphens/slashes in test names)."""
+	return r"(?<![\w./-])" + re.escape(name) + r"(?![\w./-])"
+
+
+def _formula_name_in_formula(name: str, formula: str) -> bool:
+	if not name or not formula:
+		return False
+	return bool(re.search(_formula_name_boundary_pattern(name), formula, re.IGNORECASE))
+
+
 def _formula_operator_split(formula: str) -> list[str]:
 	"""Split a formula into operand labels using math operators only (not spaces)."""
 	parts: list[str] = []
@@ -623,30 +634,76 @@ def _formula_operator_split(formula: str) -> list[str]:
 	return parts
 
 
+def _is_numeric_formula_term(term: str) -> bool:
+	try:
+		float((term or "").replace(",", ""))
+		return True
+	except (TypeError, ValueError):
+		return False
+
+
+def _panel_formula_operand_candidates(panel_template: str) -> list[str]:
+	"""Known child test identifiers for a panel (longest names first)."""
+	candidates: list[str] = []
+	seen: set[str] = set()
+	if not panel_template:
+		return candidates
+	for child in get_group_child_templates(panel_template):
+		for nm in _event_names_from_rule_event(
+			{"lab_test_event": child["lab_test_event"], "aliases": ""}
+		):
+			key = _norm_key(nm)
+			if nm and key not in seen:
+				seen.add(key)
+				candidates.append(nm)
+	# Rule may be attached to a child template — include its group siblings via lab_group.
+	meta = frappe.db.get_value(
+		"Lab Test Template",
+		panel_template,
+		["lab_group", "lab_test_name", "name"],
+		as_dict=True,
+	)
+	if meta:
+		group = (meta.lab_group or "").strip()
+		if group and group != panel_template:
+			for child in get_group_child_templates(group):
+				for nm in _event_names_from_rule_event(
+					{"lab_test_event": child["lab_test_event"], "aliases": ""}
+				):
+					key = _norm_key(nm)
+					if nm and key not in seen:
+						seen.add(key)
+						candidates.append(nm)
+		for nm in (meta.name, meta.lab_test_name):
+			key = _norm_key(nm)
+			if nm and key not in seen:
+				seen.add(key)
+				candidates.append(nm)
+	return sorted(candidates, key=len, reverse=True)
+
+
 def _formula_terms_for_alignment(formula: str, panel_template: str) -> list[str]:
-	"""Operand labels to map onto stored results (panel child names first)."""
+	"""Operand labels referenced in a formula (match whole test names, not ``-`` inside names)."""
 	terms: list[str] = []
 	seen: set[str] = set()
 	formula_text = formula or ""
 
-	if panel_template:
-		for child in get_group_child_templates(panel_template):
-			for nm in _event_names_from_rule_event(
-				{"lab_test_event": child["lab_test_event"], "aliases": ""}
-			):
-				if not nm:
-					continue
-				if re.search(r"\b" + re.escape(nm) + r"\b", formula_text, re.IGNORECASE):
-					key = _norm_key(nm)
-					if key not in seen:
-						seen.add(key)
-						terms.append(nm)
+	for nm in _panel_formula_operand_candidates(panel_template):
+		if _formula_name_in_formula(nm, formula_text):
+			key = _norm_key(nm)
+			if key not in seen:
+				seen.add(key)
+				terms.append(nm)
 
-	for part in _formula_operator_split(formula):
-		key = _norm_key(part)
-		if key not in seen:
-			seen.add(key)
-			terms.append(part)
+	# Fallback for rules not tied to a group panel (e.g. Globulin on a single template).
+	if not terms:
+		for part in _formula_operator_split(formula):
+			if _is_numeric_formula_term(part):
+				continue
+			key = _norm_key(part)
+			if key not in seen:
+				seen.add(key)
+				terms.append(part)
 	return terms
 
 
@@ -667,11 +724,23 @@ def substitute_formula(formula: str, values: dict[str, float]) -> str | None:
 	text = (formula or "").strip()
 	if not text:
 		return None
-	for name in sorted(values.keys(), key=len, reverse=True):
+	placeholders: dict[str, str] = {}
+	for i, name in enumerate(sorted(values.keys(), key=len, reverse=True)):
 		val = values.get(name)
 		if val is None:
 			continue
-		text = re.sub(r"\b" + re.escape(name) + r"\b", f"({val})", text, flags=re.IGNORECASE)
+		if not _formula_name_in_formula(name, text):
+			continue
+		ph = f"#{i}#"
+		text = re.sub(
+			_formula_name_boundary_pattern(name),
+			ph,
+			text,
+			flags=re.IGNORECASE,
+		)
+		placeholders[ph] = f"({val})"
+	for ph, literal in placeholders.items():
+		text = text.replace(ph, literal)
 	if re.search(r"[a-zA-Z_]", text):
 		return None
 	return text
@@ -894,8 +963,15 @@ def apply_rules(
 				else:
 					warnings.append(entry)
 
-	# Formula and ratio lines
-	for line in rules.get("rule_lines") or []:
+	# Formula and ratio lines — formulas first so ratios can use calculated values
+	rule_lines = list(rules.get("rule_lines") or [])
+	rule_lines.sort(
+		key=lambda line: (
+			0 if (line.get("rule_type") or "Formula") == "Formula" else 1,
+			line.get("target_event") or "",
+		)
+	)
+	for line in rule_lines:
 		target = (line.get("target_event") or "").strip()
 		if not target:
 			continue
@@ -1097,7 +1173,7 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 def recalculate_panel_for_service_request(
 	service_request: str, triggering_lab_test: str | None = None
 ) -> dict[str, Any]:
-	"""Re-run panel formulas for all lab tests on one service request (after sibling saves)."""
+	"""Re-run all panel formulas/ratios for lab tests on one service request (after sibling saves)."""
 	empty: dict[str, Any] = {"calculated_updates": [], "warnings": []}
 	if not service_request:
 		return empty
@@ -1110,42 +1186,59 @@ def recalculate_panel_for_service_request(
 	if not lab_test_names:
 		return empty
 
-	rule_doc = panel_template = None
 	triggering = None
 	if triggering_lab_test and triggering_lab_test in lab_test_names:
 		triggering = frappe.get_doc("Lab Test", triggering_lab_test)
-		panel_template, rule_doc = _resolve_panel_template_and_rule(triggering)
-	if not rule_doc:
-		for lt_name in lab_test_names:
-			doc = frappe.get_doc("Lab Test", lt_name)
-			panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
-			if rule_doc:
-				triggering = doc
-				break
-	if not rule_doc or not triggering:
+
+	rule_entries: list[tuple[str, Any, Any]] = []
+	seen_rules: set[str] = set()
+	for lt_name in lab_test_names:
+		doc = frappe.get_doc("Lab Test", lt_name)
+		panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
+		if not rule_doc or rule_doc.name in seen_rules:
+			continue
+		seen_rules.add(rule_doc.name)
+		rule_entries.append((panel_template, rule_doc, doc))
+		if not triggering:
+			triggering = doc
+
+	if not rule_entries or not triggering:
 		return empty
 
-	rules_dict = rule_doc_to_dict(rule_doc)
-	result = apply_rules(
-		triggering.template,
-		[],
-		rule_doc=rule_doc,
-		service_request=service_request,
-		lab_test_group=getattr(triggering, "lab_test_group", None) or panel_template,
-		patient=triggering.patient,
-		current_doc=triggering,
-	)
-	updates = _sync_calculated_targets_to_lab_tests(
-		triggering,
-		rules_dict,
-		result.get("calculated_targets") or {},
-		service_request=service_request,
-		lab_test_group=getattr(triggering, "lab_test_group", None) or panel_template,
-	)
-	warnings = result.get("warnings") or []
-	if updates:
-		warnings = [w for w in warnings if w.get("type") != "formula_missing_inputs"]
+	def _rule_pass_order(entry):
+		_rules = rule_doc_to_dict(entry[1])
+		lines = _rules.get("rule_lines") or []
+		has_ratio = any((ln.get("rule_type") or "") == "Ratio" for ln in lines)
+		return (1 if has_ratio else 0, entry[1].name or "")
+
+	rule_entries.sort(key=_rule_pass_order)
+
+	all_updates: list[dict[str, str]] = []
+	all_warnings: list[dict[str, Any]] = []
+	for panel_template, rule_doc, anchor_doc in rule_entries:
+		rules_dict = rule_doc_to_dict(rule_doc)
+		result = apply_rules(
+			anchor_doc.template,
+			[],
+			rule_doc=rule_doc,
+			service_request=service_request,
+			lab_test_group=getattr(anchor_doc, "lab_test_group", None) or panel_template,
+			patient=anchor_doc.patient,
+			current_doc=anchor_doc,
+		)
+		updates = _sync_calculated_targets_to_lab_tests(
+			anchor_doc,
+			rules_dict,
+			result.get("calculated_targets") or {},
+			service_request=service_request,
+			lab_test_group=getattr(anchor_doc, "lab_test_group", None) or panel_template,
+		)
+		all_updates.extend(updates)
+		all_warnings.extend(result.get("warnings") or [])
+
+	if all_updates:
+		all_warnings = [w for w in all_warnings if w.get("type") != "formula_missing_inputs"]
 	return {
-		"calculated_updates": updates,
-		"warnings": warnings,
+		"calculated_updates": all_updates,
+		"warnings": all_warnings,
 	}

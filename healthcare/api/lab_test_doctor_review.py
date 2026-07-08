@@ -249,6 +249,9 @@ def submit_doctor_lab_test_review(
 	if new_status == "Reviewed" and not follow_ups:
 		frappe.throw(_("Select at least one follow-up action (e.g. Take no action)"))
 
+	if new_status == "Rejected" and not (review_comments or "").strip():
+		frappe.throw(_("Please provide a reason for rejection"))
+
 	doc = frappe.get_doc("Lab Test", lab_test_name)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot review a cancelled Lab Test"))

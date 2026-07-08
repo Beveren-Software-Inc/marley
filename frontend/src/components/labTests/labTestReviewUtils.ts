@@ -93,6 +93,9 @@ export function validateReviewForm(
   if (values.followUps.has('Other') && !values.followUpOther.trim()) {
     return 'Please describe the other follow-up action.'
   }
+  if (outcome === 'Rejected' && !values.comments.trim()) {
+    return 'Please provide a reason for rejection.'
+  }
   return null
 }
 

@@ -116,9 +116,11 @@ export interface UpdateServiceRequestData {
   cost_center?: string
   patient_category?: string
   discount?: number
+  discount_margin?: string
   discount_value?: string
   discount_amount?: number
   grand_total?: number
+  lab_request_items?: LabRequestItem[]
 }
 
 /** Update an existing Service Request. */
@@ -178,10 +180,22 @@ export async function createLabTestFromServiceRequest(serviceRequestName: string
   )
 }
 
+/** Per-test discount fields stored on lab basket JSON */
+export interface LabLineDiscountFields {
+  discount_type?: 'Percentage' | 'Amount'
+  discount_rate?: number
+  discount?: number
+}
+
 /** One line in a multi-test lab service request basket */
 export type LabRequestItem =
-  | { kind: 'single'; template: string }
-  | { kind: 'group'; parent: string; children: string[] }
+  | ({ kind: 'single'; template: string } & LabLineDiscountFields)
+  | ({
+      kind: 'group'
+      parent: string
+      children: string[]
+      child_discounts?: Record<string, LabLineDiscountFields>
+    })
 
 export interface CreateServiceRequestData {
   patient: string
@@ -202,6 +216,7 @@ export interface CreateServiceRequestData {
   cost_center?: string
   cost?: number | null
   discount?: number
+  discount_margin?: string
   discount_value?: string
   discount_amount?: number
   grand_total?: number
@@ -209,9 +224,23 @@ export interface CreateServiceRequestData {
   lab_request_items?: LabRequestItem[]
 }
 
+export interface MultiLabPricingLine {
+  template: string
+  lab_test_name?: string
+  parent_group?: string | null
+  amount: number
+  discount_type?: string
+  discount_rate?: number
+  discount?: number
+  discount_applied?: number
+  net_amount?: number
+}
+
 export interface MultiLabRequestPricing {
-  lines: { template: string; lab_test_name?: string; parent_group?: string | null; amount: number }[]
+  lines: MultiLabPricingLine[]
   subtotal: number
+  grand_total?: number
+  discount_amount?: number
   summary?: string
 }
 

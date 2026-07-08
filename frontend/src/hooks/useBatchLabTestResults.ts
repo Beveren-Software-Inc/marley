@@ -140,7 +140,7 @@ export function useBatchLabTestResults(
           payload.lab_technician = rowLabTech
         }
         const res = await saveAndSubmitLabTest(lt.name, payload)
-        if (lt.service_request && lt.is_group_lab_test) {
+        if (lt.service_request) {
           panelServiceRequests.add(lt.service_request)
         }
         mergedRuleFeedback.rule_warnings?.push(...(res.rule_warnings || []))

@@ -17,6 +17,13 @@ export interface LabTestLine {
   lab_04_remarks?: string
 }
 
+export interface LabTestSampleInstance {
+  sample?: string
+  sample_qty?: number
+  sample_details?: string
+  sample_collection?: string
+}
+
 export interface LabTest {
   name: string
   docstatus?: number
@@ -100,7 +107,7 @@ export interface LabTest {
   /** Patient Upload Document child table (same as Admission/Discharge) */
   documents?: Array<{ file_name?: string; document_type?: string; transaction_no?: string; upload_remarks?: string; document?: string }>
   /** Sample instances child table – one row per required/actual sample */
-  sample_instances?: Array<{ sample?: string; sample_qty?: number; sample_details?: string; sample_collection?: string }>
+  sample_instances?: LabTestSampleInstance[]
   /** Populated after save when lab result rules run */
   rule_warnings?: Array<{
     message?: string
@@ -125,6 +132,8 @@ export interface LabTest {
   is_legacy_line_row?: boolean
   legacy_parent_name?: string
   legacy_line_key?: string
+  /** Child Lab Test Template id on a flattened legacy line row */
+  legacy_sub_template?: string
 }
 
 export interface LabConsumableRow {
@@ -555,6 +564,18 @@ export const SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES = new Set([
   'Sample collection in progress',
 ])
 
+export const AD_HOC_SAMPLE_COLLECTION_LAB_TEST_STATUSES = new Set(['Requested', 'Draft'])
+
+export function canRecordAdHocSampleCollection(labTest: {
+  status?: string | null
+  docstatus?: number
+}): boolean {
+  if ((labTest.docstatus ?? 0) >= 1) return false
+  const status = (labTest.status || '').trim()
+  if (canEditLabTestSampleCollection(status)) return true
+  return AD_HOC_SAMPLE_COLLECTION_LAB_TEST_STATUSES.has(status)
+}
+
 export function canEditLabTestSampleCollection(status?: string | null): boolean {
   if (!status) return false
   return SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES.has(status.trim())
@@ -566,6 +587,8 @@ export interface LabSampleCollectionFormData {
   sample_qty?: number
   sample_details?: string
   collection_point?: string
+  collected_by?: string
+  collected_by_name?: string
   referring_practitioner?: string
   referring_practitioner_name?: string
   observation_rows?: ObservationSampleCollectionRow[]
@@ -593,7 +616,8 @@ export async function createSampleCollectionForLabSample(
   collectionPoint?: string,
   referringPractitioner?: string,
   observationRows?: ObservationSampleCollectionRow[],
-  sampleQty?: number
+  sampleQty?: number,
+  collectedBy?: string
 ): Promise<{ sample_collection: string }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<{ sample_collection: string }>(
@@ -608,6 +632,7 @@ export async function createSampleCollectionForLabSample(
         referring_practitioner: referringPractitioner,
         observation_rows: observationRows?.length ? observationRows : undefined,
         sample_qty: sampleQty,
+        collected_by: collectedBy,
       }),
     }
   )
@@ -620,7 +645,8 @@ export async function updateSampleCollectionForLabSample(
   collectionPoint?: string,
   referringPractitioner?: string,
   observationRows?: ObservationSampleCollectionRow[],
-  sampleQty?: number
+  sampleQty?: number,
+  collectedBy?: string
 ): Promise<{ sample_collection: string }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<{ sample_collection: string }>(
@@ -635,6 +661,7 @@ export async function updateSampleCollectionForLabSample(
         referring_practitioner: referringPractitioner,
         observation_rows: observationRows?.length ? observationRows : undefined,
         sample_qty: sampleQty,
+        collected_by: collectedBy,
       }),
     }
   )

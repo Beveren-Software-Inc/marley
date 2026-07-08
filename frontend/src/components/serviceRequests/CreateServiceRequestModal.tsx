@@ -16,7 +16,14 @@ import {
   createServiceRequest,
   getMultiLabRequestPricing,
   type LabRequestItem,
+  type MultiLabRequestPricing,
 } from '../../services/serviceRequests'
+import { LabTestLineDiscountTable } from './LabTestLineDiscountTable'
+import {
+  defaultLineDiscount,
+  mergeDiscountsIntoBasket,
+  type LabLineDiscount,
+} from '../../utils/labTestDiscounts'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
@@ -115,12 +122,13 @@ export const CreateServiceRequestModal = ({
   const [groupRows, setGroupRows] = useState<GroupTemplateRow[]>([])
   const [selectedGroupTemplates, setSelectedGroupTemplates] = useState<string[]>([])
   const [discountPct, setDiscountPct] = useState(0)
+  const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
 
   /** Multi-test lab basket (lab request flow only) */
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
   const [pendingTemplateDn, setPendingTemplateDn] = useState('')
   const [pendingTemplateLabel, setPendingTemplateLabel] = useState('')
-  const [basketPricingSubtotal, setBasketPricingSubtotal] = useState(0)
+  const [basketPricing, setBasketPricing] = useState<MultiLabRequestPricing>({ lines: [], subtotal: 0 })
 
   const [form, setForm] = useState({
     patient: initialPatient || contextPatient || '',
@@ -162,13 +170,27 @@ export const CreateServiceRequestModal = ({
   }, [isGroupTemplate, pricingRows, patientCategory])
 
   const listSubtotalBeforeDiscount = useLabBasket
-    ? basketPricingSubtotal
+    ? basketPricing.subtotal
     : isGroupTemplate
       ? groupTotal
       : nonGroupListSubtotal
 
   const clampedDiscount = Math.min(100, Math.max(0, discountPct))
-  const estimatedTotalAfterDiscount = listSubtotalBeforeDiscount * (1 - clampedDiscount / 100)
+  const estimatedTotalAfterDiscount = useLabBasket
+    ? (basketPricing.grand_total ?? basketPricing.subtotal)
+    : listSubtotalBeforeDiscount * (1 - clampedDiscount / 100)
+
+  const basketWithDiscounts = useMemo(
+    () => mergeDiscountsIntoBasket(labBasket, lineDiscounts),
+    [labBasket, lineDiscounts]
+  )
+
+  const handleLineDiscountChange = (template: string, patch: Partial<LabLineDiscount>) => {
+    setLineDiscounts((prev) => ({
+      ...prev,
+      [template]: { ...(prev[template] || defaultLineDiscount()), ...patch },
+    }))
+  }
 
   const basketLineLabel = (item: LabRequestItem) => {
     if (item.kind === 'single') {
@@ -207,13 +229,13 @@ export const CreateServiceRequestModal = ({
 
   useEffect(() => {
     if (!useLabBasket || !form.patient || labBasket.length === 0) {
-      setBasketPricingSubtotal(0)
+      setBasketPricing({ lines: [], subtotal: 0 })
       return
     }
-    getMultiLabRequestPricing(labBasket, form.patient, mode === 'OP' ? 'OP' : 'IP')
-      .then((p) => setBasketPricingSubtotal(p.subtotal || 0))
-      .catch(() => setBasketPricingSubtotal(0))
-  }, [useLabBasket, form.patient, labBasket])
+    getMultiLabRequestPricing(basketWithDiscounts, form.patient, mode === 'OP' ? 'OP' : 'IP')
+      .then(setBasketPricing)
+      .catch(() => setBasketPricing({ lines: [], subtotal: 0 }))
+  }, [useLabBasket, form.patient, labBasket.length, basketWithDiscounts, mode])
 
   useEffect(() => {
     const load = async () => {
@@ -460,33 +482,51 @@ export const CreateServiceRequestModal = ({
 
     try {
       setSubmitting(true)
-      const pct = Math.min(100, Math.max(0, discountPct))
-      const listAmount = listSubtotalBeforeDiscount
-      const discountAmount = listAmount * (pct / 100)
-      const afterDiscount = estimatedTotalAfterDiscount
       const primaryDn =
         useLabBasket && labBasket.length > 0
           ? labBasket[0].kind === 'single'
             ? labBasket[0].template
             : labBasket[0].parent
           : form.template_dn
-      await createServiceRequest({
-        patient: form.patient,
-        template_dt: form.template_dt,
-        template_dn: primaryDn,
-        lab_request_items: useLabBasket ? labBasket : undefined,
-        practitioner: form.practitioner || undefined,
-        patient_visit: form.patient_visit || undefined,
-        inpatient_record: form.inpatient_record || undefined,
-        order_date: form.order_date,
-        order_time: form.order_time,
-        cost_center: form.cost_center || undefined,
-        cost: listAmount,
-        discount: pct,
-        discount_amount: discountAmount,
-        grand_total: afterDiscount,
-        selected_group_templates: !useLabBasket && isGroupTemplate ? selectedGroupTemplates : undefined,
-      })
+
+      if (useLabBasket) {
+        await createServiceRequest({
+          patient: form.patient,
+          template_dt: form.template_dt,
+          template_dn: primaryDn,
+          lab_request_items: basketWithDiscounts,
+          practitioner: form.practitioner || undefined,
+          patient_visit: form.patient_visit || undefined,
+          inpatient_record: form.inpatient_record || undefined,
+          order_date: form.order_date,
+          order_time: form.order_time,
+          cost_center: form.cost_center || undefined,
+          cost: basketPricing.subtotal,
+          discount_amount: basketPricing.discount_amount || 0,
+          grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
+        })
+      } else {
+        const pct = Math.min(100, Math.max(0, discountPct))
+        const listAmount = listSubtotalBeforeDiscount
+        const discountAmount = listAmount * (pct / 100)
+        const afterDiscount = estimatedTotalAfterDiscount
+        await createServiceRequest({
+          patient: form.patient,
+          template_dt: form.template_dt,
+          template_dn: primaryDn,
+          practitioner: form.practitioner || undefined,
+          patient_visit: form.patient_visit || undefined,
+          inpatient_record: form.inpatient_record || undefined,
+          order_date: form.order_date,
+          order_time: form.order_time,
+          cost_center: form.cost_center || undefined,
+          cost: listAmount,
+          discount: pct,
+          discount_amount: discountAmount,
+          grand_total: afterDiscount,
+          selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,
+        })
+      }
       toast.success('Service Request created')
       onSuccess()
     } catch (err) {
@@ -943,7 +983,9 @@ export const CreateServiceRequestModal = ({
                   Pricing
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
-                  Reference amount before discount (reception finalises billing). Enter a clinician discount percentage if applicable.
+                  {useLabBasket
+                    ? 'Set a discount per lab test — percentage or fixed amount. Reception finalises billing.'
+                    : 'Reference amount before discount (reception finalises billing). Enter a clinician discount percentage if applicable.'}
                 </p>
                 {listSubtotalBeforeDiscount > 0 && (
                   <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -951,24 +993,37 @@ export const CreateServiceRequestModal = ({
                     <span className="font-semibold tabular-nums text-slate-900">{formatMoney(listSubtotalBeforeDiscount)}</span>
                   </div>
                 )}
-                <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  <div className="flex flex-col gap-1">
-                    <label className="text-xs font-medium text-slate-500">Discount (%)</label>
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={discountPct || ''}
-                      onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
-                      className={inputClass}
-                      placeholder="0"
-                    />
+                {useLabBasket && basketPricing.lines.length > 0 ? (
+                  <LabTestLineDiscountTable
+                    lines={basketPricing.lines}
+                    lineDiscounts={lineDiscounts}
+                    onChange={handleLineDiscountChange}
+                  />
+                ) : !useLabBasket ? (
+                  <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-xs font-medium text-slate-500">Discount (%)</label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={100}
+                        step={0.5}
+                        value={discountPct || ''}
+                        onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                        className={inputClass}
+                        placeholder="0"
+                      />
+                    </div>
                   </div>
-                </div>
-                {clampedDiscount > 0 && listSubtotalBeforeDiscount > 0 && (
+                ) : null}
+                {!useLabBasket && clampedDiscount > 0 && listSubtotalBeforeDiscount > 0 && (
                   <p className="mb-3 text-xs text-slate-500">
                     −{formatMoney(listSubtotalBeforeDiscount * (clampedDiscount / 100))} ({clampedDiscount}%)
+                  </p>
+                )}
+                {useLabBasket && (basketPricing.discount_amount || 0) > 0 && (
+                  <p className="mt-3 text-xs text-slate-500">
+                    Total discount: −{formatMoney(basketPricing.discount_amount || 0)}
                   </p>
                 )}
               </div>
@@ -981,7 +1036,9 @@ export const CreateServiceRequestModal = ({
                   <Wallet className="h-4 w-4 text-white/90" />
                   Estimated patient total
                 </span>
-                {clampedDiscount > 0 ? (
+                {useLabBasket && (basketPricing.discount_amount || 0) > 0 ? (
+                  <span className="text-xs text-emerald-100/90">Per-test discounts applied</span>
+                ) : !useLabBasket && clampedDiscount > 0 ? (
                   <span className="text-xs text-emerald-100/90">{clampedDiscount}% discount applied</span>
                 ) : null}
               </div>
