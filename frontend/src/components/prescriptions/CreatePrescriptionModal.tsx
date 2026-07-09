@@ -23,6 +23,7 @@ import {
   fetchPrescriptionFrequencies,
   fetchLongActingFrequencies,
   fetchRouteOfAdministrationList,
+  resolvePrescriptionDrugRoute,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -411,9 +412,9 @@ export const CreatePrescriptionModal = ({
   }
 
   const applyDrugSelection = async (index: number, opt: LinkFieldOption) => {
-    const route = opt.default_route_of_administration?.trim()
-    // UOM defaults to UNITS on every prescription line (editable if it differs).
-    const stockUom = 'UNITS'
+    const route = (await resolvePrescriptionDrugRoute(opt)).trim()
+    // UOM defaults to UNIT on every prescription line (editable if it differs).
+    const stockUom = 'UNIT'
     setMedications((prev) => {
       const next = [...prev]
       if (!next[index]) return prev
@@ -422,6 +423,7 @@ export const CreatePrescriptionModal = ({
         drug: opt.name,
         drug_name: opt.label || opt.name,
         uom: stockUom,
+        is_pink: Boolean(opt.is_pink),
         ...(route ? { route_of_administration: route } : {}),
       }
       return next
@@ -755,7 +757,7 @@ export const CreatePrescriptionModal = ({
   }
 
   const validMedications = medications
-    .filter((m) => m.drug && m.dosage && m.dosage_form && m.date)
+    .filter((m) => m.drug && m.dosage && m.date)
     .map((m) => ({ ...m, ...flagsFromPrescriptionType(m.medication_type) }))
 
   const handleDoctorSignatureSave = async (file: File) => {
@@ -792,7 +794,7 @@ export const CreatePrescriptionModal = ({
       setError('A prescription can only be created for the current admission.'); setActiveTab('details'); return
     }
     if (validMedications.length === 0) {
-      setError('Please add at least one medication with Drug, Dosage, Dosage Form, and Date')
+      setError('Please add at least one medication with Drug, Dosage, and Date')
       setActiveTab('medications'); return
     }
     try {
@@ -1463,7 +1465,7 @@ export const CreatePrescriptionModal = ({
                           <div className="grid grid-cols-2 gap-3">
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
-                                Dosage Form <span className="text-red-500">*</span>
+                                Dosage Form
                               </label>
                               <select
                                 value={row.dosage_form}

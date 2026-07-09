@@ -1,0 +1,334 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:29:01.854770",
+  "name": "ECT Session,",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "ECT Session,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:31:33.653408",
+  "name": "Medical Report,",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Medical Report,"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:55:48.892265",
+  "name": "Online-New Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Online-New Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:32:43.693711",
+  "name": "Nutritionist",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Nutritionist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:28:40.311983",
+  "name": "ECG Session",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "ECG Session"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:29:01.854770",
+  "name": "ECT Session",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "ECT Session"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:29:12.566133",
+  "name": "EEG Session",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "EEG Session"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:29:33.984939",
+  "name": "Follow-up for the Psychiatrist",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Follow-up for the Psychiatrist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:29:51.802169",
+  "name": "Home Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Home Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:30:03.702775",
+  "name": "IOP",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "IOP"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:30:23.230593",
+  "name": "Lab Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Lab Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:30:41.370100",
+  "name": "Pharmacy",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Pharmacy"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:31:33.653408",
+  "name": "Medical Report",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Medical Report"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-02-15 10:32:00.583598",
+  "name": "Psychologist",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Psychologist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:53:27.196279",
+  "name": "New Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "New Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-07-08 18:01:06.728213",
+  "name": "EEG Request",
+  "no_charges": 0,
+  "service_charge": "IP-0008",
+  "services": [],
+  "visit_type": "EEG Request"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:54:54.754930",
+  "name": "Child Psychiatry Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Child Psychiatry Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:55:11.472859",
+  "name": "ECT Request",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "ECT Request"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:55:39.406727",
+  "name": "Online-Followup",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Online-Followup"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:55:48.892265",
+  "name": "Online-New Visist",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Online-New Visist"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:55:58.493538",
+  "name": "Day Case",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Day Case"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:56:07.642305",
+  "name": "Payment Only",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Payment Only"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:56:27.174606",
+  "name": "Online Psychology",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Online Psychology"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:57:04.728797",
+  "name": "Renew Medicine Prescription",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Renew Medicine Prescription"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:57:45.785491",
+  "name": "Nutrition (New Visit)",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Nutrition (New Visit)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 17:58:02.056635",
+  "name": "Nutrition (Followup)",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Nutrition (Followup)"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-23 18:00:44.351582",
+  "name": "Daily Auto Visit",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Daily Auto Visit"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-04-26 10:12:33.140406",
+  "name": "Followup",
+  "no_charges": 0,
+  "service_charge": null,
+  "services": [],
+  "visit_type": "Followup"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Visit Type",
+  "is_default": 0,
+  "modified": "2026-07-08 17:39:04.105061",
+  "name": "Psychology",
+  "no_charges": 0,
+  "service_charge": "IOP-CLINICAL-ASSESSMENT-CON",
+  "services": [
+   {
+    "item_code": "OP-0033",
+    "rate": 30.0,
+    "service_charge": "OP-0033",
+    "service_name": "Regular Visit + Injection + Medicine"
+   },
+   {
+    "item_code": "OP-0039",
+    "rate": 40.0,
+    "service_charge": "OP-0039",
+    "service_name": "Regular Visit + Injection"
+   }
+  ],
+  "visit_type": "Psychology"
+ }
+]

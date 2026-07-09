@@ -779,7 +779,8 @@ def preview_medicine_given_dose_validation(
 		dose_limit_validation_message,
 		evaluate_medicine_given_dose,
 		extract_dose_numeric,
-		get_item_maximum_dose_limit,
+		get_item_max_dose_per_day,
+		get_item_max_dose_per_single_dose,
 	)
 
 	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
@@ -800,7 +801,9 @@ def preview_medicine_given_dose_validation(
 	return {
 		**evaluation,
 		"parsed_dose": extract_dose_numeric(dose),
-		"maximum_dose_limit": get_item_maximum_dose_limit(medicine_code),
+		"max_dose_per_single_dose": get_item_max_dose_per_single_dose(medicine_code),
+		"max_dose_per_day": get_item_max_dose_per_day(medicine_code),
+		"maximum_dose_limit": get_item_max_dose_per_single_dose(medicine_code),
 		"message": dose_limit_validation_message(evaluation),
 	}
 

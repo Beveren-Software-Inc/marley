@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
+import { PenLine } from 'lucide-react'
 import { fetchPrescriptions, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
@@ -6,6 +7,8 @@ import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
+import { SignPrescriptionModal } from './SignPrescriptionModal'
+import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
@@ -71,7 +74,7 @@ export const PrescriptionList = ({
   careContext: careContextProp,
   doctorPrescriptionDefaults = false,
 }: PrescriptionListProps) => {
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, guardClinicalEdit } = useCareContext()
 
   // Derive care context from global mode when no explicit prop provided.
   const careContext = careContextProp ?? (mode === 'IP' ? 'Inpatient Admission' : 'Patient Visit')
@@ -97,6 +100,7 @@ export const PrescriptionList = ({
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const [signTarget, setSignTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -622,6 +626,17 @@ export const PrescriptionList = ({
               </td>
               <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">
+                  {prescriptionNeedsSignature(row) && (
+                    <button
+                      type="button"
+                      onClick={() => guardClinicalEdit(() => setSignTarget(row))}
+                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
+                      title="Sign prescription"
+                      aria-label="Sign prescription"
+                    >
+                      <PenLine className="w-4 h-4" />
+                    </button>
+                  )}
                   <div
                     className="relative inline-block"
                     ref={openActionRow === rowKey ? menuRef : undefined}
@@ -651,6 +666,19 @@ export const PrescriptionList = ({
                       >
                         View Details
                       </button>
+                      {prescriptionNeedsSignature(row) && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenActionRow(null)
+                            guardClinicalEdit(() => setSignTarget(row))
+                          }}
+                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50"
+                        >
+                          <PenLine className="w-4 h-4" />
+                          Sign Prescription
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleOpenInForm(row.name)}
@@ -699,9 +727,23 @@ export const PrescriptionList = ({
   <PrescriptionSlideOver
   prescriptionName={detailName}
   onClose={() => setDetailName(null)}
-  // onUpdate={() => refetch()} ok tsr
+  onUpdate={load}
 />
 )}
+
+      {signTarget && (
+        <SignPrescriptionModal
+          prescriptionName={signTarget.name}
+          currentSignature={signTarget.doctors_signature}
+          status={signTarget.status}
+          newSystem={signTarget.new_system}
+          onClose={() => setSignTarget(null)}
+          onSigned={() => {
+            setSignTarget(null)
+            load()
+          }}
+        />
+      )}
     </div>
   )
 }

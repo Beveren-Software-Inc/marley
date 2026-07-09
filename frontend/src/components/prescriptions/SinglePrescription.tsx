@@ -18,7 +18,7 @@ import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, PenLine } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
-import { SignPrescriptionPanel } from './SignPrescriptionPanel'
+import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
@@ -47,6 +47,7 @@ import {
   fetchRouteOfAdministrationList,
   fetchDosageForms,
   fetchStandardUoms,
+  resolvePrescriptionDrugRoute,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -718,8 +719,8 @@ const AddMedicationEntryModal = ({
   }
 
   const handleSave = async () => {
-    if (!form.drug || !form.dosage || !form.dosage_form || !form.date) {
-      toast.error('Drug, Dosage, Dosage Form, and Start Date are required')
+    if (!form.drug || !form.dosage || !form.date) {
+      toast.error('Drug, Dosage, and Start Date are required')
       return
     }
     try {
@@ -786,13 +787,14 @@ const AddMedicationEntryModal = ({
               onQueryChange={(q) => { setDrugQuery(q); loadDrugOptions(q) }}
               onOpen={() => loadDrugOptions(drugQuery || '')}
               onSelect={async (opt) => {
-                const route = opt.default_route_of_administration?.trim()
+                const route = (await resolvePrescriptionDrugRoute(opt)).trim()
                 const stockUom = (opt.stock_uom || '').trim()
                 setForm((f) => ({
                   ...f,
                   drug: opt.name,
                   drug_name: opt.label || opt.name,
                   uom: stockUom,
+                  is_pink: Boolean(opt.is_pink),
                   ...(route ? { route_of_administration: route } : {}),
                 }))
                 setAddUomQuery(stockUom)
@@ -850,7 +852,7 @@ const AddMedicationEntryModal = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
               <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
                 <option value="">Select...</option>
@@ -1649,49 +1651,17 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       )}
 
       {showSignModal && prescription && (
-        <div
-          className={CREATE_MODAL_OVERLAY}
-          onClick={() => setShowSignModal(false)}
-          role="presentation"
-        >
-          <div
-            className={createModalShellClass('max-w-lg w-full max-h-[90vh]')}
-            onClick={(e) => e.stopPropagation()}
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="sign-prescription-title"
-          >
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <div>
-                <h2 id="sign-prescription-title" className="text-base font-semibold text-slate-900">
-                  Sign prescription
-                </h2>
-                <p className="text-xs text-slate-500 mt-0.5 font-mono">{prescription.name}</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowSignModal(false)}
-                className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                title="Close"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="p-4 overflow-y-auto">
-              <SignPrescriptionPanel
-                prescriptionName={prescription.name}
-                currentSignature={prescription.doctors_signature}
-                status={prescription.status}
-                newSystem={prescription.new_system}
-                compact
-                onSigned={() => {
-                  setShowSignModal(false)
-                  load()
-                }}
-              />
-            </div>
-          </div>
-        </div>
+        <SignPrescriptionModal
+          prescriptionName={prescription.name}
+          currentSignature={prescription.doctors_signature}
+          status={prescription.status}
+          newSystem={prescription.new_system}
+          onClose={() => setShowSignModal(false)}
+          onSigned={() => {
+            setShowSignModal(false)
+            load()
+          }}
+        />
       )}
     </div>
   )

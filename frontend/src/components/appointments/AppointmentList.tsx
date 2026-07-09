@@ -1634,7 +1634,7 @@ export const AppointmentList = ({
         </div>
       ) : (
         <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
-          {(detailedColumns || isInsideCard) ? (
+          {detailedColumns ? (
             <table className="w-full min-w-[760px] table-auto">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>

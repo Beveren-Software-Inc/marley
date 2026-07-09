@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react'
+import { PenLine } from 'lucide-react'
 import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction } from '../../services/prescriptions'
 import { useAuth } from '../../providers/AuthProvider'
 import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-import { SignPrescriptionPanel } from './SignPrescriptionPanel'
+import { SignPrescriptionModal } from './SignPrescriptionModal'
+import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
+import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import {
   displayMedicationDosage,
   displayMedicationDrugCode,
@@ -290,6 +293,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [error, setError]               = useState<Error | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeType, setActiveType]     = useState('All')
+  const [showSignModal, setShowSignModal] = useState(false)
 
   // Per-drug Hold / Continue / Discontinue (doctor only)
   const { user } = useAuth()
@@ -397,19 +401,41 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
             </span>
           )}
         </div>
-        {prescription.status && <StatusPill status={prescription.status} />}
+        <div className="flex items-center gap-2 flex-wrap">
+          {prescription.status && <StatusPill status={prescription.status} />}
+          {prescriptionNeedsSignature(prescription) && (
+            <button
+              type="button"
+              onClick={() => setShowSignModal(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors"
+            >
+              <PenLine className="h-4 w-4" />
+              Sign
+            </button>
+          )}
+          {!prescriptionNeedsSignature(prescription) && prescriptionIsSigned(prescription) && prescription.doctors_signature && (
+            <img
+              src={attachFileDisplayUrl(prescription.doctors_signature)}
+              alt="Doctor signature"
+              className="max-h-10 object-contain rounded border border-emerald-200 bg-emerald-50 px-2 py-1"
+            />
+          )}
+        </div>
       </div>
 
-      <SignPrescriptionPanel
-        prescriptionName={prescription.name}
-        currentSignature={prescription.doctors_signature}
-        status={prescription.status}
-        newSystem={prescription.new_system}
-        onSigned={() => {
-          load()
-          onUpdate?.()
-        }}
-      />
+      {showSignModal && (
+        <SignPrescriptionModal
+          prescriptionName={prescription.name}
+          currentSignature={prescription.doctors_signature}
+          status={prescription.status}
+          newSystem={prescription.new_system}
+          onClose={() => setShowSignModal(false)}
+          onSigned={() => {
+            load()
+            onUpdate?.()
+          }}
+        />
+      )}
 
       {/* ── Progress bar ── */}
       <div className="bg-slate-50 rounded-lg px-4 py-3 border border-slate-100">

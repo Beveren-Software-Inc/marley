@@ -30,6 +30,8 @@ export interface LinkFieldOption {
   cost_center?: string
   /** From Item.custom_route_of_administration when present — prefills prescription route */
   default_route_of_administration?: string
+  /** Prescription drug: item group (or ancestor) has Item Group.custom_is_pink */
+  is_pink?: boolean
   code_value?: string
   country?: string
 }
@@ -770,6 +772,25 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   } else {
     return []
   }
+}
+
+export async function fetchItemRouteOfAdministration(item: string): Promise<string | null> {
+  const itemName = (item || '').trim()
+  if (!itemName) return null
+  const params = new URLSearchParams({ item: itemName })
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_item_route_of_administration?${params.toString()}`
+  )
+  const data = await res.json()
+  const route = typeof data?.message === 'string' ? data.message.trim() : ''
+  return route || null
+}
+
+/** Route from prescription item search, or fetched from Item master when missing. */
+export async function resolvePrescriptionDrugRoute(opt: LinkFieldOption): Promise<string> {
+  const direct = opt.default_route_of_administration?.trim()
+  if (direct) return direct
+  return (await fetchItemRouteOfAdministration(opt.name)) || ''
 }
 
 export async function fetchPrescriptionItems(search?: string): Promise<LinkFieldOption[]> {

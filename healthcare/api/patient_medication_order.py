@@ -297,6 +297,12 @@ def _set_medication_row(doc, row):
 	entry.is_prn = 1 if row.get('is_prn') else 0
 	entry.reference_no = row.get('reference_no') or ''
 	entry.route_of_administration = row.get('route_of_administration') or ''
+	if not (entry.route_of_administration or '').strip() and entry.drug:
+		from healthcare.api.common import get_item_route_of_administration_value
+
+		item_route = get_item_route_of_administration_value(entry.drug)
+		if item_route:
+			entry.route_of_administration = item_route
 	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0
 	entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
 	entry.medication_type = row.get('medication_type') or ''
