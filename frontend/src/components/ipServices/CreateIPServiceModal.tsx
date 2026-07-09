@@ -55,6 +55,7 @@ export const CreateIPServiceModal = ({
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
   const hasCareContext = isIPMode || isOPMode
+  const patientCareType: 'OP' | 'IP' = isOPMode ? 'OP' : 'IP'
 
   const effectivePatient = initialPatient || contextPatient || ''
   const effectiveAdmission = isIPMode ? (activeAdmission || '') : ''
@@ -145,7 +146,7 @@ export const CreateIPServiceModal = ({
       setSubmitting(true)
       const serviceLines: IPServiceLineInput[] = []
       for (const row of validItems) {
-        const template = await fetchIPServiceType(row.service_type)
+        const template = await fetchIPServiceType(row.service_type, patientCareType)
         serviceLines.push({
           service_type: row.service_type.trim(),
           service_code: template?.item_code,
@@ -276,6 +277,7 @@ export const CreateIPServiceModal = ({
                       <TemplateRowEditor
                         key={row.id}
                         row={row}
+                        patientCareType={patientCareType}
                         onUpdate={(patch) => updateItemRow(row.id, patch)}
                         onRemove={() => removeItemRow(row.id)}
                       />
@@ -310,11 +312,12 @@ export const CreateIPServiceModal = ({
 
 interface TemplateRowEditorProps {
   row: ItemRow
+  patientCareType: 'OP' | 'IP'
   onUpdate: (patch: Partial<ItemRow>) => void
   onRemove: () => void
 }
 
-function TemplateRowEditor({ row, onUpdate, onRemove }: TemplateRowEditorProps) {
+function TemplateRowEditor({ row, patientCareType, onUpdate, onRemove }: TemplateRowEditorProps) {
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<{ name: string; service_name: string; rate?: number }[]>([])
   const [open, setOpen] = useState(false)
@@ -328,12 +331,12 @@ function TemplateRowEditor({ row, onUpdate, onRemove }: TemplateRowEditorProps) 
   useEffect(() => {
     if (!open) return
     const t = setTimeout(() => {
-      fetchIPServiceTypes(search || undefined, 50, true)
+      fetchIPServiceTypes(search || undefined, 50, true, patientCareType)
         .then(setOptions)
         .catch(() => setOptions([]))
     }, search.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [open, search])
+  }, [open, search, patientCareType])
 
   const updateDropdownPosition = useCallback(() => {
     const el = inputRef.current
@@ -390,7 +393,7 @@ function TemplateRowEditor({ row, onUpdate, onRemove }: TemplateRowEditorProps) 
     setSearch('')
     setOpen(false)
     try {
-      const template = await fetchIPServiceType(name)
+      const template = await fetchIPServiceType(name, patientCareType)
       if (template?.rate != null && !row.amount) {
         onUpdate({ service_type: name, template_label: label, amount: String(template.rate) })
       }

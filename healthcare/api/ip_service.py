@@ -420,7 +420,15 @@ def create_ip_service(
 				if not service_code:
 					service_code = template_doc.item_code
 				if not amount:
-					amount = flt(template_doc.rate)
+					from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+						get_healthcare_service_template_rate,
+					)
+
+					care_type = "IP" if admission_no else ("OP" if patient_visit else None)
+					amount = get_healthcare_service_template_rate(
+						template_doc=template_doc,
+						patient_care_type=care_type,
+					)
 
 			if not service_type and not service_code:
 				continue
@@ -468,8 +476,12 @@ import frappe
 from frappe import _
 
 @frappe.whitelist()
-def get_ip_service_types(limit=50, search=None, is_ect=None):
+def get_ip_service_types(limit=50, search=None, is_ect=None, patient_care_type=None):
     """Get list of Healthcare Service Template"""
+    from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+        get_healthcare_service_template_rate,
+    )
+
     filters = {"disabled": 0}
 
     if search:
@@ -481,16 +493,26 @@ def get_ip_service_types(limit=50, search=None, is_ect=None):
     types = frappe.get_all(
         "Healthcare Service Template",
         filters=filters,
-        fields=["name", "service_name", "category", "rate"],
+        fields=["name", "service_name", "category", "rate", "op_rate"],
         limit=limit,
         order_by="service_name"
     )
-    
+
+    for row in types:
+        row["rate"] = get_healthcare_service_template_rate(
+            template_name=row.name,
+            patient_care_type=patient_care_type,
+        )
+
     return types
 
 @frappe.whitelist()
-def get_ip_service_type(template_name):
+def get_ip_service_type(template_name, patient_care_type=None):
     """Get full Healthcare Service Template details including pricing"""
+    from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+        get_healthcare_service_template_rate,
+    )
+
     if not frappe.db.exists("Healthcare Service Template", template_name):
         frappe.throw(_("Healthcare Service Template {0} not found").format(template_name))
     
@@ -503,7 +525,7 @@ def get_ip_service_type(template_name):
         "description": doc.description,
         "category": doc.category,
         "item_code": doc.item_code,
-        "rate": doc.rate,
+        "rate": get_healthcare_service_template_rate(template_doc=doc, patient_care_type=patient_care_type),
         "disabled": doc.disabled,
         "pricing": []
     }

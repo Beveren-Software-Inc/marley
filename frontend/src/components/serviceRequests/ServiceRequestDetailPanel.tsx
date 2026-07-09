@@ -158,7 +158,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load service request')
+          setError(err instanceof Error ? err.message : 'Failed to load request')
           setDoc(null)
         }
       })
@@ -191,10 +191,11 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
     (doc?.template_name as string) ||
     (doc?.template_dn as string) ||
     '—'
+  const isLabRequest = doc?.template_dt === 'Lab Test Template'
 
   return (
     <DetailSlideOver
-      title="Service Request"
+      title={isLabRequest ? 'Lab Request' : 'Service Request'}
       subtitle={
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-medium text-emerald-950">{name}</span>

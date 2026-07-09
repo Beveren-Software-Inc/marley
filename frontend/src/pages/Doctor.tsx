@@ -681,7 +681,7 @@ export const DoctorPage = () => {
           <DashboardCard
             title="Lab Requests"
             onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
-            addButtonTitle="Add Service Request"
+            addButtonTitle="Add Lab Request"
             noHeightLimit
           >
             <ServiceRequestList
@@ -698,7 +698,7 @@ export const DoctorPage = () => {
             onSuccess={() => {
               setServiceRequestRefreshKey((prev) => prev + 1)
               setShowServiceRequestModal(false)
-              toast.success('Service request created successfully')
+              toast.success('Lab request created successfully')
             }}
             initialPatient={selectedPatient}
             labTestTemplateOnly
@@ -1966,6 +1966,21 @@ export const DoctorPage = () => {
 
       <DashboardCard
         fixedHeight
+        title="Lab Requests"
+        onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
+        addButtonTitle="Add Lab Request"
+        listingScreen="lab-req"
+      >
+        <ServiceRequestList
+          patient={selectedPatient || undefined}
+          refreshKey={serviceRequestRefreshKey}
+          template_dt="Lab Test Template"
+          onPatientClick={handlePatientSelect}
+        />
+      </DashboardCard>
+
+      <DashboardCard
+        fixedHeight
         title="Lab Test Report - Pending for Review"
         onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
         addButtonTitle="Add Lab Test Report"
@@ -2115,7 +2130,7 @@ export const DoctorPage = () => {
         onSuccess={() => {
           setServiceRequestRefreshKey(prev => prev + 1)
           setShowServiceRequestModal(false)
-          toast.success('Service request created successfully')
+          toast.success('Lab request created successfully')
         }}
         initialPatient={selectedPatient}
         labTestTemplateOnly

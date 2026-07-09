@@ -105,12 +105,14 @@ export async function deleteIPService(name: string): Promise<{ deleted: string; 
 export async function fetchIPServiceTypes(
   search?: string,
   limit: number = 50,
-  isEct?: boolean
+  isEct?: boolean,
+  patientCareType?: 'OP' | 'IP',
 ): Promise<{ name: string; service_name: string; category?: string; rate?: number }[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   if (search) params.append('search', search)
   if (isEct) params.append('is_ect', '1')
+  if (patientCareType) params.append('patient_care_type', patientCareType)
   
   const data = await apiRequest<any[]>(
     `/api/method/healthcare.api.ip_service.get_ip_service_types?${params.toString()}`
@@ -119,9 +121,16 @@ export async function fetchIPServiceTypes(
   return Array.isArray(data) ? data : []
 }
 
-export async function fetchIPServiceType(templateName: string): Promise<IPServiceType | null> {
+export async function fetchIPServiceType(
+  templateName: string,
+  patientCareType?: 'OP' | 'IP',
+): Promise<IPServiceType | null> {
+  const params = new URLSearchParams()
+  params.append('template_name', templateName)
+  if (patientCareType) params.append('patient_care_type', patientCareType)
+
   const data = await apiRequest<IPServiceType>(
-    `/api/method/healthcare.api.ip_service.get_ip_service_type?template_name=${encodeURIComponent(templateName)}`
+    `/api/method/healthcare.api.ip_service.get_ip_service_type?${params.toString()}`
   )
   return data || null
 }

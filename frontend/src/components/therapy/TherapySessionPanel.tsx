@@ -44,7 +44,7 @@ export function TherapySessionPanel({
   initialTab = 'session-schedule',
   showAppointments = true,
 }: TherapySessionPanelProps) {
-  const { guardClinicalCreate } = useCareContext()
+  const { guardClinicalCreate, activeVisit } = useCareContext()
   const [activeTab, setActiveTab] = useState<SessionTab>(initialTab)
   const [showFilters, setShowFilters] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -141,6 +141,7 @@ export function TherapySessionPanel({
             setShowModal(false)
           }}
           initialAdmission={admissionNumber}
+          initialPatientVisit={activeVisit}
         />
       )}
     </div>

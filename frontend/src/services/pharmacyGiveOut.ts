@@ -2,6 +2,8 @@ export interface PharmacyGiveOutWarehouseOptions {
   warehouses: { name: string; label: string }[]
   default_warehouse?: string
   mini_warehouse?: string
+  /** When true, nurses must pick batch / dispensing lot on the give-out form. */
+  display_batch_and_lot_on_pharmacy_giveout?: boolean
 }
 
 export async function fetchPharmacyGiveOutWarehouses(

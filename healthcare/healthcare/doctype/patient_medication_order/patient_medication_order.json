@@ -39,6 +39,7 @@
   "legacy",
   "patient_visit_prescription",
   "visit_cd",
+  "is_pharmacy_give_out",
   "medication_orders_section",
   "medication_orders",
   "section_break_16",
@@ -460,12 +461,18 @@
    "fieldtype": "Data",
    "in_standard_filter": 1,
    "label": "Visit CD"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_pharmacy_give_out",
+   "fieldtype": "Check",
+   "label": "Is Pharmacy Give Out"
   }
  ],
  "index_web_pages_for_search": 1,
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-04 03:01:37.649890",
+ "modified": "2026-07-09 12:23:02.639244",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medication Order",

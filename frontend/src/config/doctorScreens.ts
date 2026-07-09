@@ -91,6 +91,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
+    screens: [{ id: 'lab-req', title: 'Lab Requests' }],
+  },
+  {
+    groupTitle: '',
     screens: [{ id: 'lab', title: 'Laboratory' }],
   },
   {

@@ -659,7 +659,7 @@ export const CreatePatientVisitModal = ({
         iop_enrollment: initialIOPEnrollment || undefined,
         cost_center: costCenter || undefined,
         status: 'Open',
-        charge_visit: !chargeNoCharges && includedLines.length > 0,
+        charge_visit: !chargeNoCharges,
         charge_lines: includedLines.map((row) => ({
           template: row.template,
           qty: 1,

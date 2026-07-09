@@ -132,7 +132,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, flt, getdate, nowdate
+from frappe.utils import add_months, cint, cstr, flt, getdate, nowdate, today
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
@@ -864,6 +864,83 @@ def get_payment_summary(
         "total_paid": total_paid,
         "advance_amount": _compute_patient_advance_amount(patient),
         "modes": modes,
+    }
+
+
+@frappe.whitelist()
+def get_patient_statement_of_account(patient=None, from_date=None, to_date=None, company=None):
+    """Customer statement of account (General Ledger) for a patient's linked Customer."""
+    if not patient:
+        frappe.throw(_("Patient is required"))
+
+    patient_row = frappe.db.get_value(
+        "Patient", patient, ["customer", "patient_name"], as_dict=True
+    )
+    if not patient_row or not patient_row.customer:
+        frappe.throw(
+            _("Patient {0} has no linked Customer. Link a customer on the patient record first.").format(
+                patient
+            )
+        )
+
+    company = company or frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+        "Global Defaults", "default_company"
+    )
+    if not company:
+        frappe.throw(_("Company is required"))
+
+    to_date = getdate(to_date or today())
+    from_date = getdate(from_date or add_months(to_date, -12))
+    if from_date > to_date:
+        frappe.throw(_("From Date must be before To Date"))
+
+    from erpnext.accounts.report.general_ledger.general_ledger import execute
+
+    filters = frappe._dict(
+        {
+            "company": company,
+            "from_date": from_date,
+            "to_date": to_date,
+            "party_type": "Customer",
+            "party": json.dumps([patient_row.customer]),
+        }
+    )
+
+    _columns, raw_data = execute(filters)
+
+    entries = []
+    for row in raw_data or []:
+        if not isinstance(row, dict):
+            continue
+        posting_date = row.get("posting_date")
+        entries.append(
+            {
+                "posting_date": str(posting_date) if posting_date else None,
+                "account": row.get("account"),
+                "debit": flt(row.get("debit")),
+                "credit": flt(row.get("credit")),
+                "balance": flt(row.get("balance")),
+                "voucher_type": row.get("voucher_type"),
+                "voucher_no": row.get("voucher_no"),
+                "against_voucher": row.get("against_voucher"),
+                "remarks": row.get("remarks"),
+                "is_section_row": not posting_date,
+            }
+        )
+
+    customer_name = frappe.db.get_value("Customer", patient_row.customer, "customer_name")
+
+    return {
+        "patient": patient,
+        "patient_name": patient_row.patient_name,
+        "customer": patient_row.customer,
+        "customer_name": customer_name,
+        "company": company,
+        "from_date": str(from_date),
+        "to_date": str(to_date),
+        "currency": frappe.get_cached_value("Company", company, "default_currency"),
+        "entries": entries,
+        "closing_balance": flt(entries[-1].get("balance")) if entries else 0.0,
     }
 
 

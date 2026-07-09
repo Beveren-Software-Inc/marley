@@ -1777,6 +1777,8 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 
 	if getattr(pmo, "nursing_pharmacy_giveout", 0) and hasattr(so, "reserve_stock"):
 		so.reserve_stock = 0
+		if frappe.get_meta("Sales Order").has_field("custom_is_pharmacy_give_out"):
+			so.custom_is_pharmacy_give_out = 1
 
 	_append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
 
@@ -1862,7 +1864,14 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit
 		"warehouses": warehouses,
 		"default_warehouse": default_warehouse,
 		"mini_warehouse": mini_warehouse,
+		"display_batch_and_lot_on_pharmacy_giveout": _display_batch_and_lot_on_pharmacy_giveout(),
 	}
+
+
+def _display_batch_and_lot_on_pharmacy_giveout() -> bool:
+	from healthcare.api.medicine_given import display_batch_and_lot_on_pharmacy_giveout
+
+	return display_batch_and_lot_on_pharmacy_giveout()
 
 
 def _format_pharmacy_giveout_error(exc, warehouse=None):
@@ -2008,8 +2017,9 @@ def _create_nursing_pharmacy_giveout_documents(
 	warehouse=None,
 	patient_visit=None,
 ):
-	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
+	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot, auto_resolve_medicine_given_batch_lot
 
+	manual_batch_lot_pick = _display_batch_and_lot_on_pharmacy_giveout()
 	start_date = nowdate()
 
 	doc = frappe.new_doc("Patient Medication Order")
@@ -2035,6 +2045,7 @@ def _create_nursing_pharmacy_giveout_documents(
 		doc.practitioner = context_doc.practitioner
 
 	doc.nursing_pharmacy_giveout = 1
+	doc.is_pharmacy_give_out = 1
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
 		doc.source_prescription = source_prescription
 	doc.flags.pharmacy_giveout_item_stock = []
@@ -2049,12 +2060,27 @@ def _create_nursing_pharmacy_giveout_documents(
 			row["quantity"] = 1
 		drug = (row.get("drug") or "").strip()
 		if drug:
+			batch_no = row.get("batch_no")
+			lot_no = row.get("lot_no")
+			dispensing_lot = row.get("dispensing_lot")
+			if not manual_batch_lot_pick:
+				batch_no, lot_no, dispensing_lot = auto_resolve_medicine_given_batch_lot(
+					drug,
+					inpatient_record,
+					batch_no,
+					lot_no,
+					dispensing_lot,
+					warehouse=warehouse,
+				)
+				row["batch_no"] = batch_no
+				row["lot_no"] = lot_no
+				row["dispensing_lot"] = dispensing_lot
 			_validate_medicine_given_batch_lot(
 				drug,
 				inpatient_record,
-				row.get("batch_no"),
-				row.get("lot_no"),
-				row.get("dispensing_lot"),
+				batch_no,
+				lot_no,
+				dispensing_lot,
 				warehouse=warehouse,
 			)
 		_set_medication_row(doc, row)

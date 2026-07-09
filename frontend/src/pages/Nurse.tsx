@@ -1311,6 +1311,7 @@ export const NursePage = () => {
               setShowSessionScheduleModal(false)
             }}
             initialAdmission={activeAdmission}
+            initialPatientVisit={activeVisit}
           />
         )}
       </div>

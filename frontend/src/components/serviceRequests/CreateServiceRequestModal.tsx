@@ -144,6 +144,7 @@ export const CreateServiceRequestModal = ({
 
   const isGroupTemplate = groupRows.length > 0
   const useLabBasket = labTestTemplateOnly
+  const isLabRequest = labTestTemplateOnly
 
   const getBestPrice = (rows: PricingRow[]) => {
     if (!rows.length) return null
@@ -175,10 +176,10 @@ export const CreateServiceRequestModal = ({
       ? groupTotal
       : nonGroupListSubtotal
 
-  const clampedDiscount = Math.min(100, Math.max(0, discountPct))
+  const orderDiscountAmount = discountPct
   const estimatedTotalAfterDiscount = useLabBasket
     ? (basketPricing.grand_total ?? basketPricing.subtotal)
-    : listSubtotalBeforeDiscount * (1 - clampedDiscount / 100)
+    : Math.max(0, listSubtotalBeforeDiscount - Math.min(listSubtotalBeforeDiscount, orderDiscountAmount))
 
   const basketWithDiscounts = useMemo(
     () => mergeDiscountsIntoBasket(labBasket, lineDiscounts),
@@ -188,7 +189,12 @@ export const CreateServiceRequestModal = ({
   const handleLineDiscountChange = (template: string, patch: Partial<LabLineDiscount>) => {
     setLineDiscounts((prev) => ({
       ...prev,
-      [template]: { ...(prev[template] || defaultLineDiscount()), ...patch },
+      [template]: {
+        ...(prev[template] || defaultLineDiscount()),
+        ...patch,
+        discount_type: 'Amount',
+        discount_rate: 0,
+      },
     }))
   }
 
@@ -427,7 +433,7 @@ export const CreateServiceRequestModal = ({
         setGroupRows([])
         setSelectedGroupTemplates([])
       })
-  }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket])
+  }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket, mode])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -468,11 +474,11 @@ export const CreateServiceRequestModal = ({
       return
     }
     if (!form.practitioner?.trim()) {
-      setError('Please select a practitioner for this service request.')
+      setError(isLabRequest ? 'Please select a practitioner for this lab request.' : 'Please select a practitioner for this service request.')
       return
     }
     if (!form.cost_center?.trim()) {
-      setError('Please select a branch for this service request.')
+      setError(isLabRequest ? 'Please select a branch for this lab request.' : 'Please select a branch for this service request.')
       return
     }
     if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
@@ -506,10 +512,9 @@ export const CreateServiceRequestModal = ({
           grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
         })
       } else {
-        const pct = Math.min(100, Math.max(0, discountPct))
         const listAmount = listSubtotalBeforeDiscount
-        const discountAmount = listAmount * (pct / 100)
-        const afterDiscount = estimatedTotalAfterDiscount
+        const discountAmount = Math.min(listAmount, Math.max(0, orderDiscountAmount))
+        const afterDiscount = Math.max(0, listAmount - discountAmount)
         await createServiceRequest({
           patient: form.patient,
           template_dt: form.template_dt,
@@ -521,16 +526,16 @@ export const CreateServiceRequestModal = ({
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,
           cost: listAmount,
-          discount: pct,
+          discount: 0,
           discount_amount: discountAmount,
           grand_total: afterDiscount,
           selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,
         })
       }
-      toast.success('Service Request created')
+      toast.success(isLabRequest ? 'Lab request created' : 'Service Request created')
       onSuccess()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create service request')
+      setError(err instanceof Error ? err.message : isLabRequest ? 'Failed to create lab request' : 'Failed to create service request')
     } finally {
       setSubmitting(false)
     }
@@ -540,7 +545,7 @@ export const CreateServiceRequestModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-3xl max-h-[92vh] overflow-hidden')}>
         <CreateModalHeader
-          title="Create Service Request"
+          title={isLabRequest ? 'Create Lab Request' : 'Create Service Request'}
           onClose={onClose}
           icon={<ClipboardList className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           alert={error}
@@ -644,12 +649,7 @@ export const CreateServiceRequestModal = ({
             <div className={sectionCard}>
               <div className={sectionTitle}>
                 <Layers className="h-4 w-4 text-emerald-600" />
-                Service template
-                {labTestTemplateOnly && (
-                  <span className="ml-auto rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-800">
-                    Lab tests
-                  </span>
-                )}
+                {isLabRequest ? 'Lab tests' : 'Service template'}
               </div>
               {form.template_dt === 'Lab Test Template' && (
                 <div className="mb-3 flex flex-wrap items-center gap-2">
@@ -717,7 +717,7 @@ export const CreateServiceRequestModal = ({
                 <div>
                   <label className={labelClass}>
                     <span className="text-red-500">*</span>{' '}
-                    {labTestTemplateOnly || form.template_dt === 'Lab Test Template' ? 'Lab test template' : 'Template'}
+                    {isLabRequest ? 'Lab test' : labTestTemplateOnly || form.template_dt === 'Lab Test Template' ? 'Lab test template' : 'Template'}
                   </label>
                   <div className="relative">
                     <input
@@ -788,7 +788,7 @@ export const CreateServiceRequestModal = ({
                       onClick={addPendingToBasket}
                       className="mt-3 w-full rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100"
                     >
-                      Add to request
+                      Add to lab request
                     </button>
                   )}
                 </div>
@@ -984,8 +984,8 @@ export const CreateServiceRequestModal = ({
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
                   {useLabBasket
-                    ? 'Set a discount per lab test — percentage or fixed amount. Reception finalises billing.'
-                    : 'Reference amount before discount (reception finalises billing). Enter a clinician discount percentage if applicable.'}
+                    ? 'Set a fixed discount amount per lab test. Reception finalises billing.'
+                    : 'Reference amount before discount (reception finalises billing). Enter a discount amount if applicable.'}
                 </p>
                 {listSubtotalBeforeDiscount > 0 && (
                   <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
@@ -1002,23 +1002,22 @@ export const CreateServiceRequestModal = ({
                 ) : !useLabBasket ? (
                   <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="flex flex-col gap-1">
-                      <label className="text-xs font-medium text-slate-500">Discount (%)</label>
+                      <label className="text-xs font-medium text-slate-500">Discount amount</label>
                       <input
                         type="number"
                         min={0}
-                        max={100}
-                        step={0.5}
+                        step={0.01}
                         value={discountPct || ''}
-                        onChange={(e) => setDiscountPct(Math.min(100, Math.max(0, Number(e.target.value) || 0)))}
+                        onChange={(e) => setDiscountPct(Math.max(0, Number(e.target.value) || 0))}
                         className={inputClass}
                         placeholder="0"
                       />
                     </div>
                   </div>
                 ) : null}
-                {!useLabBasket && clampedDiscount > 0 && listSubtotalBeforeDiscount > 0 && (
+                {!useLabBasket && discountPct > 0 && listSubtotalBeforeDiscount > 0 && (
                   <p className="mb-3 text-xs text-slate-500">
-                    −{formatMoney(listSubtotalBeforeDiscount * (clampedDiscount / 100))} ({clampedDiscount}%)
+                    −{formatMoney(Math.min(listSubtotalBeforeDiscount, discountPct))}
                   </p>
                 )}
                 {useLabBasket && (basketPricing.discount_amount || 0) > 0 && (
@@ -1038,8 +1037,8 @@ export const CreateServiceRequestModal = ({
                 </span>
                 {useLabBasket && (basketPricing.discount_amount || 0) > 0 ? (
                   <span className="text-xs text-emerald-100/90">Per-test discounts applied</span>
-                ) : !useLabBasket && clampedDiscount > 0 ? (
-                  <span className="text-xs text-emerald-100/90">{clampedDiscount}% discount applied</span>
+                ) : !useLabBasket && orderDiscountAmount > 0 ? (
+                  <span className="text-xs text-emerald-100/90">Discount applied</span>
                 ) : null}
               </div>
               <div className="text-2xl font-bold tabular-nums tracking-tight text-white drop-shadow-sm">{formatMoney(estimatedTotalAfterDiscount)}</div>
@@ -1052,7 +1051,7 @@ export const CreateServiceRequestModal = ({
               Cancel
             </button>
             <button type="submit" disabled={submitting} className={CM_BTN_PRIMARY}>
-              {submitting ? 'Creating…' : 'Create request'}
+              {submitting ? 'Creating…' : isLabRequest ? 'Create lab request' : 'Create request'}
             </button>
           </div>
         </form>

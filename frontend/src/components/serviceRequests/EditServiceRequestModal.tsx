@@ -132,12 +132,18 @@ export const EditServiceRequestModal = ({
   const handleLineDiscountChange = (template: string, patch: Partial<LabLineDiscount>) => {
     setLineDiscounts((prev) => ({
       ...prev,
-      [template]: { ...(prev[template] || defaultLineDiscount()), ...patch },
+      [template]: {
+        ...(prev[template] || defaultLineDiscount()),
+        ...patch,
+        discount_type: 'Amount',
+        discount_rate: 0,
+      },
     }))
   }
 
   const [formData, setFormData] = useState(defaultFormData)
   const [readOnly, setReadOnly] = useState<Record<string, unknown>>({})
+  const isLabRequest = formData.template_dt === 'Lab Test Template'
 
   /* ────────────── INITIAL LOAD ────────────── */
 
@@ -195,7 +201,10 @@ export const EditServiceRequestModal = ({
           reference_document_type: (doc.reference_document_type as string) || '',
           reference_document_name: (doc.reference_document_name as string) || '',
           patient_category: (doc.patient_category as string) || '',
-          discount_value: (doc.discount_value as string) || 'Percentage',
+          discount_value:
+            (doc.template_dt as string) === 'Lab Test Template'
+              ? 'Amount'
+              : (doc.discount_value as string) || 'Percentage',
           discount: (doc.discount as number) || 0,
           discount_amount: (doc.discount_amount as number) || 0,
           grand_total: (doc.grand_total as number) ?? (doc.cost as number) ?? 0
@@ -346,8 +355,11 @@ export const EditServiceRequestModal = ({
     }
 
     let total = selectedPrice
+    const isLab = formData.template_dt === 'Lab Test Template'
     const isPercentage =
-      formData.discount_value !== 'Fixed Amount' && formData.discount_value !== 'Amount'
+      !isLab &&
+      formData.discount_value !== 'Fixed Amount' &&
+      formData.discount_value !== 'Amount'
 
     if (isPercentage && formData.discount > 0) {
       const discAmt = (total * formData.discount) / 100
@@ -360,7 +372,7 @@ export const EditServiceRequestModal = ({
     }
 
     setFormData(prev => ({ ...prev, grand_total: Math.max(0, total) }))
-  }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount, hasMultiLabItems])
+  }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount, formData.template_dt, hasMultiLabItems])
 
   useEffect(() => {
     if (!hasMultiLabItems) return
@@ -482,7 +494,7 @@ export const EditServiceRequestModal = ({
         {/* HEADER */}
         <div className="flex-shrink-0 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
-            Edit Service Request — {serviceRequestName}
+            {isLabRequest ? 'Edit Lab Request' : 'Edit Service Request'} — {serviceRequestName}
           </h2>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 transition">
             <X className="w-5 h-5" />
@@ -916,7 +928,7 @@ export const EditServiceRequestModal = ({
                       Per-test discounts
                     </label>
                     <p className="text-xs text-slate-500 mb-4">
-                      Set percentage or fixed amount discount on each lab test separately.
+                      Set a fixed discount amount on each lab test separately.
                     </p>
                     <LabTestLineDiscountTable
                       lines={basketPricing.lines}
@@ -933,11 +945,12 @@ export const EditServiceRequestModal = ({
                 ) : selectedPrice !== null && (
                   <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                     <label className="block text-sm font-semibold text-slate-900 mb-1">
-                      Discount Management
+                      {isLabRequest ? 'Discount' : 'Discount Management'}
                     </label>
                     <p className="text-xs text-slate-500 mb-4">Base price: <strong>{(selectedPrice || 0).toFixed(2)}</strong></p>
 
-                    <div className="grid grid-cols-3 gap-4 mb-4">
+                    <div className={`grid gap-4 mb-4 ${isLabRequest ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-3'}`}>
+                      {!isLabRequest ? (
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-2">
                           Discount Margin
@@ -952,11 +965,12 @@ export const EditServiceRequestModal = ({
                           <option value="Fixed Amount">Fixed Amount (legacy)</option>
                         </select>
                       </div>
+                      ) : null}
 
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-2">
-                          {formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
-                            ? 'Discount Amount'
+                          {isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
+                            ? 'Discount amount'
                             : 'Discount (%)'}
                         </label>
                         <input
@@ -964,14 +978,18 @@ export const EditServiceRequestModal = ({
                           min="0"
                           step="any"
                           value={
-                            formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
+                            isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
                               ? formData.discount_amount
                               : formData.discount
                           }
                           onChange={(e) => {
                             const val = parseFloat(e.target.value) || 0
-                            if (formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount') {
+                            if (isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount') {
                               set('discount_amount', val)
+                              if (isLabRequest) {
+                                set('discount', 0)
+                                set('discount_value', 'Amount')
+                              }
                             } else {
                               set('discount', val)
                             }
@@ -981,6 +999,7 @@ export const EditServiceRequestModal = ({
                         />
                       </div>
 
+                      {!isLabRequest ? (
                       <div>
                         <label className="block text-xs font-medium text-slate-700 mb-2">
                           Calculated Discount
@@ -992,6 +1011,7 @@ export const EditServiceRequestModal = ({
                           className="w-full rounded-md border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-600"
                         />
                       </div>
+                      ) : null}
                     </div>
 
                     <div className="bg-white rounded-md border border-slate-200 p-3 flex items-center justify-between">

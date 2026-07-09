@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
-import { canAccessRoute, getDefaultRouteForUser, isAdmin } from '../config/permissions'
+import { canAccessRoute, getDefaultRouteForUser, isAdmin, isCEO } from '../config/permissions'
 
 type Props = { roles?: string[]; children: ReactNode }
 
@@ -42,6 +42,12 @@ export const RoleGuard = ({ children }: Props) => {
     : [user.role, user.role_profile_name].filter(Boolean) as string[]
 
   const pathname = location.pathname
+
+  // Strict CEO-only routes (no admin bypass)
+  if ((pathname === '/staff-activity-audit' || pathname === '/ip-quotation') && !isCEO(userRoles)) {
+    const defaultRoute = getDefaultRouteForUser(userRoles)
+    return <Navigate to={defaultRoute} replace />
+  }
 
   if (userRoles.length === 0) {
     return <Navigate to="/login" replace />

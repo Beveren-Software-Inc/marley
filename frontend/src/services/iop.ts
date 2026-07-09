@@ -195,6 +195,7 @@ export async function fetchIOPHealthcareServiceTemplates(
 ): Promise<IOPHealthcareServiceTemplate[]> {
   const params = new URLSearchParams()
   params.set('limit', '200')
+  params.set('patient_care_type', 'OP')
   if (search?.trim()) params.set('search', search.trim())
   const res = await fetch(
     `/api/method/healthcare.api.ip_service.get_ip_service_types?${params}`,

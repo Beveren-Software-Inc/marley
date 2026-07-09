@@ -117,6 +117,7 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
 
   // CEO-only routes (no admin bypass)
   if (pathname === '/staff-activity-audit') return isCEO(roles)
+  if (pathname === '/ip-quotation') return isCEO(roles)
 
   if (isAdmin(roles)) return true
 
@@ -171,7 +172,7 @@ export function getVisibleMainLinks(links: MainLinkItem[], roles: string[]): Mai
 
   // Staff Activity Audit is CEO-only (even system admins without CEO role)
   if (!isCEO(roles)) {
-    return filtered.filter((link) => link.to !== '/staff-activity-audit')
+    return filtered.filter((link) => link.to !== '/staff-activity-audit' && link.to !== '/ip-quotation')
   }
 
   return filtered

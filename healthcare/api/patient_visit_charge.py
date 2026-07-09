@@ -10,9 +10,12 @@ from frappe.utils import cint, flt, nowdate
 
 from healthcare.api.patient_file_no_charge import _ensure_patient_customer
 from healthcare.api.sales_order_cost_center import apply_cost_center_to_sales_order
+from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+	get_healthcare_service_template_rate,
+)
 
 
-def _template_to_config(template_name: str | None) -> dict:
+def _template_to_config(template_name: str | None, patient_care_type: str | None = "OP") -> dict:
 	template_name = (template_name or "").strip()
 	if not template_name:
 		return {
@@ -38,7 +41,7 @@ def _template_to_config(template_name: str | None) -> dict:
 
 	tpl = frappe.get_doc("Healthcare Service Template", template_name)
 	item_code = (tpl.item_code or "").strip()
-	rate = flt(tpl.rate)
+	rate = get_healthcare_service_template_rate(template_doc=tpl, patient_care_type=patient_care_type)
 	item_name = frappe.db.get_value("Item", item_code, "item_name") if item_code else None
 
 	return {
@@ -324,12 +327,7 @@ def create_patient_visit_charge_sales_order(
 	if not company:
 		frappe.throw(_("Default Company is not set"))
 
-	service_name = config.get("service_name") or _("Patient Visit Charge")
-	rate = flt(config.get("rate"))
-	# Doctor-set price/discount on the visit override the configured rate.
-	if flt(visit.get("visit_price")):
-		rate = flt(visit.get("visit_price"))
-	doctor_discount = min(flt(visit.get("discount_amount")), rate) if flt(visit.get("discount_amount")) else 0
+	doctor_discount = flt(visit.get("discount_amount")) or 0
 	visit_label = visit.case_no or visit.name
 
 	so = frappe.new_doc("Sales Order")

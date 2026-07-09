@@ -73,9 +73,16 @@ class PatientMedicationOrder(Document):
 
 	def _compute_status(self):
 		has_signature = bool(cstr(self.doctors_signature).strip())
+		is_pharmacy_giveout = bool(cint(getattr(self, "nursing_pharmacy_giveout", 0) or getattr(self, "is_pharmacy_give_out", 0)))
 
 		if self.docstatus == 2:
 			return "Cancelled"
+		# Pharmacy give-out PMOs are fulfilled and billed immediately, so mark them complete
+		# without waiting for prescription signature workflow.
+		if is_pharmacy_giveout and self.docstatus == 1:
+			if self.completed_orders and self.completed_orders < self.total_orders:
+				return "In Process"
+			return "Completed"
 		if cint(self.new_system):
 			if not has_signature:
 				return "Unsigned"
