@@ -348,6 +348,7 @@ doc_events = {
 	},
 	"Quotation": {
 		"before_save": "healthcare.controllers.discount_validation.validate_discount",
+		"on_submit": "healthcare.controllers.quotation.create_sales_order_from_package_quotation",
 	},
 	"Company": {
 		"after_insert": "healthcare.healthcare.utils.create_healthcare_service_unit_tree_root",

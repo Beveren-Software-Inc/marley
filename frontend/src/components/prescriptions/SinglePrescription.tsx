@@ -47,6 +47,7 @@ import {
   fetchRouteOfAdministrationList,
   fetchDosageForms,
   fetchStandardUoms,
+  resolvePrescriptionDrugRoute,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -718,8 +719,8 @@ const AddMedicationEntryModal = ({
   }
 
   const handleSave = async () => {
-    if (!form.drug || !form.dosage || !form.dosage_form || !form.date) {
-      toast.error('Drug, Dosage, Dosage Form, and Start Date are required')
+    if (!form.drug || !form.dosage || !form.date) {
+      toast.error('Drug, Dosage, and Start Date are required')
       return
     }
     try {
@@ -786,7 +787,7 @@ const AddMedicationEntryModal = ({
               onQueryChange={(q) => { setDrugQuery(q); loadDrugOptions(q) }}
               onOpen={() => loadDrugOptions(drugQuery || '')}
               onSelect={async (opt) => {
-                const route = opt.default_route_of_administration?.trim()
+                const route = (await resolvePrescriptionDrugRoute(opt)).trim()
                 const stockUom = (opt.stock_uom || '').trim()
                 setForm((f) => ({
                   ...f,
@@ -851,7 +852,7 @@ const AddMedicationEntryModal = ({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form *</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Dosage Form</label>
               <select value={form.dosage_form} onChange={(e) => updateField('dosage_form', e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25">
                 <option value="">Select...</option>

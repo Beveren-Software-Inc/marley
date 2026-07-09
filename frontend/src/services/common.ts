@@ -774,6 +774,25 @@ export async function fetchItems(search?: string): Promise<LinkFieldOption[]> {
   }
 }
 
+export async function fetchItemRouteOfAdministration(item: string): Promise<string | null> {
+  const itemName = (item || '').trim()
+  if (!itemName) return null
+  const params = new URLSearchParams({ item: itemName })
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_item_route_of_administration?${params.toString()}`
+  )
+  const data = await res.json()
+  const route = typeof data?.message === 'string' ? data.message.trim() : ''
+  return route || null
+}
+
+/** Route from prescription item search, or fetched from Item master when missing. */
+export async function resolvePrescriptionDrugRoute(opt: LinkFieldOption): Promise<string> {
+  const direct = opt.default_route_of_administration?.trim()
+  if (direct) return direct
+  return (await fetchItemRouteOfAdministration(opt.name)) || ''
+}
+
 export async function fetchPrescriptionItems(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
