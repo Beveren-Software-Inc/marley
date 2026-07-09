@@ -174,6 +174,10 @@ const receptionScreenGroups: ScreenGroup[] = [
       { id: 'billing-internal-employee',      title: 'Internal Employee Billing' },
     ],
   },
+  {
+    groupTitle: '',
+    screens: [{ id: 'r-reports', title: 'Reports' }],
+  },
 ]
 
 const insuranceScreens = [

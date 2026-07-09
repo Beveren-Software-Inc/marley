@@ -7,6 +7,8 @@ import { PatientList } from '../components/patients/PatientList'
 import { toast } from '../hooks/useToast'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { AppointmentList } from '../components/appointments/AppointmentList'
+import { ReceptionReports } from '../components/reception/ReceptionReports'
+import { AppointmentsCard, OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
@@ -43,6 +45,7 @@ import { PractitionerUnavailabilityList } from '../components/practitionerUnavai
 
 type View =
   | 'default'
+  | 'reports'
   | 'patient'
   | 'admission'
   | 'visit'
@@ -251,6 +254,8 @@ export const ReceptionistPage = () => {
       setCurrentView('long-acting-medicine')
     } else if (screen === 'r-insurance') {
       setCurrentView('insurance')
+    } else if (screen === 'r-reports') {
+      setCurrentView('reports')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
     } else if (screen === 'r-observation') {
@@ -579,6 +584,12 @@ export const ReceptionistPage = () => {
         )}
 
 
+        {currentView === 'reports' && (
+          <div className="p-4">
+            <ReceptionReports />
+          </div>
+        )}
+
         {currentView === 'referral' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between">
@@ -788,42 +799,30 @@ export const ReceptionistPage = () => {
                     <PatientList refreshKey={patientRefreshKey} />
                   </DashboardCard>
                 )}
-                <DashboardCard
-                  fixedHeight
-                  title="Appointments"
-                  onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
-                  addButtonTitle="Add Appointment"
+                <AppointmentsCard
+                  receptionWalkInActions
+                  defaultTodayDates
                   listingScreen="r-appointments-freeze"
-                >
-                  <AppointmentList
-                    showAll
-                    defaultTodayDates
-                    receptionWalkInActions
-                    patient={selectedPatient || undefined}
-                    refreshKey={appointmentRefreshKey}
-                    onPatientClick={handlePatientSelect}
-                  />
-                </DashboardCard>
+                  patient={selectedPatient || undefined}
+                  onPatientSelect={handlePatientSelect}
+                />
               </div>
             )}
             {currentView === 'ip-dashboard' && (
-              <DashboardCard
-                fixedHeight
-                title="IP Admission List"
-                onAdd={() => setShowAdmissionModal(true)}
-                addButtonTitle="Add Admission"
+              <InpatientAdmissionsCard
                 listingScreen="r-reg"
-                allowCreateOnClosedEpisode
-              >
-                <AdmissionList patient={selectedPatient || undefined} refreshKey={admissionRefreshKey} onAdmissionSelect={() => {}} onPatientFromAdmission={handlePatientSelect} />
-              </DashboardCard>
+                patient={selectedPatient || undefined}
+                onPatientSelect={handlePatientSelect}
+              />
             )}
           </div>
         )}
 
         {currentView === 'default' && (
           <>
-            <div className={`grid gap-4 p-4 ${canBrowsePatientList ? 'md:grid-cols-2' : 'md:grid-cols-1'}`}>
+            {/* Standardised single full-width column — same card stack style as the
+                doctor and nurse dashboards. */}
+            <div className="flex flex-col gap-4 p-4">
               {canBrowsePatientList && (
                 <DashboardCard
                   fixedHeight
@@ -838,58 +837,29 @@ export const ReceptionistPage = () => {
                 </DashboardCard>
               )}
 
-              <DashboardCard
-                fixedHeight
-                title="Appointments"
-                onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
-                addButtonTitle="Add Appointment"
+              <AppointmentsCard
+                receptionWalkInActions
+                defaultTodayDates
                 listingScreen="r-appointments-freeze"
-              >
-                <AppointmentList
-                  showAll
-                  receptionWalkInActions
-                  patient={selectedPatient || undefined}
-                  refreshKey={appointmentRefreshKey}
-                  onPatientClick={handlePatientSelect}
-                />
-              </DashboardCard>
-            </div>
+                patient={selectedPatient || undefined}
+                onPatientSelect={handlePatientSelect}
+              />
 
-            <div className="grid gap-4 md:grid-cols-2 px-4 pb-4">
               {costCenterCareScope !== 'ip_only' && (
-                <DashboardCard
-                  fixedHeight
-                  title="Patient Visits"
-                  onAdd={() => setShowPatientVisitModal(true)}
-                  addButtonTitle="Add Patient Visit"
+                <OutpatientVisitsCard
+                  showAppointmentAmount
                   listingScreen="r-visit"
-                  allowCreateOnClosedEpisode
-                >
-                  <PatientVisitList
-                    patient={selectedPatient || undefined}
-                    refreshKey={patientVisitRefreshKey}
-                    onPatientFromVisit={handlePatientSelect}
-                    showAppointmentAmount
-                  />
-                </DashboardCard>
+                  patient={selectedPatient || undefined}
+                  onPatientSelect={handlePatientSelect}
+                />
               )}
 
               {costCenterCareScope !== 'op_only' && (
-                <DashboardCard
-                  fixedHeight
-                  title="IP Admission List"
-                  onAdd={() => setShowAdmissionModal(true)}
-                  addButtonTitle="Add Admission"
+                <InpatientAdmissionsCard
                   listingScreen="r-reg"
-                  allowCreateOnClosedEpisode
-                >
-                  <AdmissionList
-                    patient={selectedPatient || undefined}
-                    refreshKey={admissionRefreshKey}
-                    onAdmissionSelect={() => {}}
-                    onPatientFromAdmission={handlePatientSelect}
-                  />
-                </DashboardCard>
+                  patient={selectedPatient || undefined}
+                  onPatientSelect={handlePatientSelect}
+                />
               )}
 
               <DashboardCard

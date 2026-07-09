@@ -2,10 +2,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
-import { AdmissionList } from '../components/admissions/AdmissionList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { SuicidalPatientAssessmentModal } from '../components/admissions/SuicidalPatientAssessmentModal'
-import { AppointmentList } from '../components/appointments/AppointmentList'
 import { CreateAppointmentModal } from '../components/appointments/CreateAppointmentModal'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -50,9 +48,6 @@ import { PatientHistoryModal } from '../components/patientHistory/PatientHistory
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
-import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
-import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
-import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePHQ9AssessmentModal } from '../components/phq9/CreatePHQ9AssessmentModal'
 import { PHQ9AssessmentList } from '../components/phq9/PHQ9AssessmentList'
 import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
@@ -98,6 +93,7 @@ import { PatientVisitPage } from './PatientVisit'
 
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
+import { AppointmentsCard, OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 
 const CreateLabRequestModal = ({ 
   onClose, 
@@ -217,9 +213,6 @@ export const DoctorPage = () => {
   const [panssRefreshKey, setPanssRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
-  const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
-  const [showCreateAdmission, setShowCreateAdmission] = useState(false)
-  const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
 
   const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
   const showOpRequiredDocs = Boolean(selectedPatient && mode === 'OP' && activeVisit)
@@ -1257,32 +1250,14 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard
-            title="Appointments"
-            onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
-            addButtonTitle="Add Appointment"
-            noHeightLimit
-          >
-            <AppointmentList
-              doctorScheduleMode={!selectedPatient}
-              showAll={!!selectedPatient}
-              patient={selectedPatient || undefined}
-              refreshKey={appointmentRefreshKey}
-              onPatientClick={handlePatientSelect}
-              onOpenVisitInHeader={returnToDoctorHome}
-            />
-          </DashboardCard>
-        </div>
-        {showAppointmentModal && (
-          <CreateAppointmentModal
-            onClose={() => setShowAppointmentModal(false)}
-            onSuccess={() => {
-              setAppointmentRefreshKey((prev) => prev + 1)
-              setShowAppointmentModal(false)
-            }}
-            initialPatient={selectedPatient}
+          <AppointmentsCard
+            fullScreen
+            doctorScheduleMode
+            patient={selectedPatient || undefined}
+            onPatientSelect={handlePatientSelect}
+            onOpenVisitInHeader={returnToDoctorHome}
           />
-        )}
+        </div>
       </div>
     )
   }
@@ -1294,30 +1269,14 @@ export const DoctorPage = () => {
         <div className="flex flex-col">
           <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
           <div className="p-4">
-            <DashboardCard
-              title="Patient Visit History"
-              onAdd={() => setShowCreateVisitModal(true)}
-              addButtonTitle="Create Patient Visit"
-              allowCreateOnClosedEpisode
-              noHeightLimit
-            >
-              <PatientVisitList
-                patient={selectedPatient}
-                onPatientFromVisit={handlePatientSelect}
-                onVisitActivate={handleVisitActivate}
-              />
-            </DashboardCard>
+            <OutpatientVisitsCard
+              fullScreen
+              patient={selectedPatient || undefined}
+              onPatientSelect={handlePatientSelect}
+              onVisitActivate={handleVisitActivate}
+            />
           </div>
         </div>
-        {showCreateVisitModal && (
-          <CreatePatientVisitModal
-            onClose={() => setShowCreateVisitModal(false)}
-            onSuccess={() => {
-              setShowCreateVisitModal(false)
-            }}
-            initialPatient={selectedPatient || undefined}
-          />
-        )}
       </>
     )
   }
@@ -1879,24 +1838,13 @@ export const DoctorPage = () => {
   }
 
   const doctorAppointmentsCard = (
-    <DashboardCard
-      fixedHeight
-      title="Appointments"
-      onAdd={() => guardClinicalCreate(() => setShowAppointmentModal(true))}
-      addButtonTitle="Add Appointment"
+    <AppointmentsCard
+      doctorScheduleMode
       listingScreen="appointments"
-    >
-      <AppointmentList
-        compact
-        detailedColumns
-        doctorScheduleMode={!selectedPatient}
-        showAll={!!selectedPatient}
-        patient={selectedPatient || undefined}
-        refreshKey={appointmentRefreshKey}
-        onPatientClick={handlePatientSelect}
-        onOpenVisitInHeader={returnToDoctorHome}
-      />
-    </DashboardCard>
+      patient={selectedPatient || undefined}
+      onPatientSelect={handlePatientSelect}
+      onOpenVisitInHeader={returnToDoctorHome}
+    />
   )
 
   return (
@@ -1908,46 +1856,19 @@ export const DoctorPage = () => {
     <div className="flex flex-col gap-4 p-4">
       {doctorAppointmentsCard}
 
-      <DashboardCard
-        fixedHeight
-        title="Outpatient Visit Details"
-        onAdd={() => setShowCreateVisitModal(true)}
-        addButtonTitle="Create Patient Visit"
+      <OutpatientVisitsCard
         listingScreen="pvh"
-        allowCreateOnClosedEpisode
-      >
-        <PatientVisitList
-          detailedColumns
-          onPatientFromVisit={(p) => {
-            setSelectedPatient(p)
-            const sp = new URLSearchParams(searchParams)
-            sp.set('patient', p)
-            setSearchParams(sp, { replace: true })
-          }}
-          onVisitActivate={handleVisitActivate}
-        />
-      </DashboardCard>
+        patient={selectedPatient || undefined}
+        onPatientSelect={handlePatientSelect}
+        onVisitActivate={handleVisitActivate}
+      />
 
-      <DashboardCard
-        fixedHeight
-        title="Inpatient Admissions"
-        onAdd={() => setShowCreateAdmission(true)}
-        addButtonTitle="Create Admission"
+      <InpatientAdmissionsCard
         listingScreen="admission"
-        allowCreateOnClosedEpisode
-      >
-        <AdmissionList
-          key={admissionRefreshKey}
-          patient={selectedPatient || undefined}
-          onAdmissionActivate={handleAdmissionActivate}
-          onPatientFromAdmission={(p) => {
-            setSelectedPatient(p)
-            const sp = new URLSearchParams(searchParams)
-            sp.set('patient', p)
-            setSearchParams(sp, { replace: true })
-          }}
-        />
-      </DashboardCard>
+        patient={selectedPatient || undefined}
+        onPatientSelect={handlePatientSelect}
+        onAdmissionActivate={handleAdmissionActivate}
+      />
 
       <DashboardCard
         fixedHeight
@@ -2145,28 +2066,6 @@ export const DoctorPage = () => {
           setShowAppointmentModal(false)
         }}
         initialPatient={selectedPatient}
-      />
-    )}
-
-    {showCreateVisitModal && (
-      <CreatePatientVisitModal
-        onClose={() => setShowCreateVisitModal(false)}
-        onSuccess={() => {
-          setShowCreateVisitModal(false)
-        }}
-        initialPatient={selectedPatient || undefined}
-      />
-    )}
-
-    {showCreateAdmission && (
-      <CreateAdmissionModal
-        onClose={() => setShowCreateAdmission(false)}
-        onSuccess={() => {
-          setShowCreateAdmission(false)
-          setAdmissionRefreshKey((prev) => prev + 1)
-          toast.success('Inpatient admission created successfully')
-        }}
-        patientName={selectedPatient || undefined}
       />
     )}
 

@@ -34,8 +34,7 @@ import {
 import { toast } from '../hooks/useToast'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
-import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
-import { CreateAdmissionModal } from '../components/admissions/CreateAdmissionModal'
+import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 import { LabTestHistory } from '../components/labTests/LabTestHistory'
 import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
@@ -62,10 +61,8 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
-import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { type PatientVisitListRow } from '../services/patientVisits'
 import { useIpDoctorRequirements } from '../hooks/useIpDoctorRequirements'
-import { AdmissionList } from '../components/admissions/AdmissionList'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 
 import { PatientVisitPage } from './PatientVisit'
@@ -129,9 +126,6 @@ export const NursePage = () => {
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
-  const [showCreateVisitModal, setShowCreateVisitModal] = useState(false)
-  const [showCreateAdmission, setShowCreateAdmission] = useState(false)
-  const [admissionRefreshKey, setAdmissionRefreshKey] = useState(0)
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
@@ -1610,46 +1604,18 @@ export const NursePage = () => {
 
       {/* Same card stack as the doctor dashboard (minus appointments) — nurse-dept request. */}
       <div className="flex flex-col gap-4 p-4">
-        <DashboardCard
-          fixedHeight
-          title="Outpatient Visit Details"
-          onAdd={() => setShowCreateVisitModal(true)}
-          addButtonTitle="Create Patient Visit"
+        <OutpatientVisitsCard
           listingScreen="n-op"
-          allowCreateOnClosedEpisode
-        >
-          <PatientVisitList
-            detailedColumns
-            onPatientFromVisit={(p) => {
-              setSelectedPatient(p)
-              const sp = new URLSearchParams(searchParams)
-              sp.set('patient', p)
-              setSearchParams(sp, { replace: true })
-            }}
-            onVisitActivate={handleVisitActivate}
-          />
-        </DashboardCard>
+          patient={selectedPatient || undefined}
+          onPatientSelect={handlePatientSelect}
+          onVisitActivate={handleVisitActivate}
+        />
 
-        <DashboardCard
-          fixedHeight
-          title="Inpatient Admissions"
-          onAdd={() => setShowCreateAdmission(true)}
-          addButtonTitle="Create Admission"
-          listingScreen="n-reg"
-          allowCreateOnClosedEpisode
-        >
-          <AdmissionList
-            key={admissionRefreshKey}
-            patient={selectedPatient || undefined}
-            onAdmissionActivate={handleAdmissionActivate}
-            onPatientFromAdmission={(p) => {
-              setSelectedPatient(p)
-              const sp = new URLSearchParams(searchParams)
-              sp.set('patient', p)
-              setSearchParams(sp, { replace: true })
-            }}
-          />
-        </DashboardCard>
+        <InpatientAdmissionsCard
+          patient={selectedPatient || undefined}
+          onPatientSelect={handlePatientSelect}
+          onAdmissionActivate={handleAdmissionActivate}
+        />
 
         <DashboardCard
           fixedHeight
@@ -1702,26 +1668,6 @@ export const NursePage = () => {
           />
         </DashboardCard>
       </div>
-
-      {showCreateVisitModal && (
-        <CreatePatientVisitModal
-          onClose={() => setShowCreateVisitModal(false)}
-          onSuccess={() => setShowCreateVisitModal(false)}
-          initialPatient={selectedPatient || undefined}
-        />
-      )}
-
-      {showCreateAdmission && (
-        <CreateAdmissionModal
-          onClose={() => setShowCreateAdmission(false)}
-          onSuccess={() => {
-            setShowCreateAdmission(false)
-            setAdmissionRefreshKey((prev) => prev + 1)
-            toast.success('Inpatient admission created successfully')
-          }}
-          patientName={selectedPatient || undefined}
-        />
-      )}
 
       {showLabTrends && (
         <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setShowLabTrends(false)}>
