@@ -1,9 +1,18 @@
 // tabs/StockLedgerTab.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, fetchItemGroups, type StockLedgerItem } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
-import { Search, Filter, Package, AlertTriangle, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  FilterToggleButton,
+  InventoryFilterBar,
+  FilterSearchInput,
+  FilterSelectField,
+  matchesTextQuery,
+} from './InventoryListFilters'
+import { Package, AlertTriangle, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
+
+type StockStatusFilter = '' | 'in_stock' | 'low_stock' | 'out_of_stock'
 
 interface StockLedgerTabProps {
   refreshTrigger?: number
@@ -17,10 +26,11 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
   const effectiveCostCenter = costCenter || userCostCenter
   
   const [stockItems, setStockItems] = useState<StockLedgerItem[]>([])
-  const [filteredItems, setFilteredItems] = useState<StockLedgerItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
+  const [stockStatusFilter, setStockStatusFilter] = useState<StockStatusFilter>('')
   const [itemGroups, setItemGroups] = useState<{ name: string; label: string }[]>([])
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [summary, setSummary] = useState({
@@ -31,25 +41,36 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
       });
       const [_debugItem, setDebugItem] = useState<any>(null)
 
+  const hasActiveFilters = Boolean(searchTerm || filterCategory || stockStatusFilter)
+
+  const filteredItems = useMemo(() => {
+    return stockItems.filter((item) => {
+      const matchesSearch =
+        matchesTextQuery(item.item_name, searchTerm) || matchesTextQuery(item.item_code, searchTerm)
+      const group = item.item_group || item.category || ''
+      const matchesCategory = !filterCategory || group === filterCategory
+      const reorder = item.reorder_level || 10
+      const current = item.current_stock
+      const matchesStatus =
+        !stockStatusFilter ||
+        (stockStatusFilter === 'out_of_stock' && current === 0) ||
+        (stockStatusFilter === 'low_stock' && current > 0 && current <= reorder) ||
+        (stockStatusFilter === 'in_stock' && current > reorder)
+      return matchesSearch && matchesCategory && matchesStatus
+    })
+  }, [stockItems, searchTerm, filterCategory, stockStatusFilter])
+
+  const clearFilters = () => {
+    setSearchTerm('')
+    setFilterCategory('')
+    setStockStatusFilter('')
+  }
+
   useEffect(() => {
     if (effectiveCostCenter) {
       loadStockLedger()
     }
   }, [refreshTrigger, effectiveCostCenter, warehouseContext])
-
-  useEffect(() => {
-    if (!searchTerm.trim() && !filterCategory) {
-      setFilteredItems(stockItems)
-    } else {
-      const filtered = stockItems.filter(item => {
-        const matchesSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                             item.item_code.toLowerCase().includes(searchTerm.toLowerCase())
-        const matchesCategory = !filterCategory || item.item_group === filterCategory
-        return matchesSearch && matchesCategory
-      })
-      setFilteredItems(filtered)
-    }
-  }, [searchTerm, filterCategory, stockItems])
 
   const loadStockLedger = async () => {
     if (!effectiveCostCenter) return
@@ -58,12 +79,11 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     try {
       const [stockData, itemGroupsData] = await Promise.all([
         fetchStockLedger(effectiveCostCenter, warehouseContext),
-        fetchItemGroups()
+        fetchItemGroups(undefined, warehouseContext),
       ])
       
       setStockItems(stockData)
       setItemGroups(itemGroupsData)
-      setFilteredItems(stockData)
       if (stockData.length > 0) {
         setDebugItem(stockData[0])
       }
@@ -162,35 +182,37 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
         />
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="flex-1 relative">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            placeholder="Search by item name or code..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
-        
-        {itemGroups.length > 0 && (
-          <div className="sm:w-64 relative">
-            <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <select
-              value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-            >
-              <option value="">Select All</option>
-              {itemGroups.map(group => (
-                <option key={group.name} value={group.name}>{group.label}</option>
-              ))}
-            </select>
-          </div>
-        )}
+      <div className="flex items-center justify-end">
+        <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
       </div>
+
+      {showFilters && (
+        <InventoryFilterBar onClear={clearFilters} hasActiveFilters={hasActiveFilters}>
+          <FilterSearchInput
+            value={searchTerm}
+            onChange={setSearchTerm}
+            placeholder="Search item name or code..."
+          />
+          {itemGroups.length > 0 ? (
+            <FilterSelectField
+              label="Item group"
+              value={filterCategory}
+              onChange={setFilterCategory}
+              options={itemGroups}
+            />
+          ) : null}
+          <FilterSelectField
+            label="Stock status"
+            value={stockStatusFilter}
+            onChange={(value) => setStockStatusFilter(value as StockStatusFilter)}
+            options={[
+              { name: 'in_stock', label: 'In stock' },
+              { name: 'low_stock', label: 'Low stock' },
+              { name: 'out_of_stock', label: 'Out of stock' },
+            ]}
+          />
+        </InventoryFilterBar>
+      )}
 
       {/* Stock Items List - Card based view */}
       {loading ? (
@@ -202,8 +224,8 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
         <div className="text-center py-8">
           <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
           <p className="text-slate-500">No items found in stock</p>
-          {searchTerm && (
-            <p className="text-xs text-slate-400 mt-1">Try adjusting your search criteria</p>
+          {hasActiveFilters && (
+            <p className="text-xs text-slate-400 mt-1">Try adjusting your filters</p>
           )}
         </div>
       ) : (

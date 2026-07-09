@@ -431,7 +431,7 @@ export const CreateStockTransferModal = ({
       setItemOptions((prev) => ({ ...prev, [index]: [] }))
       return
     }
-    const results = await fetchInventoryItems(search)
+    const results = await fetchInventoryItems(search, warehouseContext)
     setItemOptions((prev) => ({ ...prev, [index]: results }))
   }
 

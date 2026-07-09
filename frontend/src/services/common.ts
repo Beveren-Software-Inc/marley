@@ -43,6 +43,8 @@ export interface ChecklistItem {
   department_label?: string
   department_2?: string
   department_2_label?: string
+  department_3?: string
+  department_3_label?: string
   user: string
   name1: string
   date_time: string

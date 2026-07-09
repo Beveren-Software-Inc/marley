@@ -888,7 +888,7 @@ export const DoctorPage = () => {
             <div className="mb-3 text-xs text-slate-600">
               Tasks assigned to nurses for this patient — medication administration, vitals, lab support, and more.
             </div>
-            <NurseTaskList patient={selectedPatient} />
+            <NurseTaskList patient={selectedPatient} currentShiftOnly={false} />
           </DashboardCard>
         </div>
         {showCreateNurseTaskModal && (

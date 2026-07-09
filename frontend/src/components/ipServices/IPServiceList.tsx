@@ -12,11 +12,20 @@ interface IPServiceListProps {
   refreshKey?: number | string
   category?: 'Medical Service' | 'Other Service'
   onPatientClick?: (patient: string) => void
+  /** Nurse ECT view — hide amounts; show therapy names only in detail. */
+  hidePricing?: boolean
 }
 
 const normalizeCategory = (category?: string) => (category || '').trim()
 
-export const IPServiceList = ({ patient, admission_no, refreshKey, category, onPatientClick }: IPServiceListProps) => {
+export const IPServiceList = ({
+  patient,
+  admission_no,
+  refreshKey,
+  category,
+  onPatientClick,
+  hidePricing = false,
+}: IPServiceListProps) => {
   const [list, setList] = useState<IPServiceRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -161,7 +170,9 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
                 <th className="py-2 pr-2">Patient</th>
               )}
               <th className="py-2 pr-2">Service</th>
-              <th className="py-2 pr-2 text-right">Total</th>
+              {!hidePricing ? (
+                <th className="py-2 pr-2 text-right">Total</th>
+              ) : null}
               <th className="py-2 pr-2 text-right">Actions</th>
             </tr>
           </thead>
@@ -194,12 +205,14 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
                 >
                   {row.first_service ?? '–'}
                 </td>
-                <td 
-                  className="py-2 pr-2 text-right cursor-pointer"
-                  onClick={() => handleView(row.name)}
-                >
-                  {row.total_amount != null ? Number(row.total_amount).toLocaleString() : '–'}
-                </td>
+                {!hidePricing ? (
+                  <td 
+                    className="py-2 pr-2 text-right cursor-pointer"
+                    onClick={() => handleView(row.name)}
+                  >
+                    {row.total_amount != null ? Number(row.total_amount).toLocaleString() : '–'}
+                  </td>
+                ) : null}
                 
                 {/* Actions column with both three-dot menu and print button */}
                 <td className="py-2 pr-2 text-right">
@@ -270,7 +283,7 @@ export const IPServiceList = ({ patient, admission_no, refreshKey, category, onP
           subtitle={detailName}
           onClose={() => setDetailName(null)}
         >
-          <IPServiceDetailView name={detailName} onUpdate={doRefetch} />
+          <IPServiceDetailView name={detailName} onUpdate={doRefetch} hidePricing={hidePricing} />
         </DetailSlideOver>
       )}
     </>

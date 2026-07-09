@@ -59,6 +59,14 @@ function useDischargePrescriptionEditor(patient?: string, onChanged?: () => void
         editMode
         prescriptionData={editPrescription}
         initialPatient={patient}
+        initialCareContext={
+          editPrescription.patient_encounter || editPrescription.after_discharge
+            ? 'Patient Visit'
+            : editPrescription.care_context === 'Inpatient Admission'
+              ? 'Inpatient Admission'
+              : 'Patient Visit'
+        }
+        initialPatientEncounter={editPrescription.patient_encounter}
         onClose={closeEdit}
         onSuccess={handleEditSuccess}
       />

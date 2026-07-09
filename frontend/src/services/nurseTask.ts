@@ -13,6 +13,8 @@ export interface NurseTask {
   completed_time?: string
   assigned_nurse?: string
   assigned_nurse_name?: string
+  shift?: string
+  shift_label?: string
   medication?: string
   medication_name?: string
   dosage?: string
@@ -34,7 +36,7 @@ export interface CreateNurseTaskData {
   priority?: string
   /** Healthcare Practitioner name */
   assigned_nurse?: string
-  /** Shift Assignment name */
+  /** Nurse Shift name */
   shift?: string
   /** Branch name */
   cost_center?: string
@@ -74,6 +76,39 @@ export async function bulkCreateNurseTasks(tasks: CreateNurseTaskData[]): Promis
   )
 }
 
+export interface NurseShiftInfo {
+  name: string
+  label: string
+  from_time?: string
+  to_time?: string
+}
+
+export interface CurrentNurseShiftInfo {
+  shift: NurseShiftInfo | null
+  window_start?: string | null
+  window_end?: string | null
+}
+
+export async function fetchCurrentNurseShift(): Promise<CurrentNurseShiftInfo> {
+  const res = await fetch('/api/method/healthcare.api.nurse_shift.get_current_nurse_shift_info')
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.message || 'Failed to load current nurse shift')
+  }
+  return (data?.message || { shift: null }) as CurrentNurseShiftInfo
+}
+
+export async function fetchNurseShifts(search?: string): Promise<NurseShiftInfo[]> {
+  let url = '/api/method/healthcare.api.nurse_shift.get_nurse_shifts'
+  if (search) url += `?search=${encodeURIComponent(search)}`
+  const res = await fetch(url)
+  const data = await res.json()
+  if (data?.exc || !res.ok) {
+    throw new Error(data?.message || 'Failed to load nurse shifts')
+  }
+  return Array.isArray(data?.message) ? (data.message as NurseShiftInfo[]) : []
+}
+
 export async function fetchNurseTasks(
   options?: {
     limit?: number
@@ -85,6 +120,8 @@ export async function fetchNurseTasks(
     date_to?: string
     my_tasks?: boolean
     assigned_nurse?: string
+    shift?: string
+    current_shift_only?: boolean
   }
 ): Promise<NurseTask[]> {
   const params = new URLSearchParams()
@@ -97,6 +134,8 @@ export async function fetchNurseTasks(
   if (options?.date_to) params.append('date_to', options.date_to)
   if (options?.my_tasks) params.append('my_tasks', '1')
   if (options?.assigned_nurse) params.append('assigned_nurse', options.assigned_nurse)
+  if (options?.shift) params.append('shift', options.shift)
+  if (options?.current_shift_only) params.append('current_shift_only', '1')
 
   const res = await fetch(
     `/api/method/healthcare.api.nurse_task.get_nurse_tasks?${params.toString()}`

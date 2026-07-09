@@ -116,14 +116,15 @@ fixtures = [
                    "Item-custom_high_alert",
                    "Item-custom_drug_category",
                    "Sales Order-custom_is_pharmacy_give_out",
+                   "Item Group-custom_required_by_nhra"
 
                 ),
             ]
         ],
     },
-    {
-        "doctype": "Discharge Template"
-    },
+    # {
+    #     "doctype": "Discharge Template"
+    # },
     {
 		"doctype": "Medical Role"
 	},
@@ -187,9 +188,9 @@ fixtures = [
     {
 		"doctype":"Healthcare Activity"
 	},
-    {
-		"doctype":"Nursing Checklist Template"
-	},
+    # {
+	# 	"doctype":"Nursing Checklist Template"
+	# },
     {
 		"doctype":"Observation Level"
 	},

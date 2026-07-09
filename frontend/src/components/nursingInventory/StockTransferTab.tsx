@@ -1,7 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockTransfers, type StockTransfer } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import {
+  FilterToggleButton,
+  InventoryFilterBar,
+  FilterSearchInput,
+  FilterDateField,
+  FilterSelectField,
+  collectUniqueStrings,
+  matchesAnyItemQuery,
+  matchesDateRange,
+  matchesTextQuery,
+} from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { ArrowRightLeft, Eye } from 'lucide-react'
 
@@ -22,6 +33,50 @@ export const StockTransferTab = ({
   const [transfers, setTransfers] = useState<StockTransfer[]>([])
   const [loading, setLoading] = useState(false)
   const [selected, setSelected] = useState<StockTransfer | null>(null)
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterItem, setFilterItem] = useState('')
+  const [filterFromWarehouse, setFilterFromWarehouse] = useState('')
+  const [filterToWarehouse, setFilterToWarehouse] = useState('')
+
+  const fromWarehouseOptions = useMemo(
+    () => collectUniqueStrings(transfers.map((transfer) => transfer.from_warehouse)),
+    [transfers],
+  )
+
+  const toWarehouseOptions = useMemo(
+    () => collectUniqueStrings(transfers.map((transfer) => transfer.to_warehouse)),
+    [transfers],
+  )
+
+  const filteredTransfers = useMemo(() => {
+    return transfers.filter((transfer) => {
+      const matchesSearch =
+        matchesTextQuery(transfer.name, filterSearch) ||
+        matchesTextQuery(transfer.transferred_by, filterSearch) ||
+        matchesTextQuery(transfer.notes, filterSearch)
+      const matchesDate = matchesDateRange(transfer.transfer_date, filterDateFrom, filterDateTo)
+      const matchesItem = matchesAnyItemQuery(transfer.items, filterItem)
+      const matchesFrom = !filterFromWarehouse || transfer.from_warehouse === filterFromWarehouse
+      const matchesTo = !filterToWarehouse || transfer.to_warehouse === filterToWarehouse
+      return matchesSearch && matchesDate && matchesItem && matchesFrom && matchesTo
+    })
+  }, [transfers, filterSearch, filterDateFrom, filterDateTo, filterItem, filterFromWarehouse, filterToWarehouse])
+
+  const hasActiveFilters = Boolean(
+    filterSearch || filterDateFrom || filterDateTo || filterItem || filterFromWarehouse || filterToWarehouse,
+  )
+
+  const clearFilters = () => {
+    setFilterSearch('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterItem('')
+    setFilterFromWarehouse('')
+    setFilterToWarehouse('')
+  }
 
   useEffect(() => {
     if (effectiveCostCenter) {
@@ -45,6 +100,45 @@ export const StockTransferTab = ({
 
   return (
     <>
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="text-lg font-semibold text-slate-900">Stock Transfers</h2>
+        <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
+      </div>
+
+      {showFilters && (
+        <InventoryFilterBar onClear={clearFilters} hasActiveFilters={hasActiveFilters}>
+          <FilterSearchInput
+            value={filterSearch}
+            onChange={setFilterSearch}
+            placeholder="Search transfer ID, user, notes..."
+          />
+          <FilterSearchInput
+            value={filterItem}
+            onChange={setFilterItem}
+            placeholder="Filter by item name or code..."
+            className="relative min-w-[180px] flex-1"
+          />
+          <FilterDateField label="Date from" value={filterDateFrom} onChange={setFilterDateFrom} />
+          <FilterDateField label="Date to" value={filterDateTo} onChange={setFilterDateTo} />
+          {fromWarehouseOptions.length > 0 ? (
+            <FilterSelectField
+              label="From warehouse"
+              value={filterFromWarehouse}
+              onChange={setFilterFromWarehouse}
+              options={fromWarehouseOptions}
+            />
+          ) : null}
+          {toWarehouseOptions.length > 0 ? (
+            <FilterSelectField
+              label="To warehouse"
+              value={filterToWarehouse}
+              onChange={setFilterToWarehouse}
+              options={toWarehouseOptions}
+            />
+          ) : null}
+        </InventoryFilterBar>
+      )}
+
       <div className="bg-white rounded-lg border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 bg-slate-50 border-b border-slate-200">
           <h3 className="text-sm font-semibold text-slate-900">Transfer history</h3>
@@ -53,14 +147,16 @@ export const StockTransferTab = ({
           <div className="p-8 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
           </div>
-        ) : transfers.length === 0 ? (
+        ) : filteredTransfers.length === 0 ? (
           <div className="p-8 text-center">
             <ArrowRightLeft className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-            <p className="text-slate-500">No stock transfers found</p>
+            <p className="text-slate-500">
+              {transfers.length === 0 ? 'No stock transfers found' : 'No transfers match your filters'}
+            </p>
           </div>
         ) : (
           <div className="divide-y divide-slate-200">
-            {transfers.map((transfer) => (
+            {filteredTransfers.map((transfer) => (
               <div key={transfer.name} className="p-4 hover:bg-slate-50 transition">
                 <div className="flex justify-between items-start gap-3">
                   <div className="min-w-0">

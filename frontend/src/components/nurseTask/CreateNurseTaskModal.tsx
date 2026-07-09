@@ -665,7 +665,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { ClipboardList } from 'lucide-react'
-import { createNurseTask, type CreateNurseTaskData } from '../../services/nurseTask'
+import { createNurseTask, fetchCurrentNurseShift, fetchNurseShifts, type CreateNurseTaskData } from '../../services/nurseTask'
 import {
   fetchHealthcarePractitioners,
   getCurrentUserPractitioner,
@@ -988,18 +988,29 @@ export const CreateNurseTaskModal = ({
   }, [])
 
   const loadShiftOptions = useCallback(async (q?: string) => {
-    // Shift Assignment — use frappe resource API directly
     try {
-      const params = new URLSearchParams()
-      if (q) params.append('filters', JSON.stringify([['shift_type', 'like', `%${q}%`]]))
-      params.append('fields', JSON.stringify(['name', 'shift_type']))
-      params.append('limit', '50')
-      const res = await fetch(`/api/resource/Shift Assignment?${params.toString()}`)
-      const data = await res.json()
-      const list = (data?.data || []) as { name: string; shift_type?: string }[]
-      setShiftOptions(list.map((r) => ({ name: r.name, label: r.shift_type || r.name })))
-    } catch { setShiftOptions([]) }
+      const list = await fetchNurseShifts(q || undefined)
+      setShiftOptions(list.map((row) => ({ name: row.name, label: row.label || row.name })))
+    } catch {
+      setShiftOptions([])
+    }
   }, [])
+
+  useEffect(() => {
+    const autoPopulateShift = async () => {
+      try {
+        const info = await fetchCurrentNurseShift()
+        if (info.shift?.name) {
+          setShift(info.shift.name)
+          setShiftDisplay(info.shift.label || info.shift.name)
+        }
+        await loadShiftOptions()
+      } catch (err) {
+        console.error('Failed to auto-populate nurse shift:', err)
+      }
+    }
+    void autoPopulateShift()
+  }, [loadShiftOptions])
 
   const loadCostCenterOptions = useCallback(async (q?: string) => {
     try {

@@ -70,6 +70,8 @@ import {
   canUserEditDischargeChecklistItem,
   checklistItemDepartmentLabel,
   mergeChecklistWithTemplateDepartments,
+  sortChecklistByOrder,
+  canToggleDischargeChecklistItem,
 } from '../../utils/dischargeChecklistPermissions'
 import { DischargeChecklistStatusCard } from '../discharges/DischargeChecklistStatusCard'
 import {
@@ -88,6 +90,8 @@ interface ChecklistItem {
   department_label?: string
   department_2?: string
   department_2_label?: string
+  department_3?: string
+  department_3_label?: string
   user: string
   name1: string
   date_time: string
@@ -980,7 +984,6 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   // Checklist state
   const [checklistItems, setChecklistItems] = useState<ChecklistItem[]>([])
   const [checklistLoading, setChecklistLoading] = useState(false)
-  const [expandedDepts, setExpandedDepts] = useState<Record<string, boolean>>({})
   const [expandedItems, setExpandedItems] = useState<Record<string, boolean>>({})
 
   // Nursing Checklist state
@@ -1655,12 +1658,12 @@ const loadDailyVisitSetup = async () => {
             if (templateName) {
               try {
                 const templateItems = await fetchDischargeChecklist(templateName)
-                setChecklistItems(mergeChecklistWithTemplateDepartments(checklist, templateItems))
+                setChecklistItems(sortChecklistByOrder(mergeChecklistWithTemplateDepartments(checklist, templateItems)))
               } catch {
-                setChecklistItems(checklist)
+                setChecklistItems(sortChecklistByOrder(checklist))
               }
             } else {
-              setChecklistItems(checklist)
+              setChecklistItems(sortChecklistByOrder(checklist))
             }
           } else if (fdStr('discharge_template')) {
             await loadChecklist(fdStr('discharge_template'))
@@ -1934,13 +1937,7 @@ const loadDailyVisitSetup = async () => {
     setChecklistLoading(true)
     try {
       const items = await fetchDischargeChecklist(templateName)
-      setChecklistItems(items)
-      const deptMap: Record<string, boolean> = {}
-      items.forEach((item: ChecklistItem) => {
-        const dept = item.department_label || item.department || 'General'
-        deptMap[dept] = true
-      })
-      setExpandedDepts(deptMap)
+      setChecklistItems(sortChecklistByOrder(items))
     } catch (err) {
       console.error('Failed to load checklist:', err)
       setChecklistItems([])
@@ -2226,12 +2223,16 @@ const loadDailyVisitSetup = async () => {
   }, [activeTab])
 
   // Checklist helpers
-  const toggleDept = (dept: string) => setExpandedDepts(prev => ({ ...prev, [dept]: !prev[dept] }))
   const toggleItem = (itemName: string) => setExpandedItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
 
   const toggleCheck = (itemName: string) => {
     const item = checklistItems.find((row) => row.name === itemName)
-    if (!item || !canEditChecklistRow(item)) return
+    if (!item) return
+    const toggle = canToggleDischargeChecklistItem(item, checklistItems, userDepartments, userRole)
+    if (!toggle.allowed) {
+      toast.error(toggle.reason || 'You cannot update this checklist item.')
+      return
+    }
     const checking = !item.click
     const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
     setChecklistItems(prev =>
@@ -2251,7 +2252,7 @@ const loadDailyVisitSetup = async () => {
   const updateChecklistItem = (itemName: string, field: keyof ChecklistItem, value: string) => {
     const item = checklistItems.find((row) => row.name === itemName)
     if (!item || !canEditChecklistRow(item)) return
-    if (field === 'department' || field === 'department_2') return
+    if (field === 'department' || field === 'department_2' || field === 'department_3') return
     setChecklistItems(prev =>
       prev.map(row => row.name === itemName ? { ...row, [field]: value } : row)
     )
@@ -2294,12 +2295,12 @@ const loadDailyVisitSetup = async () => {
       if (templateName) {
         try {
           const templateItems = await fetchDischargeChecklist(templateName)
-          setChecklistItems(mergeChecklistWithTemplateDepartments(checklist, templateItems))
+          setChecklistItems(sortChecklistByOrder(mergeChecklistWithTemplateDepartments(checklist, templateItems)))
         } catch {
-          setChecklistItems(checklist)
+          setChecklistItems(sortChecklistByOrder(checklist))
         }
       } else {
-        setChecklistItems(checklist)
+        setChecklistItems(sortChecklistByOrder(checklist))
       }
     } catch {
       /* ignore */
@@ -2317,7 +2318,7 @@ const loadDailyVisitSetup = async () => {
     [loadPrescriptionSections, refreshChecklistFromServerDraft, setActiveTab],
   )
 
-  const groupedChecklist = groupByDepartment(checklistItems)
+  const orderedChecklist = useMemo(() => sortChecklistByOrder(checklistItems), [checklistItems])
   const checklistSummary = useMemo(
     () => summarizeDischargeChecklistStatus(checklistItems),
     [checklistItems]
@@ -2391,6 +2392,7 @@ const loadDailyVisitSetup = async () => {
         action_required: item.action_required,
         department: item.department,
         department_2: item.department_2 || '',
+        department_3: item.department_3 || '',
         user: item.user,
         name1: item.name1,
         date_time: item.date_time ? toFrappeDateTime(item.date_time) : '',
@@ -3525,118 +3527,148 @@ const loadDailyVisitSetup = async () => {
                   </p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {Object.entries(groupedChecklist).map(([dept, items]) => {
-                    const deptCompleted = items.filter(i => i.click).length
-                    const deptTotal = items.length
-                    const isDeptDone = deptCompleted === deptTotal
-                    const isOpen = expandedDepts[dept] !== false
+                <div className="border border-slate-200 rounded-lg overflow-hidden divide-y divide-slate-100">
+                  {orderedChecklist.map((item, index) => {
+                    const isItemExpanded = expandedItems[item.name]
+                    const rowEditable = canEditChecklistRow(item)
+                    const toggleState = canToggleDischargeChecklistItem(
+                      item,
+                      checklistItems,
+                      userDepartments,
+                      userRole,
+                    )
+                    const assignedDeptLabel = checklistItemDepartmentLabel(item)
+                    const waitingLabel = !rowEditable
+                      ? `Waiting for ${assignedDeptLabel}`
+                      : toggleState.reason?.includes('earlier')
+                        ? 'Complete earlier checklist items first'
+                        : null
                     return (
-                      <div key={dept} className="border border-slate-200 rounded-lg overflow-hidden">
-                        <button type="button" onClick={() => toggleDept(dept)}
-                          className={`w-full flex items-center justify-between px-4 py-3 text-left transition-colors ${isDeptDone ? 'bg-green-50' : 'bg-slate-50'} hover:bg-slate-100`}>
-                          <div className="flex items-center gap-3">
-                            {isDeptDone ? <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0" /> : <Circle className="w-5 h-5 text-slate-400 shrink-0" />}
-                            <div>
-                              <span className="text-sm font-semibold text-slate-800">{dept}</span>
-                              <span className="ml-2 text-xs text-slate-500">({deptCompleted}/{deptTotal})</span>
-                            </div>
-                          </div>
-                          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
-                        </button>
-                        {isOpen && (
-                          <div className="divide-y divide-slate-100">
-                            {items.map((item) => {
-                              const isItemExpanded = expandedItems[item.name]
-                              const rowEditable = canEditChecklistRow(item)
-                              const assignedDeptLabel = checklistItemDepartmentLabel(item)
-                              return (
-                                <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : rowEditable ? 'bg-white' : 'bg-slate-50'}`}>
-                                  <div className="px-4 py-3">
-                                    <div className="flex items-start gap-3">
-                                      <button
-                                        type="button"
-                                        onClick={() => toggleCheck(item.name)}
-                                        disabled={!rowEditable}
-                                        title={
-                                          rowEditable
-                                            ? undefined
-                                            : `Assigned to ${assignedDeptLabel}. Only staff in that department can update this line.`
-                                        }
-                                        className={`mt-0.5 shrink-0 focus:outline-none ${!rowEditable ? 'cursor-not-allowed opacity-60' : ''}`}
-                                      >
-                                        {item.click ? <CheckCircle2 className="w-5 h-5 text-green-500" /> : <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />}
-                                      </button>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                          <p className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}>
-                                            {item.action_required}
-                                          </p>
-                                          {assignedDeptLabel !== 'Unassigned' && (
-                                            <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
-                                              {!rowEditable && <Lock className="h-3 w-3" />}
-                                              {assignedDeptLabel}
-                                            </span>
-                                          )}
-                                        </div>
-                                        <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                                          {item.name1 && <span className="text-xs text-slate-500"><span className="font-medium">Contact:</span> {item.name1}</span>}
-                                          {item.click && item.date_time && (
-                                            <span className="text-xs text-green-600">✓ Completed {new Date(item.date_time).toLocaleString('en-GB')}</span>
-                                          )}
-                                          {!rowEditable && !item.click && (
-                                            <span className="text-xs text-slate-500">Waiting for {assignedDeptLabel}</span>
-                                          )}
-                                        </div>
-                                        {item.click && rowEditable && (
-                                          <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
-                                            <div>
-                                              <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
-                                              <input
-                                                type="text"
-                                                ref={userOpenForItem === item.name ? userTriggerRef : undefined}
-                                                value={userOpenForItem === item.name ? userQuery : (dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '')}
-                                                onChange={(e) => {
-                                                  updateChecklistItem(item.name, 'user', '')
-                                                  setUserQuery(e.target.value)
-                                                  setUserOpenForItem(item.name)
-                                                }}
-                                                onFocus={() => { setUserOpenForItem(item.name); setUserQuery(dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '') }}
-                                                placeholder="Search user..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
-                                            </div>
-                                            <div>
-                                              <label className="block text-xs font-medium text-slate-600 mb-1">Date &amp; Time</label>
-                                              <input type="datetime-local" value={item.date_time ? item.date_time.slice(0, 16) : ''}
-                                                onChange={(e) => updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))}
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
-                                            </div>
-                                            <div>
-                                              <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                              <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
-                                                {assignedDeptLabel}
-                                              </p>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                      {item.description && (
-                                        <button type="button" onClick={() => toggleItem(item.name)} className="shrink-0 text-xs text-slate-400 hover:text-slate-600 mt-0.5">
-                                          {isItemExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                        </button>
-                                      )}
-                                    </div>
-                                    {isItemExpanded && item.description && (
-                                      <div className="mt-3 ml-8 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100"
-                                        dangerouslySetInnerHTML={{ __html: item.description }} />
-                                    )}
+                      <div
+                        key={item.name}
+                        className={`transition-colors ${item.click ? 'bg-green-50/40' : rowEditable ? 'bg-white' : 'bg-slate-50'}`}
+                      >
+                        <div className="px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <span className="mt-0.5 shrink-0 w-6 text-center text-xs font-semibold text-slate-400">
+                              {item.sr_num || index + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => toggleCheck(item.name)}
+                              disabled={!toggleState.allowed}
+                              title={toggleState.allowed ? undefined : toggleState.reason}
+                              className={`mt-0.5 shrink-0 focus:outline-none ${!toggleState.allowed ? 'cursor-not-allowed opacity-60' : ''}`}
+                            >
+                              {item.click ? (
+                                <CheckCircle2 className="w-5 h-5 text-green-500" />
+                              ) : (
+                                <Circle className="w-5 h-5 text-slate-300 hover:text-slate-400" />
+                              )}
+                            </button>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p
+                                  className={`text-sm font-medium ${item.click ? 'line-through text-slate-400' : 'text-slate-800'}`}
+                                >
+                                  {item.action_required}
+                                </p>
+                                {assignedDeptLabel !== 'Unassigned' && (
+                                  <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600">
+                                    {!rowEditable && <Lock className="h-3 w-3" />}
+                                    {assignedDeptLabel}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                                {item.name1 && (
+                                  <span className="text-xs text-slate-500">
+                                    <span className="font-medium">Contact:</span> {item.name1}
+                                  </span>
+                                )}
+                                {item.click && item.date_time && (
+                                  <span className="text-xs text-green-600">
+                                    ✓ Completed {new Date(item.date_time).toLocaleString('en-GB')}
+                                  </span>
+                                )}
+                                {waitingLabel && !item.click && (
+                                  <span className="text-xs text-slate-500">{waitingLabel}</span>
+                                )}
+                              </div>
+                              {item.click && rowEditable && (
+                                <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
+                                    <input
+                                      type="text"
+                                      ref={userOpenForItem === item.name ? userTriggerRef : undefined}
+                                      value={
+                                        userOpenForItem === item.name
+                                          ? userQuery
+                                          : dischargedByUsers.find((u) => u.name === item.user)?.label ||
+                                            item.user ||
+                                            ''
+                                      }
+                                      onChange={(e) => {
+                                        updateChecklistItem(item.name, 'user', '')
+                                        setUserQuery(e.target.value)
+                                        setUserOpenForItem(item.name)
+                                      }}
+                                      onFocus={() => {
+                                        setUserOpenForItem(item.name)
+                                        setUserQuery(
+                                          dischargedByUsers.find((u) => u.name === item.user)?.label ||
+                                            item.user ||
+                                            '',
+                                        )
+                                      }}
+                                      placeholder="Search user..."
+                                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">
+                                      Date &amp; Time
+                                    </label>
+                                    <input
+                                      type="datetime-local"
+                                      value={item.date_time ? item.date_time.slice(0, 16) : ''}
+                                      onChange={(e) =>
+                                        updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))
+                                      }
+                                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
+                                    <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                                      {assignedDeptLabel}
+                                    </p>
                                   </div>
                                 </div>
-                              )
-                            })}
+                              )}
+                            </div>
+                            {item.description && (
+                              <button
+                                type="button"
+                                onClick={() => toggleItem(item.name)}
+                                className="shrink-0 text-xs text-slate-400 hover:text-slate-600 mt-0.5"
+                              >
+                                {isItemExpanded ? (
+                                  <ChevronUp className="w-4 h-4" />
+                                ) : (
+                                  <ChevronDown className="w-4 h-4" />
+                                )}
+                              </button>
+                            )}
                           </div>
-                        )}
+                          {isItemExpanded && item.description && (
+                            <div
+                              className="mt-3 ml-14 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100"
+                              dangerouslySetInnerHTML={{ __html: item.description }}
+                            />
+                          )}
+                        </div>
                       </div>
                     )
                   })}

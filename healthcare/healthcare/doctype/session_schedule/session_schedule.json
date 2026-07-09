@@ -21,6 +21,8 @@
   "company",
   "doctor",
   "doctor_name",
+  "practitioner",
+  "practitioner_name",
   "section_break_ispo",
   "from_time",
   "amount",
@@ -173,11 +175,24 @@
    "fieldname": "sr_num",
    "fieldtype": "Data",
    "label": "SR No"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-03 17:42:43.091842",
+ "modified": "2026-07-09 17:31:57.578970",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Session Schedule",

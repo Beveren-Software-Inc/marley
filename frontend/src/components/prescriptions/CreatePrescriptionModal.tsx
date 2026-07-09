@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import {
   CM_BTN_CANCEL,
@@ -483,10 +483,18 @@ export const CreatePrescriptionModal = ({
 
   useEffect(() => {
     if (editMode && prescriptionData) {
+      const linkedVisit = (prescriptionData.patient_encounter || '').trim()
+      const careContext: 'Patient Visit' | 'Inpatient Admission' = linkedVisit
+        ? 'Patient Visit'
+        : prescriptionData.care_context === 'Inpatient Admission'
+          ? 'Inpatient Admission'
+          : 'Patient Visit'
+
       setFormData({
-        care_context: (prescriptionData.care_context === 'Inpatient Admission' ? 'Inpatient Admission' : 'Patient Visit'),
-        patient_encounter: prescriptionData.patient_encounter || '',
-        inpatient_record: prescriptionData.inpatient_record || '',
+        care_context: careContext,
+        patient_encounter: linkedVisit,
+        inpatient_record:
+          careContext === 'Inpatient Admission' ? (prescriptionData.inpatient_record || '') : '',
         company: prescriptionData.company || '',
         start_date: prescriptionData.start_date || new Date().toISOString().split('T')[0],
         practitioner: prescriptionData.practitioner || '',
@@ -542,6 +550,7 @@ export const CreatePrescriptionModal = ({
   }, [editMode, prescriptionData, formData.start_date])
 
   useEffect(() => {
+    if (isEditing) return
     if (initialCareContext) return
     setFormData((prev) => {
       const next = { ...prev }
@@ -552,7 +561,46 @@ export const CreatePrescriptionModal = ({
       }
       return next
     })
-  }, [mode, initialCareContext])
+  }, [mode, initialCareContext, isEditing])
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      if (isEditing) return
+      setVisits([])
+      setAdmissions([])
+      setFormData((p) => ({ ...p, patient_encounter: '', inpatient_record: '' }))
+      return
+    }
+    fetchPatientVisits(selectedPatient.name).then(setVisits).catch(() => setVisits([]))
+    fetchInpatientAdmissions(selectedPatient.name).then(setAdmissions).catch(() => setAdmissions([]))
+  }, [selectedPatient?.name, isEditing])
+
+  useEffect(() => {
+    if (isEditing) return
+    setFormData((prev) => {
+      const next = { ...prev }
+      if (mode === 'OP' && activeVisit) {
+        next.care_context = 'Patient Visit'
+        next.patient_encounter = activeVisit
+      }
+      if (mode === 'IP' && activeAdmission) {
+        next.care_context = 'Inpatient Admission'
+        next.inpatient_record = activeAdmission
+      }
+      return next
+    })
+  }, [mode, activeVisit, activeAdmission, isEditing])
+
+  const displayVisits = useMemo(() => {
+    const encounter = formData.patient_encounter.trim()
+    if (!encounter) return visits
+    if (visits.some((visit) => visit.name === encounter)) return visits
+    return [{ name: encounter, label: encounter }, ...visits]
+  }, [visits, formData.patient_encounter])
+
+  const lockCareContextOnEdit = Boolean(
+    isEditing && (prescriptionData?.patient_encounter || prescriptionData?.after_discharge),
+  )
 
   useEffect(() => {
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
@@ -560,15 +608,13 @@ export const CreatePrescriptionModal = ({
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
   }, [])
 
-  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
   useEffect(() => {
     const autoPopulatePractitioner = async () => {
       try {
         const practitioner = await getCurrentUserPractitioner()
-        if (practitioner && !isEditing) { // Only auto-populate when creating new prescription
-          setFormData(prev => ({ ...prev, practitioner }))
-          // Find the practitioner option to set display label
-          const practitionerOption = practitioners.find(p => p.name === practitioner)
+        if (practitioner && !isEditing) {
+          setFormData((prev) => ({ ...prev, practitioner }))
+          const practitionerOption = practitioners.find((p) => p.name === practitioner)
           if (practitionerOption) {
             setPractQuery(practitionerOption.label || practitioner)
           } else {
@@ -579,8 +625,7 @@ export const CreatePrescriptionModal = ({
         console.error('Failed to auto-populate practitioner:', err)
       }
     }
-    
-    // Wait for practitioners to be loaded
+
     if (practitioners.length > 0 && !isEditing && !formData.practitioner) {
       autoPopulatePractitioner()
     }
@@ -592,11 +637,13 @@ export const CreatePrescriptionModal = ({
       fetchPatients(20, 0, initialPatient)
         .then((list) => {
           const match = list.find((p) => p.name === initialPatient)
-          setSelectedPatient(match || { name: initialPatient, patient_name: initialPatient } as PatientListItem)
+          setSelectedPatient(match || ({ name: initialPatient, patient_name: initialPatient } as PatientListItem))
         })
-        .catch(() => setSelectedPatient({ name: initialPatient, patient_name: initialPatient } as PatientListItem))
+        .catch(() =>
+          setSelectedPatient({ name: initialPatient, patient_name: initialPatient } as PatientListItem),
+        )
     }
-  }, [initialPatient])
+  }, [initialPatient, selectedPatient])
 
   useEffect(() => {
     if (initialMedications && initialMedications.length > 0) {
@@ -610,45 +657,16 @@ export const CreatePrescriptionModal = ({
   }, [initialMedications])
 
   useEffect(() => {
-    if (initialCareContext) {
-      setFormData((prev) => ({
-        ...prev,
-        care_context: initialCareContext,
-        patient_encounter: initialPatientEncounter || '',
-        inpatient_record:
-          initialCareContext === 'Patient Visit'
-            ? ''
-            : (initialInpatientRecord || prev.inpatient_record),
-        start_date: initialStartDate || prev.start_date,
-      }))
-    }
-  }, [initialCareContext, initialPatientEncounter, initialInpatientRecord, initialStartDate])
-
-  useEffect(() => {
-    if (!selectedPatient) {
-      setVisits([])
-      setAdmissions([])
-      setFormData((p) => ({ ...p, patient_encounter: '', inpatient_record: '' }))
-      return
-    }
-    fetchPatientVisits(selectedPatient.name).then(setVisits).catch(() => setVisits([]))
-    fetchInpatientAdmissions(selectedPatient.name).then(setAdmissions).catch(() => setAdmissions([]))
-  }, [selectedPatient?.name])
-
-  useEffect(() => {
-    setFormData((prev) => {
-      const next = { ...prev }
-      if (mode === 'OP' && activeVisit) {
-        next.care_context = 'Patient Visit'
-        next.patient_encounter = activeVisit
-      }
-      if (mode === 'IP' && activeAdmission) {
-        next.care_context = 'Inpatient Admission'
-        next.inpatient_record = activeAdmission
-      }
-      return next
-    })
-  }, [mode, activeVisit, activeAdmission])
+    if (!initialCareContext || isEditing) return
+    setFormData((prev) => ({
+      ...prev,
+      care_context: initialCareContext,
+      patient_encounter: initialPatientEncounter || '',
+      inpatient_record:
+        initialCareContext === 'Patient Visit' ? '' : initialInpatientRecord || prev.inpatient_record,
+      start_date: initialStartDate || prev.start_date,
+    }))
+  }, [initialCareContext, initialPatientEncounter, initialInpatientRecord, initialStartDate, isEditing])
 
   useEffect(() => {
     if (isEditing) return
@@ -787,7 +805,12 @@ export const CreatePrescriptionModal = ({
     if (!formData.company) { setError('Please select a company'); setActiveTab('details'); return }
     if (!formData.start_date) { setError('Please set start date'); setActiveTab('details'); return }
     // A prescription can only be created against the current visit / admission.
-    if (formData.care_context === 'Patient Visit' && !formData.patient_encounter) {
+    // Discharge transfer creates the visit on save when none is selected.
+    if (
+      formData.care_context === 'Patient Visit' &&
+      !formData.patient_encounter &&
+      !transferAdmission
+    ) {
       setError('A prescription can only be created for the current patient visit.'); setActiveTab('details'); return
     }
     if (formData.care_context === 'Inpatient Admission' && !formData.inpatient_record) {
@@ -1035,7 +1058,7 @@ export const CreatePrescriptionModal = ({
                           inpatient_record: '',
                         }))
                       }
-                      disabled={Boolean(transferAdmission)}
+                      disabled={Boolean(transferAdmission) || lockCareContextOnEdit}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:text-slate-500"
                     >
                       <option value="Patient Visit">Patient Visit</option>
@@ -1046,18 +1069,31 @@ export const CreatePrescriptionModal = ({
                   {formData.care_context === 'Patient Visit' ? (
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Patient Visit <span className="text-red-500">*</span>
+                        Patient Visit {!transferAdmission ? <span className="text-red-500">*</span> : null}
                       </label>
+                      {transferAdmission ? (
+                        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                          A discharge patient visit will be created automatically when you save, unless you link an
+                          existing visit below.
+                        </p>
+                      ) : null}
                       <select
                         value={formData.patient_encounter}
                         onChange={(e) => setFormData((p) => ({ ...p, patient_encounter: e.target.value }))}
-                        disabled={!!activeVisit}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:cursor-not-allowed"
+                        disabled={!!activeVisit || lockCareContextOnEdit}
+                        className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white disabled:bg-slate-100 disabled:cursor-not-allowed ${transferAdmission ? 'mt-2' : ''}`}
                       >
-                        <option value="">Select visit...</option>
-                        {visits.map((v) => <option key={v.name} value={v.name}>{v.label || v.name}</option>)}
+                        <option value="">{transferAdmission ? 'Create new discharge visit on save' : 'Select visit...'}</option>
+                        {displayVisits.map((v) => <option key={v.name} value={v.name}>{v.label || v.name}</option>)}
                       </select>
-                      {activeVisit && <p className="text-xs text-slate-400 mt-1">Locked to the current visit</p>}
+                      {lockCareContextOnEdit && formData.patient_encounter ? (
+                        <p className="text-xs text-slate-400 mt-1">
+                          Linked to discharge patient visit {formData.patient_encounter}
+                        </p>
+                      ) : null}
+                      {activeVisit && !lockCareContextOnEdit ? (
+                        <p className="text-xs text-slate-400 mt-1">Locked to the current visit</p>
+                      ) : null}
                     </div>
                   ) : (
                     <div>

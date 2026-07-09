@@ -123,9 +123,9 @@ def resolve_department_link_label(dept_id):
 
 
 def checklist_row_department_ids(row) -> list[str]:
-	"""Primary and secondary departments configured on a checklist row."""
+	"""Primary, secondary, and tertiary departments configured on a checklist row."""
 	depts: list[str] = []
-	for fieldname in ("department", "department_2"):
+	for fieldname in ("department", "department_2", "department_3"):
 		value = row.get(fieldname) if isinstance(row, dict) else getattr(row, fieldname, None)
 		if not value:
 			continue
@@ -154,8 +154,10 @@ def user_can_edit_checklist_row(row, user: str | None = None, reference_row=None
 		return True
 
 	allowed = checklist_row_department_ids(row)
-	if not allowed and reference_row is not None:
-		allowed = checklist_row_department_ids(reference_row)
+	if reference_row is not None:
+		for dept in checklist_row_department_ids(reference_row):
+			if dept not in allowed:
+				allowed.append(dept)
 	if not allowed:
 		return _user_can_edit_unassigned_checklist_row(user)
 
@@ -185,7 +187,67 @@ def is_accounts_checklist_row(row) -> bool:
 	return any(is_accounts_department(dept) for dept in checklist_row_department_ids(row))
 
 
-def _checklist_row_key(row) -> tuple:
+def _checklist_row_sort_key(row, position: int) -> tuple:
+	sr = ""
+	if isinstance(row, dict):
+		sr = (row.get("sr_num") or "").strip()
+	else:
+		sr = (getattr(row, "sr_num", None) or "").strip()
+	try:
+		return (0, int(sr), position)
+	except (TypeError, ValueError):
+		idx = row.get("idx") if isinstance(row, dict) else getattr(row, "idx", None)
+		try:
+			return (1, int(idx), position)
+		except (TypeError, ValueError):
+			return (2, position, position)
+
+
+def sort_checklist_rows(rows) -> list:
+	"""Return checklist rows in template/child-table order (sr_num, then idx, then position)."""
+	enumerated = list(enumerate(rows or []))
+	return [row for _, row in sorted(enumerated, key=lambda pair: _checklist_row_sort_key(pair[1], pair[0]))]
+
+
+def _checklist_row_is_complete(row) -> bool:
+	if isinstance(row, dict):
+		return bool(row.get("click"))
+	return bool(getattr(row, "click", 0))
+
+
+def assert_checklist_sequential_order(rows) -> None:
+	"""Block completing a row before every earlier row in template order is complete."""
+	sorted_rows = sort_checklist_rows(rows)
+	for index, row in enumerate(sorted_rows):
+		if not _checklist_row_is_complete(row):
+			continue
+		for previous in sorted_rows[:index]:
+			if not _checklist_row_is_complete(previous):
+				action = ""
+				if isinstance(previous, dict):
+					action = (previous.get("action_required") or "").strip()
+				else:
+					action = (getattr(previous, "action_required", None) or "").strip()
+				frappe.throw(
+					_("Complete checklist items in order. Finish “{0}” before this step.").format(
+						action or _("the previous item")
+					)
+				)
+
+
+def can_complete_checklist_row(rows, row, user: str | None = None, reference_row=None) -> bool:
+	"""Department permission plus sequential order for marking a row complete."""
+	if not user_can_edit_checklist_row(row, user, reference_row=reference_row):
+		return False
+
+	sorted_rows = sort_checklist_rows(rows)
+	target_key = _checklist_row_key(row)
+	for previous in sorted_rows:
+		if _checklist_row_key(previous) == target_key:
+			break
+		if not _checklist_row_is_complete(previous):
+			return False
+	return True
 	if isinstance(row, dict):
 		return (
 			(row.get("action_required") or "").strip(),
@@ -207,6 +269,7 @@ def _row_as_dict(row) -> dict:
 		"action_required": getattr(row, "action_required", None),
 		"department": getattr(row, "department", None),
 		"department_2": getattr(row, "department_2", None),
+		"department_3": getattr(row, "department_3", None),
 		"department_name": getattr(row, "department_name", None),
 		"user": getattr(row, "user", None),
 		"name1": getattr(row, "name1", None),
@@ -257,16 +320,11 @@ def enrich_checklist_rows_with_template_departments(rows, template_name: str | N
 
 	for row in rows or []:
 		item = _row_as_dict(row) if not isinstance(row, dict) else dict(row)
-		if checklist_row_department_ids(item):
-			enriched.append(item)
-			continue
-
 		template_row = _template_row_for_checklist_item(item, by_action, by_sr)
 		if template_row:
-			if not item.get("department") and getattr(template_row, "department", None):
-				item["department"] = template_row.department
-			if not item.get("department_2") and getattr(template_row, "department_2", None):
-				item["department_2"] = template_row.department_2
+			for fieldname in ("department", "department_2", "department_3"):
+				if not item.get(fieldname) and getattr(template_row, fieldname, None):
+					item[fieldname] = getattr(template_row, fieldname)
 
 		enriched.append(item)
 
@@ -295,4 +353,19 @@ def merge_checklist_rows_with_department_permissions(incoming_rows, existing_row
 		else:
 			merged.append(row)
 
+	assert_checklist_sequential_order(merged)
 	return merged
+
+
+def _checklist_row_key(row) -> tuple:
+	if isinstance(row, dict):
+		return (
+			(row.get("action_required") or "").strip(),
+			(row.get("sr_num") or "").strip(),
+			(row.get("name") or "").strip(),
+		)
+	return (
+		(getattr(row, "action_required", None) or "").strip(),
+		(getattr(row, "sr_num", None) or "").strip(),
+		(getattr(row, "name", None) or "").strip(),
+	)

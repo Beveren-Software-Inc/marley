@@ -10,6 +10,8 @@ export interface SessionSchedule {
   company?: string
   doctor?: string
   doctor_name?: string
+  practitioner?: string
+  practitioner_name?: string
   cost_center?: string
   invoice_no?: string
   doc_code?: string
@@ -26,6 +28,9 @@ export interface CreateSessionScheduleData {
   session_type: string
   session_name?: string
   doctor?: string
+  /** Healthcare Practitioner who entered the session. */
+  practitioner?: string
+  practitioner_name?: string
   cost_center?: string
   from_time?: string
   to_time?: string
@@ -37,7 +42,8 @@ export async function fetchSessionSchedules(
   offset: number = 0,
   patient?: string,
   admissionNumber?: string,
-  roleGroup?: string
+  roleGroup?: string,
+  practitioner?: string
 ): Promise<SessionSchedule[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -45,6 +51,7 @@ export async function fetchSessionSchedules(
   if (patient) params.append('patient', patient)
   if (admissionNumber) params.append('admission_number', admissionNumber)
   if (roleGroup) params.append('role_group', roleGroup)
+  if (practitioner) params.append('practitioner', practitioner)
 
   const response = await fetch(
     `/api/method/healthcare.api.session_schedule.get_session_schedules?${params.toString()}`

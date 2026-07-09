@@ -4713,6 +4713,8 @@ def _portal_checklist_item_from_row(row, idx, department_label=None):
 
 	dept_2 = _val("department_2")
 	dept_2_label = _resolve_department_link_label(dept_2) if dept_2 else ""
+	dept_3 = _val("department_3")
+	dept_3_label = _resolve_department_link_label(dept_3) if dept_3 else ""
 
 	action = _val("action_required")
 	if not action:
@@ -4732,6 +4734,8 @@ def _portal_checklist_item_from_row(row, idx, department_label=None):
 		"department_label": dept_label,
 		"department_2": dept_2 or "",
 		"department_2_label": dept_2_label,
+		"department_3": dept_3 or "",
+		"department_3_label": dept_3_label,
 		"user": _val("user") or "",
 		"name1": _val("name1") or "",
 		"date_time": _val("date_time") or "",

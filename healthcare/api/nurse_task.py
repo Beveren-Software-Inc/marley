@@ -3,6 +3,11 @@ import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 from healthcare.healthcare.editing_lock import assert_editing_allowed
+from healthcare.api.nurse_shift import (
+	get_current_nurse_shift,
+	get_current_shift_window,
+	task_belongs_to_shift,
+)
 
 
 ADMIN_ROLES = {'Administrator', 'System Manager', 'Healthcare Administrator', 'Website Manager'}
@@ -50,6 +55,10 @@ def create_nurse_task(
 		frappe.throw(_("Task Type is required"))
 	if not scheduled_time:
 		frappe.throw(_("Scheduled Time is required"))
+
+	current_shift = get_current_nurse_shift(scheduled_time)
+	if not shift and current_shift:
+		shift = current_shift.name
 
 	doc = frappe.new_doc("Nurse Task")
 	doc.patient = patient
@@ -121,6 +130,8 @@ def get_nurse_tasks(
 	date_to: str | None = None,
 	my_tasks: int = 0,
 	assigned_nurse: str | None = None,
+	shift: str | None = None,
+	current_shift_only: int = 0,
 ) -> list:
 	"""Return Nurse Task rows.
 
@@ -140,6 +151,8 @@ def get_nurse_tasks(
 		filters["status"] = status
 	if task_type:
 		filters["task_type"] = task_type
+	if shift:
+		filters["shift"] = shift
 	if date_from and date_to:
 		filters["scheduled_time"] = ["between", [date_from, f"{date_to} 23:59:59"]]
 	elif date_from:
@@ -176,6 +189,7 @@ def get_nurse_tasks(
 			"due_time",
 			"completed_time",
 			"assigned_nurse",
+			"shift",
 			"medication",
 			"dosage",
 			"route",
@@ -191,6 +205,19 @@ def get_nurse_tasks(
 		limit_start=cint(offset or 0),
 	)
 
+	apply_current_shift = cint(current_shift_only) and not shift and not date_from and not date_to
+	shift_row = window_start = window_end = None
+	if apply_current_shift:
+		shift_row, window_start, window_end = get_current_shift_window()
+		if shift_row:
+			rows = [
+				row
+				for row in rows
+				if task_belongs_to_shift(row, shift_row, window_start, window_end)
+			]
+		else:
+			rows = []
+
 	# Enrich with patient_name and nurse full name
 	for row in rows:
 		if row.get("patient"):
@@ -201,6 +228,10 @@ def get_nurse_tasks(
 			row["assigned_nurse_name"] = (
 				frappe.db.get_value("Healthcare Practitioner", row["assigned_nurse"], "practitioner_name")
 				or row["assigned_nurse"]
+			)
+		if row.get("shift"):
+			row["shift_label"] = (
+				frappe.db.get_value("Nurse Shift", row["shift"], "nurse_shift") or row["shift"]
 			)
 		if row.get("medication"):
 			row["medication_name"] = (

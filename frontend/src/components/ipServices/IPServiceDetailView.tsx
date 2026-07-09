@@ -6,6 +6,8 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 interface IPServiceDetailViewProps {
   name: string
   onUpdate?: () => void
+  /** Nurse ECT view — therapy names only, no pricing. */
+  hidePricing?: boolean
 }
 
 interface IPServiceDetail {
@@ -32,7 +34,11 @@ interface IPServiceDetail {
   }>
 }
 
-export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetailViewProps) => {
+export const IPServiceDetailView = ({
+  name,
+  onUpdate: _onUpdate,
+  hidePricing = false,
+}: IPServiceDetailViewProps) => {
   const formatCurrency = useFormatMoney()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -87,6 +93,33 @@ export const IPServiceDetailView = ({ name, onUpdate: _onUpdate}: IPServiceDetai
   const formatAmount = (amount?: number) => {
     if (amount === undefined || amount === null) return '-'
     return formatCurrency(amount)
+  }
+
+  const therapyLabel = (service: IPServiceDetail['services'][number]) =>
+    service.service_name || service.service_type || service.service_code || '—'
+
+  if (hidePricing) {
+    return (
+      <div className="space-y-4">
+        {data.services && data.services.length > 0 ? (
+          <ul className="space-y-2">
+            {data.services.map((service, idx) => (
+              <li
+                key={idx}
+                className="rounded-lg border border-slate-200 bg-white px-4 py-3"
+              >
+                <p className="text-sm font-medium text-slate-900">{therapyLabel(service)}</p>
+                {service.note?.trim() ? (
+                  <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-wrap">{service.note}</p>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-slate-500 text-center py-4">No ECT therapy items listed</p>
+        )}
+      </div>
+    )
   }
 
   return (

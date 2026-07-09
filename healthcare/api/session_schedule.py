@@ -193,12 +193,15 @@ def get_session_schedules(
 	patient: str = None,
 	admission_number: str = None,
 	role_group: str = None,
+	practitioner: str = None,
 ):
 	"""Fetch session schedules with optional filtering by patient or admission number.
 
 	role_group ('Doctor' / 'Nurse' / 'Consultant' / ...) limits rows to sessions whose
 	assigned practitioner's Medical Role falls under that group — plus unassigned
 	sessions, so nothing scheduled but not yet assigned disappears.
+
+	practitioner filters by Session Schedule.practitioner (who entered the session).
 	"""
 	filters = {}
 	or_filters = None
@@ -206,6 +209,8 @@ def get_session_schedules(
 		filters["patient_num"] = patient
 	if admission_number:
 		filters["admission_number"] = admission_number
+	if practitioner:
+		filters["practitioner"] = practitioner
 
 	if role_group:
 		from healthcare.api.common import get_medical_roles_under
@@ -237,6 +242,8 @@ def get_session_schedules(
 			"company",
 			"doctor",
 			"doctor_name",
+			"practitioner",
+			"practitioner_name",
 			"cost_center",
 			"invoice_no",
 			"doc_code",
@@ -272,6 +279,14 @@ def create_session_schedule(data: dict):
 		session_schedule.session_type = data.get("session_type")
 		session_schedule.session_name = data.get("session_name")
 		session_schedule.doctor = data.get("doctor")
+		practitioner = (data.get("practitioner") or "").strip()
+		if practitioner:
+			session_schedule.practitioner = practitioner
+			session_schedule.practitioner_name = (
+				data.get("practitioner_name")
+				or frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+				or practitioner
+			)
 		session_schedule.cost_center = data.get("cost_center")
 		session_schedule.from_time = data.get("from_time")
 		session_schedule.to_time = data.get("to_time")

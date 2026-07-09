@@ -1171,6 +1171,7 @@ export const NursePage = () => {
               <IPServiceList
                 patient={selectedPatient}
                 refreshKey={ipServiceRefreshKey}
+                hidePricing
               />
             </div>
           </section>
@@ -1184,6 +1185,7 @@ export const NursePage = () => {
             }}
             initialPatient={selectedPatient}
             openInNewTab={false}
+            hidePricing
           />
         )}
       </div>

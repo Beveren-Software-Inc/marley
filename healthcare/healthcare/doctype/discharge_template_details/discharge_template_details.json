@@ -11,7 +11,8 @@
   "accounts",
   "column_break_vunf",
   "department",
-  "department_2"
+  "department_2",
+  "department_3"
  ],
  "fields": [
   {
@@ -50,13 +51,19 @@
    "fieldname": "accounts",
    "fieldtype": "Check",
    "label": "Accounts"
+  },
+  {
+   "fieldname": "department_3",
+   "fieldtype": "Link",
+   "label": "Department 3",
+   "options": "Department"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-01 02:12:59.315289",
+ "modified": "2026-07-09 18:25:57.641459",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Discharge Template Details",
