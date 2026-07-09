@@ -1,4 +1,4 @@
-"""Validate medicine doses against Item.custom_maximum_dose_limit."""
+"""Validate medicine doses against Item max-dose fields."""
 
 from __future__ import annotations
 
@@ -49,15 +49,47 @@ def extract_dose_numeric(value) -> float | None:
 		return None
 
 
+def _parse_item_dose_limit(raw) -> float | None:
+	if raw is None:
+		return None
+	text = str(raw).strip()
+	if not text:
+		return None
+	lower = text.lower()
+	if lower in ("not applicable", "n/a", "na", "-", "none"):
+		return None
+	parsed = extract_dose_numeric(text)
+	if parsed is None or parsed <= 0:
+		return None
+	return parsed
+
+
+def _read_item_dose_limit(item_code: str, fieldname: str) -> float | None:
+	if not item_code or not frappe.db.has_column("Item", fieldname):
+		return None
+	raw = frappe.db.get_value("Item", item_code, fieldname)
+	return _parse_item_dose_limit(raw)
+
+
+def get_item_max_dose_per_single_dose(item_code: str) -> float | None:
+	"""Max allowed per single administration."""
+	limit = _read_item_dose_limit(item_code, "custom_max_dose_per_single_dose")
+	if limit is not None:
+		return limit
+	return _read_item_dose_limit(item_code, "custom_maximum_dose_limit")
+
+
+def get_item_max_dose_per_day(item_code: str) -> float | None:
+	"""Max allowed cumulative dose in rolling 24 hours."""
+	limit = _read_item_dose_limit(item_code, "custom_max_dose_per_day")
+	if limit is not None:
+		return limit
+	return _read_item_dose_limit(item_code, "custom_maximum_dose_limit")
+
+
 def get_item_maximum_dose_limit(item_code: str) -> float | None:
-	if not item_code:
-		return None
-	if not frappe.db.has_column("Item", "custom_maximum_dose_limit"):
-		return None
-	raw = frappe.db.get_value("Item", item_code, "custom_maximum_dose_limit")
-	if raw is None or str(raw).strip() == "":
-		return None
-	return extract_dose_numeric(raw)
+	"""Backward-compatible alias for single-dose ceiling."""
+	return get_item_max_dose_per_single_dose(item_code)
 
 
 def medicine_given_datetime(date_value, time_value=None):
@@ -114,12 +146,18 @@ def evaluate_medicine_given_dose(
 	exclude_row_name: str | None = None,
 ) -> dict:
 	"""Check single-dose ceiling and rolling 24-hour cumulative dose."""
-	ceiling = get_item_maximum_dose_limit(medicine_code)
+	single_ceiling = get_item_max_dose_per_single_dose(medicine_code)
+	daily_ceiling = get_item_max_dose_per_day(medicine_code)
 	entered_dose = extract_dose_numeric(dose)
 	result = {
 		"ok": True,
-		"has_limit": ceiling is not None and ceiling > 0,
-		"ceiling": ceiling,
+		"has_limit": bool(single_ceiling or daily_ceiling),
+		"single_dose_ceiling": single_ceiling,
+		"daily_dose_ceiling": daily_ceiling,
+		"ceiling": single_ceiling,
+		"maximum_dose_limit": single_ceiling,
+		"max_dose_per_single_dose": single_ceiling,
+		"max_dose_per_day": daily_ceiling,
 		"entered_dose": entered_dose,
 		"exceeds_single_dose": False,
 		"exceeds_cumulative_24h": False,
@@ -142,8 +180,10 @@ def evaluate_medicine_given_dose(
 
 	result["prior_24h_dose"] = prior_24h
 	result["cumulative_24h_with_new_dose"] = cumulative_with_new
-	result["exceeds_single_dose"] = entered_dose > ceiling
-	result["exceeds_cumulative_24h"] = cumulative_with_new > ceiling
+	if single_ceiling is not None:
+		result["exceeds_single_dose"] = entered_dose > single_ceiling
+	if daily_ceiling is not None:
+		result["exceeds_cumulative_24h"] = cumulative_with_new > daily_ceiling
 	result["ok"] = not (result["exceeds_single_dose"] or result["exceeds_cumulative_24h"])
 	return result
 
@@ -152,23 +192,24 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 	if evaluation.get("ok"):
 		return ""
 
-	ceiling = evaluation.get("ceiling")
 	entered = evaluation.get("entered_dose")
+	single_ceiling = evaluation.get("single_dose_ceiling")
+	daily_ceiling = evaluation.get("daily_dose_ceiling")
 	lines: list[str] = []
 	if evaluation.get("exceeds_single_dose"):
 		lines.append(
 			frappe._(
-				"Entered dose ({0}) exceeds the maximum dose limit ({1}) for this medicine."
-			).format(entered, ceiling)
+				"Entered dose ({0}) exceeds the maximum single dose ({1}) for this medicine."
+			).format(entered, single_ceiling)
 		)
 	if evaluation.get("exceeds_cumulative_24h"):
 		lines.append(
 			frappe._(
-				"24-hour cumulative dose ({0}) would exceed the maximum dose limit ({1}). "
+				"24-hour cumulative dose ({0}) would exceed the maximum daily dose ({1}). "
 				"Doses already given in the last 24 hours: {2}."
 			).format(
 				evaluation.get("cumulative_24h_with_new_dose"),
-				ceiling,
+				daily_ceiling,
 				evaluation.get("prior_24h_dose"),
 			)
 		)

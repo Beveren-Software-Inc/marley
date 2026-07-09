@@ -458,7 +458,7 @@ export const CreateMedicineGivenModal = ({
 
   useEffect(() => {
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
-    const drugCode = (selected?.drug || '').trim()
+    const drugCode = (isEdit ? editRow?.medicine_code ?? '' : selected?.drug ?? '').trim()
     const admissionName = admission?.name
     const parsedDose = extractDoseNumeric(dose)
 
@@ -494,7 +494,7 @@ export const CreateMedicineGivenModal = ({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [dose, date, time, selectedOrder, prescriptionOrders, admission?.name])
+  }, [dose, date, time, selectedOrder, prescriptionOrders, admission?.name, isEdit, editRow?.medicine_code])
 
   const handleBatchChange = async (batchName: string) => {
     setBatchNo(batchName)

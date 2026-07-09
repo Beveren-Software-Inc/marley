@@ -26,9 +26,13 @@ export interface MedicineGivenDoseValidationPreview {
   ok: boolean
   has_limit?: boolean
   ceiling?: number | null
+  single_dose_ceiling?: number | null
+  daily_dose_ceiling?: number | null
   entered_dose?: number | null
   parsed_dose?: number | null
   maximum_dose_limit?: number | null
+  max_dose_per_single_dose?: number | null
+  max_dose_per_day?: number | null
   exceeds_single_dose?: boolean
   exceeds_cumulative_24h?: boolean
   prior_24h_dose?: number
