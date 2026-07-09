@@ -14,6 +14,7 @@ export function useLabTests(
   limit: number = 20,
   offset: number = 0,
   enabled: boolean = true,
+  pipelinePending: boolean = false,
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -36,7 +37,8 @@ export function useLabTests(
         toDate,
         template,
         practitioner,
-        byNurse
+        byNurse,
+        pipelinePending,
       )
       setLabTests(response.data)
       setTotalCount(response.total_count)
@@ -45,7 +47,7 @@ export function useLabTests(
     } finally {
       setLoading(false)
     }
-  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset])
+  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending])
 
   useEffect(() => {
     loadLabTests()

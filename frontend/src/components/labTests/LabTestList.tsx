@@ -2198,6 +2198,7 @@ export const LabTestList = ({
   onBatchSavingChange,
   batchSaveRef,
   doctorLabDefaults = false,
+  pipelinePending = false,
   title = 'Lab Tests',
   onAdd,
   addButtonTitle = 'New Lab Test',
@@ -2217,6 +2218,8 @@ export const LabTestList = ({
   batchSaveRef?: MutableRefObject<LabTestListBatchSaveRef | null>
   /** Default practitioner filter to the logged-in user's linked practitioner (doctor dashboard). */
   doctorLabDefaults?: boolean
+  /** Only show tests still in the lab pipeline (requested through testing, before doctor review). */
+  pipelinePending?: boolean
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
@@ -2325,7 +2328,7 @@ export const LabTestList = ({
     isOutsourced !== undefined ? isOutsourced : (filters.isOutsourced ? filters.isOutsourced === 'yes' : undefined),
     filters.fromDate || undefined, filters.toDate || undefined,
     filters.template || undefined, filters.practitioner || undefined, byNurse,
-    pageSize, (page - 1) * pageSize, defaultsReady
+    pageSize, (page - 1) * pageSize, defaultsReady, pipelinePending,
   )
 
   /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI. */

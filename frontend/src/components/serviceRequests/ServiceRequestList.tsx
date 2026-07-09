@@ -36,6 +36,10 @@ import {
   dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
+import {
+  HEALTHCARE_SERVICE_TEMPLATE,
+  serviceRequestPractitionerLabel,
+} from '../../utils/serviceRequestLabels'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -50,6 +54,8 @@ interface ServiceRequestListProps {
   subtitle?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** Column / meta label for practitioner (Other Services uses Nurse). */
+  practitionerFieldLabel?: string
 }
 
 const FilterToggleButton = ({
@@ -141,8 +147,14 @@ export const ServiceRequestList = ({
   subtitle,
   onAdd,
   addButtonTitle,
+  practitionerFieldLabel,
 }: ServiceRequestListProps) => {
   const isLabRequestList = template_dt === 'Lab Test Template'
+  const isOtherServicesList = template_dt === HEALTHCARE_SERVICE_TEMPLATE || practitionerFieldLabel === 'Nurse'
+  const practitionerColumnLabel = serviceRequestPractitionerLabel(
+    isOtherServicesList ? HEALTHCARE_SERVICE_TEMPLATE : template_dt,
+    practitionerFieldLabel
+  )
   const listTitle = title ?? (isLabRequestList ? 'Lab Requests' : 'Service Requests')
   const listAddTitle = addButtonTitle ?? (isLabRequestList ? 'New Lab Request' : 'New Service Request')
   const formatMoney = useFormatMoney()
@@ -666,9 +678,10 @@ export const ServiceRequestList = ({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {serviceRequests.map((sr) => {
+            const metaPractitionerLabel = serviceRequestPractitionerLabel(sr.template_dt)
             const metaFields = [
               [isLabRequestList ? 'Lab Request' : 'Service Request', sr.name],
-              ['Practitioner', sr.practitioner_name || sr.practitioner],
+              [metaPractitionerLabel, sr.practitioner_name || sr.practitioner],
               ['Template type', sr.template_dt],
               ['Price', displayedPrice(sr) != null ? formatMoney(displayedPrice(sr)!) : ''],
             ] as const
@@ -713,7 +726,7 @@ export const ServiceRequestList = ({
               Test Name
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Practitioner
+              {practitionerColumnLabel}
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Status
@@ -966,6 +979,7 @@ export const ServiceRequestList = ({
         <ServiceRequestDetailPanel
           name={detailName}
           onClose={() => setDetailName(null)}
+          practitionerFieldLabel={isOtherServicesList ? 'Nurse' : practitionerFieldLabel}
           onEdit={() => {
             setDetailName(null)
             setEditServiceRequestName(detailName)

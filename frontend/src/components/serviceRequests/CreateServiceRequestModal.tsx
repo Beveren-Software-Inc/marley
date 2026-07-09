@@ -42,6 +42,10 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import {
+  isOtherServiceRequest,
+  serviceRequestPractitionerLabel,
+} from '../../utils/serviceRequestLabels'
 
 type LabTemplateGroupFilter = 'all' | 'group' | 'single'
 
@@ -145,6 +149,8 @@ export const CreateServiceRequestModal = ({
   const isGroupTemplate = groupRows.length > 0
   const useLabBasket = labTestTemplateOnly
   const isLabRequest = labTestTemplateOnly
+  const isOtherService = isOtherServiceRequest(form.template_dt)
+  const orderingClinicianLabel = serviceRequestPractitionerLabel(form.template_dt)
 
   const getBestPrice = (rows: PricingRow[]) => {
     if (!rows.length) return null
@@ -474,7 +480,13 @@ export const CreateServiceRequestModal = ({
       return
     }
     if (!form.practitioner?.trim()) {
-      setError(isLabRequest ? 'Please select a practitioner for this lab request.' : 'Please select a practitioner for this service request.')
+      setError(
+        isLabRequest
+          ? 'Please select a practitioner for this lab request.'
+          : isOtherService
+            ? 'Please select a nurse for this service request.'
+            : 'Please select a practitioner for this service request.'
+      )
       return
     }
     if (!form.cost_center?.trim()) {
@@ -557,7 +569,7 @@ export const CreateServiceRequestModal = ({
             <div className={sectionCard}>
               <div className={sectionTitle}>
                 <User className="h-4 w-4 text-emerald-600" />
-                Patient & ordering clinician
+                {isOtherService ? 'Patient & nurse' : 'Patient & ordering clinician'}
               </div>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="relative md:col-span-1">
@@ -598,7 +610,7 @@ export const CreateServiceRequestModal = ({
                 <div className="relative">
                   <label className={labelClass}>
                     <Stethoscope className="h-3.5 w-3.5 text-emerald-500" />
-                    Practitioner
+                    {orderingClinicianLabel}
                   </label>
                   <input
                     type="text"
@@ -612,13 +624,17 @@ export const CreateServiceRequestModal = ({
                     onBlur={() => {
                       window.setTimeout(() => setPractitionerDropdownOpen(false), 180)
                     }}
-                    placeholder="Search doctor name…"
+                    placeholder={isOtherService ? 'Search nurse name…' : 'Search doctor name…'}
                     className={inputClass}
                   />
                   {practitionerDropdownOpen && (
                     <div className={linkComboboxDropdownClass}>
                       {practitionerOptions.length === 0 ? (
-                        <div className="px-3 py-2.5 text-xs text-slate-500">No practitioners match. Try another search.</div>
+                        <div className="px-3 py-2.5 text-xs text-slate-500">
+                          {isOtherService
+                            ? 'No nurses match. Try another search.'
+                            : 'No practitioners match. Try another search.'}
+                        </div>
                       ) : (
                         practitionerOptions.map((item) => (
                           <button
@@ -640,7 +656,11 @@ export const CreateServiceRequestModal = ({
                       )}
                     </div>
                   )}
-                  <p className="mt-1.5 text-[11px] text-slate-500">Defaults to your linked practitioner; type to search and change.</p>
+                  <p className="mt-1.5 text-[11px] text-slate-500">
+                    {isOtherService
+                      ? 'Defaults to your linked nurse; type to search and change.'
+                      : 'Defaults to your linked practitioner; type to search and change.'}
+                  </p>
                 </div>
               </div>
             </div>

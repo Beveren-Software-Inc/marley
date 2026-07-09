@@ -3884,6 +3884,11 @@ def update_main_nursing_note(data):
 			return {"success": False, "message": "Nursing note name is required"}
 
 		doc = frappe.get_doc("Main Nursing Note", name)
+		from healthcare.healthcare.doctype.main_nursing_note.main_nursing_note import (
+			assert_main_nursing_note_editable,
+		)
+
+		assert_main_nursing_note_editable(doc)
 		append_notes = (data.get("append_notes") or "").strip()
 		replace_notes = frappe.utils.cint(data.get("replace_notes"))
 

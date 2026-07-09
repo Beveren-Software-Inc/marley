@@ -72,3 +72,16 @@ export function appendNursingNoteLine(
   const base = (existing || '').trim()
   return base ? `${base}\n${line}` : line
 }
+
+export const NURSING_NOTE_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000
+
+export const MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE =
+  'This nursing note can no longer be edited. Notes are locked 24 hours after the last update.'
+
+/** True when a nursing note is still within the 24-hour edit window. */
+export function isMainNursingNoteEditable(modified?: string | null): boolean {
+  if (!modified) return true
+  const modifiedAt = new Date(modified).getTime()
+  if (Number.isNaN(modifiedAt)) return true
+  return Date.now() - modifiedAt < NURSING_NOTE_EDIT_WINDOW_MS
+}

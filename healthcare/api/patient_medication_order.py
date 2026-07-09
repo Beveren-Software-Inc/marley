@@ -329,6 +329,10 @@ def _set_medication_row(doc, row):
 		entry.quantity = flt(entry.no_of_days, 0) * dosage_val * flt(entry.frequency_in_a_day, 0)
 		if not entry.quantity:
 			entry.quantity = flt(entry.no_of_days, 0)
+	if entry.drug:
+		rate = flt(row.get("rate"), 0) or get_item_rate_for_uom(entry.drug, entry.uom)
+		entry.rate = rate
+		entry.amount = flt(entry.quantity) * rate
 	return entry
 
 
@@ -681,6 +685,14 @@ def get_medication_order_by_id(name):
 
 	if getattr(doc, "reference_doctype", None) == "Sales Order" and getattr(doc, "reference_document_name", None):
 		doc.invoice = _invoice_for_sales_order(doc.reference_document_name)
+
+	for row in doc.get("medication_orders") or []:
+		uom = (getattr(row, "uom", None) or "").strip() or None
+		if not flt(getattr(row, "rate", 0)) and getattr(row, "drug", None):
+			row.rate = get_item_rate_for_uom(row.drug, uom)
+		qty = flt(getattr(row, "quantity", 0))
+		if not flt(getattr(row, "amount", 0)):
+			row.amount = qty * flt(getattr(row, "rate", 0))
 
 	return doc
 
@@ -1201,7 +1213,7 @@ def sign_patient_medication_order(name, doctors_signature):
 
 def get_item_rate(item_code):
     """
-    Get the selling rate for an item.
+    Get the selling rate for an item (per stock UOM).
     Tries standard_rate first, then selling_price (if field exists), then valuation_rate.
     Returns 0 if no rate found.
     """
@@ -1223,6 +1235,26 @@ def get_item_rate(item_code):
         return flt(rate)
 
     return 0
+
+
+def get_item_rate_for_uom(item_code, uom=None):
+	"""Return item selling rate for the requested UOM (stock UOM rate × conversion factor)."""
+	if not item_code:
+		return 0
+
+	base_rate = get_item_rate(item_code)
+	uom = (uom or "").strip()
+	if not uom:
+		return base_rate
+
+	stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
+	if not stock_uom or uom == stock_uom:
+		return base_rate
+
+	from erpnext.stock.get_item_details import get_conversion_factor
+
+	cf = flt(get_conversion_factor(item_code, uom).get("conversion_factor")) or 1
+	return flt(base_rate) * cf
 
 
 def get_item_rates_bulk(item_codes):
@@ -1286,11 +1318,15 @@ def get_after_discharge_prescriptions(patient, admission=None):
 
 
 @frappe.whitelist()
-def get_item_rate_api(item_code):
+def get_item_rate_api(item_code, uom=None):
     """
-    API endpoint to get rate for a single item
+    API endpoint to get rate for a single item, optionally converted to a UOM.
     """
-    return {'item_code': item_code, 'rate': get_item_rate(item_code)}
+    return {
+		'item_code': item_code,
+		'rate': get_item_rate_for_uom(item_code, uom),
+		'stock_uom': frappe.db.get_value("Item", item_code, "stock_uom") if item_code else None,
+	}
 
 
 @frappe.whitelist()
@@ -1688,12 +1724,18 @@ def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
 		if not getattr(row, "drug", None):
 			continue
 		qty = flt(getattr(row, "quantity", 0)) or 1
+		uom = (getattr(row, "uom", None) or "").strip() or frappe.db.get_value("Item", row.drug, "stock_uom")
 		item_row = {
 			"item_code": row.drug,
 			"qty": qty,
 			"description": getattr(row, "drug_name", None) or row.drug,
 		}
-		rate = flt(get_item_rate(row.drug))
+		if uom:
+			item_row["uom"] = uom
+			from erpnext.stock.get_item_details import get_conversion_factor
+
+			item_row["conversion_factor"] = flt(get_conversion_factor(row.drug, uom).get("conversion_factor")) or 1
+		rate = flt(getattr(row, "rate", 0)) or get_item_rate_for_uom(row.drug, uom)
 		if rate:
 			item_row["rate"] = rate
 			item_row["price_list_rate"] = rate

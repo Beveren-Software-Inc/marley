@@ -17,7 +17,7 @@ import {
   type MedicationOrderRow,
 } from '../../services/prescriptions'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
-import { fetchPharmacyGiveOutWarehouses } from '../../services/pharmacyGiveOut'
+import { fetchPharmacyGiveOutWarehouses, fetchItemRate } from '../../services/pharmacyGiveOut'
 import {
   fetchMedicineGivenDispensingLots,
   fetchMedicineGivenStockOptions,
@@ -28,6 +28,7 @@ import {
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
@@ -153,6 +154,12 @@ function todayStr() {
 function currentTimeStr() {
   const now = new Date()
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
+}
+
+function lineAmount(row: Pick<GiveOutRow, 'rate' | 'quantity'>): number {
+  const qty = Number(row.quantity) || 0
+  const rate = Number(row.rate) || 0
+  return qty * rate
 }
 
 function emptyRow(startDate: string): GiveOutRow {
@@ -409,6 +416,7 @@ export function NursingPharmacyGiveOutModal({
 }: NursingPharmacyGiveOutModalProps) {
   const { activeAdmission, activeVisit, mode, selectedPatient: contextPatient } = useCareContext()
   const blockIfClosed = useBlockIfActiveCareClosed()
+  const formatCurrency = useFormatMoney()
   const patient = initialPatient || contextPatient || ''
   const startDate = todayStr()
 
@@ -528,10 +536,18 @@ export function NursingPharmacyGiveOutModal({
         }
 
         const mapped = activeEntries.map((e) => mapEntryToRow(e, startDate))
-        setRows(mapped)
+        const withRates = await Promise.all(
+          mapped.map(async (r) => ({
+            ...r,
+            rate: r.drug
+              ? await fetchItemRate(r.drug, r.uom).catch(() => 0)
+              : undefined,
+          }))
+        )
+        setRows(withRates)
         const queries: Record<number, string> = {}
         const uomLabels: Record<number, string> = {}
-        mapped.forEach((r, i) => {
+        withRates.forEach((r, i) => {
           queries[i] = r.drug_name || r.drug
           uomLabels[i] = r.uom || ''
         })
@@ -566,6 +582,22 @@ export function NursingPharmacyGiveOutModal({
 
   const updateRow = (index: number, patch: Partial<GiveOutRow>) => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  const loadRowRate = async (index: number, drug: string, uom?: string) => {
+    const drugCode = drug.trim()
+    if (!drugCode) return
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, rate: undefined } : r)))
+    try {
+      const rate = await fetchItemRate(drugCode, uom)
+      setRows((prev) =>
+        prev.map((r, i) => (i === index && r.drug === drugCode ? { ...r, rate } : r))
+      )
+    } catch {
+      setRows((prev) =>
+        prev.map((r, i) => (i === index && r.drug === drugCode ? { ...r, rate: 0 } : r))
+      )
+    }
   }
 
   const autoApplyStockSelection = async (
@@ -789,6 +821,7 @@ export function NursingPharmacyGiveOutModal({
       uom: stockUom || undefined,
       batch_no: '',
       dispensing_lot: '',
+      rate: undefined,
     })
     setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
     setBatchQueries((prev) => ({ ...prev, [index]: '' }))
@@ -797,6 +830,7 @@ export function NursingPharmacyGiveOutModal({
       setUomQueries((prev) => ({ ...prev, [index]: stockUom }))
     }
     setDrugOptions((prev) => ({ ...prev, [index]: [] }))
+    void loadRowRate(index, opt.name, stockUom || undefined)
     if (selectedWarehouse) {
       void loadRowStock(index, opt.name, admissionId, selectedWarehouse)
     }
@@ -1091,14 +1125,42 @@ export function NursingPharmacyGiveOutModal({
                                 if (uomOptions.length === 0) void searchUoms('')
                               }}
                               onSelect={(opt) => {
-                                updateRow(index, { uom: opt.name })
+                                const nextUom = opt.name
+                                updateRow(index, { uom: nextUom })
                                 setUomQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                if (row.drug) {
+                                  void loadRowRate(index, row.drug, nextUom)
+                                }
                               }}
                               onClear={() => {
                                 updateRow(index, { uom: '' })
                                 setUomQueries((prev) => ({ ...prev, [index]: '' }))
+                                if (row.drug) {
+                                  void loadRowRate(index, row.drug)
+                                }
                               }}
                             />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Rate</label>
+                            <div className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                              {row.drug
+                                ? row.rate != null
+                                  ? formatCurrency(row.rate)
+                                  : '…'
+                                : '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Amount</label>
+                            <div className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                              {row.drug && row.rate != null
+                                ? formatCurrency(lineAmount(row))
+                                : '—'}
+                            </div>
                           </div>
                         </div>
 
@@ -1224,6 +1286,21 @@ export function NursingPharmacyGiveOutModal({
                     )
                   })}
                 </div>
+
+                {rows.some((r) => r.drug?.trim()) ? (
+                  <div className="flex justify-end border-t border-slate-200 pt-3">
+                    <div className="text-right">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
+                      <p className="text-base font-semibold text-slate-900">
+                        {formatCurrency(
+                          rows
+                            .filter((r) => r.drug?.trim())
+                            .reduce((sum, r) => sum + lineAmount(r), 0)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <button
                   type="button"

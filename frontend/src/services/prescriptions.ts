@@ -290,6 +290,8 @@ export interface MedicationOrderRow {
   batch_no?: string
   dispensing_lot?: string
   lot_no?: string
+  rate?: number
+  amount?: number
 }
 
 export interface NursingPharmacyGiveOutResult {
@@ -321,6 +323,9 @@ export interface MedicationOrderEntry {
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
   medication_status?: string
   medication_type?: string
+  qty?: number
+  rate?: number
+  amount?: number
   /** When set, this line is treated as stopped (no longer given) */
   reason_stopped?: string
   stopped_date?: string

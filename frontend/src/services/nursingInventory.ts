@@ -83,6 +83,26 @@ export interface MaterialReceipt {
   status: 'Draft' | 'Completed'
 }
 
+export interface StockTransferItem {
+  item_code: string
+  item_name: string
+  quantity: number
+  uom?: string
+  batch_number?: string
+  dispensing_lot?: string
+}
+
+export interface StockTransfer {
+  name: string
+  transfer_date: string
+  from_warehouse: string
+  to_warehouse: string
+  total_amount?: number
+  transferred_by: string
+  notes?: string
+  items: StockTransferItem[]
+}
+
 // Fetch stock ledger for a branch
 export async function fetchStockLedger(
   costCenter: string,
@@ -257,4 +277,93 @@ export async function getBatchSerials(batchNo: string, warehouse: string) {
     method: 'POST',
     body: JSON.stringify({ batch_no: batchNo, warehouse }),
   })
+}
+
+export async function fetchStockTransferDestinations(
+  costCenter: string,
+  sourceWarehouse?: string,
+  search?: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ name: string; label: string }[]> {
+  const params = new URLSearchParams()
+  params.append('cost_center', costCenter)
+  if (sourceWarehouse) params.append('source_warehouse', sourceWarehouse)
+  if (search) params.append('search', search)
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_transfer_destination_warehouses?${params.toString()}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (data?.exc_type) {
+    throw new Error(
+      typeof data.message === 'string' ? data.message : 'Failed to load destination warehouses'
+    )
+  }
+  return data.message || []
+}
+
+export interface StockTransferWarehouseOptions {
+  source_warehouses: { name: string; label: string }[]
+  default_source?: string
+  destination_warehouses: { name: string; label: string }[]
+}
+
+export async function fetchStockTransferWarehouseOptions(
+  costCenter: string,
+  sourceWarehouse?: string,
+  search?: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<StockTransferWarehouseOptions> {
+  const params = new URLSearchParams()
+  params.append('cost_center', costCenter)
+  if (sourceWarehouse) params.append('source_warehouse', sourceWarehouse)
+  if (search) params.append('search', search)
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_transfer_warehouse_options?${params.toString()}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (data?.exc_type) {
+    throw new Error(
+      typeof data.message === 'string' ? data.message : 'Failed to load transfer warehouses'
+    )
+  }
+  return (data.message || {
+    source_warehouses: [],
+    destination_warehouses: [],
+  }) as StockTransferWarehouseOptions
+}
+
+export async function createStockTransfer(data: {
+  cost_center: string
+  from_warehouse?: string
+  to_warehouse: string
+  transfer_date?: string
+  items: StockTransferItem[]
+  notes?: string
+  warehouse_context?: WarehouseContext
+}): Promise<{ name: string }> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_stock_transfer', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function fetchStockTransfers(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<StockTransfer[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_transfers?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch stock transfers')
+  return data.message || []
 }

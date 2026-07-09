@@ -8,6 +8,7 @@ from frappe.utils import flt, get_datetime, nowdate
 from healthcare.api.common import _owner_filter_for_practitioner, _user_can_read_nursing_portal
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
 def _hours_between(start, end):
@@ -184,5 +185,48 @@ def get_sleeping_pattern(name=None):
 		frappe.throw(_("Not permitted to read Sleeping Pattern"), frappe.PermissionError)
 
 	doc = frappe.get_doc("Sleeping Pattern", name)
+	return _serialize_sleeping_pattern(doc.as_dict())
+
+
+_SLEEPING_PATTERN_PERIOD_FIELDS = (
+	"morning_from",
+	"morning_to",
+	"evening_from",
+	"evening_to",
+	"night_from",
+	"night_to",
+)
+
+
+@frappe.whitelist()
+def update_sleeping_pattern(**data):
+	"""Update an existing Sleeping Pattern document from the healthcare portal."""
+	assert_editing_allowed()
+
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Sleeping Pattern is required"))
+	if not frappe.db.exists("Sleeping Pattern", name):
+		frappe.throw(_("Sleeping Pattern {0} not found").format(name))
+
+	if not frappe.has_permission("Sleeping Pattern", "write") and not _user_can_read_nursing_portal():
+		frappe.throw(_("Not permitted to update Sleeping Pattern"), frappe.PermissionError)
+
+	doc = frappe.get_doc("Sleeping Pattern", name)
+
+	if data.get("date"):
+		doc.date = data.get("date")
+
+	for fieldname in _SLEEPING_PATTERN_PERIOD_FIELDS:
+		if fieldname in data:
+			value = data.get(fieldname)
+			doc.set(fieldname, value if value not in (None, "") else None)
+
+	for fieldname in ("branch", "cost_center"):
+		if fieldname in data and data.get(fieldname) not in (None, ""):
+			doc.set(fieldname, data.get(fieldname))
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
 	return _serialize_sleeping_pattern(doc.as_dict())
 

@@ -7,6 +7,7 @@ import {
 import { useCareContext } from '../../providers/CareContextProvider'
 import { fetchStockLedger, getWarehousesForCostCenter, createStockReconciliation, getItemBatches, getItemSerials, getBatchSerials } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import { InventoryBranchField, useInventoryBranch } from './InventoryBranchField'
 import { toast } from '../../hooks/useToast'
 import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
 
@@ -38,10 +39,16 @@ interface ReconciliationItem {
   isLoadingBatches?: boolean
 }
 
-export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter }: CreateStockReconciliationModalProps) => {
+export const CreateStockReconciliationModal = ({
+  onClose,
+  onSuccess,
+  costCenter,
+  isFullAccess,
+}: CreateStockReconciliationModalProps) => {
   const warehouseContext = useMiniWarehouseContext()
-  const { userCostCenter, user } = useCareContext()
-  const effectiveCostCenter = costCenter || userCostCenter
+  const { user } = useCareContext()
+  const { selectedBranch, setSelectedBranch } = useInventoryBranch(costCenter, isFullAccess)
+  const effectiveCostCenter = selectedBranch
   
   const [activeTab, setActiveTab] = useState<'details' | 'items'>('details')
   const [warehouse, setWarehouse] = useState('')
@@ -529,15 +536,16 @@ export const CreateStockReconciliationModal = ({ onClose, onSuccess, costCenter 
             {activeTab === 'details' && (
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Branch <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={effectiveCostCenter}
-                    readOnly
-                    disabled
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                  <InventoryBranchField
+                    costCenter={costCenter}
+                    isFullAccess={isFullAccess}
+                    value={selectedBranch}
+                    onChange={(branch) => {
+                      setSelectedBranch(branch)
+                      setWarehouse('')
+                      setItems([])
+                      setFilteredItems([])
+                    }}
                   />
                 </div>
 

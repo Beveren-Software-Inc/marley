@@ -23,6 +23,32 @@ LAB_RESULT_EDIT_ROLES = frozenset(
 CEO_ROLE = "CEO"
 GROUP_FINISHED_SR_STATUS = "completed-Request Status"
 
+# Lab tests still in the pre-review pipeline (requested → sample → testing).
+LAB_PENDING_PIPELINE_STATUSES = (
+	"Draft",
+	"Requested",
+	"Awaiting sample collection",
+	"Sample Collection in Progress",
+	"Sample collection in progress",
+	"Sample Collected",
+	"Testing in progress",
+	"Testing in Progress",
+	"Partial Result Enter",
+	"Pending",
+)
+
+# Results entered / awaiting doctor review or beyond — excluded from pending pipeline tab.
+LAB_RESULTS_ENTERED_STATUSES = frozenset(
+	(
+		"Pending Review",
+		"Reviewed",
+		"Rejected",
+		"Completed",
+		"Submitted",
+		"Approved",
+	)
+)
+
 
 def _is_ceo_user() -> bool:
 	return CEO_ROLE in frappe.get_roles(frappe.session.user)
@@ -581,6 +607,34 @@ def _expand_grouped_lab_test_siblings(lab_tests, filters):
 	return lab_tests + new_rows
 
 
+def _lab_test_has_results_entered(lab_test):
+	return (lab_test.get("status") or "").strip() in LAB_RESULTS_ENTERED_STATUSES
+
+
+def _filter_pending_pipeline_lab_tests(lab_tests):
+	"""Keep in-pipeline tests; drop completed singles and fully completed groups."""
+	by_service_request = {}
+	for lt in lab_tests:
+		if cint(lt.get("is_group_lab_test") or 0) == 1 and lt.get("service_request"):
+			by_service_request.setdefault(lt["service_request"], []).append(lt)
+
+	filtered = []
+	seen_service_requests = set()
+	for lt in lab_tests:
+		if cint(lt.get("is_group_lab_test") or 0) == 1 and lt.get("service_request"):
+			service_request = lt["service_request"]
+			if service_request in seen_service_requests:
+				continue
+			seen_service_requests.add(service_request)
+			children = by_service_request.get(service_request, [])
+			if any(not _lab_test_has_results_entered(child) for child in children):
+				filtered.extend(children)
+			continue
+		if not _lab_test_has_results_entered(lt):
+			filtered.append(lt)
+	return filtered
+
+
 @frappe.whitelist()
 def get_lab_tests(
 	limit=50,
@@ -588,6 +642,7 @@ def get_lab_tests(
 	patient=None,
 	status=None,
 	pending_review=False,
+	pipeline_pending=False,
 	is_outsourced=None,
 	from_date=None,
 	to_date=None,
@@ -608,6 +663,8 @@ def get_lab_tests(
 
 	if pending_review:
 		filters["status"] = ["in", ["Pending Review", "Submitted"]]
+	elif cint(pipeline_pending):
+		filters["status"] = ["in", list(LAB_PENDING_PIPELINE_STATUSES)]
 
 	if is_outsourced is not None:
 		if isinstance(is_outsourced, str):
@@ -653,27 +710,42 @@ def get_lab_tests(
 			return {"data": [], "total_count": 0}
 		filters["cost_center"] = ["in", permitted_cc]
 
-	total_count = len(
-		frappe.get_all(
+	if cint(pipeline_pending):
+		pending_rows = frappe.get_all(
 			"Lab Test",
 			filters=filters,
 			or_filters=or_filters or None,
-			fields=["name"],
+			fields=_LAB_TEST_LIST_FIELDS,
+			order_by="creation desc",
 			limit=0,
 		)
-	)
+		pending_rows = _expand_grouped_lab_test_siblings(pending_rows, filters)
+		pending_rows = _filter_pending_pipeline_lab_tests(pending_rows)
+		total_count = len(pending_rows)
+		lab_tests = pending_rows[cint(offset) : cint(offset) + cint(limit)]
+	else:
+		total_count = len(
+			frappe.get_all(
+				"Lab Test",
+				filters=filters,
+				or_filters=or_filters or None,
+				fields=["name"],
+				limit=0,
+			)
+		)
 
-	lab_tests = frappe.get_all(
-		"Lab Test",
-		filters=filters,
-		or_filters=or_filters or None,
-		fields=_LAB_TEST_LIST_FIELDS,
-		limit=limit,
-		limit_start=offset,
-		order_by="creation desc",
-	)
+		lab_tests = frappe.get_all(
+			"Lab Test",
+			filters=filters,
+			or_filters=or_filters or None,
+			fields=_LAB_TEST_LIST_FIELDS,
+			limit=limit,
+			limit_start=offset,
+			order_by="creation desc",
+		)
 
-	lab_tests = _expand_grouped_lab_test_siblings(lab_tests, filters)
+		lab_tests = _expand_grouped_lab_test_siblings(lab_tests, filters)
+
 	template_cache = {}
 	_enrich_lab_test_rows(lab_tests, template_cache)
 	_attach_legacy_lab_test_lines(lab_tests)

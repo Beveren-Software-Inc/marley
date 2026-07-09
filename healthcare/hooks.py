@@ -148,9 +148,9 @@ fixtures = [
     {
 		"doctype":"Patient Source"
 	},
-    {
-		"doctype":"Patient Visit Type"
-	},
+    # {
+	# 	"doctype":"Patient Visit Type"
+	# },
     {
 		"doctype":"Time Out Procedure Template"
 	},

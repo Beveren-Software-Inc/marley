@@ -2,7 +2,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import today, nowdate, getdate, flt
+from frappe.utils import today, nowdate, getdate, flt, cint, nowtime
 import json
 from healthcare.api.common import (
     get_warehouse_for_cost_center,
@@ -49,6 +49,135 @@ def _apply_mini_warehouse_metadata(doc, warehouse_context=None, notes=None):
         doc.custom_lab_inventory = 1
     elif ctx == "nurse" and meta.has_field("custom_nurse_inventory"):
         doc.custom_nurse_inventory = 1
+
+
+def _apply_stock_entry_branch(doc, cost_center):
+    """Set Stock Entry header branch / cost center (portal branch = cost center)."""
+    if not cost_center:
+        return
+
+    meta = frappe.get_meta(doc.doctype)
+    if meta.has_field("cost_center"):
+        doc.cost_center = cost_center
+
+    for fieldname in ("branch", "custom_branch"):
+        if not meta.has_field(fieldname):
+            continue
+        field = meta.get_field(fieldname)
+        options = (field.options or "").strip() if field else ""
+        if options == "Cost Center":
+            doc.set(fieldname, cost_center)
+        elif options == "Branch" and frappe.db.exists("Branch", cost_center):
+            doc.set(fieldname, cost_center)
+
+
+def _fallback_stock_entry_item_rate(item_code, uom=None, company=None):
+    """Fallback basic rate from Item standard/selling price when warehouse valuation is missing."""
+    from erpnext.stock.get_item_details import get_conversion_factor
+    from healthcare.api.patient_medication_order import get_item_rate_for_uom
+
+    rate = flt(get_item_rate_for_uom(item_code, uom))
+    if rate > 0:
+        return rate
+
+    selling_pl = frappe.get_cached_value("Selling Settings", None, "selling_price_list")
+    if not selling_pl and company:
+        selling_pl = frappe.get_cached_value("Company", company, "default_selling_price_list")
+
+    if selling_pl:
+        filters = {"item_code": item_code, "price_list": selling_pl}
+        item_price_meta = frappe.get_meta("Item Price")
+        if item_price_meta.has_field("selling"):
+            filters["selling"] = 1
+        pl_rate = frappe.db.get_value("Item Price", filters, "price_list_rate")
+        if pl_rate:
+            rate = flt(pl_rate)
+            uom = (uom or "").strip()
+            stock_uom = frappe.db.get_value("Item", item_code, "stock_uom")
+            if uom and stock_uom and uom != stock_uom:
+                cf = flt(get_conversion_factor(item_code, uom).get("conversion_factor")) or 1
+                rate *= cf
+            return rate
+
+    return 0
+
+
+def _bind_stock_entry_rate_preserver(stock_entry):
+    """Keep resolved basic rates through Stock Entry.validate (desk resets outgoing rates)."""
+    import types
+
+    from erpnext.stock.doctype.stock_entry.stock_entry import StockEntry
+
+    if getattr(stock_entry, "_healthcare_rate_preserver_bound", False):
+        return
+
+    def calculate_rate_and_amount(self, reset_outgoing_rate=True, raise_error_if_no_rate=True):
+        has_resolved_outgoing_rate = any(
+            flt(row.basic_rate) > 0 for row in (self.items or []) if row.s_warehouse
+        )
+        if self.purpose == "Material Transfer" and has_resolved_outgoing_rate:
+            reset_outgoing_rate = False
+        return StockEntry.calculate_rate_and_amount(
+            self, reset_outgoing_rate, raise_error_if_no_rate
+        )
+
+    stock_entry.calculate_rate_and_amount = types.MethodType(calculate_rate_and_amount, stock_entry)
+    stock_entry._healthcare_rate_preserver_bound = True
+
+
+def _item_has_batch_or_serial_tracking(item_code):
+    flags = frappe.db.get_value(
+        "Item", item_code, ["has_batch_no", "has_serial_no"], as_dict=True
+    )
+    if not flags:
+        return False
+    return bool(cint(flags.has_batch_no) or cint(flags.has_serial_no))
+
+
+def _apply_stock_entry_serial_batch_fields(stock_entry):
+    """Tick Use Batch/Serial fields on lines — avoid Serial and Batch Bundle documents."""
+    for item in stock_entry.get("items") or []:
+        if not _item_has_batch_or_serial_tracking(item.item_code):
+            continue
+        item.use_serial_batch_fields = 1
+        item.serial_and_batch_bundle = None
+
+
+def _stock_entry_row_serial_batch_fields(item_code, batch_no=None):
+    """Row defaults for append() — use batch/serial columns when item is tracked."""
+    if not _item_has_batch_or_serial_tracking(item_code):
+        return {}
+    fields = {"use_serial_batch_fields": 1}
+    if batch_no:
+        fields["batch_no"] = batch_no
+    return fields
+
+
+def _prepare_stock_entry_before_submit(stock_entry):
+    """Resolve UOM, batch/serial mode, and basic rates the same way the Stock Entry desk form does."""
+    from erpnext.stock.utils import get_incoming_rate
+
+    if not stock_entry.get("posting_time"):
+        stock_entry.posting_time = nowtime()
+
+    stock_entry.validate_item()
+    stock_entry.set_transfer_qty()
+    _apply_stock_entry_serial_batch_fields(stock_entry)
+
+    for item in stock_entry.get("items") or []:
+        if not item.s_warehouse:
+            continue
+
+        args = stock_entry.get_args_for_incoming_rate(item)
+        rate = flt(get_incoming_rate(args, raise_error_if_no_rate=False))
+        if rate <= 0:
+            rate = _fallback_stock_entry_item_rate(item.item_code, item.uom, stock_entry.company)
+        if rate > 0:
+            item.basic_rate = rate
+            item.basic_amount = flt(item.transfer_qty) * flt(rate)
+
+    # Keep resolved rates; do not overwrite with a second zero from stock ledger lookup.
+    stock_entry.calculate_rate_and_amount(reset_outgoing_rate=False, raise_error_if_no_rate=True)
 
 
 def _inventory_context_filters(doctype, warehouse_context=None):
@@ -1031,6 +1160,7 @@ def create_material_receipt():
             data.get("warehouse_context"),
             data.get("notes") or data.get("custom_notes"),
         )
+        _apply_stock_entry_branch(se, cost_center)
 
         for item in data.get("items", []):
             if item.get("item_code") and flt(item.get("quantity")) > 0:
@@ -1040,6 +1170,7 @@ def create_material_receipt():
                     ["stock_uom", "item_name"],
                     as_dict=True,
                 )
+                batch_number = item.get("batch_number")
                 se.append(
                     "items",
                     {
@@ -1050,13 +1181,14 @@ def create_material_receipt():
                         "basic_rate": item.get("unit_price"),
                         "t_warehouse": warehouse,
                         "cost_center": cost_center,
-                        "batch_no": item.get("batch_number"),
+                        **_stock_entry_row_serial_batch_fields(item.get("item_code"), batch_number),
                     },
                 )
 
         if not se.items:
             frappe.throw(_("At least one item is required"))
 
+        _apply_stock_entry_serial_batch_fields(se)
         se.insert()
         se.submit()
         frappe.db.commit()
@@ -1124,6 +1256,351 @@ def get_material_receipts(cost_center, warehouse_context=None):
         )
     
     frappe.response["message"] = transfers
+
+
+def _stock_transfer_source_warehouses(cost_center, warehouse_context=None):
+	"""Mini warehouse for the branch, then configured default, then company warehouses."""
+	ctx = normalize_mini_warehouse_context(warehouse_context)
+	warehouses = list(get_cc_warehouses(cost_center, warehouse_context=ctx) or [])
+	if warehouses:
+		return warehouses
+
+	default_wh = get_warehouse_for_cost_center(cost_center, warehouse_context=ctx)
+	if default_wh:
+		return [{"name": default_wh, "label": default_wh}]
+
+	company = _company_for_cost_center(cost_center)
+	filters = {"disabled": 0}
+	if company:
+		filters["company"] = company
+
+	rows = frappe.get_all(
+		"Warehouse",
+		filters=filters,
+		fields=["name", "warehouse_name", "is_group"],
+		order_by="warehouse_name asc",
+		limit=100,
+	)
+	return [
+		{"name": row.name, "label": row.warehouse_name or row.name}
+		for row in rows
+		if not cint(row.get("is_group"))
+	]
+
+
+def _stock_transfer_destination_warehouses(cost_center, source_warehouse=None, search=None, warehouse_context=None):
+	"""All leaf warehouses in the company except the source mini warehouse."""
+	source = (source_warehouse or "").strip()
+	if not source:
+		sources = _stock_transfer_source_warehouses(cost_center, warehouse_context)
+		source = sources[0]["name"] if sources else ""
+
+	company = _company_for_cost_center(cost_center, source)
+	filters = {"disabled": 0}
+	if company:
+		filters["company"] = company
+
+	or_filters = None
+	search = (search or "").strip()
+	if search:
+		or_filters = {
+			"name": ["like", f"%{search}%"],
+			"warehouse_name": ["like", f"%{search}%"],
+		}
+
+	rows = frappe.get_all(
+		"Warehouse",
+		filters=filters,
+		or_filters=or_filters,
+		fields=["name", "warehouse_name", "is_group"],
+		order_by="warehouse_name asc",
+		limit=200,
+	)
+
+	if not rows and company:
+		rows = frappe.get_all(
+			"Warehouse",
+			filters={"disabled": 0},
+			or_filters=or_filters,
+			fields=["name", "warehouse_name", "is_group"],
+			order_by="warehouse_name asc",
+			limit=200,
+		)
+
+	out = []
+	for row in rows:
+		if cint(row.get("is_group")):
+			continue
+		if source and row.name == source:
+			continue
+		out.append({"name": row.name, "label": row.warehouse_name or row.name})
+	return out
+
+
+@frappe.whitelist()
+def get_stock_transfer_warehouse_options(cost_center, source_warehouse=None, warehouse_context=None, search=None):
+	"""Source + destination warehouse lists for the stock transfer modal."""
+	if not cost_center:
+		frappe.throw(_("Cost Center is required"))
+
+	source_warehouses = _stock_transfer_source_warehouses(cost_center, warehouse_context)
+	source = (source_warehouse or "").strip()
+	if not source and source_warehouses:
+		source = source_warehouses[0]["name"]
+	elif source and not any(row["name"] == source for row in source_warehouses):
+		source_warehouses.insert(0, {"name": source, "label": source})
+
+	destinations = _stock_transfer_destination_warehouses(
+		cost_center,
+		source,
+		search=search,
+		warehouse_context=warehouse_context,
+	)
+
+	return {
+		"source_warehouses": source_warehouses,
+		"default_source": source,
+		"destination_warehouses": destinations,
+	}
+
+
+@frappe.whitelist()
+def get_stock_transfer_destination_warehouses(cost_center, source_warehouse=None, warehouse_context=None, search=None):
+	"""List destination warehouses for outbound stock transfers (excludes the mini source warehouse)."""
+	if not cost_center:
+		frappe.throw(_("Cost Center is required"))
+
+	return _stock_transfer_destination_warehouses(
+		cost_center,
+		source_warehouse,
+		search=search,
+		warehouse_context=warehouse_context,
+	)
+
+
+@frappe.whitelist()
+def create_stock_transfer():
+	"""Transfer stock out of the mini warehouse to another warehouse (Stock Entry — Material Transfer)."""
+	try:
+		data = frappe.local.form_dict
+		if not data:
+			data = json.loads(frappe.request.data)
+
+		cost_center = data.get("cost_center")
+		if not cost_center:
+			frappe.throw(_("Cost Center is required"))
+
+		user_provided_source = (data.get("from_warehouse") or data.get("warehouse") or "").strip()
+		source_warehouse = _warehouse_for_cost_center(cost_center, data.get("warehouse_context"))
+		if user_provided_source and user_provided_source != source_warehouse:
+			validate_warehouse_change_permission()
+			source_warehouse = user_provided_source
+		if not source_warehouse:
+			frappe.throw(_("No source warehouse found for cost center {0} in Healthcare Settings").format(cost_center))
+
+		to_warehouse = (data.get("to_warehouse") or "").strip()
+		if not to_warehouse:
+			frappe.throw(_("Destination warehouse is required"))
+		if to_warehouse == source_warehouse:
+			frappe.throw(_("Destination warehouse must be different from the source warehouse"))
+
+		company = _company_for_cost_center(cost_center, source_warehouse)
+		if not company:
+			frappe.throw(
+				_("Company could not be resolved for cost center {0}. Set Company on the Cost Center in ERPNext.").format(
+					cost_center
+				)
+			)
+
+		se = frappe.new_doc("Stock Entry")
+		se.stock_entry_type = "Material Transfer"
+		se.purpose = "Material Transfer"
+		se.company = company
+		se.posting_date = data.get("transfer_date", today())
+		if hasattr(se, "from_warehouse"):
+			se.from_warehouse = source_warehouse
+		if hasattr(se, "to_warehouse"):
+			se.to_warehouse = to_warehouse
+		_apply_mini_warehouse_metadata(
+			se,
+			data.get("warehouse_context"),
+			data.get("notes") or data.get("custom_notes"),
+		)
+		_apply_stock_entry_branch(se, cost_center)
+
+		from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
+
+		se_item_meta = frappe.get_meta("Stock Entry Detail")
+		has_dispensing_field = se_item_meta.has_field("custom_dispensing_lot")
+
+		for item in data.get("items") or []:
+			item_code = (item.get("item_code") or "").strip()
+			qty = flt(item.get("quantity"))
+			if not item_code or qty <= 0:
+				continue
+
+			item_details = frappe.db.get_value(
+				"Item",
+				item_code,
+				["item_name", "stock_uom"],
+				as_dict=True,
+			)
+			if not item_details:
+				frappe.throw(_("Item {0} not found").format(item_code))
+
+			uom = (item.get("uom") or "").strip() or item_details.stock_uom
+			batch_no = (item.get("batch_number") or item.get("batch_no") or "").strip() or None
+			dispensing_lot = (item.get("dispensing_lot") or "").strip() or None
+
+			_validate_medicine_given_batch_lot(
+				item_code,
+				"",
+				batch_no,
+				None,
+				dispensing_lot,
+				warehouse=source_warehouse,
+			)
+
+			row = {
+				"item_code": item_code,
+				"item_name": item.get("item_name") or item_details.item_name,
+				"qty": qty,
+				"uom": uom,
+				"s_warehouse": source_warehouse,
+				"t_warehouse": to_warehouse,
+				"cost_center": cost_center,
+				**_stock_entry_row_serial_batch_fields(item_code, batch_no),
+			}
+			if batch_no and "batch_no" not in row:
+				row["batch_no"] = batch_no
+			if has_dispensing_field and dispensing_lot:
+				row["custom_dispensing_lot"] = dispensing_lot
+			se.append("items", row)
+
+		if not se.items:
+			frappe.throw(_("At least one item is required"))
+
+		_prepare_stock_entry_before_submit(se)
+		_bind_stock_entry_rate_preserver(se)
+		se.insert()
+		se.submit()
+		frappe.db.commit()
+
+		frappe.response["message"] = {"name": se.name}
+		frappe.response["http_status_code"] = 200
+	except Exception as e:
+		frappe.response["message"] = str(e)
+		frappe.response["http_status_code"] = 400
+		frappe.log_error(f"Error creating stock transfer: {str(e)}")
+
+
+def _stock_transfer_entry_names(cost_center, warehouse_context=None, limit=50):
+	"""Stock Entry names for outbound material transfers tied to a branch."""
+	source_warehouses = [
+		row["name"]
+		for row in _stock_transfer_source_warehouses(cost_center, warehouse_context)
+		if row.get("name")
+	]
+	default_wh = _warehouse_for_cost_center(cost_center, warehouse_context)
+	if default_wh and default_wh not in source_warehouses:
+		source_warehouses.append(default_wh)
+
+	warehouse_clause = ""
+	params = {"cost_center": cost_center, "limit": cint(limit)}
+	if source_warehouses:
+		warehouse_clause = """
+			OR parent.from_warehouse IN %(warehouses)s
+			OR child.s_warehouse IN %(warehouses)s
+		"""
+		params["warehouses"] = tuple(source_warehouses)
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT parent.name
+		FROM `tabStock Entry` parent
+		LEFT JOIN `tabStock Entry Detail` child ON child.parent = parent.name
+		WHERE parent.docstatus = 1
+			AND parent.purpose = 'Material Transfer'
+			AND (
+				parent.cost_center = %(cost_center)s
+				OR child.cost_center = %(cost_center)s
+				{warehouse_clause}
+			)
+		GROUP BY parent.name
+		ORDER BY MAX(parent.creation) DESC
+		LIMIT %(limit)s
+		""",
+		params,
+		as_dict=True,
+	)
+	return [row.name for row in rows]
+
+
+@frappe.whitelist()
+def get_stock_transfers(cost_center, warehouse_context=None):
+	"""List submitted material transfers out of branch / mini warehouses."""
+	if not cost_center:
+		frappe.throw(_("Cost Center is required"))
+
+	names = _stock_transfer_entry_names(cost_center, warehouse_context)
+	if not names:
+		frappe.response["message"] = []
+		return
+
+	se_fields = [
+		"name",
+		"posting_date as transfer_date",
+		"from_warehouse",
+		"to_warehouse",
+		"total_outgoing_value as total_amount",
+		"owner as transferred_by",
+		"stock_entry_type",
+		"purpose",
+		"cost_center",
+	]
+	if frappe.get_meta("Stock Entry").has_field("custom_notes"):
+		se_fields.append("custom_notes as notes")
+
+	transfers = frappe.get_all(
+		"Stock Entry",
+		filters={"name": ["in", names]},
+		fields=se_fields,
+		order_by="creation desc",
+		limit=50,
+	)
+
+	se_item_fields = [
+		"item_code",
+		"item_name",
+		"qty as quantity",
+		"uom",
+		"s_warehouse",
+		"t_warehouse",
+		"basic_rate as unit_price",
+		"amount as total_price",
+		"batch_no as batch_number",
+	]
+	if frappe.get_meta("Stock Entry Detail").has_field("custom_dispensing_lot"):
+		se_item_fields.append("custom_dispensing_lot as dispensing_lot")
+
+	for transfer in transfers:
+		transfer["items"] = frappe.get_all(
+			"Stock Entry Detail",
+			filters={"parent": transfer["name"]},
+			fields=se_item_fields,
+		)
+		if not transfer.get("from_warehouse"):
+			for line in transfer["items"]:
+				if line.get("s_warehouse"):
+					transfer["from_warehouse"] = line["s_warehouse"]
+					break
+		if not transfer.get("to_warehouse"):
+			for line in transfer["items"]:
+				if line.get("t_warehouse"):
+					transfer["to_warehouse"] = line["t_warehouse"]
+					break
+
+	frappe.response["message"] = transfers
 
 @frappe.whitelist()
 def get_user_cost_centers():

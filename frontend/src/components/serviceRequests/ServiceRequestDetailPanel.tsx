@@ -18,11 +18,14 @@ import {
   MODAL_SECTION_CLASS,
   MODAL_SECTION_TITLE_CLASS,
 } from '../ui/CreateModalChrome'
+import { serviceRequestDetailClinicianLabel } from '../../utils/serviceRequestLabels'
 
 interface ServiceRequestDetailPanelProps {
   name: string
   onClose: () => void
   onEdit?: () => void
+  /** Override ordering clinician label (e.g. Other Services list uses Nurse). */
+  practitionerFieldLabel?: string
 }
 
 function formatDateTime(date?: string, time?: string) {
@@ -141,7 +144,12 @@ function FieldRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequestDetailPanelProps) {
+export function ServiceRequestDetailPanel({
+  name,
+  onClose,
+  onEdit,
+  practitionerFieldLabel,
+}: ServiceRequestDetailPanelProps) {
   const formatMoney = useFormatMoney()
   const { guardClinicalEdit } = useCareContext()
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null)
@@ -192,6 +200,10 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
     (doc?.template_dn as string) ||
     '—'
   const isLabRequest = doc?.template_dt === 'Lab Test Template'
+  const clinicianLabel = serviceRequestDetailClinicianLabel(
+    doc?.template_dt as string | undefined,
+    practitionerFieldLabel
+  )
 
   return (
     <DetailSlideOver
@@ -256,7 +268,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
             <InfoTile icon={<User className="h-4 w-4" />} label="Patient" value={patientLabel} />
             <InfoTile
               icon={<Stethoscope className="h-4 w-4" />}
-              label="Doctor Name"
+              label={clinicianLabel}
               value={practitionerLabel}
             />
             <InfoTile

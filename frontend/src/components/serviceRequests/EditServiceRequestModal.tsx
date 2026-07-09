@@ -22,6 +22,10 @@ import {
 } from '../../services/serviceRequests'
 import { LabTestLineDiscountTable } from './LabTestLineDiscountTable'
 import {
+  isOtherServiceRequest,
+  serviceRequestPractitionerLabel,
+} from '../../utils/serviceRequestLabels'
+import {
   defaultLineDiscount,
   extractLineDiscountsFromBasket,
   mergeDiscountsIntoBasket,
@@ -144,6 +148,8 @@ export const EditServiceRequestModal = ({
   const [formData, setFormData] = useState(defaultFormData)
   const [readOnly, setReadOnly] = useState<Record<string, unknown>>({})
   const isLabRequest = formData.template_dt === 'Lab Test Template'
+  const isOtherService = isOtherServiceRequest(formData.template_dt)
+  const orderingClinicianLabel = serviceRequestPractitionerLabel(formData.template_dt)
 
   /* ────────────── INITIAL LOAD ────────────── */
 
@@ -628,7 +634,9 @@ export const EditServiceRequestModal = ({
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-900 mb-2">Ordered by Doctor</label>
+                  <label className="block text-sm font-semibold text-slate-900 mb-2">
+                    {isOtherService ? `Ordered by ${orderingClinicianLabel}` : 'Ordered by Doctor'}
+                  </label>
                   <div className="relative">
                     <input
                       type="text"
@@ -639,7 +647,7 @@ export const EditServiceRequestModal = ({
                         setPractOpen(true)
                       }}
                       onFocus={() => setPractOpen(true)}
-                      placeholder="Search doctor..."
+                      placeholder={isOtherService ? 'Search nurse…' : 'Search doctor...'}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
                     />
                     {practOpen && (
