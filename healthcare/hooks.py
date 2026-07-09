@@ -115,6 +115,7 @@ fixtures = [
                    "Item-custom_max_dose_per_single_dose",
                    "Item-custom_high_alert",
                    "Item-custom_drug_category",
+                   "Sales Order-custom_is_pharmacy_give_out",
 
                 ),
             ]

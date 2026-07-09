@@ -6797,17 +6797,6 @@
   "name": "HSX10=10"
  },
  {
-  "active": 1,
-  "daily": 0,
-  "docstatus": 0,
-  "doctype": "Prescription Frequency",
-  "dosage": "TDSX30",
-  "dosage_strength": [],
-  "frequency_in_a_day": 1,
-  "modified": "2026-07-07 22:53:14.798955",
-  "name": "TDSX30"
- },
- {
   "active": 0,
   "daily": 0,
   "docstatus": 0,
@@ -54151,6 +54140,17 @@
   "frequency_in_a_day": 1,
   "modified": "2026-07-07 17:28:53.467652",
   "name": "HS (PRN)"
+ },
+ {
+  "active": 1,
+  "daily": 0,
+  "docstatus": 0,
+  "doctype": "Prescription Frequency",
+  "dosage": "TDSX30",
+  "dosage_strength": [],
+  "frequency_in_a_day": 1,
+  "modified": "2026-07-07 22:53:14.798955",
+  "name": "TDSX30"
  },
  {
   "active": 0,
