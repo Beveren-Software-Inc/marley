@@ -119,9 +119,12 @@ export async function fetchStockLedger(
 }
 
 // Fetch item groups for filtering
-export async function fetchItemGroups(search?: string): Promise<{ name: string; label: string }[]> {
-  let url = '/api/method/healthcare.api.nursing_inventory.get_item_groups'
-  if (search) url += `?search=${encodeURIComponent(search)}`
+export async function fetchItemGroups(
+  search?: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ name: string; label: string }[]> {
+  let url = withWarehouseContext('/api/method/healthcare.api.nursing_inventory.get_item_groups', warehouseContext)
+  if (search) url += `${url.includes('?') ? '&' : '?'}search=${encodeURIComponent(search)}`
   const response = await fetch(url)
   const data = await response.json()
   return data.message || []
@@ -190,10 +193,22 @@ export async function createMaterialReceipt(
   })
 }
 
-// Fetch items for dropdown
-export async function fetchInventoryItems(search?: string): Promise<{ code: string; name: string; uom: string; price: number }[]> {
-  let url = '/api/method/healthcare.api.nursing_inventory.get_inventory_items'
+export async function fetchSuppliers(search?: string): Promise<{ name: string; label: string }[]> {
+  let url = '/api/method/healthcare.api.nursing_inventory.get_suppliers'
   if (search) url += `?search=${encodeURIComponent(search)}`
+  const response = await fetch(url)
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch suppliers')
+  return data.message || []
+}
+
+// Fetch items for dropdown
+export async function fetchInventoryItems(
+  search?: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ code: string; name: string; uom: string; price: number }[]> {
+  let url = withWarehouseContext('/api/method/healthcare.api.nursing_inventory.get_inventory_items', warehouseContext)
+  if (search) url += `${url.includes('?') ? '&' : '?'}search=${encodeURIComponent(search)}`
   const response = await fetch(url)
   const data = await response.json()
   return data.message || []

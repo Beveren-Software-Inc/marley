@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
-import { fetchNurseTasks, updateNurseTaskStatus, type NurseTask } from '../../services/nurseTask'
+import { fetchCurrentNurseShift, fetchNurseTasks, updateNurseTaskStatus, type CurrentNurseShiftInfo, type NurseTask } from '../../services/nurseTask'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { toast } from '../../hooks/useToast'
@@ -172,6 +172,8 @@ interface NurseTaskListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** When true (default), only tasks for the active Nurse Shift are shown. */
+  currentShiftOnly?: boolean
 }
 
 export const NurseTaskList = ({
@@ -183,6 +185,7 @@ export const NurseTaskList = ({
   title = 'Nurse Tasks',
   onAdd,
   addButtonTitle = 'New Task',
+  currentShiftOnly = true,
 }: NurseTaskListProps) => {
   const blockIfEditingLocked = useBlockIfEditingLocked()
   const cardFilters = useCardFilters()
@@ -198,8 +201,20 @@ export const NurseTaskList = ({
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [updatingName, setUpdatingName] = useState<string | null>(null)
+  const [currentShiftInfo, setCurrentShiftInfo] = useState<CurrentNurseShiftInfo | null>(null)
 
   const hasActiveFilters = Boolean(statusFilter || taskTypeFilter || dateFrom || dateTo)
+  const restrictToCurrentShift = currentShiftOnly && !dateFrom && !dateTo
+
+  useEffect(() => {
+    if (!restrictToCurrentShift) {
+      setCurrentShiftInfo(null)
+      return
+    }
+    void fetchCurrentNurseShift()
+      .then(setCurrentShiftInfo)
+      .catch(() => setCurrentShiftInfo(null))
+  }, [restrictToCurrentShift, refreshKey])
 
   const load = useCallback(async () => {
     try {
@@ -212,6 +227,7 @@ export const NurseTaskList = ({
         date_from: dateFrom || undefined,
         date_to: dateTo || undefined,
         my_tasks: !!myTasks,
+        current_shift_only: restrictToCurrentShift,
         limit: 100,
       })
       setTasks(data)
@@ -220,7 +236,7 @@ export const NurseTaskList = ({
     } finally {
       setLoading(false)
     }
-  }, [patient, myTasks, statusFilter, taskTypeFilter, dateFrom, dateTo])
+  }, [patient, myTasks, statusFilter, taskTypeFilter, dateFrom, dateTo, restrictToCurrentShift])
 
   useEffect(() => {
     load()
@@ -293,6 +309,20 @@ export const NurseTaskList = ({
           </div>
         </div>
       )}
+
+      {restrictToCurrentShift ? (
+        <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-slate-700">
+          <span className="font-medium text-primary">Current shift:</span>{' '}
+          {currentShiftInfo?.shift?.label || 'Loading…'}
+          {currentShiftInfo?.shift?.from_time && currentShiftInfo?.shift?.to_time ? (
+            <span className="text-slate-500">
+              {' '}
+              ({currentShiftInfo.shift.from_time.slice(0, 5)}–{currentShiftInfo.shift.to_time.slice(0, 5)})
+            </span>
+          ) : null}
+          <span className="text-slate-500"> · Showing tasks for this shift only</span>
+        </div>
+      ) : null}
 
       {showFilters ? (
         <div className="card-filter-bar flex flex-shrink-0 flex-wrap items-end gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
@@ -369,7 +399,9 @@ export const NurseTaskList = ({
 
       {!loading && !error && tasks.length === 0 ? (
         <div className="text-center py-10 border-2 border-dashed border-slate-200 rounded-lg text-slate-400 text-sm">
-          NO NURSE TASKS FOUND.
+          {restrictToCurrentShift
+            ? 'NO NURSE TASKS FOUND FOR THE CURRENT SHIFT.'
+            : 'NO NURSE TASKS FOUND.'}
         </div>
       ) : null}
 
@@ -456,6 +488,11 @@ export const NurseTaskList = ({
                       <span className="font-medium text-slate-600">Scheduled:</span>{' '}
                       {formatDateTime(task.scheduled_time)}
                     </span>
+                    {task.shift_label ? (
+                      <span>
+                        <span className="font-medium text-slate-600">Shift:</span> {task.shift_label}
+                      </span>
+                    ) : null}
                     <span>
                       <span className="font-medium text-slate-600">Nurse:</span>{' '}
                       {task.assigned_nurse_name

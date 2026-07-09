@@ -12,6 +12,7 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -64,12 +65,23 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterDateFrom, setFilterDateFrom] = useState<string>('')
   const [filterDateTo, setFilterDateTo] = useState<string>('')
+  const [filterPractitioner, setFilterPractitioner] = useState('')
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
 
   const loadSchedules = async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchSessionSchedules(50, 0, patient, admissionNumber, roleGroup)
+      const response = await fetchSessionSchedules(
+        50,
+        0,
+        patient,
+        admissionNumber,
+        roleGroup,
+        filterPractitioner || undefined
+      )
       setSchedules(response)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch session schedules'))
@@ -81,7 +93,27 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   useEffect(() => {
     loadSchedules()
-  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup])
+  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup, filterPractitioner])
+
+  useEffect(() => {
+    if (!practitionerOpen) return
+    const t = setTimeout(() => {
+      fetchHealthcarePractitioners(practitionerQuery || undefined)
+        .then(setPractitionerOptions)
+        .catch(() => setPractitionerOptions([]))
+    }, practitionerQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [practitionerOpen, practitionerQuery])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-ss-practitioner-filter]')) return
+      setPractitionerOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -172,9 +204,17 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     setFilterStatus('')
     setFilterDateFrom('')
     setFilterDateTo('')
+    setFilterPractitioner('')
+    setPractitionerQuery('')
+    setPractitionerOpen(false)
   }
 
-  const hasActiveFilters = filterStatus || filterDateFrom || filterDateTo
+  const hasActiveFilters = filterStatus || filterDateFrom || filterDateTo || filterPractitioner
+
+  const selectedPractitionerLabel =
+    practitionerOptions.find((o) => o.name === filterPractitioner)?.label ||
+    filterPractitioner ||
+    ''
 
   if (loading) {
     return <div className="flex items-center justify-center p-8 text-slate-600">Loading session schedules...</div>
@@ -228,6 +268,41 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
+            <div className="flex flex-col gap-1 relative" data-ss-practitioner-filter>
+              <label className="text-xs font-medium text-slate-500">Practitioner</label>
+              <input
+                type="text"
+                value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
+                onChange={(e) => {
+                  setPractitionerQuery(e.target.value)
+                  setFilterPractitioner('')
+                  setPractitionerOpen(true)
+                }}
+                onFocus={() => setPractitionerOpen(true)}
+                placeholder="Search practitioner…"
+                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary min-w-[180px]"
+              />
+              {practitionerOpen && practitionerOptions.length > 0 ? (
+                <ul className="absolute top-full left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white text-sm shadow-lg">
+                  {practitionerOptions.map((opt) => (
+                    <li key={opt.name}>
+                      <button
+                        type="button"
+                        className="w-full px-3 py-2 text-left hover:bg-slate-50"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          setFilterPractitioner(opt.name)
+                          setPractitionerQuery(opt.label || opt.name)
+                          setPractitionerOpen(false)
+                        }}
+                      >
+                        {opt.label || opt.name}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">Status</label>
               <select
@@ -269,6 +344,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Time Range</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
               </tr>
@@ -288,6 +364,9 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700">{schedule.cost_center || '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{schedule.doctor_name || schedule.doctor || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {schedule.practitioner_name || schedule.practitioner || '—'}
+                  </td>
                   <td className="px-4 py-3">
                     {schedule.transaction_status ? (
                       <StatusPill

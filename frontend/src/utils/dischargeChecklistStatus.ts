@@ -18,8 +18,10 @@ export function isAccountsChecklistItem(row?: {
   department_label?: string | null
   department_2?: string | null
   department_2_label?: string | null
+  department_3?: string | null
+  department_3_label?: string | null
 }): boolean {
-  const dept = `${row?.department || ''} ${row?.department_label || ''} ${row?.department_2 || ''} ${row?.department_2_label || ''}`
+  const dept = `${row?.department || ''} ${row?.department_label || ''} ${row?.department_2 || ''} ${row?.department_2_label || ''} ${row?.department_3 || ''} ${row?.department_3_label || ''}`
     .trim()
     .toLowerCase()
   return dept.includes('account')

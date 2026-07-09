@@ -1,8 +1,19 @@
 // tabs/StockReconciliationTab.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createStockReconciliation, fetchStockLedger, getStockReconciliations, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import {
+  FilterToggleButton,
+  InventoryFilterBar,
+  FilterSearchInput,
+  FilterDateField,
+  FilterSelectField,
+  collectUniqueStrings,
+  matchesAnyItemQuery,
+  matchesDateRange,
+  matchesTextQuery,
+} from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { Save, Eye, CheckCircle, RefreshCw, Search } from 'lucide-react'
 
@@ -40,6 +51,41 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
   const [filteredItems, setFilteredItems] = useState<ReconciliationItem[]>([])
   const [scanMode, setScanMode] = useState(false)
   const [scanInput, setScanInput] = useState('')
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterItem, setFilterItem] = useState('')
+  const [filterWarehouse, setFilterWarehouse] = useState('')
+
+  const warehouseOptions = useMemo(
+    () => collectUniqueStrings(reconciliations.flatMap((rec) => [rec.warehouse, ...(rec.items || []).map((item: any) => item.warehouse)])),
+    [reconciliations],
+  )
+
+  const filteredReconciliations = useMemo(() => {
+    return reconciliations.filter((rec) => {
+      const recDate = rec.posting_date || rec.reconciliation_date
+      const matchesSearch =
+        matchesTextQuery(rec.name, filterSearch) ||
+        matchesTextQuery(rec.owner, filterSearch) ||
+        matchesTextQuery(rec.reconciled_by, filterSearch)
+      const matchesDate = matchesDateRange(recDate, filterDateFrom, filterDateTo)
+      const matchesItem = matchesAnyItemQuery(rec.items, filterItem)
+      const matchesWarehouse = !filterWarehouse || rec.warehouse === filterWarehouse || (rec.items || []).some((item: any) => item.warehouse === filterWarehouse)
+      return matchesSearch && matchesDate && matchesItem && matchesWarehouse
+    })
+  }, [reconciliations, filterSearch, filterDateFrom, filterDateTo, filterItem, filterWarehouse])
+
+  const hasActiveFilters = Boolean(filterSearch || filterDateFrom || filterDateTo || filterItem || filterWarehouse)
+
+  const clearFilters = () => {
+    setFilterSearch('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterItem('')
+    setFilterWarehouse('')
+  }
 
   useEffect(() => {
     if (effectiveCostCenter) {
@@ -226,7 +272,11 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
       {/* Header Actions */}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold text-slate-900">Stock Reconciliation</h2>
-        {!showForm && (
+        <div className="flex items-center gap-2">
+          {!showForm ? (
+            <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
+          ) : null}
+          {!showForm && (
           <button
             onClick={() => {
               setShowForm(true)
@@ -237,8 +287,35 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
             <RefreshCw className="w-4 h-4" />
             New Reconciliation
           </button>
-        )}
+          )}
+        </div>
       </div>
+
+      {!showForm && showFilters && (
+        <InventoryFilterBar onClear={clearFilters} hasActiveFilters={hasActiveFilters}>
+          <FilterSearchInput
+            value={filterSearch}
+            onChange={setFilterSearch}
+            placeholder="Search reconciliation ID or user..."
+          />
+          <FilterSearchInput
+            value={filterItem}
+            onChange={setFilterItem}
+            placeholder="Filter by item name or code..."
+            className="relative min-w-[180px] flex-1"
+          />
+          <FilterDateField label="Date from" value={filterDateFrom} onChange={setFilterDateFrom} />
+          <FilterDateField label="Date to" value={filterDateTo} onChange={setFilterDateTo} />
+          {warehouseOptions.length > 0 ? (
+            <FilterSelectField
+              label="Warehouse"
+              value={filterWarehouse}
+              onChange={setFilterWarehouse}
+              options={warehouseOptions}
+            />
+          ) : null}
+        </InventoryFilterBar>
+      )}
 
       {/* Create Reconciliation Form */}
       {showForm && (
@@ -415,14 +492,16 @@ export const StockReconciliationTab = ({ onSuccess, refreshKey: _refreshKey, cos
             <div className="p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : reconciliations.length === 0 ? (
+          ) : filteredReconciliations.length === 0 ? (
             <div className="p-8 text-center">
               <CheckCircle className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-500">NO RECONCILIATION RECORDS FOUND</p>
+              <p className="text-slate-500">
+                {reconciliations.length === 0 ? 'NO RECONCILIATION RECORDS FOUND' : 'NO RECORDS MATCH YOUR FILTERS'}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {reconciliations.map((rec) => (
+              {filteredReconciliations.map((rec) => (
                 <div key={rec.name} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>

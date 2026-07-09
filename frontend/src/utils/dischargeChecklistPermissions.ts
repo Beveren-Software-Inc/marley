@@ -3,6 +3,7 @@ import { canEditUnassignedDischargeChecklistLine, isAdmin } from '../config/perm
 export interface DischargeChecklistDepartmentScope {
   department?: string
   department_2?: string
+  department_3?: string
 }
 
 export interface DischargeChecklistTemplateRow extends DischargeChecklistDepartmentScope {
@@ -10,6 +11,17 @@ export interface DischargeChecklistTemplateRow extends DischargeChecklistDepartm
   sr_num?: string
   department_label?: string
   department_2_label?: string
+  department_3_label?: string
+}
+
+export interface DischargeChecklistToggleRow extends DischargeChecklistDepartmentScope {
+  name: string
+  action_required?: string
+  sr_num?: string
+  click?: boolean | number | null
+  department_label?: string
+  department_2_label?: string
+  department_3_label?: string
 }
 
 function normalizeDepartmentId(dept: string): string {
@@ -18,6 +30,50 @@ function normalizeDepartmentId(dept: string): string {
 
 function departmentsMatch(userDept: string, assignedDept: string): boolean {
   return normalizeDepartmentId(userDept) === normalizeDepartmentId(assignedDept)
+}
+
+function assignedDepartments(item: DischargeChecklistDepartmentScope): string[] {
+  return [item.department, item.department_2, item.department_3].filter(Boolean) as string[]
+}
+
+export function isChecklistRowComplete(click?: boolean | number | null): boolean {
+  return click === true || click === 1
+}
+
+export function sortChecklistByOrder<T extends { sr_num?: string; name: string }>(items: T[]): T[] {
+  return [...items]
+    .map((item, index) => ({ item, index }))
+    .sort((a, b) => {
+      const aNum = parseInt((a.item.sr_num || '').trim(), 10)
+      const bNum = parseInt((b.item.sr_num || '').trim(), 10)
+      const aValid = !Number.isNaN(aNum)
+      const bValid = !Number.isNaN(bNum)
+      if (aValid && bValid) return aNum - bNum
+      if (aValid) return -1
+      if (bValid) return 1
+      return a.index - b.index
+    })
+    .map(({ item }) => item)
+}
+
+export function arePreviousChecklistItemsComplete<T extends DischargeChecklistToggleRow>(
+  items: T[],
+  target: T,
+): boolean {
+  const sorted = sortChecklistByOrder(items)
+  const index = sorted.findIndex((row) => row.name === target.name)
+  if (index <= 0) return true
+  return sorted.slice(0, index).every((row) => isChecklistRowComplete(row.click))
+}
+
+export function hasLaterCompletedChecklistItems<T extends DischargeChecklistToggleRow>(
+  items: T[],
+  target: T,
+): boolean {
+  const sorted = sortChecklistByOrder(items)
+  const index = sorted.findIndex((row) => row.name === target.name)
+  if (index < 0) return false
+  return sorted.slice(index + 1).some((row) => isChecklistRowComplete(row.click))
 }
 
 export function canUserEditDischargeChecklistItem(
@@ -29,7 +85,7 @@ export function canUserEditDischargeChecklistItem(
     return true
   }
 
-  const assigned = [item.department, item.department_2].filter(Boolean) as string[]
+  const assigned = assignedDepartments(item)
   if (assigned.length === 0) {
     return canEditUnassignedDischargeChecklistLine(roles)
   }
@@ -42,15 +98,49 @@ export function canUserEditDischargeChecklistItem(
   return assigned.some((dept) => mine.some((userDept) => departmentsMatch(userDept, dept)))
 }
 
+export function canToggleDischargeChecklistItem(
+  item: DischargeChecklistToggleRow,
+  items: DischargeChecklistToggleRow[],
+  userDepartments: string[] | undefined,
+  roles: string[] | undefined,
+): { allowed: boolean; reason?: string } {
+  if (!canUserEditDischargeChecklistItem(item, userDepartments, roles)) {
+    return {
+      allowed: false,
+      reason: `Assigned to ${checklistItemDepartmentLabel(item)}. Only staff in that department can update this line.`,
+    }
+  }
+
+  if (isChecklistRowComplete(item.click)) {
+    if (hasLaterCompletedChecklistItems(items, item)) {
+      return {
+        allowed: false,
+        reason: 'Uncheck later checklist items first (items must stay in template order).',
+      }
+    }
+    return { allowed: true }
+  }
+
+  if (!arePreviousChecklistItemsComplete(items, item)) {
+    return {
+      allowed: false,
+      reason: 'Complete earlier checklist items first (items must follow template order).',
+    }
+  }
+
+  return { allowed: true }
+}
+
 export function checklistItemDepartmentLabel(
   item: DischargeChecklistDepartmentScope & {
     department_label?: string
     department_2_label?: string
+    department_3_label?: string
   },
 ): string {
-  const labels = [item.department_label, item.department_2_label].filter(Boolean)
+  const labels = [item.department_label, item.department_2_label, item.department_3_label].filter(Boolean)
   if (labels.length) return labels.join(' / ')
-  const ids = [item.department, item.department_2].filter(Boolean) as string[]
+  const ids = assignedDepartments(item)
   return ids.join(' / ') || 'Unassigned'
 }
 
@@ -78,23 +168,25 @@ export function mergeChecklistWithTemplateDepartments<T extends DischargeCheckli
     const sr = (item.sr_num || '').trim()
     const templateRow =
       (sr && bySr.get(sr)) || byAction.get(normalizeChecklistAction(item.action_required))
-    if (!templateRow && item.department) {
+    if (!templateRow) {
       return {
         ...item,
         department_label: item.department_label || item.department,
       }
     }
-    if (!templateRow) return item
 
     const department = item.department || templateRow.department
     const department_2 = item.department_2 || templateRow.department_2
+    const department_3 = item.department_3 || templateRow.department_3
 
     return {
       ...item,
       department,
       department_2,
+      department_3,
       department_label: item.department_label || templateRow.department_label || department,
       department_2_label: item.department_2_label || templateRow.department_2_label || department_2,
+      department_3_label: item.department_3_label || templateRow.department_3_label || department_3,
     }
   })
 }

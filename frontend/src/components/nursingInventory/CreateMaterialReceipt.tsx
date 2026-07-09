@@ -5,9 +5,8 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { createMaterialReceipt, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
+import { createMaterialReceipt, fetchInventoryItems, fetchSuppliers, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
-import { InventoryBranchField, useInventoryBranch } from './InventoryBranchField'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Save, Package } from 'lucide-react'
 
@@ -37,15 +36,16 @@ export const CreateMaterialReceiptModal = ({
   isFullAccess,
 }: CreateMaterialReceiptModalProps) => {
   const warehouseContext = useMiniWarehouseContext()
-  const { user } = useCareContext()
-  const { selectedBranch, setSelectedBranch } = useInventoryBranch(costCenter, isFullAccess)
-  const effectiveCostCenter = selectedBranch
+  const { userCostCenter, user } = useCareContext()
+  const effectiveCostCenter = costCenter || userCostCenter || ''
   
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [warehouse, setWarehouse] = useState('')
   const [warehouses, setWarehouses] = useState<{ name: string; label: string }[]>([])
   const [loadingWarehouses, setLoadingWarehouses] = useState(false)
   const [supplier, setSupplier] = useState('')
+  const [suppliers, setSuppliers] = useState<{ name: string; label: string }[]>([])
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false)
   const [invoiceNumber, setInvoiceNumber] = useState('')
   
   const [items, setItems] = useState<ReceiptItem[]>([
@@ -56,12 +56,19 @@ export const CreateMaterialReceiptModal = ({
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
   const [openDropdown, setOpenDropdown] = useState<number | null>(null)
 
-  // Load warehouses
+  // Load warehouses when branch is known
   useEffect(() => {
     if (effectiveCostCenter) {
-      loadWarehouses()
+      void loadWarehouses()
+    } else {
+      setWarehouses([])
+      setWarehouse('')
     }
   }, [effectiveCostCenter, warehouseContext])
+
+  useEffect(() => {
+    void loadSuppliers()
+  }, [])
 
   const loadWarehouses = async () => {
     if (!effectiveCostCenter) return
@@ -69,13 +76,29 @@ export const CreateMaterialReceiptModal = ({
     try {
       const data = await getWarehousesForCostCenter(effectiveCostCenter, warehouseContext)
       setWarehouses(data)
-      if (data.length > 0) {
-        setWarehouse(data[0].name)
-      }
+      setWarehouse((current) => {
+        if (data.some((row) => row.name === current)) return current
+        return data[0]?.name || ''
+      })
     } catch (error) {
       console.error('Failed to load warehouses:', error)
+      setWarehouses([])
+      setWarehouse('')
     } finally {
       setLoadingWarehouses(false)
+    }
+  }
+
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true)
+    try {
+      const data = await fetchSuppliers()
+      setSuppliers(data)
+    } catch (error) {
+      console.error('Failed to load suppliers:', error)
+      setSuppliers([])
+    } finally {
+      setLoadingSuppliers(false)
     }
   }
 
@@ -84,7 +107,7 @@ export const CreateMaterialReceiptModal = ({
       setItemOptions(prev => ({ ...prev, [index]: [] }))
       return
     }
-    const results = await fetchInventoryItems(search)
+    const results = await fetchInventoryItems(search, warehouseContext)
     setItemOptions(prev => ({ ...prev, [index]: results }))
   }
 
@@ -99,9 +122,24 @@ export const CreateMaterialReceiptModal = ({
       total_price: (updatedItems[index].quantity || 1) * (item.price || 0)
     }
     setItems(updatedItems)
-    setItemSearch(prev => ({ ...prev, [index]: '' }))
+    setItemSearch(prev => ({ ...prev, [index]: item.name }))
     setItemOptions(prev => ({ ...prev, [index]: [] }))
     setOpenDropdown(null)
+  }
+
+  const handleItemSearchChange = (index: number, value: string) => {
+    setItemSearch(prev => ({ ...prev, [index]: value }))
+    setOpenDropdown(index)
+    if (items[index]?.item_code && value !== items[index].item_name) {
+      const updatedItems = [...items]
+      updatedItems[index] = {
+        ...updatedItems[index],
+        item_code: '',
+        item_name: '',
+      }
+      setItems(updatedItems)
+    }
+    searchItems(index, value)
   }
 
   const addItem = () => {
@@ -229,35 +267,55 @@ export const CreateMaterialReceiptModal = ({
             {activeTab === 'details' && (
               <div className="space-y-5">
                 <div>
-                  <InventoryBranchField
-                    costCenter={costCenter}
-                    isFullAccess={isFullAccess}
-                    value={selectedBranch}
-                    onChange={(branch) => {
-                      setSelectedBranch(branch)
-                      setWarehouse('')
-                    }}
-                  />
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Branch <span className="text-red-500">*</span>
+                  </label>
+                  {effectiveCostCenter ? (
+                    <input
+                      type="text"
+                      value={effectiveCostCenter}
+                      readOnly
+                      disabled
+                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                    />
+                  ) : (
+                    <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                      No branch selected. {isFullAccess ? 'Choose a branch from the inventory dashboard first.' : 'Contact your administrator to assign a branch.'}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-400 mt-1">
+                    {isFullAccess
+                      ? 'Branch comes from the selector on the inventory dashboard.'
+                      : 'Branch is auto-detected from your profile.'}
+                  </p>
                 </div>
 
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Warehouse <span className="text-red-500">*</span>
                   </label>
-                  {loadingWarehouses ? (
+                  {!effectiveCostCenter ? (
+                    <p className="text-sm text-slate-500 py-2">Select a branch first.</p>
+                  ) : loadingWarehouses ? (
                     <div className="flex items-center gap-2 py-2">
                       <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
                       <span className="text-sm text-slate-500">Loading warehouses...</span>
                     </div>
+                  ) : warehouses.length === 0 ? (
+                    <p className="text-sm text-amber-700 py-2">
+                      No warehouse found for this branch. Configure it in Healthcare Settings.
+                    </p>
                   ) : (
                     <select
                       value={warehouse}
                       onChange={(e) => setWarehouse(e.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     >
-                      <option value="">Select Warehouse</option>
-                      {warehouses.map(w => (
-                        <option key={w.name} value={w.name}>{w.label || w.name}</option>
+                      <option value="">Select warehouse…</option>
+                      {warehouses.map((w) => (
+                        <option key={w.name} value={w.name}>
+                          {w.label || w.name}
+                        </option>
                       ))}
                     </select>
                   )}
@@ -268,13 +326,22 @@ export const CreateMaterialReceiptModal = ({
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Supplier
                     </label>
-                    <input
-                      type="text"
-                      value={supplier}
-                      onChange={(e) => setSupplier(e.target.value)}
-                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      placeholder="Supplier name"
-                    />
+                    {loadingSuppliers ? (
+                      <div className="text-sm text-slate-500 py-2">Loading suppliers…</div>
+                    ) : (
+                      <select
+                        value={supplier}
+                        onChange={(e) => setSupplier(e.target.value)}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                      >
+                        <option value="">Select supplier…</option>
+                        {suppliers.map((row) => (
+                          <option key={row.name} value={row.name}>
+                            {row.label || row.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -333,12 +400,8 @@ export const CreateMaterialReceiptModal = ({
                             <input
                               type="text"
                               placeholder="Search item..."
-                              value={itemSearch[idx] !== undefined ? itemSearch[idx] : item.item_name}
-                              onChange={(e) => {
-                                setItemSearch(prev => ({ ...prev, [idx]: e.target.value }))
-                                setOpenDropdown(idx)
-                                searchItems(idx, e.target.value)
-                              }}
+                              value={itemSearch[idx] ?? item.item_name ?? ''}
+                              onChange={(e) => handleItemSearchChange(idx, e.target.value)}
                               onFocus={() => setOpenDropdown(idx)}
                               className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                             />

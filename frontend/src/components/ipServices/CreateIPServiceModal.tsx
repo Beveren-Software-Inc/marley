@@ -26,6 +26,8 @@ interface CreateIPServiceModalProps {
   onSuccess: (ipServiceName: string) => void
   initialPatient?: string
   openInNewTab?: boolean
+  /** Nurse ECT view — pick therapy only; rates applied server-side from template. */
+  hidePricing?: boolean
 }
 
 interface ItemRow {
@@ -49,6 +51,7 @@ export const CreateIPServiceModal = ({
   onSuccess,
   initialPatient,
   openInNewTab = true,
+  hidePricing = false,
 }: CreateIPServiceModalProps) => {
   const { mode, activeAdmission, activeVisit, selectedPatient: contextPatient } = useCareContext()
 
@@ -134,11 +137,13 @@ export const CreateIPServiceModal = ({
       return
     }
 
-    const validItems = items.filter(
-      (r) => r.service_type.trim() && r.amount.trim() && !Number.isNaN(parseFloat(r.amount))
-    )
+    const validItems = items.filter((r) => r.service_type.trim())
     if (validItems.length === 0) {
-      setError('Add at least one Healthcare Service Template with an amount.')
+      setError(
+        hidePricing
+          ? 'Add at least one ECT therapy item.'
+          : 'Add at least one Healthcare Service Template with an amount.'
+      )
       return
     }
 
@@ -147,10 +152,19 @@ export const CreateIPServiceModal = ({
       const serviceLines: IPServiceLineInput[] = []
       for (const row of validItems) {
         const template = await fetchIPServiceType(row.service_type, patientCareType)
+        let amount = parseFloat(row.amount)
+        if (Number.isNaN(amount) || amount <= 0) {
+          amount = template?.rate != null ? Number(template.rate) : 0
+        }
+        if (!amount || amount <= 0) {
+          setError(`No rate found for ${row.template_label || row.service_type}. Contact billing.`)
+          setSubmitting(false)
+          return
+        }
         serviceLines.push({
           service_type: row.service_type.trim(),
           service_code: template?.item_code,
-          amount: parseFloat(row.amount),
+          amount,
           note: row.note.trim() || undefined,
         })
       }
@@ -266,8 +280,12 @@ export const CreateIPServiceModal = ({
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-2 text-left font-medium text-slate-600">Healthcare Service Template</th>
-                      <th className="px-3 py-2 text-left font-medium text-slate-600 w-28">Amount</th>
+                      <th className="px-3 py-2 text-left font-medium text-slate-600">
+                        {hidePricing ? 'ECT therapy' : 'Healthcare Service Template'}
+                      </th>
+                      {!hidePricing ? (
+                        <th className="px-3 py-2 text-left font-medium text-slate-600 w-28">Amount</th>
+                      ) : null}
                       <th className="px-3 py-2 text-left font-medium text-slate-600">Note</th>
                       <th className="w-10" />
                     </tr>
@@ -278,6 +296,7 @@ export const CreateIPServiceModal = ({
                         key={row.id}
                         row={row}
                         patientCareType={patientCareType}
+                        hidePricing={hidePricing}
                         onUpdate={(patch) => updateItemRow(row.id, patch)}
                         onRemove={() => removeItemRow(row.id)}
                       />
@@ -313,11 +332,18 @@ export const CreateIPServiceModal = ({
 interface TemplateRowEditorProps {
   row: ItemRow
   patientCareType: 'OP' | 'IP'
+  hidePricing?: boolean
   onUpdate: (patch: Partial<ItemRow>) => void
   onRemove: () => void
 }
 
-function TemplateRowEditor({ row, patientCareType, onUpdate, onRemove }: TemplateRowEditorProps) {
+function TemplateRowEditor({
+  row,
+  patientCareType,
+  hidePricing = false,
+  onUpdate,
+  onRemove,
+}: TemplateRowEditorProps) {
   const [search, setSearch] = useState('')
   const [options, setOptions] = useState<{ name: string; service_name: string; rate?: number }[]>([])
   const [open, setOpen] = useState(false)
@@ -392,6 +418,21 @@ function TemplateRowEditor({ row, patientCareType, onUpdate, onRemove }: Templat
     onUpdate({ service_type: name, template_label: label })
     setSearch('')
     setOpen(false)
+    if (hidePricing) {
+      try {
+        const template = await fetchIPServiceType(name, patientCareType)
+        if (template?.rate != null) {
+          onUpdate({
+            service_type: name,
+            template_label: label,
+            amount: String(template.rate),
+          })
+        }
+      } catch {
+        // rate resolved on submit
+      }
+      return
+    }
     try {
       const template = await fetchIPServiceType(name, patientCareType)
       if (template?.rate != null && !row.amount) {
@@ -421,7 +462,7 @@ function TemplateRowEditor({ row, patientCareType, onUpdate, onRemove }: Templat
               onClick={() => void selectTemplate(opt.name, opt.service_name || opt.name)}
             >
               {opt.service_name || opt.name}
-              {opt.rate != null ? ` · ${opt.rate}` : ''}
+              {!hidePricing && opt.rate != null ? ` · ${opt.rate}` : ''}
             </button>
           ))
         )}
@@ -442,24 +483,26 @@ function TemplateRowEditor({ row, patientCareType, onUpdate, onRemove }: Templat
             }}
             onFocus={() => setOpen(true)}
             className={linkComboboxInputClassCompact}
-            placeholder="Search template..."
+            placeholder={hidePricing ? 'Search ECT therapy…' : 'Search template...'}
           />
         </div>
         {typeof document !== 'undefined' && dropdownPanel
           ? createPortal(dropdownPanel, document.body)
           : null}
       </td>
-      <td className="px-3 py-2">
-        <input
-          type="number"
-          min={0}
-          step={0.01}
-          value={row.amount}
-          onChange={(e) => onUpdate({ amount: e.target.value })}
-          className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-          placeholder="0"
-        />
-      </td>
+      {!hidePricing ? (
+        <td className="px-3 py-2">
+          <input
+            type="number"
+            min={0}
+            step={0.01}
+            value={row.amount}
+            onChange={(e) => onUpdate({ amount: e.target.value })}
+            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+            placeholder="0"
+          />
+        </td>
+      ) : null}
       <td className="px-3 py-2">
         <input
           type="text"

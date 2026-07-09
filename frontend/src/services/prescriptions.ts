@@ -25,6 +25,7 @@ export interface Prescription {
   medication_orders?: MedicationOrderEntry[]
   source_prescription?: string
   nursing_pharmacy_giveout?: 0 | 1
+  after_discharge?: 0 | 1
   creation?: string
   modified?: string
   modified_by?: string

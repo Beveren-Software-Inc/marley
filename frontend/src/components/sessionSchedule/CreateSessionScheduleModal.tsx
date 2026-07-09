@@ -29,7 +29,7 @@ interface CreateSessionScheduleModalProps {
   initialPatientVisit?: string
 }
 
-// Combobox component for doctor selection (same as prescription modal)
+// Combobox for practitioner selection
 interface ComboboxProps {
   value: string
   displayValue: string
@@ -150,8 +150,8 @@ export const CreateSessionScheduleModal = ({
     patient_visit: isOPMode ? (initialPatientVisit || activeVisit || '') : '',
     session_type: '',
     session_name: '',
-    doctor: '',
-    doctor_name: '',
+    practitioner: '',
+    practitioner_name: '',
     cost_center: '',
     from_time: '',
     to_time: '',
@@ -190,10 +190,10 @@ export const CreateSessionScheduleModal = ({
   const [visitOpen, setVisitOpen] = useState(false)
   const [visitQuery, setVisitQuery] = useState('')
 
-  // Doctors - updated to use Combobox
-  const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
-  const [doctorLoading, setDoctorLoading] = useState(false)
-  const [doctorQuery, setDoctorQuery] = useState('')
+  // Practitioner (who entered the session)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerLoading, setPractitionerLoading] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
 
   const loadServiceTemplates = (query: string) => {
     setServiceTemplatesLoading(true)
@@ -281,32 +281,31 @@ export const CreateSessionScheduleModal = ({
     return () => clearTimeout(timeoutId)
   }, [visitQuery, visitOpen, isOPMode, selectedPatient])
 
-  // Load doctors - search as user types
-  const loadDoctors = (query: string) => {
-    setDoctorLoading(true)
+  const loadPractitioners = (query: string) => {
+    setPractitionerLoading(true)
     fetchHealthcarePractitioners(query || undefined)
-      .then(practitioners => setDoctorOptions(practitioners))
-      .catch(() => setDoctorOptions([]))
-      .finally(() => setDoctorLoading(false))
+      .then((practitioners) => setPractitionerOptions(practitioners))
+      .catch(() => setPractitionerOptions([]))
+      .finally(() => setPractitionerLoading(false))
   }
 
-  // Auto-populate doctor field if current user is a healthcare practitioner
+  // Auto-populate practitioner if current user is linked to Healthcare Practitioner
   useEffect(() => {
-    const autoPopulateDoctor = async () => {
+    const autoPopulatePractitioner = async () => {
       try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          handleChange('doctor', practitioner)
-          handleChange('doctor_name', practitioner)
-          setDoctorQuery(practitioner)
-        }
+        const linkedPractitioner = await getCurrentUserPractitioner()
+        if (!linkedPractitioner) return
+        const practitioners = await fetchHealthcarePractitioners(undefined)
+        const match = practitioners.find((p) => p.name === linkedPractitioner)
+        handleChange('practitioner', linkedPractitioner)
+        handleChange('practitioner_name', match?.label || linkedPractitioner)
+        setPractitionerQuery(match?.label || linkedPractitioner)
       } catch (err) {
-        console.error('Failed to auto-populate doctor:', err)
-        // If this fails, leave field blank - user can select manually
+        console.error('Failed to auto-populate practitioner:', err)
       }
     }
-    
-    autoPopulateDoctor()
+
+    autoPopulatePractitioner()
   }, [])
 
   const handleChange = (field: string, value: string) => {
@@ -344,7 +343,8 @@ export const CreateSessionScheduleModal = ({
         date: formData.date,
         session_type: formData.session_type,
         session_name: formData.session_name || undefined,
-        doctor: formData.doctor || undefined,
+        practitioner: formData.practitioner || undefined,
+        practitioner_name: formData.practitioner_name || undefined,
         cost_center: formData.cost_center || undefined,
         from_time: formData.from_time || undefined,
         to_time: formData.to_time || undefined,
@@ -366,7 +366,7 @@ export const CreateSessionScheduleModal = ({
     }
   }
 
-  const doctorDisplayValue = formData.doctor_name || doctorQuery
+  const practitionerDisplayValue = formData.practitioner_name || practitionerQuery
   const serviceTemplateDisplayValue =
     formData.session_name || serviceTemplateQuery || formData.session_type
 
@@ -629,39 +629,39 @@ export const CreateSessionScheduleModal = ({
             </div>
           </div>
 
-          {/* Doctor - Using Combobox from prescription modal */}
+          {/* Practitioner (who entered the session) */}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">
-              Doctor
+              Practitioner
             </label>
             <Combobox
-              value={formData.doctor}
-              displayValue={doctorDisplayValue}
-              placeholder="Search doctor..."
-              options={doctorOptions}
-              loading={doctorLoading}
+              value={formData.practitioner}
+              displayValue={practitionerDisplayValue}
+              placeholder="Search practitioner..."
+              options={practitionerOptions}
+              loading={practitionerLoading}
               onQueryChange={(q) => {
-                setDoctorQuery(q)
-                if (formData.doctor) {
-                  handleChange('doctor', '')
-                  handleChange('doctor_name', '')
+                setPractitionerQuery(q)
+                if (formData.practitioner) {
+                  handleChange('practitioner', '')
+                  handleChange('practitioner_name', '')
                 }
-                loadDoctors(q)
+                loadPractitioners(q)
               }}
               onOpen={() => {
-                if (doctorOptions.length === 0) {
-                  loadDoctors(doctorQuery)
+                if (practitionerOptions.length === 0) {
+                  loadPractitioners(practitionerQuery)
                 }
               }}
               onSelect={(opt) => {
-                handleChange('doctor', opt.name)
-                handleChange('doctor_name', opt.label || opt.name)
-                setDoctorQuery(opt.label || opt.name)
+                handleChange('practitioner', opt.name)
+                handleChange('practitioner_name', opt.label || opt.name)
+                setPractitionerQuery(opt.label || opt.name)
               }}
               onClear={() => {
-                handleChange('doctor', '')
-                handleChange('doctor_name', '')
-                setDoctorQuery('')
+                handleChange('practitioner', '')
+                handleChange('practitioner_name', '')
+                setPractitionerQuery('')
               }}
               renderOption={(opt) => (
                 <div>

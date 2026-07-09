@@ -1104,6 +1104,9 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 				dept_2 = _checklist_string_value(row.get("department_2"))
 				if dept_2:
 					child["department_2"] = dept_2
+				dept_3 = _checklist_string_value(row.get("department_3"))
+				if dept_3:
+					child["department_3"] = dept_3
 				discharge_doc.append("discharge_checklist", child)
 
 	if "nursing_checklist" in discharge_data:
@@ -1272,6 +1275,7 @@ def _serialize_checklist_row(row, default_department: str = "") -> dict:
 
 			dept = resolve_department_link(dept_name) or dept_name
 	dept_2 = getattr(row, "department_2", None) or ""
+	dept_3 = getattr(row, "department_3", None) or ""
 	raw_dt = getattr(row, "date_time", None)
 	if raw_dt:
 		date_time = _portal_dt_string(raw_dt)
@@ -1284,6 +1288,8 @@ def _serialize_checklist_row(row, default_department: str = "") -> dict:
 		"department_label": resolve_department_link_label(dept) or dept or default_department,
 		"department_2": dept_2,
 		"department_2_label": resolve_department_link_label(dept_2) if dept_2 else "",
+		"department_3": dept_3,
+		"department_3_label": resolve_department_link_label(dept_3) if dept_3 else "",
 		"user": getattr(row, "user", None) or "",
 		"name1": getattr(row, "name1", None) or "",
 		"date_time": date_time,

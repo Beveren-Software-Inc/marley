@@ -1,8 +1,19 @@
 // tabs/MaterialRequestTab.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialRequest, fetchMaterialRequests, fetchInventoryItems, fetchItemUomOptions, type MaterialRequest, type MaterialRequestItem } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import {
+  FilterToggleButton,
+  InventoryFilterBar,
+  FilterSearchInput,
+  FilterDateField,
+  FilterSelectField,
+  collectUniqueStrings,
+  matchesAnyItemQuery,
+  matchesDateRange,
+  matchesTextQuery,
+} from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-react'
 
@@ -29,6 +40,40 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const [itemSearch, setItemSearch] = useState<{ [key: number]: string }>({})
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
   const [itemUomOptions, setItemUomOptions] = useState<{ [key: number]: { name: string; label: string }[] }>({})
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterItem, setFilterItem] = useState('')
+
+  const statusOptions = useMemo(
+    () => collectUniqueStrings(requests.map((request) => request.status)),
+    [requests],
+  )
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((request) => {
+      const matchesSearch =
+        matchesTextQuery(request.name, filterSearch) ||
+        matchesTextQuery(request.requested_by, filterSearch) ||
+        matchesTextQuery(request.notes, filterSearch)
+      const matchesDate = matchesDateRange(request.request_date, filterDateFrom, filterDateTo)
+      const matchesStatus = !filterStatus || request.status === filterStatus
+      const matchesItem = matchesAnyItemQuery(request.items, filterItem)
+      return matchesSearch && matchesDate && matchesStatus && matchesItem
+    })
+  }, [requests, filterSearch, filterDateFrom, filterDateTo, filterStatus, filterItem])
+
+  const hasActiveFilters = Boolean(filterSearch || filterDateFrom || filterDateTo || filterStatus || filterItem)
+
+  const clearFilters = () => {
+    setFilterSearch('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterStatus('')
+    setFilterItem('')
+  }
 
   useEffect(() => {
     if (effectiveCostCenter) {
@@ -59,7 +104,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       setItemOptions(prev => ({ ...prev, [index]: [] }))
       return
     }
-    const results = await fetchInventoryItems(search)
+    const results = await fetchInventoryItems(search, warehouseContext)
     setItemOptions(prev => ({ ...prev, [index]: results }))
   }
 
@@ -212,7 +257,11 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       {/* Header Actions */}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold text-slate-900">Material Requests</h2>
-        {!showForm && (
+        <div className="flex items-center gap-2">
+          {!showForm ? (
+            <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
+          ) : null}
+          {!showForm && (
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition text-sm font-medium"
@@ -220,8 +269,33 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             <Plus className="w-4 h-4" />
             New Request
           </button>
-        )}
+          )}
+        </div>
       </div>
+
+      {!showForm && showFilters && (
+        <InventoryFilterBar onClear={clearFilters} hasActiveFilters={hasActiveFilters}>
+          <FilterSearchInput
+            value={filterSearch}
+            onChange={setFilterSearch}
+            placeholder="Search request ID, requester, notes..."
+          />
+          <FilterSearchInput
+            value={filterItem}
+            onChange={setFilterItem}
+            placeholder="Filter by item name or code..."
+            className="relative min-w-[180px] flex-1"
+          />
+          <FilterDateField label="Date from" value={filterDateFrom} onChange={setFilterDateFrom} />
+          <FilterDateField label="Date to" value={filterDateTo} onChange={setFilterDateTo} />
+          <FilterSelectField
+            label="Status"
+            value={filterStatus}
+            onChange={setFilterStatus}
+            options={statusOptions}
+          />
+        </InventoryFilterBar>
+      )}
 
       {/* Create Request Form */}
       {showForm && (
@@ -383,14 +457,16 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             <div className="p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : requests.length === 0 ? (
+          ) : filteredRequests.length === 0 ? (
             <div className="p-8 text-center">
               <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-500">NO MATERIAL REQUESTS FOUND</p>
+              <p className="text-slate-500">
+                {requests.length === 0 ? 'NO MATERIAL REQUESTS FOUND' : 'NO REQUESTS MATCH YOUR FILTERS'}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {requests.map((request, idx) => (
+              {filteredRequests.map((request, idx) => (
                 <div key={`${request.name}-${idx}`} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>

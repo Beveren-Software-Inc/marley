@@ -1,8 +1,19 @@
 // tabs/MaterialReceiptTab.tsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { createMaterialReceipt, fetchInventoryItems, fetchMaterialReceipts, type MaterialReceipt } from '../../services/nursingInventory'
+import { createMaterialReceipt, fetchInventoryItems, fetchMaterialReceipts, fetchSuppliers, getWarehousesForCostCenter, type MaterialReceipt } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import {
+  FilterToggleButton,
+  InventoryFilterBar,
+  FilterSearchInput,
+  FilterDateField,
+  FilterSelectField,
+  collectUniqueStrings,
+  matchesAnyItemQuery,
+  matchesDateRange,
+  matchesTextQuery,
+} from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Save, Eye, Upload, Package, CheckCircle } from 'lucide-react'
 
@@ -35,18 +46,105 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   
   // Form state
   const [supplier, setSupplier] = useState('')
+  const [suppliers, setSuppliers] = useState<{ name: string; label: string }[]>([])
+  const [loadingSuppliers, setLoadingSuppliers] = useState(false)
+  const [warehouse, setWarehouse] = useState('')
+  const [warehouses, setWarehouses] = useState<{ name: string; label: string }[]>([])
+  const [loadingWarehouses, setLoadingWarehouses] = useState(false)
   const [invoiceNumber, setInvoiceNumber] = useState('')
   const [items, setItems] = useState<ReceiptItem[]>([
     { item_code: '', item_name: '', quantity: 1, unit_price: 0, total_price: 0 }
   ])
   const [itemSearch, setItemSearch] = useState<{ [key: number]: string }>({})
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
+  const [showFilters, setShowFilters] = useState(false)
+  const [filterSearch, setFilterSearch] = useState('')
+  const [filterDateFrom, setFilterDateFrom] = useState('')
+  const [filterDateTo, setFilterDateTo] = useState('')
+  const [filterItem, setFilterItem] = useState('')
+  const [filterSupplier, setFilterSupplier] = useState('')
+  const [filterWarehouse, setFilterWarehouse] = useState('')
+
+  const supplierOptions = useMemo(
+    () => collectUniqueStrings(receipts.map((receipt) => receipt.supplier)),
+    [receipts],
+  )
+
+  const warehouseOptions = useMemo(
+    () => collectUniqueStrings(receipts.map((receipt) => receipt.warehouse)),
+    [receipts],
+  )
+
+  const filteredReceipts = useMemo(() => {
+    return receipts.filter((receipt) => {
+      const matchesSearch =
+        matchesTextQuery(receipt.name, filterSearch) ||
+        matchesTextQuery(receipt.invoice_number, filterSearch) ||
+        matchesTextQuery(receipt.received_by, filterSearch)
+      const matchesDate = matchesDateRange(receipt.receipt_date, filterDateFrom, filterDateTo)
+      const matchesItem = matchesAnyItemQuery(receipt.items, filterItem)
+      const matchesSupplier = !filterSupplier || receipt.supplier === filterSupplier
+      const matchesWarehouse = !filterWarehouse || receipt.warehouse === filterWarehouse
+      return matchesSearch && matchesDate && matchesItem && matchesSupplier && matchesWarehouse
+    })
+  }, [receipts, filterSearch, filterDateFrom, filterDateTo, filterItem, filterSupplier, filterWarehouse])
+
+  const hasActiveFilters = Boolean(
+    filterSearch || filterDateFrom || filterDateTo || filterItem || filterSupplier || filterWarehouse,
+  )
+
+  const clearFilters = () => {
+    setFilterSearch('')
+    setFilterDateFrom('')
+    setFilterDateTo('')
+    setFilterItem('')
+    setFilterSupplier('')
+    setFilterWarehouse('')
+  }
 
   useEffect(() => {
     if (effectiveCostCenter) {
       loadReceipts()
+      void loadWarehouses()
     }
   }, [effectiveCostCenter, _refreshKey, warehouseContext])
+
+  useEffect(() => {
+    if (showForm) {
+      void loadSuppliers()
+    }
+  }, [showForm])
+
+  const loadWarehouses = async () => {
+    if (!effectiveCostCenter) return
+    setLoadingWarehouses(true)
+    try {
+      const data = await getWarehousesForCostCenter(effectiveCostCenter, warehouseContext)
+      setWarehouses(data)
+      setWarehouse((current) => {
+        if (data.some((row) => row.name === current)) return current
+        return data[0]?.name || ''
+      })
+    } catch (error) {
+      console.error('Failed to load warehouses:', error)
+      setWarehouses([])
+      setWarehouse('')
+    } finally {
+      setLoadingWarehouses(false)
+    }
+  }
+
+  const loadSuppliers = async () => {
+    setLoadingSuppliers(true)
+    try {
+      setSuppliers(await fetchSuppliers())
+    } catch (error) {
+      console.error('Failed to load suppliers:', error)
+      setSuppliers([])
+    } finally {
+      setLoadingSuppliers(false)
+    }
+  }
 
   const loadReceipts = async () => {
     if (!effectiveCostCenter) return
@@ -66,7 +164,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       setItemOptions(prev => ({ ...prev, [index]: [] }))
       return
     }
-    const results = await fetchInventoryItems(search)
+    const results = await fetchInventoryItems(search, warehouseContext)
     setItemOptions(prev => ({ ...prev, [index]: results }))
   }
 
@@ -81,8 +179,22 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       total_price: (updatedItems[index].quantity || 1) * (item.price || 0)
     }
     setItems(updatedItems)
-    setItemSearch(prev => ({ ...prev, [index]: '' }))
+    setItemSearch(prev => ({ ...prev, [index]: item.name }))
     setItemOptions(prev => ({ ...prev, [index]: [] }))
+  }
+
+  const handleItemSearchChange = (index: number, value: string) => {
+    setItemSearch(prev => ({ ...prev, [index]: value }))
+    if (items[index]?.item_code && value !== items[index].item_name) {
+      const updatedItems = [...items]
+      updatedItems[index] = {
+        ...updatedItems[index],
+        item_code: '',
+        item_name: '',
+      }
+      setItems(updatedItems)
+    }
+    searchItems(index, value)
   }
 
   const addItem = () => {
@@ -123,6 +235,11 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       return
     }
 
+    if (!warehouse) {
+      toast.error('Please select a warehouse')
+      return
+    }
+
     const validItems = items.filter(item => item.item_code && item.quantity > 0 && item.unit_price > 0)
     if (validItems.length === 0) {
       toast.error('Please add at least one valid item with quantity and price')
@@ -133,6 +250,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     try {
       await createMaterialReceipt({
         cost_center: effectiveCostCenter,
+        warehouse,
         receipt_date: new Date().toISOString().split('T')[0],
         supplier: supplier || undefined,
         invoice_number: invoiceNumber || undefined,
@@ -157,6 +275,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const resetForm = () => {
     setSupplier('')
     setInvoiceNumber('')
+    setWarehouse(warehouses[0]?.name || '')
     setItems([{ item_code: '', item_name: '', quantity: 1, unit_price: 0, total_price: 0 }])
     setItemSearch({})
     setItemOptions({})
@@ -167,7 +286,11 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       {/* Header Actions */}
       <div className="flex justify-between items-center">
         <h2 className="text-lg font-semibold text-slate-900">Material Receipts</h2>
-        {!showForm && (
+        <div className="flex items-center gap-2">
+          {!showForm ? (
+            <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
+          ) : null}
+          {!showForm && (
           <button
             onClick={() => setShowForm(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 transition text-sm font-medium"
@@ -175,8 +298,43 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             <Upload className="w-4 h-4" />
             New Receipt
           </button>
-        )}
+          )}
+        </div>
       </div>
+
+      {!showForm && showFilters && (
+        <InventoryFilterBar onClear={clearFilters} hasActiveFilters={hasActiveFilters}>
+          <FilterSearchInput
+            value={filterSearch}
+            onChange={setFilterSearch}
+            placeholder="Search receipt ID, invoice, receiver..."
+          />
+          <FilterSearchInput
+            value={filterItem}
+            onChange={setFilterItem}
+            placeholder="Filter by item name or code..."
+            className="relative min-w-[180px] flex-1"
+          />
+          <FilterDateField label="Date from" value={filterDateFrom} onChange={setFilterDateFrom} />
+          <FilterDateField label="Date to" value={filterDateTo} onChange={setFilterDateTo} />
+          {supplierOptions.length > 0 ? (
+            <FilterSelectField
+              label="Supplier"
+              value={filterSupplier}
+              onChange={setFilterSupplier}
+              options={supplierOptions}
+            />
+          ) : null}
+          {warehouseOptions.length > 0 ? (
+            <FilterSelectField
+              label="Warehouse"
+              value={filterWarehouse}
+              onChange={setFilterWarehouse}
+              options={warehouseOptions}
+            />
+          ) : null}
+        </InventoryFilterBar>
+      )}
 
       {/* Create Receipt Form */}
       {showForm && (
@@ -197,17 +355,62 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
+                <input
+                  type="text"
+                  value={effectiveCostCenter}
+                  readOnly
+                  disabled
+                  className="w-full px-3 py-2 border border-slate-200 bg-slate-50 rounded-md text-sm text-slate-600"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Warehouse <span className="text-red-500">*</span>
+                </label>
+                {loadingWarehouses ? (
+                  <div className="text-sm text-slate-500 py-2">Loading warehouses…</div>
+                ) : warehouses.length === 0 ? (
+                  <p className="text-sm text-amber-700 py-2">No warehouse configured for this branch.</p>
+                ) : (
+                  <select
+                    value={warehouse}
+                    onChange={(e) => setWarehouse(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">Select warehouse…</option>
+                    {warehouses.map((row) => (
+                      <option key={row.name} value={row.name}>
+                        {row.label || row.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            </div>
+
             {/* Receipt Header */}
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Supplier</label>
-                <input
-                  type="text"
-                  value={supplier}
-                  onChange={(e) => setSupplier(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Supplier name"
-                />
+                {loadingSuppliers ? (
+                  <div className="text-sm text-slate-500 py-2">Loading suppliers…</div>
+                ) : (
+                  <select
+                    value={supplier}
+                    onChange={(e) => setSupplier(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">Select supplier…</option>
+                    {suppliers.map((row) => (
+                      <option key={row.name} value={row.name}>
+                        {row.label || row.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Invoice Number</label>
@@ -256,11 +459,8 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                             <input
                               type="text"
                               placeholder="Search item..."
-                              value={itemSearch[idx] || item.item_name}
-                              onChange={(e) => {
-                                setItemSearch(prev => ({ ...prev, [idx]: e.target.value }))
-                                searchItems(idx, e.target.value)
-                              }}
+                              value={itemSearch[idx] ?? item.item_name ?? ''}
+                              onChange={(e) => handleItemSearchChange(idx, e.target.value)}
                               className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                             />
                             {itemOptions[idx] && itemOptions[idx].length > 0 && (
@@ -357,7 +557,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !warehouse}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
               >
                 <Save className="w-4 h-4" />
@@ -378,14 +578,16 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             <div className="p-8 text-center">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             </div>
-          ) : receipts.length === 0 ? (
+          ) : filteredReceipts.length === 0 ? (
             <div className="p-8 text-center">
               <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
-              <p className="text-slate-500">NO MATERIAL RECEIPTS FOUND</p>
+              <p className="text-slate-500">
+                {receipts.length === 0 ? 'NO MATERIAL RECEIPTS FOUND' : 'NO RECEIPTS MATCH YOUR FILTERS'}
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {receipts.map((receipt) => (
+              {filteredReceipts.map((receipt) => (
                 <div key={receipt.name} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>
