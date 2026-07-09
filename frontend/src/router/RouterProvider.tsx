@@ -9,6 +9,7 @@ import { PharmacyPage } from '../pages/Pharmacy'
 import { ReceptionistPage } from '../pages/Receptionist'
 import { SettingsPage } from '../pages/Settings'
 import { QMPSPage } from '../pages/QMPS'
+import { IPQuotationPage } from '../pages/IPQuotation'
 import { StaffActivityAuditPage } from '../pages/StaffActivityAudit'
 import { EmployeePage } from '../pages/Employee'
 import { PatientVisitDetailPage } from '../pages/PatientVisitDetailPage'
@@ -106,6 +107,14 @@ export const RouterProvider = () => {
       element: (
         <RoleGuard>
           <SettingsPage />
+        </RoleGuard>
+      )
+    },
+    {
+      path: '/ip-quotation',
+      element: (
+        <RoleGuard>
+          <IPQuotationPage />
         </RoleGuard>
       )
     },

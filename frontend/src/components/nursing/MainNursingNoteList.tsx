@@ -6,7 +6,11 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CardRowTextHint } from '../ui/dashboardCardListing'
-import { NURSING_SHIFTS } from '../../constants/nursingShift'
+import {
+  isMainNursingNoteEditable,
+  MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE,
+  NURSING_SHIFTS,
+} from '../../constants/nursingShift'
 import { EditMainNursingNoteModal } from './EditMainNursingNoteModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -173,6 +177,17 @@ export const MainNursingNoteList = ({
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
+
+  const canEditRow = (row: MainNursingNoteRow) =>
+    isMainNursingNoteEditable(row.modified || row.creation)
+
+  const openEditRow = (row: MainNursingNoteRow) => {
+    if (!canEditRow(row)) {
+      setError(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    guardClinicalEdit(() => setEditRow(row))
+  }
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
@@ -368,17 +383,26 @@ export const MainNursingNoteList = ({
                           triggerRef={menuRef}
                           minWidth={160}
                         >
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOpenActionRow(null)
-                              guardClinicalEdit(() => setEditRow(row))
-                            }}
-                            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
-                            Edit
-                          </button>
+                          {canEditRow(row) ? (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenActionRow(null)
+                                openEditRow(row)
+                              }}
+                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                              Edit
+                            </button>
+                          ) : (
+                            <div
+                              className="px-3 py-2 text-xs text-slate-500"
+                              title={MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE}
+                            >
+                              Edit locked (24h)
+                            </div>
+                          )}
                         </PortalActionsMenu>
                       </div>
                     </td>
@@ -399,14 +423,12 @@ export const MainNursingNoteList = ({
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-semibold text-slate-900">Nursing Note</h3>
               <div className="flex items-center gap-2">
-                {manageRows ? (
+                {manageRows && canEditRow(selected) ? (
                   <button
                     type="button"
                     onClick={() => {
-                      guardClinicalEdit(() => {
-                        setEditRow(selected)
-                        setSelected(null)
-                      })
+                      openEditRow(selected)
+                      setSelected(null)
                     }}
                     className="text-xs font-medium text-primary hover:underline"
                   >

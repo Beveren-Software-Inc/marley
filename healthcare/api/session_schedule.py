@@ -45,12 +45,30 @@ def _attach_sales_orders(schedules):
 	return schedules
 
 
-def _default_amount_from_template(session_type, amount=None):
+def _patient_care_type_from_schedule(doc):
+	if doc.get("admission_number"):
+		return "IP"
+	if doc.get("patient_visit"):
+		return "OP"
+	return None
+
+
+def _default_amount_from_template(session_type, amount=None, patient_care_type=None):
 	resolved = flt(amount, 2)
 	if resolved > 0:
 		return resolved
 	if session_type and frappe.db.exists("Healthcare Service Template", session_type):
-		return flt(frappe.db.get_value("Healthcare Service Template", session_type, "rate"), 2)
+		from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+			get_healthcare_service_template_rate,
+		)
+
+		return flt(
+			get_healthcare_service_template_rate(
+				template_name=session_type,
+				patient_care_type=patient_care_type,
+			),
+			2,
+		)
 	return 0
 
 
@@ -66,12 +84,29 @@ def _resolve_session_schedule_billing(doc):
 			_("Healthcare Service Template {0} has no valid Item for billing.").format(template_name)
 		)
 
-	amount = _default_amount_from_template(template_name, doc.amount)
+	amount = _default_amount_from_template(
+		template_name,
+		doc.amount,
+		patient_care_type=_patient_care_type_from_schedule(doc),
+	)
 	if amount <= 0:
 		frappe.throw(_("Amount is required to create a Sales Order."))
 
 	description = doc.session_name or template.service_name or template_name
 	return item_code, amount, description
+
+
+def _default_company(doc=None):
+	"""Resolve company for session schedule / billing (single-company sites use default)."""
+	if doc and doc.get("company"):
+		return doc.company
+	if doc and doc.get("admission_number"):
+		company = frappe.db.get_value("Inpatient Admission", doc.admission_number, "company")
+		if company:
+			return company
+	return frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
+		"Global Defaults", "default_company"
+	)
 
 
 def _create_session_schedule_sales_order(doc):
@@ -101,13 +136,7 @@ def _create_session_schedule_sales_order(doc):
 	patient = doc.patient_num
 	customer = _ensure_patient_customer(patient)
 
-	company = doc.company
-	if not company:
-		company = frappe.db.get_value("Inpatient Admission", doc.admission_number, "company")
-	if not company:
-		company = frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
-			"Global Defaults", "default_company"
-		)
+	company = _default_company(doc)
 	if not company:
 		frappe.throw(_("Company is required to create a Sales Order."))
 
@@ -235,18 +264,24 @@ def create_session_schedule(data: dict):
 	try:
 		session_schedule = frappe.new_doc("Session Schedule")
 
+		admission_number = (data.get("admission_number") or "").strip() or None
+		patient_visit = (data.get("patient_visit") or "").strip() or None
+		care_type = "IP" if admission_number else ("OP" if patient_visit else None)
+
 		session_schedule.date = data.get("date")
 		session_schedule.session_type = data.get("session_type")
 		session_schedule.session_name = data.get("session_name")
-		session_schedule.company = data.get("company")
 		session_schedule.doctor = data.get("doctor")
 		session_schedule.cost_center = data.get("cost_center")
 		session_schedule.from_time = data.get("from_time")
 		session_schedule.to_time = data.get("to_time")
-		session_schedule.admission_number = data.get("admission_number")
+		session_schedule.admission_number = admission_number
+		session_schedule.patient_visit = patient_visit
+		session_schedule.company = _default_company(session_schedule)
 		session_schedule.amount = _default_amount_from_template(
 			data.get("session_type"),
 			data.get("amount"),
+			patient_care_type=care_type,
 		) or None
 		session_schedule.transaction_status = "Draft"
 

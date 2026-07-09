@@ -25,10 +25,20 @@ LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 def _get_template_base_rate(template_dt: str, template_dn: str, patient_care_type: str | None = None) -> float:
     """Resolve base rate from template document safely.
 
-    OP lab requests prefer ``op_rate`` when it is set (> 0). Otherwise they
-    fall back to the existing ``lab_test_rate`` / ``rate`` / ``amount`` chain.
-    IP and all non-lab templates keep the existing behavior.
+    Healthcare Service Template (OP): ``op_rate`` when > 0, else ``rate``.
+    Healthcare Service Template (IP): ``rate``.
+    Lab Test Template (OP): ``op_rate`` when > 0, else ``lab_test_rate`` / ``rate`` / ``amount``.
     """
+
+    if template_dt == "Healthcare Service Template":
+        from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+            get_healthcare_service_template_rate,
+        )
+
+        return get_healthcare_service_template_rate(
+            template_name=template_dn,
+            patient_care_type=patient_care_type,
+        )
 
     meta = frappe.get_meta(template_dt)
     is_op_lab = template_dt == "Lab Test Template" and (patient_care_type or "").strip().upper() == "OP"

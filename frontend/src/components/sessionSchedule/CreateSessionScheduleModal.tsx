@@ -10,11 +10,12 @@ import {
   type CreateSessionScheduleData,
   type HealthcareServiceTemplateOption,
 } from '../../services/sessionSchedule'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { getUserCostCenterPermission } from '../../services/costCenterPermission'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown } from 'lucide-react'
+import { useCareContext } from '../../providers/CareContextProvider'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -25,6 +26,7 @@ interface CreateSessionScheduleModalProps {
   onClose: () => void
   onSuccess?: () => void
   initialAdmission?: string
+  initialPatientVisit?: string
 }
 
 // Combobox component for doctor selection (same as prescription modal)
@@ -135,14 +137,19 @@ const Combobox = ({
 export const CreateSessionScheduleModal = ({
   onClose,
   onSuccess,
-  initialAdmission
+  initialAdmission,
+  initialPatientVisit,
 }: CreateSessionScheduleModalProps) => {
+  const { mode, activeVisit, activeAdmission, selectedPatient } = useCareContext()
+  const isIPMode = mode === 'IP'
+  const isOPMode = mode === 'OP'
+
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
-    admission_number: initialAdmission || '',
+    admission_number: isIPMode ? (initialAdmission || activeAdmission || '') : '',
+    patient_visit: isOPMode ? (initialPatientVisit || activeVisit || '') : '',
     session_type: '',
     session_name: '',
-    company: '',
     doctor: '',
     doctor_name: '',
     cost_center: '',
@@ -159,11 +166,6 @@ export const CreateSessionScheduleModal = ({
   const [serviceTemplatesLoading, setServiceTemplatesLoading] = useState(false)
   const [serviceTemplateQuery, setServiceTemplateQuery] = useState('')
 
-  // Companies
-  const [companyOptions, setCompanyOptions] = useState<LinkFieldOption[]>([])
-  const [companyLoading, setCompanyLoading] = useState(false)
-
-  // Branchs
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
 
@@ -178,10 +180,15 @@ export const CreateSessionScheduleModal = ({
       .catch(() => {})
   }, [])
 
-  // Admissions
+  // Admissions (IP)
   const [admissionOptions, setAdmissionOptions] = useState<InpatientRecord[]>([])
   const [admissionOpen, setAdmissionOpen] = useState(false)
   const [admissionQuery, setAdmissionQuery] = useState('')
+
+  // Patient visits (OP)
+  const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
+  const [visitOpen, setVisitOpen] = useState(false)
+  const [visitQuery, setVisitQuery] = useState('')
 
   // Doctors - updated to use Combobox
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
@@ -190,7 +197,8 @@ export const CreateSessionScheduleModal = ({
 
   const loadServiceTemplates = (query: string) => {
     setServiceTemplatesLoading(true)
-    getHealthcareServiceTemplates(query || undefined)
+    const careType: 'OP' | 'IP' = isIPMode ? 'IP' : 'OP'
+    getHealthcareServiceTemplates(query || undefined, 100, careType)
       .then((templates) => setServiceTemplates(templates))
       .catch((err) => {
         console.error('Failed to load healthcare service templates:', err)
@@ -202,26 +210,16 @@ export const CreateSessionScheduleModal = ({
 
   useEffect(() => {
     loadServiceTemplates('')
-  }, [])
+  }, [isIPMode, isOPMode])
 
-  // Companies
   useEffect(() => {
-    const loadCompanies = async () => {
-      try {
-        setCompanyLoading(true)
-        const response = await fetch('/api/method/frappe.client.get_list?doctype=Company&fields=["name"]&limit_page_length=999')
-        const resData = await response.json()
-        if (resData?.message && Array.isArray(resData.message)) {
-          setCompanyOptions(resData.message as LinkFieldOption[])
-        }
-      } catch (err) {
-        console.error('Failed to load companies:', err)
-      } finally {
-        setCompanyLoading(false)
-      }
+    if (isIPMode && activeAdmission && !formData.admission_number) {
+      setFormData((prev) => ({ ...prev, admission_number: activeAdmission }))
     }
-    loadCompanies()
-  }, [])
+    if (isOPMode && activeVisit && !formData.patient_visit) {
+      setFormData((prev) => ({ ...prev, patient_visit: activeVisit }))
+    }
+  }, [activeAdmission, activeVisit, isIPMode, isOPMode, formData.admission_number, formData.patient_visit])
 
   // Load branches
   useEffect(() => {
@@ -265,6 +263,23 @@ export const CreateSessionScheduleModal = ({
 
     return () => clearTimeout(timeoutId)
   }, [admissionQuery, admissionOpen])
+
+  // Load patient visits (OP)
+  useEffect(() => {
+    if (!visitOpen || !isOPMode) return
+
+    const timeoutId = setTimeout(async () => {
+      try {
+        const visits = await fetchPatientVisits(selectedPatient || undefined, visitQuery || undefined)
+        setVisitOptions(visits.slice(0, 30))
+      } catch (err) {
+        console.error('Failed to load patient visits:', err)
+        setVisitOptions([])
+      }
+    }, visitQuery.trim() === '' ? 0 : 300)
+
+    return () => clearTimeout(timeoutId)
+  }, [visitQuery, visitOpen, isOPMode, selectedPatient])
 
   // Load doctors - search as user types
   const loadDoctors = (query: string) => {
@@ -311,6 +326,16 @@ export const CreateSessionScheduleModal = ({
       return
     }
 
+    if (isIPMode && !formData.admission_number) {
+      setError('Admission number is required in IP mode.')
+      return
+    }
+
+    if (isOPMode && !formData.patient_visit) {
+      setError('Patient visit is required in OP mode.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
@@ -319,12 +344,12 @@ export const CreateSessionScheduleModal = ({
         date: formData.date,
         session_type: formData.session_type,
         session_name: formData.session_name || undefined,
-        company: formData.company || undefined,
         doctor: formData.doctor || undefined,
         cost_center: formData.cost_center || undefined,
         from_time: formData.from_time || undefined,
         to_time: formData.to_time || undefined,
-        admission_number: formData.admission_number || undefined,
+        admission_number: isIPMode ? (formData.admission_number || undefined) : undefined,
+        patient_visit: isOPMode ? (formData.patient_visit || undefined) : undefined,
         amount: formData.amount !== '' ? Number(formData.amount) : undefined,
       }
 
@@ -379,44 +404,95 @@ export const CreateSessionScheduleModal = ({
             />
           </div>
 
-          {/* Admission Number */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Admission Number
-            </label>
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search admission..."
-                value={formData.admission_number}
-                onChange={(e) => {
-                  handleChange('admission_number', e.target.value)
-                  setAdmissionQuery(e.target.value)
-                  setAdmissionOpen(true)
-                }}
-                onFocus={() => setAdmissionOpen(true)}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-              {admissionOpen && admissionOptions.length > 0 && (
-                <div className="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded-md shadow-lg mt-1 z-20 max-h-52 overflow-auto">
-                  {admissionOptions.map((admission) => (
-                    <button
-                      key={admission.name}
-                      type="button"
-                      onClick={() => {
-                        handleChange('admission_number', admission.name)
-                        setAdmissionOpen(false)
-                      }}
-                      className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm border-b last:border-b-0"
-                    >
-                      <div className="font-medium">{admission.name}</div>
-                      <div className="text-xs text-slate-500">{admission.patient_name}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
+          {/* Care context: IP admission or OP patient visit */}
+          {isIPMode ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Admission Number <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search admission..."
+                  value={formData.admission_number}
+                  onChange={(e) => {
+                    handleChange('admission_number', e.target.value)
+                    setAdmissionQuery(e.target.value)
+                    setAdmissionOpen(true)
+                  }}
+                  onFocus={() => setAdmissionOpen(true)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {admissionOpen && admissionOptions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded-md shadow-lg mt-1 z-20 max-h-52 overflow-auto">
+                    {admissionOptions.map((admission) => (
+                      <button
+                        key={admission.name}
+                        type="button"
+                        onClick={() => {
+                          handleChange('admission_number', admission.name)
+                          setAdmissionOpen(false)
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm border-b last:border-b-0"
+                      >
+                        <div className="font-medium">{admission.name}</div>
+                        <div className="text-xs text-slate-500">{admission.patient_name}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
+          ) : isOPMode ? (
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">
+                Patient Visit <span className="text-red-500">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder={selectedPatient ? 'Search patient visit...' : 'Select a patient first, or use the active visit'}
+                  value={formData.patient_visit}
+                  onChange={(e) => {
+                    handleChange('patient_visit', e.target.value)
+                    setVisitQuery(e.target.value)
+                    setVisitOpen(true)
+                  }}
+                  onFocus={() => setVisitOpen(true)}
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+                {visitOpen && visitOptions.length > 0 && (
+                  <div className="absolute top-full left-0 right-0 bg-white border border-slate-300 rounded-md shadow-lg mt-1 z-20 max-h-52 overflow-auto">
+                    {visitOptions.map((visit) => (
+                      <button
+                        key={visit.name}
+                        type="button"
+                        onClick={() => {
+                          handleChange('patient_visit', visit.name)
+                          setVisitOpen(false)
+                        }}
+                        className="w-full text-left px-3 py-2 hover:bg-slate-100 text-sm border-b last:border-b-0"
+                      >
+                        <div className="font-medium">{visit.name}</div>
+                        {visit.label ? (
+                          <div className="text-xs text-slate-500">{visit.label}</div>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {!formData.patient_visit && activeVisit ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Active visit from header: {activeVisit}
+                </p>
+              ) : null}
+            </div>
+          ) : (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              Select IP or OP mode in the header to link this session to an admission or patient visit.
+            </div>
+          )}
 
           {/* Healthcare Service Template */}
           <div>
@@ -594,26 +670,6 @@ export const CreateSessionScheduleModal = ({
                 </div>
               )}
             />
-          </div>
-
-          {/* Company */}
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Company
-            </label>
-            <select
-              value={formData.company}
-              onChange={(e) => handleChange('company', e.target.value)}
-              disabled={companyLoading}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-            >
-              <option value="">Select company...</option>
-              {companyOptions.map((company) => (
-                <option key={company.name} value={company.name}>
-                  {company.name}
-                </option>
-              ))}
-            </select>
           </div>
 
           {/* Actions */}

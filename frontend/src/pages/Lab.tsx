@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History } from 'lucide-react'
+import { FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History, Clock } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
@@ -723,12 +723,29 @@ import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD TH
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
-type LabTab = 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history'
+type LabTab = 'pending-lab-tests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history'
+
+const VALID_LAB_TABS: LabTab[] = [
+  'pending-lab-tests',
+  'lab-tests',
+  'sample-collection',
+  'lab-templates',
+  'lab-history',
+  'medical-history',
+  'warnings',
+]
 
 const NAV_CARDS = [
   {
+    id: 'pending-lab-tests' as LabTab,
+    title: 'Pending Result',
+    icon: Clock,
+    color: 'bg-orange-50 text-orange-700 border-orange-200',
+    iconColor: 'text-orange-600',
+  },
+  {
     id: 'lab-tests' as LabTab,
-    title: 'Lab Tests & Results',
+    title: 'Tests & Results',
     icon: FlaskConical,
     color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     iconColor: 'text-emerald-600',
@@ -742,14 +759,14 @@ const NAV_CARDS = [
   },
   {
     id: 'lab-templates' as LabTab,
-    title: 'Lab Test Templates',
+    title: 'Templates',
     icon: FileCode,
     color: 'bg-purple-50 text-purple-700 border-purple-200',
     iconColor: 'text-purple-600',
   },
   {
     id: 'lab-history' as LabTab,
-    title: 'Lab History',
+    title: 'History',
     icon: History,
     color: 'bg-teal-50 text-teal-700 border-teal-200',
     iconColor: 'text-teal-600',
@@ -786,7 +803,9 @@ export const LabPage = () => {
 
   const tabParam = searchParams.get('tab')
   const tabFromUrl: LabTab =
-    !tabParam || tabParam === 'service-requests' ? 'lab-tests' : (tabParam as LabTab)
+    tabParam && VALID_LAB_TABS.includes(tabParam as LabTab)
+      ? (tabParam as LabTab)
+      : 'pending-lab-tests'
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
@@ -1121,7 +1140,7 @@ export const LabPage = () => {
   const resolvedTab = activeTab
   const activeCard =
     labNavCards.find((c) => c.id === resolvedTab) ??
-    labNavCards.find((c) => c.id === 'lab-tests') ??
+    labNavCards.find((c) => c.id === 'pending-lab-tests') ??
     labNavCards[0]
   const needsPatient = resolvedTab === 'medical-history' || resolvedTab === 'warnings' || resolvedTab === 'lab-history' // ADD lab-history
 
@@ -1132,7 +1151,7 @@ export const LabPage = () => {
       <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
 
         {/* Navigation cards */}
-        <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-1.5">
           {labNavCards.map((card) => {
             const Icon = card.icon
             const isActive = resolvedTab === card.id
@@ -1141,16 +1160,16 @@ export const LabPage = () => {
                 key={card.id}
                 type="button"
                 onClick={() => handleTabChange(card.id)}
-                className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 px-2 py-3 text-center transition-all hover:shadow-md ${
+                className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-center transition-all hover:shadow-sm ${
                   isActive
                     ? `${card.color} shadow-sm`
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <div className={`rounded-lg p-2.5 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
-                  <Icon className={`h-5 w-5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
+                <div className={`rounded-md p-1 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
+                  <Icon className={`h-3.5 w-3.5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
                 </div>
-                <p className={`text-xs font-semibold leading-tight sm:text-sm ${isActive ? '' : 'text-slate-800'}`}>
+                <p className={`text-[10px] font-medium leading-tight sm:text-[11px] ${isActive ? '' : 'text-slate-800'}`}>
                   {card.title}
                 </p>
               </button>
@@ -1160,7 +1179,7 @@ export const LabPage = () => {
 
         {/* Active section */}
         <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          {resolvedTab !== 'lab-tests' && (
+          {resolvedTab !== 'lab-tests' && resolvedTab !== 'pending-lab-tests' && (
           <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
             <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
             {resolvedTab === 'lab-templates' && (
@@ -1177,6 +1196,19 @@ export const LabPage = () => {
           )}
 
           <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
+            {resolvedTab === 'pending-lab-tests' && (
+              <LabTestList
+                patient={selectedPatient}
+                key={labTestRefreshKey}
+                onPatientClick={handlePatientSelect}
+                hideAmount={isLabTechnologist}
+                title={activeCard.title}
+                pipelinePending
+                headerExtra={labTestSaveHeader}
+                onAdd={() => setShowLabTestModal(true)}
+                {...batchListProps}
+              />
+            )}
             {resolvedTab === 'lab-tests' && (
               <LabTestList
                 patient={selectedPatient}

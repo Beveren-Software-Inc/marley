@@ -3,6 +3,7 @@ export interface SessionSchedule {
   date?: string
   admission_number?: string
   patient_num?: string
+  patient_visit?: string
   session_type?: string
   session_name?: string
   transaction_status?: string
@@ -21,9 +22,9 @@ export interface SessionSchedule {
 export interface CreateSessionScheduleData {
   date: string
   admission_number?: string
+  patient_visit?: string
   session_type: string
   session_name?: string
-  company?: string
   doctor?: string
   cost_center?: string
   from_time?: string
@@ -108,10 +109,12 @@ export interface HealthcareServiceTemplateOption {
 export async function getHealthcareServiceTemplates(
   search?: string,
   limit: number = 100,
+  patientCareType?: 'OP' | 'IP',
 ): Promise<HealthcareServiceTemplateOption[]> {
   const params = new URLSearchParams()
   params.set('limit', String(limit))
   if (search?.trim()) params.set('search', search.trim())
+  if (patientCareType) params.set('patient_care_type', patientCareType)
 
   const response = await fetch(
     `/api/method/healthcare.api.ip_service.get_ip_service_types?${params.toString()}`,

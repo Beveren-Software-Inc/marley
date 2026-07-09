@@ -62,6 +62,7 @@ import { ServiceOrdersList } from './ServiceOrdersList'
 import { ServiceInvoicesList } from './ServiceInvoicesList'
 import { PaymentModal } from './PaymentModal'
 import { StandalonePaymentModal } from './StandalonePaymentModal'
+import { PatientStatementOfAccountModal } from './PatientStatementOfAccountModal'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
@@ -164,6 +165,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   // Modal states
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showStandalonePaymentModal, setShowStandalonePaymentModal] = useState(false)
+  const [showStatementOfAccountModal, setShowStatementOfAccountModal] = useState(false)
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<{
     name: string
     customer_name: string
@@ -818,6 +820,16 @@ const handleMakePayment = async (
           }}
         />
       )}
+
+      {showStatementOfAccountModal && effectivePatient && (
+        <PatientStatementOfAccountModal
+          patient={effectivePatient}
+          patientName={payments[0]?.party_name}
+          fromDate={fromDate || undefined}
+          toDate={toDate || undefined}
+          onClose={() => setShowStatementOfAccountModal(false)}
+        />
+      )}
     </>
   )
 
@@ -1012,6 +1024,17 @@ const handleMakePayment = async (
               </button>
               <button type="button" onClick={printPayments} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><Printer className="w-3 h-3" /> PDF</button>
               <button type="button" onClick={exportPaymentsCsv} className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs"><FileDown className="w-3 h-3" /> Excel</button>
+              {effectivePatient && (
+                <button
+                  type="button"
+                  onClick={() => setShowStatementOfAccountModal(true)}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50"
+                  title="Customer statement of account for this patient"
+                >
+                  <FileIcon className="w-3 h-3" />
+                  Statement
+                </button>
+              )}
             </div>
           </div>
           <div className="overflow-x-auto">

@@ -627,6 +627,55 @@ export async function fetchPaymentSummary(
   return data.message || { payment_count: 0, total_paid: 0, advance_amount: 0, modes: [] }
 }
 
+export interface PatientStatementEntry {
+  posting_date?: string | null
+  account?: string
+  debit?: number
+  credit?: number
+  balance?: number
+  voucher_type?: string
+  voucher_no?: string
+  against_voucher?: string
+  remarks?: string
+  is_section_row?: boolean
+}
+
+export interface PatientStatementOfAccount {
+  patient: string
+  patient_name?: string
+  customer: string
+  customer_name?: string
+  company: string
+  from_date: string
+  to_date: string
+  currency?: string
+  closing_balance?: number
+  entries: PatientStatementEntry[]
+}
+
+export async function fetchPatientStatementOfAccount(opts: {
+  patient: string
+  fromDate?: string
+  toDate?: string
+  company?: string
+}): Promise<PatientStatementOfAccount> {
+  const params = new URLSearchParams()
+  params.append('patient', opts.patient)
+  if (opts.fromDate) params.append('from_date', opts.fromDate)
+  if (opts.toDate) params.append('to_date', opts.toDate)
+  if (opts.company) params.append('company', opts.company)
+  const response = await fetch(
+    `/api/method/healthcare.api.billing.get_patient_statement_of_account?${params.toString()}`
+  )
+  const data = await response.json()
+  if (data?.exc_type || !response.ok) {
+    throw new Error(
+      typeof data?.message === 'string' ? data.message : 'Failed to load statement of account'
+    )
+  }
+  return data.message as PatientStatementOfAccount
+}
+
 
 // Add to services/serviceOrders.ts
 

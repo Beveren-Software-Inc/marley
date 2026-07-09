@@ -5,9 +5,11 @@ import { StockLedgerTab } from './StockLedgerTab'
 import { MaterialRequestTab } from './MaterialRequestTab'
 import { StockReconciliationTab } from './StockReconciliationTab'
 import { MaterialReceiptTab } from './MaterialReceiptTab'
+import { StockTransferTab } from './StockTransferTab'
 import { CreateMaterialRequestModal } from './CreateMaterialRequest'
 import { CreateStockReconciliationModal } from './CreateStockReconciliation'
 import { CreateMaterialReceiptModal } from './CreateMaterialReceipt'
+import { CreateStockTransferModal } from './CreateStockTransfer'
 import { getAllCostCenters } from '../../services/nursingInventory'
 import {
   MiniWarehouseInventoryProvider,
@@ -21,6 +23,7 @@ type InventoryTab =
   | 'material-request'
   | 'stock-reconciliation'
   | 'material-receipt'
+  | 'stock-transfer'
 
 interface CardDef {
   id: InventoryTab
@@ -65,11 +68,13 @@ function NursingInventoryDashboardInner() {
   const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false)
   const [showStockReconciliationModal, setShowStockReconciliationModal] = useState(false)
   const [showMaterialReceiptModal, setShowMaterialReceiptModal] = useState(false)
+  const [showStockTransferModal, setShowStockTransferModal] = useState(false)
   
   // Refresh keys
   const [materialRequestRefreshKey, setMaterialRequestRefreshKey] = useState(0)
   const [stockReconciliationRefreshKey, setStockReconciliationRefreshKey] = useState(0)
   const [materialReceiptRefreshKey, setMaterialReceiptRefreshKey] = useState(0)
+  const [stockTransferRefreshKey, setStockTransferRefreshKey] = useState(0)
 
   // Load all branches for users with full access
   useEffect(() => {
@@ -128,6 +133,14 @@ function NursingInventoryDashboardInner() {
       dot: 'bg-purple-500',
       onAdd: () => setShowMaterialReceiptModal(true)
     },
+    { 
+      id: 'stock-transfer', 
+      title: 'Stock Transfer', 
+      desc: 'Move stock to another warehouse', 
+      color: 'bg-rose-50 text-rose-700 border-rose-200', 
+      dot: 'bg-rose-500',
+      onAdd: () => setShowStockTransferModal(true)
+    },
   ]
 
   const activeCard = CARDS.find(c => c.id === activeTab)!
@@ -142,6 +155,8 @@ function NursingInventoryDashboardInner() {
         return <StockReconciliationTab onSuccess={() => setStockReconciliationRefreshKey(prev => prev + 1)} refreshKey={stockReconciliationRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       case 'material-receipt':
         return <MaterialReceiptTab onSuccess={() => setMaterialReceiptRefreshKey(prev => prev + 1)} refreshKey={materialReceiptRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
+      case 'stock-transfer':
+        return <StockTransferTab onSuccess={() => setStockTransferRefreshKey(prev => prev + 1)} refreshKey={stockTransferRefreshKey} costCenter={effectiveCostCenter} isFullAccess={isFullAccess} />
       default:
         return null
     }
@@ -205,8 +220,8 @@ function NursingInventoryDashboardInner() {
       {/* Cost Center Selector for Full Access Users */}
       {renderCostCenterSelector()}
 
-      {/* ── Nav cards (same style as ECT Dashboard) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
+      {/* ── Nav cards ── */}
+      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-5 gap-1.5">
         {CARDS.map(card => {
           const isActive = activeTab === card.id
           return (
@@ -214,20 +229,14 @@ function NursingInventoryDashboardInner() {
               <button
                 type="button"
                 onClick={() => setActiveTab(card.id)}
-                className={`w-full flex flex-col items-start gap-1.5 rounded-xl border-2 px-4 py-3 text-left transition-all hover:shadow-md ${
+                className={`w-full flex flex-col items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-center transition-all hover:shadow-sm ${
                   isActive 
                     ? `${card.color} shadow-sm` 
                     : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
                 }`}
               >
-                <div className="flex items-center justify-between w-full">
-                  <span className={`w-2.5 h-2.5 rounded-full ${isActive ? card.dot : 'bg-slate-300'}`} />
-                  {card.onAdd && isActive && (
-                    <div className="w-6 h-6" />
-                  )}
-                </div>
-                <span className="text-sm font-semibold leading-tight">{card.title}</span>
-                <span className="text-xs text-slate-500 leading-tight">{card.desc}</span>
+                <span className={`w-2 h-2 rounded-full ${isActive ? card.dot : 'bg-slate-300'}`} />
+                <span className="text-[10px] font-medium leading-tight sm:text-[11px]">{card.title}</span>
               </button>
               {card.onAdd && isActive && (
                 <button
@@ -235,7 +244,7 @@ function NursingInventoryDashboardInner() {
                     e.stopPropagation()
                     card.onAdd?.()
                   }}
-                  className="absolute top-3 right-3 w-6 h-6 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
+                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-white/80 hover:bg-white text-slate-700 flex items-center justify-center text-xs font-bold transition-colors shadow-sm"
                   title={`Add ${card.title}`}
                 >+</button>
               )}
@@ -244,20 +253,20 @@ function NursingInventoryDashboardInner() {
         })}
       </div>
 
-      {/* ── Content panel (same style as ECT Dashboard) ── */}
+      {/* ── Content panel ── */}
       <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-        <div className={`flex items-center justify-between px-4 py-3 border-b border-slate-100 ${activeCard.color} border-0`}>
-          <div className="flex items-center gap-2">
-            <span className={`w-2.5 h-2.5 rounded-full ${activeCard.dot}`} />
-            <div>
-              <p className="text-sm font-semibold">{activeCard.title}</p>
-              <p className="text-xs opacity-75 mt-0.5">{activeCard.desc}</p>
+        <div className={`flex items-center justify-between px-3 py-2 border-b border-slate-100 ${activeCard.color} border-0`}>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className={`w-2 h-2 rounded-full shrink-0 ${activeCard.dot}`} />
+            <div className="min-w-0">
+              <p className="text-xs font-semibold truncate">{activeCard.title}</p>
+              <p className="text-[10px] opacity-75 mt-0.5 truncate hidden sm:block">{activeCard.desc}</p>
             </div>
           </div>
           {activeCard.onAdd && (
             <button
               onClick={activeCard.onAdd}
-              className="w-7 h-7 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
+              className="w-6 h-6 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-xs font-bold transition-colors shrink-0"
               title={`Add ${activeCard.title}`}
             >+</button>
           )}
@@ -298,6 +307,18 @@ function NursingInventoryDashboardInner() {
           onSuccess={() => {
             setMaterialReceiptRefreshKey(prev => prev + 1)
             setShowMaterialReceiptModal(false)
+          }}
+          costCenter={effectiveCostCenter}
+          isFullAccess={isFullAccess}
+        />
+      )}
+
+      {showStockTransferModal && (
+        <CreateStockTransferModal
+          onClose={() => setShowStockTransferModal(false)}
+          onSuccess={() => {
+            setStockTransferRefreshKey(prev => prev + 1)
+            setShowStockTransferModal(false)
           }}
           costCenter={effectiveCostCenter}
           isFullAccess={isFullAccess}

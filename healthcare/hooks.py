@@ -115,6 +115,7 @@ fixtures = [
                    "Item-custom_max_dose_per_single_dose",
                    "Item-custom_high_alert",
                    "Item-custom_drug_category",
+                   "Sales Order-custom_is_pharmacy_give_out",
 
                 ),
             ]
@@ -147,9 +148,9 @@ fixtures = [
     {
 		"doctype":"Patient Source"
 	},
-    {
-		"doctype":"Patient Visit Type"
-	},
+    # {
+	# 	"doctype":"Patient Visit Type"
+	# },
     {
 		"doctype":"Time Out Procedure Template"
 	},

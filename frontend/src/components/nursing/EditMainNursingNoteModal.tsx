@@ -6,9 +6,15 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { updateMainNursingNote, type MainNursingNoteRow } from '../../services/mainNursingNote'
-import { appendNursingNoteLine, formatNursingNoteTimestamp } from '../../constants/nursingShift'
+import {
+  appendNursingNoteLine,
+  formatNursingNoteTimestamp,
+  isMainNursingNoteEditable,
+  MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE,
+} from '../../constants/nursingShift'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
+import { toast } from '../../hooks/useToast'
 
 interface EditMainNursingNoteModalProps {
   row: MainNursingNoteRow
@@ -23,6 +29,13 @@ export const EditMainNursingNoteModal = ({
 }: EditMainNursingNoteModalProps) => {
   useRejectEditModeWhenLocked(true, onClose)
   const blockIfEditingLocked = useBlockIfEditingLocked()
+  const editWindowOpen = isMainNursingNoteEditable(row.modified || row.creation)
+
+  useEffect(() => {
+    if (editWindowOpen) return
+    toast.error(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
+    onClose()
+  }, [editWindowOpen, onClose])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [existingNotes, setExistingNotes] = useState(row.nursing_notes || '')
@@ -55,6 +68,10 @@ export const EditMainNursingNoteModal = ({
     }
     if (!isDirty) {
       setError('No changes to save')
+      return
+    }
+    if (!editWindowOpen) {
+      setError(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
       return
     }
     blockIfEditingLocked()

@@ -17,7 +17,7 @@ import {
   type MedicationOrderRow,
 } from '../../services/prescriptions'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
-import { fetchPharmacyGiveOutWarehouses } from '../../services/pharmacyGiveOut'
+import { fetchPharmacyGiveOutWarehouses, fetchItemRate } from '../../services/pharmacyGiveOut'
 import {
   fetchMedicineGivenDispensingLots,
   fetchMedicineGivenStockOptions,
@@ -28,6 +28,7 @@ import {
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
@@ -117,6 +118,26 @@ function dispensingLotToOptions(lots: MedicineGivenDispensingLotOption[]): LinkF
   }))
 }
 
+function pickFifoBatch(batches: MedicineGivenBatchOption[]): MedicineGivenBatchOption | undefined {
+  if (!batches.length) return undefined
+  const sorted = [...batches].sort((a, b) => {
+    const expA = a.expiry_date || '9999-99-99'
+    const expB = b.expiry_date || '9999-99-99'
+    if (expA !== expB) return expA.localeCompare(expB)
+    const mfgA = a.manufacturing_date || '9999-99-99'
+    const mfgB = b.manufacturing_date || '9999-99-99'
+    if (mfgA !== mfgB) return mfgA.localeCompare(mfgB)
+    return (a.batch_id || a.batch_name || '').localeCompare(b.batch_id || b.batch_name || '')
+  })
+  return sorted[0]
+}
+
+function pickFirstDispensingLot(
+  lots: MedicineGivenDispensingLotOption[]
+): MedicineGivenDispensingLotOption | undefined {
+  return lots[0]
+}
+
 function findOptionLabel(options: LinkFieldOption[], value: string): string {
   const match = options.find((o) => o.name === value)
   return match?.label || value
@@ -133,6 +154,12 @@ function todayStr() {
 function currentTimeStr() {
   const now = new Date()
   return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:00`
+}
+
+function lineAmount(row: Pick<GiveOutRow, 'rate' | 'quantity'>): number {
+  const qty = Number(row.quantity) || 0
+  const rate = Number(row.rate) || 0
+  return qty * rate
 }
 
 function emptyRow(startDate: string): GiveOutRow {
@@ -389,6 +416,7 @@ export function NursingPharmacyGiveOutModal({
 }: NursingPharmacyGiveOutModalProps) {
   const { activeAdmission, activeVisit, mode, selectedPatient: contextPatient } = useCareContext()
   const blockIfClosed = useBlockIfActiveCareClosed()
+  const formatCurrency = useFormatMoney()
   const patient = initialPatient || contextPatient || ''
   const startDate = todayStr()
 
@@ -414,6 +442,7 @@ export function NursingPharmacyGiveOutModal({
   const [selectedWarehouse, setSelectedWarehouse] = useState('')
   const [miniWarehouse, setMiniWarehouse] = useState<string | undefined>()
   const [loadingWarehouses, setLoadingWarehouses] = useState(false)
+  const [displayBatchAndLot, setDisplayBatchAndLot] = useState(false)
 
   useEffect(() => {
     fetchStandardUoms()
@@ -463,6 +492,7 @@ export function NursingPharmacyGiveOutModal({
           if (cancelled) return
           setGiveOutWarehouses(whOpts.warehouses)
           setMiniWarehouse(whOpts.mini_warehouse)
+          setDisplayBatchAndLot(Boolean(whOpts.display_batch_and_lot_on_pharmacy_giveout))
           setSelectedWarehouse(whOpts.default_warehouse || whOpts.warehouses[0]?.name || '')
           if (whOpts.warehouses.length === 0) {
             setError(
@@ -506,10 +536,18 @@ export function NursingPharmacyGiveOutModal({
         }
 
         const mapped = activeEntries.map((e) => mapEntryToRow(e, startDate))
-        setRows(mapped)
+        const withRates = await Promise.all(
+          mapped.map(async (r) => ({
+            ...r,
+            rate: r.drug
+              ? await fetchItemRate(r.drug, r.uom).catch(() => 0)
+              : undefined,
+          }))
+        )
+        setRows(withRates)
         const queries: Record<number, string> = {}
         const uomLabels: Record<number, string> = {}
-        mapped.forEach((r, i) => {
+        withRates.forEach((r, i) => {
           queries[i] = r.drug_name || r.drug
           uomLabels[i] = r.uom || ''
         })
@@ -544,6 +582,44 @@ export function NursingPharmacyGiveOutModal({
 
   const updateRow = (index: number, patch: Partial<GiveOutRow>) => {
     setRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  const loadRowRate = async (index: number, drug: string, uom?: string) => {
+    const drugCode = drug.trim()
+    if (!drugCode) return
+    setRows((prev) => prev.map((r, i) => (i === index ? { ...r, rate: undefined } : r)))
+    try {
+      const rate = await fetchItemRate(drugCode, uom)
+      setRows((prev) =>
+        prev.map((r, i) => (i === index && r.drug === drugCode ? { ...r, rate } : r))
+      )
+    } catch {
+      setRows((prev) =>
+        prev.map((r, i) => (i === index && r.drug === drugCode ? { ...r, rate: 0 } : r))
+      )
+    }
+  }
+
+  const autoApplyStockSelection = async (
+    index: number,
+    opts: MedicineGivenStockOptions
+  ) => {
+    if (displayBatchAndLot) return
+
+    const fifoBatch = pickFifoBatch(opts.batches || [])
+    if ((opts.has_batch_no || opts.requires_dispensing_lot) && fifoBatch) {
+      const batchValue = fifoBatch.batch_name || fifoBatch.batch_id
+      await handleRowBatchChange(index, batchValue, fifoBatch, { autoMode: true, stockOpts: opts })
+      return
+    }
+
+    if (opts.requires_dispensing_lot) {
+      const lots = opts.dispensing_lots || []
+      const firstLot = pickFirstDispensingLot(lots)
+      if (firstLot) {
+        updateRow(index, { dispensing_lot: firstLot.name })
+      }
+    }
   }
 
   const loadRowStock = async (
@@ -583,6 +659,9 @@ export function NursingPharmacyGiveOutModal({
           loadingDispensingLots: false,
         },
       }))
+      if (!displayBatchAndLot) {
+        await autoApplyStockSelection(index, opts)
+      }
     } catch {
       setRowStock((prev) => ({
         ...prev,
@@ -603,8 +682,8 @@ export function NursingPharmacyGiveOutModal({
         void loadRowStock(index, row.drug, admissionId, selectedWarehouse)
       }
     })
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when warehouse or drugs change
-  }, [admissionId, selectedWarehouse, rows.map((r) => r.drug).join('\0')])
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when warehouse, setting, or drugs change
+  }, [admissionId, selectedWarehouse, displayBatchAndLot, rows.map((r) => r.drug).join('\0')])
 
   const handleWarehouseChange = (warehouse: string) => {
     setSelectedWarehouse(warehouse)
@@ -623,7 +702,8 @@ export function NursingPharmacyGiveOutModal({
   const handleRowBatchChange = async (
     index: number,
     batchValue: string,
-    batchMeta?: MedicineGivenBatchOption
+    batchMeta?: MedicineGivenBatchOption,
+    opts?: { autoMode?: boolean; stockOpts?: MedicineGivenStockOptions }
   ) => {
     const row = rows[index]
     if (!row) return
@@ -634,7 +714,7 @@ export function NursingPharmacyGiveOutModal({
 
     updateRow(index, { batch_no: soBatchNo, dispensing_lot: '' })
 
-    const stock = rowStock[index]?.options
+    const stock = opts?.stockOpts ?? rowStock[index]?.options
     const admission = admissionId
     const drugCode = (row.drug || '').trim()
     if ((!admission && !selectedWarehouse) || !drugCode) {
@@ -695,6 +775,12 @@ export function NursingPharmacyGiveOutModal({
         ...prev,
         [index]: { ...prev[index], dispensingLots: dlRows, loadingDispensingLots: false },
       }))
+      if (opts?.autoMode && !displayBatchAndLot) {
+        const firstLot = pickFirstDispensingLot(dlRows)
+        if (firstLot) {
+          updateRow(index, { batch_no: soBatchNo, dispensing_lot: firstLot.name })
+        }
+      }
     } catch {
       const fallbackPool = stock.dispensing_lots || []
       setRowStock((prev) => ({
@@ -735,6 +821,7 @@ export function NursingPharmacyGiveOutModal({
       uom: stockUom || undefined,
       batch_no: '',
       dispensing_lot: '',
+      rate: undefined,
     })
     setDrugQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
     setBatchQueries((prev) => ({ ...prev, [index]: '' }))
@@ -743,6 +830,7 @@ export function NursingPharmacyGiveOutModal({
       setUomQueries((prev) => ({ ...prev, [index]: stockUom }))
     }
     setDrugOptions((prev) => ({ ...prev, [index]: [] }))
+    void loadRowRate(index, opt.name, stockUom || undefined)
     if (selectedWarehouse) {
       void loadRowStock(index, opt.name, admissionId, selectedWarehouse)
     }
@@ -779,7 +867,7 @@ export function NursingPharmacyGiveOutModal({
       }
       const stockState = rowStock[index]
       const stockOpts = stockState?.options
-      if (stockOpts) {
+      if (displayBatchAndLot && stockOpts) {
         const showBatchPicker = Boolean(
           (stockOpts.has_batch_no || stockOpts.requires_dispensing_lot) &&
             stockOpts.batches.length > 0
@@ -897,6 +985,9 @@ export function NursingPharmacyGiveOutModal({
                       <p className="text-xs text-emerald-800/80 mt-1.5">
                         Stock, batches, and dispensing lots are loaded from{' '}
                         <span className="font-medium">{selectedWarehouse || 'the selected warehouse'}</span>.
+                        {displayBatchAndLot
+                          ? ' Batch and dispensing lot pickers are enabled in Healthcare Settings — select them for each medicine below.'
+                          : ' Batch and dispensing lot are auto-selected (FIFO) so you can submit without picking them.'}
                         {miniWarehouse && selectedWarehouse === miniWarehouse
                           ? ' Auto-selected your ward mini warehouse.'
                           : miniWarehouse
@@ -922,9 +1013,10 @@ export function NursingPharmacyGiveOutModal({
                     const stockState = rowStock[index]
                     const stockOpts = stockState?.options
                     const showStockFields = Boolean(
-                      stockState?.loading ||
-                        stockOpts?.has_batch_no ||
-                        stockOpts?.requires_dispensing_lot
+                      displayBatchAndLot &&
+                        (stockState?.loading ||
+                          stockOpts?.has_batch_no ||
+                          stockOpts?.requires_dispensing_lot)
                     )
                     const batchOptionList = batchToOptions(stockOpts?.batches || [])
                     const batchSearch = batchQueries[index] ?? ''
@@ -1033,14 +1125,42 @@ export function NursingPharmacyGiveOutModal({
                                 if (uomOptions.length === 0) void searchUoms('')
                               }}
                               onSelect={(opt) => {
-                                updateRow(index, { uom: opt.name })
+                                const nextUom = opt.name
+                                updateRow(index, { uom: nextUom })
                                 setUomQueries((prev) => ({ ...prev, [index]: opt.label || opt.name }))
+                                if (row.drug) {
+                                  void loadRowRate(index, row.drug, nextUom)
+                                }
                               }}
                               onClear={() => {
                                 updateRow(index, { uom: '' })
                                 setUomQueries((prev) => ({ ...prev, [index]: '' }))
+                                if (row.drug) {
+                                  void loadRowRate(index, row.drug)
+                                }
                               }}
                             />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Rate</label>
+                            <div className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                              {row.drug
+                                ? row.rate != null
+                                  ? formatCurrency(row.rate)
+                                  : '…'
+                                : '—'}
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Amount</label>
+                            <div className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                              {row.drug && row.rate != null
+                                ? formatCurrency(lineAmount(row))
+                                : '—'}
+                            </div>
                           </div>
                         </div>
 
@@ -1166,6 +1286,21 @@ export function NursingPharmacyGiveOutModal({
                     )
                   })}
                 </div>
+
+                {rows.some((r) => r.drug?.trim()) ? (
+                  <div className="flex justify-end border-t border-slate-200 pt-3">
+                    <div className="text-right">
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
+                      <p className="text-base font-semibold text-slate-900">
+                        {formatCurrency(
+                          rows
+                            .filter((r) => r.drug?.trim())
+                            .reduce((sum, r) => sum + lineAmount(r), 0)
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <button
                   type="button"

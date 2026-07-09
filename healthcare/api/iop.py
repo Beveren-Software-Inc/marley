@@ -268,20 +268,27 @@ def _linked_patient_visits_by_enrollment(enrollment_names):
 	return linked
 
 
-def _healthcare_service_template_rates(template_names):
+def _healthcare_service_template_rates(template_names, patient_care_type="OP"):
 	"""Map Healthcare Service Template name -> service_name, item_code, rate."""
 	if not template_names:
 		return {}
+	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+		get_healthcare_service_template_rate,
+	)
+
 	rates = {}
 	for row in frappe.get_all(
 		"Healthcare Service Template",
 		filters={"name": ["in", list(set(template_names))]},
-		fields=["name", "service_name", "item_code", "rate"],
+		fields=["name", "service_name", "item_code", "rate", "op_rate"],
 	):
 		rates[row.name] = {
 			"service_name": row.service_name or row.name,
 			"item_code": row.item_code,
-			"rate": flt(row.get("rate")),
+			"rate": get_healthcare_service_template_rate(
+				template_name=row.name,
+				patient_care_type=patient_care_type,
+			),
 		}
 	return rates
 

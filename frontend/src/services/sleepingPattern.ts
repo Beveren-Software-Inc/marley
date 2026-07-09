@@ -42,6 +42,39 @@ export interface CreateSleepingPatternPayload {
   patient?: string
 }
 
+export type UpdateSleepingPatternPayload = {
+  name: string
+  date?: string
+  branch?: string
+  morning_from?: string | null
+  morning_to?: string | null
+  evening_from?: string | null
+  evening_to?: string | null
+  night_from?: string | null
+  night_to?: string | null
+}
+
+/** Convert Frappe datetime to value for datetime-local inputs. */
+export function frappeDateTimeToInput(value?: string | null): string {
+  if (!value) return ''
+  const trimmed = value.trim().replace(' ', 'T')
+  if (trimmed.length >= 16) return trimmed.slice(0, 16)
+  return trimmed
+}
+
+/** Convert datetime-local input value to Frappe datetime string. */
+export function inputDateTimeToFrappe(value: string): string | undefined {
+  if (!value || !value.trim()) return undefined
+  let s = value.trim()
+  if (s.includes('T')) {
+    s = s.replace('T', ' ')
+  }
+  if (s.length === 16) {
+    s = `${s}:00`
+  }
+  return s
+}
+
 export async function fetchSleepingPatterns(
   limit: number = 50,
   offset: number = 0,
@@ -77,5 +110,17 @@ export async function createSleepingPattern(payload: CreateSleepingPatternPayloa
     }
   )
   return result?.name || ''
+}
+
+export async function updateSleepingPattern(
+  payload: UpdateSleepingPatternPayload
+): Promise<SleepingPattern> {
+  return apiRequest<SleepingPattern>(
+    '/api/method/healthcare.api.sleeping_pattern.update_sleeping_pattern',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }
+  )
 }
 

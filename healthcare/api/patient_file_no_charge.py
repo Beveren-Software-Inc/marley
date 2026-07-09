@@ -7,6 +7,9 @@ from frappe import _
 from frappe.utils import flt, nowdate
 
 from healthcare.api.sales_order_cost_center import apply_cost_center_to_sales_order
+from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+	get_healthcare_service_template_rate,
+)
 
 
 def get_file_no_charge_config() -> dict:
@@ -34,7 +37,7 @@ def get_file_no_charge_config() -> dict:
 
 	tpl = frappe.get_doc("Healthcare Service Template", template_name)
 	item_code = (tpl.item_code or "").strip()
-	rate = flt(tpl.rate)
+	rate = get_healthcare_service_template_rate(template_doc=tpl, patient_care_type="OP")
 	item_name = frappe.db.get_value("Item", item_code, "item_name") if item_code else None
 
 	return {

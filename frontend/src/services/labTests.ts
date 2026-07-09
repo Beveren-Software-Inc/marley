@@ -160,7 +160,8 @@ export async function fetchLabTests(
   to_date?: string,
   template?: string,
   practitioner?: string,
-  by_nurse?: boolean
+  by_nurse?: boolean,
+  pipeline_pending?: boolean
 ): Promise<PaginatedLabTests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -168,6 +169,7 @@ export async function fetchLabTests(
   if (patient) params.append('patient', patient)
   if (status) params.append('status', status)
   if (pending_review) params.append('pending_review', '1')
+  if (pipeline_pending) params.append('pipeline_pending', '1')
   if (is_outsourced !== undefined) params.append('is_outsourced', is_outsourced ? '1' : '0')
   if (from_date) params.append('from_date', from_date)
   if (to_date) params.append('to_date', to_date)

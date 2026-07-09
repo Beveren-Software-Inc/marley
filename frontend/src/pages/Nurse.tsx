@@ -1196,7 +1196,12 @@ export const NursePage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Other Services" onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))} addButtonTitle="Add Service Request">
-            <ServiceRequestList patient={selectedPatient} refreshKey={serviceRequestRefreshKey} onPatientClick={handlePatientSelect} />
+            <ServiceRequestList
+              patient={selectedPatient}
+              refreshKey={serviceRequestRefreshKey}
+              onPatientClick={handlePatientSelect}
+              practitionerFieldLabel="Nurse"
+            />
           </DashboardCard>
         </div>
         {showServiceRequestModal && (
@@ -1311,6 +1316,7 @@ export const NursePage = () => {
               setShowSessionScheduleModal(false)
             }}
             initialAdmission={activeAdmission}
+            initialPatientVisit={activeVisit}
           />
         )}
       </div>

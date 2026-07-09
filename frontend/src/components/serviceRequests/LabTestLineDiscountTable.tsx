@@ -2,7 +2,6 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import type { MultiLabPricingLine } from '../../services/serviceRequests'
 import {
   defaultLineDiscount,
-  type DiscountType,
   type LabLineDiscount,
 } from '../../utils/labTestDiscounts'
 import { linkComboboxInputClass as inputClass } from '../ui/linkComboboxStyles'
@@ -31,7 +30,6 @@ export function LabTestLineDiscountTable({
           <tr className="border-b border-slate-200 bg-slate-50/80 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
             <th className="px-3 py-2.5">Test</th>
             <th className="px-3 py-2.5 text-right">Amount</th>
-            <th className="px-3 py-2.5">Discount type</th>
             <th className="px-3 py-2.5 text-right">Discount</th>
             <th className="px-3 py-2.5 text-right">Net</th>
           </tr>
@@ -52,34 +50,10 @@ export function LabTestLineDiscountTable({
                 <td className="px-3 py-2.5 text-right tabular-nums text-slate-700">
                   {formatMoney(line.amount)}
                 </td>
-                <td className="px-3 py-2.5">
-                  {readOnly ? (
-                    <span className="text-slate-600">{d.discount_type}</span>
-                  ) : (
-                    <select
-                      value={d.discount_type}
-                      onChange={(e) =>
-                        onChange(line.template, {
-                          discount_type: e.target.value as DiscountType,
-                          discount_rate: 0,
-                          discount: 0,
-                        })
-                      }
-                      className={`${inputClass} py-1.5 text-xs`}
-                    >
-                      <option value="Percentage">Percentage (%)</option>
-                      <option value="Amount">Fixed amount</option>
-                    </select>
-                  )}
-                </td>
                 <td className="px-3 py-2.5 text-right">
                   {readOnly ? (
-                    <span className="tabular-nums text-slate-600">
-                      {d.discount_type === 'Amount'
-                        ? formatMoney(d.discount)
-                        : `${d.discount_rate}%`}
-                    </span>
-                  ) : d.discount_type === 'Amount' ? (
+                    <span className="tabular-nums text-slate-600">{formatMoney(d.discount)}</span>
+                  ) : (
                     <input
                       type="number"
                       min={0}
@@ -87,22 +61,9 @@ export function LabTestLineDiscountTable({
                       value={d.discount || ''}
                       onChange={(e) =>
                         onChange(line.template, {
+                          discount_type: 'Amount',
                           discount: Math.max(0, Number(e.target.value) || 0),
-                        })
-                      }
-                      className={`${inputClass} py-1.5 text-right text-xs tabular-nums`}
-                      placeholder="0"
-                    />
-                  ) : (
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={0.5}
-                      value={d.discount_rate || ''}
-                      onChange={(e) =>
-                        onChange(line.template, {
-                          discount_rate: Math.min(100, Math.max(0, Number(e.target.value) || 0)),
+                          discount_rate: 0,
                         })
                       }
                       className={`${inputClass} py-1.5 text-right text-xs tabular-nums`}

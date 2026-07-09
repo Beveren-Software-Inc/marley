@@ -3,8 +3,32 @@
 
 import frappe
 from frappe.model.document import Document
-from frappe.utils import nowdate
+from frappe.utils import flt, nowdate
 from frappe import _
+
+
+def get_healthcare_service_template_rate(
+	template_name=None,
+	template_doc=None,
+	patient_care_type=None,
+) -> float:
+	"""Resolve billable rate for a Healthcare Service Template.
+
+	OP (outpatient / patient visit): use ``op_rate`` when set and > 0, else ``rate``.
+	IP (inpatient): always use ``rate``.
+	"""
+	if template_doc is None:
+		if not template_name:
+			return 0.0
+		template_doc = frappe.get_doc("Healthcare Service Template", template_name)
+
+	ip_rate = flt(template_doc.rate)
+	if (patient_care_type or "").strip().upper() == "OP":
+		op_rate = flt(getattr(template_doc, "op_rate", None))
+		if op_rate > 0:
+			return op_rate
+	return ip_rate
+
 
 class HealthcareServiceTemplate(Document):
 	"""Template for IP/hospital services (e.g. Transport with Nurse, Transport Only).

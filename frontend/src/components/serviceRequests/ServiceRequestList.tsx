@@ -36,6 +36,10 @@ import {
   dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
+import {
+  HEALTHCARE_SERVICE_TEMPLATE,
+  serviceRequestPractitionerLabel,
+} from '../../utils/serviceRequestLabels'
 
 interface ServiceRequestListProps {
   patient?: string
@@ -50,6 +54,8 @@ interface ServiceRequestListProps {
   subtitle?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** Column / meta label for practitioner (Other Services uses Nurse). */
+  practitionerFieldLabel?: string
 }
 
 const FilterToggleButton = ({
@@ -137,11 +143,20 @@ export const ServiceRequestList = ({
   onCreateIPService,
   isNurseContext = false,
   onPatientClick,
-  title = 'Service Requests',
+  title,
   subtitle,
   onAdd,
-  addButtonTitle = 'New Service Request',
+  addButtonTitle,
+  practitionerFieldLabel,
 }: ServiceRequestListProps) => {
+  const isLabRequestList = template_dt === 'Lab Test Template'
+  const isOtherServicesList = template_dt === HEALTHCARE_SERVICE_TEMPLATE || practitionerFieldLabel === 'Nurse'
+  const practitionerColumnLabel = serviceRequestPractitionerLabel(
+    isOtherServicesList ? HEALTHCARE_SERVICE_TEMPLATE : template_dt,
+    practitionerFieldLabel
+  )
+  const listTitle = title ?? (isLabRequestList ? 'Lab Requests' : 'Service Requests')
+  const listAddTitle = addButtonTitle ?? (isLabRequestList ? 'New Lab Request' : 'New Service Request')
   const formatMoney = useFormatMoney()
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [loading, setLoading] = useState(true)
@@ -481,7 +496,9 @@ export const ServiceRequestList = ({
     return (
       <div className="flex flex-col items-center justify-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
-          <h3 className="text-red-800 font-semibold mb-2">Error Loading Service Requests</h3>
+          <h3 className="text-red-800 font-semibold mb-2">
+            {isLabRequestList ? 'Error Loading Lab Requests' : 'Error Loading Service Requests'}
+          </h3>
           <p className="text-red-700 text-sm mb-2">{error.message}</p>
         </div>
       </div>
@@ -493,7 +510,7 @@ export const ServiceRequestList = ({
       {!inDashboardCard && (
         <div className="mb-3 flex flex-shrink-0 flex-col gap-2">
           <div className="flex items-center justify-between gap-2">
-            <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
+            <h2 className="text-xl font-semibold text-slate-900">{listTitle}</h2>
             <div className="flex shrink-0 items-center gap-2">
               <FilterToggleButton
                 active={Boolean(showFilters)}
@@ -504,7 +521,7 @@ export const ServiceRequestList = ({
                   type="button"
                   onClick={onAdd}
                   className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-primary text-lg font-bold text-white transition-colors hover:bg-primary/90"
-                  title={addButtonTitle}
+                  title={listAddTitle}
                 >
                   +
                 </button>
@@ -647,7 +664,9 @@ export const ServiceRequestList = ({
       {loading && serviceRequests.length === 0 ? (
         <div className="flex items-center justify-center p-8 text-slate-500 text-sm">Loading...</div>
       ) : serviceRequests.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">NO SERVICE REQUESTS FOUND</div>
+        <div className="flex items-center justify-center p-8 text-slate-500 text-sm">
+          {isLabRequestList ? 'NO LAB REQUESTS FOUND' : 'NO SERVICE REQUESTS FOUND'}
+        </div>
       ) : compactClinical ? (
       <table className="w-full text-sm">
         <thead className="bg-slate-50 border-b border-slate-200">
@@ -659,9 +678,10 @@ export const ServiceRequestList = ({
         </thead>
         <tbody className="divide-y divide-slate-100">
           {serviceRequests.map((sr) => {
+            const metaPractitionerLabel = serviceRequestPractitionerLabel(sr.template_dt)
             const metaFields = [
-              ['Service Request', sr.name],
-              ['Practitioner', sr.practitioner_name || sr.practitioner],
+              [isLabRequestList ? 'Lab Request' : 'Service Request', sr.name],
+              [metaPractitionerLabel, sr.practitioner_name || sr.practitioner],
               ['Template type', sr.template_dt],
               ['Price', displayedPrice(sr) != null ? formatMoney(displayedPrice(sr)!) : ''],
             ] as const
@@ -695,7 +715,7 @@ export const ServiceRequestList = ({
         <thead className="bg-slate-50 border-b border-slate-200">
           <tr>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Service Request ID
+              {isLabRequestList ? 'Lab Request ID' : 'Service Request ID'}
             </th>
             {!patient && (
               <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -706,7 +726,7 @@ export const ServiceRequestList = ({
               Test Name
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-              Practitioner
+              {practitionerColumnLabel}
             </th>
             <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
               Status
@@ -959,6 +979,7 @@ export const ServiceRequestList = ({
         <ServiceRequestDetailPanel
           name={detailName}
           onClose={() => setDetailName(null)}
+          practitionerFieldLabel={isOtherServicesList ? 'Nurse' : practitionerFieldLabel}
           onEdit={() => {
             setDetailName(null)
             setEditServiceRequestName(detailName)

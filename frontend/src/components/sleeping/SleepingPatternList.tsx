@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useState } from 'react'
+import { Pencil } from 'lucide-react'
 import { fetchSleepingPatterns, type SleepingPattern } from '../../services/sleepingPattern'
 import { fetchDoctorPractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { SleepingPatternDetailPanel } from './SleepingPatternDetailPanel'
+import { EditSleepingPatternModal } from './EditSleepingPatternModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface SleepingPatternListProps {
   patient?: string
@@ -15,6 +18,8 @@ interface SleepingPatternListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** When false, hides row edit actions. */
+  manageRows?: boolean
 }
 
 const FilterToggleButton = ({
@@ -58,7 +63,9 @@ export const SleepingPatternList = ({
   title = 'Sleeping Pattern',
   onAdd,
   addButtonTitle = 'New Sleeping Pattern',
+  manageRows = true,
 }: SleepingPatternListProps) => {
+  const { guardClinicalEdit } = useCareContext()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -68,6 +75,7 @@ export const SleepingPatternList = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<SleepingPattern | null>(null)
+  const [editRow, setEditRow] = useState<SleepingPattern | null>(null)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -136,6 +144,13 @@ export const SleepingPatternList = ({
     } else {
       setDetailRow(row)
     }
+  }
+
+  const openEdit = (row: SleepingPattern) => {
+    guardClinicalEdit(() => {
+      setEditRow(row)
+      setDetailRow(null)
+    })
   }
 
   const selectedPractitionerLabel =
@@ -274,13 +289,26 @@ export const SleepingPatternList = ({
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{row.user || '—'}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <PrintFormatDropdown
-                        doctype="Sleeping Pattern"
-                        docName={row.name}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                      />
+                      <div className="flex items-center gap-1">
+                        {manageRows ? (
+                          <button
+                            type="button"
+                            onClick={() => openEdit(row)}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                            title="Edit"
+                            aria-label="Edit sleeping pattern"
+                          >
+                            <Pencil className="h-4 w-4" aria-hidden />
+                          </button>
+                        ) : null}
+                        <PrintFormatDropdown
+                          doctype="Sleeping Pattern"
+                          docName={row.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -353,6 +381,18 @@ export const SleepingPatternList = ({
           preview={detailRow}
           onClose={() => setDetailRow(null)}
           onPatientClick={onPatientClick}
+          onEdit={manageRows ? () => openEdit(detailRow) : undefined}
+        />
+      ) : null}
+
+      {editRow ? (
+        <EditSleepingPatternModal
+          row={editRow}
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
+            load()
+          }}
         />
       ) : null}
     </>

@@ -249,6 +249,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/patient',          label: 'Patients',         screens: [],                          prefix: '/patient' },
   { to: '/patient-history',  label: 'Patient History',  screens: [],                          prefix: '/patient-history' },
   { to: '/employee',         label: 'Employee',         screens: [],                          prefix: '/employee' },
+  { to: '/ip-quotation',     label: 'IP Quotation',     screens: [],                          prefix: '/ip-quotation' },
   { to: '/qmps',             label: 'QMPS',             screens: [],                          prefix: '/qmps' },
   { to: '/staff-activity-audit', label: 'Staff Activity Audit', screens: [],                  prefix: '/staff-activity-audit' },
 ]

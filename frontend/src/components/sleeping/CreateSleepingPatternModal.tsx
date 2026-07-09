@@ -4,7 +4,10 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
-import { createSleepingPattern } from '../../services/sleepingPattern'
+import {
+  createSleepingPattern,
+  inputDateTimeToFrappe,
+} from '../../services/sleepingPattern'
 import { toast } from '../../hooks/useToast'
 
 interface CreateSleepingPatternModalProps {
@@ -30,19 +33,6 @@ export const CreateSleepingPatternModal = ({
   const [eveningTo, setEveningTo] = useState('')
   const [nightFrom, setNightFrom] = useState('')
   const [nightTo, setNightTo] = useState('')
-
-  const toFrappeDateTime = (value: string): string | undefined => {
-    if (!value || !value.trim()) return undefined
-    let s = value.trim()
-    // value from datetime-local looks like YYYY-MM-DDTHH:MM
-    if (s.includes('T')) {
-      s = s.replace('T', ' ')
-    }
-    if (s.length === 16) {
-      s = `${s}:00`
-    }
-    return s
-  }
 
   useEffect(() => {
     const loadAdmissions = async () => {
@@ -72,12 +62,12 @@ export const CreateSleepingPatternModal = ({
       await createSleepingPattern({
         admission_no: admissionNo,
         date,
-        morning_from: toFrappeDateTime(morningFrom),
-        morning_to: toFrappeDateTime(morningTo),
-        evening_from: toFrappeDateTime(eveningFrom),
-        evening_to: toFrappeDateTime(eveningTo),
-        night_from: toFrappeDateTime(nightFrom),
-        night_to: toFrappeDateTime(nightTo),
+        morning_from: inputDateTimeToFrappe(morningFrom),
+        morning_to: inputDateTimeToFrappe(morningTo),
+        evening_from: inputDateTimeToFrappe(eveningFrom),
+        evening_to: inputDateTimeToFrappe(eveningTo),
+        night_from: inputDateTimeToFrappe(nightFrom),
+        night_to: inputDateTimeToFrappe(nightTo),
         patient: initialPatient,
       })
       toast.success('Sleeping Pattern created')

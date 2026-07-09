@@ -7,6 +7,7 @@ import {
 import { useCareContext } from '../../providers/CareContextProvider'
 import { createMaterialReceipt, fetchInventoryItems, getWarehousesForCostCenter } from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
+import { InventoryBranchField, useInventoryBranch } from './InventoryBranchField'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Save, Package } from 'lucide-react'
 
@@ -29,10 +30,16 @@ interface ReceiptItem {
 
 type TabId = 'details' | 'items'
 
-export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: CreateMaterialReceiptModalProps) => {
+export const CreateMaterialReceiptModal = ({
+  onClose,
+  onSuccess,
+  costCenter,
+  isFullAccess,
+}: CreateMaterialReceiptModalProps) => {
   const warehouseContext = useMiniWarehouseContext()
-  const { userCostCenter, user } = useCareContext()
-  const effectiveCostCenter = costCenter || userCostCenter
+  const { user } = useCareContext()
+  const { selectedBranch, setSelectedBranch } = useInventoryBranch(costCenter, isFullAccess)
+  const effectiveCostCenter = selectedBranch
   
   const [activeTab, setActiveTab] = useState<TabId>('details')
   const [warehouse, setWarehouse] = useState('')
@@ -222,15 +229,14 @@ export const CreateMaterialReceiptModal = ({ onClose, onSuccess, costCenter }: C
             {activeTab === 'details' && (
               <div className="space-y-5">
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">
-                    Branch <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={effectiveCostCenter}
-                    readOnly
-                    disabled
-                    className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                  <InventoryBranchField
+                    costCenter={costCenter}
+                    isFullAccess={isFullAccess}
+                    value={selectedBranch}
+                    onChange={(branch) => {
+                      setSelectedBranch(branch)
+                      setWarehouse('')
+                    }}
                   />
                 </div>
 

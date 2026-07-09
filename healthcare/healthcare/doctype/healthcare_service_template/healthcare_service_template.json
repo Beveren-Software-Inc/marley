@@ -15,6 +15,7 @@
   "column_break_1",
   "item_code",
   "rate",
+  "op_rate",
   "disabled",
   "pricing",
   "is_ect",
@@ -67,7 +68,7 @@
   {
    "fieldname": "rate",
    "fieldtype": "Currency",
-   "label": "Rate"
+   "label": "IP Rate"
   },
   {
    "default": "0",
@@ -161,10 +162,15 @@
    "fieldname": "is_ect",
    "fieldtype": "Check",
    "label": "Is ECT"
+  },
+  {
+   "fieldname": "op_rate",
+   "fieldtype": "Currency",
+   "label": "OP Rate"
   }
  ],
  "links": [],
- "modified": "2026-06-24 17:12:36.416964",
+ "modified": "2026-07-09 13:13:29.998581",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",

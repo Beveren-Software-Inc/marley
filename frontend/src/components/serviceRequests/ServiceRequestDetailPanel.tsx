@@ -18,11 +18,14 @@ import {
   MODAL_SECTION_CLASS,
   MODAL_SECTION_TITLE_CLASS,
 } from '../ui/CreateModalChrome'
+import { serviceRequestDetailClinicianLabel } from '../../utils/serviceRequestLabels'
 
 interface ServiceRequestDetailPanelProps {
   name: string
   onClose: () => void
   onEdit?: () => void
+  /** Override ordering clinician label (e.g. Other Services list uses Nurse). */
+  practitionerFieldLabel?: string
 }
 
 function formatDateTime(date?: string, time?: string) {
@@ -141,7 +144,12 @@ function FieldRow({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequestDetailPanelProps) {
+export function ServiceRequestDetailPanel({
+  name,
+  onClose,
+  onEdit,
+  practitionerFieldLabel,
+}: ServiceRequestDetailPanelProps) {
   const formatMoney = useFormatMoney()
   const { guardClinicalEdit } = useCareContext()
   const [doc, setDoc] = useState<Record<string, unknown> | null>(null)
@@ -158,7 +166,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
       })
       .catch((err) => {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load service request')
+          setError(err instanceof Error ? err.message : 'Failed to load request')
           setDoc(null)
         }
       })
@@ -191,10 +199,15 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
     (doc?.template_name as string) ||
     (doc?.template_dn as string) ||
     '—'
+  const isLabRequest = doc?.template_dt === 'Lab Test Template'
+  const clinicianLabel = serviceRequestDetailClinicianLabel(
+    doc?.template_dt as string | undefined,
+    practitionerFieldLabel
+  )
 
   return (
     <DetailSlideOver
-      title="Service Request"
+      title={isLabRequest ? 'Lab Request' : 'Service Request'}
       subtitle={
         <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="font-medium text-emerald-950">{name}</span>
@@ -255,7 +268,7 @@ export function ServiceRequestDetailPanel({ name, onClose, onEdit }: ServiceRequ
             <InfoTile icon={<User className="h-4 w-4" />} label="Patient" value={patientLabel} />
             <InfoTile
               icon={<Stethoscope className="h-4 w-4" />}
-              label="Doctor Name"
+              label={clinicianLabel}
               value={practitionerLabel}
             />
             <InfoTile

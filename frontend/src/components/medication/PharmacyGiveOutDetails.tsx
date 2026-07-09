@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
+import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { StatusPill } from '../ui/StatusPill'
 import { displayMedicationDrugName } from '../../utils/medicationOrderDisplayUtils'
@@ -23,6 +24,7 @@ interface PharmacyGiveOutDetailsProps {
 }
 
 export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsProps) {
+  const formatCurrency = useFormatMoney()
   const [prescription, setPrescription] = useState<Prescription | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -67,6 +69,12 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
 
   const sourcePrescription = prescription.source_prescription
   const medications = prescription.medication_orders || []
+  const medicationsTotal = medications.reduce((sum, med) => {
+    if (med.amount != null) return sum + Number(med.amount)
+    const qty = Number(med.quantity ?? med.qty) || 0
+    const rate = Number(med.rate) || 0
+    return sum + qty * rate
+  }, 0)
 
   return (
     <div className="space-y-4">
@@ -107,17 +115,42 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
                   <th className="py-2 pr-3">Drug</th>
                   <th className="py-2 pr-3">Qty</th>
                   <th className="py-2 pr-3">Unit of measure</th>
+                  <th className="py-2 pr-3 text-right">Rate</th>
+                  <th className="py-2 text-right">Amount</th>
                 </tr>
               </thead>
               <tbody>
-                {medications.map((med) => (
+                {medications.map((med) => {
+                  const qty = Number(med.quantity ?? med.qty) || 0
+                  const rate = Number(med.rate) || 0
+                  const amount = med.amount != null ? Number(med.amount) : qty * rate
+                  return (
                   <tr key={med.name} className="border-b border-slate-100">
                     <td className="py-2.5 pr-3 text-slate-900">{displayMedicationDrugName(med)}</td>
                     <td className="py-2.5 pr-3 text-slate-700">{med.quantity ?? '—'}</td>
                     <td className="py-2.5 pr-3 text-slate-700">{med.uom || '—'}</td>
+                    <td className="py-2.5 pr-3 text-slate-700 text-right">
+                      {rate ? formatCurrency(rate) : '—'}
+                    </td>
+                    <td className="py-2.5 text-slate-900 text-right font-medium">
+                      {amount ? formatCurrency(amount) : '—'}
+                    </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
+              {medications.length > 0 ? (
+                <tfoot>
+                  <tr>
+                    <td colSpan={4} className="py-2.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Total
+                    </td>
+                    <td className="py-2.5 text-right text-sm font-semibold text-slate-900">
+                      {formatCurrency(medicationsTotal)}
+                    </td>
+                  </tr>
+                </tfoot>
+              ) : null}
             </table>
           </div>
         )}

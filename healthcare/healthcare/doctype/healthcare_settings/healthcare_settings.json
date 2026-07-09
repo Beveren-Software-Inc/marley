@@ -14,6 +14,7 @@
   "default_google_calendar",
   "lock_editing_data",
   "active",
+  "display_batch_and_lot_on_pharmacy_giveout",
   "column_break_9",
   "collect_registration_fee",
   "registration_item",
@@ -70,7 +71,6 @@
   "registration_msg",
   "send_appointment_confirmation",
   "appointment_confirmation_msg",
-  "whatsapp_appointment_reminder_template",
   "avoid_confirmation",
   "column_break_16",
   "send_appointment_reminder",
@@ -358,12 +358,6 @@
    "fieldtype": "Small Text",
    "ignore_xss_filter": 1,
    "label": "Confirmation Message"
-  },
-  {
-   "fieldname": "whatsapp_appointment_reminder_template",
-   "fieldtype": "Small Text",
-   "label": "WhatsApp Appointment Reminder Template",
-   "description": "Placeholders: {patient_name}, {doctor}, {date}, {time}, {when}, {branch}. Leave empty for the default message."
   },
   {
    "default": "0",
@@ -683,11 +677,17 @@
    "fieldname": "active",
    "fieldtype": "Check",
    "label": "Active"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_batch_and_lot_on_pharmacy_giveout",
+   "fieldtype": "Check",
+   "label": "Display Batch and Lot on Pharmacy Giveout"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-06 00:48:18.752163",
+ "modified": "2026-07-09 12:07:31.486268",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

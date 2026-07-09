@@ -339,6 +339,91 @@ def _item_requires_dispensing_lot(item_code: str) -> bool:
 	return bool(cint(frappe.db.get_value("Item", item_code, "custom_has_dispense_lot") or 0))
 
 
+def display_batch_and_lot_on_pharmacy_giveout() -> bool:
+	"""When enabled, pharmacy give-out UI requires nurses to pick batch / dispensing lot."""
+	try:
+		return bool(
+			cint(
+				frappe.get_cached_value(
+					"Healthcare Settings",
+					"Healthcare Settings",
+					"display_batch_and_lot_on_pharmacy_giveout",
+				)
+			)
+		)
+	except Exception:
+		return False
+
+
+def _sort_batches_fifo(batches: list[dict]) -> list[dict]:
+	from datetime import date as date_type
+
+	def _as_date(value):
+		if not value:
+			return None
+		if isinstance(value, date_type):
+			return value
+		try:
+			return getdate(value)
+		except Exception:
+			return None
+
+	def sort_key(batch: dict):
+		expiry = _as_date(batch.get("expiry_date")) or date_type.max
+		manufacturing = _as_date(batch.get("manufacturing_date")) or date_type.max
+		label = (batch.get("batch_id") or batch.get("batch_name") or "").strip()
+		return (expiry, manufacturing, label)
+
+	return sorted(batches, key=sort_key)
+
+
+def auto_resolve_medicine_given_batch_lot(
+	item_code: str,
+	admission: str | None = None,
+	batch_no: str | None = None,
+	lot_no: str | None = None,
+	dispensing_lot: str | None = None,
+	warehouse: str | None = None,
+) -> tuple[str | None, str | None, str | None]:
+	"""Auto-pick FIFO batch, dispensing lot, or serial when pharmacy give-out hides manual pickers."""
+	warehouse = _resolve_stock_warehouse(admission, warehouse)
+	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
+	has_batch, has_serial = _item_tracking_flags(item_code)
+	if not requires_dispensing_lot and not has_batch and not has_serial:
+		return None, None, None
+
+	resolved_batch = (batch_no or "").strip() or None
+	resolved_lot = (lot_no or "").strip() or None
+	resolved_dispensing = (dispensing_lot or "").strip() or None
+
+	if (requires_dispensing_lot or has_batch) and not resolved_batch and warehouse:
+		from healthcare.api.nursing_inventory import get_item_batches
+
+		batches = _sort_batches_fifo(get_item_batches(item_code, warehouse) or [])
+		if batches:
+			first = batches[0]
+			resolved_batch = (first.get("batch_name") or first.get("batch_id") or "").strip() or None
+
+	if requires_dispensing_lot and not resolved_dispensing:
+		lots = _get_dispensing_lots_for_item(item_code, warehouse, resolved_batch, fifo=True)
+		if lots:
+			resolved_dispensing = lots[0].get("name")
+
+	if has_serial and not requires_dispensing_lot and not resolved_lot and warehouse:
+		from healthcare.api.nursing_inventory import get_batch_details_with_serials, get_item_serials
+
+		serials: list[str] = []
+		if resolved_batch:
+			rows = get_batch_details_with_serials(resolved_batch, warehouse) or []
+			serials = [r.get("serial_no") for r in rows if r.get("serial_no")]
+		else:
+			serials = get_item_serials(item_code, warehouse) or []
+		if serials:
+			resolved_lot = serials[0]
+
+	return resolved_batch, resolved_lot, resolved_dispensing
+
+
 def _resolve_batch_no_for_dispensing_lot_filter(batch_no: str, item_code: str | None = None) -> list[str]:
 	"""Return Batch doc name / batch_id variants for filtering Dispensing Lot.batch_no."""
 	batch_no = (batch_no or "").strip()
@@ -367,7 +452,9 @@ def _resolve_batch_no_for_dispensing_lot_filter(batch_no: str, item_code: str | 
 	return [v for v in values if v]
 
 
-def _get_dispensing_lots_for_item(item_code: str, warehouse: str | None, batch_no: str | None = None) -> list[dict]:
+def _get_dispensing_lots_for_item(
+	item_code: str, warehouse: str | None, batch_no: str | None = None, *, fifo: bool = False
+) -> list[dict]:
 	if not item_code or not frappe.db.exists("DocType", "Dispensing Lot"):
 		return []
 
@@ -396,8 +483,9 @@ def _get_dispensing_lots_for_item(item_code: str, warehouse: str | None, batch_n
 			"uom",
 			"stock_uom",
 			"batch_no",
+			"creation",
 		],
-		order_by="modified desc",
+		order_by="creation asc, name asc" if fifo else "modified desc",
 		limit=500,
 	)
 	result = []
@@ -536,7 +624,7 @@ def get_medicine_given_stock_options(admission: str = None, item_code: str = Non
 	if has_batch and warehouse:
 		from healthcare.api.nursing_inventory import get_item_batches
 
-		batches = get_item_batches(item_code, warehouse) or []
+		batches = _sort_batches_fifo(get_item_batches(item_code, warehouse) or [])
 
 	dispensing_lots = []
 	if requires_dispensing_lot:
