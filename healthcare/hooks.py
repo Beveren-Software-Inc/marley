@@ -125,12 +125,12 @@ fixtures = [
     # {
     #     "doctype": "Discharge Template"
     # },
-    {
-		"doctype": "Medical Role"
-	},
-    {
-		"doctype": "Prescription Frequency"
-	},
+    # {
+	# 	"doctype": "Medical Role"
+	# },
+    # {
+	# 	"doctype": "Prescription Frequency"
+	# },
     {
 		"doctype": "Patient Assessment Parameter"
 	},
