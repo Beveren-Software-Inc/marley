@@ -33,13 +33,25 @@ def _search_sql(search, columns):
 
 
 @frappe.whitelist()
-def update_follow_up_remarks(name, remarks=None):
-	"""Reception follow-up dashboard: save/update the remark on a follow-up."""
+def update_follow_up_remarks(
+	name=None,
+	remarks=None,
+	reference_doctype=None,
+	reference_name=None,
+	follow_up_type=None,
+):
+	"""Reception follow-up dashboard: save/update the remark on a follow-up.
+
+	If ``name`` is missing, create/ensure a Patient Follow Up from the OP/IP reference.
+	"""
+	if not name and reference_doctype and reference_name and follow_up_type:
+		name = ensure_follow_up_for_reference(reference_doctype, reference_name, follow_up_type)
 	if not name or not frappe.db.exists("Patient Follow Up", name):
-		frappe.throw(_("Follow Up {0} not found").format(name))
-	frappe.db.set_value("Patient Follow Up", name, "remarks", (remarks or "").strip(), update_modified=True)
+		frappe.throw(_("Follow Up {0} not found").format(name or _("(missing)")))
+	clean = (remarks or "").strip()
+	frappe.db.set_value("Patient Follow Up", name, "remarks", clean, update_modified=True)
 	frappe.db.commit()
-	return {"name": name, "remarks": (remarks or "").strip()}
+	return {"name": name, "remarks": clean}
 
 
 @frappe.whitelist()
@@ -249,6 +261,7 @@ def _get_latest_reference_rows(
 			pfu.name AS follow_up_name,
 			{follow_up_date_expr} AS follow_up_date,
 			pfu.status AS follow_up_status,
+			pfu.remarks AS remarks,
 			ROW_NUMBER() OVER (
 				PARTITION BY base.patient
 				ORDER BY {order_cols}
@@ -281,7 +294,8 @@ def _get_latest_reference_rows(
 			mobile,
 			follow_up_name,
 			follow_up_date,
-			follow_up_status
+			follow_up_status,
+			remarks
 		FROM ({ranked_sql}) ranked
 		WHERE ranked.rn = 1
 		ORDER BY reference_date DESC, reference_name DESC

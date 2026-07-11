@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ExternalLink, FileText } from 'lucide-react'
+import { ExternalLink, FileText, Printer } from 'lucide-react'
 import { attachFileDisplayUrl } from './SignaturePad'
 
 function fileExtension(url: string, fileName?: string): string {
@@ -17,10 +17,53 @@ function isPdfExtension(ext: string): boolean {
   return ext === 'pdf'
 }
 
-function resolveDisplayUrl(url?: string | null): string | undefined {
+export function resolvePatientDocumentDisplayUrl(url?: string | null): string | undefined {
   if (!url?.trim()) return undefined
   if (url.startsWith('data:') || url.startsWith('http')) return url
   return attachFileDisplayUrl(url)
+}
+
+/** Open attached file in a new tab for viewing. */
+export function viewPatientDocument(url?: string | null): void {
+  const displayUrl = resolvePatientDocumentDisplayUrl(url)
+  if (!displayUrl) return
+  window.open(displayUrl, '_blank', 'noopener,noreferrer')
+}
+
+/** Open a print-friendly window for the attached file (image/PDF/other). */
+export function printPatientDocument(url?: string | null, fileName?: string): void {
+  const displayUrl = resolvePatientDocumentDisplayUrl(url)
+  if (!displayUrl) return
+
+  const ext = fileExtension(displayUrl, fileName)
+  const title = (fileName || 'Document').replace(/[<>&"]/g, '')
+
+  if (isImageExtension(ext, displayUrl) || (!ext && displayUrl.includes('signature_'))) {
+    const win = window.open('', '_blank')
+    if (!win) {
+      window.open(displayUrl, '_blank', 'noopener,noreferrer')
+      return
+    }
+    win.document.write(`<!DOCTYPE html><html><head><title>${title}</title>
+      <style>html,body{margin:0;padding:0;background:#fff}img{max-width:100%;height:auto;display:block;margin:0 auto}</style>
+      </head><body><img src="${displayUrl}" alt="${title}" onload="window.focus();window.print()" /></body></html>`)
+    win.document.close()
+    return
+  }
+
+  const win = window.open(displayUrl, '_blank', 'noopener,noreferrer')
+  if (!win) return
+  const tryPrint = () => {
+    try {
+      win.focus()
+      win.print()
+    } catch {
+      /* cross-origin PDFs may block; user can print from the opened tab */
+    }
+  }
+  win.addEventListener('load', tryPrint)
+  // Fallback if load already fired or never fires (some PDF viewers)
+  setTimeout(tryPrint, 800)
 }
 
 interface PatientDocumentAttachmentPreviewProps {
@@ -36,7 +79,7 @@ export function PatientDocumentAttachmentPreview({
   fileName,
   compact = false,
 }: PatientDocumentAttachmentPreviewProps) {
-  const displayUrl = resolveDisplayUrl(url)
+  const displayUrl = resolvePatientDocumentDisplayUrl(url)
   const [imageFailed, setImageFailed] = useState(false)
 
   useEffect(() => {
@@ -48,16 +91,26 @@ export function PatientDocumentAttachmentPreview({
   const ext = fileExtension(displayUrl, fileName)
   const maxImageHeight = compact ? 'max-h-48' : 'max-h-80'
   const tryImagePreview = !isPdfExtension(ext) && !imageFailed
-  const openLink = (
-    <a
-      href={displayUrl}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
-    >
-      <ExternalLink className="h-3 w-3 shrink-0" />
-      Open in new tab
-    </a>
+
+  const actions = (
+    <div className="flex flex-wrap items-center gap-2">
+      <button
+        type="button"
+        onClick={() => viewPatientDocument(displayUrl)}
+        className="inline-flex items-center gap-1 rounded-md border border-primary/30 px-2.5 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+      >
+        <ExternalLink className="h-3 w-3 shrink-0" />
+        View
+      </button>
+      <button
+        type="button"
+        onClick={() => printPatientDocument(displayUrl, fileName)}
+        className="inline-flex items-center gap-1 rounded-md border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+      >
+        <Printer className="h-3 w-3 shrink-0" />
+        Print
+      </button>
+    </div>
   )
 
   if (tryImagePreview && (isImageExtension(ext, displayUrl) || !ext)) {
@@ -71,7 +124,7 @@ export function PatientDocumentAttachmentPreview({
         />
         <div className="flex flex-wrap items-center justify-between gap-2">
           <span className="text-xs text-green-700">✓ File attached</span>
-          {openLink}
+          {actions}
         </div>
       </div>
     )
@@ -87,7 +140,7 @@ export function PatientDocumentAttachmentPreview({
         />
         <div className="flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 px-2 py-2">
           <span className="text-xs text-green-700">✓ File attached</span>
-          {openLink}
+          {actions}
         </div>
       </div>
     )
@@ -103,7 +156,7 @@ export function PatientDocumentAttachmentPreview({
       </div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-green-700">✓ File attached</span>
-        {openLink}
+        {actions}
       </div>
     </div>
   )

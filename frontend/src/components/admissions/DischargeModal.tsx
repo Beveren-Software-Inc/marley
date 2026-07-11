@@ -1271,6 +1271,20 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
       if (!selectedObsDepartment && admissionMedicalDepartment) {
         setObsDepartmentQuery(admissionMedicalDepartment)
       }
+      // Auto-select Observation Level marked as Default when none is chosen yet.
+      void (async () => {
+        try {
+          const alreadySet = Boolean(
+            (formData.observation_level || '').trim() || selectedObservationLevel?.name,
+          )
+          if (alreadySet) return
+          const levels = await fetchObservationLevels()
+          const def = pickDefaultLinkOption(levels)
+          if (def) await handleObservationLevelSelect(def)
+        } catch {
+          /* leave level empty for manual pick */
+        }
+      })()
       return
     }
     clearObservationFields()
@@ -1524,7 +1538,7 @@ const loadDailyVisitSetup = async () => {
     const loadData = async () => {
       try {
         const [users, doctors, nurses, templates, nurseTemplates, docTypes] = await Promise.all([
-          fetchUsers(),
+          fetchUsers(undefined, 'Receptionist'),
           fetchDischargeDoctorPractitioners(),
           fetchDischargeNursePractitioners(),
           fetchDischargeTemplates(),
@@ -2036,7 +2050,7 @@ const loadDailyVisitSetup = async () => {
     if (!dischargeReceptionistOpen) return
     const search = async () => {
       try {
-        const results = await fetchUsers(dischargeReceptionistQuery)
+        const results = await fetchUsers(dischargeReceptionistQuery, 'Receptionist')
         setDischargedByUsers(results)
       } catch {
         setDischargedByUsers([])
@@ -2481,17 +2495,7 @@ const loadDailyVisitSetup = async () => {
   }
 
   const validateObservationIfEnabled = (): boolean => {
-    if (!Number(formData.discharge_to_observation)) return true
-    if (!formData.observation_level) {
-      setError('Observation Level is required when observation is enabled')
-      setActiveTab('charges')
-      return false
-    }
-    if (!formData.observation_room) {
-      setError('Observation Room is required when observation is enabled')
-      setActiveTab('charges')
-      return false
-    }
+    // Observation fields (level, room, etc.) are optional when Need Observation is Yes.
     return true
   }
 
@@ -4148,7 +4152,7 @@ const loadDailyVisitSetup = async () => {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Observation Level <span className="text-red-500">*</span>
+                        Observation Level
                       </label>
                       <div className="relative">
                         <input
@@ -4189,7 +4193,7 @@ const loadDailyVisitSetup = async () => {
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Room / Service Unit <span className="text-red-500">*</span>
+                        Room / Service Unit
                       </label>
                       <div className="relative">
                         <input

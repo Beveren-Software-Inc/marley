@@ -7,7 +7,6 @@ import {
   sendFollowUpRemindersBulk,
   sendFollowUpRemindersSelected,
   updateFollowUpStatus,
-  updateFollowUpRemarks,
   getCostCenters,
   type PatientFollowUpRow,
   type FollowUpCandidateRow,
@@ -22,6 +21,7 @@ import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/Pagi
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { AddFollowUpRemarkModal, type FollowUpRemarkTarget } from './AddFollowUpRemarkModal'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -89,20 +89,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [sendingBulk, setSendingBulk] = useState(false)
   const [bulkMenuMode, setBulkMenuMode] = useState<'selected' | 'all' | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
-  // Inline remark editing (reception follow-up dashboard)
-  const [editingRemark, setEditingRemark] = useState<string | null>(null)
-  const [remarkDraft, setRemarkDraft] = useState('')
-  const saveRemark = async (name: string) => {
-    const value = remarkDraft.trim()
-    setEditingRemark(null)
-    try {
-      await updateFollowUpRemarks(name, value)
-      setNormalList((prev) => prev.map((r) => (r.name === name ? { ...r, remarks: value } : r)))
-      toast.success('Remark saved')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to save remark')
-    }
-  }
+  const [remarkTarget, setRemarkTarget] = useState<FollowUpRemarkTarget | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -654,33 +641,26 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                           </td>
                           <td className="px-4 py-2 text-slate-600">{row.cost_center || '—'}</td>
                           <td className="px-4 py-2 text-slate-600 max-w-[220px]" title={row.remarks || ''}>
-                            {editingRemark === row.name ? (
-                              <input
-                                type="text"
-                                autoFocus
-                                value={remarkDraft}
-                                onChange={(e) => setRemarkDraft(e.target.value)}
-                                onBlur={() => void saveRemark(row.name)}
-                                onKeyDown={(e) => {
-                                  if (e.key === 'Enter') void saveRemark(row.name)
-                                  if (e.key === 'Escape') setEditingRemark(null)
-                                }}
-                                className="w-full rounded border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            ) : (
-                              <button
-                                type="button"
-                                className="block w-full truncate text-left hover:text-primary"
-                                title="Click to edit remark"
-                                onClick={(e) => {
-                                  e.stopPropagation()
-                                  setEditingRemark(row.name)
-                                  setRemarkDraft(row.remarks || '')
-                                }}
-                              >
-                                {remarksPreview(row.remarks) || <span className="text-slate-400">Add remark…</span>}
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              className="block w-full truncate text-left hover:text-primary"
+                              title="Add or edit remark"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setOpenActionRow(null)
+                                setRemarkTarget({
+                                  name: row.name,
+                                  patient_name: row.patient_name || row.patient,
+                                  remarks: row.remarks,
+                                })
+                              }}
+                            >
+                              {remarksPreview(row.remarks) === '—' ? (
+                                <span className="text-slate-400">Add remark…</span>
+                              ) : (
+                                remarksPreview(row.remarks)
+                              )}
+                            </button>
                           </td>
                           <td className="px-4 py-2 text-right">
                             <div
@@ -718,6 +698,20 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                                   </button>
                                 ))}
                                 <div className="border-t border-slate-100 my-1" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    setRemarkTarget({
+                                      name: row.name,
+                                      patient_name: row.patient_name || row.patient,
+                                      remarks: row.remarks,
+                                    })
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Add Remark
+                                </button>
                                 <button
                                   type="button"
                                   onClick={() => setDetailName(row.name)}
@@ -810,17 +804,32 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                                     <span>{ch.icon}</span> {ch.label}
                                   </button>
                                 ))}
+                                <div className="border-t border-slate-100 my-1" />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    setRemarkTarget({
+                                      name: row.follow_up_name,
+                                      patient_name: row.patient_name || row.patient,
+                                      remarks: row.remarks,
+                                      reference_doctype: row.reference_doctype,
+                                      reference_name: row.reference_name,
+                                      follow_up_type: row.follow_up_type,
+                                    })
+                                  }}
+                                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  Add Remark
+                                </button>
                                 {row.follow_up_name && (
-                                  <>
-                                    <div className="border-t border-slate-100 my-1" />
-                                    <button
-                                      type="button"
-                                      onClick={() => setDetailName(row.follow_up_name!)}
-                                      className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                                    >
-                                      View follow-up record
-                                    </button>
-                                  </>
+                                  <button
+                                    type="button"
+                                    onClick={() => setDetailName(row.follow_up_name!)}
+                                    className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                                  >
+                                    View follow-up record
+                                  </button>
                                 )}
                               </PortalActionsMenu>
                             </div>
@@ -851,6 +860,36 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
         >
           <DocDetailView doctype="Patient Follow Up" name={detailName} />
         </DetailSlideOver>
+      )}
+
+      {remarkTarget && (
+        <AddFollowUpRemarkModal
+          target={remarkTarget}
+          onClose={() => setRemarkTarget(null)}
+          onSuccess={(result) => {
+            setNormalList((prev) =>
+              prev.map((r) =>
+                r.name === result.name || r.name === remarkTarget.name
+                  ? { ...r, remarks: result.remarks }
+                  : r,
+              ),
+            )
+            setCandidateList((prev) =>
+              prev.map((r) => {
+                const matchesName = remarkTarget.name && r.follow_up_name === remarkTarget.name
+                const matchesRef =
+                  remarkTarget.reference_doctype === r.reference_doctype &&
+                  remarkTarget.reference_name === r.reference_name
+                if (!matchesName && !matchesRef) return r
+                return {
+                  ...r,
+                  follow_up_name: result.name,
+                  remarks: result.remarks,
+                }
+              }),
+            )
+          }}
+        />
       )}
     </div>
   )
