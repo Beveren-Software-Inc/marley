@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:observation_level",
  "creation": "2026-04-14 11:11:45.759979",
@@ -15,7 +16,8 @@
   "item_code",
   "column_break_lswo",
   "item_group",
-  "rate"
+  "rate",
+  "default"
  ],
  "fields": [
   {
@@ -79,12 +81,18 @@
    "fieldname": "interval",
    "fieldtype": "Data",
    "label": "Interval"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-05-20 12:17:02.976888",
+ "modified": "2026-07-11 23:12:28.812041",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Observation Level",

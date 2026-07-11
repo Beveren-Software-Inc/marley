@@ -447,33 +447,51 @@ def get_lead_sources(search=None):
 
 
 @frappe.whitelist()
-def get_users(search=None):
-	"""Get list of Users"""
-	filters = {}
-	if search:
-		filters['full_name'] = ['like', f'%{search}%']
-		# Also search by email
-		users = frappe.db.sql("""
-			SELECT name, full_name, email
-			FROM `tabUser`
-			WHERE 
-				enabled = 1
-				AND (full_name LIKE %(search)s OR email LIKE %(search)s OR name LIKE %(search)s)
-			ORDER BY full_name
-			LIMIT 50
-		""", {
-			'search': f'%{search}%'
-		}, as_dict=True)
-	else:
-		users = frappe.get_all(
-			'User',
-			filters={**filters, 'enabled': 1},
-			fields=['name', 'full_name', 'email'],
-			limit=50,
-			order_by='full_name'
+def get_users(search=None, role=None):
+	"""Get list of enabled Users. Optionally filter by Role (Has Role)."""
+	role = (role or "").strip() or None
+	search = (search or "").strip() or None
+
+	role_users = None
+	if role:
+		role_users = frappe.get_all(
+			"Has Role",
+			filters={"role": role, "parenttype": "User"},
+			pluck="parent",
 		)
-	
-	return [{'name': u.name, 'label': u.full_name or u.email or u.name} for u in users]
+		role_users = [u for u in role_users if u and u not in ("Guest", "Administrator")]
+		if not role_users:
+			return []
+
+	params = {}
+	conditions = ["u.enabled = 1", "u.name NOT IN ('Guest', 'Administrator')"]
+
+	if role_users is not None:
+		placeholders = ", ".join(f"%(ru_{i})s" for i in range(len(role_users)))
+		for i, user in enumerate(role_users):
+			params[f"ru_{i}"] = user
+		conditions.append(f"u.name IN ({placeholders})")
+
+	if search:
+		conditions.append(
+			"(u.full_name LIKE %(search)s OR u.email LIKE %(search)s OR u.name LIKE %(search)s)"
+		)
+		params["search"] = f"%{search}%"
+
+	where_sql = " AND ".join(conditions)
+	users = frappe.db.sql(
+		f"""
+		SELECT u.name, u.full_name, u.email
+		FROM `tabUser` u
+		WHERE {where_sql}
+		ORDER BY u.full_name
+		LIMIT 50
+		""",
+		params,
+		as_dict=True,
+	)
+
+	return [{"name": u.name, "label": u.full_name or u.email or u.name} for u in users]
 
 
 @frappe.whitelist()
@@ -5061,17 +5079,18 @@ def get_observation_levels(query=None):
 
 	rows = frappe.get_all(
 		"Observation Level",
-		fields=["name", "observation_level"],
+		fields=["name", "observation_level", "default"],
 		filters=filters,
 		or_filters=or_filters,
 		limit=50,
-		order_by="observation_level asc, name asc",
+		order_by="default desc, observation_level asc, name asc",
 	)
 
 	return [
 		{
 			"name": row.name,
 			"label": (row.observation_level or row.name or "").strip() or row.name,
+			"default": frappe.utils.cint(row.get("default")),
 		}
 		for row in rows
 	]

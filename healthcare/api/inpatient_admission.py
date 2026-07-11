@@ -1619,10 +1619,6 @@ def _create_observation_from_discharge_if_needed(discharge_doc, admission_name: 
 
 	level = (discharge_doc.get("observation_level") or "").strip()
 	room = (discharge_doc.get("observation_room") or "").strip()
-	if not level:
-		frappe.throw(_("Observation Level is required when discharging to observation"))
-	if not room:
-		frappe.throw(_("Observation Room is required when discharging to observation"))
 
 	admission = frappe.get_doc("Inpatient Admission", admission_name)
 	patient = discharge_doc.file_no or admission.patient

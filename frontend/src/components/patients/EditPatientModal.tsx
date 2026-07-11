@@ -24,6 +24,7 @@ import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
@@ -1355,7 +1356,13 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             </label>
                             <input type="file" disabled={documentUploading === idx} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }} className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
                             {documentUploading === idx && (<span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>)}
-                            {row.document && documentUploading !== idx && signatureUploading !== idx && (<span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>✓ File attached</span>)}
+                            {row.document && documentUploading !== idx && signatureUploading !== idx && (
+                              <PatientDocumentAttachmentPreview
+                                url={row.document}
+                                fileName={row.file_name}
+                                compact
+                              />
+                            )}
                           </div>
                         </div>
 

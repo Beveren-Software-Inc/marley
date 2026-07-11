@@ -27,6 +27,7 @@ export interface FollowUpCandidateRow {
   follow_up_date?: string
   follow_up_status?: string
   follow_up_type: string
+  remarks?: string
 }
 
 export interface GetFollowUpsParams {
@@ -261,10 +262,26 @@ export async function updateFollowUpStatus(patientFollowUpName: string, newStatu
 }
 
 /** Reception follow-up dashboard: save/update the remark on a follow-up row. */
-export async function updateFollowUpRemarks(name: string, remarks: string): Promise<void> {
+export async function updateFollowUpRemarks(options: {
+  name?: string
+  remarks: string
+  reference_doctype?: string
+  reference_name?: string
+  follow_up_type?: string
+}): Promise<{ name: string; remarks: string }> {
   const { apiRequest } = await import('./apiClient')
-  await apiRequest(
+  const result = await apiRequest<{ name: string; remarks: string }>(
     '/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.update_follow_up_remarks',
-    { method: 'POST', body: JSON.stringify({ name, remarks }) }
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name: options.name || undefined,
+        remarks: options.remarks,
+        reference_doctype: options.reference_doctype || undefined,
+        reference_name: options.reference_name || undefined,
+        follow_up_type: options.follow_up_type || undefined,
+      }),
+    },
   )
+  return result || { name: options.name || '', remarks: options.remarks }
 }

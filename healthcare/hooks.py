@@ -191,9 +191,9 @@ fixtures = [
     # {
 	# 	"doctype":"Nursing Checklist Template"
 	# },
-    {
-		"doctype":"Observation Level"
-	},
+    # {
+	# 	"doctype":"Observation Level"
+	# },
     {
 		"doctype":"Patient Relative Relationship"
 	},

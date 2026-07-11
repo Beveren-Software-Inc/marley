@@ -443,9 +443,10 @@ export async function createLeadSource(
   return created
 }
 
-export async function fetchUsers(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchUsers(search?: string, role?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
+  if (role) params.append('role', role)
   
   const url = `/api/method/healthcare.api.common.get_users${params.toString() ? `?${params.toString()}` : ''}`
   

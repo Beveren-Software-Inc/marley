@@ -16,7 +16,7 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchDoctorPractitioners, getCurrentUserPractitioner, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { fetchDoctorPractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -105,9 +105,8 @@ export const PatientVisitList = ({
   // Fall back to the patient prop, then context patient, for broader filtering.
   const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
-  /** OP browse (no active visit, not a typed sub-list): today + linked practitioner. */
-  // All lists start unfiltered — no default date/practitioner filters (nurse-dept request).
-  const shouldUseOpDefaults = false
+  /** OP browse (no active visit, not a typed sub-list): default From/To to today. */
+  const shouldUseOpDefaults = !effectiveVisitFilter && !visitType
   const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -140,7 +139,6 @@ export const PatientVisitList = ({
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
   }
-  const [defaultsReady, setDefaultsReady] = useState(!shouldUseOpDefaults)
 
   const [dateFrom, setDateFrom] = useState(() => opDefaultsOnMount?.dateFrom ?? '')
   const [dateTo, setDateTo] = useState(() => opDefaultsOnMount?.dateTo ?? '')
@@ -150,41 +148,6 @@ export const PatientVisitList = ({
     const { dateFrom: from, dateTo: to } = getOpDefaultDateRange()
     setDateFrom(from)
     setDateTo(to)
-  }, [shouldUseOpDefaults])
-
-  useEffect(() => {
-    if (!shouldUseOpDefaults) {
-      setDefaultsReady(true)
-      return
-    }
-    let cancelled = false
-    setDefaultsReady(false)
-    ;(async () => {
-      try {
-        const practId = await getCurrentUserPractitioner()
-        if (cancelled) return
-        if (practId) {
-          setPractitionerFilter(practId)
-          try {
-            const options = await fetchDoctorPractitioners()
-            const match = options.find((p) => p.name === practId)
-            if (match) {
-              setSelectedPractitioner(match)
-              setPractitionerQuery(match.label)
-            } else {
-              setPractitionerQuery(practId)
-            }
-          } catch {
-            setPractitionerQuery(practId)
-          }
-        }
-      } finally {
-        if (!cancelled) setDefaultsReady(true)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
   }, [shouldUseOpDefaults])
 
   const [page, setPage] = useState(1)
@@ -259,9 +222,8 @@ export const PatientVisitList = ({
   }
 
   useEffect(() => {
-    if (!defaultsReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch, defaultsReady])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch])
 
   // Reset page when filters change
   useEffect(() => {
@@ -445,24 +407,11 @@ export const PatientVisitList = ({
         </div>
       )}
 
-      {shouldUseOpDefaults && defaultsReady && !effectiveVisitFilter && (
+      {shouldUseOpDefaults && dateFrom === localDateISO() && dateTo === localDateISO() && (
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs mb-2">
           <span>
-            Showing <span className="font-semibold">today&apos;s</span> visits
-            {practitionerFilter && selectedPractitioner?.label
-              ? (
-                  <>
-                    {' '}for <span className="font-semibold">{selectedPractitioner.label}</span>
-                  </>
-                )
-              : practitionerFilter
-                ? (
-                    <>
-                      {' '}for <span className="font-semibold">{practitionerQuery || practitionerFilter}</span>
-                    </>
-                  )
-                : null}
-            . Change practitioner or dates in filters to widen the list.
+            Showing <span className="font-semibold">today&apos;s</span> visits.
+            Change dates in filters to widen the list.
           </span>
         </div>
       )}
