@@ -194,6 +194,8 @@ export interface CreatePatientData {
   file_no?: string
   /** When true (default), create a Sales Order for the file number charge from Healthcare Settings. */
   charge_file_no?: boolean
+  /** CPR ID card image (maps to Patient.cprigama_front_photo). */
+  cpr_photo?: string
   patient_document?: PatientDocumentRow[]
 }
 

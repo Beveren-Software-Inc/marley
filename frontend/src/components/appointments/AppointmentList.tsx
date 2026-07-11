@@ -1666,7 +1666,7 @@ export const AppointmentList = ({
                       </span>
                       {isWalkInAppointment(apt) && (
                         <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                          Walk-in
+                          WALK-IN · NO FILE
                         </span>
                       )}
                     </td>
@@ -1750,7 +1750,7 @@ export const AppointmentList = ({
                           {apt.patient_name || apt.temporary_patient_name || '—'}
                           {isWalkInAppointment(apt) && (
                             <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                              Walk-in
+                              WALK-IN · NO FILE
                             </span>
                           )}
                         </span>
@@ -1835,7 +1835,7 @@ export const AppointmentList = ({
                           {apt.patient_name || apt.temporary_patient_name || '-'}
                           {isWalkInAppointment(apt) && (
                             <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                              Walk-in
+                              WALK-IN · NO FILE
                             </span>
                           )}
                         </span>

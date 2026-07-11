@@ -236,7 +236,7 @@ interface CreatePatientModalProps {
   initialInsuranceRegister?: string
 }
 
-type Tab = 'details' | 'relations' | 'insurance' | 'documents'
+type Tab = 'details' | 'relations' | 'insurance' | 'documents' | 'cpr'
 
 export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMobile, initialNationalId, initialInsurance, initialInsuranceRegister }: CreatePatientModalProps) => {
   const formatMoney = useFormatMoney()
@@ -316,6 +316,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
   const [countries, setCountries] = useState<{ name: string }[]>([])
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [cprPhoto, setCprPhoto] = useState('')
+  const [cprUploading, setCprUploading] = useState(false)
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
 
@@ -394,6 +396,25 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       toast.error(err instanceof Error ? err.message : 'File upload failed')
     } finally {
       setDocumentUploading(null)
+    }
+  }
+
+  const handleCprFile = async (file: File | null) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('CPR must be an image file')
+      return
+    }
+    setCprUploading(true)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      setCprPhoto(file_url)
+      toast.success('CPR image attached')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'CPR upload failed')
+    } finally {
+      setCprUploading(false)
     }
   }
 
@@ -495,6 +516,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
             description: (r.description || '').trim() || undefined,
             is_next_of_kin: r.is_next_of_kin,
           })),
+        cpr_photo: cprPhoto || undefined,
         patient_document: documents
           .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
           .map((r) => ({
@@ -679,6 +701,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     { id: 'relations', label: 'Next of Kin', badge: relations.length || undefined },
     { id: 'insurance', label: 'Insurance' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
+    { id: 'cpr', label: 'Attach CPR', badge: cprPhoto ? 1 : undefined },
   ]
 
   return (
@@ -1346,9 +1369,9 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                               <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
                             )}
                             {row.document && documentUploading !== idx && signatureUploading !== idx && (
-                              <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
-                                ✓ File attached
-                              </span>
+                              <a href={row.document} target="_blank" rel="noreferrer" className="text-xs text-green-600 mt-0.5 block truncate hover:underline" title={row.document}>
+                                ✓ File attached — click to open
+                              </a>
                             )}
                           </div>
                         </div>
@@ -1390,12 +1413,54 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
             )}
           </div>
 
+            {/* ── TAB: Attach CPR (image only) ── */}
+            {activeTab === 'cpr' && (
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${cprUploading ? 'bg-slate-200 text-slate-500' : 'bg-primary text-white hover:bg-primary/90'}`}>
+                    {cprUploading ? 'Uploading…' : cprPhoto ? 'Replace CPR' : 'Attach CPR'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={cprUploading}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0]
+                        if (f) handleCprFile(f)
+                        e.target.value = ''
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {cprPhoto && (
+                    <>
+                      <a href={cprPhoto} download className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
+                        Download
+                      </a>
+                      <button type="button" onClick={() => setCprPhoto('')} className="text-sm text-red-500 hover:underline">
+                        Remove
+                      </button>
+                    </>
+                  )}
+                </div>
+
+                {cprPhoto ? (
+                  <a href={cprPhoto} target="_blank" rel="noreferrer" title="Click to open full size" className="block max-w-md rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
+                    <img src={cprPhoto} alt="CPR" className="mx-auto max-h-72 object-contain" />
+                  </a>
+                ) : (
+                  <div className="max-w-md rounded-lg border-2 border-dashed border-slate-200 p-10 text-center text-sm text-slate-400">
+                    Attach the patient's CPR ID image (image files only).
+                  </div>
+                )}
+              </div>
+            )}
+
           {/* Footer */}
           <div className={`${CREATE_MODAL_FOOTER_STICKY} items-center justify-between`}>
             <div className="flex gap-2">
               {activeTab !== 'details' && (
                 <button type="button"
-                  onClick={() => setActiveTab(activeTab === 'documents' ? 'relations' : 'details')}
+                  onClick={() => setActiveTab(activeTab === 'cpr' ? 'documents' : activeTab === 'documents' ? 'relations' : 'details')}
                   className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -1403,9 +1468,9 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                   Back
                 </button>
               )}
-              {activeTab !== 'documents' && (
+              {activeTab !== 'cpr' && (
                 <button type="button"
-                  onClick={() => setActiveTab(activeTab === 'details' ? 'relations' : 'documents')}
+                  onClick={() => setActiveTab(activeTab === 'details' ? 'relations' : activeTab === 'documents' ? 'cpr' : 'documents')}
                   className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
                   Next
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

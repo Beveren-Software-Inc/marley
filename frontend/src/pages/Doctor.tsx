@@ -135,6 +135,7 @@ export const DoctorPage = () => {
   const syncingPatientSelectionRef = useRef(false)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
+  const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
@@ -1885,47 +1886,67 @@ export const DoctorPage = () => {
         />
       </DashboardCard>
 
+      {/* Laboratory — one card, two tabs: Reports (results pending review) and
+          Requests (lab orders). Merges the original report card with the newer
+          lab-requests card. */}
       <DashboardCard
         fixedHeight
-        title="Lab Requests"
-        onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
-        addButtonTitle="Add Lab Request"
-        listingScreen="lab-req"
-      >
-        <ServiceRequestList
-          patient={selectedPatient || undefined}
-          refreshKey={serviceRequestRefreshKey}
-          template_dt="Lab Test Template"
-          onPatientClick={handlePatientSelect}
-        />
-      </DashboardCard>
-
-      <DashboardCard
-        fixedHeight
-        title="Lab Test Report - Pending for Review"
-        onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
-        addButtonTitle="Add Lab Test Report"
-        listingScreen="lab"
+        title={labCardTab === 'reports' ? 'Lab Test Report - Pending for Review' : 'Lab Requests'}
+        onAdd={() =>
+          guardClinicalCreate(() =>
+            labCardTab === 'reports' ? setShowLabTestModal(true) : setShowServiceRequestModal(true)
+          )
+        }
+        addButtonTitle={labCardTab === 'reports' ? 'Add Lab Test Report' : 'Add Lab Request'}
+        listingScreen={labCardTab === 'reports' ? 'lab' : 'lab-req'}
         headerExtra={
-          selectedPatient ? (
-            <button
-              type="button"
-              onClick={() => setShowLabTrends(true)}
-              className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
-              title="Lab results over time — dates in columns, tests in rows"
-            >
-              📈 Lab Trends
-            </button>
-          ) : undefined
+          <div className="flex items-center gap-1.5">
+            <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs font-semibold">
+              {([
+                ['reports', 'REPORTS'],
+                ['requests', 'REQUESTS'],
+              ] as const).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setLabCardTab(id)}
+                  className={`rounded px-2 py-0.5 transition-colors ${
+                    labCardTab === id ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {labCardTab === 'reports' && selectedPatient ? (
+              <button
+                type="button"
+                onClick={() => setShowLabTrends(true)}
+                className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+                title="Lab results over time — dates in columns, tests in rows"
+              >
+                📈 Lab Trends
+              </button>
+            ) : null}
+          </div>
         }
       >
-        <LabTestList
-          patient={selectedPatient || undefined}
-          defaultStatus="Pending Review"
-          doctorLabDefaults
-          key={labTestRefreshKey}
-          onPatientClick={handlePatientSelect}
-        />
+        {labCardTab === 'reports' ? (
+          <LabTestList
+            patient={selectedPatient || undefined}
+            defaultStatus="Pending Review"
+            doctorLabDefaults
+            key={labTestRefreshKey}
+            onPatientClick={handlePatientSelect}
+          />
+        ) : (
+          <ServiceRequestList
+            patient={selectedPatient || undefined}
+            refreshKey={serviceRequestRefreshKey}
+            template_dt="Lab Test Template"
+            onPatientClick={handlePatientSelect}
+          />
+        )}
       </DashboardCard>
 
       <DashboardCard

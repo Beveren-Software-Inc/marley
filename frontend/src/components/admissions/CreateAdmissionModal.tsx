@@ -141,7 +141,7 @@ function YesNoField({
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-2">
+      <label className="block text-sm font-medium text-slate-700 mb-2 uppercase">
         {label} {required ? <span className="text-red-500">*</span> : null}
       </label>
       <div className="flex items-center gap-4">
@@ -193,11 +193,10 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
   const [practitionerFieldType, setPractitionerFieldType] = useState<'consultant' | 'psychologist' | 'resident' | null>(null)
 
-  // Company state
-  const [companies, setCompanies] = useState<Company[]>([])
+  // Company state — company itself is auto-set (no visible field on the form)
+  const [, setCompanies] = useState<Company[]>([])
   const [isSingleCompany, setIsSingleCompany] = useState(false)
-  const [companyOpen, setCompanyOpen] = useState(false)
-  const [companyQuery, setCompanyQuery] = useState('')
+  const [, setCompanyQuery] = useState('')
 
   // Branch state
   const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
@@ -693,6 +692,11 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         setActiveCreateTab('observation')
         return
       }
+
+      if (observationForm.chargesStartToday === 'No' && !observationForm.start_date) {
+        setError('Observation start date is required')
+        return
+      }
       // #24: role-based mandatory fields. Doctors must record Notes (Room optional for them);
       // reception / management must assign a Room (Notes optional for them).
       if (isDoctorRole(userRole)) {
@@ -900,8 +904,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
   const closeAllDropdowns = () => {
     setPatientOpen(false)
-    setCompanyOpen(false)
-    setCostCenterOpen(false)
+        setCostCenterOpen(false)
     setConsultantOpen(false)
     setPsychologistOpen(false)
     setResidentOpen(false)
@@ -1067,7 +1070,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
           <>
           {/* Patient Selection */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
               Patient <span className="text-red-500">*</span>
             </label>
             <div className="relative">
@@ -1130,61 +1133,11 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             </div>
           </div>
 
-          {/* Company + Branch row — company hidden when single */}
-          <div className={`grid gap-4 ${isSingleCompany ? 'grid-cols-1' : 'grid-cols-2'}`}>
-            {/* Company — only shown when multiple companies exist */}
-            {!isSingleCompany && (
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Company <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={formData.company ? (companies.find(c => c.name === formData.company)?.company_name ?? formData.company) : companyQuery}
-                  onChange={(e) => {
-                    setCompanyQuery(e.target.value)
-                    setCompanyOpen(true)
-                    // Clear branch when company changes
-                    setFormData(prev => ({ ...prev, company: '', cost_center: '' }))
-                    setCostCenterQuery('')
-                  }}
-                  onFocus={() => setCompanyOpen(true)}
-                  placeholder="Select Company..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {companyOpen && (
-                  <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                    {companies.filter(c =>
-                      !companyQuery || c.company_name.toLowerCase().includes(companyQuery.toLowerCase())
-                    ).length > 0 ? (
-                      companies
-                        .filter(c => !companyQuery || c.company_name.toLowerCase().includes(companyQuery.toLowerCase()))
-                        .map((company) => (
-                          <button
-                            key={company.name}
-                            type="button"
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                            onClick={() => {
-                              setFormData(prev => ({ ...prev, company: company.name, cost_center: '' }))
-                              setCompanyQuery(company.company_name)
-                              setCostCenterQuery('')
-                              setCompanyOpen(false)
-                            }}
-                          >
-                            {company.company_name}
-                          </button>
-                        ))
-                    ) : (
-                      <div className="px-3 py-2 text-xs text-slate-500">NO COMPANIES FOUND</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            )}
-
+          {/* Branch row — company is set automatically in the backend */}
+          <div className="grid gap-4 grid-cols-1">
             {/* Branch — always shown, mandatory */}
             <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Branch <span className="text-red-500">*</span>
               </label>
               <input
@@ -1196,9 +1149,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   setFormData(prev => ({ ...prev, cost_center: '' }))
                 }}
                 onFocus={() => setCostCenterOpen(true)}
-                placeholder={!formData.company && !isSingleCompany ? 'Select a company first...' : 'Search Branch...'}
-                disabled={!formData.company && !isSingleCompany}
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                placeholder="SEARCH BRANCH..."
+                                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
               />
               {costCenterOpen && (formData.company || isSingleCompany) && (
                 <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
@@ -1228,7 +1180,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
           <div className="grid grid-cols-2 gap-4">
             {/* Medical Department */}
             {/* <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Medical Department <span className="text-red-500">*</span>
               </label>
               <div className="relative">
@@ -1271,7 +1223,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
             {/* Consultant Doctor (Primary Practitioner) */}
             <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Consultant Doctor <span className="text-red-500">*</span>
               </label>
               <div className="relative flex items-center">
@@ -1333,7 +1285,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
             {/* Psychologist Doctor */}
             <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Psychologist Doctor
               </label>
               <div className="relative flex items-center">
@@ -1394,7 +1346,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
             {/* Residents Doctor */}
             <div className="relative">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Residents Doctor
               </label>
               <div className="relative flex items-center">
@@ -1455,7 +1407,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
             {/* Admission Ordered For */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Admission Ordered For
               </label>
               <input
@@ -1468,7 +1420,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
             {/* Expected Length of Stay */}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Expected Length of Stay (days) {!encounterName && <span className="text-red-500">*</span>}
               </label>
               <input
@@ -1484,7 +1436,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
           {/* Admission Instructions */}
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
               Admission Instructions
             </label>
             <textarea
@@ -1522,7 +1474,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                         Observation Level <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
@@ -1563,7 +1515,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                         Room / Service Unit <span className="text-red-500">*</span>
                       </label>
                       <div className="relative">
@@ -1610,7 +1562,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Start Date <span className="text-red-500">*</span></label>
                       <input
                         type="date"
                         value={observationForm.chargesStartToday === 'Yes'
@@ -1620,13 +1572,10 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                         disabled={observationForm.chargesStartToday === 'Yes'}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-500"
                       />
-                      {observationForm.chargesStartToday === 'Yes' && (
-                        <p className="text-xs text-slate-500 mt-1">Start date is today when charges start today.</p>
-                      )}
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Department</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1664,7 +1613,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Doctor Name</label>
                       <div className="relative">
                         <input
                           type="text"
@@ -1702,7 +1651,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Designated Security Personnel</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Designated Security Personnel</label>
                       <input
                         type="text"
                         value={observationForm.designated_security_personel}
@@ -1715,7 +1664,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Amount</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Amount</label>
                       <input
                         type="number"
                         step="0.01"
@@ -1729,7 +1678,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Duration</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Duration</label>
                       <input
                         type="text"
                         value={observationForm.duration}
@@ -1741,7 +1690,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Notes</label>
                     <textarea
                       value={observationForm.note}
                       onChange={(e) => setObservationForm((prev) => ({ ...prev, note: e.target.value }))}

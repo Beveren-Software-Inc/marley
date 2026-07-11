@@ -61,9 +61,23 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
   // Department dropdown state
   const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
-  const [departmentOpen, setDepartmentOpen] = useState(false)
-  const [departmentQuery, setDepartmentQuery] = useState('')
-  const [selectedDepartment, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
+  const [, setDepartmentQuery] = useState('')
+
+  // Dropdowns close when clicking anywhere outside their field (no forced selection).
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if ((e.target as HTMLElement).closest('[data-dd]')) return
+      setPatientOpen(false)
+      setObservationLevelOpen(false)
+      setPractitionerOpen(false)
+      setAdmissionOpen(false)
+      setVisitOpen(false)
+      setRoomOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+  const [, setSelectedDepartment] = useState<LinkFieldOption | null>(null)
 
   // Observation Level dropdown state - using fetchObservationLevels like fetchMedicalDepartments
   const [observationLevelOptions, setObservationLevelOptions] = useState<LinkFieldOption[]>([])
@@ -97,6 +111,16 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     
     if (!formData.patient) {
       setError('Patient is required')
+      return
+    }
+
+    if (!formData.start_date) {
+      setError('Start date is required')
+      return
+    }
+
+    if (!formData.practitioner) {
+      setError('Please select a doctor')
       return
     }
 
@@ -306,21 +330,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   }, [practitionerQuery, practitionerOpen, formData.department])
 
   // Search departments
-  useEffect(() => {
-    if (!departmentOpen) return
-
-    const timeoutId = setTimeout(async () => {
-      try {
-        const results = await fetchMedicalDepartments(departmentQuery.trim() || undefined)
-        setDepartmentOptions(results)
-      } catch (err) {
-        console.error('Failed to search departments:', err)
-      }
-    }, departmentQuery.trim() === '' ? 0 : 300)
-
-    return () => clearTimeout(timeoutId)
-  }, [departmentQuery, departmentOpen])
-
   // Load admissions for selected patient (IP mode)
   useEffect(() => {
     if (!isIPMode) return
@@ -429,13 +438,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     setFormData(prev => ({ ...prev, practitioner: pract.name }))
     setPractitionerQuery(pract.label)
     setPractitionerOpen(false)
-  }
-
-  const handleDepartmentSelect = (dept: LinkFieldOption) => {
-    setSelectedDepartment(dept)
-    setFormData(prev => ({ ...prev, department: dept.name }))
-    setDepartmentQuery(dept.label)
-    setDepartmentOpen(false)
   }
 
   const handleObservationLevelSelect = async (obsLevel: LinkFieldOption) => {
@@ -559,10 +561,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Patient <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div data-dd className="relative">
                 <input
                   type="text"
                   value={patientQuery}
@@ -598,10 +600,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
 
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Observation Level
               </label>
-              <div className="relative">
+              <div data-dd className="relative">
                 <input
                   type="text"
                   value={selectedObservationLevel ? selectedObservationLevel.label : observationLevelQuery}
@@ -638,7 +640,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Posting Date
               </label>
               <input
@@ -650,8 +652,8 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Start Date
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+                Start Date <span className="text-red-500">*</span>
               </label>
               <input
                 type="date"
@@ -661,43 +663,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Department
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={selectedDepartment ? selectedDepartment.label : departmentQuery}
-                  onChange={(e) => {
-                    setDepartmentQuery(e.target.value)
-                    setDepartmentOpen(true)
-                  }}
-                  onFocus={() => setDepartmentOpen(true)}
-                  placeholder="Search department..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-                {departmentOpen && departmentOptions.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                    {departmentOptions.map((dept) => (
-                      <div
-                        key={dept.name}
-                        onClick={() => handleDepartmentSelect(dept)}
-                        className="px-3 py-2 text-sm hover:bg-slate-100 cursor-pointer"
-                      >
-                        {dept.label}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
-                Practitioner
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+                Doctor <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
+              <div data-dd className="relative">
                 <input
                   type="text"
                   value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
@@ -731,7 +702,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             {/* Admission Selection - Only shown in IP mode */}
             {isIPMode && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                   Admission No
                 </label>
                 <div className="relative" data-filter-dropdown>
@@ -748,6 +719,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                   ) : (
                     <>
                       <input
+                        data-dd
                         type="text"
                         value={admissionDisplay}
                         onChange={(e) => {
@@ -770,7 +742,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                         autoComplete="off"
                       />
                       {admissionOpen && formData.patient && (
-                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        <div data-dd className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                           {admissionLoading ? (
                             <div className="px-3 py-3 text-sm text-slate-500">Loading admissions...</div>
                           ) : admissionOptions.length === 0 ? (
@@ -798,10 +770,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             {/* Visit Selection - Only shown in OP mode */}
             {isOPMode && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                   Patient Visit <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div data-dd className="relative">
                   {activeVisit ? (
                     <div>
                       <input
@@ -815,6 +787,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                   ) : (
                     <>
                       <input
+                        data-dd
                         type="text"
                         value={visitDisplay}
                         onChange={(e) => {
@@ -837,7 +810,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                         autoComplete="off"
                       />
                       {visitOpen && formData.patient && visitOptions.length > 0 && (
-                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        <div data-dd className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                           {visitOptions.map((visit) => (
                             <button
                               key={visit.name}
@@ -858,10 +831,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
             {isIPMode && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                   Room / Service Unit <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
+                <div data-dd className="relative">
                   <input
                     type="text"
                     value={selectedRoom ? (selectedRoom.healthcare_service_unit_name || selectedRoom.name) : roomQuery}
@@ -879,7 +852,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                   />
                   <p className="text-xs text-slate-400 mt-1">Only vacant inpatient units are shown. Room is marked Occupied when saved.</p>
                   {roomOpen && (
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
+                    <div data-dd className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                       {roomLoading ? (
                         <div className="px-3 py-3 text-sm text-slate-500">Loading rooms...</div>
                       ) : roomOptions.length === 0 ? (
@@ -911,7 +884,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Designated Security Personnel
               </label>
               <input
@@ -924,7 +897,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Amount
               </label>
               <input
@@ -938,7 +911,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Frequency
               </label>
               <input
@@ -952,8 +925,8 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
           </div>
 
           <div className="mt-4">
-            <label className="block text-sm font-medium text-slate-700 mb-1">
-              Notes
+            <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+              Remarks
             </label>
             <textarea
               value={formData.note}

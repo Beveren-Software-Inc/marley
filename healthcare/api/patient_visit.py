@@ -897,7 +897,7 @@ def create_patient_visit(data):
 	if not data:
 		frappe.throw(_("Patient Visit data is required"))
 
-	required_fields = ["patient", "practitioner", "encounter_date", "encounter_time"]
+	required_fields = ["patient", "practitioner", "encounter_date", "encounter_time", "cost_center", "visit_type"]
 	for field in required_fields:
 		if not data.get(field):
 			frappe.throw(_("{0} is required").format(field.replace("_", " ").title()))

@@ -233,6 +233,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       return
     }
 
+    if (!costCenter) {
+      setError('Please select a branch')
+      return
+    }
+
     if (!formData.appointment_date) {
       setError('Appointment Date is required')
       return
@@ -793,7 +798,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Branch <span className="text-red-500">*</span>
+            </label>
             <select
               value={costCenter}
               onChange={(e) => setCostCenter(e.target.value)}
@@ -809,19 +816,6 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 </option>
               ))}
             </select>
-            {costCenterLocked ? (
-              <p className="text-[11px] text-slate-500 mt-1">
-                Assigned from your user permission (only one branch linked to your account).
-              </p>
-            ) : costCenter && costCenterOptions.length > 1 ? (
-              <p className="text-[11px] text-slate-500 mt-1">
-                Pre-selected from your linked branch. You can choose another permitted branch.
-              </p>
-            ) : costCenterOptions.length > 0 && costCenterOptions.length <= 10 ? (
-              <p className="text-[11px] text-slate-500 mt-1">
-                Showing branches linked to your user permissions.
-              </p>
-            ) : null}
           </div>
 
           <div>

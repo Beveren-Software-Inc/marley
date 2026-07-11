@@ -361,6 +361,7 @@ def create_patient(data):
 		"address": (data.get("address_line1") or "").strip() or None,
 		"city": (data.get("city") or "").strip() or None,
 		"country": (data.get("country") or "").strip() or None,
+		"cprigama_front_photo": data.get("cpr_photo") or None,
 	})
 
 	patient.insert(ignore_permissions=True)

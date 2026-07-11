@@ -233,7 +233,7 @@ const psychologistScreenGroups: ScreenGroup[] = [
 
 const therapyScreenGroups: ScreenGroup[] = [
   {
-    groupTitle: 'Therapy',
+    groupTitle: 'Occupational Therapist',
     screens: therapyScreens,
   },
 ]
@@ -245,7 +245,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/nurse',            label: 'Nurse',            screenGroups: nurseScreenGroups,       prefix: '/nurse' },
   { to: '/lab',              label: 'Lab',              screens: labScreens,                  prefix: '/lab' },
   { to: '/psychologist',     label: 'Psychologist',     screenGroups: psychologistScreenGroups, prefix: '/psychologist' },
-  { to: '/therapy',          label: 'Therapy',          screenGroups: therapyScreenGroups,      prefix: '/therapy' },
+  { to: '/therapy',          label: 'Occupational Therapist',          screenGroups: therapyScreenGroups,      prefix: '/therapy' },
   { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
   { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
   { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },

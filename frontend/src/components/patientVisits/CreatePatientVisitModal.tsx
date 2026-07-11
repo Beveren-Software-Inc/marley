@@ -646,6 +646,16 @@ export const CreatePatientVisitModal = ({
       return
     }
 
+    if (!costCenter) {
+      setError('Please select a branch')
+      return
+    }
+
+    if (!formData.visit_type) {
+      setError('Please select a visit type')
+      return
+    }
+
     try {
       setSubmitting(true)
       const includedLines = chargeLines.filter((row) => row.include && row.template)
@@ -657,7 +667,7 @@ export const CreatePatientVisitModal = ({
         visit_type: formData.visit_type,
         appointment: formData.appointment || undefined,
         iop_enrollment: initialIOPEnrollment || undefined,
-        cost_center: costCenter || undefined,
+        cost_center: costCenter,
         status: 'Open',
         charge_visit: !chargeNoCharges,
         charge_lines: includedLines.map((row) => ({
@@ -925,7 +935,7 @@ export const CreatePatientVisitModal = ({
             {/* Branch */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Branch
+                Branch <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -1001,7 +1011,7 @@ export const CreatePatientVisitModal = ({
             {/* Visit Type (ECG, ECT, IOP, follow-up, lab visit, etc.) */}
             <div className="relative">
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Visit Type
+                Visit Type <span className="text-red-500">*</span>
               </label>
               <input
                 type="text"
@@ -1247,12 +1257,15 @@ export const CreatePatientVisitModal = ({
                             <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
                           )}
                           {row.document && documentUploading !== idx && signatureUploading !== idx && (
-                            <span
-                              className="text-xs text-green-600 mt-0.5 block truncate"
+                            <a
+                              href={row.document}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-xs text-green-600 mt-0.5 block truncate hover:underline"
                               title={row.document}
                             >
-                              ✓ File attached
-                            </span>
+                              ✓ File attached — click to open
+                            </a>
                           )}
                         </div>
                       </div>
