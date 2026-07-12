@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -115,8 +115,6 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [normalAp, setNormalAp] = useState<0|1>(0)
   const [increased, setIncreased] = useState<0|1>(0)
   const [poorAp, setPoorAp] = useState<0|1>(0)
-  const [reported, setReported] = useState<0|1>(0)
-  const [reportedType, setReportedType] = useState('')
 
   // Sleep & Consciousness
   const [sleepDuration, setSleepDuration] = useState('')
@@ -134,7 +132,31 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [perception, setPerception] = useState<0|1>(0)
   const [remark, setRemark] = useState('')
 
-  const showDelusionRemark = !!dellusion || !!delusion
+  const hasAnySymptomChecked = useMemo(
+    () =>
+      [
+        cooperative, aggressive, paranoid, demanding, preoccupied, defence, impulsive, sedative, dellusion,
+        normalS, rapid, slow, poorSp, slurred, coherent, incoherent, talkative,
+        anxious, angry, depressed, elated, euthymic, irritable,
+        twitches, hyperactive, stereotypes, restless, gait, tics, agitated, abnormal,
+        hallucinatoryBehaviour, normalMotor,
+        place, time, person, normalAp, increased, poorAp,
+        normalSleep, disturbed, intermittent, excessive, aLittle,
+        conscious, alert, disturbedCon, delusion, perception,
+      ].some(Boolean),
+    [
+      cooperative, aggressive, paranoid, demanding, preoccupied, defence, impulsive, sedative, dellusion,
+      normalS, rapid, slow, poorSp, slurred, coherent, incoherent, talkative,
+      anxious, angry, depressed, elated, euthymic, irritable,
+      twitches, hyperactive, stereotypes, restless, gait, tics, agitated, abnormal,
+      hallucinatoryBehaviour, normalMotor,
+      place, time, person, normalAp, increased, poorAp,
+      normalSleep, disturbed, intermittent, excessive, aLittle,
+      conscious, alert, disturbedCon, delusion, perception,
+    ],
+  )
+
+  const showRemark = hasAnySymptomChecked
 
   // Patient dropdown
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -258,10 +280,6 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
     e.preventDefault()
     if (!patientId) { setError('Patient (File No) is required'); return }
     if (!admissionNo) { setError('Admission No is required'); return }
-    if (showDelusionRemark && !remark.trim()) {
-      setError('Remark is required when Delusion is selected')
-      return
-    }
     setSaving(true)
     setError(null)
     try {
@@ -280,13 +298,12 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         hallucinatory_behaviour: hallucinatoryBehaviour,
         normal: normalMotor,
         place, time, person,
-        normal_ap: normalAp, increased, poor_ap: poorAp, reported,
-        reported_type: reportedType || undefined,
+        normal_ap: normalAp, increased, poor_ap: poorAp,
         sleep_duration: sleepDuration ? parseInt(sleepDuration) : undefined,
         normal_sleep: normalSleep, disturbed, intermittent, excessive, a_little: aLittle,
         conscious, alert, disturbed_con: disturbedCon,
         delusion, perception,
-        remark: showDelusionRemark ? remark.trim() : undefined,
+        remark: showRemark && remark.trim() ? remark.trim() : undefined,
       })
       if (result.success) {
         onSuccess()
@@ -573,11 +590,6 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                     <CF label="Normal Appetite" checked={!!normalAp} onChange={setNormalAp} />
                     <CF label="Increased" checked={!!increased} onChange={setIncreased} />
                     <CF label="Poor Appetite" checked={!!poorAp} onChange={setPoorAp} />
-                    <CF label="Reported" checked={!!reported} onChange={setReported} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Reported Type</label>
-                    <input type="text" value={reportedType} onChange={(e) => setReportedType(e.target.value)} placeholder="Reported type description" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                 </div>
               </>
@@ -618,28 +630,26 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
               </>
             )}
 
-            {showDelusionRemark ? (
-              <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  Remark <span className="text-red-500">*</span>
-                </label>
-                <p className="mb-2 text-xs text-slate-500">
-                  Required when Delusion is selected (Behaviour or Psychotic Symptom).
-                </p>
-                <textarea
-                  value={remark}
-                  onChange={(e) => setRemark(e.target.value)}
-                  rows={3}
-                  placeholder="Enter remark for delusion…"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                />
-              </div>
-            ) : null}
-
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">{error}</div>
             )}
           </div>
+
+          {showRemark ? (
+            <div className="shrink-0 border-t border-emerald-200/80 bg-emerald-50/60 px-4 py-3 sm:px-6">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Remark</label>
+              <p className="mb-2 text-xs text-slate-600">
+                Optional notes for any selected items above.
+              </p>
+              <textarea
+                value={remark}
+                onChange={(e) => setRemark(e.target.value)}
+                rows={3}
+                placeholder="Enter notes for selected mental state items…"
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+              />
+            </div>
+          ) : null}
 
           <CreateModalFooter>
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>

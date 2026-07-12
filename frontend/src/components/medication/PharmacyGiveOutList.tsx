@@ -28,6 +28,24 @@ const statusColors: Record<string, string> = {
   Cancelled: 'danger',
 }
 
+function giveOutItemsTitle(row: PharmacyGiveOutRow): string {
+  const parts = [row.medications_summary, row.services_summary ? `Services: ${row.services_summary}` : '']
+    .filter(Boolean)
+    .join('\n')
+  return parts || '—'
+}
+
+function GiveOutItemsCell({ row }: { row: PharmacyGiveOutRow }) {
+  return (
+    <div className="min-w-0" title={giveOutItemsTitle(row)}>
+      <div className="font-medium text-slate-900 truncate">{row.medications_summary || '—'}</div>
+      {row.services_summary ? (
+        <div className="text-xs text-emerald-800 truncate mt-0.5">Services: {row.services_summary}</div>
+      ) : null}
+    </div>
+  )
+}
+
 const iconToolbarBtn =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
 
@@ -236,9 +254,7 @@ export function PharmacyGiveOutList({
                 <tr key={row.name} className={`border-b border-slate-100 ${dashboardCardRowHoverClass}`}>
                   <td className="py-2 pr-2 align-top">{dateCell(row, 'text-xs')}</td>
                   <td className="py-2 pr-2 align-top min-w-0">
-                    <div className="font-medium text-slate-900 truncate">
-                      {row.medications_summary || '—'}
-                    </div>
+                    <GiveOutItemsCell row={row} />
                     <CardRowMetaHint
                       fields={[
                         ['Source prescription', row.source_prescription],
@@ -310,8 +326,8 @@ export function PharmacyGiveOutList({
                     )}
                   </td>
                 )}
-                <td className="py-3 pr-4 text-slate-700 max-w-xs truncate" title={row.medications_summary}>
-                  {row.medications_summary || '—'}
+                <td className="py-3 pr-4 text-slate-700 max-w-xs">
+                  <GiveOutItemsCell row={row} />
                 </td>
                 <td className="py-3 pr-4 text-slate-700">{row.source_prescription || '—'}</td>
                 <td className="py-3 pr-4 text-slate-700">{row.invoice || row.sales_order || '—'}</td>

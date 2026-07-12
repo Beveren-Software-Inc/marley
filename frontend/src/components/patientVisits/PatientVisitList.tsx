@@ -320,7 +320,7 @@ export const PatientVisitList = ({
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const tableColSpan = detailedColumns
-    ? 16
+    ? 17
     : cardCompactLayout
     ? 3
     : 8 +
@@ -338,6 +338,137 @@ export const PatientVisitList = ({
   }
 
   const visitMetaOptions = { patient }
+
+  const renderVisitActionsCell = (visit: PatientVisitListRow, compact = false) => (
+    <td
+      className={`${compact ? 'px-3 py-2' : 'px-4 py-2'} align-middle whitespace-nowrap`}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <div className="flex items-center gap-1.5">
+        <div className="relative" ref={openActionRow === visit.value ? menuRef : undefined}>
+          <button
+            type="button"
+            onClick={() => setOpenActionRow((prev) => (prev === visit.value ? null : visit.value))}
+            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+            aria-label="Actions"
+          >
+            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
+          </button>
+          <PortalActionsMenu
+            open={openActionRow === visit.value}
+            onClose={() => setOpenActionRow(null)}
+            triggerRef={menuRef}
+            minWidth={160}
+          >
+            {visit.status !== 'Cancelled' && (
+              <button
+                type="button"
+                onClick={() => { setEditVisit(visit); setOpenActionRow(null) }}
+                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                Edit Visit
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Print Invoice
+            </button>
+            <button
+              type="button"
+              onClick={() => handleCreateInvoice(visit.value)}
+              disabled={actionLoading === visit.value + '_invoice'}
+              className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
+            >
+              {actionLoading === visit.value + '_invoice' ? 'Creating…' : 'Create Invoice'}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
+              className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
+            >
+              Create Payment
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScheduleAdmission(visit)}
+              className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+            >
+              Schedule Admission
+            </button>
+            <button
+              type="button"
+              onClick={() => { setReferralVisit(visit); setOpenActionRow(null) }}
+              className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
+            >
+              Create Referral
+            </button>
+            {visit.patient && (
+              <button
+                type="button"
+                onClick={() => { setVitalSignVisit(visit); setOpenActionRow(null) }}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 w-full text-left"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                </svg>
+                Create Vital Sign
+              </button>
+            )}
+            {visit.patient && observationsAllowedForMode(mode) && (
+              <button
+                type="button"
+                onClick={() => { setObservationVisit(visit); setOpenActionRow(null) }}
+                className="flex items-center gap-2 px-3 py-2 text-sm text-violet-700 hover:bg-violet-50 w-full text-left"
+              >
+                <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                </svg>
+                Create Observation
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => { setDiagnosisVisit(visit); setOpenActionRow(null) }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50 w-full text-left"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Diagnosis
+            </button>
+            <button
+              type="button"
+              onClick={() => { setUploadDocumentsVisit(visit); setOpenActionRow(null) }}
+              className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 w-full text-left"
+            >
+              <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+              Upload Document
+            </button>
+            <button
+              type="button"
+              onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
+              className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+            >
+              Cancel Visit
+            </button>
+          </PortalActionsMenu>
+        </div>
+        <PrintFormatDropdown
+          doctype="Patient Visit"
+          docName={visit.value}
+          noLetterhead={0}
+          triggerPrint={1}
+        />
+      </div>
+    </td>
+  )
 
   const exportFilteredCsv = () => {
     const headers = [
@@ -413,6 +544,17 @@ export const PatientVisitList = ({
             Showing <span className="font-semibold">today&apos;s</span> visits.
             Change dates in filters to widen the list.
           </span>
+        </div>
+      )}
+
+      {isInsideCard && detailedColumns && (
+        <div className="flex items-center justify-end gap-2 mb-2">
+          <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white">
+            PDF
+          </button>
+          <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white">
+            Excel
+          </button>
         </div>
       )}
 
@@ -559,7 +701,7 @@ export const PatientVisitList = ({
           <table
             className={
               detailedColumns
-                ? 'w-full min-w-[1500px]'
+                ? 'w-full min-w-[1620px]'
                 : cardCompactLayout
                 ? 'w-full table-fixed'
                 : `w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`
@@ -569,7 +711,7 @@ export const PatientVisitList = ({
               <tr>
                 {detailedColumns ? (
                   <>
-                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'User'].map((h) => (
+                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'User', 'Actions'].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -644,6 +786,7 @@ export const PatientVisitList = ({
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.user || '-'}</td>
+                    {renderVisitActionsCell(visit, true)}
                   </tr>
                 ))
               ) : cardCompactLayout ? (
@@ -704,134 +847,7 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3">
                     <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
                   </td>
-                  <td className="px-4 py-2 align-middle">
-                    <div className="flex items-center gap-1.5">
-                     
-
-                      {/* Actions dropdown */}
-                    <div className="relative" ref={openActionRow === visit.value ? menuRef : undefined}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenActionRow(prev => prev === visit.value ? null : visit.value)}
-                        className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
-                        aria-label="Actions"
-                      >
-                        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                          <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
-                        </svg>
-                      </button>
-                      <PortalActionsMenu
-                        open={openActionRow === visit.value}
-                        onClose={() => setOpenActionRow(null)}
-                        triggerRef={menuRef}
-                        minWidth={160}
-                      >
-                        {visit.status !== 'Cancelled' && (
-                          <button
-                            type="button"
-                            onClick={() => { setEditVisit(visit); setOpenActionRow(null) }}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Edit Visit
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
-                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                        >
-                          Print Invoice
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleCreateInvoice(visit.value)}
-                          disabled={actionLoading === visit.value + '_invoice'}
-                          className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
-                        >
-                          {actionLoading === visit.value + '_invoice' ? 'Creating…' : 'Create Invoice'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
-                          className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
-                        >
-                          Create Payment
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleScheduleAdmission(visit)}
-                          className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
-                        >
-                          Schedule Admission
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setReferralVisit(visit); setOpenActionRow(null) }}
-                          className="block w-full text-left px-3 py-2 text-sm text-orange-700 hover:bg-orange-50"
-                        >
-                          Create Referral
-                        </button>
-                        {visit.patient && (
-                          <button
-                            type="button"
-                            onClick={() => { setVitalSignVisit(visit); setOpenActionRow(null) }}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-teal-700 hover:bg-teal-50 w-full text-left"
-                          >
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                            </svg>
-                            Create Vital Sign
-                          </button>
-                        )}
-                        {visit.patient && observationsAllowedForMode(mode) && (
-                          <button
-                            type="button"
-                            onClick={() => { setObservationVisit(visit); setOpenActionRow(null) }}
-                            className="flex items-center gap-2 px-3 py-2 text-sm text-violet-700 hover:bg-violet-50 w-full text-left"
-                          >
-                            <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                            </svg>
-                            Create Observation
-                          </button>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => { setDiagnosisVisit(visit); setOpenActionRow(null) }}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-sky-700 hover:bg-sky-50 w-full text-left"
-                        >
-                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Diagnosis
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setUploadDocumentsVisit(visit); setOpenActionRow(null) }}
-                          className="flex items-center gap-2 px-3 py-2 text-sm text-indigo-700 hover:bg-indigo-50 w-full text-left"
-                        >
-                          <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                          </svg>
-                          Upload Document
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedVisitForCancel(visit); setShowCancelModal(true); setOpenActionRow(null) }}
-                          className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          Cancel Visit
-                        </button>
-                      </PortalActionsMenu>
-                    </div>
-                     <PrintFormatDropdown
-                        doctype="Patient Visit"
-                        docName={visit.value}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                      />
-                    </div>
-                  </td>
+                  {renderVisitActionsCell(visit)}
                 </tr>
               ))}
             </tbody>

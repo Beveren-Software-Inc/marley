@@ -25,6 +25,11 @@ export interface CreateMedicineGivenData {
 export interface MedicineGivenDoseValidationPreview {
   ok: boolean
   has_limit?: boolean
+  weight_based?: boolean
+  requires_weight?: boolean
+  patient_weight?: number | null
+  rate_per_kg?: number | null
+  limit_raw?: string | null
   ceiling?: number | null
   single_dose_ceiling?: number | null
   daily_dose_ceiling?: number | null

@@ -2484,6 +2484,79 @@ def _create_nursing_pharmacy_giveout_documents(
 	}
 
 
+def _pharmacy_giveout_service_lines_from_sales_order(pmo_name, sales_order):
+	"""Sales Order lines billed as services (not PMO medication drugs)."""
+	if not sales_order or not frappe.db.exists("Sales Order", sales_order):
+		return []
+
+	pmo_drugs = {
+		(d or "").strip()
+		for d in frappe.db.sql_list(
+			"""
+			SELECT drug FROM `tabInpatient Medication Order Entry`
+			WHERE parent = %s AND IFNULL(drug, '') != ''
+			""",
+			pmo_name,
+		)
+		if (d or "").strip()
+	}
+
+	lines = []
+	for row in frappe.get_all(
+		"Sales Order Item",
+		filters={"parent": sales_order},
+		fields=["item_code", "item_name", "qty", "rate", "amount", "uom"],
+		order_by="idx asc",
+	):
+		item_code = (row.get("item_code") or "").strip()
+		if item_code and item_code not in pmo_drugs:
+			lines.append(row)
+	return lines
+
+
+def _pharmacy_giveout_services_summary(service_lines):
+	labels = []
+	for row in service_lines or []:
+		name = (row.get("item_name") or row.get("item_code") or "").strip()
+		if not name:
+			continue
+		qty = flt(row.get("qty")) or 1
+		rate = flt(row.get("rate"))
+		label = f"{name} x{qty:g}"
+		if rate:
+			label += f" @ {rate:g}"
+		labels.append(label)
+	return ", ".join(labels)
+
+
+@frappe.whitelist()
+def get_nursing_pharmacy_giveout_services(name):
+	"""Return service lines billed on the linked Sales Order for a pharmacy give-out PMO."""
+	if not name:
+		frappe.throw(_("Give-out record name is required"))
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	if not frappe.db.exists("Patient Medication Order", name):
+		frappe.throw(_("Patient Medication Order {0} does not exist").format(frappe.bold(name)))
+
+	doc = frappe.get_doc("Patient Medication Order", name)
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if not pmo_meta.has_field("nursing_pharmacy_giveout") or not doc.get("nursing_pharmacy_giveout"):
+		frappe.throw(_("This is not a nursing pharmacy give-out record"))
+
+	sales_order = None
+	if doc.get("reference_doctype") == "Sales Order" and doc.get("reference_document_name"):
+		sales_order = doc.reference_document_name
+
+	lines = _pharmacy_giveout_service_lines_from_sales_order(name, sales_order)
+	return {
+		"sales_order": sales_order,
+		"services": lines,
+		"services_summary": _pharmacy_giveout_services_summary(lines),
+	}
+
+
 @frappe.whitelist()
 def get_nursing_pharmacy_giveouts(
 	limit=50,
@@ -2604,6 +2677,11 @@ def get_nursing_pharmacy_giveouts(
 		if row.get("total_orders") and row["total_orders"] > len(entries):
 			labels.append("…")
 		row["medications_summary"] = ", ".join(labels) if labels else ""
+		service_lines = _pharmacy_giveout_service_lines_from_sales_order(
+			row.name, row.get("sales_order")
+		)
+		row["service_count"] = len(service_lines)
+		row["services_summary"] = _pharmacy_giveout_services_summary(service_lines)
 
 	return orders
 

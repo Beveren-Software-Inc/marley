@@ -326,7 +326,7 @@ export const EditServiceRequestModal = ({
         setAllowManualCost(!hasCatalogPrice)
         if (hasCatalogPrice) {
           setSelectedPrice(catalogPrice)
-          setFormData((prev) => ({ ...prev, cost: catalogPrice }))
+          setFormData((prev) => ({ ...prev, cost: catalogPrice as number }))
         }
       } catch {
         setPricing([])

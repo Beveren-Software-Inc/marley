@@ -45,12 +45,10 @@ interface ChargeLineRow {
   item_name: string
   rate: number
   include: boolean
-  discount: number
 }
 
 function chargeLineNet(row: ChargeLineRow): number {
-  const gross = row.rate || 0
-  return Math.max(0, gross - Math.max(0, row.discount || 0))
+  return row.rate || 0
 }
 
 const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
@@ -313,7 +311,6 @@ export const CreatePatientVisitModal = ({
           item_name: l.item_name || '',
           rate: l.rate || 0,
           include: true,
-          discount: 0,
         }))
       setChargeLines(rows)
     }
@@ -674,7 +671,7 @@ export const CreatePatientVisitModal = ({
           template: row.template,
           qty: 1,
           discount_type: 'Amount',
-          discount: row.discount || 0,
+          discount: 0,
         })),
       })
 
@@ -1092,7 +1089,6 @@ export const CreatePatientVisitModal = ({
                 <div className="space-y-2">
                   {chargeLines.map((row, idx) => {
                     const net = chargeLineNet(row)
-                    const discounted = net < (row.rate || 0)
                     return (
                       <div
                         key={`${row.template}-${idx}`}
@@ -1126,30 +1122,8 @@ export const CreatePatientVisitModal = ({
                             </div>
                             <div className="mt-0.5 text-xs text-slate-500">
                               {row.item_name ? `${row.item_name} · ` : ''}
-                              <span className={discounted ? 'line-through' : 'font-semibold text-slate-700'}>
-                                {formatMoney(row.rate || 0)}
-                              </span>
-                              {discounted && (
-                                <span className="ml-1 font-semibold text-slate-800">{formatMoney(net)}</span>
-                              )}
+                              <span className="font-semibold text-slate-700">{formatMoney(net)}</span>
                             </div>
-                            {row.include && (
-                              <div className="mt-2 flex flex-wrap items-center gap-2">
-                                <span className="text-xs text-slate-500">Discount amount</span>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={row.rate || undefined}
-                                  step="any"
-                                  className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
-                                  value={row.discount || ''}
-                                  placeholder="0"
-                                  onChange={(e) =>
-                                    updateChargeLine(idx, { discount: parseFloat(e.target.value) || 0 })
-                                  }
-                                />
-                              </div>
-                            )}
                           </div>
                         </div>
                       </div>

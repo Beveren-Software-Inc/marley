@@ -37,6 +37,34 @@ export interface PharmacyGiveOutRow {
   reference_document_name?: string
   medication_count?: number
   medications_summary?: string
+  service_count?: number
+  services_summary?: string
+}
+
+export interface PharmacyGiveOutServiceLine {
+  item_code?: string
+  item_name?: string
+  qty?: number
+  rate?: number
+  amount?: number
+  uom?: string
+}
+
+export async function fetchPharmacyGiveOutServices(giveOutName: string): Promise<{
+  sales_order?: string
+  services: PharmacyGiveOutServiceLine[]
+  services_summary?: string
+}> {
+  const { apiRequest } = await import('./apiClient')
+  const params = new URLSearchParams()
+  params.append('name', giveOutName)
+  return apiRequest<{
+    sales_order?: string
+    services: PharmacyGiveOutServiceLine[]
+    services_summary?: string
+  }>(
+    `/api/method/healthcare.api.patient_medication_order.get_nursing_pharmacy_giveout_services?${params.toString()}`
+  )
 }
 
 export async function fetchNursingPharmacyGiveOuts(opts?: {
