@@ -956,10 +956,13 @@ def confirm_payment(service_request_name):
 	if getattr(sr, "company", None):
 		so.company = sr.company
 
-	# Get customer from patient if not set
-	customer = sr.patient
-	if frappe.db.exists("Patient", sr.patient):
-		customer = frappe.db.get_value("Patient", sr.patient, "customer") or sr.patient
+	customer = frappe.db.get_value("Patient", sr.patient, "customer") if sr.patient else None
+	if not customer:
+		frappe.throw(
+			_("Patient {0} has no Customer linked. Link a customer on the patient record first.").format(
+				sr.patient
+			)
+		)
 
 	so.customer = customer
 	so.transaction_date = nowdate()
@@ -1068,11 +1071,19 @@ def confirm_session_payment(service_request_name):
 	)
 	delivery_date = sr.get("expected_date") or nowdate()
 
+	customer = frappe.db.get_value("Patient", sr.patient, "customer") if sr.patient else None
+	if not customer:
+		frappe.throw(
+			_("Patient {0} has no Customer linked. Link a customer on the patient record first.").format(
+				sr.patient
+			)
+		)
+
 	so = frappe.new_doc("Sales Order")
 	so.patient = sr.patient
 	if getattr(sr, "company", None):
 		so.company = sr.company
-	so.customer = sr.patient
+	so.customer = customer
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
 	so.ignore_pricing_rule = 1
