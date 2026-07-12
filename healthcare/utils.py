@@ -2,12 +2,7 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
-"""
-Utility functions for healthcare app - commonly used helpers for backend logic.
 
-This module provides reusable functions for healthcare doctypes, including
-auto-population of practitioner fields based on logged-in user.
-"""
 
 import frappe
 from frappe import _
