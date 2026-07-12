@@ -33,7 +33,6 @@ export const CreateMaterialReceiptModal = ({
   onClose,
   onSuccess,
   costCenter,
-  isFullAccess,
 }: CreateMaterialReceiptModalProps) => {
   const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter, user } = useCareContext()

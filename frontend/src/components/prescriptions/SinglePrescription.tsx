@@ -7,7 +7,9 @@ import {
   checkMedicineGivenForEntry,
   addMedicationOrderEntry,
   getGivenStatusForPrescription,
+  previewPrescriptionDoseValidation,
   type Prescription,
+  type PrescriptionDoseValidationPreview,
 } from '../../services/prescriptions'
 import {
   flagsFromPrescriptionType,
@@ -19,6 +21,7 @@ import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, PenLine } from '
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
+import { PrescriptionDoseLimitConfirmModal } from './PrescriptionDoseLimitConfirmModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
@@ -242,11 +245,17 @@ const TypeFilterCard = ({
 const EditMedicationEntryModal = ({
   order,
   prescriptionName,
+  patient,
+  patientEncounter,
+  inpatientRecord,
   onClose,
   onSaved,
 }: {
   order: any
   prescriptionName: string
+  patient?: string
+  patientEncounter?: string
+  inpatientRecord?: string
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) => {
@@ -273,6 +282,9 @@ const EditMedicationEntryModal = ({
   })
   const [saving, setSaving] = useState(false)
   const [givenCheck, setGivenCheck] = useState<{ loading: boolean; given: boolean }>({ loading: true, given: false })
+  const [doseWarning, setDoseWarning] = useState<PrescriptionDoseValidationPreview | null>(null)
+  const [checkingDose, setCheckingDose] = useState(false)
+  const [doseLimitConfirmOpen, setDoseLimitConfirmOpen] = useState(false)
 
   const [freqQuery, setFreqQuery] = useState(order.patient_frequency || '')
   const [freqOptions, setFreqOptions] = useState<LinkFieldOption[]>([])
@@ -351,17 +363,61 @@ const EditMedicationEntryModal = ({
     return () => { cancelled = true }
   }, [prescriptionName, order.name])
 
+  useEffect(() => {
+    const drug = (form.drug || '').trim()
+    const dosage = (form.dosage || '').trim()
+    if (!drug || !dosage) {
+      setDoseWarning(null)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setCheckingDose(true)
+      previewPrescriptionDoseValidation({
+        medicine_code: drug,
+        dose: dosage,
+        patient,
+        patient_encounter: patientEncounter,
+        inpatient_record: inpatientRecord,
+      })
+        .then((preview) => {
+          if (!cancelled) {
+            setDoseWarning(preview.has_limit && !preview.ok && preview.message ? preview : null)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setDoseWarning(null)
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingDose(false)
+        })
+    }, 350)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [form.drug, form.dosage, patient, patientEncounter, inpatientRecord])
+
   const handleSave = async () => {
     if (givenCheck.given) return
     if (form.is_pink && !String(form.reference_no || '').trim()) {
       toast.error('Reference No is required for pink medications')
       return
     }
+    if (doseWarning?.message) {
+      setDoseLimitConfirmOpen(true)
+      return
+    }
+    await performSave()
+  }
+
+  const performSave = async () => {
     try {
       setSaving(true)
       const payload = normalizeMedicationOrderForSave(form)
       await updateMedicationOrderEntry(prescriptionName, order.name, payload)
       toast.success('Medication entry updated')
+      setDoseLimitConfirmOpen(false)
       onSaved()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to update')
@@ -431,8 +487,15 @@ const EditMedicationEntryModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
-              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="e.g. 1-0-1"
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="e.g. 45mg or 1-0-1"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
+              {checkingDose ? (
+                <p className="mt-1 text-xs text-slate-500">Checking dose limit…</p>
+              ) : doseWarning?.message ? (
+                <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 whitespace-pre-line">
+                  {doseWarning.message}
+                </div>
+              ) : null}
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Unit of Measure</label>
@@ -632,6 +695,21 @@ const EditMedicationEntryModal = ({
         }}
       />
     )}
+    <PrescriptionDoseLimitConfirmModal
+      open={doseLimitConfirmOpen}
+      issues={
+        doseWarning?.message
+          ? [{ drugLabel: form.drug_name || form.drug, message: doseWarning.message }]
+          : []
+      }
+      loading={saving}
+      confirmLabel="Save anyway"
+      onClose={() => {
+        if (saving) return
+        setDoseLimitConfirmOpen(false)
+      }}
+      onConfirm={() => void performSave()}
+    />
     </>,
     document.body
   )
@@ -640,10 +718,16 @@ const EditMedicationEntryModal = ({
 // ─── Add medication entry modal ──────────────────────────────────────────────
 const AddMedicationEntryModal = ({
   prescriptionName,
+  patient,
+  patientEncounter,
+  inpatientRecord,
   onClose,
   onSaved,
 }: {
   prescriptionName: string
+  patient?: string
+  patientEncounter?: string
+  inpatientRecord?: string
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) => {
@@ -667,6 +751,9 @@ const AddMedicationEntryModal = ({
     medication_type: '',
   })
   const [saving, setSaving] = useState(false)
+  const [doseWarning, setDoseWarning] = useState<PrescriptionDoseValidationPreview | null>(null)
+  const [checkingDose, setCheckingDose] = useState(false)
+  const [doseLimitConfirmOpen, setDoseLimitConfirmOpen] = useState(false)
   const [drugQuery, setDrugQuery] = useState('')
   const [drugOpts, setDrugOpts] = useState<LinkFieldOption[]>([])
   const [drugLoading, setDrugLoading] = useState(false)
@@ -745,6 +832,41 @@ const AddMedicationEntryModal = ({
     } catch { setAddRouteOptions([]) } finally { setAddRouteLoading(false) }
   }
 
+  useEffect(() => {
+    const drug = (form.drug || '').trim()
+    const dosage = (form.dosage || '').trim()
+    if (!drug || !dosage) {
+      setDoseWarning(null)
+      return
+    }
+    let cancelled = false
+    const timer = window.setTimeout(() => {
+      setCheckingDose(true)
+      previewPrescriptionDoseValidation({
+        medicine_code: drug,
+        dose: dosage,
+        patient,
+        patient_encounter: patientEncounter,
+        inpatient_record: inpatientRecord,
+      })
+        .then((preview) => {
+          if (!cancelled) {
+            setDoseWarning(preview.has_limit && !preview.ok && preview.message ? preview : null)
+          }
+        })
+        .catch(() => {
+          if (!cancelled) setDoseWarning(null)
+        })
+        .finally(() => {
+          if (!cancelled) setCheckingDose(false)
+        })
+    }, 350)
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+    }
+  }, [form.drug, form.dosage, patient, patientEncounter, inpatientRecord])
+
   const handleSave = async () => {
     if (!form.drug || !form.dosage || !form.date) {
       toast.error('Drug, Dosage, and Start Date are required')
@@ -754,11 +876,20 @@ const AddMedicationEntryModal = ({
       toast.error('Reference No is required for pink medications')
       return
     }
+    if (doseWarning?.message) {
+      setDoseLimitConfirmOpen(true)
+      return
+    }
+    await performSave()
+  }
+
+  const performSave = async () => {
     try {
       setSaving(true)
       const payload = normalizeMedicationOrderForSave(form)
       await addMedicationOrderEntry(prescriptionName, payload)
       toast.success('Medicine added to prescription')
+      setDoseLimitConfirmOpen(false)
       onSaved()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to add medicine')
@@ -848,8 +979,15 @@ const AddMedicationEntryModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage *</label>
-              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="e.g. 1-0-1"
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="e.g. 45mg or 1-0-1"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
+              {checkingDose ? (
+                <p className="mt-1 text-xs text-slate-500">Checking dose limit…</p>
+              ) : doseWarning?.message ? (
+                <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 whitespace-pre-line">
+                  {doseWarning.message}
+                </div>
+              ) : null}
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Unit of Measure</label>
@@ -1042,6 +1180,21 @@ const AddMedicationEntryModal = ({
         }}
       />
     )}
+    <PrescriptionDoseLimitConfirmModal
+      open={doseLimitConfirmOpen}
+      issues={
+        doseWarning?.message
+          ? [{ drugLabel: form.drug_name || form.drug, message: doseWarning.message }]
+          : []
+      }
+      loading={saving}
+      confirmLabel="Add anyway"
+      onClose={() => {
+        if (saving) return
+        setDoseLimitConfirmOpen(false)
+      }}
+      onConfirm={() => void performSave()}
+    />
     </>,
     document.body
   )
@@ -1692,6 +1845,9 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
         <EditMedicationEntryModal
           order={editingOrder}
           prescriptionName={prescription.name}
+          patient={prescription.patient}
+          patientEncounter={prescription.patient_encounter}
+          inpatientRecord={prescription.inpatient_record}
           onClose={() => setEditingOrder(null)}
           onSaved={() => { setEditingOrder(null); load() }}
         />
@@ -1700,6 +1856,9 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       {showAddModal && (
         <AddMedicationEntryModal
           prescriptionName={prescription.name}
+          patient={prescription.patient}
+          patientEncounter={prescription.patient_encounter}
+          inpatientRecord={prescription.inpatient_record}
           onClose={() => setShowAddModal(false)}
           onSaved={() => { setShowAddModal(false); load() }}
         />

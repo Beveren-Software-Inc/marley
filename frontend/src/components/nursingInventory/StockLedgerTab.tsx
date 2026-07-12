@@ -20,7 +20,7 @@ interface StockLedgerTabProps {
   isFullAccess?: boolean
 }
 
-export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = false }: StockLedgerTabProps) => {
+export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTabProps) => {
   const warehouseContext = useMiniWarehouseContext()
   const { userCostCenter } = useCareContext()
   const effectiveCostCenter = costCenter || userCostCenter

@@ -879,19 +879,26 @@ def preview_medicine_given_dose_validation(
 			"message": "",
 		}
 
+	patient = frappe.db.get_value("Inpatient Admission", admission, "patient")
+	from healthcare.api.dose_limit_validation import get_patient_weight_kg
+
+	patient_weight = get_patient_weight_kg(patient=patient, admission=admission, inpatient_record=admission)
 	evaluation = evaluate_medicine_given_dose(
 		admission_detail_name=admission_detail_name,
 		medicine_code=medicine_code,
 		dose=dose,
 		date_value=date or nowdate(),
 		time_value=time,
+		patient_weight=patient_weight,
+		patient=patient,
+		admission=admission,
 	)
 	return {
 		**evaluation,
 		"parsed_dose": extract_dose_numeric(dose),
-		"max_dose_per_single_dose": get_item_max_dose_per_single_dose(medicine_code),
-		"max_dose_per_day": get_item_max_dose_per_day(medicine_code),
-		"maximum_dose_limit": get_item_max_dose_per_single_dose(medicine_code),
+		"max_dose_per_single_dose": get_item_max_dose_per_single_dose(medicine_code, patient_weight),
+		"max_dose_per_day": get_item_max_dose_per_day(medicine_code, patient_weight),
+		"maximum_dose_limit": get_item_max_dose_per_single_dose(medicine_code, patient_weight),
 		"message": dose_limit_validation_message(evaluation),
 	}
 
@@ -1134,6 +1141,8 @@ def create_medicine_given(
 			time_value=row.time,
 			allow_override=allow_override,
 			override_reason=override_reason,
+			admission=admission,
+			patient=frappe.db.get_value("Inpatient Admission", admission, "patient"),
 		)
 		if dose_evaluation.get("override_required"):
 			apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())
@@ -1508,6 +1517,8 @@ def update_medicine_given(
 		allow_override=allow_override,
 		override_reason=override_reason,
 		exclude_row_name=name,
+		admission=admission,
+		patient=frappe.db.get_value("Inpatient Admission", admission, "patient"),
 	)
 	if dose_evaluation.get("override_required"):
 		apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())

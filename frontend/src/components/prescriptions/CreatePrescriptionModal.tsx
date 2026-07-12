@@ -34,6 +34,8 @@ import {
   type Prescription,
   checkPrescriptionDrugStock,
   type PrescriptionDrugStockCheck,
+  previewPrescriptionDoseValidation,
+  type PrescriptionDoseValidationPreview,
 } from '../../services/prescriptions'
 import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
@@ -57,6 +59,10 @@ import {
   CreateFrequencyMiniModal,
   type CreateFrequencyKind,
 } from './CreateFrequencyMiniModal'
+import {
+  PrescriptionDoseLimitConfirmModal,
+  type PrescriptionDoseLimitIssue,
+} from './PrescriptionDoseLimitConfirmModal'
 
 interface CreatePrescriptionModalProps {
   onClose: () => void
@@ -362,8 +368,90 @@ export const CreatePrescriptionModal = ({
   const [doctorsSignature, setDoctorsSignature] = useState<string | null>(null)
   const [signatureUploading, setSignatureUploading] = useState(false)
   const [medicationStock, setMedicationStock] = useState<Record<number, PrescriptionDrugStockCheck>>({})
+  const [medicationDoseWarnings, setMedicationDoseWarnings] = useState<
+    Record<number, PrescriptionDoseValidationPreview>
+  >({})
+  const [checkingDoseRows, setCheckingDoseRows] = useState<Record<number, boolean>>({})
+  const [doseLimitConfirmOpen, setDoseLimitConfirmOpen] = useState(false)
+  const [doseLimitConfirmIssues, setDoseLimitConfirmIssues] = useState<PrescriptionDoseLimitIssue[]>([])
 
   const isEditing = editMode
+
+  useEffect(() => {
+    let cancelled = false
+    const timers: number[] = []
+
+    medications.forEach((row, index) => {
+      const drug = (row.drug || '').trim()
+      const dosage = (row.dosage || '').trim()
+      if (!drug || !dosage) {
+        setMedicationDoseWarnings((prev) => {
+          if (!(index in prev)) return prev
+          const next = { ...prev }
+          delete next[index]
+          return next
+        })
+        return
+      }
+
+      const timer = window.setTimeout(() => {
+        setCheckingDoseRows((prev) => ({ ...prev, [index]: true }))
+        previewPrescriptionDoseValidation({
+          medicine_code: drug,
+          dose: dosage,
+          patient: selectedPatient?.name,
+          patient_encounter:
+            formData.care_context === 'Patient Visit' ? formData.patient_encounter || undefined : undefined,
+          inpatient_record:
+            formData.care_context === 'Inpatient Admission'
+              ? formData.inpatient_record || undefined
+              : undefined,
+        })
+          .then((preview) => {
+            if (cancelled) return
+            setMedicationDoseWarnings((prev) => {
+              const next = { ...prev }
+              if (preview.has_limit && !preview.ok && preview.message) {
+                next[index] = preview
+              } else {
+                delete next[index]
+              }
+              return next
+            })
+          })
+          .catch(() => {
+            if (cancelled) return
+            setMedicationDoseWarnings((prev) => {
+              if (!(index in prev)) return prev
+              const next = { ...prev }
+              delete next[index]
+              return next
+            })
+          })
+          .finally(() => {
+            if (!cancelled) {
+              setCheckingDoseRows((prev) => {
+                const next = { ...prev }
+                delete next[index]
+                return next
+              })
+            }
+          })
+      }, 350)
+      timers.push(timer)
+    })
+
+    return () => {
+      cancelled = true
+      timers.forEach((t) => window.clearTimeout(t))
+    }
+  }, [
+    medications,
+    selectedPatient?.name,
+    formData.care_context,
+    formData.patient_encounter,
+    formData.inpatient_record,
+  ])
 
   const searchFrequencies = async (query: string) => {
     setLoadingFrequency(true)
@@ -832,6 +920,25 @@ export const CreatePrescriptionModal = ({
       setActiveTab('medications')
       return
     }
+    const doseIssues = Object.entries(medicationDoseWarnings)
+      .map(([idx, preview]) => {
+        const row = medications[Number(idx)]
+        if (!row || !preview?.message) return null
+        return {
+          drugLabel: row.drug_name || row.drug,
+          message: preview.message,
+        }
+      })
+      .filter(Boolean) as PrescriptionDoseLimitIssue[]
+    if (doseIssues.length > 0) {
+      setDoseLimitConfirmIssues(doseIssues)
+      setDoseLimitConfirmOpen(true)
+      return
+    }
+    await performPrescriptionSubmit()
+  }
+
+  const performPrescriptionSubmit = async () => {
     try {
       setSubmitting(true)
       let successResult: { patient_visit: string; patient_medication_order: string } | undefined
@@ -853,7 +960,7 @@ export const CreatePrescriptionModal = ({
       } else if (isEditing && prescriptionData) {
         const payload: any = {
           name: prescriptionData.name,
-          patient: selectedPatient.name,
+          patient: selectedPatient!.name,
           care_context: formData.care_context,
           company: formData.company,
           start_date: formData.start_date,
@@ -874,7 +981,7 @@ export const CreatePrescriptionModal = ({
         )
       } else {
         const payload: CreatePrescriptionData = {
-          patient: selectedPatient.name,
+          patient: selectedPatient!.name,
           care_context: formData.care_context,
           company: formData.company,
           start_date: formData.start_date,
@@ -901,7 +1008,7 @@ export const CreatePrescriptionModal = ({
               ? `${med.date} ${med.time ?? '08:00:00'}`
               : `${formData.start_date} 08:00:00`
             const task: CreateNurseTaskData = {
-              patient: selectedPatient.name,
+              patient: selectedPatient!.name,
               task_type: 'Medication Administration',
               scheduled_time: scheduledDatetime,
               description: `${med.drug_name || med.drug} — ${med.dosage}${med.instructions ? `\n${med.instructions}` : ''}`,
@@ -935,6 +1042,8 @@ export const CreatePrescriptionModal = ({
         }
       }
 
+      setDoseLimitConfirmOpen(false)
+      setDoseLimitConfirmIssues([])
       onSuccess(successResult)
       onClose()
     } catch (err) {
@@ -1344,9 +1453,16 @@ export const CreatePrescriptionModal = ({
                                 type="text"
                                 value={row.dosage}
                                 onChange={(e) => updateMedicationRow(index, 'dosage', e.target.value)}
-                                placeholder="e.g. 1-0-1"
+                                placeholder="e.g. 45mg or 1-0-1"
                                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
+                              {checkingDoseRows[index] ? (
+                                <p className="mt-1 text-xs text-slate-500">Checking dose limit…</p>
+                              ) : medicationDoseWarnings[index]?.message ? (
+                                <div className="mt-1 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs text-amber-900 whitespace-pre-line">
+                                  {medicationDoseWarnings[index].message}
+                                </div>
+                              ) : null}
                             </div>
                             <div>
                               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -1734,6 +1850,19 @@ export const CreatePrescriptionModal = ({
           }}
         />
       )}
+      <PrescriptionDoseLimitConfirmModal
+        open={doseLimitConfirmOpen}
+        issues={doseLimitConfirmIssues}
+        loading={submitting}
+        confirmLabel={isEditing ? 'Update anyway' : 'Save anyway'}
+        onClose={() => {
+          if (submitting) return
+          setDoseLimitConfirmOpen(false)
+          setDoseLimitConfirmIssues([])
+          setActiveTab('medications')
+        }}
+        onConfirm={() => void performPrescriptionSubmit()}
+      />
     </div>
   )
 

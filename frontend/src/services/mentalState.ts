@@ -71,7 +71,7 @@ export interface MentalStateRow {
   /** Behaviour section (backend field name) */
   dellusion: 0 | 1
   perception: 0 | 1
-  /** Shown when delusion / dellusion is ticked */
+  /** Notes for any selected mental state items */
   remark: string | null
   creation: string
   modified?: string

@@ -230,14 +230,12 @@ export function MentalStateDetailPanel({
               <DetailRow label="Place" value={source.place} />
               <DetailRow label="Time" value={source.time} />
               <DetailRow label="Person" value={source.person} />
-              <DataField label="Reported Type" value={source.reported_type} />
             </div>
             <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Appetite</div>
             <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-3">
               <DetailRow label="Normal Appetite" value={source.normal_ap} />
               <DetailRow label="Increased" value={source.increased} />
               <DetailRow label="Poor Appetite" value={source.poor_ap} />
-              <DetailRow label="Reported" value={source.reported} />
             </div>
           </section>
 

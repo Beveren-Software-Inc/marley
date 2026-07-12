@@ -1,5 +1,9 @@
 import { useEffect, useState } from 'react'
 import { fetchPrescription, type Prescription } from '../../services/prescriptions'
+import {
+  fetchPharmacyGiveOutServices,
+  type PharmacyGiveOutServiceLine,
+} from '../../services/pharmacyGiveOut'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { StatusPill } from '../ui/StatusPill'
@@ -26,6 +30,7 @@ interface PharmacyGiveOutDetailsProps {
 export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsProps) {
   const formatCurrency = useFormatMoney()
   const [prescription, setPrescription] = useState<Prescription | null>(null)
+  const [services, setServices] = useState<PharmacyGiveOutServiceLine[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
 
@@ -35,8 +40,14 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
       try {
         setLoading(true)
         setError(null)
-        const data = await fetchPrescription(giveOutName)
-        if (!cancelled) setPrescription(data)
+        const [data, serviceData] = await Promise.all([
+          fetchPrescription(giveOutName),
+          fetchPharmacyGiveOutServices(giveOutName).catch(() => ({ services: [] as PharmacyGiveOutServiceLine[] })),
+        ])
+        if (!cancelled) {
+          setPrescription(data)
+          setServices(serviceData.services || [])
+        }
       } catch (e) {
         if (!cancelled) {
           setError(e instanceof Error ? e : new Error('Failed to load pharmacy give-out details'))
@@ -75,6 +86,12 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
     const rate = Number(med.rate) || 0
     return sum + qty * rate
   }, 0)
+  const servicesTotal = services.reduce((sum, svc) => {
+    const qty = Number(svc.qty) || 0
+    const amount = svc.amount != null ? Number(svc.amount) : qty * (Number(svc.rate) || 0)
+    return sum + amount
+  }, 0)
+  const grandTotal = medicationsTotal + servicesTotal
 
   return (
     <div className="space-y-4">
@@ -125,25 +142,28 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
                   const rate = Number(med.rate) || 0
                   const amount = med.amount != null ? Number(med.amount) : qty * rate
                   return (
-                  <tr key={med.name} className="border-b border-slate-100">
-                    <td className="py-2.5 pr-3 text-slate-900">{displayMedicationDrugName(med)}</td>
-                    <td className="py-2.5 pr-3 text-slate-700">{med.quantity ?? '—'}</td>
-                    <td className="py-2.5 pr-3 text-slate-700">{med.uom || '—'}</td>
-                    <td className="py-2.5 pr-3 text-slate-700 text-right">
-                      {rate ? formatCurrency(rate) : '—'}
-                    </td>
-                    <td className="py-2.5 text-slate-900 text-right font-medium">
-                      {amount ? formatCurrency(amount) : '—'}
-                    </td>
-                  </tr>
+                    <tr key={med.name} className="border-b border-slate-100">
+                      <td className="py-2.5 pr-3 text-slate-900">{displayMedicationDrugName(med)}</td>
+                      <td className="py-2.5 pr-3 text-slate-700">{med.quantity ?? '—'}</td>
+                      <td className="py-2.5 pr-3 text-slate-700">{med.uom || '—'}</td>
+                      <td className="py-2.5 pr-3 text-slate-700 text-right">
+                        {rate ? formatCurrency(rate) : '—'}
+                      </td>
+                      <td className="py-2.5 text-slate-900 text-right font-medium">
+                        {amount ? formatCurrency(amount) : '—'}
+                      </td>
+                    </tr>
                   )
                 })}
               </tbody>
               {medications.length > 0 ? (
                 <tfoot>
                   <tr>
-                    <td colSpan={4} className="py-2.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Total
+                    <td
+                      colSpan={4}
+                      className="py-2.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
+                    >
+                      Medications total
                     </td>
                     <td className="py-2.5 text-right text-sm font-semibold text-slate-900">
                       {formatCurrency(medicationsTotal)}
@@ -155,6 +175,70 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
           </div>
         )}
       </section>
+
+      {services.length > 0 ? (
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}>Services billed</h3>
+          <div className="mt-3 overflow-x-auto">
+            <table className="min-w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  <th className="py-2 pr-3">Service</th>
+                  <th className="py-2 pr-3">Qty</th>
+                  <th className="py-2 pr-3">Unit of measure</th>
+                  <th className="py-2 pr-3 text-right">Price</th>
+                  <th className="py-2 text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {services.map((svc) => {
+                  const qty = Number(svc.qty) || 0
+                  const rate = Number(svc.rate) || 0
+                  const amount = svc.amount != null ? Number(svc.amount) : qty * rate
+                  const key = `${svc.item_code || svc.item_name}-${qty}-${rate}`
+                  return (
+                    <tr key={key} className="border-b border-slate-100">
+                      <td className="py-2.5 pr-3 text-slate-900">
+                        {svc.item_name || svc.item_code || '—'}
+                      </td>
+                      <td className="py-2.5 pr-3 text-slate-700">{svc.qty ?? '—'}</td>
+                      <td className="py-2.5 pr-3 text-slate-700">{svc.uom || '—'}</td>
+                      <td className="py-2.5 pr-3 text-slate-700 text-right">
+                        {rate ? formatCurrency(rate) : '—'}
+                      </td>
+                      <td className="py-2.5 text-slate-900 text-right font-medium">
+                        {amount ? formatCurrency(amount) : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td
+                    colSpan={4}
+                    className="py-2.5 pr-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500"
+                  >
+                    Services total
+                  </td>
+                  <td className="py-2.5 text-right text-sm font-semibold text-slate-900">
+                    {formatCurrency(servicesTotal)}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        </section>
+      ) : null}
+
+      {(medications.length > 0 || services.length > 0) && services.length > 0 ? (
+        <div className="flex justify-end px-1">
+          <div className="text-right">
+            <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Grand total</p>
+            <p className="text-base font-semibold text-slate-900">{formatCurrency(grandTotal)}</p>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

@@ -692,3 +692,40 @@ export async function checkPrescriptionDrugStock(
     `/api/method/healthcare.api.prescription_stock.check_prescription_drug_stock?${params.toString()}`,
   )
 }
+
+export interface PrescriptionDoseValidationPreview {
+  ok: boolean
+  has_limit?: boolean
+  weight_based?: boolean
+  requires_weight?: boolean
+  patient_weight?: number | null
+  rate_per_kg?: number | null
+  limit_raw?: string | null
+  ceiling?: number | null
+  single_dose_ceiling?: number | null
+  daily_dose_ceiling?: number | null
+  entered_dose?: number | null
+  parsed_dose?: number | null
+  exceeds_single_dose?: boolean
+  exceeds_cumulative_24h?: boolean
+  frequency_style_dosage?: boolean
+  message?: string
+}
+
+export async function previewPrescriptionDoseValidation(args: {
+  medicine_code: string
+  dose: string
+  patient?: string
+  patient_encounter?: string
+  inpatient_record?: string
+  patient_weight?: number | string
+}): Promise<PrescriptionDoseValidationPreview> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<PrescriptionDoseValidationPreview>(
+    '/api/method/healthcare.api.dose_limit_validation.preview_prescription_dose_validation',
+    {
+      method: 'POST',
+      body: JSON.stringify(args),
+    }
+  )
+}
