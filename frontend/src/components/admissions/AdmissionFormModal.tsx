@@ -6,6 +6,42 @@ import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
 
+function YesNoField({
+  label,
+  value,
+  onChange,
+}: {
+  label: string
+  value: 'Yes' | 'No' | ''
+  onChange: (v: 'Yes' | 'No') => void
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+      <div className="flex items-center gap-4">
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'Yes'}
+            onChange={() => onChange('Yes')}
+          />
+          Yes
+        </label>
+        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+          <input
+            type="radio"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            checked={value === 'No'}
+            onChange={() => onChange('No')}
+          />
+          No
+        </label>
+      </div>
+    </div>
+  )
+}
+
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
 interface SignaturePadProps {
@@ -418,7 +454,9 @@ export const AdmissionFormModal = ({
   const [formData, setFormData] = useState({
     serviceUnit: '',           // primary bed name
     checkIn: new Date().toISOString().slice(0, 16),
-    expectedDischarge: '' as string
+    expectedDischarge: '' as string,
+    ipCaseManagement: 0 as 0 | 1,
+    ipCaseManagementFee: 0 as 0 | 1,
   })
 
   // ── Days → price ──────────────────────────────────────────────────────────
@@ -766,6 +804,9 @@ export const AdmissionFormModal = ({
         selectedPackage.package_rate,
         selectedPackage.name === '__custom__' ? 0 : 1,
         selectedBedNo?.name ?? null,
+        null,
+        formData.ipCaseManagement,
+        formData.ipCaseManagementFee,
       )
 
       onComplete()
@@ -1048,6 +1089,23 @@ export const AdmissionFormModal = ({
                     type="date" value={formData.expectedDischarge}
                     onChange={(e) => setFormData({ ...formData, expectedDischarge: e.target.value })}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-4 md:col-span-2">
+                  <YesNoField
+                    label="IP Case Management?"
+                    value={formData.ipCaseManagement === 1 ? 'Yes' : 'No'}
+                    onChange={(v) =>
+                      setFormData((prev) => ({ ...prev, ipCaseManagement: v === 'Yes' ? 1 : 0 }))
+                    }
+                  />
+                  <YesNoField
+                    label="IP Case Management Fee?"
+                    value={formData.ipCaseManagementFee === 1 ? 'Yes' : 'No'}
+                    onChange={(v) =>
+                      setFormData((prev) => ({ ...prev, ipCaseManagementFee: v === 'Yes' ? 1 : 0 }))
+                    }
                   />
                 </div>
 

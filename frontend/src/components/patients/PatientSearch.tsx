@@ -412,7 +412,7 @@ export const PatientSearch = ({
           )
         } else if (mode === 'IP') {
           const admissionsResponse = await fetchInpatientRecords(
-            undefined,
+            'Admitted',
             secondaryQuery || undefined,
             selectedPatient || undefined
           )

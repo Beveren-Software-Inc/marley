@@ -194,8 +194,10 @@ export interface CreatePatientData {
   file_no?: string
   /** When true (default), create a Sales Order for the file number charge from Healthcare Settings. */
   charge_file_no?: boolean
-  /** CPR ID card image (maps to Patient.cprigama_front_photo). */
+  /** CPR ID front image (maps to Patient.cprigama_front_photo). */
   cpr_photo?: string
+  /** CPR ID back image (maps to Patient.cprigama_back_photo). */
+  cpr_photo_back?: string
   patient_document?: PatientDocumentRow[]
 }
 
@@ -651,6 +653,8 @@ export interface PatientDoc {
   patient_relation_name?: string
   insurance_type?: string
   patient_document?: PatientDocument[]
+  cpr_photo?: string | null
+  cpr_photo_back?: string | null
 }
 
 /** Address doc (for edit form). */
@@ -769,6 +773,8 @@ export interface UpdatePatientData {
   patient_relation_name?: string
   insurance_type?: string
   patient_document?: PatientDocument[]
+  cpr_photo?: string | null
+  cpr_photo_back?: string | null
 }
 
 /** Extract user-facing message from Frappe error response (REST / method). */

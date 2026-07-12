@@ -16,7 +16,7 @@ import {
   type AvailabilitySlotInfo,
 } from '../../services/appointments'
 import {
-  fetchHealthcarePractitioners,
+  fetchAppointmentPractitioners,
   fetchAppointmentTypes,
   getCurrentUserPractitioner,
   pickDefaultAppointmentType,
@@ -317,7 +317,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         allowOverwrite || !prev.practitioner ? { ...prev, practitioner: practitionerId } : prev,
       )
       try {
-        const options = await fetchHealthcarePractitioners(practitionerId)
+        const options = await fetchAppointmentPractitioners(practitionerId)
         if (cancelled) return
         const match = options.find((p) => p.name === practitionerId)
         setPractitionerQuery(match?.label || practitionerId)
@@ -334,7 +334,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     const loadOptions = async () => {
       try {
         const [practs, appointmentTypes] = await Promise.all([
-          fetchHealthcarePractitioners(),
+          fetchAppointmentPractitioners(),
           fetchAppointmentTypes(),
         ])
         if (cancelled) return
@@ -519,7 +519,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
     const search = async () => {
       try {
-        const results = await fetchHealthcarePractitioners(practitionerQuery)
+        const results = await fetchAppointmentPractitioners(practitionerQuery)
         setPractitionerOptions(results)
       } catch (err) {
         console.error('Failed to search practitioners:', err)
@@ -1031,7 +1031,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             if (newPract) {
               setPractitionerQuery(newPract.label)
             } else {
-              fetchHealthcarePractitioners().then(setPractitionerOptions).catch(console.error)
+              fetchAppointmentPractitioners().then(setPractitionerOptions).catch(console.error)
               setPractitionerQuery(practitionerName)
             }
             setPractitionerOpen(false)

@@ -79,6 +79,8 @@
   "inpatient_package",
   "rate_per_day",
   "case_management_fee",
+  "ip_case_management",
+  "ip_case_management_fee",
   "package_num",
   "column_break_costs",
   "admission_cost",
@@ -467,6 +469,18 @@
    "fieldname": "case_management_fee",
    "fieldtype": "Currency",
    "label": "Case Management Fee"
+  },
+  {
+   "default": "0",
+   "fieldname": "ip_case_management",
+   "fieldtype": "Check",
+   "label": "IP Case Management"
+  },
+  {
+   "default": "0",
+   "fieldname": "ip_case_management_fee",
+   "fieldtype": "Check",
+   "label": "IP Case Management Fee"
   },
   {
    "fieldname": "column_break_costs",

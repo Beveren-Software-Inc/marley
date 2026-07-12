@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
@@ -120,6 +121,58 @@ def get_ect_details(limit=50, offset=0, patient=None):
 				ect['patient_name'] = patient_name
 
 	return ect_details
+
+
+@frappe.whitelist()
+def get_consolidated_ect_details(limit=100, offset=0, patient=None, search=None):
+	"""
+	Consolidate ECT Details by patient: patient + how many ECT Detail sessions they have.
+	"""
+	limit = cint(limit) if limit is not None else 100
+	offset = cint(offset) if offset is not None else 0
+	patient = (patient or "").strip() or None
+	search = (search or "").strip() or None
+
+	conditions = ["ed.patient IS NOT NULL", "ed.patient != ''"]
+	params = {}
+
+	if patient:
+		conditions.append("ed.patient = %(patient)s")
+		params["patient"] = patient
+
+	if search:
+		conditions.append(
+			"(ed.patient LIKE %(search)s OR IFNULL(p.patient_name, '') LIKE %(search)s)"
+		)
+		params["search"] = f"%{search}%"
+
+	where_sql = " AND ".join(conditions)
+	params["limit"] = limit
+	params["offset"] = offset
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			ed.patient AS patient,
+			COALESCE(MAX(p.patient_name), ed.patient) AS patient_name,
+			COUNT(*) AS ect_count,
+			MIN(ed.date) AS first_ect_date,
+			MAX(ed.date) AS last_ect_date
+		FROM `tabECT Details` ed
+		LEFT JOIN `tabPatient` p ON p.name = ed.patient
+		WHERE {where_sql}
+		GROUP BY ed.patient
+		ORDER BY ect_count DESC, patient_name ASC
+		LIMIT %(limit)s OFFSET %(offset)s
+		""",
+		params,
+		as_dict=True,
+	)
+
+	for row in rows:
+		row["ect_count"] = cint(row.get("ect_count") or 0)
+
+	return rows
 
 
 @frappe.whitelist()

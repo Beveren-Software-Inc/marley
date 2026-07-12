@@ -126,6 +126,7 @@ export const CreateServiceRequestModal = ({
   const [groupRows, setGroupRows] = useState<GroupTemplateRow[]>([])
   const [selectedGroupTemplates, setSelectedGroupTemplates] = useState<string[]>([])
   const [discountPct, setDiscountPct] = useState(0)
+  const [manualCost, setManualCost] = useState(0)
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
 
   /** Multi-test lab basket (lab request flow only) */
@@ -176,16 +177,19 @@ export const CreateServiceRequestModal = ({
     return getBestPrice(pricingRows) || 0
   }, [isGroupTemplate, pricingRows, patientCategory])
 
-  const listSubtotalBeforeDiscount = useLabBasket
+  const catalogListSubtotal = useLabBasket
     ? basketPricing.subtotal
     : isGroupTemplate
       ? groupTotal
       : nonGroupListSubtotal
 
+  const priceMissing = !useLabBasket && catalogListSubtotal <= 0
+  const listSubtotalBeforeDiscount = priceMissing ? manualCost : catalogListSubtotal
+
   const orderDiscountAmount = discountPct
   const estimatedTotalAfterDiscount = useLabBasket
     ? (basketPricing.grand_total ?? basketPricing.subtotal)
-    : Math.max(0, listSubtotalBeforeDiscount - Math.min(listSubtotalBeforeDiscount, orderDiscountAmount))
+    : listSubtotalBeforeDiscount - orderDiscountAmount
 
   const basketWithDiscounts = useMemo(
     () => mergeDiscountsIntoBasket(labBasket, lineDiscounts),
@@ -433,11 +437,13 @@ export const CreateServiceRequestModal = ({
           setSelectedGroupTemplates([])
         }
         setDiscountPct(0)
+        setManualCost(0)
       })
       .catch(() => {
         setPricingRows([])
         setGroupRows([])
         setSelectedGroupTemplates([])
+        setManualCost(0)
       })
   }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket, mode])
 
@@ -525,8 +531,12 @@ export const CreateServiceRequestModal = ({
         })
       } else {
         const listAmount = listSubtotalBeforeDiscount
-        const discountAmount = Math.min(listAmount, Math.max(0, orderDiscountAmount))
-        const afterDiscount = Math.max(0, listAmount - discountAmount)
+        if (priceMissing && listAmount <= 0) {
+          setError('Enter an amount for this item/service (no price configured).')
+          return
+        }
+        const discountAmount = orderDiscountAmount
+        const afterDiscount = listAmount - discountAmount
         await createServiceRequest({
           patient: form.patient,
           template_dt: form.template_dt,
@@ -1004,15 +1014,40 @@ export const CreateServiceRequestModal = ({
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
                   {useLabBasket
-                    ? 'Set a fixed discount amount per lab test. Reception finalises billing.'
-                    : 'Reference amount before discount (reception finalises billing). Enter a discount amount if applicable.'}
+                    ? 'Set a discount amount per lab test (negative values add a surcharge). Reception finalises billing.'
+                    : 'Reference amount before discount (reception finalises billing). Enter a discount amount if applicable — negative values are allowed.'}
                 </p>
-                {listSubtotalBeforeDiscount > 0 && (
+                {priceMissing ? (
+                  <div className="mb-3 flex flex-col gap-1">
+                    <label className="text-xs font-medium text-slate-500">
+                      Amount <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="number"
+                      step={0.01}
+                      value={manualCost === 0 ? '' : manualCost}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        if (raw === '') {
+                          setManualCost(0)
+                          return
+                        }
+                        const n = Number(raw)
+                        if (!Number.isNaN(n)) setManualCost(n)
+                      }}
+                      className={inputClass}
+                      placeholder="Enter amount (no price on item)"
+                    />
+                    <p className="text-[11px] text-amber-700">
+                      This item/service has no price configured. Enter the amount to charge.
+                    </p>
+                  </div>
+                ) : listSubtotalBeforeDiscount !== 0 ? (
                   <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2 text-sm">
                     <span className="text-slate-600">List amount</span>
                     <span className="font-semibold tabular-nums text-slate-900">{formatMoney(listSubtotalBeforeDiscount)}</span>
                   </div>
-                )}
+                ) : null}
                 {useLabBasket && basketPricing.lines.length > 0 ? (
                   <LabTestLineDiscountTable
                     lines={basketPricing.lines}
@@ -1025,24 +1060,34 @@ export const CreateServiceRequestModal = ({
                       <label className="text-xs font-medium text-slate-500">Discount amount</label>
                       <input
                         type="number"
-                        min={0}
                         step={0.01}
-                        value={discountPct || ''}
-                        onChange={(e) => setDiscountPct(Math.max(0, Number(e.target.value) || 0))}
+                        value={discountPct === 0 ? '' : discountPct}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            setDiscountPct(0)
+                            return
+                          }
+                          const n = Number(raw)
+                          if (!Number.isNaN(n)) setDiscountPct(n)
+                        }}
                         className={inputClass}
                         placeholder="0"
                       />
                     </div>
                   </div>
                 ) : null}
-                {!useLabBasket && discountPct > 0 && listSubtotalBeforeDiscount > 0 && (
+                {!useLabBasket && orderDiscountAmount !== 0 && (
                   <p className="mb-3 text-xs text-slate-500">
-                    −{formatMoney(Math.min(listSubtotalBeforeDiscount, discountPct))}
+                    {orderDiscountAmount > 0 ? '−' : '+'}
+                    {formatMoney(Math.abs(orderDiscountAmount))}
                   </p>
                 )}
-                {useLabBasket && (basketPricing.discount_amount || 0) > 0 && (
+                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 && (
                   <p className="mt-3 text-xs text-slate-500">
-                    Total discount: −{formatMoney(basketPricing.discount_amount || 0)}
+                    Total discount:{' '}
+                    {(basketPricing.discount_amount || 0) > 0 ? '−' : '+'}
+                    {formatMoney(Math.abs(basketPricing.discount_amount || 0))}
                   </p>
                 )}
               </div>
@@ -1055,10 +1100,12 @@ export const CreateServiceRequestModal = ({
                   <Wallet className="h-4 w-4 text-white/90" />
                   Estimated patient total
                 </span>
-                {useLabBasket && (basketPricing.discount_amount || 0) > 0 ? (
+                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 ? (
                   <span className="text-xs text-emerald-100/90">Per-test discounts applied</span>
-                ) : !useLabBasket && orderDiscountAmount > 0 ? (
-                  <span className="text-xs text-emerald-100/90">Discount applied</span>
+                ) : !useLabBasket && orderDiscountAmount !== 0 ? (
+                  <span className="text-xs text-emerald-100/90">
+                    {orderDiscountAmount > 0 ? 'Discount' : 'Surcharge'} applied
+                  </span>
                 ) : null}
               </div>
               <div className="text-2xl font-bold tabular-nums tracking-tight text-white drop-shadow-sm">{formatMoney(estimatedTotalAfterDiscount)}</div>

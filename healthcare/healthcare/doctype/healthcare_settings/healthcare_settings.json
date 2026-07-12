@@ -92,6 +92,7 @@
   "default_return_medicine",
   "section_break_whbc",
   "nurse_mini_warehouse",
+  "section_break_fndq",
   "phamarcy_give_out",
   "section_break_vzkt",
   "laboratory_mini_warehouse",
@@ -614,9 +615,9 @@
   },
   {
    "fieldname": "phamarcy_give_out",
-   "fieldtype": "Table MultiSelect",
-   "label": "Phamarcy Give Out",
-   "options": "Nurse Give Out Medicine"
+   "fieldtype": "Table",
+   "label": "Pharmacy Give Out",
+   "options": "Pharmacy Give Out"
   },
   {
    "fieldname": "file_no_charge_item",
@@ -694,11 +695,15 @@
    "fieldname": "doctors_commission",
    "fieldtype": "Percent",
    "label": "Doctors Commission"
+  },
+  {
+   "fieldname": "section_break_fndq",
+   "fieldtype": "Section Break"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-12 10:43:25.416033",
+ "modified": "2026-07-12 15:16:43.313449",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

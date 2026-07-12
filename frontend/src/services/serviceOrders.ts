@@ -122,6 +122,8 @@ export interface PaymentEntryRow {
   reference_no?: string
   cost_center?: string | null
   remarks?: string | null
+  cashier?: string | null
+  cashier_name?: string | null
   invoice_name?: string | null
   invoice_reference_type?: string | null
   invoice_reference_name?: string | null
@@ -590,7 +592,8 @@ export async function fetchPaymentEntries(
   fromDate?: string,
   toDate?: string,
   modeOfPayment?: string,
-  filterByOpenShift?: boolean
+  filterByOpenShift?: boolean,
+  cashier?: string,
 ): Promise<PaymentEntryRow[]> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -600,6 +603,7 @@ export async function fetchPaymentEntries(
   if (toDate) params.append('to_date', toDate)
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
+  if (cashier) params.append('cashier', cashier)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_entries?${params.toString()}`)
   const data = await response.json()
   return data.message || []
@@ -612,7 +616,8 @@ export async function fetchPaymentSummary(
   fromDate?: string,
   toDate?: string,
   modeOfPayment?: string,
-  filterByOpenShift?: boolean
+  filterByOpenShift?: boolean,
+  cashier?: string,
 ): Promise<PaymentSummary> {
   const params = new URLSearchParams()
   if (referenceType) params.append('reference_type', referenceType)
@@ -622,6 +627,7 @@ export async function fetchPaymentSummary(
   if (toDate) params.append('to_date', toDate)
   if (modeOfPayment) params.append('mode_of_payment', modeOfPayment)
   if (filterByOpenShift) params.append('filter_by_open_shift', '1')
+  if (cashier) params.append('cashier', cashier)
   const response = await fetch(`/api/method/healthcare.api.billing.get_payment_summary?${params.toString()}`)
   const data = await response.json()
   return data.message || { payment_count: 0, total_paid: 0, advance_amount: 0, modes: [] }

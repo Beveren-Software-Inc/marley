@@ -22,11 +22,13 @@ class PatientMedicationOrder(Document):
 	def validate(self):
 		self.validate_inpatient()
 		self.validate_duplicate()
+		self.validate_pink_reference_no()
 		self.set_total_orders()
 		self.set_status()
 
 	def on_submit(self):
 		self.validate_inpatient()
+		self.validate_pink_reference_no()
 		self.set_status()
   
 		#ACtivate after going live with medication orders
@@ -44,6 +46,18 @@ class PatientMedicationOrder(Document):
 		pass
 		# if not self.inpatient_record:
 		# 	frappe.throw(_("No Inpatient Admission found against patient {0}").format(self.patient))
+
+	def validate_pink_reference_no(self):
+		"""Reference No is mandatory on pink medication lines."""
+		for row in self.get("medication_orders") or []:
+			if not cint(getattr(row, "is_pink", 0)):
+				continue
+			if not cstr(getattr(row, "reference_no", "") or "").strip():
+				drug_label = getattr(row, "drug_name", None) or getattr(row, "drug", None) or row.idx
+				frappe.throw(
+					_("Reference No is required for pink medication: {0}").format(drug_label),
+					title=_("Missing Reference No"),
+				)
 
 	def validate_duplicate(self):
 		# Allow creating a new order when the existing one is Completed

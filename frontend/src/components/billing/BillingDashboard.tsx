@@ -27,7 +27,7 @@ import {
   type PaymentEntryRow,
   type PaymentSummary,
 } from '../../services/serviceOrders'
-import { fetchModeOfPayments } from '../../services/common'
+import { fetchModeOfPayments, fetchUsers, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useReceptionistShift } from '../../providers/ReceptionistShiftProvider'
 import { 
@@ -187,6 +187,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [toDate, setToDate] = useState('')
   const [paymentModeFilter, setPaymentModeFilter] = useState('')
   const [paymentModes, setPaymentModes] = useState<Array<{ name: string; label: string }>>([])
+  const [cashierFilter, setCashierFilter] = useState('')
+  const [cashiers, setCashiers] = useState<LinkFieldOption[]>([])
   const [filterByOpenShift, setFilterByOpenShift] = useState(true)
 
   const shiftFilterActive = Boolean(shiftContext?.shiftRequired && filterByOpenShift)
@@ -330,8 +332,8 @@ const handleMakePayment = async (
       try {
         if (!hasLoadedOnce) setLoading(true)
         const [paymentRows, paySummary] = await Promise.all([
-          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
-          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
+          fetchPaymentEntries(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
+          fetchPaymentSummary(undefined, undefined, undefined, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
         ])
         if (isStale?.()) return
         setPayments(paymentRows)
@@ -378,8 +380,8 @@ const handleMakePayment = async (
             scopedReferenceName,
             effectivePatient
           ),
-          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
-          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive),
+          fetchPaymentEntries(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
+          fetchPaymentSummary(scopedReferenceType, scopedReferenceName, effectivePatient, fromDate || undefined, toDate || undefined, paymentModeFilter || undefined, shiftFilterActive, cashierFilter || undefined),
         ])
         if (isStale?.()) return
         setBillingCcRestricted(!!ccScope.restricted)
@@ -511,12 +513,15 @@ const handleMakePayment = async (
     return () => {
       cancelled = true
     }
-  }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, shiftFilterActive])
+  }, [currentView, effectivePatient, scopedReferenceName, fromDate, toDate, paymentModeFilter, cashierFilter, shiftFilterActive])
 
   useEffect(() => {
     fetchModeOfPayments()
       .then(setPaymentModes)
       .catch(() => setPaymentModes([]))
+    fetchUsers(undefined, 'Receptionist')
+      .then(setCashiers)
+      .catch(() => setCashiers([]))
   }, [])
 
   // Filter inpatient balances
@@ -965,27 +970,52 @@ const handleMakePayment = async (
           <X className="w-3 h-3" /> Clear
         </button>
         {currentView === 'payments' && (
-          <div>
-            <label className="block text-xs text-slate-600 mb-1">Mode of Payment</label>
-            <select
-              value={paymentModeFilter}
-              onChange={(e) => setPaymentModeFilter(e.target.value)}
-              className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
-            >
-              <option value="">Select All</option>
-              {paymentModes.map((mode) => (
-                <option key={mode.name} value={mode.name}>{mode.label}</option>
-              ))}
-            </select>
-          </div>
+          <>
+            <div>
+              <label className="block text-xs text-slate-600 mb-1">Mode of Payment</label>
+              <select
+                value={paymentModeFilter}
+                onChange={(e) => setPaymentModeFilter(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white"
+              >
+                <option value="">Select All</option>
+                {paymentModes.map((mode) => (
+                  <option key={mode.name} value={mode.name}>{mode.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-slate-600 mb-1">Cashier</label>
+              <select
+                value={cashierFilter}
+                onChange={(e) => setCashierFilter(e.target.value)}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm bg-white min-w-[180px]"
+              >
+                <option value="">Select All</option>
+                {cashiers.map((user) => (
+                  <option key={user.name} value={user.name}>{user.label}</option>
+                ))}
+              </select>
+            </div>
+          </>
         )}
       </div>
     )
   }
 
   const exportPaymentsCsv = () => {
-    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Invoice', 'Reference Type', 'Reference Name']
-    const rows = payments.map((p) => [p.name, p.posting_date || '', p.mode_of_payment || '', String(p.paid_amount ?? 0), p.party_name || '', p.invoice_name || '', p.invoice_reference_type || '', p.invoice_reference_name || ''])
+    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Cashier', 'Invoice', 'Reference Type', 'Reference Name']
+    const rows = payments.map((p) => [
+      p.name,
+      p.posting_date || '',
+      p.mode_of_payment || '',
+      String(p.paid_amount ?? 0),
+      p.party_name || '',
+      p.cashier_name || p.cashier || '',
+      p.invoice_name || '',
+      p.invoice_reference_type || '',
+      p.invoice_reference_name || '',
+    ])
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
     const url = URL.createObjectURL(blob)
@@ -999,8 +1029,8 @@ const handleMakePayment = async (
   const printPayments = () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
-    const rows = payments.map((p) => `<tr><td>${p.name}</td><td>${p.posting_date || ''}</td><td>${p.mode_of_payment || ''}</td><td>${formatCurrency(p.paid_amount || 0)}</td><td>${p.party_name || ''}</td><td>${p.invoice_name || ''}</td></tr>`).join('')
-    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    const rows = payments.map((p) => `<tr><td>${p.name}</td><td>${p.posting_date || ''}</td><td>${p.mode_of_payment || ''}</td><td>${formatCurrency(p.paid_amount || 0)}</td><td>${p.party_name || ''}</td><td>${p.cashier_name || p.cashier || ''}</td><td>${p.invoice_name || ''}</td></tr>`).join('')
+    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Cashier</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -1046,6 +1076,7 @@ const handleMakePayment = async (
                   <th className="px-3 py-2 text-left">Type</th>
                   <th className="px-3 py-2 text-left">Mode</th>
                   <th className="px-3 py-2 text-right">Amount</th>
+                  <th className="px-3 py-2 text-left">Cashier</th>
                   <th className="px-3 py-2 text-left">Invoice</th>
                   <th className="px-3 py-2 text-center w-12">Print</th>
                 </tr>
@@ -1083,6 +1114,7 @@ const handleMakePayment = async (
                     <td className={`px-3 py-2 text-right font-medium ${isDraft ? 'text-slate-500' : isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
                       {isDraft ? '—' : formatCurrency(signedAmount)}
                     </td>
+                    <td className="px-3 py-2">{p.cashier_name || p.cashier || '—'}</td>
                     <td className="px-3 py-2">{p.invoice_name || '—'}</td>
                     <td className="px-3 py-2 text-center">
                       {!isDraft ? (
@@ -1103,7 +1135,7 @@ const handleMakePayment = async (
                   )
                 })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={7} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
+                  <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
                 )}
               </tbody>
             </table>

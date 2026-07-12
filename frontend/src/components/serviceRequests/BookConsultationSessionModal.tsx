@@ -6,7 +6,7 @@ import {
   type AvailabilitySlotInfo
 } from '../../services/appointments'
 import {
-  fetchHealthcarePractitioners,
+  fetchAppointmentPractitioners,
   fetchAppointmentTypes,
   pickDefaultAppointmentType,
   type LinkFieldOption,
@@ -102,7 +102,7 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
   /* ── load initial options ── */
   useEffect(() => {
     Promise.all([
-      fetchHealthcarePractitioners(),
+      fetchAppointmentPractitioners(),
       fetchAppointmentTypes(),
     ]).then(([practs, types]) => {
       setPractitionerOptions(practs)
@@ -148,7 +148,7 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
   useEffect(() => {
     if (!practitionerOpen) return
     const t = setTimeout(() =>
-      fetchHealthcarePractitioners(practitionerQuery).then(setPractitionerOptions).catch(console.error)
+      fetchAppointmentPractitioners(practitionerQuery).then(setPractitionerOptions).catch(console.error)
     , practitionerQuery ? 300 : 0)
     return () => clearTimeout(t)
   }, [practitionerQuery, practitionerOpen])

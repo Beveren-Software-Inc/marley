@@ -24,7 +24,7 @@ import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
-import { PenLine, Trash2, Check } from 'lucide-react'
+import { PenLine, Trash2, Check, Upload, Download, RefreshCw, Loader2 } from 'lucide-react'
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
 
@@ -317,7 +317,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
   const [cprPhoto, setCprPhoto] = useState('')
-  const [cprUploading, setCprUploading] = useState(false)
+  const [cprPhotoBack, setCprPhotoBack] = useState('')
+  const [cprUploading, setCprUploading] = useState<'front' | 'back' | null>(null)
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
 
@@ -399,22 +400,23 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     }
   }
 
-  const handleCprFile = async (file: File | null) => {
+  const handleCprFile = async (side: 'front' | 'back', file: File | null) => {
     if (!file) return
     if (!file.type.startsWith('image/')) {
       toast.error('CPR must be an image file')
       return
     }
-    setCprUploading(true)
+    setCprUploading(side)
     try {
       const file_url = await uploadPatientFile(file)
       if (!file_url) throw new Error('No URL returned from upload')
-      setCprPhoto(file_url)
-      toast.success('CPR image attached')
+      if (side === 'front') setCprPhoto(file_url)
+      else setCprPhotoBack(file_url)
+      toast.success(side === 'front' ? 'CPR front image attached' : 'CPR back image attached')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'CPR upload failed')
     } finally {
-      setCprUploading(false)
+      setCprUploading(null)
     }
   }
 
@@ -517,6 +519,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
             is_next_of_kin: r.is_next_of_kin,
           })),
         cpr_photo: cprPhoto || undefined,
+        cpr_photo_back: cprPhotoBack || undefined,
         patient_document: documents
           .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
           .map((r) => ({
@@ -701,7 +704,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     { id: 'relations', label: 'Next of Kin', badge: relations.length || undefined },
     { id: 'insurance', label: 'Insurance' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
-    { id: 'cpr', label: 'Attach CPR', badge: cprPhoto ? 1 : undefined },
+    { id: 'cpr', label: 'Attach CPR', badge: (cprPhoto ? 1 : 0) + (cprPhotoBack ? 1 : 0) || undefined },
   ]
 
   return (
@@ -1413,45 +1416,75 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
             )}
           </div>
 
-            {/* ── TAB: Attach CPR (image only) ── */}
+            {/* ── TAB: Attach CPR front & back (image only) ── */}
             {activeTab === 'cpr' && (
-              <div className="space-y-4">
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className={`inline-flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${cprUploading ? 'bg-slate-200 text-slate-500' : 'bg-primary text-white hover:bg-primary/90'}`}>
-                    {cprUploading ? 'Uploading…' : cprPhoto ? 'Replace CPR' : 'Attach CPR'}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      disabled={cprUploading}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0]
-                        if (f) handleCprFile(f)
-                        e.target.value = ''
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                  {cprPhoto && (
-                    <>
-                      <a href={cprPhoto} download className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">
-                        Download
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {([
+                  { side: 'front' as const, label: 'CPR Front', value: cprPhoto, setValue: setCprPhoto },
+                  { side: 'back' as const, label: 'CPR Back', value: cprPhotoBack, setValue: setCprPhotoBack },
+                ]).map(({ side, label, value, setValue }) => (
+                  <div key={side} className="space-y-3">
+                    <h4 className="text-sm font-semibold text-slate-800">{label}</h4>
+                    <div className="flex items-center gap-3">
+                        <label
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-md cursor-pointer transition-colors ${
+                            cprUploading === side
+                              ? 'bg-slate-200 text-slate-500'
+                              : 'bg-primary text-white hover:bg-primary/90'
+                          }`}
+                          title={cprUploading === side ? 'Uploading…' : value ? `Replace ${label}` : `Attach ${label}`}
+                        >
+                          {cprUploading === side ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : value ? (
+                            <RefreshCw className="w-4 h-4" />
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={cprUploading !== null}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              if (f) handleCprFile(side, f)
+                              e.target.value = ''
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {value && (
+                          <>
+                            <a
+                              href={value}
+                              download
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              title={`Download ${label}`}
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setValue('')}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-red-500 hover:bg-red-50"
+                              title={`Remove ${label}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                    </div>
+                    {value ? (
+                      <a href={value} target="_blank" rel="noreferrer" title="Click to open full size" className="block rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
+                        <img src={value} alt={label} className="mx-auto max-h-56 object-contain" />
                       </a>
-                      <button type="button" onClick={() => setCprPhoto('')} className="text-sm text-red-500 hover:underline">
-                        Remove
-                      </button>
-                    </>
-                  )}
-                </div>
-
-                {cprPhoto ? (
-                  <a href={cprPhoto} target="_blank" rel="noreferrer" title="Click to open full size" className="block max-w-md rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
-                    <img src={cprPhoto} alt="CPR" className="mx-auto max-h-72 object-contain" />
-                  </a>
-                ) : (
-                  <div className="max-w-md rounded-lg border-2 border-dashed border-slate-200 p-10 text-center text-sm text-slate-400">
-                    Attach the patient's CPR ID image (image files only).
+                    ) : (
+                      <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
+                        Attach the patient's CPR {side} image (image files only).
+                      </div>
+                    )}
                   </div>
-                )}
+                ))}
               </div>
             )}
 

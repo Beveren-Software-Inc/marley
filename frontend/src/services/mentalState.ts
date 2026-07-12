@@ -41,6 +41,8 @@ export interface MentalStateRow {
   agitated: 0 | 1
   abnormal: 0 | 1
   hallucinatory_behaviour: 0 | 1
+  /** Motor — Normal (under Hallucinatory Behaviour) */
+  normal: 0 | 1
   // Orientation
   place: 0 | 1
   time: 0 | 1
@@ -64,9 +66,13 @@ export interface MentalStateRow {
   conscious: 0 | 1
   alert: 0 | 1
   disturbed_con: 0 | 1
-  // Thought content
+  // Thought content / psychotic
   delusion: 0 | 1
+  /** Behaviour section (backend field name) */
+  dellusion: 0 | 1
   perception: 0 | 1
+  /** Shown when delusion / dellusion is ticked */
+  remark: string | null
   creation: string
   modified?: string
   owner?: string

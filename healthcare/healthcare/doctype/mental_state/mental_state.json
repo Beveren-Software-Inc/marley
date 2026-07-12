@@ -23,6 +23,7 @@
   "impulsive",
   "sedative",
   "normal_s",
+  "dellusion",
   "column_break_behavior2",
   "rapid",
   "slow",
@@ -47,6 +48,7 @@
   "agitated",
   "abnormal",
   "hallucinatory_behaviour",
+  "normal",
   "section_break_orientation",
   "place",
   "time",
@@ -74,6 +76,8 @@
   "perception",
   "column_break_fhwz",
   "delusion",
+  "section_break_xvei",
+  "remark",
   "section_break_old",
   "admission_num_old"
  ],
@@ -485,12 +489,33 @@
    "fieldname": "delusion",
    "fieldtype": "Check",
    "label": "Delusion"
+  },
+  {
+   "default": "0",
+   "fieldname": "normal",
+   "fieldtype": "Check",
+   "label": "Normal"
+  },
+  {
+   "default": "0",
+   "fieldname": "dellusion",
+   "fieldtype": "Check",
+   "label": "Dellusion"
+  },
+  {
+   "fieldname": "section_break_xvei",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remark",
+   "fieldtype": "Small Text",
+   "label": "Remark"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-09 15:01:20.354567",
+ "modified": "2026-07-12 16:14:06.994948",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Mental State",

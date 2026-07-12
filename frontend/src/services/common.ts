@@ -127,13 +127,18 @@ export async function fetchAnaesthesiaTypes(search?: string): Promise<LinkFieldO
   return []
 }
 
-export async function fetchHealthcarePractitioners(search?: string, department?: string): Promise<LinkFieldOption[]> {
+export async function fetchHealthcarePractitioners(
+  search?: string,
+  department?: string,
+  opts?: { appointmentOnly?: boolean },
+): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
-  
+  if (opts?.appointmentOnly) params.append('appointment_only', '1')
+
   const url = `/api/method/healthcare.api.common.get_healthcare_practitioners${params.toString() ? `?${params.toString()}` : ''}`
-  
+
   const response = await fetch(url)
   const resData = await response.json()
   if (resData?.message && Array.isArray(resData.message)) {
@@ -141,6 +146,14 @@ export async function fetchHealthcarePractitioners(search?: string, department?:
   } else {
     return []
   }
+}
+
+/** Active practitioners with Appointment checked — for appointment doctor filters/forms. */
+export async function fetchAppointmentPractitioners(
+  search?: string,
+  department?: string,
+): Promise<LinkFieldOption[]> {
+  return fetchHealthcarePractitioners(search, department, { appointmentOnly: true })
 }
 
 /** Discharge form: practitioners with Medical Role Nurse or parent Medical Role Nurse. */
@@ -796,9 +809,15 @@ export async function resolvePrescriptionDrugRoute(opt: LinkFieldOption): Promis
   return (await fetchItemRouteOfAdministration(opt.name)) || ''
 }
 
-export async function fetchPrescriptionItems(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchPrescriptionItems(
+  search?: string,
+  opts?: { warehouse?: string; costCenter?: string; inStockOnly?: boolean }
+): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
+  if (opts?.warehouse) params.append('warehouse', opts.warehouse)
+  if (opts?.costCenter) params.append('cost_center', opts.costCenter)
+  if (opts?.inStockOnly) params.append('in_stock_only', '1')
 
   const url =
     `/api/method/healthcare.api.common.get_prescription_items` +
@@ -811,6 +830,27 @@ export async function fetchPrescriptionItems(search?: string): Promise<LinkField
     return resData.message as LinkFieldOption[]
   }
   return []
+}
+
+export async function filterItemsInStock(
+  itemCodes: string[],
+  opts?: { warehouse?: string; costCenter?: string }
+): Promise<{ warehouse?: string; in_stock: string[]; out_of_stock: string[] }> {
+  if (!itemCodes.length) {
+    return { warehouse: opts?.warehouse, in_stock: [], out_of_stock: [] }
+  }
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<{ warehouse?: string; in_stock: string[]; out_of_stock: string[] }>(
+    '/api/method/healthcare.api.common.filter_items_in_stock',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        item_codes: itemCodes,
+        warehouse: opts?.warehouse || undefined,
+        cost_center: opts?.costCenter || undefined,
+      }),
+    }
+  )
 }
 
 export async function fetchDosageForms(search?: string): Promise<LinkFieldOption[]> {

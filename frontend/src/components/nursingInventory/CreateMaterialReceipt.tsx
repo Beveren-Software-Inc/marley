@@ -280,13 +280,11 @@ export const CreateMaterialReceiptModal = ({
                     />
                   ) : (
                     <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                      No branch selected. {isFullAccess ? 'Choose a branch from the inventory dashboard first.' : 'Contact your administrator to assign a branch.'}
+                      No branch selected. Choose a branch from the top navbar.
                     </div>
                   )}
                   <p className="text-xs text-slate-400 mt-1">
-                    {isFullAccess
-                      ? 'Branch comes from the selector on the inventory dashboard.'
-                      : 'Branch is auto-detected from your profile.'}
+                    Uses the global branch filter from the top navbar.
                   </p>
                 </div>
 

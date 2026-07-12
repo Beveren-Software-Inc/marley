@@ -279,6 +279,8 @@ export interface MedicationOrderRow {
   time: string
   patient_frequency?: string
   is_pink?: boolean
+  /** Required when is_pink is true */
+  reference_no?: string
   /** PRN (Pro Re Nata) — give only as needed */
   is_prn?: boolean
   route_of_administration?: string
@@ -303,6 +305,7 @@ export interface NursingPharmacyGiveOutResult {
   delivery_note_status?: string
   pmo_status: string
   source_prescription?: string
+  service_requests?: string[]
 }
 
 export interface MedicationOrderEntry {
@@ -321,6 +324,9 @@ export interface MedicationOrderEntry {
   instructions?: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
+  is_pink?: 0 | 1 | boolean
+  /** Required when is_pink is set */
+  reference_no?: string
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
   medication_status?: string
   medication_type?: string
@@ -367,6 +373,7 @@ export async function createPrescription(
       time: row.time,
       patient_frequency: row.is_long_acting ? longFreq : row.patient_frequency,
       is_pink: row.is_pink,
+      reference_no: row.reference_no || '',
       is_prn: row.is_prn ?? false,
       route_of_administration: row.route_of_administration,
       is_long_acting_medicine: row.is_long_acting ?? false,
@@ -619,12 +626,23 @@ export async function getGivenStatusForPrescription(
   )
 }
 
+export interface PharmacyGiveOutServiceRow {
+  item_code: string
+  item_name?: string
+  quantity?: number
+  rate?: number
+  uom?: string
+  template_dn?: string
+  template_dt?: string
+}
+
 /** Nursing pharmacy give-out: PMO + submitted Sales Order in one step (IP admission or OP visit). */
 export async function createNursingPharmacyGiveOut(input: {
   patient: string
   inpatient_record?: string
   patient_visit?: string
   medication_orders: MedicationOrderRow[]
+  services?: PharmacyGiveOutServiceRow[]
   source_prescription?: string
   practitioner?: string
   warehouse?: string
@@ -639,6 +657,7 @@ export async function createNursingPharmacyGiveOut(input: {
         inpatient_record: input.inpatient_record || undefined,
         patient_visit: input.patient_visit || undefined,
         medication_orders: input.medication_orders,
+        services: input.services?.length ? input.services : undefined,
         source_prescription: input.source_prescription || undefined,
         practitioner: input.practitioner || undefined,
         warehouse: input.warehouse || undefined,

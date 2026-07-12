@@ -186,6 +186,7 @@ export function MentalStateDetailPanel({
                 <DetailRow label="Defence" value={source.defence} />
                 <DetailRow label="Impulsive" value={source.impulsive} />
                 <DetailRow label="Sedative" value={source.sedative} />
+                <DetailRow label="Delusion" value={source.dellusion} />
               </div>
               <div>
                 <SubLabel label="Speech" />
@@ -216,6 +217,7 @@ export function MentalStateDetailPanel({
                 <DetailRow label="Agitated" value={source.agitated} />
                 <DetailRow label="Abnormal" value={source.abnormal} />
                 <DetailRow label="Hallucinatory Behaviour" value={source.hallucinatory_behaviour} />
+                <DetailRow label="Normal" value={source.normal} />
               </div>
             </div>
           </section>
@@ -230,13 +232,12 @@ export function MentalStateDetailPanel({
               <DetailRow label="Person" value={source.person} />
               <DataField label="Reported Type" value={source.reported_type} />
             </div>
+            <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">Appetite</div>
             <div className="grid grid-cols-2 gap-x-6 sm:grid-cols-3">
-              <DetailRow label="Normal AP" value={source.normal_ap} />
+              <DetailRow label="Normal Appetite" value={source.normal_ap} />
               <DetailRow label="Increased" value={source.increased} />
-              <DetailRow label="Poor AP" value={source.poor_ap} />
+              <DetailRow label="Poor Appetite" value={source.poor_ap} />
               <DetailRow label="Reported" value={source.reported} />
-              <DetailRow label="Non Reported" value={source.non_reported} />
-              <DetailRow label="Normal B" value={source.normal_b} />
             </div>
           </section>
 
@@ -256,7 +257,14 @@ export function MentalStateDetailPanel({
               <DetailRow label="Conscious" value={source.conscious} />
               <DetailRow label="Alert" value={source.alert} />
               <DetailRow label="Disturbed Con" value={source.disturbed_con} />
+              <DetailRow label="Delusion" value={source.delusion} />
+              <DetailRow label="Perception" value={source.perception} />
             </div>
+            {source.remark ? (
+              <div className="mt-3">
+                <DataField label="Remark" value={source.remark} />
+              </div>
+            ) : null}
           </section>
 
           <section className={MODAL_SECTION_CLASS}>

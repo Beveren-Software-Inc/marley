@@ -9,15 +9,16 @@ import {
   CreateModalHeader,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { fetchPrescriptionItems, fetchStandardUoms, type LinkFieldOption } from '../../services/common'
+import { fetchPrescriptionItems, fetchStandardUoms, filterItemsInStock, type LinkFieldOption } from '../../services/common'
 import {
   createNursingPharmacyGiveOut,
   fetchPrescriptionByInpatientOrEncounter,
   type MedicationOrderEntry,
   type MedicationOrderRow,
+  type PharmacyGiveOutServiceRow,
 } from '../../services/prescriptions'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
-import { fetchPharmacyGiveOutWarehouses, fetchItemRate } from '../../services/pharmacyGiveOut'
+import { fetchPharmacyGiveOutWarehouses, fetchItemRate, fetchPharmacyGiveOutServiceItems, type PharmacyGiveOutServiceItem } from '../../services/pharmacyGiveOut'
 import {
   fetchMedicineGivenDispensingLots,
   fetchMedicineGivenStockOptions,
@@ -33,7 +34,7 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
-import { Loader2, Pill, Plus, Trash2 } from 'lucide-react'
+import { Loader2, Pill, Plus, Search, Trash2, X } from 'lucide-react'
 
 interface NursingPharmacyGiveOutModalProps {
   onClose: () => void
@@ -43,6 +44,10 @@ interface NursingPharmacyGiveOutModalProps {
 }
 
 interface GiveOutRow extends MedicationOrderRow {
+  rowKey: string
+}
+
+interface GiveOutServiceLine extends PharmacyGiveOutServiceRow {
   rowKey: string
 }
 
@@ -402,7 +407,7 @@ function DrugCombobox(props: DrugComboboxProps) {
   return (
     <SearchCombobox
       {...props}
-      placeholder="Search drug..."
+      placeholder="Search in-stock drugs..."
       showCodeHint
     />
   )
@@ -414,7 +419,8 @@ export function NursingPharmacyGiveOutModal({
   initialPatient,
   inpatientRecord: propInpatientRecord,
 }: NursingPharmacyGiveOutModalProps) {
-  const { activeAdmission, activeVisit, mode, selectedPatient: contextPatient } = useCareContext()
+  const { activeAdmission, activeVisit, mode, selectedPatient: contextPatient, userCostCenter } =
+    useCareContext()
   const blockIfClosed = useBlockIfActiveCareClosed()
   const formatCurrency = useFormatMoney()
   const patient = initialPatient || contextPatient || ''
@@ -441,8 +447,16 @@ export function NursingPharmacyGiveOutModal({
   const [giveOutWarehouses, setGiveOutWarehouses] = useState<{ name: string; label: string }[]>([])
   const [selectedWarehouse, setSelectedWarehouse] = useState('')
   const [miniWarehouse, setMiniWarehouse] = useState<string | undefined>()
+  const [pharmacyWarehouse, setPharmacyWarehouse] = useState<string | undefined>()
+  const [branchCostCenter, setBranchCostCenter] = useState<string | undefined>()
   const [loadingWarehouses, setLoadingWarehouses] = useState(false)
   const [displayBatchAndLot, setDisplayBatchAndLot] = useState(false)
+  const [stockFilterNote, setStockFilterNote] = useState<string | null>(null)
+  const [serviceRows, setServiceRows] = useState<GiveOutServiceLine[]>([])
+  const [showServiceModal, setShowServiceModal] = useState(false)
+  const [serviceSearch, setServiceSearch] = useState('')
+  const [serviceOptions, setServiceOptions] = useState<PharmacyGiveOutServiceItem[]>([])
+  const [loadingServices, setLoadingServices] = useState(false)
 
   useEffect(() => {
     fetchStandardUoms()
@@ -487,13 +501,27 @@ export function NursingPharmacyGiveOutModal({
         setVisitId(visit)
 
         setLoadingWarehouses(true)
+        let warehouseForStock = ''
+        let costCenterForStock: string | undefined
         try {
           const whOpts = await fetchPharmacyGiveOutWarehouses(admission || undefined, visit || undefined)
           if (cancelled) return
           setGiveOutWarehouses(whOpts.warehouses)
           setMiniWarehouse(whOpts.mini_warehouse)
+          setPharmacyWarehouse(whOpts.pharmacy_warehouse)
+          costCenterForStock = whOpts.cost_center || userCostCenter
+          setBranchCostCenter(costCenterForStock)
           setDisplayBatchAndLot(Boolean(whOpts.display_batch_and_lot_on_pharmacy_giveout))
-          setSelectedWarehouse(whOpts.default_warehouse || whOpts.warehouses[0]?.name || '')
+          const preferred =
+            (whOpts.pharmacy_warehouse &&
+            whOpts.warehouses.some((w) => w.name === whOpts.pharmacy_warehouse)
+              ? whOpts.pharmacy_warehouse
+              : '') ||
+            whOpts.default_warehouse ||
+            whOpts.warehouses[0]?.name ||
+            ''
+          warehouseForStock = preferred
+          setSelectedWarehouse(preferred)
           if (whOpts.warehouses.length === 0) {
             setError(
               'No Pharmacy Give Out warehouses configured. Add warehouses in Healthcare Settings → Stock → Pharmacy Give Out.'
@@ -535,7 +563,39 @@ export function NursingPharmacyGiveOutModal({
           return
         }
 
-        const mapped = activeEntries.map((e) => mapEntryToRow(e, startDate))
+        let stockEntries = activeEntries
+        setStockFilterNote(null)
+        if (warehouseForStock) {
+          const drugCodes = Array.from(
+            new Set(activeEntries.map((e) => (e.drug || '').trim()).filter(Boolean))
+          )
+          try {
+            const stockResult = await filterItemsInStock(drugCodes, {
+              warehouse: warehouseForStock,
+              costCenter: costCenterForStock,
+            })
+            const inStock = new Set(stockResult.in_stock || [])
+            stockEntries = activeEntries.filter((e) => e.drug && inStock.has(e.drug))
+            const skipped = activeEntries.length - stockEntries.length
+            if (skipped > 0) {
+              setStockFilterNote(
+                `Hidden ${skipped} medicine(s) with no stock at ${warehouseForStock}. Only in-stock items for this branch warehouse are shown.`
+              )
+            }
+            if (stockEntries.length === 0) {
+              setError(
+                `None of the prescribed medicines have stock at ${warehouseForStock}. Check inventory or choose another give-out warehouse.`
+              )
+              setRows([])
+              return
+            }
+          } catch {
+            // If stock check fails, keep all lines and let submit/stock pickers surface issues.
+            stockEntries = activeEntries
+          }
+        }
+
+        const mapped = stockEntries.map((e) => mapEntryToRow(e, startDate))
         const withRates = await Promise.all(
           mapped.map(async (r) => ({
             ...r,
@@ -566,12 +626,16 @@ export function NursingPharmacyGiveOutModal({
     return () => {
       cancelled = true
     }
-  }, [patient, propInpatientRecord, activeAdmission, startDate])
+  }, [patient, propInpatientRecord, activeAdmission, activeVisit, mode, startDate, userCostCenter])
 
   const loadDrugOptions = async (index: number, query: string) => {
     setDrugLoading((prev) => ({ ...prev, [index]: true }))
     try {
-      const opts = await fetchPrescriptionItems(query)
+      const opts = await fetchPrescriptionItems(query, {
+        warehouse: selectedWarehouse || undefined,
+        costCenter: branchCostCenter || userCostCenter,
+        inStockOnly: true,
+      })
       setDrugOptions((prev) => ({ ...prev, [index]: opts }))
     } catch {
       setDrugOptions((prev) => ({ ...prev, [index]: [] }))
@@ -685,8 +749,9 @@ export function NursingPharmacyGiveOutModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload when warehouse, setting, or drugs change
   }, [admissionId, selectedWarehouse, displayBatchAndLot, rows.map((r) => r.drug).join('\0')])
 
-  const handleWarehouseChange = (warehouse: string) => {
+  const handleWarehouseChange = async (warehouse: string) => {
     setSelectedWarehouse(warehouse)
+    setDrugOptions({})
     setRows((prev) =>
       prev.map((row) => ({
         ...row,
@@ -697,6 +762,51 @@ export function NursingPharmacyGiveOutModal({
     setRowStock({})
     setBatchQueries({})
     setDispensingLotQueries({})
+    setStockFilterNote(null)
+
+    const drugCodes = Array.from(
+      new Set(rows.map((r) => (r.drug || '').trim()).filter(Boolean))
+    )
+    if (!warehouse || drugCodes.length === 0) return
+
+    try {
+      const stockResult = await filterItemsInStock(drugCodes, {
+        warehouse,
+        costCenter: branchCostCenter || userCostCenter,
+      })
+      const inStock = new Set(stockResult.in_stock || [])
+      const kept = rows.filter((r) => r.drug && inStock.has(r.drug))
+      const skipped = rows.length - kept.length
+      if (skipped > 0) {
+        setStockFilterNote(
+          `Removed ${skipped} medicine(s) with no stock at ${warehouse}. Only in-stock items are shown.`
+        )
+        setRows(
+          kept.map((row) => ({
+            ...row,
+            batch_no: '',
+            dispensing_lot: '',
+          }))
+        )
+        const queries: Record<number, string> = {}
+        const uomLabels: Record<number, string> = {}
+        kept.forEach((r, i) => {
+          queries[i] = r.drug_name || r.drug
+          uomLabels[i] = r.uom || ''
+        })
+        setDrugQueries(queries)
+        setUomQueries(uomLabels)
+      }
+      if (kept.length === 0) {
+        setError(
+          `None of the selected medicines have stock at ${warehouse}. Choose another warehouse or add stock.`
+        )
+      } else {
+        setError(null)
+      }
+    } catch {
+      // Keep current rows if stock re-check fails.
+    }
   }
 
   const handleRowBatchChange = async (
@@ -888,6 +998,23 @@ export function NursingPharmacyGiveOutModal({
         }
       }
     }
+    for (const svc of serviceRows) {
+      const qty = Number(svc.quantity) || 0
+      const rate = Number(svc.rate) || 0
+      if (!svc.item_code?.trim()) continue
+      if (qty <= 0) {
+        setError(`Quantity must be greater than zero for service ${svc.item_name || svc.item_code}`)
+        return
+      }
+      if (rate <= 0) {
+        setError(`Enter an amount for service ${svc.item_name || svc.item_code}`)
+        return
+      }
+    }
+    if (serviceRows.some((s) => s.item_code?.trim()) && !practitioner?.trim()) {
+      setError('Practitioner is required on the prescription when adding services')
+      return
+    }
     if (!admissionId && !visitId) {
       setError('Inpatient admission or patient visit is required')
       return
@@ -908,19 +1035,27 @@ export function NursingPharmacyGiveOutModal({
         is_prn: false,
         is_long_acting: false,
       }))
+      const servicePayload: PharmacyGiveOutServiceRow[] = serviceRows
+        .filter((s) => s.item_code?.trim())
+        .map(({ rowKey: _rk, ...rest }) => rest)
       const result = await createNursingPharmacyGiveOut({
         patient,
         inpatient_record: admissionId || undefined,
         patient_visit: visitId || undefined,
         medication_orders: payload,
+        services: servicePayload.length ? servicePayload : undefined,
         source_prescription: sourcePrescription || undefined,
         practitioner: practitioner || undefined,
         warehouse: selectedWarehouse,
       })
+      const srNote =
+        result.service_requests && result.service_requests.length
+          ? ` · ${result.service_requests.length} service request(s) completed`
+          : ''
       toast.success(
         `Pharmacy give-out submitted. Sales Order ${result.sales_order} created${
           result.delivery_note ? ` · Delivery Note ${result.delivery_note}` : ''
-        }.`
+        }${srNote}.`
       )
       onSuccess()
       onClose()
@@ -932,6 +1067,71 @@ export function NursingPharmacyGiveOutModal({
       setSubmitting(false)
     }
   }
+
+  useEffect(() => {
+    if (!showServiceModal) {
+      setServiceSearch('')
+      setServiceOptions([])
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(() => {
+      void (async () => {
+        setLoadingServices(true)
+        try {
+          const opts = await fetchPharmacyGiveOutServiceItems(
+            serviceSearch,
+            mode === 'OP' ? 'OP' : 'IP'
+          )
+          if (!cancelled) setServiceOptions(opts)
+        } catch {
+          if (!cancelled) setServiceOptions([])
+        } finally {
+          if (!cancelled) setLoadingServices(false)
+        }
+      })()
+    }, serviceSearch ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(timer)
+    }
+  }, [showServiceModal, serviceSearch, mode])
+
+  const addServiceLine = (item: PharmacyGiveOutServiceItem) => {
+    const rate = Number(item.price ?? item.rate) || 0
+    setServiceRows((prev) => [
+      ...prev,
+      {
+        rowKey: nextRowKey(),
+        item_code: item.id || item.item_code || '',
+        item_name: item.name,
+        quantity: 1,
+        rate,
+        uom: item.uom || '',
+        template_dn: item.template_dn || undefined,
+        template_dt: item.template_dt || undefined,
+      },
+    ])
+    setShowServiceModal(false)
+    toast.success(`Added service ${item.name}`)
+  }
+
+  const updateServiceRow = (index: number, patch: Partial<GiveOutServiceLine>) => {
+    setServiceRows((prev) => prev.map((r, i) => (i === index ? { ...r, ...patch } : r)))
+  }
+
+  const removeServiceRow = (index: number) => {
+    setServiceRows((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const medicationTotal = rows
+    .filter((r) => r.drug?.trim())
+    .reduce((sum, r) => sum + lineAmount(r), 0)
+  const serviceTotal = serviceRows.reduce(
+    (sum, r) => sum + (Number(r.quantity) || 0) * (Number(r.rate) || 0),
+    0
+  )
+  const grandTotal = medicationTotal + serviceTotal
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -978,21 +1178,30 @@ export function NursingPharmacyGiveOutModal({
                         {giveOutWarehouses.map((wh) => (
                           <option key={wh.name} value={wh.name}>
                             {wh.label || wh.name}
-                            {miniWarehouse && wh.name === miniWarehouse ? ' (nurse mini warehouse)' : ''}
+                            {pharmacyWarehouse && wh.name === pharmacyWarehouse
+                              ? ' (branch pharmacy warehouse)'
+                              : miniWarehouse && wh.name === miniWarehouse
+                                ? ' (nurse mini warehouse)'
+                                : ''}
                           </option>
                         ))}
                       </select>
                       <p className="text-xs text-emerald-800/80 mt-1.5">
-                        Stock, batches, and dispensing lots are loaded from{' '}
-                        <span className="font-medium">{selectedWarehouse || 'the selected warehouse'}</span>.
+                        Only medicines with stock at{' '}
+                        <span className="font-medium">{selectedWarehouse || 'the selected warehouse'}</span>{' '}
+                        are shown (branch pharmacy warehouse from Healthcare Settings when available).
                         {displayBatchAndLot
-                          ? ' Batch and dispensing lot pickers are enabled in Healthcare Settings — select them for each medicine below.'
-                          : ' Batch and dispensing lot are auto-selected (FIFO) so you can submit without picking them.'}
-                        {miniWarehouse && selectedWarehouse === miniWarehouse
-                          ? ' Auto-selected your ward mini warehouse.'
-                          : miniWarehouse
-                            ? ` Ward mini warehouse: ${miniWarehouse}.`
-                            : null}
+                          ? ' Batch and dispensing lot pickers are enabled — select them for each medicine below.'
+                          : ' Batch and dispensing lot are auto-selected (FIFO).'}
+                        {pharmacyWarehouse && selectedWarehouse === pharmacyWarehouse
+                          ? ' Using this branch pharmacy warehouse.'
+                          : pharmacyWarehouse
+                            ? ` Branch pharmacy warehouse: ${pharmacyWarehouse}.`
+                            : miniWarehouse && selectedWarehouse === miniWarehouse
+                              ? ' Auto-selected your ward mini warehouse.'
+                              : miniWarehouse
+                                ? ` Ward mini warehouse: ${miniWarehouse}.`
+                                : null}
                       </p>
                     </>
                   ) : (
@@ -1005,6 +1214,12 @@ export function NursingPharmacyGiveOutModal({
                 {error && (
                   <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-sm text-red-800">
                     {error}
+                  </div>
+                )}
+
+                {stockFilterNote && !error && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm text-amber-900">
+                    {stockFilterNote}
                   </div>
                 )}
 
@@ -1287,31 +1502,123 @@ export function NursingPharmacyGiveOutModal({
                   })}
                 </div>
 
-                {rows.some((r) => r.drug?.trim()) ? (
+                {rows.some((r) => r.drug?.trim()) || serviceRows.length > 0 ? (
                   <div className="flex justify-end border-t border-slate-200 pt-3">
-                    <div className="text-right">
+                    <div className="text-right space-y-0.5">
+                      {serviceRows.length > 0 ? (
+                        <>
+                          <p className="text-xs text-slate-500">
+                            Medicines: {formatCurrency(medicationTotal)}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Services: {formatCurrency(serviceTotal)}
+                          </p>
+                        </>
+                      ) : null}
                       <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
                       <p className="text-base font-semibold text-slate-900">
-                        {formatCurrency(
-                          rows
-                            .filter((r) => r.drug?.trim())
-                            .reduce((sum, r) => sum + lineAmount(r), 0)
-                        )}
+                        {formatCurrency(grandTotal)}
                       </p>
                     </div>
                   </div>
                 ) : null}
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setRows((prev) => [...prev, emptyRow(startDate)])
-                  }}
-                  className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium"
-                >
-                  <Plus className="w-4 h-4" />
-                  Add medication
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRows((prev) => [...prev, emptyRow(startDate)])
+                    }}
+                    className="inline-flex items-center gap-1.5 text-sm text-primary hover:text-primary/80 font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add medication
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowServiceModal(true)}
+                    className="inline-flex items-center gap-1.5 text-sm text-emerald-700 hover:text-emerald-800 font-medium"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Add service
+                  </button>
+                </div>
+
+                {serviceRows.length > 0 && (
+                  <div className="rounded-lg border border-emerald-200 bg-emerald-50/40 overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-emerald-200 bg-emerald-50 flex items-center justify-between">
+                      <div>
+                        <h3 className="text-sm font-semibold text-emerald-900">Services</h3>
+                        <p className="text-[11px] text-emerald-800/80">
+                          Billed on the Sales Order only (not added to the medication order). Creates a completed Service Request.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="divide-y divide-emerald-100">
+                      {serviceRows.map((svc, index) => (
+                        <div key={svc.rowKey} className="p-4 grid grid-cols-1 sm:grid-cols-12 gap-3 items-end bg-white/80">
+                          <div className="sm:col-span-5">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Service</label>
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900">
+                              {svc.item_name || svc.item_code}
+                              <div className="text-[11px] text-slate-500">{svc.item_code}</div>
+                            </div>
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Qty</label>
+                            <input
+                              type="number"
+                              min={0.01}
+                              step="any"
+                              value={svc.quantity ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                updateServiceRow(index, {
+                                  quantity: raw === '' ? undefined : Number(raw),
+                                })
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">
+                              Amount <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              step="any"
+                              value={svc.rate ?? ''}
+                              onChange={(e) => {
+                                const raw = e.target.value
+                                updateServiceRow(index, {
+                                  rate: raw === '' ? undefined : Number(raw),
+                                })
+                              }}
+                              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                            />
+                          </div>
+                          <div className="sm:col-span-2">
+                            <label className="block text-xs font-medium text-slate-600 mb-1">Line total</label>
+                            <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-900">
+                              {formatCurrency((Number(svc.quantity) || 0) * (Number(svc.rate) || 0))}
+                            </div>
+                          </div>
+                          <div className="sm:col-span-1 flex justify-end">
+                            <button
+                              type="button"
+                              onClick={() => removeServiceRow(index)}
+                              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded"
+                              title="Remove service"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -1332,6 +1639,75 @@ export function NursingPharmacyGiveOutModal({
           </CreateModalFooter>
         </form>
       </div>
+
+      {showServiceModal &&
+        typeof document !== 'undefined' &&
+        createPortal(
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4">
+            <div className="bg-white rounded-xl shadow-xl w-full max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between px-5 py-4 bg-emerald-600 text-white">
+                <div>
+                  <h3 className="text-lg font-semibold">Add Service</h3>
+                  <p className="text-sm text-emerald-100">Other / pharmacy services for this give-out</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowServiceModal(false)}
+                  className="p-1 rounded hover:bg-emerald-500/80"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-4 border-b border-slate-100">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                  <input
+                    type="text"
+                    value={serviceSearch}
+                    onChange={(e) => setServiceSearch(e.target.value)}
+                    placeholder="Search services..."
+                    className="w-full pl-10 pr-3 py-2 text-sm border border-slate-300 rounded-md focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+                    autoFocus
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto p-4">
+                {loadingServices ? (
+                  <div className="text-center py-8 text-sm text-slate-500">Loading services…</div>
+                ) : serviceOptions.length === 0 ? (
+                  <div className="text-center py-8 text-sm text-slate-500">
+                    No services found. Configure Other Service templates or pharmacy service items.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {serviceOptions.map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => addServiceLine(item)}
+                        className="w-full flex items-center justify-between gap-3 p-3 rounded-md border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 text-left transition-colors"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-slate-900 truncate">{item.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {item.id}
+                            {item.uom ? ` · ${item.uom}` : ''}
+                          </div>
+                        </div>
+                        <div className="text-sm font-semibold text-emerald-700 shrink-0">
+                          {(item.price || item.rate || 0) > 0
+                            ? formatCurrency(item.price || item.rate || 0)
+                            : 'Enter amount'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   )
 }
