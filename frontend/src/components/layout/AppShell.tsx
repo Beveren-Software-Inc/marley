@@ -70,7 +70,11 @@ const nurseScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'n-patient-history', title: 'Patient History Form' }],
+    screens: [
+      { id: 'n-patient-history', title: 'Patient History Form' },
+      { id: 'n-physical-exam', title: 'Physical Examination' },
+      { id: 'n-suicide-risk', title: 'Suicide Risk Assessment' },
+    ],
   },
   {
     groupTitle: '',

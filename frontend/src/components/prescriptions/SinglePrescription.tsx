@@ -263,6 +263,7 @@ const EditMedicationEntryModal = ({
     patient_frequency: order.patient_frequency || '',
     route_of_administration: order.route_of_administration || '',
     is_pink: order.is_pink || false,
+    reference_no: order.reference_no || '',
     long_acting_frequency: order.long_acting_frequency || '',
     medication_type:
       order.medication_type === 'Contraindicated' ? '' : (order.medication_type || ''),
@@ -352,6 +353,10 @@ const EditMedicationEntryModal = ({
 
   const handleSave = async () => {
     if (givenCheck.given) return
+    if (form.is_pink && !String(form.reference_no || '').trim()) {
+      toast.error('Reference No is required for pink medications')
+      return
+    }
     try {
       setSaving(true)
       const payload = normalizeMedicationOrderForSave(form)
@@ -559,17 +564,38 @@ const EditMedicationEntryModal = ({
               rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!form.is_pink}
-                onChange={(e) => updateField('is_pink', e.target.checked)}
-                disabled={disabled}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              Is Pink
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!form.is_pink}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    updateField('is_pink', checked)
+                    if (!checked) updateField('reference_no', '')
+                  }}
+                  disabled={disabled}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Is Pink
+              </label>
+            </div>
+            {!!form.is_pink && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Reference No <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.reference_no || ''}
+                  onChange={(e) => updateField('reference_no', e.target.value)}
+                  disabled={disabled}
+                  placeholder="Enter reference number"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
+                />
+              </div>
+            )}
           </div>
 
         </div>
@@ -634,6 +660,7 @@ const AddMedicationEntryModal = ({
     patient_frequency: '',
     route_of_administration: '',
     is_pink: false,
+    reference_no: '',
     is_prn: false,
     is_long_acting: false,
     long_acting_frequency: '',
@@ -723,6 +750,10 @@ const AddMedicationEntryModal = ({
       toast.error('Drug, Dosage, and Start Date are required')
       return
     }
+    if (form.is_pink && !String(form.reference_no || '').trim()) {
+      toast.error('Reference No is required for pink medications')
+      return
+    }
     try {
       setSaving(true)
       const payload = normalizeMedicationOrderForSave(form)
@@ -795,6 +826,7 @@ const AddMedicationEntryModal = ({
                   drug_name: opt.label || opt.name,
                   uom: stockUom,
                   is_pink: Boolean(opt.is_pink),
+                  reference_no: opt.is_pink ? f.reference_no || '' : '',
                   ...(route ? { route_of_administration: route } : {}),
                 }))
                 setAddUomQuery(stockUom)
@@ -946,16 +978,36 @@ const AddMedicationEntryModal = ({
               rows={2} className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-              <input
-                type="checkbox"
-                checked={!!form.is_pink}
-                onChange={(e) => updateField('is_pink', e.target.checked)}
-                className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-              />
-              Is Pink
-            </label>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={!!form.is_pink}
+                  onChange={(e) => {
+                    const checked = e.target.checked
+                    updateField('is_pink', checked)
+                    if (!checked) updateField('reference_no', '')
+                  }}
+                  className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Is Pink
+              </label>
+            </div>
+            {!!form.is_pink && (
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Reference No <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={form.reference_no || ''}
+                  onChange={(e) => updateField('reference_no', e.target.value)}
+                  placeholder="Enter reference number"
+                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                />
+              </div>
+            )}
           </div>
 
         </div>
@@ -1150,6 +1202,9 @@ const MedicationRow = ({
               {isStopped && <SmallBadge cls="bg-rose-100 text-rose-800 border border-rose-200">Stopped</SmallBadge>}
               {isLegacyRow && <SmallBadge cls="bg-amber-100 text-amber-800 border border-amber-200">Legacy</SmallBadge>}
               {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
+              {order.is_pink && order.reference_no ? (
+                <SmallBadge cls="bg-pink-50 text-pink-800 border border-pink-200">Ref: {order.reference_no}</SmallBadge>
+              ) : null}
               {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
               {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
             </div>

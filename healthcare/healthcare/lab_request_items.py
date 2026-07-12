@@ -196,14 +196,17 @@ def compute_test_net_amount(
 	discount_rate: float = 0,
 	discount: float = 0,
 ) -> tuple[float, float]:
-	"""Return (net_amount, discount_applied) for a single test line."""
+	"""Return (net_amount, discount_applied) for a single test line.
+
+	Negative discount values are allowed (treated as a surcharge / markup).
+	"""
 	gross = flt(amount)
 	discount_type = (discount_type or "Percentage").strip()
 	if discount_type == "Amount":
-		applied = min(gross, max(0, flt(discount)))
+		applied = flt(discount)
 	else:
-		applied = gross * max(0, flt(discount_rate)) / 100
-	net = max(0, gross - applied)
+		applied = gross * flt(discount_rate) / 100
+	net = gross - applied
 	return net, applied
 
 
@@ -237,5 +240,5 @@ def totals_from_specs(specs: list[dict[str, Any]]) -> dict[str, float]:
 	return {
 		"cost": gross,
 		"grand_total": net,
-		"discount_amount": max(0, gross - net),
+		"discount_amount": gross - net,
 	}

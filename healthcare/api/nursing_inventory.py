@@ -325,15 +325,18 @@ def get_stock_ledger(cost_center, warehouse_context=None):
     Get stock ledger for a specific cost center using warehouse from Healthcare Settings.
 
     warehouse_context: 'nurse' (default) or 'laboratory'.
+
+    Each row includes stock in stock UOM plus pack and unit quantities when those
+    UOMs (or custom_number_of_pack) are configured — same pack/unit model used for dispensing.
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
 
     warehouse = _warehouse_for_cost_center(cost_center, warehouse_context)
-    
+
     if not warehouse:
         return []
-    
+
     nhra_groups = None
     if _nursing_inventory_nhra_filter_enabled(warehouse_context):
         nhra_groups = _nhra_required_item_group_names()
@@ -364,7 +367,7 @@ def get_stock_ledger(cost_center, warehouse_context=None):
         ORDER BY i.item_name
     """
     stock_items = frappe.db.sql(sql, tuple(params), as_dict=1)
-    
+
     # Get reorder levels from Item Reorder table
     reorder_map = {}
     if frappe.db.exists("DocType", "Item Reorder"):
@@ -375,16 +378,138 @@ def get_stock_ledger(cost_center, warehouse_context=None):
             as_list=False,
         )
         for r in reorders:
-            key = (r.get("item_code"), warehouse)  # Specific to this warehouse
             level = flt(r.get("warehouse_reorder_level")) or 0
             if level > 0:
                 reorder_map[r.get("item_code")] = level
-    
-    # Add reorder levels to stock items
+
     for item in stock_items:
-        item["reorder_level"] = reorder_map.get(item["item_code"], 10)  # Default to 10 if not set
-    
+        item["reorder_level"] = reorder_map.get(item["item_code"], 10)
+        item["item_group"] = item.get("category")
+
+    _enrich_stock_ledger_pack_unit_qty(stock_items)
+
     return stock_items
+
+
+def _normalize_uom_key(value):
+    return (value or "").strip().upper()
+
+
+def _is_pack_uom(uom):
+    key = _normalize_uom_key(uom)
+    return key in ("PACK", "PACKS") or key.startswith("PACK")
+
+
+def _is_unit_uom(uom):
+    key = _normalize_uom_key(uom)
+    return key in ("UNIT", "UNITS", "NOS", "EA", "EACH") or key.startswith("UNIT")
+
+
+def _qty_in_uom(qty_stock_uom, stock_uom, target_uom, conversion_factor):
+    """Convert qty expressed in stock_uom into target_uom using ERPNext conversion_factor."""
+    qty = flt(qty_stock_uom)
+    if not target_uom:
+        return None
+    if _normalize_uom_key(target_uom) == _normalize_uom_key(stock_uom):
+        return qty
+    cf = flt(conversion_factor) or 0
+    if cf <= 0:
+        return None
+    # 1 target_uom = cf stock_uom
+    return qty / cf
+
+
+def _enrich_stock_ledger_pack_unit_qty(stock_items):
+    """Attach pack_qty / unit_qty (and labels) for nurse stock ledger display."""
+    if not stock_items:
+        return
+
+    item_codes = [row.get("item_code") for row in stock_items if row.get("item_code")]
+    if not item_codes:
+        return
+
+    # UOM conversion rows: conversion_factor = stock_uom qty per 1 of this uom
+    uom_rows_by_item = {}
+    if frappe.db.exists("DocType", "UOM Conversion Detail"):
+        for row in frappe.get_all(
+            "UOM Conversion Detail",
+            filters={"parent": ["in", item_codes]},
+            fields=["parent", "uom", "conversion_factor"],
+        ):
+            uom_rows_by_item.setdefault(row.parent, []).append(row)
+
+    custom_pack_map = {}
+    item_meta = frappe.get_meta("Item")
+    if item_meta.has_field("custom_number_of_pack"):
+        for row in frappe.get_all(
+            "Item",
+            filters={"name": ["in", item_codes]},
+            fields=["name", "custom_number_of_pack"],
+        ):
+            if row.custom_number_of_pack is not None and flt(row.custom_number_of_pack) > 0:
+                custom_pack_map[row.name] = flt(row.custom_number_of_pack)
+
+    for item in stock_items:
+        code = item.get("item_code")
+        stock_uom = item.get("uom") or ""
+        qty = flt(item.get("current_stock"))
+        conversions = uom_rows_by_item.get(code) or []
+
+        pack_uom = None
+        pack_cf = None
+        unit_uom = None
+        unit_cf = None
+
+        for row in conversions:
+            uom = row.get("uom")
+            cf = flt(row.get("conversion_factor")) or 0
+            if not uom or cf <= 0:
+                continue
+            if _is_pack_uom(uom) and pack_uom is None:
+                pack_uom = uom
+                pack_cf = cf
+            elif _is_unit_uom(uom) and unit_uom is None:
+                unit_uom = uom
+                unit_cf = cf
+
+        # Stock UOM itself may already be Pack or Unit
+        if _is_pack_uom(stock_uom) and not pack_uom:
+            pack_uom = stock_uom
+            pack_cf = 1.0
+        if _is_unit_uom(stock_uom) and not unit_uom:
+            unit_uom = stock_uom
+            unit_cf = 1.0
+
+        # Fallback: custom_number_of_pack = units per pack when stock is in units
+        custom_units_per_pack = custom_pack_map.get(code)
+        if custom_units_per_pack and not pack_uom and unit_uom and _normalize_uom_key(unit_uom) == _normalize_uom_key(stock_uom):
+            pack_uom = "PACK"
+            pack_cf = custom_units_per_pack
+        elif custom_units_per_pack and not unit_uom and pack_uom and _normalize_uom_key(pack_uom) == _normalize_uom_key(stock_uom):
+            unit_uom = "Unit"
+            # 1 Unit = 1/custom stock packs → conversion_factor relative to pack stock
+            unit_cf = 1.0 / custom_units_per_pack if custom_units_per_pack else None
+
+        pack_qty = _qty_in_uom(qty, stock_uom, pack_uom, pack_cf) if pack_uom else None
+        unit_qty = _qty_in_uom(qty, stock_uom, unit_uom, unit_cf) if unit_uom else None
+
+        # If only pack conversion known and stock is units (or vice versa), derive the other
+        if pack_qty is None and unit_qty is not None and custom_units_per_pack:
+            pack_qty = unit_qty / custom_units_per_pack
+            pack_uom = pack_uom or "PACK"
+        if unit_qty is None and pack_qty is not None and custom_units_per_pack:
+            unit_qty = pack_qty * custom_units_per_pack
+            unit_uom = unit_uom or "Unit"
+
+        item["pack_qty"] = round(flt(pack_qty), 6) if pack_qty is not None else None
+        item["pack_uom"] = pack_uom
+        item["unit_qty"] = round(flt(unit_qty), 6) if unit_qty is not None else None
+        item["unit_uom"] = unit_uom
+        item["units_per_pack"] = (
+            round(flt(pack_cf), 6)
+            if pack_cf and pack_uom and _normalize_uom_key(unit_uom or stock_uom) != _normalize_uom_key(pack_uom)
+            else (round(flt(custom_units_per_pack), 6) if custom_units_per_pack else None)
+        )
 
 @frappe.whitelist()
 def get_warehouses_for_cost_center(cost_center, warehouse_context=None):
@@ -1959,6 +2084,25 @@ def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_dat
                 sales_order_name
             )
         )
+
+    # Pharmacy give-out SO may also include non-stock service lines — only deliver medicines.
+    if billing_groups:
+        allowed_codes = {
+            (g.get("medicine_code") or "").strip()
+            for g in billing_groups
+            if (g.get("medicine_code") or "").strip()
+        }
+        if allowed_codes:
+            dn.set(
+                "items",
+                [row for row in (dn.get("items") or []) if (row.item_code or "") in allowed_codes],
+            )
+            if not dn.get("items"):
+                frappe.throw(
+                    _("Could not create Delivery Note from Sales Order {0}. No deliverable medicine lines found.").format(
+                        sales_order_name
+                    )
+                )
 
     if posting_date:
         dn.posting_date = getdate(posting_date)

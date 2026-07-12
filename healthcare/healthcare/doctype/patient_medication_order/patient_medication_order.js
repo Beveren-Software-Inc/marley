@@ -28,6 +28,14 @@ frappe.ui.form.on('Inpatient Medication Order Entry', {
 		setTimeout(function() {
 			update_quantity_for_row(frm, cdt, cdn);
 		}, 100);
+	},
+	is_pink: function(frm, cdt, cdn) {
+		let row = locals[cdt][cdn];
+		if (!row) return;
+		frm.fields_dict.medication_orders.grid.toggle_reqd('reference_no', cint(row.is_pink));
+		if (!cint(row.is_pink)) {
+			frappe.model.set_value(cdt, cdn, 'reference_no', '');
+		}
 	}
 });
 

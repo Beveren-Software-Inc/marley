@@ -79,6 +79,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [defence, setDefence] = useState<0|1>(0)
   const [impulsive, setImpulsive] = useState<0|1>(0)
   const [sedative, setSedative] = useState<0|1>(0)
+  const [dellusion, setDellusion] = useState<0|1>(0)
   // Speech checks
   const [normalS, setNormalS] = useState<0|1>(0)
   const [rapid, setRapid] = useState<0|1>(0)
@@ -105,6 +106,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [agitated, setAgitated] = useState<0|1>(0)
   const [abnormal, setAbnormal] = useState<0|1>(0)
   const [hallucinatoryBehaviour, setHallucinatoryBehaviour] = useState<0|1>(0)
+  const [normalMotor, setNormalMotor] = useState<0|1>(0)
 
   // Orientation & Appetite
   const [place, setPlace] = useState<0|1>(0)
@@ -114,8 +116,6 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [increased, setIncreased] = useState<0|1>(0)
   const [poorAp, setPoorAp] = useState<0|1>(0)
   const [reported, setReported] = useState<0|1>(0)
-  const [nonReported, setNonReported] = useState<0|1>(0)
-  const [normalB, setNormalB] = useState<0|1>(0)
   const [reportedType, setReportedType] = useState('')
 
   // Sleep & Consciousness
@@ -132,6 +132,9 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   // Psychotic Symptoms
   const [delusion, setDelusion] = useState<0|1>(0)
   const [perception, setPerception] = useState<0|1>(0)
+  const [remark, setRemark] = useState('')
+
+  const showDelusionRemark = !!dellusion || !!delusion
 
   // Patient dropdown
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -255,6 +258,10 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
     e.preventDefault()
     if (!patientId) { setError('Patient (File No) is required'); return }
     if (!admissionNo) { setError('Admission No is required'); return }
+    if (showDelusionRemark && !remark.trim()) {
+      setError('Remark is required when Delusion is selected')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -266,17 +273,20 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         trans_shift: transShift ? parseInt(transShift) : undefined,
         normal_at: normalAt || undefined,
         cooperative, aggressive, paranoid, demanding, preoccupied, defence, impulsive, sedative,
+        dellusion,
         normal_s: normalS, rapid, slow, poor_sp: poorSp, slurred, coherent, incoherent, talkative,
         anxious, angry, depressed, elated, euthymic, irritable,
         twitches, hyperactive, stereotypes, restless, gait, tics, agitated, abnormal,
         hallucinatory_behaviour: hallucinatoryBehaviour,
+        normal: normalMotor,
         place, time, person,
-        normal_ap: normalAp, increased, poor_ap: poorAp, reported, non_reported: nonReported,
-        normal_b: normalB, reported_type: reportedType || undefined,
+        normal_ap: normalAp, increased, poor_ap: poorAp, reported,
+        reported_type: reportedType || undefined,
         sleep_duration: sleepDuration ? parseInt(sleepDuration) : undefined,
         normal_sleep: normalSleep, disturbed, intermittent, excessive, a_little: aLittle,
         conscious, alert, disturbed_con: disturbedCon,
         delusion, perception,
+        remark: showDelusionRemark ? remark.trim() : undefined,
       })
       if (result.success) {
         onSuccess()
@@ -501,6 +511,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                         <CF label="Defence" checked={!!defence} onChange={setDefence} />
                         <CF label="Impulsive" checked={!!impulsive} onChange={setImpulsive} />
                         <CF label="Sedative" checked={!!sedative} onChange={setSedative} />
+                        <CF label="Delusion" checked={!!dellusion} onChange={setDellusion} />
                       </div>
                       <Sub label="Mood / Affect" />
                       <div className="space-y-2">
@@ -537,6 +548,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                         <CF label="Agitated" checked={!!agitated} onChange={setAgitated} />
                         <CF label="Abnormal" checked={!!abnormal} onChange={setAbnormal} />
                         <CF label="Hallucinatory Behaviour" checked={!!hallucinatoryBehaviour} onChange={setHallucinatoryBehaviour} />
+                        <CF label="Normal" checked={!!normalMotor} onChange={setNormalMotor} />
                       </div>
                     </div>
                   </div>
@@ -554,16 +566,14 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                     <CF label="Time" checked={!!time} onChange={setTime} />
                     <CF label="Person" checked={!!person} onChange={setPerson} />
                   </div>
-                  <CF label="Normal AP" checked={!!normalAp} onChange={setNormalAp} />
                 </div>
                 <div>
                   <h3 className="text-sm font-semibold text-slate-700 mb-3 mt-2">Appetite</h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+                    <CF label="Normal Appetite" checked={!!normalAp} onChange={setNormalAp} />
                     <CF label="Increased" checked={!!increased} onChange={setIncreased} />
-                    <CF label="Poor AP" checked={!!poorAp} onChange={setPoorAp} />
+                    <CF label="Poor Appetite" checked={!!poorAp} onChange={setPoorAp} />
                     <CF label="Reported" checked={!!reported} onChange={setReported} />
-                    <CF label="Non Reported" checked={!!nonReported} onChange={setNonReported} />
-                    <CF label="Normal B" checked={!!normalB} onChange={setNormalB} />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Reported Type</label>
@@ -607,6 +617,24 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
                 </div>
               </>
             )}
+
+            {showDelusionRemark ? (
+              <div className="rounded-md border border-amber-200 bg-amber-50/70 p-3">
+                <label className="block text-sm font-medium text-slate-700 mb-1">
+                  Remark <span className="text-red-500">*</span>
+                </label>
+                <p className="mb-2 text-xs text-slate-500">
+                  Required when Delusion is selected (Behaviour or Psychotic Symptom).
+                </p>
+                <textarea
+                  value={remark}
+                  onChange={(e) => setRemark(e.target.value)}
+                  rows={3}
+                  placeholder="Enter remark for delusion…"
+                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                />
+              </div>
+            ) : null}
 
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">{error}</div>

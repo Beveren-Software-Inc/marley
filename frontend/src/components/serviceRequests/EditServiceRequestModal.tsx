@@ -122,6 +122,8 @@ export const EditServiceRequestModal = ({
 
   const [pricing, setPricing] = useState<PricingRow[]>([])
   const [selectedPrice, setSelectedPrice] = useState<number | null>(null)
+  /** True when catalog/list price is missing — cost stays editable even after a manual amount is entered. */
+  const [allowManualCost, setAllowManualCost] = useState(false)
   const [patientCategory, setPatientCategory] = useState('')
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
@@ -220,7 +222,9 @@ export const EditServiceRequestModal = ({
         setReferringQuery((doc.referring_practitioner as string) || '')
         setReferredToQuery((doc.referred_to_practitioner as string) || '')
 
-        setSelectedPrice((doc.cost as number) ?? null)
+        const initialCost = (doc.cost as number) ?? null
+        setSelectedPrice(initialCost)
+        setAllowManualCost(!(initialCost != null && initialCost > 0))
 
         const parsedLabItems = parseLabRequestItems(doc.lab_request_items)
         setLabBasket(parsedLabItems)
@@ -291,28 +295,46 @@ export const EditServiceRequestModal = ({
   /* ────────────── LOAD PRICING WHEN TEMPLATE CHANGES ────────────── */
 
   useEffect(() => {
-    if (formData.template_dt !== 'Lab Test Template' || !formData.template_dn) {
+    if (!formData.template_dt || !formData.template_dn) {
       setPricing([])
       return
     }
+    const careType = formData.patient_visit ? 'OP' : formData.inpatient_record ? 'IP' : ''
     const load = async () => {
       try {
         const res = await fetch(
-          `/api/method/healthcare.api.service_request.get_lab_test_template_pricing?template=${encodeURIComponent(formData.template_dn)}`
+          `/api/method/healthcare.api.service_request.get_service_request_template_pricing?template_dt=${encodeURIComponent(
+            formData.template_dt
+          )}&template_dn=${encodeURIComponent(formData.template_dn)}&patient_care_type=${encodeURIComponent(careType)}`
         )
         const resData = await res.json()
-        const rows: PricingRow[] = resData?.message || []
+        const payload = resData?.message || {}
+        const rows: PricingRow[] = Array.isArray(payload.pricing) ? payload.pricing : []
         setPricing(rows)
+
+        let catalogPrice: number | null = null
         if (rows.length > 0 && patientCategory) {
           const match = rows.find((r) => r.patient_category === patientCategory)
-          if (match?.price) setSelectedPrice(match.price)
+          if (match?.price != null) catalogPrice = Number(match.price)
+        }
+        if (catalogPrice == null) {
+          const first = rows.find((r) => r.price != null)
+          if (first?.price != null) catalogPrice = Number(first.price)
+        }
+
+        const hasCatalogPrice = catalogPrice != null && catalogPrice > 0
+        setAllowManualCost(!hasCatalogPrice)
+        if (hasCatalogPrice) {
+          setSelectedPrice(catalogPrice)
+          setFormData((prev) => ({ ...prev, cost: catalogPrice }))
         }
       } catch {
         setPricing([])
+        setAllowManualCost(true)
       }
     }
     load()
-  }, [formData.template_dt, formData.template_dn, patientCategory])
+  }, [formData.template_dt, formData.template_dn, patientCategory, formData.patient_visit, formData.inpatient_record])
 
   /* ────────────── LOAD VISITS + ADMISSIONS ────────────── */
 
@@ -367,17 +389,17 @@ export const EditServiceRequestModal = ({
       formData.discount_value !== 'Fixed Amount' &&
       formData.discount_value !== 'Amount'
 
-    if (isPercentage && formData.discount > 0) {
+    if (isPercentage && formData.discount !== 0) {
       const discAmt = (total * formData.discount) / 100
       setFormData(prev => ({ ...prev, discount_amount: discAmt }))
       total -= discAmt
-    } else if (!isPercentage && formData.discount_amount > 0) {
+    } else if (!isPercentage) {
       total -= formData.discount_amount
     } else {
       setFormData(prev => ({ ...prev, discount_amount: 0 }))
     }
 
-    setFormData(prev => ({ ...prev, grand_total: Math.max(0, total) }))
+    setFormData(prev => ({ ...prev, grand_total: total }))
   }, [selectedPrice, formData.discount_value, formData.discount, formData.discount_amount, formData.template_dt, hasMultiLabItems])
 
   useEffect(() => {
@@ -405,6 +427,12 @@ export const EditServiceRequestModal = ({
     if (!formData.template_dt || !formData.template_dn) {
       setError('Please select template type and template')
       setActiveTab('service_details')
+      return
+    }
+
+    if (allowManualCost && !hasMultiLabItems && !(selectedPrice != null && selectedPrice > 0)) {
+      setError('Enter an amount for this item/service (no price configured).')
+      setActiveTab('billing_pricing')
       return
     }
     
@@ -818,9 +846,25 @@ export const EditServiceRequestModal = ({
                       type="number"
                       step="any"
                       value={selectedPrice ?? ''}
-                      readOnly
-                      className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                      readOnly={!allowManualCost}
+                      onChange={(e) => {
+                        if (!allowManualCost) return
+                        const val = e.target.value === '' ? 0 : parseFloat(e.target.value)
+                        setSelectedPrice(Number.isNaN(val) ? 0 : val)
+                        set('cost', Number.isNaN(val) ? 0 : val)
+                      }}
+                      className={
+                        allowManualCost
+                          ? 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent bg-white'
+                          : 'w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600'
+                      }
+                      placeholder={allowManualCost ? 'Enter amount (no price)' : undefined}
                     />
+                    {allowManualCost && (
+                      <p className="mt-1 text-[11px] text-amber-700">
+                        No price on this item/service — enter the amount to charge.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Approved Amount</label>
@@ -936,7 +980,7 @@ export const EditServiceRequestModal = ({
                       Per-test discounts
                     </label>
                     <p className="text-xs text-slate-500 mb-4">
-                      Set a fixed discount amount on each lab test separately.
+                      Set a fixed discount amount on each lab test separately (negative values add a surcharge).
                     </p>
                     <LabTestLineDiscountTable
                       lines={basketPricing.lines}
@@ -955,7 +999,10 @@ export const EditServiceRequestModal = ({
                     <label className="block text-sm font-semibold text-slate-900 mb-1">
                       {isLabRequest ? 'Discount' : 'Discount Management'}
                     </label>
-                    <p className="text-xs text-slate-500 mb-4">Base price: <strong>{(selectedPrice || 0).toFixed(2)}</strong></p>
+                    <p className="text-xs text-slate-500 mb-4">
+                      Base price: <strong>{(selectedPrice || 0).toFixed(2)}</strong>
+                      {' · '}Negative discount values add a surcharge.
+                    </p>
 
                     <div className={`grid gap-4 mb-4 ${isLabRequest ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-3'}`}>
                       {!isLabRequest ? (
@@ -983,15 +1030,28 @@ export const EditServiceRequestModal = ({
                         </label>
                         <input
                           type="number"
-                          min="0"
                           step="any"
                           value={
                             isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount'
-                              ? formData.discount_amount
-                              : formData.discount
+                              ? (formData.discount_amount === 0 ? '' : formData.discount_amount)
+                              : (formData.discount === 0 ? '' : formData.discount)
                           }
                           onChange={(e) => {
-                            const val = parseFloat(e.target.value) || 0
+                            const raw = e.target.value
+                            if (raw === '') {
+                              if (isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount') {
+                                set('discount_amount', 0)
+                                if (isLabRequest) {
+                                  set('discount', 0)
+                                  set('discount_value', 'Amount')
+                                }
+                              } else {
+                                set('discount', 0)
+                              }
+                              return
+                            }
+                            const val = Number(raw)
+                            if (Number.isNaN(val)) return
                             if (isLabRequest || formData.discount_value === 'Fixed Amount' || formData.discount_value === 'Amount') {
                               set('discount_amount', val)
                               if (isLabRequest) {

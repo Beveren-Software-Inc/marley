@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:doctors_id",
@@ -23,6 +24,7 @@
   "residence_phone",
   "office_phone",
   "licence_no",
+  "appointment",
   "employee_and_user_details_section",
   "practitioner_type",
   "employee",
@@ -380,6 +382,12 @@
    "fieldtype": "Link",
    "label": "Parent Medical Role",
    "options": "Medical Role"
+  },
+  {
+   "default": "0",
+   "fieldname": "appointment",
+   "fieldtype": "Check",
+   "label": "Appointment"
   }
  ],
  "image_field": "image",
@@ -410,7 +418,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-04-21 15:26:01.151229",
+ "modified": "2026-07-12 12:20:56.687367",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

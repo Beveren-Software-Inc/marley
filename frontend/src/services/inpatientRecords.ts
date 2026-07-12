@@ -617,6 +617,8 @@ export async function admitPatient(
   standardPackage?: 0 | 1,
   hospitalBed?: string | null,
   bedNo?: string | null,
+  ipCaseManagement?: 0 | 1,
+  ipCaseManagementFee?: 0 | 1,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -647,6 +649,8 @@ export async function admitPatient(
         inpatient_package: inpatientPackage || null,
         rate_per_day: ratePerDay ?? null,
         standard_package: standardPackage ?? null,
+        ip_case_management: ipCaseManagement ?? 0,
+        ip_case_management_fee: ipCaseManagementFee ?? 0,
       })
     }
   )

@@ -58,6 +58,37 @@ export async function fetchECTDetails(
   }
 }
 
+export interface ConsolidatedECTDetail {
+  patient: string
+  patient_name?: string
+  ect_count: number
+  first_ect_date?: string
+  last_ect_date?: string
+}
+
+export async function fetchConsolidatedECTDetails(
+  limit: number = 100,
+  offset: number = 0,
+  patient?: string,
+  search?: string
+): Promise<ConsolidatedECTDetail[]> {
+  const params = new URLSearchParams()
+  params.append('limit', limit.toString())
+  params.append('offset', offset.toString())
+  if (patient) params.append('patient', patient)
+  if (search) params.append('search', search)
+
+  const response = await fetch(
+    `/api/method/healthcare.api.ect_details.get_consolidated_ect_details?${params.toString()}`
+  )
+  const resData = await response.json()
+
+  if (resData?.message && Array.isArray(resData.message)) {
+    return resData.message as ConsolidatedECTDetail[]
+  }
+  return []
+}
+
 export async function fetchECTDetail(name: string): Promise<ECTDetail> {
   const response = await fetch(
     `/api/resource/ECT%20Details/${encodeURIComponent(name)}`

@@ -236,7 +236,11 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 	for spec in specs:
 		amount = float(spec.get("amount") or 0)
 		net = float(spec.get("net_amount") if spec.get("net_amount") is not None else amount)
-		applied = float(spec.get("discount_applied") or max(0, amount - net))
+		applied = float(
+			spec.get("discount_applied")
+			if spec.get("discount_applied") is not None
+			else (amount - net)
+		)
 		subtotal += amount
 		grand_total += net
 		discount_amount += applied

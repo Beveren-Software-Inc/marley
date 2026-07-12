@@ -6,7 +6,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import flt, nowdate, getdate, add_days, cint, nowtime
+from frappe.utils import flt, nowdate, getdate, add_days, cint, cstr, nowtime
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.api.sales_order_cost_center import (
@@ -295,7 +295,13 @@ def _set_medication_row(doc, row):
 	entry.patient_frequency = row.get('patient_frequency')
 	entry.is_pink = 1 if row.get('is_pink') else 0
 	entry.is_prn = 1 if row.get('is_prn') else 0
-	entry.reference_no = row.get('reference_no') or ''
+	entry.reference_no = (row.get('reference_no') or '').strip()
+	if entry.is_pink and not entry.reference_no:
+		drug_label = row.get('drug_name') or row.get('drug') or ''
+		frappe.throw(
+			_("Reference No is required for pink medication: {0}").format(drug_label or _("Unknown")),
+			title=_("Missing Reference No"),
+		)
 	entry.route_of_administration = row.get('route_of_administration') or ''
 	if not (entry.route_of_administration or '').strip() and entry.drug:
 		from healthcare.api.common import get_item_route_of_administration_value
@@ -1474,6 +1480,13 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         if field in allowed_fields:
             entry.set(field, value)
 
+    if cint(getattr(entry, "is_pink", 0)) and not cstr(getattr(entry, "reference_no", "") or "").strip():
+        drug_label = getattr(entry, "drug_name", None) or getattr(entry, "drug", None) or order_entry_name
+        frappe.throw(
+            _("Reference No is required for pink medication: {0}").format(drug_label),
+            title=_("Missing Reference No"),
+        )
+
     normalized = _normalize_long_acting_medication_row(entry.as_dict())
     if normalized.get("patient_frequency"):
         entry.patient_frequency = normalized["patient_frequency"]
@@ -1500,6 +1513,13 @@ def add_medication_order_entry(patient_medication_order, entry_data):
         entry_data = json.loads(entry_data)
 
     entry_data = _normalize_long_acting_medication_row(entry_data)
+
+    if cint(entry_data.get("is_pink")) and not cstr(entry_data.get("reference_no") or "").strip():
+        drug_label = entry_data.get("drug_name") or entry_data.get("drug") or ""
+        frappe.throw(
+            _("Reference No is required for pink medication: {0}").format(drug_label or _("Unknown")),
+            title=_("Missing Reference No"),
+        )
 
     doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
 
@@ -1767,12 +1787,64 @@ def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
 				)
 				tax_templates_added.add(tax_template)
 
-	if not so.items:
-		frappe.throw(_("No medication items found to create a Sales Order"))
+	return tax_templates_added
 
 
-def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None):
-	"""Create and submit Sales Order for a submitted PMO; link back on PMO."""
+def _append_sales_order_service_items(so, services, company=None, tax_templates_added=None):
+	"""Append non-stock pharmacy/other service lines to the give-out Sales Order (not on PMO)."""
+	tax_templates_added = tax_templates_added if tax_templates_added is not None else set()
+	for svc in services or []:
+		item_code = (svc.get("item_code") or svc.get("id") or "").strip()
+		if not item_code:
+			continue
+		qty = flt(svc.get("quantity") or svc.get("qty") or 1) or 1
+		uom = (svc.get("uom") or "").strip() or frappe.db.get_value("Item", item_code, "stock_uom")
+		rate = flt(svc.get("rate") or svc.get("price") or 0)
+		if rate <= 0:
+			rate = get_item_rate_for_uom(item_code, uom)
+		if rate <= 0:
+			frappe.throw(
+				_("Enter an amount for pharmacy service: {0}").format(
+					svc.get("item_name") or svc.get("label") or item_code
+				)
+			)
+		item_row = {
+			"item_code": item_code,
+			"qty": qty,
+			"rate": rate,
+			"price_list_rate": rate,
+			"description": svc.get("item_name") or svc.get("label") or item_code,
+		}
+		if uom:
+			item_row["uom"] = uom
+		so.append("items", item_row)
+
+		tax_info = get_item_tax(item_code, company)
+		tax_template = tax_info.get("tax_template")
+		if tax_template and tax_template not in tax_templates_added:
+			tax_account = get_tax_account(tax_template)
+			if tax_account:
+				so.append(
+					"taxes",
+					{
+						"charge_type": "On Net Total",
+						"account_head": tax_account,
+						"description": f"Tax: {tax_template}",
+						"rate": tax_info.get("tax_rate", 0),
+						"included_in_print_rate": 0,
+						"included_in_paid_amount": 0,
+					},
+				)
+				tax_templates_added.add(tax_template)
+
+	return tax_templates_added
+
+
+def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None, services=None):
+	"""Create and submit Sales Order for a submitted PMO; link back on PMO.
+
+	``services`` are billed on the Sales Order only (not written to the PMO).
+	"""
 	if pmo.docstatus != 1:
 		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
 
@@ -1822,7 +1894,13 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 		if frappe.get_meta("Sales Order").has_field("custom_is_pharmacy_give_out"):
 			so.custom_is_pharmacy_give_out = 1
 
-	_append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
+	tax_templates_added = _append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
+	_append_sales_order_service_items(
+		so, services, company=pmo.company, tax_templates_added=tax_templates_added
+	)
+
+	if not so.items:
+		frappe.throw(_("No medication items found to create a Sales Order"))
 
 	cc = cost_center or cost_center_from_patient_medication_order(pmo, ref_doctype, ref_name)
 	apply_cost_center_to_sales_order(so, cc)
@@ -1835,6 +1913,186 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None)
 	pmo.save(ignore_permissions=True)
 
 	return so
+
+
+def _resolve_hst_for_pharmacy_service(item_code=None, template_dn=None):
+	"""Resolve Healthcare Service Template for a pharmacy/other service item."""
+	template_dn = (template_dn or "").strip() or None
+	if template_dn and frappe.db.exists("Healthcare Service Template", template_dn):
+		return template_dn
+	item_code = (item_code or "").strip()
+	if not item_code:
+		return None
+	name = frappe.db.get_value(
+		"Healthcare Service Template",
+		{"item_code": item_code, "disabled": 0},
+		"name",
+	)
+	if name:
+		return name
+	return frappe.db.get_value(
+		"Healthcare Service Template",
+		{"service_id": item_code, "disabled": 0},
+		"name",
+	)
+
+
+def _create_completed_service_requests_for_giveout(
+	services,
+	patient,
+	inpatient_record=None,
+	patient_visit=None,
+	cost_center=None,
+	practitioner=None,
+	company=None,
+	sales_order=None,
+):
+	"""Create Other Service SRs for give-out services already billed on the Sales Order, then complete them."""
+	created = []
+	for svc in services or []:
+		item_code = (svc.get("item_code") or svc.get("id") or "").strip()
+		template_dn = _resolve_hst_for_pharmacy_service(
+			item_code=item_code, template_dn=svc.get("template_dn")
+		)
+		if not template_dn:
+			frappe.throw(
+				_(
+					"No Healthcare Service Template found for service {0}. "
+					"Link an Other Service template to this item before giving out."
+				).format(svc.get("item_name") or item_code or _("Unknown"))
+			)
+
+		qty = flt(svc.get("quantity") or svc.get("qty") or 1) or 1
+		rate = flt(svc.get("rate") or svc.get("price") or 0)
+		amount = rate * qty
+
+		sr = frappe.new_doc("Service Request")
+		sr.patient = patient
+		if patient_visit:
+			sr.patient_visit = patient_visit
+		if inpatient_record:
+			sr.inpatient_record = inpatient_record
+		sr.template_dt = "Healthcare Service Template"
+		sr.template_dn = template_dn
+		if practitioner:
+			sr.practitioner = practitioner
+		if cost_center:
+			sr.cost_center = cost_center
+		if company and frappe.get_meta("Service Request").has_field("company"):
+			sr.company = company
+		sr.order_date = nowdate()
+		sr.quantity = qty
+		sr.cost = amount
+		sr.grand_total = amount
+		sr.status = "draft-Request Status"
+		sr.naming_series = "HSR-"
+		sr.insert(ignore_permissions=True)
+
+		sr.db_set("patient_accepted_cost", 1)
+		if sales_order:
+			sr.db_set("reference_document_type", "Sales Order")
+			sr.db_set("reference_document_name", sales_order)
+		if frappe.get_meta("Service Request").has_field("booked"):
+			sr.db_set("booked", 1)
+		sr.db_set("status", "completed-Request Status")
+		if sr.docstatus == 0:
+			try:
+				sr.reload()
+				sr.submit()
+			except Exception:
+				frappe.log_error(
+					frappe.get_traceback(),
+					f"Pharmacy give-out: could not submit Service Request {sr.name}",
+				)
+		created.append(sr.name)
+	return created
+
+
+@frappe.whitelist()
+def get_pharmacy_giveout_service_items(search=None, care_context=None):
+	"""Pharmacy / Other Service items for nursing pharmacy give-out Add Service."""
+	if not _user_can_access_patient_medication_order_portal():
+		frappe.throw(_("Not permitted"), frappe.PermissionError)
+
+	search = (search or "").strip()
+	care_context = (care_context or "").strip().upper()
+	is_op = care_context in ("OP", "PATIENT VISIT", "OUTPATIENT")
+
+	out = []
+	seen_items = set()
+
+	def _append_row(item_code, label, rate, uom, template_dn=None):
+		item_code = (item_code or "").strip()
+		if not item_code or item_code in seen_items:
+			return
+		if not frappe.db.exists("Item", item_code):
+			return
+		if cint(frappe.db.get_value("Item", item_code, "disabled")):
+			return
+		seen_items.add(item_code)
+		stock_uom = uom or frappe.db.get_value("Item", item_code, "stock_uom") or "Nos"
+		resolved_rate = flt(rate)
+		if resolved_rate <= 0:
+			resolved_rate = get_item_rate_for_uom(item_code, stock_uom)
+		out.append(
+			{
+				"id": item_code,
+				"name": label or frappe.db.get_value("Item", item_code, "item_name") or item_code,
+				"item_code": item_code,
+				"price": resolved_rate,
+				"rate": resolved_rate,
+				"uom": stock_uom,
+				"template_dt": "Healthcare Service Template" if template_dn else None,
+				"template_dn": template_dn,
+				"is_pharmacy_service": 1,
+			}
+		)
+
+	templates = frappe.get_all(
+		"Healthcare Service Template",
+		filters={"disabled": 0},
+		fields=["name", "service_name", "service_id", "item_code", "rate", "op_rate", "category"],
+		order_by="service_name asc",
+		limit_page_length=200,
+	)
+	for t in templates:
+		item_code = (t.get("item_code") or t.get("service_id") or "").strip()
+		if not item_code:
+			continue
+		label = (t.get("service_name") or item_code).strip()
+		category = (t.get("category") or "").strip()
+		is_other = category.lower() in ("other service", "other services")
+		if search:
+			term = search.lower()
+			if (
+				term not in label.lower()
+				and term not in item_code.lower()
+				and term not in (t.get("name") or "").lower()
+			):
+				continue
+		elif not is_other:
+			continue
+		rate = flt(t.get("op_rate") if is_op and flt(t.get("op_rate")) > 0 else t.get("rate"))
+		_append_row(item_code, label, rate, None, template_dn=t.get("name"))
+
+	if frappe.db.has_column("Item", "custom_is_pharmacy_service"):
+		items = frappe.get_all(
+			"Item",
+			filters={"disabled": 0, "custom_is_pharmacy_service": 1},
+			fields=["name", "item_name", "stock_uom"],
+			order_by="item_name asc",
+			limit_page_length=100,
+		)
+		for item in items:
+			if search:
+				term = search.lower()
+				if term not in (item.item_name or "").lower() and term not in (item.name or "").lower():
+					continue
+			template_dn = _resolve_hst_for_pharmacy_service(item_code=item.name)
+			_append_row(item.name, item.item_name, 0, item.stock_uom, template_dn=template_dn)
+
+	out.sort(key=lambda r: (r.get("name") or "").lower())
+	return out[:50]
 
 
 def _resolve_nursing_pharmacy_giveout_warehouse(cost_center, warehouse=None):
@@ -1891,6 +2149,7 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit
 	from healthcare.api.common import (
 		get_pharmacy_giveout_warehouses,
 		get_warehouse_for_cost_center,
+		resolve_branch_pharmacy_warehouse,
 		resolve_pharmacy_giveout_default_warehouse,
 	)
 
@@ -1901,11 +2160,14 @@ def get_nursing_pharmacy_giveout_warehouses(inpatient_record=None, patient_visit
 	warehouses = get_pharmacy_giveout_warehouses()
 	default_warehouse, _allowed = resolve_pharmacy_giveout_default_warehouse(cost_center)
 	mini_warehouse = get_warehouse_for_cost_center(cost_center) if cost_center else None
+	pharmacy_warehouse = resolve_branch_pharmacy_warehouse(cost_center) if cost_center else None
 
 	return {
 		"warehouses": warehouses,
 		"default_warehouse": default_warehouse,
 		"mini_warehouse": mini_warehouse,
+		"pharmacy_warehouse": pharmacy_warehouse,
+		"cost_center": cost_center,
 		"display_batch_and_lot_on_pharmacy_giveout": _display_batch_and_lot_on_pharmacy_giveout(),
 	}
 
@@ -1976,10 +2238,13 @@ def create_nursing_pharmacy_giveout(
 	practitioner=None,
 	warehouse=None,
 	patient_visit=None,
+	services=None,
 ):
 	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order.
 
 	IP give-outs pass inpatient_record; OP give-outs pass patient_visit instead.
+	``services`` are billed on the Sales Order only (not written onto the PMO) and
+	create completed Other Service Requests.
 	"""
 	if not _user_can_access_patient_medication_order_portal():
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -1997,6 +2262,10 @@ def create_nursing_pharmacy_giveout(
 		import json
 
 		medication_orders = json.loads(medication_orders)
+	if isinstance(services, str):
+		import json
+
+		services = json.loads(services)
 
 	if not medication_orders or not isinstance(medication_orders, list):
 		frappe.throw(_("At least one medication is required"))
@@ -2004,6 +2273,17 @@ def create_nursing_pharmacy_giveout(
 	valid_rows = [row for row in medication_orders if row.get("drug")]
 	if not valid_rows:
 		frappe.throw(_("At least one medication with a drug is required"))
+
+	service_rows = []
+	for row in services or []:
+		if not isinstance(row, dict):
+			continue
+		item_code = (row.get("item_code") or row.get("id") or "").strip()
+		if item_code:
+			service_rows.append(row)
+
+	if service_rows and not (practitioner or "").strip():
+		frappe.throw(_("Practitioner is required when adding services to pharmacy give-out"))
 
 	if inpatient_record:
 		context_doc = frappe.get_doc("Inpatient Admission", inpatient_record)
@@ -2039,6 +2319,7 @@ def create_nursing_pharmacy_giveout(
 			source_prescription=source_prescription,
 			warehouse=warehouse,
 			patient_visit=patient_visit,
+			services=service_rows,
 		)
 	except frappe.ValidationError as exc:
 		frappe.throw(_format_pharmacy_giveout_error(exc, warehouse=warehouse), exc=exc)
@@ -2058,11 +2339,13 @@ def _create_nursing_pharmacy_giveout_documents(
 	source_prescription=None,
 	warehouse=None,
 	patient_visit=None,
+	services=None,
 ):
 	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot, auto_resolve_medicine_given_batch_lot
 
 	manual_batch_lot_pick = _display_batch_and_lot_on_pharmacy_giveout()
 	start_date = nowdate()
+	services = services or []
 
 	doc = frappe.new_doc("Patient Medication Order")
 	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
@@ -2090,6 +2373,23 @@ def _create_nursing_pharmacy_giveout_documents(
 	doc.is_pharmacy_give_out = 1
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
 		doc.source_prescription = source_prescription
+
+	if warehouse:
+		from healthcare.api.common import get_item_codes_with_stock
+
+		in_stock = get_item_codes_with_stock(warehouse)
+		missing = []
+		for row in valid_rows:
+			drug = (row.get("drug") or "").strip()
+			if drug and drug not in in_stock:
+				missing.append(row.get("drug_name") or drug)
+		if missing:
+			frappe.throw(
+				_("No stock at {0} for: {1}. Only medicines with stock in this branch warehouse can be given out.").format(
+					warehouse, ", ".join(missing)
+				)
+			)
+
 	doc.flags.pharmacy_giveout_item_stock = []
 	for row in valid_rows:
 		row = dict(row)
@@ -2142,7 +2442,22 @@ def _create_nursing_pharmacy_giveout_documents(
 	doc.insert(ignore_permissions=True)
 	doc.submit()
 
-	so = _create_submitted_sales_order_for_pmo(doc, cost_center=cost_center, warehouse=warehouse)
+	so = _create_submitted_sales_order_for_pmo(
+		doc, cost_center=cost_center, warehouse=warehouse, services=services
+	)
+
+	service_requests = []
+	if services:
+		service_requests = _create_completed_service_requests_for_giveout(
+			services=services,
+			patient=patient,
+			inpatient_record=inpatient_record,
+			patient_visit=patient_visit,
+			cost_center=cost_center,
+			practitioner=practitioner or getattr(doc, "practitioner", None),
+			company=company,
+			sales_order=so.name,
+		)
 
 	from healthcare.api.nursing_inventory import _create_delivery_note_for_sales_order
 
@@ -2165,6 +2480,7 @@ def _create_nursing_pharmacy_giveout_documents(
 		"delivery_note_status": dn.status,
 		"pmo_status": frappe.db.get_value("Patient Medication Order", doc.name, "status"),
 		"source_prescription": source_prescription,
+		"service_requests": service_requests,
 	}
 
 

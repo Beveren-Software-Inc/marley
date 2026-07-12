@@ -59,6 +59,10 @@ import { SleepingPatternList } from '../components/sleeping/SleepingPatternList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
+import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
+import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
+import { SuicideRiskAssessmentList } from '../components/clinicalSuicide/ClinicalSuicideRiskAssessmentList'
+import { CreateSuicideRiskAssessmentModal } from '../components/clinicalSuicide/CreateClinicalSuicideRiskAssessmentModal'
 import { IOPDayListWithHeader } from '../components/iop/IOPDayList'
 import { IOPEnrollmentListWithHeader } from '../components/iop/IOPEnrollmentList'
 import { type PatientVisitListRow } from '../services/patientVisits'
@@ -180,13 +184,17 @@ export const NursePage = () => {
   const [nurseTaskRefreshKey, setNurseTaskRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
+  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
+  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
+  const [showCreateSuicideRiskModal, setShowCreateSuicideRiskModal] = useState(false)
+  const [suicideRiskRefreshKey, setSuicideRiskRefreshKey] = useState(0)
 
   const showIpRequiredDocs = Boolean(selectedPatient && mode === 'IP' && activeAdmission)
   useIpDoctorRequirements(
     selectedPatient,
     activeAdmission,
     showIpRequiredDocs,
-    `${morseFallRefreshKey}-${patientHistoryRefreshKey}`
+    `${morseFallRefreshKey}-${patientHistoryRefreshKey}-${physicalExamRefreshKey}-${suicideRiskRefreshKey}`
   )
 
   const rawScreen = searchParams.get('screen')
@@ -1376,7 +1384,7 @@ export const NursePage = () => {
             <div className="font-semibold mb-4 flex items-center justify-between">
               <span>Patient History</span>
               <button
-                onClick={() => setShowPatientHistoryModal(true)}
+                onClick={() => guardClinicalCreate(() => setShowPatientHistoryModal(true))}
                 className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                 title="New Patient History"
               >
@@ -1401,6 +1409,74 @@ export const NursePage = () => {
             onSuccess={() => {
               setPatientHistoryRefreshKey(prev => prev + 1)
               setShowPatientHistoryModal(false)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'n-physical-exam') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard
+            title="Physical Examination"
+            onAdd={() => guardClinicalCreate(() => setShowPhysicalExamModal(true))}
+            addButtonTitle="New Physical Examination"
+          >
+            <div className="text-sm text-slate-600 mb-3">
+              Record physical examination findings by body system — skin, CVS/Resp, CNC, GIT and others.
+            </div>
+            <PhysicalExaminationList
+              patient={selectedPatient}
+              refreshKey={physicalExamRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+        {showPhysicalExamModal && (
+          <PhysicalExaminationModal
+            admissionNo=""
+            patient={selectedPatient}
+            patientName=""
+            onClose={() => setShowPhysicalExamModal(false)}
+            onSuccess={() => {
+              setPhysicalExamRefreshKey(prev => prev + 1)
+              setShowPhysicalExamModal(false)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'n-suicide-risk') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard
+            title="Suicide Risk Assessments"
+            onAdd={() => guardClinicalCreate(() => setShowCreateSuicideRiskModal(true))}
+            addButtonTitle="Create Suicide Risk Assessment"
+          >
+            <SuicideRiskAssessmentList
+              patient={selectedPatient}
+              refreshKey={suicideRiskRefreshKey}
+            />
+          </DashboardCard>
+        </div>
+        {showCreateSuicideRiskModal && (
+          <CreateSuicideRiskAssessmentModal
+            patient={selectedPatient}
+            defaultAdmission={mode === 'IP' ? activeAdmission || undefined : undefined}
+            defaultVisit={mode === 'OP' ? activeVisit || undefined : undefined}
+            onClose={() => setShowCreateSuicideRiskModal(false)}
+            onSuccess={() => {
+              setShowCreateSuicideRiskModal(false)
+              setSuicideRiskRefreshKey((prev) => prev + 1)
+              toast.success('Suicide Risk Assessment created successfully')
             }}
           />
         )}

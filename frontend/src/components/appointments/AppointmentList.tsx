@@ -670,7 +670,7 @@ import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
-  fetchHealthcarePractitioners,
+  fetchAppointmentPractitioners,
   getCurrentUserPractitioner,
   fetchBranchOptions,
   type LinkFieldOption,
@@ -997,7 +997,7 @@ export const AppointmentList = ({
     defaultPractitionerFilterApplied.current = true
     if (!myPractitionerId) return
     setFilterPractitioner(myPractitionerId)
-    fetchHealthcarePractitioners()
+    fetchAppointmentPractitioners()
       .then((options) => {
         const match = options.find((p) => p.name === myPractitionerId)
         setPractitionerQuery(match?.practitioner_name || match?.label || linkedPractitionerName || myPractitionerId)
@@ -1015,7 +1015,7 @@ export const AppointmentList = ({
   useEffect(() => {
     if (!useAllAppointmentsApi || !practitionerOpen) return
     const timeoutId = setTimeout(() => {
-      fetchHealthcarePractitioners(practitionerQuery || undefined)
+      fetchAppointmentPractitioners(practitionerQuery || undefined)
         .then(setPractitionerDropdownOptions)
         .catch(() => setPractitionerDropdownOptions([]))
     }, practitionerQuery.trim() === '' ? 0 : 300)

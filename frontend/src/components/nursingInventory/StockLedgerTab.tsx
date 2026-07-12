@@ -119,6 +119,48 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
     return { label: 'In Stock', color: 'bg-green-100 text-green-800 border-green-200', icon: TrendingUp }
   }
 
+  const formatQty = (qty: number | null | undefined) => {
+    if (qty == null || Number.isNaN(Number(qty))) return null
+    const n = Number(qty)
+    return Number.isInteger(n) ? String(n) : n.toLocaleString(undefined, { maximumFractionDigits: 3 })
+  }
+
+  const renderStockQty = (item: StockLedgerItem) => {
+    const packLabel = formatQty(item.pack_qty)
+    const unitLabel = formatQty(item.unit_qty)
+    const hasPack = packLabel != null && item.pack_uom
+    const hasUnit = unitLabel != null && item.unit_uom
+
+    if (hasPack || hasUnit) {
+      return (
+        <div className="text-right">
+          {hasPack ? (
+            <p className="text-sm font-semibold text-slate-900">
+              {packLabel} <span className="font-medium text-slate-600">{item.pack_uom}</span>
+            </p>
+          ) : null}
+          {hasUnit ? (
+            <p className={`text-sm ${hasPack ? 'font-medium text-slate-700' : 'font-semibold text-slate-900'}`}>
+              {unitLabel} <span className="font-medium text-slate-600">{item.unit_uom}</span>
+            </p>
+          ) : null}
+          <p className="text-xs text-slate-500 mt-0.5">
+            {hasPack && hasUnit ? 'Packs · Units (dispense)' : hasUnit ? 'Units (dispense)' : 'Packs'}
+          </p>
+        </div>
+      )
+    }
+
+    return (
+      <div className="text-right">
+        <p className="text-sm font-semibold text-slate-900">
+          {formatQty(item.current_stock) ?? item.current_stock} {item.uom || 'Unit'}
+        </p>
+        <p className="text-xs text-slate-500">Qty in Stock</p>
+      </div>
+    )
+  }
+
   // Summary Card Component
   const SummaryCard = ({ title, value, icon: Icon, color, bgColor }: any) => (
     <div className={`bg-white rounded-lg border ${bgColor} p-4`}>
@@ -140,9 +182,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
         <Package className="w-12 h-12 text-slate-400 mx-auto mb-3" />
         <h3 className="text-lg font-medium text-slate-900 mb-1">No Branch Selected</h3>
         <p className="text-sm text-slate-500">
-          {isFullAccess 
-            ? 'Please select a branch from the dropdown above to view stock ledger.'
-            : 'Please ensure you have a branch assigned to view stock ledger.'}
+          Choose a branch from the top navbar to view stock ledger.
         </p>
       </div>
     )
@@ -253,10 +293,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
                   </div>
                   
                   <div className="flex items-center gap-4">
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-slate-900">{item.current_stock} {item.uom || 'Unit'}</p>
-                      <p className="text-xs text-slate-500">Qty in Stock</p>
-                    </div>
+                    {renderStockQty(item)}
                     <div className={`px-2 py-1 rounded-full text-xs font-medium ${status.color}`}>
                       <div className="flex items-center gap-1">
                         <StatusIcon className="w-3 h-3" />
@@ -279,6 +316,34 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter, isFullAccess = 
                         <label className="text-xs text-slate-500">Item Group</label>
                         <p className="text-slate-900 font-medium">{item.item_group || item.category || '-'}</p>
                       </div>
+                      <div>
+                        <label className="text-xs text-slate-500">Stock UOM qty</label>
+                        <p className="text-slate-900 font-medium">
+                          {formatQty(item.current_stock) ?? item.current_stock} {item.uom || '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500">Packs</label>
+                        <p className="text-slate-900 font-medium">
+                          {item.pack_qty != null
+                            ? `${formatQty(item.pack_qty)} ${item.pack_uom || 'PACK'}`
+                            : '—'}
+                        </p>
+                      </div>
+                      <div>
+                        <label className="text-xs text-slate-500">Units (dispense)</label>
+                        <p className="text-slate-900 font-medium">
+                          {item.unit_qty != null
+                            ? `${formatQty(item.unit_qty)} ${item.unit_uom || 'Unit'}`
+                            : '—'}
+                        </p>
+                      </div>
+                      {item.units_per_pack != null ? (
+                        <div>
+                          <label className="text-xs text-slate-500">Units per pack</label>
+                          <p className="text-slate-900 font-medium">{formatQty(item.units_per_pack)}</p>
+                        </div>
+                      ) : null}
                       <div>
                         <label className="text-xs text-slate-500">Reorder Level</label>
                         <p className="text-slate-900 font-medium">{item.reorder_level}</p>

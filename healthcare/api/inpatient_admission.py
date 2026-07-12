@@ -996,8 +996,6 @@ DISCHARGE_PORTAL_SCALAR_FIELDS = (
 	"room_charge_service_unit",
 	"room_charges",
 	"medical_supervision_amount",
-	"ip_case_management",
-	"ip_case_management_fee",
 	"today_charge_obs",
 	"discharge_to_observation",
 	"charge_observation_today",
@@ -1018,8 +1016,6 @@ DISCHARGE_PORTAL_CHECK_FIELDS = frozenset(
 	{
 		"today_charge",
 		"room_charge_today",
-		"ip_case_management",
-		"ip_case_management_fee",
 		"discharge_to_observation",
 		"charge_observation_today",
 	}
@@ -2522,6 +2518,8 @@ def admit_patient(
 	inpatient_package=None,
 	rate_per_day=None,
 	standard_package=None,
+	ip_case_management=None,
+	ip_case_management_fee=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -2545,6 +2543,11 @@ def admit_patient(
 		record.rate_per_day = flt(rate_per_day)
 	if standard_package is not None:
 		record.standard_package = cint(standard_package)
+
+	if ip_case_management is not None and record.meta.has_field("ip_case_management"):
+		record.ip_case_management = cint(ip_case_management)
+	if ip_case_management_fee is not None and record.meta.has_field("ip_case_management_fee"):
+		record.ip_case_management_fee = cint(ip_case_management_fee)
 
 	# Table MultiSelect: apply before admit so occupancy rows are built correctly
 	service_unit_list = frappe.parse_json(service_units or [])

@@ -56,16 +56,26 @@ export function LabTestLineDiscountTable({
                   ) : (
                     <input
                       type="number"
-                      min={0}
                       step={0.01}
-                      value={d.discount || ''}
-                      onChange={(e) =>
+                      value={d.discount === 0 ? '' : d.discount}
+                      onChange={(e) => {
+                        const raw = e.target.value
+                        if (raw === '') {
+                          onChange(line.template, {
+                            discount_type: 'Amount',
+                            discount: 0,
+                            discount_rate: 0,
+                          })
+                          return
+                        }
+                        const n = Number(raw)
+                        if (Number.isNaN(n)) return
                         onChange(line.template, {
                           discount_type: 'Amount',
-                          discount: Math.max(0, Number(e.target.value) || 0),
+                          discount: n,
                           discount_rate: 0,
                         })
-                      }
+                      }}
                       className={`${inputClass} py-1.5 text-right text-xs tabular-nums`}
                       placeholder="0"
                     />
@@ -73,8 +83,11 @@ export function LabTestLineDiscountTable({
                 </td>
                 <td className="px-3 py-2.5 text-right">
                   <div className="font-semibold tabular-nums text-emerald-800">{formatMoney(net)}</div>
-                  {applied > 0 ? (
-                    <div className="text-xs tabular-nums text-slate-500">−{formatMoney(applied)}</div>
+                  {applied !== 0 ? (
+                    <div className="text-xs tabular-nums text-slate-500">
+                      {applied > 0 ? '−' : '+'}
+                      {formatMoney(Math.abs(applied))}
+                    </div>
                   ) : null}
                 </td>
               </tr>

@@ -149,11 +149,16 @@ def get_nationalities(search=None):
 	return nationalities
 
 @frappe.whitelist()
-def get_healthcare_practitioners(search=None, department=None):
-	"""Get list of active Healthcare Practitioners. Search by ID, doctors_id, or name."""
+def get_healthcare_practitioners(search=None, department=None, appointment_only=None):
+	"""Get list of active Healthcare Practitioners. Search by ID, doctors_id, or name.
+
+	When appointment_only is truthy, only practitioners with the Appointment checkbox set.
+	"""
 	filters = {'status': 'Active'}
 	if department:
 		filters['department'] = department
+	if frappe.utils.cint(appointment_only):
+		filters['appointment'] = 1
 
 	or_filters = None
 	if search:
@@ -797,19 +802,86 @@ def _item_group_chain_has_custom_is_pink(item_group_name, cache):
 	return result
 
 
+def _prescription_warehouse_for_cost_center(cost_center):
+	"""Branch pharmacy/prescription warehouse from Healthcare Settings (prescr_warehouse)."""
+	cost_center = (cost_center or "").strip()
+	if not cost_center:
+		return None
+	try:
+		settings = frappe.get_single("Healthcare Settings")
+		for row in settings.get("table_yjeh") or []:
+			if getattr(row, "cost_center", None) == cost_center and getattr(row, "warehouse", None):
+				return (row.warehouse or "").strip() or None
+	except Exception:
+		pass
+	return None
+
+
+def resolve_branch_pharmacy_warehouse(cost_center=None, warehouse=None):
+	"""
+	Warehouse used to decide in-stock medicines for pharmacy give-out.
+
+	Priority: explicit warehouse → Prescription Warehouse for branch → nurse mini warehouse.
+	"""
+	warehouse = (warehouse or "").strip() or None
+	if warehouse:
+		return warehouse
+	cost_center = (cost_center or "").strip() or None
+	if not cost_center:
+		return None
+	wh = _prescription_warehouse_for_cost_center(cost_center)
+	if wh:
+		return wh
+	return get_warehouse_for_cost_center(cost_center)
+
+
+def get_item_codes_with_stock(warehouse):
+	"""Item codes with positive Bin.actual_qty in the given warehouse."""
+	warehouse = (warehouse or "").strip()
+	if not warehouse:
+		return set()
+	rows = frappe.db.sql(
+		"""
+		SELECT item_code
+		FROM `tabBin`
+		WHERE warehouse = %s AND actual_qty > 0
+		""",
+		warehouse,
+		as_dict=True,
+	)
+	return {r.item_code for r in rows if r.item_code}
+
+
 @frappe.whitelist()
-def get_prescription_items(search=None):
-	"""Items for prescription drug search only.
+def get_prescription_items(search=None, warehouse=None, cost_center=None, in_stock_only=None):
+	"""Items for prescription drug search / pharmacy give-out.
 
 	Filters:
 
 	- Item Group (or ancestor) must have ``custom_added_in_prescription`` when that field exists on Item Group.
 	- Exclude Items linked from Lab Test Template (service/lab SKU rows).
 	- Dedupe rows by normalized display name (same ``item_name`` on multiple SKUs).
+	- When ``warehouse`` / ``cost_center`` / ``in_stock_only`` is set, only items with
+	  positive stock at the branch pharmacy warehouse are returned.
 
 	Returns the same shape as ``get_items`` plus optional ``default_route_of_administration``
 	when Item.custom_route_of_administration exists on the install.
 	"""
+	from frappe.utils import cint
+
+	in_stock_only = cint(in_stock_only)
+	stock_warehouse = resolve_branch_pharmacy_warehouse(cost_center, warehouse)
+	if warehouse or cost_center or in_stock_only:
+		in_stock_only = 1
+		if not stock_warehouse:
+			return []
+
+	in_stock_codes = None
+	if in_stock_only and stock_warehouse:
+		in_stock_codes = get_item_codes_with_stock(stock_warehouse)
+		if not in_stock_codes:
+			return []
+
 	exclude_templates = frappe.get_all(
 		'Lab Test Template',
 		filters={'item': ['is', 'set']},
@@ -818,7 +890,15 @@ def get_prescription_items(search=None):
 	exclude_names = list({x for x in exclude_templates if x})
 
 	filters = {'disabled': 0}
-	if exclude_names:
+	if in_stock_codes is not None:
+		allowed = list(in_stock_codes)
+		if exclude_names:
+			exclude_set = set(exclude_names)
+			allowed = [c for c in allowed if c not in exclude_set]
+		if not allowed:
+			return []
+		filters['name'] = ['in', allowed]
+	elif exclude_names:
 		filters['name'] = ['not in', exclude_names]
 
 	# Drug searches offer NHRA Medicine items only (nurse-department requirement).
@@ -891,6 +971,9 @@ def get_prescription_items(search=None):
 			'stock_uom': row.stock_uom,
 			'is_pink': bool(_item_group_chain_has_custom_is_pink(ig, pink_cache)),
 		}
+		if stock_warehouse and in_stock_only:
+			entry['warehouse'] = stock_warehouse
+			entry['in_stock'] = True
 		if route_field:
 			route_val = row.get(route_field)
 			if route_val:
@@ -905,6 +988,36 @@ def get_prescription_items(search=None):
 			break
 
 	return out
+
+
+@frappe.whitelist()
+def filter_items_in_stock(item_codes=None, warehouse=None, cost_center=None):
+	"""Return which of the given item codes have stock at the branch pharmacy warehouse."""
+	import json
+
+	if isinstance(item_codes, str):
+		try:
+			item_codes = json.loads(item_codes)
+		except Exception:
+			item_codes = [c.strip() for c in item_codes.split(",") if c.strip()]
+
+	codes = [(c or "").strip() for c in (item_codes or []) if (c or "").strip()]
+	stock_warehouse = resolve_branch_pharmacy_warehouse(cost_center, warehouse)
+	if not stock_warehouse or not codes:
+		return {
+			"warehouse": stock_warehouse,
+			"in_stock": [],
+			"out_of_stock": codes,
+		}
+
+	in_stock_set = get_item_codes_with_stock(stock_warehouse)
+	in_stock = [c for c in codes if c in in_stock_set]
+	out_of_stock = [c for c in codes if c not in in_stock_set]
+	return {
+		"warehouse": stock_warehouse,
+		"in_stock": in_stock,
+		"out_of_stock": out_of_stock,
+	}
 
 
 @frappe.whitelist()
@@ -3986,12 +4099,13 @@ def get_mental_states(
 				"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
 				"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
 				"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
-				"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour",
+				"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour", "normal",
 				"place", "time", "normal_ap", "person",
 				"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
 				"sleep_duration", "normal_sleep", "disturbed", "intermittent",
 				"excessive", "a_little",
 				"conscious", "alert", "disturbed_con",
+				"delusion", "dellusion", "perception", "remark",
 				"creation", "modified", "owner"
 			],
 			order_by="creation desc",
@@ -4034,16 +4148,16 @@ def create_mental_state(data):
 			"admission_no", "file_no", "patient_name", "branch", "trans_shift",
 			"normal_at",
 			"cooperative", "aggressive", "paranoid", "demanding", "preoccupied",
-			"defence", "impulsive", "sedative",
+			"defence", "impulsive", "sedative", "dellusion",
 			"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
 			"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
 			"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
-			"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour",
+			"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour", "normal",
 			"place", "time", "normal_ap", "person",
 			"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
 			"sleep_duration", "normal_sleep", "disturbed", "intermittent",
 			"excessive", "a_little",
-			"conscious", "alert", "disturbed_con", "delusion","perception"
+			"conscious", "alert", "disturbed_con", "delusion", "perception", "remark"
 		]
 		for field in allowed_fields:
 			if field in data:
@@ -5033,11 +5147,14 @@ def get_pharmacy_giveout_warehouses():
 
 
 def resolve_pharmacy_giveout_default_warehouse(cost_center):
-	"""Pick default give-out warehouse: nurse mini warehouse when listed, else first configured."""
+	"""Pick default give-out warehouse: branch pharmacy warehouse, then nurse mini, else first configured."""
 	allowed = get_pharmacy_giveout_warehouses()
 	if not allowed:
 		return None, allowed
 	allowed_names = {row["name"] for row in allowed}
+	prescr_wh = _prescription_warehouse_for_cost_center(cost_center) if cost_center else None
+	if prescr_wh and prescr_wh in allowed_names:
+		return prescr_wh, allowed
 	mini_wh = get_warehouse_for_cost_center(cost_center) if cost_center else None
 	if mini_wh and mini_wh in allowed_names:
 		return mini_wh, allowed

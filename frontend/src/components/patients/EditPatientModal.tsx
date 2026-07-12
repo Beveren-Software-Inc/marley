@@ -28,7 +28,7 @@ import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmen
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
-import { PenLine, Trash2, Check, X } from 'lucide-react'
+import { PenLine, Trash2, Check, X, Upload, Download, RefreshCw, Loader2 } from 'lucide-react'
 
 // ─── Signature Pad Component (same as CreatePatientModal) ───────────────────
 
@@ -231,7 +231,8 @@ interface EditPatientModalProps {
   onSuccess?: () => void
 }
 
-type Tab = 'details' | 'relations' | 'insurance' | 'documents'
+type Tab = 'details' | 'relations' | 'insurance' | 'documents' | 'cpr'
+
 
 const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
@@ -295,6 +296,9 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+  const [cprPhoto, setCprPhoto] = useState('')
+  const [cprPhotoBack, setCprPhotoBack] = useState('')
+  const [cprUploading, setCprUploading] = useState<'front' | 'back' | null>(null)
 
   // Dropdown states
   const [sourceOptions, setSourceOptions] = useState<LinkFieldOption[]>([])
@@ -424,6 +428,9 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           })))
         }
 
+        setCprPhoto(patient.cpr_photo || '')
+        setCprPhotoBack(patient.cpr_photo_back || '')
+
         // Set selected dropdown values
         const src = sources.find((s) => s.name === patient.source)
         if (src) setSelectedSource(src)
@@ -522,6 +529,26 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       toast.error(err instanceof Error ? err.message : 'Signature upload failed')
     } finally {
       setSignatureUploading(null)
+    }
+  }
+
+  const handleCprFile = async (side: 'front' | 'back', file: File | null) => {
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      toast.error('CPR must be an image file')
+      return
+    }
+    setCprUploading(side)
+    try {
+      const file_url = await uploadPatientFile(file)
+      if (!file_url) throw new Error('No URL returned from upload')
+      if (side === 'front') setCprPhoto(file_url)
+      else setCprPhotoBack(file_url)
+      toast.success(side === 'front' ? 'CPR front image attached' : 'CPR back image attached')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'CPR upload failed')
+    } finally {
+      setCprUploading(null)
     }
   }
 
@@ -648,6 +675,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             upload_remarks: (r.upload_remarks || '').trim() || undefined,
             document: (r.document || '').trim() || undefined,
           })),
+        cpr_photo: cprPhoto || null,
+        cpr_photo_back: cprPhotoBack || null,
       }
 
       const result = await updatePatientDoc(patientName, patientPayload)
@@ -769,6 +798,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     { id: 'relations', label: 'Next of Kin', badge: relations.length || undefined },
     { id: 'insurance', label: 'Insurance' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
+    { id: 'cpr', label: 'Attach CPR', badge: (cprPhoto ? 1 : 0) + (cprPhotoBack ? 1 : 0) || undefined },
   ]
 
   if (loading) {
@@ -1393,19 +1423,117 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                 </div>
               </div>
             )}
+
+            {/* ── TAB: Attach CPR front & back ── */}
+            {activeTab === 'cpr' && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {([
+                  { side: 'front' as const, label: 'CPR Front', value: cprPhoto, setValue: setCprPhoto },
+                  { side: 'back' as const, label: 'CPR Back', value: cprPhotoBack, setValue: setCprPhotoBack },
+                ]).map(({ side, label, value, setValue }) => (
+                  <div key={side} className="space-y-3">
+                    <h4 className="text-sm font-semibold text-slate-800">{label}</h4>
+                    <div className="flex items-center gap-3">
+                        <label
+                          className={`inline-flex h-8 w-8 items-center justify-center rounded-md cursor-pointer transition-colors ${
+                            cprUploading === side
+                              ? 'bg-slate-200 text-slate-500'
+                              : 'bg-primary text-white hover:bg-primary/90'
+                          }`}
+                          title={cprUploading === side ? 'Uploading…' : value ? `Replace ${label}` : `Attach ${label}`}
+                        >
+                          {cprUploading === side ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : value ? (
+                            <RefreshCw className="w-4 h-4" />
+                          ) : (
+                            <Upload className="w-4 h-4" />
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={cprUploading !== null}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0]
+                              if (f) handleCprFile(side, f)
+                              e.target.value = ''
+                            }}
+                            className="hidden"
+                          />
+                        </label>
+                        {value && (
+                          <>
+                            <a
+                              href={value}
+                              download
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              title={`Download ${label}`}
+                            >
+                              <Download className="w-4 h-4" />
+                            </a>
+                            <button
+                              type="button"
+                              onClick={() => setValue('')}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-red-500 hover:bg-red-50"
+                              title={`Remove ${label}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                    </div>
+                    {value ? (
+                      <a href={value} target="_blank" rel="noreferrer" title="Click to open full size" className="block rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
+                        <img src={value} alt={label} className="mx-auto max-h-56 object-contain" />
+                      </a>
+                    ) : (
+                      <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
+                        Attach the patient's CPR {side} image (image files only).
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Footer */}
           <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex items-center justify-between bg-white rounded-b-lg">
             <div className="flex gap-2">
               {activeTab !== 'details' && (
-                <button type="button" onClick={() => setActiveTab(activeTab === 'documents' ? 'relations' : 'details')} className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveTab(
+                      activeTab === 'cpr'
+                        ? 'documents'
+                        : activeTab === 'documents'
+                          ? 'relations'
+                          : activeTab === 'insurance'
+                            ? 'relations'
+                            : 'details'
+                    )
+                  }
+                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1"
+                >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" /></svg>
                   Back
                 </button>
               )}
-              {activeTab !== 'documents' && (
-                <button type="button" onClick={() => setActiveTab(activeTab === 'details' ? 'relations' : 'documents')} className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1">
+              {activeTab !== 'cpr' && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setActiveTab(
+                      activeTab === 'details'
+                        ? 'relations'
+                        : activeTab === 'documents'
+                          ? 'cpr'
+                          : 'documents'
+                    )
+                  }
+                  className="px-3 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 flex items-center gap-1"
+                >
                   Next
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
                 </button>

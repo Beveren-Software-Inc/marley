@@ -111,6 +111,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   time: '',
   patient_frequency: '',
   is_pink: false,
+  reference_no: '',
   is_prn: false,
   is_long_acting: false,
   long_acting_frequency: 'Weekly',
@@ -424,6 +425,7 @@ export const CreatePrescriptionModal = ({
         drug_name: opt.label || opt.name,
         uom: stockUom,
         is_pink: Boolean(opt.is_pink),
+        reference_no: opt.is_pink ? next[index].reference_no || '' : '',
         ...(route ? { route_of_administration: route } : {}),
       }
       return next
@@ -523,6 +525,7 @@ export const CreatePrescriptionModal = ({
           time: med.time || '',
           patient_frequency: med.patient_frequency || '',
           is_pink: med.is_pink || false,
+          reference_no: med.reference_no || '',
           long_acting_frequency: med.long_acting_frequency || 'Weekly',
           route_of_administration: med.route_of_administration || '',
           medication_type:
@@ -819,6 +822,15 @@ export const CreatePrescriptionModal = ({
     if (validMedications.length === 0) {
       setError('Please add at least one medication with Drug, Dosage, and Date')
       setActiveTab('medications'); return
+    }
+    const pinkMissingRef = validMedications.filter(
+      (med) => med.is_pink && !String(med.reference_no || '').trim()
+    )
+    if (pinkMissingRef.length > 0) {
+      const names = pinkMissingRef.map((m) => m.drug_name || m.drug).join(', ')
+      setError(`Reference No is required for pink medication(s): ${names}`)
+      setActiveTab('medications')
+      return
     }
     try {
       setSubmitting(true)
@@ -1574,17 +1586,38 @@ export const CreatePrescriptionModal = ({
                             <p className="text-[11px] text-slate-500">Start + End Date → Days; or Start Date + Days → End Date</p>
                           )}
 
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
-                            <label className="inline-flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={!!row.is_pink}
-                                onChange={(e) => updateMedicationRow(index, 'is_pink', e.target.checked)}
-                                className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
-                              />
-                              <span className="text-sm text-slate-600">Yes</span>
-                            </label>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium text-slate-600 mb-2">Is Pink</label>
+                              <label className="inline-flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={!!row.is_pink}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked
+                                    updateMedicationRow(index, 'is_pink', checked)
+                                    if (!checked) updateMedicationRow(index, 'reference_no', '')
+                                  }}
+                                  className="w-4 h-4 rounded border-slate-300 text-primary focus:ring-primary"
+                                />
+                                <span className="text-sm text-slate-600">Yes</span>
+                              </label>
+                            </div>
+                            {!!row.is_pink && (
+                              <div>
+                                <label className="block text-xs font-medium text-slate-600 mb-1">
+                                  Reference No <span className="text-red-500">*</span>
+                                </label>
+                                <input
+                                  type="text"
+                                  value={row.reference_no ?? ''}
+                                  onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
+                                  placeholder="Enter reference number"
+                                  required
+                                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                                />
+                              </div>
+                            )}
                           </div>
 
                           <div>

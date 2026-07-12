@@ -24,13 +24,14 @@ frappe.ui.form.on('Patient Appointment', {
 		});
 
 		frm.set_query('practitioner', function() {
+			const filters = {
+				'status': 'Active',
+				'appointment': 1,
+			};
 			if (frm.doc.department) {
-				return {
-					filters: {
-						'department': frm.doc.department
-					}
-				};
+				filters['department'] = frm.doc.department;
 			}
+			return { filters };
 		});
 
 		frm.set_query('service_unit', function() {
@@ -406,7 +407,21 @@ let check_and_set_availability = function(frm) {
 			fields: [
 				{ fieldtype: 'Link', options: 'Medical Department', reqd: 1, fieldname: 'department', label: 'Medical Department' },
 				{ fieldtype: 'Column Break' },
-				{ fieldtype: 'Link', options: 'Healthcare Practitioner', reqd: 1, fieldname: 'practitioner', label: 'Healthcare Practitioner' },
+				{
+					fieldtype: 'Link',
+					options: 'Healthcare Practitioner',
+					reqd: 1,
+					fieldname: 'practitioner',
+					label: 'Healthcare Practitioner',
+					get_query: function() {
+						return {
+							filters: {
+								status: 'Active',
+								appointment: 1,
+							}
+						};
+					},
+				},
 				{ fieldtype: 'Column Break' },
 				{ fieldtype: 'Date', reqd: 1, fieldname: 'appointment_date', label: 'Date', min_date: new Date(frappe.datetime.get_today()) },
 				{ fieldtype: 'Section Break' },
@@ -477,7 +492,18 @@ let check_and_set_availability = function(frm) {
 				d.fields_dict.practitioner.get_query = function() {
 					return {
 						filters: {
+							'status': 'Active',
+							'appointment': 1,
 							'department': selected_department
+						}
+					};
+				};
+			} else {
+				d.fields_dict.practitioner.get_query = function() {
+					return {
+						filters: {
+							'status': 'Active',
+							'appointment': 1,
 						}
 					};
 				};

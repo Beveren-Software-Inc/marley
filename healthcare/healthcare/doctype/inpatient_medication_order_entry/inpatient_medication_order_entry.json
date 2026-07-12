@@ -199,7 +199,8 @@
    "allow_on_submit": 1,
    "fieldname": "reference_no",
    "fieldtype": "Data",
-   "label": "Reference No"
+   "label": "Reference No",
+   "mandatory_depends_on": "eval:doc.is_pink"
   },
   {
    "allow_on_submit": 1,

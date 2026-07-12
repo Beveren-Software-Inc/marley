@@ -2,6 +2,9 @@ export interface PharmacyGiveOutWarehouseOptions {
   warehouses: { name: string; label: string }[]
   default_warehouse?: string
   mini_warehouse?: string
+  /** Branch pharmacy/prescription warehouse from Healthcare Settings */
+  pharmacy_warehouse?: string
+  cost_center?: string
   /** When true, nurses must pick batch / dispensing lot on the give-out form. */
   display_batch_and_lot_on_pharmacy_giveout?: boolean
 }
@@ -103,6 +106,32 @@ export async function fetchItemRate(itemCode: string, uom?: string): Promise<num
     `/api/method/healthcare.api.patient_medication_order.get_item_rate_api?${params.toString()}`
   )
   return Number(result?.rate) || 0
+}
+
+export interface PharmacyGiveOutServiceItem {
+  id: string
+  name: string
+  item_code?: string
+  price?: number
+  rate?: number
+  uom?: string
+  template_dt?: string | null
+  template_dn?: string | null
+  is_pharmacy_service?: number
+}
+
+export async function fetchPharmacyGiveOutServiceItems(
+  search?: string,
+  careContext?: string
+): Promise<PharmacyGiveOutServiceItem[]> {
+  const { apiRequest } = await import('./apiClient')
+  const params = new URLSearchParams()
+  if (search?.trim()) params.append('search', search.trim())
+  if (careContext) params.append('care_context', careContext)
+  const result = await apiRequest<PharmacyGiveOutServiceItem[]>(
+    `/api/method/healthcare.api.patient_medication_order.get_pharmacy_giveout_service_items?${params.toString()}`
+  )
+  return Array.isArray(result) ? result : []
 }
 
 export async function fetchItemRates(itemCodes: string[]): Promise<Record<string, number>> {

@@ -21,6 +21,13 @@ export interface StockLedgerItem {
   unit_price: number
   valuation_rate?: number
   last_updated: string
+  /** Qty in Pack UOM (when configured on the item) */
+  pack_qty?: number | null
+  pack_uom?: string | null
+  /** Qty in Unit UOM — same UOM used when dispensing medicine */
+  unit_qty?: number | null
+  unit_uom?: string | null
+  units_per_pack?: number | null
 }
 
 export interface MaterialRequestItem {

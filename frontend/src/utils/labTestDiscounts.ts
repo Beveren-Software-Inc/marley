@@ -19,8 +19,9 @@ export function computeLineNet(
   d: LabLineDiscount
 ): { net: number; applied: number } {
   const gross = amount || 0
-  const applied = Math.min(gross, Math.max(0, d.discount || 0))
-  return { net: Math.max(0, gross - applied), applied }
+  // Negative discount is allowed (surcharge / markup).
+  const applied = d.discount || 0
+  return { net: gross - applied, applied }
 }
 
 export function mergeDiscountsIntoBasket(
@@ -41,7 +42,8 @@ export function mergeDiscountsIntoBasket(
     const child_discounts: Record<string, LabLineDiscount> = {}
     for (const tpl of item.children) {
       const d = lineDiscounts[tpl]
-      if (d && d.discount) {
+      // Include zero only when unset; keep negative discounts.
+      if (d && Number(d.discount) !== 0) {
         child_discounts[tpl] = {
           discount_type: 'Amount',
           discount_rate: 0,

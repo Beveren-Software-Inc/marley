@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
@@ -51,17 +51,8 @@ const statusColors: Record<string, string> = {
   'Cancelled': 'danger'
 }
 
-function localDateISO(d = new Date()): string {
-  const y = d.getFullYear()
-  const m = String(d.getMonth() + 1).padStart(2, '0')
-  const day = String(d.getDate()).padStart(2, '0')
-  return `${y}-${m}-${day}`
-}
-
-function getIpDefaultFilters() {
-  const today = localDateISO()
-  return { status: 'Admitted', dateFrom: today, dateTo: today }
-}
+/** Default status on every inpatient admission list. */
+const DEFAULT_ADMISSION_STATUS = 'Admitted'
 
 function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
   // Patient column shows the name only — no file no / patient id prefix.
@@ -103,11 +94,8 @@ export const AdmissionList = ({
   // When IP mode has a specific admission selected globally, lock the list to that admission
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
-  // All lists start unfiltered — no default status/date filters (nurse-dept request).
-  const shouldUseIpDefaults = false
-  const ipDefaultsOnMount = shouldUseIpDefaults ? getIpDefaultFilters() : null
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(() => ipDefaultsOnMount?.status ?? '')
+  const [selectedStatus, setSelectedStatus] = useState<string>(DEFAULT_ADMISSION_STATUS)
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -159,8 +147,8 @@ export const AdmissionList = ({
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
 
-  const [dateFrom, setDateFrom] = useState(() => ipDefaultsOnMount?.dateFrom ?? '')
-  const [dateTo, setDateTo] = useState(() => ipDefaultsOnMount?.dateTo ?? '')
+  const [dateFrom, setDateFrom] = useState('')
+  const [dateTo, setDateTo] = useState('')
 
   const excludeCancelled = Boolean(effectivePatient && !selectedStatus && !effectiveNameFilter)
 
@@ -176,15 +164,6 @@ export const AdmissionList = ({
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
   }
-
-  // IP mode: apply defaults before paint when switching into IP (avoids one unfiltered fetch).
-  useLayoutEffect(() => {
-    if (!shouldUseIpDefaults) return
-    const defaults = getIpDefaultFilters()
-    setSelectedStatus(defaults.status)
-    setDateFrom(defaults.dateFrom)
-    setDateTo(defaults.dateTo)
-  }, [shouldUseIpDefaults])
 
   // Actions dropdown (three-dot menu) — one row open at a time
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
@@ -398,12 +377,14 @@ export const AdmissionList = ({
     setSelectedPractitioner(null)
     setDateFrom('')
     setDateTo('')
-    setSelectedStatus('')
+    setSelectedStatus(DEFAULT_ADMISSION_STATUS)
     setFilterBranch('')
   }
 
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
-  const hasActiveFilters = practitionerFilter || dateFrom || dateTo || selectedStatus || filterBranch
+  const hasActiveFilters =
+    Boolean(practitionerFilter || dateFrom || dateTo || filterBranch) ||
+    selectedStatus !== DEFAULT_ADMISSION_STATUS
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const exportFilteredCsv = () => {

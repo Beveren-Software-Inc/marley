@@ -283,6 +283,8 @@ def _serialize_patient_for_portal(patient_doc):
 		"insurance_policy": getattr(patient_doc, "insurance_policy_no", None),
 		"ref_no": getattr(patient_doc, "ref_no", None),
 		"insurance_register": getattr(patient_doc, "insurance_register", None),
+		"cpr_photo": getattr(patient_doc, "cprigama_front_photo", None),
+		"cpr_photo_back": getattr(patient_doc, "cprigama_back_photo", None),
 		"patient_relation": relations,
 		"patient_document": documents,
 	}
@@ -362,6 +364,7 @@ def create_patient(data):
 		"city": (data.get("city") or "").strip() or None,
 		"country": (data.get("country") or "").strip() or None,
 		"cprigama_front_photo": data.get("cpr_photo") or None,
+		"cprigama_back_photo": data.get("cpr_photo_back") or None,
 	})
 
 	patient.insert(ignore_permissions=True)
@@ -720,6 +723,10 @@ def _apply_patient_scalar_fields(patient, data):
 		patient.insurance_policy_no = data.get("insurance_policy") or None
 	if "is_black_list" in data:
 		patient.is_black_list = 1 if data.get("is_black_list") else 0
+	if "cpr_photo" in data:
+		patient.cprigama_front_photo = data.get("cpr_photo") or None
+	if "cpr_photo_back" in data:
+		patient.cprigama_back_photo = data.get("cpr_photo_back") or None
 
 	from healthcare.healthcare.doctype.patient.patient import resolve_patient_customer_group
 

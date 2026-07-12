@@ -1071,8 +1071,6 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     room_charges: 0,
     medical_supervision_amount: 0,
     today_charge_sales_order: '',
-    ip_case_management: 0,
-    ip_case_management_fee: 0,
     today_charge_obs: 0,
     discharge_to_observation: 0,
     charge_observation_today: 0,
@@ -4400,23 +4398,6 @@ const loadDailyVisitSetup = async () => {
                   </>
                 ) : null}
               </CollapsibleFormSection>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-4">
-                <YesNoField
-                  label="IP Case Management?"
-                  value={checkToYesNo(formData.ip_case_management)}
-                  onChange={(v) =>
-                    setFormData((prev) => ({ ...prev, ip_case_management: v === 'Yes' ? 1 : 0 }))
-                  }
-                />
-                <YesNoField
-                  label="IP Case Management Fee?"
-                  value={checkToYesNo(formData.ip_case_management_fee)}
-                  onChange={(v) =>
-                    setFormData((prev) => ({ ...prev, ip_case_management_fee: v === 'Yes' ? 1 : 0 }))
-                  }
-                />
-              </div>
             </div>
           )}
 

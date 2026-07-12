@@ -253,7 +253,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                     disabled
                     className="w-full rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Branch is auto-detected from your profile</p>
+                  <p className="text-xs text-slate-400 mt-1">Uses the global branch filter from the top navbar.</p>
                 </div>
 
                 <div>
