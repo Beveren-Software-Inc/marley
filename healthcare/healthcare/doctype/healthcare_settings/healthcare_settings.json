@@ -100,6 +100,8 @@
   "more_info_tab",
   "default_patient",
   "auto_create_patient_visit_on_iop_enrollment",
+  "section_break_pqbp",
+  "doctors_commission",
   "pricing_tab",
   "patient_category_pricing"
  ],
@@ -683,11 +685,20 @@
    "fieldname": "display_batch_and_lot_on_pharmacy_giveout",
    "fieldtype": "Check",
    "label": "Display Batch and Lot on Pharmacy Giveout"
+  },
+  {
+   "fieldname": "section_break_pqbp",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "doctors_commission",
+   "fieldtype": "Percent",
+   "label": "Doctors Commission"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-09 12:07:31.486268",
+ "modified": "2026-07-12 10:43:25.416033",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
