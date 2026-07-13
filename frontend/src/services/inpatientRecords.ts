@@ -138,6 +138,7 @@ export interface ServiceUnit {
   company: string
   room_category?: string
   cost_center?: string
+  room_multiplier?: number
 }
 
 export interface HospitalBed {
@@ -285,6 +286,8 @@ export interface InpatientPackage {
   category_name?: string
   no_of_days: number
   package_rate: number
+  base_total?: number
+  is_daily_default?: number
   active: number
   cost_center?: string
   duration_pricing?: DurationPricing[]
@@ -523,13 +526,28 @@ export async function transferToAnotherCostCenter(
   return res
 }
 
-export async function calculatePackagePrice(packageName: string, days: number): Promise<{ total_price: number; base_rate: number; days: number }> {
+export async function calculatePackagePrice(
+  packageName: string,
+  days: number,
+  opts?: { serviceUnitType?: string; serviceUnit?: string; roomMultiplier?: number }
+): Promise<{
+  total_price: number
+  program_price?: number
+  base_rate: number
+  base_total?: number
+  room_multiplier?: number
+  service_unit_type?: string
+  days: number
+}> {
   const params = new URLSearchParams()
   params.append('package_name', packageName)
   params.append('days', days.toString())
-  
+  if (opts?.serviceUnitType) params.append('service_unit_type', opts.serviceUnitType)
+  if (opts?.serviceUnit) params.append('service_unit', opts.serviceUnit)
+  if (opts?.roomMultiplier != null) params.append('room_multiplier', String(opts.roomMultiplier))
+
   const url = `/api/method/healthcare.api.inpatient_package.calculate_package_price?${params.toString()}`
-  
+
   const response = await fetch(url)
   const resData = await response.json()
 
@@ -545,8 +563,19 @@ export async function createAdmissionQuotation(
   packageName: string,
   days: number,
   totalAmount: number,
-  serviceUnit?: string
-): Promise<{ success: boolean; sales_order_name: string; message: string }> {
+  serviceUnit?: string,
+  caseManagement?: {
+    template?: string | null
+    amount?: number | null
+  }
+): Promise<{
+  success: boolean
+  sales_order_name?: string
+  quotation_name?: string
+  message: string
+  combine_admission_fee_and_case_management?: number
+  case_management_included?: boolean
+}> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const response = await fetch(
@@ -564,7 +593,9 @@ export async function createAdmissionQuotation(
         package_name: packageName,
         days: days,
         total_amount: totalAmount,
-        service_unit: serviceUnit || null
+        service_unit: serviceUnit || null,
+        case_management_template: caseManagement?.template || null,
+        case_management_amount: caseManagement?.amount ?? null,
       })
     }
   )
@@ -603,6 +634,33 @@ export async function checkAdmissionQuotation(
 }
 
 
+export async function fetchCaseManagementTemplates(search?: string): Promise<
+  Array<{ name: string; service_name?: string; item_code?: string; rate: number }>
+> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  params.append('limit', '100')
+  const url = `/api/method/healthcare.api.inpatient_admission.get_case_management_templates?${params.toString()}`
+  const response = await fetch(url)
+  const resData = await response.json()
+  if (Array.isArray(resData?.message)) return resData.message
+  return []
+}
+
+export async function fetchAdmissionBillingSettings(): Promise<{
+  combine_admission_fee_and_case_management: number
+}> {
+  const response = await fetch(
+    '/api/method/healthcare.api.inpatient_admission.get_admission_billing_settings'
+  )
+  const resData = await response.json()
+  return {
+    combine_admission_fee_and_case_management: Number(
+      resData?.message?.combine_admission_fee_and_case_management || 0
+    ),
+  }
+}
+
 export async function admitPatient(
   inpatientRecordName: string,
   serviceUnit: string | undefined,
@@ -632,6 +690,8 @@ export async function admitPatient(
   bedNo?: string | null,
   ipCaseManagement?: 0 | 1,
   ipCaseManagementFee?: 0 | 1,
+  caseManagementTemplate?: string | null,
+  caseManagementFee?: number | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -664,6 +724,8 @@ export async function admitPatient(
         standard_package: standardPackage ?? null,
         ip_case_management: ipCaseManagement ?? 0,
         ip_case_management_fee: ipCaseManagementFee ?? 0,
+        case_management_template: caseManagementTemplate || null,
+        case_management_fee: caseManagementFee ?? null,
       })
     }
   )

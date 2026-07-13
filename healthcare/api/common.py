@@ -399,21 +399,39 @@ def get_lab_technician_practitioners(search=None):
 
 @frappe.whitelist()
 def get_service_unit_types(search=None):
-	"""Get list of Healthcare Service Unit Types with inpatient occupancy"""
-	filters = {'inpatient_occupancy': 1, 'allow_appointments': 0}  # Only get leaf service unit types that are for inpatient occupancy and not for appointments
-	
+	"""Get list of Healthcare Service Unit Types with inpatient occupancy (room types)."""
+	from frappe.utils import flt
+
+	filters = {"inpatient_occupancy": 1, "allow_appointments": 0, "disabled": 0}
+
+	fields = ["name", "service_unit_type"]
+	if frappe.db.has_column("Healthcare Service Unit Type", "room_multiplier"):
+		fields.append("room_multiplier")
+
 	service_unit_types = frappe.get_all(
-		'Healthcare Service Unit Type',
+		"Healthcare Service Unit Type",
 		filters=filters,
-		fields=['name', 'service_unit_type'],
+		fields=fields,
 		limit=50,
-		order_by='service_unit_type'
+		order_by="service_unit_type",
 	)
-	
+
 	if search:
-		service_unit_types = [s for s in service_unit_types if search.lower() in (s.service_unit_type or '').lower()]
-	
-	return [{'name': s.name, 'label': s.service_unit_type or s.name} for s in service_unit_types]
+		q = search.lower()
+		service_unit_types = [
+			s for s in service_unit_types if q in (s.service_unit_type or "").lower()
+		]
+
+	out = []
+	for s in service_unit_types:
+		out.append(
+			{
+				"name": s.name,
+				"label": s.service_unit_type or s.name,
+				"room_multiplier": flt(getattr(s, "room_multiplier", None) or 1),
+			}
+		)
+	return out
 
 
 @frappe.whitelist()

@@ -82,6 +82,7 @@
   "case_management_fee",
   "ip_case_management",
   "ip_case_management_fee",
+  "case_management_template",
   "package_num",
   "column_break_costs",
   "admission_cost",
@@ -482,6 +483,13 @@
    "fieldname": "ip_case_management_fee",
    "fieldtype": "Check",
    "label": "IP Case Management Fee"
+  },
+  {
+   "depends_on": "eval:doc.ip_case_management",
+   "fieldname": "case_management_template",
+   "fieldtype": "Link",
+   "label": "Case Management Template",
+   "options": "Healthcare Service Template"
   },
   {
    "fieldname": "column_break_costs",

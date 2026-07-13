@@ -121,13 +121,25 @@ export const PackageSelectionModal = ({
                         <h3 className="font-semibold text-slate-900 mb-1">
                           {pkg.package_name}
                         </h3>
-                        {pkg.category_name && (
-                          <p className="text-xs text-slate-500 mb-2">
-                            <span className="font-medium">Room Category:</span> {pkg.category_name}
+                        {pkg.is_daily_default ? (
+                          <p className="text-xs text-amber-700 mb-2 font-medium">Daily default (no program)</p>
+                        ) : null}
+                        {pkg.no_of_days > 0 && (
+                          <p className="text-sm text-slate-600 mb-1">
+                            <span className="font-medium">Duration:</span> {pkg.no_of_days} day{pkg.no_of_days === 1 ? '' : 's'}
                           </p>
                         )}
-                        <p className="text-sm text-slate-600 mb-2">
+                        <p className="text-sm text-slate-600 mb-1">
                           <span className="font-medium">Base Rate:</span> {pkg.package_rate.toLocaleString()} {defaultCurrency} / day
+                        </p>
+                        {pkg.base_total != null && pkg.base_total > 0 && (
+                          <p className="text-sm text-slate-800 mb-2">
+                            <span className="font-medium">Base Total (Triple Sharing):</span>{' '}
+                            {pkg.base_total.toLocaleString()} {defaultCurrency}
+                          </p>
+                        )}
+                        <p className="text-xs text-slate-500">
+                          Final price = base × room type multiplier (Service Unit Type)
                         </p>
                         {pkg.duration_pricing && pkg.duration_pricing.length > 0 && (
                           <div className="mt-2 pt-2 border-t border-slate-200">

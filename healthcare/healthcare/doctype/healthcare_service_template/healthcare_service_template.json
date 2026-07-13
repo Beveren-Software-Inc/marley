@@ -19,6 +19,7 @@
   "disabled",
   "pricing",
   "is_ect",
+  "is_case_management",
   "section_break_gxzz",
   "display_name",
   "sg_no",
@@ -167,10 +168,16 @@
    "fieldname": "op_rate",
    "fieldtype": "Currency",
    "label": "OP Rate"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_case_management",
+   "fieldtype": "Check",
+   "label": "Is Case Management"
   }
  ],
  "links": [],
- "modified": "2026-07-09 13:13:29.998581",
+ "modified": "2026-07-14 01:26:00.246675",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Service Template",

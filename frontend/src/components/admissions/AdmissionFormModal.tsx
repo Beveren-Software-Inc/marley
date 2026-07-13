@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation } from '../../services/inpatientRecords'
+import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchAdmissionBillingSettings } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchDocumentTypes } from '../../services/common'
+import { fetchDocumentTypes, fetchServiceUnitTypes, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
@@ -227,6 +227,8 @@ interface ServiceUnitSelectProps {
   onOpenChange: (open: boolean) => void
   primaryUnit: string
   onSetPrimary: (name: string) => void
+  disabled?: boolean
+  disabledPlaceholder?: string
 }
 
 const ServiceUnitSelect = ({
@@ -239,6 +241,8 @@ const ServiceUnitSelect = ({
   onOpenChange,
   primaryUnit,
   onSetPrimary,
+  disabled = false,
+  disabledPlaceholder = 'Select a room type first…',
 }: ServiceUnitSelectProps) => {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -256,7 +260,7 @@ const ServiceUnitSelect = ({
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-slate-700 mb-1">
-        Room <span className="text-slate-400 font-normal">(optional, multi-select)</span>
+        Room
       </label>
 
       {/* Search input */}
@@ -266,9 +270,10 @@ const ServiceUnitSelect = ({
           type="text"
           value={query}
           onChange={(e) => { onQueryChange(e.target.value); onOpenChange(true) }}
-          onFocus={() => onOpenChange(true)}
-          placeholder="Search beds / rooms…"
-          className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+          onFocus={() => !disabled && onOpenChange(true)}
+          disabled={disabled}
+          placeholder={disabled ? disabledPlaceholder : 'Search rooms…'}
+          className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
         />
         {selectedServiceUnits.length > 0 && (
           <span className="absolute right-2.5 top-1/2 -translate-y-1/2 inline-flex items-center justify-center w-5 h-5 rounded-full bg-primary text-white text-[10px] font-bold">
@@ -278,11 +283,11 @@ const ServiceUnitSelect = ({
       </div>
 
       {/* Dropdown */}
-      {open && (
+      {!disabled && open && (
         <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
           {serviceUnits.length === 0 ? (
             <div className="px-3 py-3 text-xs text-slate-400 text-center">
-              {query ? 'No beds match your search' : 'NO VACANT BEDS AVAILABLE'}
+              {query ? 'No rooms match your search' : 'No vacant rooms for this room type'}
             </div>
           ) : (
             serviceUnits.map((unit) => {
@@ -314,6 +319,7 @@ const ServiceUnitSelect = ({
                       <div className="text-xs text-slate-500">
                         {unit.occupancy_status}
                         {unit.service_unit_type ? ` • ${unit.service_unit_type}` : ''}
+                        {unit.room_multiplier != null ? ` × ${unit.room_multiplier}` : ''}
                       </div>
                     </div>
                   </div>
@@ -379,7 +385,7 @@ interface AdmissionFormModalProps {
   onClose: () => void
 }
 
-type Tab = 'admission' | 'documents' | 'relatives'
+type Tab = 'admission' | 'case_management' | 'documents' | 'relatives'
 
 // Relationship options – must match IP Patient Relative doctype (same as Discharge)
 const RELATION_OPTIONS = [
@@ -401,6 +407,11 @@ export const AdmissionFormModal = ({
 }: AdmissionFormModalProps) => {
   const [activeTab, setActiveTab] = useState<Tab>('admission')
   const [record, setRecord] = useState<any>(null)
+  const [roomTypes, setRoomTypes] = useState<LinkFieldOption[]>([])
+  const [roomTypeQuery, setRoomTypeQuery] = useState('')
+  const [roomTypeOpen, setRoomTypeOpen] = useState(false)
+  const [selectedRoomType, setSelectedRoomType] = useState<LinkFieldOption | null>(null)
+  const roomTypePickerRef = useRef<HTMLDivElement>(null)
   const [serviceUnits, setServiceUnits] = useState<ServiceUnit[]>([])
   const [serviceUnitQuery, setServiceUnitQuery] = useState('')
   const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
@@ -413,9 +424,22 @@ export const AdmissionFormModal = ({
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
-  const [daysInput, setDaysInput] = useState<string>('')
-  const [days, setDays] = useState<number>(0)
+  const [daysInput, setDaysInput] = useState<string>(() =>
+    selectedPackage.name !== '__custom__' && selectedPackage.no_of_days > 0
+      ? String(selectedPackage.no_of_days)
+      : ''
+  )
+  const [days, setDays] = useState<number>(() =>
+    selectedPackage.name !== '__custom__' && selectedPackage.no_of_days > 0
+      ? selectedPackage.no_of_days
+      : 0
+  )
   const [calculatedPrice, setCalculatedPrice] = useState<number | null>(null)
+  const [priceBreakdown, setPriceBreakdown] = useState<{
+    program_price?: number
+    room_multiplier?: number
+    service_unit_type?: string | null
+  } | null>(null)
   const [discountPercentInput, setDiscountPercentInput] = useState<string>('0')
   const [calculatingPrice, setCalculatingPrice] = useState(false)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
@@ -442,67 +466,132 @@ export const AdmissionFormModal = ({
     [selectedServiceUnits],
   )
 
-  const calculateExpectedDischarge = (numDays: number) => {
-    if (numDays > 0) {
-      const expectedDate = new Date()
-      expectedDate.setDate(expectedDate.getDate() + numDays - 1)
-      return expectedDate.toISOString().split('T')[0]
-    }
-    return ''
-  }
+  const activeRoomType =
+    selectedRoomType?.name || selectedServiceUnits[0]?.service_unit_type || null
+  const activeRoomMultiplier =
+    selectedRoomType?.room_multiplier ??
+    selectedServiceUnits[0]?.room_multiplier ??
+    1
+
+  const packageProgramDays = useMemo(() => {
+    if (selectedPackage.name === '__custom__') return 0
+    return Number(selectedPackage.no_of_days) || 0
+  }, [selectedPackage.name, selectedPackage.no_of_days])
+
+  const calculateExpectedDischarge = useCallback((numDays: number, checkInValue?: string) => {
+    if (numDays <= 0) return ''
+    const base = checkInValue ? new Date(checkInValue) : new Date()
+    if (Number.isNaN(base.getTime())) return ''
+    const expectedDate = new Date(base)
+    expectedDate.setDate(expectedDate.getDate() + numDays - 1)
+    // Local YYYY-MM-DD (avoid UTC off-by-one)
+    const y = expectedDate.getFullYear()
+    const m = String(expectedDate.getMonth() + 1).padStart(2, '0')
+    const d = String(expectedDate.getDate()).padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }, [])
 
   const [formData, setFormData] = useState({
     serviceUnit: '',           // primary bed name
     checkIn: new Date().toISOString().slice(0, 16),
     expectedDischarge: '' as string,
     ipCaseManagement: 0 as 0 | 1,
-    ipCaseManagementFee: 0 as 0 | 1,
   })
+  const [caseManagementTemplates, setCaseManagementTemplates] = useState<
+    Array<{ name: string; service_name?: string; rate: number }>
+  >([])
+  const [caseManagementTemplate, setCaseManagementTemplate] = useState('')
+  const [caseManagementAmount, setCaseManagementAmount] = useState<number | null>(null)
+  const [combineAdmissionAndCaseManagement, setCombineAdmissionAndCaseManagement] = useState(0)
+
+  // Admit defaults must come from the package program days — never the
+  // admission's scheduled expected_length_of_stay / expected_discharge.
+  useEffect(() => {
+    if (packageProgramDays <= 0) return
+    setDaysInput(String(packageProgramDays))
+    setDays(packageProgramDays)
+    setFormData((prev) => ({
+      ...prev,
+      expectedDischarge: calculateExpectedDischarge(packageProgramDays, prev.checkIn),
+    }))
+  }, [packageProgramDays, calculateExpectedDischarge])
 
   // ── Days → price ──────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const numValue = parseInt(daysInput) || 0
+    const numValue = parseInt(daysInput, 10) || 0
     if (numValue > 0 && numValue !== days) setDays(numValue)
     else if (daysInput === '' || numValue === 0) setDays(0)
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only react to typed days input
   }, [daysInput])
+
+  // Keep expected discharge in sync with days + check-in (package/user days)
+  useEffect(() => {
+    if (days <= 0) return
+    setFormData((prev) => {
+      const next = calculateExpectedDischarge(days, prev.checkIn)
+      if (prev.expectedDischarge === next) return prev
+      return { ...prev, expectedDischarge: next }
+    })
+  }, [days, formData.checkIn, calculateExpectedDischarge])
 
   useEffect(() => {
     const calculatePrice = async () => {
       if (days > 0 && selectedPackage.name) {
-        // For custom packages, compute directly from the entered rate
+        // For custom packages, compute directly from the entered rate × room multiplier
         if (selectedPackage.name === '__custom__') {
-          setCalculatedPrice(selectedPackage.package_rate * days)
-          setFormData(prev => ({ ...prev, expectedDischarge: calculateExpectedDischarge(days) }))
+          const programPrice = selectedPackage.package_rate * days
+          const total = programPrice * (activeRoomMultiplier || 1)
+          setCalculatedPrice(total)
+          setPriceBreakdown({
+            program_price: programPrice,
+            room_multiplier: activeRoomMultiplier || 1,
+            service_unit_type: activeRoomType,
+          })
           return
         }
         try {
           setCalculatingPrice(true)
-          const result = await calculatePackagePrice(selectedPackage.name, days)
+          const result = await calculatePackagePrice(selectedPackage.name, days, {
+            serviceUnitType: activeRoomType || undefined,
+            serviceUnit: selectedServiceUnits[0]?.name,
+            roomMultiplier: activeRoomMultiplier,
+          })
           setCalculatedPrice(result.total_price)
-          setFormData(prev => ({ ...prev, expectedDischarge: calculateExpectedDischarge(days) }))
+          setPriceBreakdown({
+            program_price: result.program_price ?? result.total_price,
+            room_multiplier: result.room_multiplier ?? activeRoomMultiplier,
+            service_unit_type: result.service_unit_type || activeRoomType,
+          })
         } catch (err) {
           console.error('Failed to calculate price:', err)
           setCalculatedPrice(null)
+          setPriceBreakdown(null)
         } finally {
           setCalculatingPrice(false)
         }
       } else {
         setCalculatedPrice(null)
+        setPriceBreakdown(null)
       }
     }
     calculatePrice()
-  }, [days, selectedPackage.name])
+  }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits])
 
-  // ── Service unit search ───────────────────────────────────────────────────
+  // ── Service unit search (filtered by selected room type) ──────────────────
 
   useEffect(() => {
     if (!serviceUnitOpen) return
     const search = async () => {
       try {
-        const serviceUnitType = record?.admission_service_unit_type
-        const roomCategory = selectedPackage.package_category
-        const results = await fetchServiceUnits(serviceUnitType, 'Vacant', serviceUnitQuery || undefined, roomCategory)
+        const serviceUnitType =
+          selectedRoomType?.name || record?.admission_service_unit_type || undefined
+        const results = await fetchServiceUnits(
+          serviceUnitType,
+          'Vacant',
+          serviceUnitQuery || undefined,
+          undefined,
+        )
         setServiceUnits(results)
       } catch (err) {
         console.error('Failed to search service units:', err)
@@ -511,7 +600,54 @@ export const AdmissionFormModal = ({
     }
     const timeoutId = setTimeout(() => { search() }, serviceUnitQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(timeoutId)
-  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type, selectedPackage.package_category])
+  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type, selectedRoomType?.name])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (roomTypePickerRef.current && !roomTypePickerRef.current.contains(e.target as Node)) {
+        setRoomTypeOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  // When room type changes, drop rooms that no longer match and preload vacancies
+  useEffect(() => {
+    if (!selectedRoomType?.name) return
+
+    const normalizeType = (name?: string | null) => {
+      const parts = (name || '').trim().toLowerCase().replace(/\s+/g, ' ').split(' ')
+      if (parts.length) {
+        const w = parts[parts.length - 1]
+        if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) {
+          parts[parts.length - 1] = w.slice(0, -1)
+        }
+      }
+      return parts.join(' ')
+    }
+    const selectedKey = normalizeType(selectedRoomType.name)
+
+    setSelectedServiceUnits((prev) => {
+      const kept = prev.filter(
+        (su) => normalizeType(su.service_unit_type) === selectedKey
+      )
+      if (kept.length !== prev.length) {
+        setFormData((current) => ({
+          ...current,
+          serviceUnit: kept.some((su) => su.name === current.serviceUnit)
+            ? current.serviceUnit
+            : (kept[0]?.name ?? ''),
+        }))
+      }
+      return kept
+    })
+    setServiceUnitQuery('')
+    setBedNumbers([])
+    fetchServiceUnits(selectedRoomType.name, 'Vacant', undefined, undefined)
+      .then(setServiceUnits)
+      .catch(() => setServiceUnits([]))
+  }, [selectedRoomType?.name])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -571,13 +707,19 @@ export const AdmissionFormModal = ({
         setLoading(true)
         setError(null)
 
-        const [recordData, docTypes] = await Promise.all([
+        const [recordData, docTypes, cmTemplates, billingSettings] = await Promise.all([
           fetchInpatientRecord(admissionNo),
           fetchDocumentTypes(),
+          fetchCaseManagementTemplates(),
+          fetchAdmissionBillingSettings(),
         ])
 
         setRecord(recordData)
         setDocumentTypes(docTypes)
+        setCaseManagementTemplates(cmTemplates)
+        setCombineAdmissionAndCaseManagement(
+          Number(billingSettings.combine_admission_fee_and_case_management || 0)
+        )
 
         const existingRelatives = (recordData as any).patient_relatives || []
         if (Array.isArray(existingRelatives) && existingRelatives.length > 0) {
@@ -595,34 +737,54 @@ export const AdmissionFormModal = ({
           setRelatives([{ relative_relation: '', relative_name: '', relative_id_num: '', relative_phone_no: '', relative_alternative_phone_no: '', relative_alternative_phone_no_2: '', any_remarks: '' }])
         }
 
-        const rawExpected = (recordData as any)?.expected_length_of_stay
-        const expectedDays = typeof rawExpected === 'number'
-          ? rawExpected
-          : rawExpected ? parseInt(String(rawExpected), 10) : 0
+        // Do NOT seed days / expected discharge from admission.expected_length_of_stay
+        // or admission.expected_discharge — package program days own those defaults.
 
-        if (expectedDays && expectedDays > 0) {
-          setDays(expectedDays)
-          setDaysInput(String(expectedDays))
-          setFormData(prev => ({ ...prev, expectedDischarge: calculateExpectedDischarge(expectedDays) }))
-        } else {
-          setDays(0)
-          setDaysInput('')
-          setFormData(prev => ({ ...prev, expectedDischarge: '' }))
-        }
-
-        const serviceUnitType = recordData?.admission_service_unit_type
-        const roomCategory = selectedPackage.package_category
-        const unitsData = await fetchServiceUnits(serviceUnitType, 'Vacant', undefined, roomCategory)
+        const [unitsData, roomTypeOptions] = await Promise.all([
+          fetchServiceUnits(
+            selectedRoomType?.name || recordData?.admission_service_unit_type || undefined,
+            'Vacant',
+            undefined,
+            undefined,
+          ),
+          fetchServiceUnitTypes(),
+        ])
         setServiceUnits(unitsData)
+        setRoomTypes(roomTypeOptions)
         setBedNumbers([])
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to load data'))
       } finally {
         setLoading(false)
+        // After async load, force package days once more so nothing from schedule stays behind
+        if (packageProgramDays > 0) {
+          setDays(packageProgramDays)
+          setDaysInput(String(packageProgramDays))
+          setFormData((prev) => ({
+            ...prev,
+            expectedDischarge: calculateExpectedDischarge(packageProgramDays, prev.checkIn),
+          }))
+        }
       }
     }
     loadData()
-  }, [admissionNo])
+  }, [admissionNo, packageProgramDays, calculateExpectedDischarge])
+
+  // Keep room type list searchable
+  useEffect(() => {
+    if (!roomTypeOpen) return
+    const search = async () => {
+      try {
+        const results = await fetchServiceUnitTypes(roomTypeQuery || undefined)
+        setRoomTypes(results)
+      } catch (err) {
+        console.error('Failed to search room types:', err)
+        setRoomTypes([])
+      }
+    }
+    const timeoutId = setTimeout(() => { search() }, roomTypeQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(timeoutId)
+  }, [roomTypeQuery, roomTypeOpen])
 
   useEffect(() => {
     const checkQuotation = async () => {
@@ -733,6 +895,11 @@ export const AdmissionFormModal = ({
       setError(new Error('Please calculate price first by entering number of days'))
       return
     }
+    if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
+      setError(new Error('Select a Case Management service template on the Case Management tab'))
+      setActiveTab('case_management')
+      return
+    }
     const quotationSu = resolveQuotationServiceUnit()
     if (!quotationSu) {
       setError(new Error('Select at least one room or a bed (with a room) to create a quotation'))
@@ -746,11 +913,23 @@ export const AdmissionFormModal = ({
         selectedPackage.name,
         days,
         discountedPrice,
-        quotationSu
+        quotationSu,
+        formData.ipCaseManagement === 1 && combineAdmissionAndCaseManagement
+          ? {
+              template: caseManagementTemplate,
+              amount: caseManagementAmount,
+            }
+          : undefined
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
       if (quotationName) setSalesOrderCreated(quotationName)
-      toast.success('Quotation drafted for approval', 4000)
+      const includedCm = Boolean((result as any).case_management_included)
+      toast.success(
+        includedCm
+          ? 'Quotation drafted (admission + case management)'
+          : 'Quotation drafted for approval',
+        4000
+      )
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to create Quotation'))
     } finally {
@@ -763,6 +942,12 @@ export const AdmissionFormModal = ({
 
     if (days <= 0) {
       setError(new Error('Number of days must be greater than 0'))
+      return
+    }
+
+    if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
+      setError(new Error('Select a Case Management service template'))
+      setActiveTab('case_management')
       return
     }
 
@@ -792,6 +977,7 @@ export const AdmissionFormModal = ({
         }))
         .filter(r => r.relative_relation || r.relative_name || r.relative_id_num || r.any_remarks || r.relative_phone_no || r.relative_alternative_phone_no || r.relative_alternative_phone_no_2)
 
+      const wantCm = formData.ipCaseManagement === 1
       await admitPatient(
         admissionNo,
         formData.serviceUnit || undefined,
@@ -805,8 +991,10 @@ export const AdmissionFormModal = ({
         selectedPackage.name === '__custom__' ? 0 : 1,
         selectedBedNo?.name ?? null,
         null,
-        formData.ipCaseManagement,
-        formData.ipCaseManagementFee,
+        wantCm ? 1 : 0,
+        wantCm ? 1 : 0,
+        wantCm ? caseManagementTemplate : null,
+        wantCm ? caseManagementAmount : null,
       )
 
       onComplete()
@@ -831,6 +1019,7 @@ export const AdmissionFormModal = ({
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'admission', label: 'Admission Details' },
+    { id: 'case_management', label: 'Case Management' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
     { id: 'relatives', label: 'Relatives', badge: relatives.length || undefined },
   ]
@@ -887,23 +1076,34 @@ export const AdmissionFormModal = ({
                 {/* Package Info */}
                 <div className={`rounded-lg p-4 ${selectedPackage.name === '__custom__' ? 'bg-amber-50 border border-amber-200' : 'bg-slate-50'}`}>
                   <h3 className="font-semibold text-slate-900 mb-2">Selected Package</h3>
-                  <div className="mb-2 flex items-center gap-2">
+                  <div className="mb-2 flex items-center gap-2 flex-wrap">
                     <p className="font-medium text-slate-900">{selectedPackage.package_name}</p>
                     {selectedPackage.name === '__custom__' && (
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Custom</span>
                     )}
-                    {selectedPackage.category_name && (
-                      <p className="text-xs text-slate-500">
-                        <span className="font-medium">Room Category:</span> {selectedPackage.category_name}
-                      </p>
-                    )}
+                    {selectedPackage.is_daily_default ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-200 text-slate-700">Daily default</span>
+                    ) : null}
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm mb-2">
                     <div>
-                      <span className="text-slate-600">Rate Per Day:</span>{' '}
+                      <span className="text-slate-600">Base Rate:</span>{' '}
                       <span className="font-medium">{selectedPackage.package_rate.toLocaleString()} BHD / day</span>
                     </div>
+                    {selectedPackage.base_total != null && selectedPackage.base_total > 0 && (
+                      <div>
+                        <span className="text-slate-600">Base Total (Triple Sharing):</span>{' '}
+                        <span className="font-medium">{selectedPackage.base_total.toLocaleString()} BHD</span>
+                      </div>
+                    )}
+                    {selectedPackage.no_of_days > 0 && (
+                      <div>
+                        <span className="text-slate-600">Program Days:</span>{' '}
+                        <span className="font-medium">{selectedPackage.no_of_days}</span>
+                      </div>
+                    )}
                   </div>
+                  <p className="text-xs text-slate-500">Final Price = Program Price × Room Multiplier (from Service Unit Type)</p>
                   {selectedPackage.name !== '__custom__' && selectedPackage.duration_pricing && selectedPackage.duration_pricing.length > 0 && (
                     <div className="mt-2 pt-2 border-t border-slate-300">
                       <p className="text-xs font-medium text-slate-700 mb-1">Duration Pricing:</p>
@@ -935,6 +1135,11 @@ export const AdmissionFormModal = ({
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       required
                     />
+                    {selectedPackage.name !== '__custom__' && selectedPackage.no_of_days > 0 && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Program default: {selectedPackage.no_of_days} day{selectedPackage.no_of_days === 1 ? '' : 's'}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
@@ -945,6 +1150,147 @@ export const AdmissionFormModal = ({
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
+                </div>
+
+                {/* Room Type + Room */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div ref={roomTypePickerRef} className="relative">
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Room Type <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={selectedRoomType ? (selectedRoomType.label || selectedRoomType.name) : roomTypeQuery}
+                      onChange={(e) => {
+                        setSelectedRoomType(null)
+                        setRoomTypeQuery(e.target.value)
+                        setRoomTypeOpen(true)
+                      }}
+                      onFocus={() => setRoomTypeOpen(true)}
+                      placeholder="Select room type…"
+                      className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    {selectedRoomType?.room_multiplier != null && (
+                      <p className="text-[11px] text-slate-500 mt-1">
+                        Multiplier × {selectedRoomType.room_multiplier}
+                      </p>
+                    )}
+                    {roomTypeOpen && (
+                      <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+                        {roomTypes.length === 0 ? (
+                          <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                            {roomTypeQuery ? 'No room types match' : 'No room types found'}
+                          </div>
+                        ) : (
+                          roomTypes.map((rt) => (
+                            <button
+                              key={rt.name}
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setSelectedRoomType(rt)
+                                setRoomTypeQuery('')
+                                setRoomTypeOpen(false)
+                              }}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                            >
+                              <div className="font-medium">{rt.label || rt.name}</div>
+                              <div className="text-xs text-slate-500">
+                                Multiplier × {rt.room_multiplier ?? 1}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <ServiceUnitSelect
+                    serviceUnits={serviceUnits}
+                    selectedServiceUnits={selectedServiceUnits}
+                    onToggle={handleToggleServiceUnit}
+                    query={serviceUnitQuery}
+                    onQueryChange={setServiceUnitQuery}
+                    open={serviceUnitOpen}
+                    onOpenChange={setServiceUnitOpen}
+                    primaryUnit={formData.serviceUnit}
+                    onSetPrimary={handleSetPrimaryUnit}
+                    disabled={!selectedRoomType}
+                  />
+                </div>
+
+                {/* Bed No */}
+                <div ref={bedPickerRef} className="relative">
+                  <label className="block text-sm font-medium text-slate-700 mb-1">
+                    Bed No <span className="text-slate-400 font-normal">(optional)</span>
+                  </label>
+                  <div className="relative">
+                    <BedDouble className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                    <input
+                      type="text"
+                      value={selectedBedNo ? (selectedBedNo.bed_no || selectedBedNo.name) : bedNoQuery}
+                      onChange={(e) => {
+                        setSelectedBedNo(null)
+                        setBedNoQuery(e.target.value)
+                        setBedNoOpen(true)
+                      }}
+                      onFocus={() => selectedServiceUnitNames.length > 0 && setBedNoOpen(true)}
+                      disabled={selectedServiceUnitNames.length === 0}
+                      placeholder={
+                        selectedServiceUnitNames.length === 0
+                          ? 'Select a room first…'
+                          : 'Search vacant beds in selected rooms…'
+                      }
+                      className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-1">
+                    Only vacant beds linked to the selected room(s) are listed.
+                  </p>
+                  {bedNoOpen && selectedServiceUnitNames.length > 0 && (
+                    <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
+                      {bedNumbers.length === 0 ? (
+                        <div className="px-3 py-3 text-xs text-slate-400 text-center">
+                          {bedNoQuery.trim() !== '' ? 'No beds match your search' : 'No vacant beds in these rooms'}
+                        </div>
+                      ) : (
+                        bedNumbers.map((bed) => (
+                          <button
+                            key={bed.name}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setSelectedBedNo(bed)
+                              setBedNoQuery('')
+                              setBedNoOpen(false)
+                            }}
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex flex-col gap-0.5"
+                          >
+                            <span className="font-medium">{bed.bed_no || bed.name}</span>
+                            <span className="text-xs text-slate-500">
+                              {bed.service_unit ? `Room: ${bed.service_unit}` : 'No room'}
+                              {bed.occupancy_status ? ` · ${bed.occupancy_status}` : ''}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  )}
+                  {selectedBedNo && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200">
+                        <BedDouble className="w-3 h-3" />
+                        {selectedBedNo.bed_no || selectedBedNo.name}
+                        <button
+                          type="button"
+                          onClick={() => setSelectedBedNo(null)}
+                          className="ml-0.5 rounded-full p-0.5 hover:bg-emerald-200"
+                        >
+                          <X className="w-2.5 h-2.5" />
+                        </button>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Calculated Price */}
@@ -960,6 +1306,16 @@ export const AdmissionFormModal = ({
                         {(discountedPrice ?? calculatedPrice).toLocaleString()} BHD
                       </span>
                     </div>
+                    {priceBreakdown && (
+                      <p className="text-xs text-green-800 mt-1">
+                        Program {priceBreakdown.program_price?.toLocaleString() ?? '—'} BD
+                        {' × '}
+                        Room {(priceBreakdown.room_multiplier ?? 1).toLocaleString()}
+                        {priceBreakdown.service_unit_type
+                          ? ` (${priceBreakdown.service_unit_type})`
+                          : ' (select a room type to apply multiplier)'}
+                      </p>
+                    )}
                     {discountPercent > 0 && (
                       <p className="text-xs text-green-800 mt-1">
                         Discount {discountPercent}% applied (original {calculatedPrice.toLocaleString()} BHD)
@@ -981,93 +1337,6 @@ export const AdmissionFormModal = ({
                     </div>
                   </div>
                 )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <ServiceUnitSelect
-                    serviceUnits={serviceUnits}
-                    selectedServiceUnits={selectedServiceUnits}
-                    onToggle={handleToggleServiceUnit}
-                    query={serviceUnitQuery}
-                    onQueryChange={setServiceUnitQuery}
-                    open={serviceUnitOpen}
-                    onOpenChange={setServiceUnitOpen}
-                    primaryUnit={formData.serviceUnit}
-                    onSetPrimary={handleSetPrimaryUnit}
-                  />
-
-                  <div ref={bedPickerRef} className="relative">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Bed No <span className="text-slate-400 font-normal">(optional)</span>
-                    </label>
-                    <div className="relative">
-                      <BedDouble className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                      <input
-                        type="text"
-                        value={selectedBedNo ? (selectedBedNo.bed_no || selectedBedNo.name) : bedNoQuery}
-                        onChange={(e) => {
-                          setSelectedBedNo(null)
-                          setBedNoQuery(e.target.value)
-                          setBedNoOpen(true)
-                        }}
-                        onFocus={() => selectedServiceUnitNames.length > 0 && setBedNoOpen(true)}
-                        disabled={selectedServiceUnitNames.length === 0}
-                        placeholder={
-                          selectedServiceUnitNames.length === 0
-                            ? 'Select a room first…'
-                            : 'Search vacant beds in selected rooms…'
-                        }
-                        className="w-full rounded-md border border-slate-300 pl-8 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    <p className="text-[11px] text-slate-500 mt-1">
-                      Only vacant beds linked to the selected room(s) are listed.
-                    </p>
-                    {bedNoOpen && selectedServiceUnitNames.length > 0 && (
-                      <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
-                        {bedNumbers.length === 0 ? (
-                          <div className="px-3 py-3 text-xs text-slate-400 text-center">
-                            {bedNoQuery.trim() !== '' ? 'No beds match your search' : 'No vacant beds in these rooms'}
-                          </div>
-                        ) : (
-                          bedNumbers.map((bed) => (
-                            <button
-                              key={bed.name}
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setSelectedBedNo(bed)
-                                setBedNoQuery('')
-                                setBedNoOpen(false)
-                              }}
-                              className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex flex-col gap-0.5"
-                            >
-                              <span className="font-medium">{bed.bed_no || bed.name}</span>
-                              <span className="text-xs text-slate-500">
-                                {bed.service_unit ? `Room: ${bed.service_unit}` : 'No room'}
-                                {bed.occupancy_status ? ` · ${bed.occupancy_status}` : ''}
-                              </span>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-                    {selectedBedNo && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium bg-emerald-50 text-emerald-900 border border-emerald-200">
-                          <BedDouble className="w-3 h-3" />
-                          {selectedBedNo.bed_no || selectedBedNo.name}
-                          <button
-                            type="button"
-                            onClick={() => setSelectedBedNo(null)}
-                            className="ml-0.5 rounded-full p-0.5 hover:bg-emerald-200"
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
 
                 {/* Check In */}
                 <div>
@@ -1092,23 +1361,6 @@ export const AdmissionFormModal = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 border-t border-slate-200 pt-4 md:col-span-2">
-                  <YesNoField
-                    label="IP Case Management?"
-                    value={formData.ipCaseManagement === 1 ? 'Yes' : 'No'}
-                    onChange={(v) =>
-                      setFormData((prev) => ({ ...prev, ipCaseManagement: v === 'Yes' ? 1 : 0 }))
-                    }
-                  />
-                  <YesNoField
-                    label="IP Case Management Fee?"
-                    value={formData.ipCaseManagementFee === 1 ? 'Yes' : 'No'}
-                    onChange={(v) =>
-                      setFormData((prev) => ({ ...prev, ipCaseManagementFee: v === 'Yes' ? 1 : 0 }))
-                    }
-                  />
-                </div>
-
                 {salesOrderCreated && (
                   <div className="bg-blue-50 border border-blue-200 rounded-md p-3 text-sm text-blue-800">
                     <p className="font-medium">Quotation drafted for approval.</p>
@@ -1116,6 +1368,84 @@ export const AdmissionFormModal = ({
                   </div>
                 )}
               </>
+            )}
+
+            {/* ── TAB: CASE MANAGEMENT ── */}
+            {activeTab === 'case_management' && (
+              <div className="space-y-5">
+                <YesNoField
+                  label="IP Case Management?"
+                  value={formData.ipCaseManagement === 1 ? 'Yes' : 'No'}
+                  onChange={(v) => {
+                    const enabled = v === 'Yes'
+                    setFormData((prev) => ({ ...prev, ipCaseManagement: enabled ? 1 : 0 }))
+                    if (!enabled) {
+                      setCaseManagementTemplate('')
+                      setCaseManagementAmount(null)
+                    }
+                  }}
+                />
+
+                {formData.ipCaseManagement === 1 && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Healthcare Service Template <span className="text-red-500">*</span>
+                      </label>
+                      <select
+                        value={caseManagementTemplate}
+                        onChange={(e) => {
+                          const name = e.target.value
+                          setCaseManagementTemplate(name)
+                          const selected = caseManagementTemplates.find((t) => t.name === name)
+                          setCaseManagementAmount(
+                            selected ? Number(selected.rate) || 0 : null
+                          )
+                        }}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Select case management service…</option>
+                        {caseManagementTemplates.map((t) => (
+                          <option key={t.name} value={t.name}>
+                            {t.service_name || t.name}
+                            {t.rate != null ? ` — ${Number(t.rate).toLocaleString()} BHD` : ''}
+                          </option>
+                        ))}
+                      </select>
+                      {caseManagementTemplates.length === 0 && (
+                        <p className="text-xs text-amber-700 mt-1">
+                          No templates found. Mark a Healthcare Service Template with “Is Case Management”.
+                        </p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">
+                        Amount (IP)
+                      </label>
+                      <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
+                        {caseManagementAmount != null
+                          ? `${Number(caseManagementAmount).toLocaleString()} BHD`
+                          : '—'}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
+                  {combineAdmissionAndCaseManagement ? (
+                    <p>
+                      Healthcare Settings: <strong>Combine Admission Fee and Case Management</strong> is on.
+                      Create Quotation will include case management on the same quotation. On admit, a Service Request is created (no separate Sales Order).
+                    </p>
+                  ) : (
+                    <p>
+                      Healthcare Settings: combine is off. Create Quotation is admission/package only.
+                      On admit, Case Management creates a Service Request that is billed with its own Sales Order.
+                    </p>
+                  )}
+                </div>
+              </div>
             )}
 
             {/* ── TAB: DOCUMENTS ── */}
