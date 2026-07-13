@@ -21,6 +21,8 @@ export interface StockLedgerItem {
   unit_price: number
   valuation_rate?: number
   last_updated: string
+  /** Mini warehouse used for this Stock Ledger row (branch nurse/lab warehouse) */
+  warehouse?: string
   /** Qty in Pack UOM (when configured on the item) */
   pack_qty?: number | null
   pack_uom?: string | null

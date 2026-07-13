@@ -26,6 +26,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
   const effectiveCostCenter = costCenter || userCostCenter
   
   const [stockItems, setStockItems] = useState<StockLedgerItem[]>([])
+  const [ledgerWarehouse, setLedgerWarehouse] = useState<string>('')
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
@@ -83,6 +84,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
       ])
       
       setStockItems(stockData)
+      setLedgerWarehouse(stockData[0]?.warehouse || '')
       setItemGroups(itemGroupsData)
       if (stockData.length > 0) {
         setDebugItem(stockData[0])
@@ -190,6 +192,22 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
 
   return (
     <div className="space-y-4">
+      {ledgerWarehouse ? (
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+          Showing stock from{' '}
+          {warehouseContext === 'laboratory' ? 'laboratory' : 'nurse'} mini warehouse{' '}
+          <span className="font-semibold text-slate-900">{ledgerWarehouse}</span>
+          <span className="text-slate-500">
+            {' '}
+            (Healthcare Settings →{' '}
+            {warehouseContext === 'laboratory'
+              ? 'Laboratory Mini Warehouse'
+              : 'Nurse Mini Warehouse'}{' '}
+            for this branch — not the pharmacy / prescription warehouse).
+          </span>
+        </div>
+      ) : null}
+
       {/* Summary Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard 
