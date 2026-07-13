@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
-import { PenLine } from 'lucide-react'
-import { fetchPrescriptions, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { PenLine, Copy } from 'lucide-react'
+import { fetchPrescriptions, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, type MedicationOrderRow, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
@@ -8,6 +8,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
+import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
@@ -101,6 +102,7 @@ export const PrescriptionList = ({
   const [detailName, setDetailName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [signTarget, setSignTarget] = useState<Prescription | null>(null)
+  const [duplicateTarget, setDuplicateTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters
@@ -666,6 +668,17 @@ export const PrescriptionList = ({
                       >
                         View Details
                       </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setOpenActionRow(null)
+                          setDuplicateTarget(row)
+                        }}
+                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                      >
+                        <Copy className="w-4 h-4" />
+                        Duplicate
+                      </button>
                       {prescriptionNeedsSignature(row) && (
                         <button
                           type="button"
@@ -742,6 +755,41 @@ export const PrescriptionList = ({
             setSignTarget(null)
             load()
           }}
+        />
+      )}
+
+      {duplicateTarget && (
+        <CreatePrescriptionModal
+          onClose={() => setDuplicateTarget(null)}
+          onSuccess={() => {
+            setDuplicateTarget(null)
+            toast.success('Prescription duplicated successfully')
+            load()
+          }}
+          initialPatient={effectivePatient}
+          initialCareContext={careContext}
+          initialPatientEncounter={activeVisit}
+          initialInpatientRecord={activeAdmission}
+          initialMedications={(duplicateTarget.medication_orders || []).map((order: any): MedicationOrderRow => ({
+            drug: order.drug || '',
+            drug_name: order.drug_name || order.drug || '',
+            dosage: order.dosage || '',
+            uom: order.uom || '',
+            no_of_days: order.no_of_days || 1,
+            dosage_form: order.dosage_form || '',
+            instructions: order.instructions || '',
+            date: new Date().toISOString().split('T')[0],
+            end_date: order.end_date || '',
+            time: order.time || '',
+            patient_frequency: order.patient_frequency || '',
+            is_pink: Boolean(order.is_pink),
+            reference_no: order.reference_no || '',
+            is_long_acting: Boolean(order.is_long_acting_medicine || order.is_long_acting),
+            long_acting_frequency: order.long_acting_frequency || 'Weekly',
+            route_of_administration: order.route_of_administration || '',
+            medication_type: order.medication_type || '',
+          }))}
+          initialPractitioner={duplicateTarget.practitioner}
         />
       )}
     </div>

@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react'
-import { PenLine } from 'lucide-react'
-import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction } from '../../services/prescriptions'
+import { PenLine, Copy } from 'lucide-react'
+import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction, type MedicationOrderRow } from '../../services/prescriptions'
 import { useAuth } from '../../providers/AuthProvider'
 import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
+import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import {
@@ -294,6 +295,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeType, setActiveType]     = useState('All')
   const [showSignModal, setShowSignModal] = useState(false)
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false)
 
   // Per-drug Hold / Continue / Discontinue (doctor only)
   const { user } = useAuth()
@@ -628,6 +630,12 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
       <div className="border-t border-slate-200 pt-4">
         <SectionTitle title="Actions" />
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => setShowDuplicateModal(true)}
+            className="px-4 py-2 text-sm font-medium text-primary bg-white border border-primary rounded-md hover:bg-primary/5 flex items-center gap-1.5"
+          >
+            <Copy className="w-4 h-4" /> Duplicate
+          </button>
           {prescription.status !== 'Completed' && (
             <button
               onClick={() => handleStatusChange('Completed')}
@@ -658,6 +666,42 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           )}
         </div>
       </div>
+
+      {/* ── Duplicate Modal ── */}
+      {showDuplicateModal && (
+        <CreatePrescriptionModal
+          onClose={() => setShowDuplicateModal(false)}
+          onSuccess={() => {
+            setShowDuplicateModal(false)
+            toast.success('Prescription duplicated successfully')
+            onUpdate?.()
+          }}
+          initialPatient={prescription.patient}
+          initialCareContext={prescription.care_context as 'Patient Visit' | 'Inpatient Admission' | undefined}
+          initialPatientEncounter={prescription.patient_encounter}
+          initialInpatientRecord={prescription.inpatient_record}
+          initialMedications={orders.map((order: any): MedicationOrderRow => ({
+            drug: order.drug || '',
+            drug_name: order.drug_name || order.drug || '',
+            dosage: order.dosage || '',
+            uom: order.uom || '',
+            no_of_days: order.no_of_days || 1,
+            dosage_form: order.dosage_form || '',
+            instructions: order.instructions || '',
+            date: new Date().toISOString().split('T')[0],
+            end_date: order.end_date || '',
+            time: order.time || '',
+            patient_frequency: order.patient_frequency || '',
+            is_pink: order.is_pink || false,
+            reference_no: order.reference_no || '',
+            is_long_acting: order.is_long_acting_medicine || false,
+            long_acting_frequency: order.long_acting_frequency || 'Weekly',
+            route_of_administration: order.route_of_administration || '',
+            medication_type: order.medication_type || '',
+          }))}
+          initialPractitioner={prescription.practitioner}
+        />
+      )}
 
     </div>
   )

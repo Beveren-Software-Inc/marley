@@ -73,6 +73,7 @@ interface CreatePrescriptionModalProps {
   initialPatientEncounter?: string
   initialInpatientRecord?: string
   initialStartDate?: string
+  initialPractitioner?: string
   transferAdmission?: string
   transferOrderEntryNames?: string[]
   editMode?: boolean
@@ -298,6 +299,7 @@ export const CreatePrescriptionModal = ({
   initialPatientEncounter,
   initialInpatientRecord,
   initialStartDate,
+  initialPractitioner,
   transferAdmission,
   transferOrderEntryNames,
   editMode = false,
@@ -721,6 +723,18 @@ export const CreatePrescriptionModal = ({
       autoPopulatePractitioner()
     }
   }, [practitioners, isEditing, formData.practitioner])
+
+  useEffect(() => {
+    if (initialPractitioner && !isEditing && !formData.practitioner) {
+      setFormData((prev) => ({ ...prev, practitioner: initialPractitioner }))
+      const practitionerOption = practitioners.find((p) => p.name === initialPractitioner)
+      if (practitionerOption) {
+        setPractQuery(practitionerOption.label || initialPractitioner)
+      } else {
+        setPractQuery(initialPractitioner)
+      }
+    }
+  }, [initialPractitioner, practitioners, isEditing, formData.practitioner])
 
   useEffect(() => {
     if (initialPatient && !selectedPatient) {
