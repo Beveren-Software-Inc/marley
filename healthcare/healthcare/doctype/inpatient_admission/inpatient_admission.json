@@ -1,6 +1,7 @@
 {
  "actions": [],
  "allow_import": 1,
+ "allow_rename": 1,
  "autoname": "field:case_no",
  "creation": "2018-07-11 17:48:51.404139",
  "doctype": "DocType",
@@ -1039,7 +1040,7 @@
    "link_fieldname": "admission"
   }
  ],
- "modified": "2026-07-01 00:53:40.416782",
+ "modified": "2026-07-13 23:42:09.000181",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Admission",

@@ -218,6 +218,19 @@ export async function fetchInpatientRecord(name: string) {
   }
 }
 
+export async function fetchNextCaseNumber(): Promise<string | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.inpatient_admission.get_next_case_number')
+    const resData = await response.json()
+    if (resData?.message && typeof resData.message === 'string') {
+      return resData.message
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export async function updateInpatientAdmission(
   name: string,
   payload: Record<string, unknown>

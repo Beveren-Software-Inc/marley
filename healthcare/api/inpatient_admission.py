@@ -24,6 +24,12 @@ except ImportError:
 
 
 @frappe.whitelist()
+def get_next_case_number():
+	"""Get the next case number for a new Inpatient Admission."""
+	return get_next_transaction_number('Inpatient Admission', fieldname='case_no')
+
+
+@frappe.whitelist()
 def get_patient_active_admission(patient):
 	"""Get patient's most recent active admission (Admitted or Discharge Scheduled status)."""
 	if not patient:
