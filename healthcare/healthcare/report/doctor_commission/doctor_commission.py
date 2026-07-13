@@ -41,8 +41,15 @@ GENERIC_PRACTITIONER_FIELDS = [
 
 def execute(filters=None):
 	filters = frappe._dict(filters or {})
-	columns = get_columns()
-	data = get_data(filters)
+	group_by = filters.get("group_by", "")
+	
+	if group_by:
+		columns = get_grouped_columns(group_by)
+		data = get_grouped_data(filters, group_by)
+	else:
+		columns = get_columns()
+		data = get_data(filters)
+	
 	return columns, data
 
 
@@ -126,6 +133,98 @@ def get_columns():
 	]
 
 
+def get_grouped_columns(group_by):
+	"""Return columns for grouped report."""
+	base_columns = []
+	
+	if group_by == "Doctor":
+		base_columns = [
+			{
+				"label": _("Doctor ID"),
+				"fieldname": "doctor_id",
+				"fieldtype": "Data",
+				"width": 110,
+			},
+			{
+				"label": _("Doctor Name"),
+				"fieldname": "doctor_name",
+				"fieldtype": "Data",
+				"width": 200,
+			},
+			{
+				"label": _("Practitioner"),
+				"fieldname": "practitioner",
+				"fieldtype": "Link",
+				"options": "Healthcare Practitioner",
+				"width": 150,
+			},
+		]
+	elif group_by == "Service":
+		base_columns = [
+			{
+				"label": _("Service"),
+				"fieldname": "service",
+				"fieldtype": "Link",
+				"options": "Item",
+				"width": 150,
+			},
+			{
+				"label": _("Service Name"),
+				"fieldname": "service_name",
+				"fieldtype": "Data",
+				"width": 250,
+			},
+		]
+	elif group_by == "Date":
+		base_columns = [
+			{
+				"label": _("Date"),
+				"fieldname": "transaction_date",
+				"fieldtype": "Date",
+				"width": 120,
+			},
+		]
+	elif group_by == "Patient":
+		base_columns = [
+			{
+				"label": _("Patient"),
+				"fieldname": "patient",
+				"fieldtype": "Link",
+				"options": "Patient",
+				"width": 150,
+			},
+			{
+				"label": _("Patient Name"),
+				"fieldname": "patient_name",
+				"fieldtype": "Data",
+				"width": 200,
+			},
+		]
+	
+	base_columns.extend([
+		{
+			"label": _("Cases"),
+			"fieldname": "cases",
+			"fieldtype": "Int",
+			"width": 80,
+		},
+		{
+			"label": _("Service Amount"),
+			"fieldname": "service_amount",
+			"fieldtype": "Currency",
+			"width": 140,
+		},
+		{
+			"label": _("Commission Amount"),
+			"fieldname": "commission_amount",
+			"fieldtype": "Currency",
+			"width": 150,
+		},
+	])
+	
+	return base_columns
+
+
 def get_data(filters):
 	commission_percent = flt(frappe.db.get_single_value("Healthcare Settings", "doctors_commission"))
 	items = get_service_items(filters)
@@ -169,6 +268,75 @@ def get_data(filters):
 		)
 
 	return rows
+
+
+def get_grouped_data(filters, group_by):
+	"""Get aggregated data based on group_by field."""
+	items = get_service_items(filters)
+	if not items:
+		return []
+
+	practitioner_by_base = resolve_practitioners(items)
+	practitioner_ids = {p for p in practitioner_by_base.values() if p}
+	practitioner_details = get_practitioner_details(practitioner_ids)
+	commission_percent = flt(frappe.db.get_single_value("Healthcare Settings", "doctors_commission"))
+
+	filter_practitioner = filters.get("practitioner")
+	
+	# Aggregate by group
+	aggregates = {}
+	
+	for row in items:
+		key_base = (row.custom_base_reference, row.custom_base_reference_name)
+		practitioner = practitioner_by_base.get(key_base)
+		if not practitioner:
+			continue
+		if filter_practitioner and practitioner != filter_practitioner:
+			continue
+
+		details = practitioner_details.get(practitioner) or {}
+		service_amount = flt(row.amount)
+		commission_amount = flt(service_amount * commission_percent / 100.0)
+
+		# Build grouping key
+		if group_by == "Doctor":
+			group_key = practitioner
+			group_data = {
+				"doctor_id": details.get("doctors_id") or practitioner,
+				"doctor_name": details.get("practitioner_name") or "",
+				"practitioner": practitioner,
+			}
+		elif group_by == "Service":
+			group_key = row.item_code
+			group_data = {
+				"service": row.item_code,
+				"service_name": row.item_name,
+			}
+		elif group_by == "Date":
+			group_key = row.transaction_date
+			group_data = {
+				"transaction_date": row.transaction_date,
+			}
+		elif group_by == "Patient":
+			group_key = row.patient
+			group_data = {
+				"patient": row.patient,
+				"patient_name": row.custom_patient_name or "",
+			}
+		else:
+			continue
+
+		if group_key not in aggregates:
+			aggregates[group_key] = group_data.copy()
+			aggregates[group_key]["cases"] = 0
+			aggregates[group_key]["service_amount"] = 0.0
+			aggregates[group_key]["commission_amount"] = 0.0
+
+		aggregates[group_key]["cases"] += 1
+		aggregates[group_key]["service_amount"] += service_amount
+		aggregates[group_key]["commission_amount"] += commission_amount
+
+	return sorted(aggregates.values(), key=lambda x: x.get("commission_amount", 0), reverse=True)
 
 
 def get_service_items(filters):

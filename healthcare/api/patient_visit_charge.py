@@ -210,9 +210,8 @@ def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | No
 	"""Turn the requested charge lines (or the auto defaults) into SO line configs.
 
 	`charge_lines` (from the UI) is a list of dicts:
-	    {template, qty?, discount_type?, discount_rate?, discount?}
-	Rates are always resolved server-side from the Healthcare Service Template so
-	the client can only influence discounts, not the base price.
+	    {template, item_code, rate?, qty?, discount_type?, discount_rate?, discount?}
+	When rate is explicitly provided by the UI, it overrides the template rate.
 	When no charge lines are supplied the visit type's default service(s) are used.
 	"""
 	resolved: list[dict] = []
@@ -223,10 +222,16 @@ def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | No
 				continue
 			template = (cl.get("template") or "").strip()
 			item_code = (cl.get("item_code") or "").strip()
+			ui_rate = cl.get("rate")
+			
 			if template:
 				config = _template_to_config(template)
 				if not config.get("configured"):
 					continue
+				# If UI provided an explicit rate, use it instead of template rate
+				if ui_rate is not None and ui_rate != "":
+					config["rate"] = flt(ui_rate)
+					config["source"] = "manual"
 			elif item_code:
 				config = {
 					"configured": True,
@@ -234,7 +239,7 @@ def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | No
 					"service_name": cl.get("item_name") or cl.get("service_name") or item_code,
 					"item_code": item_code,
 					"item_name": cl.get("item_name"),
-					"rate": flt(cl.get("rate")),
+					"rate": flt(ui_rate) if ui_rate is not None else 0,
 					"source": "manual",
 				}
 			else:

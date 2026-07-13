@@ -25,6 +25,7 @@
   "office_phone",
   "licence_no",
   "appointment",
+  "receive_commision",
   "employee_and_user_details_section",
   "practitioner_type",
   "employee",
@@ -388,6 +389,12 @@
    "fieldname": "appointment",
    "fieldtype": "Check",
    "label": "Appointment"
+  },
+  {
+   "default": "0",
+   "fieldname": "receive_commision",
+   "fieldtype": "Check",
+   "label": "Receive Commision"
   }
  ],
  "image_field": "image",
@@ -418,7 +425,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-07-12 12:20:56.687367",
+ "modified": "2026-07-13 13:04:19.285043",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

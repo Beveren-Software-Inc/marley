@@ -1,0 +1,224 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-07-13 00:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "is_active",
+  "priority",
+  "column_break_1",
+  "valid_from",
+  "valid_to",
+  "section_scope",
+  "practitioner",
+  "practitioner_name",
+  "column_break_2",
+  "cost_center",
+  "item_code",
+  "item_group",
+  "section_calc",
+  "calculation_type",
+  "commission_percent",
+  "fixed_amount",
+  "column_break_3",
+  "free_cases",
+  "tier_after_cases",
+  "tier_commission_percent",
+  "section_notes",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "DCR-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Active"
+  },
+  {
+   "default": "10",
+   "description": "Higher priority wins when multiple rules match.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority"
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "in_standard_filter": 1,
+   "label": "Valid From"
+  },
+  {
+   "fieldname": "valid_to",
+   "fieldtype": "Date",
+   "label": "Valid To"
+  },
+  {
+   "fieldname": "section_scope",
+   "fieldtype": "Section Break",
+   "label": "Scope"
+  },
+  {
+   "description": "Leave blank for a default rule that applies to all eligible doctors.",
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "practitioner.practitioner_name",
+   "fieldname": "practitioner_name",
+   "fieldtype": "Data",
+   "label": "Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch / Cost Center",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "label": "Service Item",
+   "options": "Item"
+  },
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "section_calc",
+   "fieldtype": "Section Break",
+   "label": "Calculation"
+  },
+  {
+   "default": "Percent of Amount",
+   "fieldname": "calculation_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Calculation Type",
+   "options": "Percent of Amount\nFixed Per Case\nTiered by Cases",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.calculation_type==\"Percent of Amount\" || doc.calculation_type==\"Tiered by Cases\"",
+   "fieldname": "commission_percent",
+   "fieldtype": "Percent",
+   "label": "Commission %"
+  },
+  {
+   "depends_on": "eval:doc.calculation_type==\"Fixed Per Case\"",
+   "fieldname": "fixed_amount",
+   "fieldtype": "Currency",
+   "label": "Fixed Amount Per Case"
+  },
+  {
+   "fieldname": "column_break_3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "First N cases in the period get zero commission (per doctor/branch scope).",
+   "fieldname": "free_cases",
+   "fieldtype": "Int",
+   "label": "Free Cases"
+  },
+  {
+   "depends_on": "eval:doc.calculation_type==\"Tiered by Cases\"",
+   "description": "After this many cases in the period, use Tier Commission % instead.",
+   "fieldname": "tier_after_cases",
+   "fieldtype": "Int",
+   "label": "Tier After Cases"
+  },
+  {
+   "depends_on": "eval:doc.calculation_type==\"Tiered by Cases\"",
+   "fieldname": "tier_commission_percent",
+   "fieldtype": "Percent",
+   "label": "Tier Commission %"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-13 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Doctor Commission Rule",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Accounts User",
+   "share": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

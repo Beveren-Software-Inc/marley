@@ -234,6 +234,8 @@ export interface CreatePatientVisitData {
 
 export interface PatientVisitChargeLineInput {
   template: string
+  item_code?: string
+  rate?: number
   qty?: number
   discount_type?: 'Percentage' | 'Amount'
   discount_rate?: number

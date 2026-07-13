@@ -669,6 +669,7 @@ export const CreatePatientVisitModal = ({
         charge_visit: !chargeNoCharges,
         charge_lines: includedLines.map((row) => ({
           template: row.template,
+          rate: row.rate,
           qty: 1,
           discount_type: 'Amount',
           discount: 0,
@@ -1120,9 +1121,25 @@ export const CreatePatientVisitModal = ({
                                 </svg>
                               </button>
                             </div>
-                            <div className="mt-0.5 text-xs text-slate-500">
-                              {row.item_name ? `${row.item_name} · ` : ''}
-                              <span className="font-semibold text-slate-700">{formatMoney(net)}</span>
+                            <div className="mt-1 flex flex-wrap items-center gap-2">
+                              <div className="flex items-center gap-1">
+                                <span className="text-xs text-slate-500">Price</span>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  step="any"
+                                  className="w-20 rounded border border-slate-300 px-2 py-0.5 text-xs focus:border-primary focus:ring-primary"
+                                  value={row.rate || ''}
+                                  placeholder="0"
+                                  onChange={(e) =>
+                                    updateChargeLine(idx, { rate: parseFloat(e.target.value) || 0 })
+                                  }
+                                />
+                              </div>
+                              <span className="text-xs text-slate-400">·</span>
+                              <span className="text-xs text-slate-600">
+                                Net: <span className="font-semibold">{formatMoney(net)}</span>
+                              </span>
                             </div>
                           </div>
                         </div>

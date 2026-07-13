@@ -611,14 +611,16 @@ export const EditPatientVisitModal = ({
                             <div className="text-sm font-medium text-slate-800 truncate">
                               {row.item_name}
                             </div>
-                            <div className="mt-0.5 text-xs text-slate-500">
-                              <span className={discounted ? 'line-through' : 'font-semibold text-slate-700'}>
-                                {formatMoney(row.rate || 0)}
-                              </span>
-                              {discounted && (
-                                <span className="ml-1 font-semibold text-slate-800">{formatMoney(net)}</span>
-                              )}
-                            </div>
+                            {!chargeEditable && (
+                              <div className="mt-0.5 text-xs text-slate-500">
+                                <span className={discounted ? 'line-through' : 'font-semibold text-slate-700'}>
+                                  {formatMoney(row.rate || 0)}
+                                </span>
+                                {discounted && (
+                                  <span className="ml-1 font-semibold text-slate-800">{formatMoney(net)}</span>
+                                )}
+                              </div>
+                            )}
                           </div>
                           {chargeEditable && (
                             <button
@@ -635,20 +637,41 @@ export const EditPatientVisitModal = ({
                           )}
                         </div>
                         {chargeEditable && (
-                          <div className="mt-2 flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-slate-500">Discount amount</span>
-                            <input
-                              type="number"
-                              min={0}
-                              max={row.rate || undefined}
-                              step="any"
-                              className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
-                              value={row.discount || ''}
-                              placeholder="0"
-                              onChange={(e) =>
-                                updateChargeRow(idx, { discount: parseFloat(e.target.value) || 0 })
-                              }
-                            />
+                          <div className="mt-2 flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500">Price</span>
+                              <input
+                                type="number"
+                                min={0}
+                                step="any"
+                                className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
+                                value={row.rate || ''}
+                                placeholder="0"
+                                onChange={(e) =>
+                                  updateChargeRow(idx, { rate: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs text-slate-500">Discount</span>
+                              <input
+                                type="number"
+                                min={0}
+                                max={row.rate || undefined}
+                                step="any"
+                                className="w-24 rounded border border-slate-300 px-2 py-1 text-xs focus:border-primary focus:ring-primary"
+                                value={row.discount || ''}
+                                placeholder="0"
+                                onChange={(e) =>
+                                  updateChargeRow(idx, { discount: parseFloat(e.target.value) || 0 })
+                                }
+                              />
+                            </div>
+                            {discounted && (
+                              <div className="text-xs text-slate-600">
+                                Net: <span className="font-semibold">{formatMoney(net)}</span>
+                              </div>
+                            )}
                           </div>
                         )}
                       </div>
