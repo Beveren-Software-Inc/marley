@@ -2073,6 +2073,42 @@ def _link_medicine_given_to_billing(row_names, sales_order, delivery_note):
     return len(row_names)
 
 
+def _set_delivery_note_allow_zero_valuation_rate(dn):
+    """Allow DN stock posting when Item/batch valuation rate is 0 (common for imported stock)."""
+    dn_item_meta = frappe.get_meta("Delivery Note Item")
+    if not dn_item_meta.has_field("allow_zero_valuation_rate"):
+        return
+    for row in dn.get("items") or []:
+        row.allow_zero_valuation_rate = 1
+
+
+def _validate_delivery_note_batch_stock(dn):
+    """Fail early with item/batch detail when batch qty is insufficient at the DN warehouse."""
+    from erpnext.stock.doctype.batch.batch import get_batch_qty
+
+    shortages = []
+    for idx, row in enumerate(dn.get("items") or [], start=1):
+        item_code = (getattr(row, "item_code", None) or "").strip()
+        batch_no = (getattr(row, "batch_no", None) or "").strip()
+        warehouse = (getattr(row, "warehouse", None) or getattr(dn, "set_warehouse", None) or "").strip()
+        qty = flt(getattr(row, "qty", 0))
+        if not item_code or not batch_no or not warehouse or qty <= 0:
+            continue
+        available = flt(get_batch_qty(batch_no=batch_no, warehouse=warehouse) or 0)
+        if available + 1e-9 < qty:
+            label = getattr(row, "item_name", None) or item_code
+            shortages.append(
+                _("Row #{0}: {1} ({2}) — need {3:g}, available {4:g} in batch {5} at {6}").format(
+                    idx, label, item_code, qty, available, batch_no, warehouse
+                )
+            )
+    if shortages:
+        frappe.throw(
+            _("Not enough batch stock for pharmacy give-out:<br>{0}").format("<br>".join(shortages)),
+            title=_("Insufficient Stock"),
+        )
+
+
 def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_date=None, billing_groups=None, warehouse=None):
     """Create and submit a Delivery Note from a submitted Sales Order to consume stock."""
     from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
@@ -2116,14 +2152,15 @@ def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_dat
         if hasattr(dn, "set_warehouse"):
             dn.set_warehouse = warehouse
         for row in dn.get("items") or []:
-            if not getattr(row, "warehouse", None):
-                row.warehouse = warehouse
+            row.warehouse = warehouse
 
     if hasattr(dn, "update_stock"):
         dn.update_stock = 1
 
     _apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
+    _set_delivery_note_allow_zero_valuation_rate(dn)
     _validate_delivery_note_dispensing_lots(dn)
+    _validate_delivery_note_batch_stock(dn)
 
     dn.insert(ignore_permissions=True)
     dn.submit()
