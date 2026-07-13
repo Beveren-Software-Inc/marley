@@ -34,6 +34,8 @@ export interface LinkFieldOption {
   is_pink?: boolean
   code_value?: string
   country?: string
+  /** Healthcare Service Unit Type: room price multiplier */
+  room_multiplier?: number
 }
 
 export interface ChecklistItem {

@@ -12,8 +12,10 @@
   "package_name",
   "package_category",
   "package_rate",
+  "base_total",
   "column_break_1",
   "no_of_days",
+  "is_daily_default",
   "cost_center",
   "active",
   "duration_section",
@@ -32,11 +34,12 @@
    "unique": 1
   },
   {
+   "description": "Optional filter only. Room pricing uses Healthcare Service Unit Type multipliers.",
    "fieldname": "package_category",
    "fieldtype": "Link",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Room Category",
+   "label": "Room Category (optional)",
    "options": "Room Category"
   },
   {
@@ -50,11 +53,26 @@
    "label": "No of Days"
   },
   {
+   "description": "Base daily rate for Triple Sharing reference room (BD / Day).",
    "fieldname": "package_rate",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Package Rate(Per Day)",
+   "label": "Base Rate (BD / Day)",
    "reqd": 1
+  },
+  {
+   "description": "Program price for Triple Sharing (reference). Final Price = Base Total × Room Multiplier.",
+   "fieldname": "base_total",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Base Total (Triple Sharing)"
+  },
+  {
+   "default": "0",
+   "description": "When checked, price is always days × base rate (Daily default program).",
+   "fieldname": "is_daily_default",
+   "fieldtype": "Check",
+   "label": "Daily Default"
   },
   {
    "fieldname": "cost_center",

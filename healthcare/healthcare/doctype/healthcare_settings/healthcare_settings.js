@@ -919,6 +919,119 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Inpatient Pricing Structure (Word Doc)'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Import Inpatient Pricing Structure'),
+				preview_method: 'healthcare.api.inpatient_pricing_import.preview_inpatient_pricing_import',
+				import_method: 'healthcare.api.inpatient_pricing_import.import_inpatient_pricing_structure',
+				allowed_file_types: ['.docx'],
+				freeze_message: __('Reading pricing document…'),
+				import_freeze_message: __('Creating Service Unit Types and Inpatient Packages…'),
+				build_confirm_message: (counts) => {
+					const rooms = (counts.room_types || [])
+						.map((r) => `${r.name} × ${r.multiplier}`)
+						.join('\n');
+					const programs = (counts.programs || [])
+						.map(
+							(p) =>
+								`${p.name}: ${p.days} day(s), base ${p.base_total} BD`
+						)
+						.join('\n');
+					return __(
+						'Import inpatient pricing from the uploaded document?\n\n'
+							+ 'Company: {0}\n'
+							+ 'Source: {1}\n\n'
+							+ 'Room types (Service Unit Type): {2} new, {3} existing\n'
+							+ '{4}\n\n'
+							+ 'Programs (Inpatient Package): {5} new, {6} existing\n'
+							+ '{7}\n\n'
+							+ 'Formula: Final Price = Program Price × Room Multiplier\n\nContinue?',
+						[
+							counts.company || '',
+							counts.source || 'docx',
+							counts.new_service_unit_types || 0,
+							counts.existing_service_unit_types || 0,
+							rooms || __('(none)'),
+							counts.new_packages || 0,
+							counts.existing_packages || 0,
+							programs || __('(none)'),
+						]
+					);
+				},
+				build_result_message: (result) =>
+					__(
+						'Import complete.\n\n'
+							+ 'Room types created: {0}\n'
+							+ 'Room types updated: {1}\n'
+							+ 'Packages created: {2}\n'
+							+ 'Packages updated: {3}\n'
+							+ 'Errors: {4}',
+						[
+							result.room_types_created || 0,
+							result.room_types_updated || 0,
+							result.packages_created || 0,
+							result.packages_updated || 0,
+							result.errors || 0,
+						]
+					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Apply May 2026 Inpatient Pricing Defaults'), () => {
+			frappe.call({
+				method: 'healthcare.api.inpatient_pricing_import.preview_inpatient_pricing_import',
+				args: {},
+				freeze: true,
+				freeze_message: __('Preparing defaults…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					const rooms = (counts.room_types || [])
+						.map((r) => `${r.name} × ${r.multiplier}`)
+						.join('\n');
+					const programs = (counts.programs || [])
+						.map((p) => `${p.name}: ${p.days} day(s), base ${p.base_total} BD`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Apply documented May 2026 inpatient pricing defaults (no file)?\n\n'
+								+ 'Company: {0}\n\n'
+								+ 'Room types:\n{1}\n\n'
+								+ 'Programs:\n{2}\n\n'
+								+ 'Creates/updates Healthcare Service Unit Types (multipliers) '
+								+ 'and Inpatient Packages (programs). Continue?',
+							[counts.company || '', rooms || __('(none)'), programs || __('(none)')]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.inpatient_pricing_import.import_inpatient_pricing_structure',
+								args: {},
+								freeze: true,
+								freeze_message: __('Creating packages and room types…'),
+								callback(r) {
+									const result = r.message || {};
+									frappe.msgprint({
+										title: __('Import complete'),
+										message: __(
+											'Room types created: {0}\nRoom types updated: {1}\n'
+												+ 'Packages created: {2}\nPackages updated: {3}\nErrors: {4}',
+											[
+												result.room_types_created || 0,
+												result.room_types_updated || 0,
+												result.packages_created || 0,
+												result.packages_updated || 0,
+												result.errors || 0,
+											]
+										),
+										indicator: result.errors ? 'orange' : 'green',
+									});
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient — PATIENT_INFO_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Patient Upload (PATIENT_INFO_01)'),

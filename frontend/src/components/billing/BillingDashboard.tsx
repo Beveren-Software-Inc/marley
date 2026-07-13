@@ -985,7 +985,7 @@ const handleMakePayment = async (
               </select>
             </div>
             <div>
-              <label className="block text-xs text-slate-600 mb-1">Cashier</label>
+              <label className="block text-xs text-slate-600 mb-1">Receptionist</label>
               <select
                 value={cashierFilter}
                 onChange={(e) => setCashierFilter(e.target.value)}
@@ -1004,7 +1004,7 @@ const handleMakePayment = async (
   }
 
   const exportPaymentsCsv = () => {
-    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Cashier', 'Invoice', 'Reference Type', 'Reference Name']
+    const headers = ['Payment Entry', 'Posting Date', 'Mode', 'Amount', 'Party', 'Receptionist', 'Invoice', 'Reference Type', 'Reference Name']
     const rows = payments.map((p) => [
       p.name,
       p.posting_date || '',
@@ -1030,7 +1030,7 @@ const handleMakePayment = async (
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
     const rows = payments.map((p) => `<tr><td>${p.name}</td><td>${p.posting_date || ''}</td><td>${p.mode_of_payment || ''}</td><td>${formatCurrency(p.paid_amount || 0)}</td><td>${p.party_name || ''}</td><td>${p.cashier_name || p.cashier || ''}</td><td>${p.invoice_name || ''}</td></tr>`).join('')
-    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Cashier</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Receptionist</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -1076,7 +1076,7 @@ const handleMakePayment = async (
                   <th className="px-3 py-2 text-left">Type</th>
                   <th className="px-3 py-2 text-left">Mode</th>
                   <th className="px-3 py-2 text-right">Amount</th>
-                  <th className="px-3 py-2 text-left">Cashier</th>
+                  <th className="px-3 py-2 text-left">Receptionist</th>
                   <th className="px-3 py-2 text-left">Invoice</th>
                   <th className="px-3 py-2 text-center w-12">Print</th>
                 </tr>

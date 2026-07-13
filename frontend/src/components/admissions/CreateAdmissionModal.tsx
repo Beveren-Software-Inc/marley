@@ -21,6 +21,7 @@ import {
   fetchInpatientRecord,
   updateInpatientAdmission,
   fetchServiceUnits,
+  fetchNextCaseNumber,
   type ServiceUnit,
 } from '../../services/inpatientRecords'
 import {
@@ -219,6 +220,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [residentQuery, setResidentQuery] = useState('')
 
   const [formData, setFormData] = useState({
+    case_no: '',
     company: '',
     cost_center: '',
     medical_department: '',
@@ -306,6 +308,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         setPatientQuery(record.patient_name || record.patient)
 
         setFormData({
+          case_no: record.case_no || record.name || '',
           company: record.company || '',
           cost_center: record.cost_center || '',
           medical_department: record.medical_department || '',
@@ -639,6 +642,16 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     })
   }, [isEditMode])
 
+  // Auto-populate next case number (create only); user can change it
+  useEffect(() => {
+    if (isEditMode) return
+    fetchNextCaseNumber().then((nextCaseNo) => {
+      if (nextCaseNo) {
+        setFormData((prev) => (prev.case_no === '' ? { ...prev, case_no: nextCaseNo } : prev))
+      }
+    })
+  }, [isEditMode])
+
   // Search nursing templates
   // (UI currently disabled; keep hook placeholder if needed in future)
 
@@ -649,6 +662,12 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     if (!selectedPatient) {
       setError('Please select a patient')
       if (!isEditMode) setActiveCreateTab('admission')
+      return
+    }
+
+    if (!isEditMode && !formData.case_no.trim()) {
+      setError('Case No is required')
+      setActiveCreateTab('admission')
       return
     }
 
@@ -776,6 +795,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
       const args: any = {
         patient: selectedPatient.name,
+        case_no: formData.case_no.trim(),
         company: formData.company,
         cost_center: formData.cost_center,
         medical_department: formData.medical_department,
@@ -1131,6 +1151,25 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Case No — auto-populated on create; editable like Patient File No */}
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+              Case No <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={formData.case_no}
+              onChange={(e) => {
+                if (isEditMode) return
+                setFormData((prev) => ({ ...prev, case_no: e.target.value }))
+              }}
+              readOnly={isEditMode}
+              required={!isEditMode}
+              placeholder="Case number"
+              className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${isEditMode ? 'bg-slate-50 text-slate-600 cursor-not-allowed' : ''}`}
+            />
           </div>
 
           {/* Branch row — company is set automatically in the backend */}

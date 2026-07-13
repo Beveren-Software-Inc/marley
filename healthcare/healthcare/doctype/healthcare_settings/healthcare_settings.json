@@ -15,6 +15,7 @@
   "lock_editing_data",
   "active",
   "display_batch_and_lot_on_pharmacy_giveout",
+  "combine_admission_fee_and_case_management",
   "column_break_9",
   "collect_registration_fee",
   "registration_item",
@@ -707,11 +708,18 @@
   {
    "fieldname": "section_break_fndq",
    "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, Create Quotation includes both the admission/program fee and IP Case Management on one Quotation. When disabled, the quotation is admission/program only; Case Management creates a Service Request that is billed via its own Sales Order on admit.",
+   "fieldname": "combine_admission_fee_and_case_management",
+   "fieldtype": "Check",
+   "label": "Combine Admission Fee and Case Management"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-12 15:16:43.313449",
+ "modified": "2026-07-14 01:31:18.441285",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

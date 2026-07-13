@@ -708,7 +708,7 @@ def create_service_request(data):
 		'lab_request_items': frappe.as_json(lab_request_items) if lab_request_items else None,
 		'practitioner': data.get('practitioner'),
 		'order_date': data.get('order_date') or frappe.utils.today(),
-		'order_time': data.get('order_time') or frappe.utils.now_time(),
+		'order_time': data.get('order_time') or frappe.utils.nowtime(),
 		'medical_department': data.get('department'),
 		'cost': data.get('cost'),
 		'cost_center': data.get('cost_center'),
