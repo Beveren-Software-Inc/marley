@@ -2194,16 +2194,33 @@ def _format_pharmacy_giveout_error(exc, warehouse=None):
 	wh_label = (warehouse or "").strip() or _("the selected warehouse")
 	lower = raw.lower()
 
+	if "allow zero valuation rate" in lower or (
+		"zero rate" in lower and "valuation" in lower
+	) or ("has zero rate" in lower and "allow zero" in lower):
+		item_match = re.search(r"Item\s+([A-Za-z0-9\-_/]+)", raw, flags=re.IGNORECASE)
+		item_code = item_match.group(1) if item_match else None
+		if item_code:
+			return _(
+				"Item {0} has zero stock valuation rate. Set a valuation rate on the item/batch, or retry — pharmacy give-out now allows zero valuation on Delivery Note lines."
+			).format(frappe.bold(item_code))
+		return _(
+			"One or more medicines have zero stock valuation rate. Set valuation rate on the item/batch, then retry."
+		)
+
 	if any(
 		phrase in lower
 		for phrase in (
 			"negative stock",
 			"not enough stock",
+			"not enough batch stock",
 			"insufficient stock",
 			"stock balance for batch",
 			"qty must be less than or equal to",
 		)
 	):
+		# Prefer detailed shortage text when we already validated batches.
+		if "need" in lower and "available" in lower:
+			return raw
 		return _(
 			"Not enough stock in {0} for one or more medicines. Check batch quantities or choose another warehouse."
 		).format(wh_label)

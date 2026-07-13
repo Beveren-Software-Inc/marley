@@ -326,6 +326,10 @@ def get_stock_ledger(cost_center, warehouse_context=None):
 
     warehouse_context: 'nurse' (default) or 'laboratory'.
 
+    Uses the Nurse/Lab **mini warehouse** mapped to the branch cost center
+    (Healthcare Settings → Nurse Mini Warehouse / Laboratory Mini Warehouse) —
+    not the branch pharmacy / prescription warehouse.
+
     Each row includes stock in stock UOM plus pack and unit quantities when those
     UOMs (or custom_number_of_pack) are configured — same pack/unit model used for dispensing.
     """
@@ -385,10 +389,19 @@ def get_stock_ledger(cost_center, warehouse_context=None):
     for item in stock_items:
         item["reorder_level"] = reorder_map.get(item["item_code"], 10)
         item["item_group"] = item.get("category")
+        item["warehouse"] = warehouse
 
     _enrich_stock_ledger_pack_unit_qty(stock_items)
 
     return stock_items
+
+
+@frappe.whitelist()
+def get_inventory_dashboard_warehouse(cost_center, warehouse_context=None):
+    """Warehouse used by Inventory Dashboard Stock Ledger for the branch."""
+    if not cost_center:
+        frappe.throw(_("Cost Center is required"))
+    return _warehouse_for_cost_center(cost_center, warehouse_context)
 
 
 def _normalize_uom_key(value):
@@ -1227,71 +1240,43 @@ def get_stock_reconciliations(cost_center, warehouse_context=None):
 
 @frappe.whitelist()
 def get_item_batches(item_code, warehouse):
+    """Return batches with positive qty for an item in a specific warehouse only.
+
+    Uses ERPNext ``get_batch_qty`` for warehouse balance. Never falls back to
+    Batch.batch_qty (company-wide), which caused pharmacy give-out to pick
+    batches that have zero stock at the selected warehouse.
     """
-    Returns a list of dicts with batch numbers and their actual quantities
-    for a given item code and warehouse.
-    """
+    from erpnext.stock.doctype.batch.batch import get_batch_qty
+
     if not item_code or not warehouse:
         return []
 
-    # Get all batches for the item
-    batches = frappe.get_all("Batch", 
-        filters={"item": item_code}, 
-        fields=["batch_id", "expiry_date", "manufacturing_date"]
+    batches = frappe.get_all(
+        "Batch",
+        filters={"item": item_code},
+        fields=["name", "batch_id", "expiry_date", "manufacturing_date"],
     )
 
     batch_qty_data = []
     for batch in batches:
-        qty = get_batch_qty(batch_no=batch.batch_id, warehouse=warehouse)
+        batch_name = batch.name
+        batch_id = (batch.batch_id or batch_name or "").strip()
+        qty = flt(get_batch_qty(batch_no=batch_name, warehouse=warehouse) or 0)
+        if qty <= 0 and batch_id and batch_id != batch_name:
+            qty = flt(get_batch_qty(batch_no=batch_id, warehouse=warehouse) or 0)
         if qty > 0:
-            batch_qty_data.append({
-                "batch_id": batch.batch_id, 
-                "qty": qty,
-                "expiry_date": batch.expiry_date,
-                "manufacturing_date": batch.manufacturing_date
-            })
+            batch_qty_data.append(
+                {
+                    "batch_id": batch_id or batch_name,
+                    "batch_name": batch_name,
+                    "qty": qty,
+                    "expiry_date": batch.expiry_date,
+                    "manufacturing_date": batch.manufacturing_date,
+                }
+            )
 
     return batch_qty_data
 
-@frappe.whitelist()
-def get_item_batches(item_code, warehouse):
-    """
-    Returns a list of dicts with batch numbers and their actual quantities
-    for a given item code and warehouse.
-    """
-    if not item_code or not warehouse:
-        return []
-    
-    print(f"Getting batches for item: {item_code}, warehouse: {warehouse}")
-    
-    # Get all batches for the item
-    batches = frappe.get_all("Batch", 
-        filters={"item": item_code}, 
-        fields=["name", "batch_id", "expiry_date", "manufacturing_date", "batch_qty"]
-    )
-    
-    print(f"Found {len(batches)} batches for item {item_code}")
-    
-    batch_qty_data = []
-    for batch in batches:
-        # Get quantity from Serial and Batch Bundle
-        bundle_qty = get_batch_quantity_from_bundles(batch.name, warehouse)
-        
-        # If no bundle quantity, use batch_qty
-        qty = bundle_qty if bundle_qty > 0 else (batch.batch_qty if batch.batch_qty else 0)
-        
-        print(f"Batch {batch.name}: bundle_qty = {bundle_qty}, batch_qty = {batch.batch_qty}, final qty = {qty}")
-        
-        if qty > 0:
-            batch_qty_data.append({
-                "batch_id": batch.batch_id,
-                "batch_name": batch.name,
-                "qty": qty,
-                "expiry_date": batch.expiry_date,
-                "manufacturing_date": batch.manufacturing_date
-            })
-    
-    return batch_qty_data
 
 @frappe.whitelist()
 def get_batch_quantity_from_bundles(batch_no, warehouse):
@@ -2073,6 +2058,42 @@ def _link_medicine_given_to_billing(row_names, sales_order, delivery_note):
     return len(row_names)
 
 
+def _set_delivery_note_allow_zero_valuation_rate(dn):
+    """Allow DN stock posting when Item/batch valuation rate is 0 (common for imported stock)."""
+    dn_item_meta = frappe.get_meta("Delivery Note Item")
+    if not dn_item_meta.has_field("allow_zero_valuation_rate"):
+        return
+    for row in dn.get("items") or []:
+        row.allow_zero_valuation_rate = 1
+
+
+def _validate_delivery_note_batch_stock(dn):
+    """Fail early with item/batch detail when batch qty is insufficient at the DN warehouse."""
+    from erpnext.stock.doctype.batch.batch import get_batch_qty
+
+    shortages = []
+    for idx, row in enumerate(dn.get("items") or [], start=1):
+        item_code = (getattr(row, "item_code", None) or "").strip()
+        batch_no = (getattr(row, "batch_no", None) or "").strip()
+        warehouse = (getattr(row, "warehouse", None) or getattr(dn, "set_warehouse", None) or "").strip()
+        qty = flt(getattr(row, "qty", 0))
+        if not item_code or not batch_no or not warehouse or qty <= 0:
+            continue
+        available = flt(get_batch_qty(batch_no=batch_no, warehouse=warehouse) or 0)
+        if available + 1e-9 < qty:
+            label = getattr(row, "item_name", None) or item_code
+            shortages.append(
+                _("Row #{0}: {1} ({2}) — need {3:g}, available {4:g} in batch {5} at {6}").format(
+                    idx, label, item_code, qty, available, batch_no, warehouse
+                )
+            )
+    if shortages:
+        frappe.throw(
+            _("Not enough batch stock for pharmacy give-out:<br>{0}").format("<br>".join(shortages)),
+            title=_("Insufficient Stock"),
+        )
+
+
 def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_date=None, billing_groups=None, warehouse=None):
     """Create and submit a Delivery Note from a submitted Sales Order to consume stock."""
     from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
@@ -2116,14 +2137,15 @@ def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_dat
         if hasattr(dn, "set_warehouse"):
             dn.set_warehouse = warehouse
         for row in dn.get("items") or []:
-            if not getattr(row, "warehouse", None):
-                row.warehouse = warehouse
+            row.warehouse = warehouse
 
     if hasattr(dn, "update_stock"):
         dn.update_stock = 1
 
     _apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
+    _set_delivery_note_allow_zero_valuation_rate(dn)
     _validate_delivery_note_dispensing_lots(dn)
+    _validate_delivery_note_batch_stock(dn)
 
     dn.insert(ignore_permissions=True)
     dn.submit()
