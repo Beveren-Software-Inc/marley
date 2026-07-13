@@ -199,11 +199,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
           <span className="font-semibold text-slate-900">{ledgerWarehouse}</span>
           <span className="text-slate-500">
             {' '}
-            (Healthcare Settings →{' '}
-            {warehouseContext === 'laboratory'
-              ? 'Laboratory Mini Warehouse'
-              : 'Nurse Mini Warehouse'}{' '}
-            for this branch — not the pharmacy / prescription warehouse).
+           
           </span>
         </div>
       ) : null}

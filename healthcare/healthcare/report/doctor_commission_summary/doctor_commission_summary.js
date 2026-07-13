@@ -1,7 +1,7 @@
 // Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and contributors
 // For license information, please see license.txt
 
-frappe.query_reports["Doctor Commission"] = {
+frappe.query_reports["Doctor Commission Summary"] = {
 	filters: [
 		{
 			fieldname: "from_date",
@@ -31,23 +31,16 @@ frappe.query_reports["Doctor Commission"] = {
 			options: "Healthcare Practitioner",
 		},
 		{
-			fieldname: "item_code",
-			label: __("Service"),
-			fieldtype: "Link",
-			options: "Item",
-		},
-		{
 			fieldname: "cost_center",
 			label: __("Branch / Cost Center"),
 			fieldtype: "Link",
 			options: "Cost Center",
 		},
 		{
-			fieldname: "group_by",
-			label: __("Group By"),
+			fieldname: "status",
+			label: __("Status"),
 			fieldtype: "Select",
-			options: "\nDoctor\nService\nDate\nPatient",
-			default: "",
+			options: "\nGenerated\nReviewed\nApproved\nSalary Created",
 		},
 	],
 };

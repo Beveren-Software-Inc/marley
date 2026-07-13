@@ -103,6 +103,7 @@
   "auto_create_patient_visit_on_iop_enrollment",
   "section_break_pqbp",
   "doctors_commission",
+  "doctor_commission_salary_component",
   "pricing_tab",
   "patient_category_pricing"
  ],
@@ -695,6 +696,13 @@
    "fieldname": "doctors_commission",
    "fieldtype": "Percent",
    "label": "Doctors Commission"
+  },
+  {
+   "description": "Default Salary Component when creating Additional Salary from Doctor Commission Payroll.",
+   "fieldname": "doctor_commission_salary_component",
+   "fieldtype": "Link",
+   "label": "Doctor Commission Salary Component",
+   "options": "Salary Component"
   },
   {
    "fieldname": "section_break_fndq",
