@@ -23,6 +23,11 @@ LAB_RESULT_EDIT_ROLES = frozenset(
 CEO_ROLE = "CEO"
 GROUP_FINISHED_SR_STATUS = "completed-Request Status"
 
+# F013/F014: lab result editors may correct results until a final status; after these
+# (or a finished group) only administrators/CEO may amend.
+FINAL_LAB_STATUSES = frozenset(("Approved", "Completed"))
+LAB_RESULT_ADMIN_ROLES = frozenset(("System Manager", "Healthcare Administrator", "Administrator"))
+
 # Lab tests still in the pre-review pipeline (requested → sample → testing).
 LAB_PENDING_PIPELINE_STATUSES = (
 	"Draft",
@@ -91,26 +96,25 @@ def _ensure_lab_result_edit_permission(doc=None):
 
 
 def _ensure_lab_result_save_allowed(doc):
-	"""Draft tests and reviewed (submitted) tests may have results updated."""
+	"""F013/F014: lab result editors may correct results until a final status; after a
+	final status (Approved/Completed) or a finished group, only administrators/CEO may amend."""
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot update a cancelled Lab Test"))
-	if _is_group_lab_finished(doc) and not _is_ceo_user():
-		frappe.throw(
-			_(
-				"This grouped lab request has been finished. Only users with the CEO role "
-				"may edit lab results."
-			),
-			frappe.PermissionError,
-		)
-	if doc.docstatus == 0:
+	if doc.status in ("Rejected", "Cancelled"):
+		frappe.throw(_("Cannot update a {0} Lab Test").format(doc.status))
+
+	is_final = doc.status in FINAL_LAB_STATUSES or _is_group_lab_finished(doc)
+	if is_final:
+		roles = set(frappe.get_roles(frappe.session.user))
+		if not (roles & LAB_RESULT_ADMIN_ROLES) and not _is_ceo_user():
+			frappe.throw(
+				_("This lab result is finalised — only an administrator may amend it."),
+				frappe.PermissionError,
+			)
 		return
-	if doc.docstatus == 1 and doc.status == "Reviewed":
-		return
-	frappe.throw(
-		_("Lab results cannot be changed while the test is in status {0}.").format(
-			doc.status or doc.docstatus
-		)
-	)
+	# Draft, or submitted-but-not-final (Pending Review / Reviewed / …): editable by
+	# any lab result editor (role checked separately in _ensure_lab_result_edit_permission).
+	return
 
 
 @frappe.whitelist(allow_guest=False)

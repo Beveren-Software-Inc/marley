@@ -42,13 +42,14 @@ class SampleCollection(Document):
 		"""Sync Lab Test status with Sample Collection status.
 
 		- Pending          → Lab Test.status = 'Awaiting sample collection'
-		- Partly Collected → Lab Test.status = 'Sample collection in progress'
-		- Collected        → Lab Test.status = 'Sample collected'
+		- Partly Collected → Lab Test.status = 'Sample Collection in Progress'
+		- Collected        → Lab Test.status = 'Sample Collected'
 		"""
+		# Values MUST match the Lab Test `status` Select options exactly (case-sensitive).
 		status_map = {
 			"Pending": "Awaiting sample collection",
-			"Partly Collected": "Sample collection in progress",
-			"Collected": "Sample collected",
+			"Partly Collected": "Sample Collection in Progress",
+			"Collected": "Sample Collected",
 		}
 		new_status = status_map.get(self.status)
 		if not new_status:

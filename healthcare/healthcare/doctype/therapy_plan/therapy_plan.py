@@ -7,16 +7,11 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt, today
 
-from healthcare.healthcare.utils import validate_nursing_tasks
-
 
 class TherapyPlan(Document):
 	def validate(self):
 		self.set_totals()
 		self.set_status()
-
-	def on_submit(self):
-		validate_nursing_tasks(self)
 
 	def set_status(self):
 		if not self.total_sessions_completed:

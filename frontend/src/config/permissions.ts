@@ -41,26 +41,61 @@ export function isGroupedLabRequestFinished(
   return Boolean(labTest.is_group_lab_test) && labTest.service_request_status === GROUP_FINISHED_SERVICE_REQUEST_STATUS
 }
 
-/** Whether this lab test row allows inline / batch result editing. */
+/** Lab statuses that are final — after these, only admins may amend a result. */
+const FINAL_LAB_STATUSES = ['Approved', 'Completed'] as const
+
+type LabTestRowPerm = {
+  docstatus?: number
+  status?: string
+  is_group_lab_test?: number
+  service_request_status?: string
+}
+
+/** Whether this lab test row allows inline / batch result editing.
+ * F013/F014: lab result editors may correct results up to (but not after) final
+ * approval — no longer CEO-only for finished groups, and not keyed on the exact
+ * 'Reviewed' string. After a final status (Approved/Completed) or a finished group,
+ * only admins/CEO may amend. Use labResultLockReason() to explain a lock in the UI. */
 export function canEditLabTestResultForRow(
-  labTest: {
-    docstatus?: number
-    status?: string
-    is_group_lab_test?: number
-    service_request_status?: string
-  },
+  labTest: LabTestRowPerm,
   roles: string[] | undefined
 ): boolean {
-  if (isGroupedLabRequestFinished(labTest)) {
-    return isCEO(roles)
+  const status = (labTest.status || '').trim()
+  if (status === 'Rejected' || status === 'Cancelled') return false
+
+  const isFinal = FINAL_LAB_STATUSES.includes(status as (typeof FINAL_LAB_STATUSES)[number])
+    || isGroupedLabRequestFinished(labTest)
+  if (isFinal) {
+    // After final approval, only admins (incl. CEO) may amend.
+    return isAdmin(roles ?? []) || isCEO(roles)
   }
 
   if (!canEditLabTestResults(roles)) return false
-  const status = (labTest.status || '').trim()
-  if (status === 'Rejected' || status === 'Cancelled') return false
   if (labTest.docstatus === 0) return true
-  // After doctor review the document is submitted; lab staff may still correct results.
-  return labTest.docstatus === 1 && status === 'Reviewed'
+  // Submitted but not yet final: lab result editors may still correct.
+  return labTest.docstatus === 1
+}
+
+/** Human-readable reason a lab result row is locked for the given user, or null if editable.
+ * Lets the UI explain a disabled result field instead of silently hiding it (F014). */
+export function labResultLockReason(
+  labTest: LabTestRowPerm,
+  roles: string[] | undefined
+): string | null {
+  if (canEditLabTestResultForRow(labTest, roles)) return null
+  const status = (labTest.status || '').trim()
+  if (status === 'Rejected' || status === 'Cancelled') {
+    return `This result is ${status.toLowerCase()} and cannot be edited.`
+  }
+  const isFinal = FINAL_LAB_STATUSES.includes(status as (typeof FINAL_LAB_STATUSES)[number])
+    || isGroupedLabRequestFinished(labTest)
+  if (isFinal) {
+    return 'This result is finalised — only an administrator can amend it.'
+  }
+  if (!canEditLabTestResults(roles)) {
+    return 'You do not have permission to edit lab results.'
+  }
+  return 'This result cannot be edited at its current status.'
 }
 
 /** Paths that every authenticated user can access */
@@ -142,7 +177,7 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (pathname === '/therapy') return normalizedRoles.some(r => r === 'therapist' || r.includes('therapist'))
   if (pathname === '/nutritionist') return normalizedRoles.some(r => r.includes('nutritionist'))
   if (pathname === '/anesthesiologist') return normalizedRoles.some(r => r.includes('anesthesiologist') || r.includes('anaesthesiologist'))
-  if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance') || r.includes('reception'))
+  if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance'))
 
   return false
 }
@@ -321,5 +356,6 @@ export function getDefaultRouteForUser(roles: string[]): string {
   if (r.some(x => x.includes('nutritionist'))) return '/nutritionist'
   if (r.some(x => x.includes('psychologist'))) return '/psychologist'
   if (r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist'))) return '/anesthesiologist'
+  if (r.some(x => x.includes('insurance'))) return '/insurance'
   return '/patient'
 }

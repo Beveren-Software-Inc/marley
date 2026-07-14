@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Loader2, MoreHorizontal, Pill, Pencil, ShoppingCart, Trash2 } from 'lucide-react'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   fetchMedicineGiven,
@@ -262,6 +263,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [creatingSalesOrder, setCreatingSalesOrder] = useState(false)
+  const [confirm, setConfirm] = useState<{ kind: 'delete'; row: MedicineGivenRow } | { kind: 'createSO' } | null>(null)
   const [checkingMissedNow, setCheckingMissedNow] = useState(false)
   const [pendingMissedRow, setPendingMissedRow] = useState<MissedMedicineRow | null>(null)
   const [detailRow, setDetailRow] = useState<MedicineGivenRow | null>(null)
@@ -326,7 +328,11 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
   }
 
   const handleDelete = (row: MedicineGivenRow) => {
-    if (!window.confirm('Remove this given medicine entry?')) return
+    setConfirm({ kind: 'delete', row })
+  }
+
+  const doDelete = (row: MedicineGivenRow) => {
+    setConfirm(null)
     guardClinicalEdit(() => {
       void (async () => {
         try {
@@ -341,16 +347,17 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
     })
   }
 
-  const handleCreateSalesOrder = async () => {
+  const handleCreateSalesOrder = () => {
     if (!admission?.name) {
       toast.error('NO ACTIVE INPATIENT ADMISSION FOUND')
       return
     }
+    setConfirm({ kind: 'createSO' })
+  }
 
-    if (!window.confirm('Create Service Bill for today\'s medicine consumption? This will reduce stock from the admission branch warehouse.')) {
-      return
-    }
-
+  const doCreateSalesOrder = async () => {
+    setConfirm(null)
+    if (!admission?.name) return
     setCreatingSalesOrder(true)
     try {
       const result = await createMedicineGivenSalesOrder(admission.name)
@@ -725,6 +732,25 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
           }}
         />
       )}
+      <ConfirmDialog
+        open={confirm?.kind === 'delete'}
+        variant="danger"
+        title="Remove given medicine"
+        message="Remove this given medicine entry?"
+        confirmLabel="Remove"
+        onConfirm={() => confirm?.kind === 'delete' && doDelete(confirm.row)}
+        onCancel={() => setConfirm(null)}
+      />
+      <ConfirmDialog
+        open={confirm?.kind === 'createSO'}
+        variant="warning"
+        title="Create service bill"
+        message="Create Service Bill for today's medicine consumption? This will reduce stock from the admission branch warehouse."
+        confirmLabel="Create bill"
+        loading={creatingSalesOrder}
+        onConfirm={() => void doCreateSalesOrder()}
+        onCancel={() => setConfirm(null)}
+      />
     </div>
   )
 }

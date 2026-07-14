@@ -101,8 +101,9 @@ export function ReceptionistShiftProvider({ children }: { children: ReactNode })
       const next = await fetchReceptionistShiftContext()
       setContext(next)
     } catch (err) {
+      // F031: do NOT null the context on a transient failure — otherwise the
+      // "must open shift" gate silently disappears (fail-open). Keep last known.
       console.error('Failed to load receptionist shift context:', err)
-      setContext(null)
     } finally {
       setLoading(false)
     }

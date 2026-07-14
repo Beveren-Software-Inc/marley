@@ -5032,6 +5032,3 @@ const loadDailyVisitSetup = async () => {
     </div>
   )
 }
-
-/** @deprecated Use DischargePatientForm on DischargePatientPage — kept for legacy imports */
-export const DischargeModal = DischargePatientForm

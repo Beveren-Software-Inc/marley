@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
+import { isAdmin } from '../config/permissions'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -58,9 +59,13 @@ export const PsychologistPage = () => {
     guardClinicalCreate,
     activeAdmission,
     activeVisit,
+    userRole,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
+  // F044: Physical Examination, Patient History and Session Schedule are not readable
+  // by the Psychologist role (backend DocPerms → 403). Only expose them to admins.
+  const showRestricted = isAdmin(userRole ?? [])
   const patientFromUrl = searchParams.get('patient') || ''
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -284,7 +289,7 @@ export const PsychologistPage = () => {
   }
 
   // ── Patient History (read-only) ───────────────────────────────────────────────
-  if (screen === 'p-patient-history') {
+  if (screen === 'p-patient-history' && showRestricted) {
     return (
       <div className="flex flex-col">
         {header}
@@ -315,7 +320,7 @@ export const PsychologistPage = () => {
   }
 
   // ── Session Scheduler (under Psychologist → Therapy) ───────────────────────
-  if (screen === 't-session') {
+  if (screen === 't-session' && showRestricted) {
     return (
       <div className="flex flex-col h-full min-w-0">
         {header}
@@ -333,7 +338,7 @@ export const PsychologistPage = () => {
   }
 
   // ── Physical Examination (read-only) ──────────────────────────────────────────
-  if (screen === 'p-physical') {
+  if (screen === 'p-physical' && showRestricted) {
     return (
       <div className="flex flex-col">
         {header}
@@ -388,13 +393,17 @@ export const PsychologistPage = () => {
             <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
 
-          <DashboardCard title="Patient History" listingScreen="p-patient-history" fixedHeight>
-            <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+          {showRestricted && (
+            <DashboardCard title="Patient History" listingScreen="p-patient-history" fixedHeight>
+              <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
+          )}
 
-          <DashboardCard title="Physical Examination" listingScreen="p-physical" fixedHeight filterable={false}>
-            <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+          {showRestricted && (
+            <DashboardCard title="Physical Examination" listingScreen="p-physical" fixedHeight filterable={false}>
+              <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
+          )}
 
           <DashboardCard title="Medical History / Allergies" listingScreen="p-mh" fixedHeight filterable={false}>
             {selectedPatient ? (

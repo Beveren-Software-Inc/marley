@@ -58,4 +58,13 @@ class ServiceRequestController(Document):
 
 @frappe.whitelist()
 def set_request_status(doctype, request, status):
+	# Guard this generic status setter: only the request doctypes, an existing
+	# record, and a valid Request-Status Code Value may be written.
+	allowed_doctypes = {"Service Request", "Medication Request"}
+	if doctype not in allowed_doctypes:
+		frappe.throw(frappe._("Cannot set request status on {0}").format(doctype))
+	if not frappe.db.exists(doctype, request):
+		frappe.throw(frappe._("{0} {1} not found").format(doctype, request))
+	if not frappe.db.exists("Code Value", status):
+		frappe.throw(frappe._("Invalid request status: {0}").format(status))
 	frappe.db.set_value(doctype, request, "status", status)

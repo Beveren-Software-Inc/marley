@@ -5,7 +5,7 @@ import json
 import frappe
 from frappe import _
 from frappe.model.rename_doc import rename_doc
-from frappe.utils import flt
+from frappe.utils import add_days, flt, getdate
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
@@ -102,6 +102,70 @@ def create_iop_day(data):
 			title=_("Duplicate Date"),
 		)
 	return {"name": doc.name, "posting_date": doc.posting_date}
+
+
+@frappe.whitelist()
+def bulk_create_iop_days(data):
+	"""F022: create an IOP Day (one per date) for every matching date in a range.
+
+	data = {start_date, end_date, weekdays:[0..6 Mon..Sun] (empty = every day),
+	        sessions:[{session_type, from_time, to_time}], company?, cost_center?}.
+	Dates that already have an IOP Day are skipped and reported."""
+	if isinstance(data, str):
+		data = json.loads(data)
+	if isinstance(data, dict) and "data" in data:
+		data = data["data"]
+
+	start = getdate(data.get("start_date"))
+	end = getdate(data.get("end_date"))
+	if not start or not end:
+		frappe.throw(_("Start and end date are required"), title=_("Validation Error"))
+	if end < start:
+		frappe.throw(_("End date must be on or after the start date"), title=_("Validation Error"))
+
+	weekdays = data.get("weekdays")
+	weekday_set = {int(w) for w in weekdays} if weekdays else None
+
+	sessions = data.get("sessions") or []
+	if not sessions:
+		frappe.throw(_("Select at least one session type"), title=_("Validation Error"))
+
+	company = data.get("company")
+	if not company:
+		first_company = frappe.get_all("Company", fields=["name"], limit=1, order_by="creation asc")
+		company = first_company[0].name if first_company else None
+	cost_center = data.get("cost_center") or None
+
+	created, skipped_existing = [], []
+	day = start
+	while day <= end:
+		if weekday_set is None or day.weekday() in weekday_set:
+			date_str = str(day)
+			if frappe.db.exists("IOP Day", {"posting_date": date_str}):
+				skipped_existing.append(date_str)
+			else:
+				doc = frappe.new_doc("IOP Day")
+				doc.posting_date = date_str
+				doc.company = company
+				doc.cost_center = cost_center
+				for s in sessions:
+					doc.append(
+						"sessions",
+						{
+							"session_type": s.get("session_type"),
+							"from_time": s.get("from_time"),
+							"to_time": s.get("to_time"),
+						},
+					)
+				try:
+					doc.insert(ignore_permissions=True)
+					created.append(date_str)
+				except frappe.DuplicateEntryError:
+					skipped_existing.append(date_str)
+		day = getdate(add_days(day, 1))
+
+	frappe.db.commit()
+	return {"created": created, "skipped_existing": skipped_existing, "count": len(created)}
 
 
 def _iop_day_session_total(sessions):

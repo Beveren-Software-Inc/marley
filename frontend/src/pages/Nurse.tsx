@@ -15,7 +15,6 @@ import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignMo
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
-import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -36,7 +35,6 @@ import { CreateWarningMessageModal } from '../components/warnings/CreateWarningM
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 import { LabTestHistory } from '../components/labTests/LabTestHistory'
-import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
@@ -50,6 +48,7 @@ import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
+import { BulkScheduleIOPModal } from '../components/iop/BulkScheduleIOPModal'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
 import { AppointmentList } from '../components/appointments/AppointmentList'
@@ -134,7 +133,6 @@ export const NursePage = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
     const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
-  const [showServiceModal, setShowServiceModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
@@ -525,30 +523,10 @@ export const NursePage = () => {
           </div>
         </div>
         {showBulkScheduleModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Bulk Schedule</h2>
-                <button
-                  onClick={() => setShowBulkScheduleModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <p className="text-sm text-slate-500">Bulk Schedule modal coming soon.</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setShowBulkScheduleModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+          <BulkScheduleIOPModal
+            onClose={() => setShowBulkScheduleModal(false)}
+            onSuccess={() => setShowBulkScheduleModal(false)}
+          />
         )}
       </div>
     )
@@ -569,7 +547,13 @@ export const NursePage = () => {
                 </p>
               </div>
             </div>
-            <NursingTaskList myTasks />
+            <NurseTaskList
+              myTasks
+              patient={selectedPatient}
+              refreshKey={nurseTaskRefreshKey}
+              allowStatusChange
+              onRefresh={() => setNurseTaskRefreshKey((k) => k + 1)}
+            />
           </section>
         </div>
       </div>
@@ -1793,17 +1777,6 @@ export const NursePage = () => {
           }}
           initialPatient={selectedPatient}
           templatesNurseOnly
-        />
-      )}
-
-      {showServiceModal && (
-        <CreateDoctorServiceModal
-          onClose={() => setShowServiceModal(false)}
-          onSuccess={() => {
-            setShowServiceModal(false)
-            // TODO: Refresh service details table when backend is wired
-          }}
-          patient={selectedPatient}
         />
       )}
 

@@ -88,23 +88,22 @@ class Discharge(Document):
 			self.discharge_medic_stopped_reason = get_discharge_stopped_medication_reasons_for_admission(
 				self.admission
 			)
-	# def validate(self):
-	# 	# Validate that admission exists and is in correct status
-	# 	if self.admission:
-	# 		admission = frappe.get_doc("Inpatient Admission", self.admission)
-	# 		if admission.status not in ["Admitted", "Discharge Scheduled"]:
-	# 			frappe.throw(_("Cannot create Discharge for Inpatient Admission with status: {0}").format(admission.status))
-			
-	# 		# Check if Discharge already exists for this admission
-	# 		existing_discharge = frappe.db.exists("Discharge", {
-	# 			"admission": self.admission,
-	# 			"name": ["!=", self.name],
-	# 			"docstatus": ["!=", 2]  # Not cancelled
-	# 		})
-	# 		if existing_discharge:
-	# 			frappe.throw(_("Discharge already exists for this Inpatient Admission: {0}").format(
-	# 				frappe.get_desk_link("Discharge", existing_discharge)
-	# 			))
+			# Block a second (non-cancelled) Discharge for the same admission.
+			existing_discharge = frappe.db.exists(
+				"Discharge",
+				{
+					"admission": self.admission,
+					"name": ["!=", self.name or ""],
+					"docstatus": ["!=", 2],  # not cancelled
+				},
+			)
+			if existing_discharge:
+				frappe.throw(
+					_("A Discharge already exists for this Inpatient Admission: {0}").format(
+						frappe.get_desk_link("Discharge", existing_discharge)
+					),
+					title=_("Duplicate Discharge"),
+				)
 
 	def on_submit(self):
 		"""Update Inpatient Admission status to Discharged when Discharge is submitted"""

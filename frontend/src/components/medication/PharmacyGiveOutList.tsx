@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreHorizontal, XCircle } from 'lucide-react'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import {
   cancelNursingPharmacyGiveOut,
   fetchNursingPharmacyGiveOuts,
@@ -141,6 +142,7 @@ export function PharmacyGiveOutList({
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [cancellingName, setCancellingName] = useState<string | null>(null)
+  const [confirmRow, setConfirmRow] = useState<PharmacyGiveOutRow | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -165,12 +167,13 @@ export function PharmacyGiveOutList({
     void load()
   }, [load, refreshKey])
 
-  const handleCancel = async (row: PharmacyGiveOutRow) => {
+  const handleCancel = (row: PharmacyGiveOutRow) => {
     if (isPharmacyGiveOutInvoiced(row)) return
-    if (!window.confirm('Cancel this pharmacy give-out record? The linked sales order will also be cancelled.')) {
-      return
-    }
+    setConfirmRow(row)
+  }
 
+  const doCancel = async (row: PharmacyGiveOutRow) => {
+    setConfirmRow(null)
     setCancellingName(row.name)
     try {
       await cancelNursingPharmacyGiveOut(row.name)
@@ -353,6 +356,17 @@ export function PharmacyGiveOutList({
         </table>
       </div>
       {slideOver}
+      <ConfirmDialog
+        open={!!confirmRow}
+        variant="danger"
+        title="Cancel pharmacy give-out"
+        message="Cancel this pharmacy give-out record? The linked sales order will also be cancelled."
+        confirmLabel="Cancel give-out"
+        cancelLabel="Keep"
+        loading={!!confirmRow && cancellingName === confirmRow.name}
+        onConfirm={() => confirmRow && void doCancel(confirmRow)}
+        onCancel={() => setConfirmRow(null)}
+      />
     </>
   )
 }

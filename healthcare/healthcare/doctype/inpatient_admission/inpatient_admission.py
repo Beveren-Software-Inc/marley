@@ -196,23 +196,25 @@ class InpatientAdmission(Document):
 			)
 
 	def validate_already_scheduled_or_admitted(self):
-		pass
-		#Uncomment when done
-		# query = """
-		# 	select name, status
-		# 	from `tabInpatient Admission`
-		# 	where (status = 'Admitted' or status = 'Admission Scheduled')
-		# 	and name != %(name)s and patient = %(patient)s
-		# 	"""
-
-		# ip_record = frappe.db.sql(query, {"name": self.name, "patient": self.patient}, as_dict=1)
-
-		# if ip_record:
-		# 	msg = _(
-		# 		("Already {0} Patient {1} with Inpatient Admission ").format(ip_record[0].status, self.patient)
-		# 		+ """ <b><a href="/app/Form/Inpatient Admission/{0}">{0}</a></b>""".format(ip_record[0].name)
-		# 	)
-		# 	frappe.throw(msg)
+		existing = frappe.get_all(
+			"Inpatient Admission",
+			filters={
+				"patient": self.patient,
+				"status": ["in", ["Admitted", "Admission Scheduled"]],
+				"name": ["!=", self.name or ""],
+			},
+			fields=["name", "status"],
+			limit=1,
+		)
+		if existing:
+			frappe.throw(
+				_("Patient {0} already has an active Inpatient Admission ({1}): {2}").format(
+					frappe.bold(self.patient),
+					existing[0].status,
+					frappe.get_desk_link("Inpatient Admission", existing[0].name),
+				),
+				title=_("Duplicate Admission"),
+			)
 
 	@frappe.whitelist()
 	def admit(self, service_unit=None, check_in=None, expected_discharge=None, hospital_bed=None):
@@ -816,8 +818,14 @@ def set_ip_order_cancelled(inpatient_record, reason, encounter=None):
 	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_record)
 	if inpatient_record.status == "Admission Scheduled":
 		inpatient_record.status = "Cancelled"
-		inpatient_record.reason_for_cancellation = reason
 		inpatient_record.save(ignore_permissions=True)
+		# F028: there is no reason_for_cancellation field on the doctype, so the reason
+		# was previously written to a virtual attribute and silently dropped. Persist it
+		# as a timeline comment instead (audited, visible on the record).
+		if reason:
+			inpatient_record.add_comment(
+				"Comment", frappe._("Admission cancelled. Reason: {0}").format(reason)
+			)
 		encounter_name = encounter if encounter else inpatient_record.admission_encounter
 		if encounter_name:
 			frappe.db.set_value(

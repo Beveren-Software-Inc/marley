@@ -220,6 +220,10 @@ const therapyScreens = [
   { id: 't-session', title: 'Session Scheduler' },
 ]
 
+const nutritionistScreens = [
+  { id: 'nut-notes', title: 'Nutritionist Notes' },
+]
+
 const psychologistScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Psychology',
@@ -240,10 +244,6 @@ const therapyScreenGroups: ScreenGroup[] = [
     groupTitle: 'Occupational Therapist',
     screens: therapyScreens,
   },
-]
-
-const nutritionistScreens = [
-  { id: 'nut-notes', title: 'Nutritionist Notes' },
 ]
 
 const nutritionistScreenGroups: ScreenGroup[] = [
@@ -666,7 +666,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           {children}
         </div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">
-          © 2025 Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
+          © {new Date().getFullYear()} Powered by <span className="font-semibold ml-1">Beveren Software Inc.</span>
         </footer>
       </main>
     </div>

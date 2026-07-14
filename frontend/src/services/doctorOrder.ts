@@ -1,3 +1,6 @@
+/** Doctor Order lifecycle — mirrors the `doctor_order` doctype Select options. */
+export type DoctorOrderStatus = 'Pending' | 'Finished' | 'Canceled'
+
 export interface DoctorOrderRow {
   name: string
   trans_no: string | null
@@ -14,7 +17,7 @@ export interface DoctorOrderRow {
   nurse_name: string | null
   nurse_entry_date: string | null
   nurses_remarks: string | null
-  status: string | null
+  status: DoctorOrderStatus | '' | null
   request: string | null
   department: string | null
   creation: string
