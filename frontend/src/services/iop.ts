@@ -185,9 +185,10 @@ export async function fetchCompanies(): Promise<{ name: string }[]> {
 }
 
 export async function fetchCostCenters(): Promise<{ name: string }[]> {
-  const res = await fetch('/api/resource/Cost%20Center?fields=["name"]&limit_page_length=200')
+  // F047: use the whitelisted getter (Reception cannot read the Cost Center doctype directly → 403).
+  const res = await fetch('/api/method/healthcare.api.common.get_cost_centers')
   const data = await res.json()
-  return Array.isArray(data?.data) ? data.data : []
+  return Array.isArray(data?.message) ? data.message : []
 }
 
 export async function fetchIOPHealthcareServiceTemplates(

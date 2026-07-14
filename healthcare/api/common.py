@@ -1922,6 +1922,24 @@ def get_cost_centers(search=None, company=None):
 	return [{"name": c.name, "label": c.name} for c in cost_centers]
 
 
+@frappe.whitelist()
+def get_payment_modes(search=None):
+	"""F047: whitelisted list of Modes of Payment so portal roles (e.g. Reception)
+	that cannot read the Mode of Payment doctype directly can still populate the
+	billing payment-mode dropdown without a 403."""
+	filters = {}
+	if search:
+		filters["name"] = ["like", f"%{search}%"]
+	modes = frappe.get_all(
+		"Mode of Payment",
+		filters=filters or None,
+		fields=["name"],
+		order_by="name asc",
+		limit=50,
+	)
+	return [{"name": m.name} for m in modes]
+
+
 # Branches offered in the portal branch/cost-center filter, as (cost center name, label).
 # Order here = order shown in the dropdown. Only these branches are selectable; every
 # other cost center is hidden from the branch filter. Edit this list to change which

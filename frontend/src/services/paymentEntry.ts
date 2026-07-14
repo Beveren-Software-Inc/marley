@@ -152,8 +152,9 @@ export async function fetchSalesInvoiceSummary(invoiceName: string): Promise<Sal
 }
 
 export async function fetchModeOfPayments(): Promise<string[]> {
+  // F047: use the whitelisted getter (Reception cannot read the Mode of Payment doctype directly → 403).
   const res = await fetch(
-    `/api/method/frappe.client.get_list?doctype=Mode+of+Payment&fields=["name"]&limit=50`,
+    `/api/method/healthcare.api.common.get_payment_modes`,
     { credentials: 'include' }
   )
   const data = await res.json()

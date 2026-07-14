@@ -231,9 +231,10 @@ export async function sendFollowUpRemindersSelected(
 }
 
 export async function getCostCenters(): Promise<{ name: string; display?: string }[]> {
-  const res = await fetch('/api/resource/Cost%20Center?fields=["name"]&limit_page_length=200')
+  // F047: use the whitelisted getter (Reception cannot read the Cost Center doctype directly → 403).
+  const res = await fetch('/api/method/healthcare.api.common.get_cost_centers')
   const data = await res.json()
-  if (data.data && Array.isArray(data.data)) return data.data
+  if (data.message && Array.isArray(data.message)) return data.message
   return []
 }
 
