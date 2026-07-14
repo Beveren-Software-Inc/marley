@@ -12,7 +12,9 @@
   "column_break_clyv",
   "api_key",
   "section_break_eoog",
-  "branch_wise_contact"
+  "branch_wise_contact",
+  "section_break_eekg",
+  "template_mapping"
  ],
  "fields": [
   {
@@ -53,12 +55,22 @@
    "fieldtype": "Table",
    "label": "Branch Wise Contact",
    "options": "DigiConnect Branch"
+  },
+  {
+   "fieldname": "section_break_eekg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "template_mapping",
+   "fieldtype": "Table",
+   "label": "Template Mapping",
+   "options": "DigiConnect Template Mapping"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-07-14 12:02:00.013828",
+ "modified": "2026-07-15 01:10:43.092130",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Digital Connect Whatsap Settings",

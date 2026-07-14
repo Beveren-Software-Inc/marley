@@ -17,7 +17,7 @@ import {
   normalizeMedicationOrderForSave,
 } from '../../utils/prescriptionType'
 import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
-import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, PenLine } from 'lucide-react'
+import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
@@ -1487,6 +1487,9 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const [activeType, setActiveType] = useState('All')
   const [showTypeFilters, setShowTypeFilters] = useState(true)
   const [showCreatePrescriptionModal, setShowCreatePrescriptionModal] = useState(false)
+  const [showEditPrescriptionModal, setShowEditPrescriptionModal] = useState(false)
+  const [headerMenuOpen, setHeaderMenuOpen] = useState(false)
+  const headerMenuRef = useRef<HTMLButtonElement>(null)
 
   const [editingOrder, setEditingOrder] = useState<any>(null)
   const [showAddModal, setShowAddModal] = useState(false)
@@ -1633,15 +1636,61 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           <Plus className="h-4 w-4" />
         </button>
       )}
-      {!readOnly && hasPrescription && rx && prescriptionNeedsSignature(rx) && (
-        <button
-          type="button"
-          onClick={() => setShowSignModal(true)}
-          className="inline-flex items-center justify-center rounded-md border border-amber-300 bg-amber-50 text-amber-800 p-1.5 hover:bg-amber-100 transition-colors"
-          title="Sign prescription"
-        >
-          <PenLine className="h-4 w-4" />
-        </button>
+      {!readOnly && hasPrescription && (
+        <div className="relative inline-block">
+          <button
+            ref={headerMenuRef}
+            type="button"
+            onClick={() => setHeaderMenuOpen((o) => !o)}
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-50 transition-colors"
+            title="Actions"
+            aria-label="Prescription actions"
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+          <PortalActionsMenu
+            open={headerMenuOpen}
+            onClose={() => setHeaderMenuOpen(false)}
+            triggerRef={headerMenuRef}
+            placement="below-right"
+            minWidth={200}
+          >
+            {rx && prescriptionNeedsSignature(rx) && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHeaderMenuOpen(false)
+                    guardClinicalEdit(() => setShowEditPrescriptionModal(true))
+                  }}
+                  className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  Edit Prescription
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHeaderMenuOpen(false)
+                    setShowSignModal(true)
+                  }}
+                  className="block w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50"
+                >
+                  Sign Prescription
+                </button>
+              </>
+            )}
+            <button
+              type="button"
+              onClick={() => {
+                setHeaderMenuOpen(false)
+                guardClinicalCreate(() => setShowAddModal(true))
+              }}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Add Medicine
+            </button>
+          </PortalActionsMenu>
+        </div>
       )}
       <button
         type="button"
@@ -1873,6 +1922,30 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           onClose={() => setShowSignModal(false)}
           onSigned={() => {
             setShowSignModal(false)
+            load()
+          }}
+        />
+      )}
+
+      {showEditPrescriptionModal && prescription && selectedPatient && (
+        <CreatePrescriptionModal
+          editMode
+          prescriptionData={prescription}
+          initialPatient={prescription.patient || selectedPatient}
+          initialCareContext={
+            prescription.patient_encounter || prescription.after_discharge
+              ? 'Patient Visit'
+              : prescription.care_context === 'Inpatient Admission'
+                ? 'Inpatient Admission'
+                : mode === 'IP'
+                  ? 'Inpatient Admission'
+                  : 'Patient Visit'
+          }
+          initialPatientEncounter={prescription.patient_encounter || activeVisit || undefined}
+          initialInpatientRecord={prescription.inpatient_record || activeAdmission || undefined}
+          onClose={() => setShowEditPrescriptionModal(false)}
+          onSuccess={() => {
+            setShowEditPrescriptionModal(false)
             load()
           }}
         />

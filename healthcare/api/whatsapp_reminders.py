@@ -39,6 +39,7 @@ def send_appointment_whatsapp_reminders(days_before: int = 1):
 			"appointment_date",
 			"appointment_time",
 			"practitioner_name",
+			"company",
 			"cost_center",
 			"temporary_mobile_no",
 			"whatsapp_template",
@@ -132,13 +133,20 @@ def _is_whatsapp_enabled() -> bool:
 
 
 def _resolve_appointment_mobile(appointment: dict) -> str:
-	temporary = (appointment.get("temporary_mobile_no") or "").strip()
-	if temporary:
-		return temporary
+	"""Patient mobile first, then temporary_mobile_no; normalize with company country ISD."""
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_normalize_whatsapp_phone,
+	)
+
+	raw = ""
 	patient = appointment.get("patient")
-	if not patient:
+	if patient:
+		raw = _resolve_patient_mobile(patient)
+	if not raw:
+		raw = (appointment.get("temporary_mobile_no") or "").strip()
+	if not raw:
 		return ""
-	return _resolve_patient_mobile(patient)
+	return _normalize_whatsapp_phone(raw, company=appointment.get("company"))
 
 
 def _resolve_patient_mobile(patient: str) -> str:

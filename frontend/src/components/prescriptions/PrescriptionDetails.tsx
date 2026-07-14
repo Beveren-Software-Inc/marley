@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react'
-import { PenLine, Copy } from 'lucide-react'
 import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction, type MedicationOrderRow } from '../../services/prescriptions'
 import { useAuth } from '../../providers/AuthProvider'
 import { toast } from '../../hooks/useToast'
@@ -296,6 +295,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [activeType, setActiveType]     = useState('All')
   const [showSignModal, setShowSignModal] = useState(false)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
+  const [showEditModal, setShowEditModal] = useState(false)
 
   // Per-drug Hold / Continue / Discontinue (doctor only)
   const { user } = useAuth()
@@ -405,16 +405,6 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           {prescription.status && <StatusPill status={prescription.status} />}
-          {prescriptionNeedsSignature(prescription) && (
-            <button
-              type="button"
-              onClick={() => setShowSignModal(true)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-amber-300 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100 transition-colors"
-            >
-              <PenLine className="h-4 w-4" />
-              Sign
-            </button>
-          )}
           {!prescriptionNeedsSignature(prescription) && prescriptionIsSigned(prescription) && prescription.doctors_signature && (
             <img
               src={attachFileDisplayUrl(prescription.doctors_signature)}
@@ -433,6 +423,29 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           newSystem={prescription.new_system}
           onClose={() => setShowSignModal(false)}
           onSigned={() => {
+            load()
+            onUpdate?.()
+          }}
+        />
+      )}
+
+      {showEditModal && (
+        <CreatePrescriptionModal
+          editMode
+          prescriptionData={prescription}
+          initialPatient={prescription.patient}
+          initialCareContext={
+            prescription.patient_encounter || prescription.after_discharge
+              ? 'Patient Visit'
+              : prescription.care_context === 'Inpatient Admission'
+                ? 'Inpatient Admission'
+                : 'Patient Visit'
+          }
+          initialPatientEncounter={prescription.patient_encounter}
+          initialInpatientRecord={prescription.inpatient_record}
+          onClose={() => setShowEditModal(false)}
+          onSuccess={() => {
+            setShowEditModal(false)
             load()
             onUpdate?.()
           }}
@@ -630,11 +643,29 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
       <div className="border-t border-slate-200 pt-4">
         <SectionTitle title="Actions" />
         <div className="flex flex-wrap gap-2">
+          {prescriptionNeedsSignature(prescription) && (
+            <>
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+              >
+                Edit Prescription
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowSignModal(true)}
+                className="px-4 py-2 text-sm font-medium text-amber-800 bg-amber-50 border border-amber-300 rounded-md hover:bg-amber-100"
+              >
+                Sign Prescription
+              </button>
+            </>
+          )}
           <button
             onClick={() => setShowDuplicateModal(true)}
-            className="px-4 py-2 text-sm font-medium text-primary bg-white border border-primary rounded-md hover:bg-primary/5 flex items-center gap-1.5"
+            className="px-4 py-2 text-sm font-medium text-primary bg-white border border-primary rounded-md hover:bg-primary/5"
           >
-            <Copy className="w-4 h-4" /> Duplicate
+            Duplicate
           </button>
           {prescription.status !== 'Completed' && (
             <button

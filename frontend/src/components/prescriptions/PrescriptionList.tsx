@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { PenLine, Copy } from 'lucide-react'
-import { fetchPrescriptions, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, type MedicationOrderRow, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { fetchPrescriptions, fetchPrescription, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, type MedicationOrderRow, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
@@ -102,6 +101,8 @@ export const PrescriptionList = ({
   const [detailName, setDetailName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [signTarget, setSignTarget] = useState<Prescription | null>(null)
+  const [editTarget, setEditTarget] = useState<Prescription | null>(null)
+  const [editLoadingName, setEditLoadingName] = useState<string | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -285,6 +286,22 @@ export const PrescriptionList = ({
   const handleOpenInForm = (name: string) => {
     window.open(`/app/patient-medication-order/${encodeURIComponent(name)}`, '_blank')
     setOpenActionRow(null)
+  }
+
+  const openEditPrescription = async (row: Prescription) => {
+    setEditLoadingName(row.name)
+    try {
+      const full = await fetchPrescription(row.name)
+      if (!full) {
+        toast.error('Prescription not found')
+        return
+      }
+      setEditTarget(full)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load prescription')
+    } finally {
+      setEditLoadingName(null)
+    }
   }
 
   const handleCreateSalesOrder = async (row: Prescription) => {
@@ -628,17 +645,6 @@ export const PrescriptionList = ({
               </td>
               <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                 <div className="flex items-center gap-1.5">
-                  {prescriptionNeedsSignature(row) && (
-                    <button
-                      type="button"
-                      onClick={() => guardClinicalEdit(() => setSignTarget(row))}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100"
-                      title="Sign prescription"
-                      aria-label="Sign prescription"
-                    >
-                      <PenLine className="w-4 h-4" />
-                    </button>
-                  )}
                   <div
                     className="relative inline-block"
                     ref={openActionRow === rowKey ? menuRef : undefined}
@@ -664,38 +670,49 @@ export const PrescriptionList = ({
                       <button
                         type="button"
                         onClick={() => { setOpenActionRow(null); setDetailName(row.name) }}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                       >
                         View Details
                       </button>
+                      {prescriptionNeedsSignature(row) && (
+                        <>
+                          <button
+                            type="button"
+                            disabled={editLoadingName === row.name}
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              guardClinicalEdit(() => void openEditPrescription(row))
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          >
+                            {editLoadingName === row.name ? 'Loading…' : 'Edit Prescription'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              guardClinicalEdit(() => setSignTarget(row))
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50"
+                          >
+                            Sign Prescription
+                          </button>
+                        </>
+                      )}
                       <button
                         type="button"
                         onClick={() => {
                           setOpenActionRow(null)
                           setDuplicateTarget(row)
                         }}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5"
+                        className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        <Copy className="w-4 h-4" />
                         Duplicate
                       </button>
-                      {prescriptionNeedsSignature(row) && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setOpenActionRow(null)
-                            guardClinicalEdit(() => setSignTarget(row))
-                          }}
-                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-amber-800 hover:bg-amber-50"
-                        >
-                          <PenLine className="w-4 h-4" />
-                          Sign Prescription
-                        </button>
-                      )}
                       <button
                         type="button"
                         onClick={() => handleOpenInForm(row.name)}
-                        className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                        className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                       >
                         Open in Form
                       </button>
@@ -703,7 +720,7 @@ export const PrescriptionList = ({
                         <button
                           type="button"
                           onClick={() => handleEditSalesOrder(row)}
-                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                         >
                           Edit Sales Order
                         </button>
@@ -712,7 +729,7 @@ export const PrescriptionList = ({
                           type="button"
                           disabled={actionLoading === row.name}
                           onClick={() => handleCreateSalesOrder(row)}
-                          className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                          className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
                         >
                           {actionLoading === row.name ? 'Creating Service Bill…' : 'Create Service Bill'}
                         </button>
@@ -753,6 +770,29 @@ export const PrescriptionList = ({
           onClose={() => setSignTarget(null)}
           onSigned={() => {
             setSignTarget(null)
+            load()
+          }}
+        />
+      )}
+
+      {editTarget && (
+        <CreatePrescriptionModal
+          editMode
+          prescriptionData={editTarget}
+          initialPatient={editTarget.patient || effectivePatient}
+          initialCareContext={
+            editTarget.patient_encounter || editTarget.after_discharge
+              ? 'Patient Visit'
+              : editTarget.care_context === 'Inpatient Admission'
+                ? 'Inpatient Admission'
+                : careContext
+          }
+          initialPatientEncounter={editTarget.patient_encounter || activeVisit}
+          initialInpatientRecord={editTarget.inpatient_record || activeAdmission}
+          onClose={() => setEditTarget(null)}
+          onSuccess={() => {
+            setEditTarget(null)
+            toast.success('Prescription updated')
             load()
           }}
         />

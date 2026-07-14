@@ -21,6 +21,34 @@ class DigitalConnectWhatsapSettings(Document):
 	pass
 
 
+def _parse_template_parameters(template_parameters) -> List[str]:
+	"""Parse template parameters from a JSON list or comma-separated string.
+
+	JSON list is preferred so individual values may contain commas
+	(e.g. branch contacts like "17211474 , 35372924").
+	"""
+	if template_parameters is None or template_parameters == "":
+		return []
+
+	if isinstance(template_parameters, (list, tuple)):
+		return [str(p).strip() for p in template_parameters]
+
+	if isinstance(template_parameters, str):
+		text = template_parameters.strip()
+		if not text:
+			return []
+		if text.startswith("["):
+			try:
+				parsed = frappe.parse_json(text)
+				if isinstance(parsed, list):
+					return [str(p).strip() for p in parsed]
+			except Exception:
+				pass
+		return [p.strip() for p in text.split(",")]
+
+	return [str(template_parameters).strip()]
+
+
 def _normalize_delivery_status(status: str | None) -> str:
 	value = (status or "").strip().lower()
 	if not value:
@@ -299,7 +327,7 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 		body: Text body to send (for plain text messages)
 		preview_url: 1/0 flag whether to enable URL preview (for plain text)
 		template_name: Name of the template document to use (for template messages)
-		template_parameters: Comma-separated values for template variables
+		template_parameters: Template variable values as a JSON list, or comma-separated string
 	"""
 	settings = frappe.get_single("Digital Connect Whatsap Settings")
 
@@ -363,10 +391,8 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 		
 		total_var_count = header_var_count + body_var_count
 		
-		# Parse template parameters
-		param_values = []
-		if template_parameters:
-			param_values = [p.strip() for p in template_parameters.split(",") if p.strip()]
+		# Parse template parameters — prefer JSON list so values may contain commas
+		param_values = _parse_template_parameters(template_parameters)
 		
 		# Validate parameter count
 		if len(param_values) != total_var_count:
@@ -453,8 +479,12 @@ def send_test_message(phone_number, body=None, preview_url=1, template_name=None
 	chat_doc.content_type = "text"
 	chat_doc.message_type = "Template" if template_name else "Manual"
 	chat_doc.message = body or ""
-	if template_parameters:
-		chat_doc.template_parameters = template_parameters
+	if template_parameters is not None and template_parameters != "":
+		# Field is Data/Text — never assign a Python list
+		if isinstance(template_parameters, (list, tuple)):
+			chat_doc.template_parameters = json.dumps([str(p) for p in template_parameters])
+		else:
+			chat_doc.template_parameters = str(template_parameters)
 	chat_doc.insert(ignore_permissions=True)
 	# frappe.throw(str(json.dumps(headers)))
 	try:
