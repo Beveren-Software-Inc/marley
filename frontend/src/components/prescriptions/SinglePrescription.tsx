@@ -16,7 +16,7 @@ import {
   isLongActingPrescriptionType,
   normalizeMedicationOrderForSave,
 } from '../../utils/prescriptionType'
-import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
+import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
@@ -716,7 +716,7 @@ const EditMedicationEntryModal = ({
 }
 
 // ─── Add medication entry modal ──────────────────────────────────────────────
-const AddMedicationEntryModal = ({
+export const AddMedicationEntryModal = ({
   prescriptionName,
   patient,
   patientEncounter,
@@ -735,7 +735,7 @@ const AddMedicationEntryModal = ({
     drug: '',
     drug_name: '',
     dosage: '',
-    uom: '',
+    uom: 'UNIT',
     dosage_form: '',
     no_of_days: '',
     instructions: '',
@@ -768,7 +768,7 @@ const AddMedicationEntryModal = ({
   const [addRouteQuery, setAddRouteQuery] = useState('')
   const [addRouteOptions, setAddRouteOptions] = useState<LinkFieldOption[]>([])
   const [addRouteLoading, setAddRouteLoading] = useState(false)
-  const [addUomQuery, setAddUomQuery] = useState('')
+  const [addUomQuery, setAddUomQuery] = useState('UNIT')
   const [addUomOptions, setAddUomOptions] = useState<LinkFieldOption[]>([])
   const [addUomLoading, setAddUomLoading] = useState(false)
   const [addDosageForms, setAddDosageForms] = useState<LinkFieldOption[]>([])
@@ -950,7 +950,8 @@ const AddMedicationEntryModal = ({
               onOpen={() => loadDrugOptions(drugQuery || '')}
               onSelect={async (opt) => {
                 const route = (await resolvePrescriptionDrugRoute(opt)).trim()
-                const stockUom = (opt.stock_uom || '').trim()
+                // Match create prescription: UOM defaults to UNIT
+                const stockUom = 'UNIT'
                 setForm((f) => ({
                   ...f,
                   drug: opt.name,
@@ -1589,6 +1590,18 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const contextLabel = mode === 'OP' ? 'Outpatient visit' : 'Inpatient admission'
   const contextId = mode === 'OP' ? activeVisit : activeAdmission
 
+  const isIpPrescription = (rx?: Prescription | null) =>
+    Boolean(rx?.inpatient_record) || rx?.care_context === 'Inpatient Admission' || mode === 'IP'
+
+  const canAddMedicationToPrescription = (rx?: Prescription | null) => {
+    if (!rx || readOnly) return false
+    if (prescriptionNeedsSignature(rx)) return true
+    return prescriptionIsSigned(rx) && isIpPrescription(rx)
+  }
+
+  const showSignedIpAddButton = (rx?: Prescription | null) =>
+    Boolean(rx && !readOnly && prescriptionIsSigned(rx) && isIpPrescription(rx))
+
   const renderHeaderActions = (hasPrescription: boolean, rx?: Prescription | null) => (
     <div className="flex items-center gap-2">
       <button
@@ -1618,7 +1631,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           />
         </svg>
       </button>
-      {!readOnly && (
+      {!readOnly && !showSignedIpAddButton(rx) && (
         <button
           type="button"
           onClick={() =>
@@ -1634,6 +1647,15 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           title={hasPrescription ? 'Add new medicine' : 'Create prescription'}
         >
           <Plus className="h-4 w-4" />
+        </button>
+      )}
+      {showSignedIpAddButton(rx) && (
+        <button
+          type="button"
+          onClick={() => guardClinicalCreate(() => setShowAddModal(true))}
+          className="inline-flex items-center rounded-md bg-primary px-3 py-1.5 text-sm font-medium text-white hover:bg-primary/90 transition-colors"
+        >
+          Add Medication
         </button>
       )}
       {!readOnly && hasPrescription && (
@@ -1679,16 +1701,18 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                 </button>
               </>
             )}
-            <button
-              type="button"
-              onClick={() => {
-                setHeaderMenuOpen(false)
-                guardClinicalCreate(() => setShowAddModal(true))
-              }}
-              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              Add Medicine
-            </button>
+            {canAddMedicationToPrescription(rx) && (
+              <button
+                type="button"
+                onClick={() => {
+                  setHeaderMenuOpen(false)
+                  guardClinicalCreate(() => setShowAddModal(true))
+                }}
+                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+              >
+                Add Medication
+              </button>
+            )}
           </PortalActionsMenu>
         </div>
       )}
