@@ -1014,10 +1014,64 @@ def reschedule_appointment(
 
 
 @frappe.whitelist()
-def send_appointment_reminder_manual(appointment_name, channel="sms"):
+def get_appointment_whatsapp_preview(appointment_name, template_name=None):
+	"""Return WhatsApp preview data for an appointment (phone, templates, filled message)."""
+	if not appointment_name:
+		frappe.throw(_("Appointment name is required"))
+
+	doc = frappe.get_doc("Patient Appointment", appointment_name)
+	templates = _get_appointment_whatsapp_templates(doc)
+	if not templates:
+		frappe.throw(
+			_(
+				"No WhatsApp template mapped for Patient Appointment. "
+				"Add one under Digital Connect Whatsap Settings → Template Mapping."
+			)
+		)
+
+	selected_name = template_name or (templates[0]["name"] if len(templates) == 1 else None)
+	if selected_name and selected_name not in {t["name"] for t in templates}:
+		frappe.throw(_("Template {0} is not available for this appointment").format(selected_name))
+
+	selected = None
+	preview = None
+	parameters = []
+	if selected_name:
+		selected = next(t for t in templates if t["name"] == selected_name)
+		parameters = _build_appointment_whatsapp_parameters(doc, selected_name)
+		preview = _render_whatsapp_template_preview(selected_name, parameters)
+
+	branch_info = _get_digiconnect_branch_info(doc.get("cost_center"))
+	country, country_isd = _get_company_country_isd(doc.get("company"))
+
+	return {
+		"appointment": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name or doc.get("temporary_patient_name") or doc.patient,
+		"phone_number": _resolve_appointment_mobile_for_reminder(doc) or "",
+		"country": country,
+		"country_isd": country_isd,
+		"templates": templates,
+		"selected_template": selected_name,
+		"parameters": parameters,
+		"preview": preview,
+		"branch": branch_info,
+		"selected": selected,
+	}
+
+
+@frappe.whitelist()
+def send_appointment_reminder_manual(
+	appointment_name,
+	channel="sms",
+	phone_number=None,
+	template_name=None,
+	template_parameters=None,
+):
 	"""Send a reminder for a single appointment via the chosen channel.
 
 	channel: 'email' | 'whatsapp' | 'sms'
+	For WhatsApp, optional phone_number / template_name / template_parameters override defaults.
 	"""
 	if not appointment_name:
 		frappe.throw(_("Appointment name is required"))
@@ -1028,15 +1082,46 @@ def send_appointment_reminder_manual(appointment_name, channel="sms"):
 	if channel not in valid_channels:
 		frappe.throw(_("Invalid channel '{0}'. Must be one of: {1}").format(channel, ", ".join(valid_channels)))
 
-	patient_mobile = _resolve_appointment_mobile_for_reminder(doc)
+	patient_mobile = (phone_number or "").strip() or _resolve_appointment_mobile_for_reminder(doc)
+	if patient_mobile:
+		# Always normalize (handles user-edited local numbers too)
+		patient_mobile = _normalize_whatsapp_phone(patient_mobile, company=doc.get("company"))
 	if channel == "whatsapp":
 		from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
 			send_test_message,
 		)
-		template_name = doc.get("whatsapp_template")
-		
-		if template_name:
-			result = send_test_message(phone_number=patient_mobile, template_name=template_name)
+
+		if not patient_mobile:
+			frappe.throw(_("Patient has no mobile number. Enter a number to send WhatsApp."))
+
+		resolved_template = (template_name or "").strip() or doc.get("whatsapp_template")
+		if not resolved_template:
+			mapped = _get_appointment_whatsapp_templates(doc)
+			if len(mapped) == 1:
+				resolved_template = mapped[0]["name"]
+			elif len(mapped) > 1:
+				frappe.throw(_("Multiple WhatsApp templates found. Please select one."))
+
+		if resolved_template:
+			if template_parameters is None:
+				params_list = _build_appointment_whatsapp_parameters(doc, resolved_template)
+				template_parameters = params_list
+			elif isinstance(template_parameters, str):
+				# Prefer JSON list from UI; fall back to comma-separated for older callers
+				stripped = template_parameters.strip()
+				if stripped.startswith("["):
+					try:
+						parsed = frappe.parse_json(stripped)
+						if isinstance(parsed, list):
+							template_parameters = parsed
+					except Exception:
+						pass
+
+			result = send_test_message(
+				phone_number=patient_mobile,
+				template_name=resolved_template,
+				template_parameters=template_parameters or [],
+			)
 		else:
 			body = _(
 				"Dear {0}, you have an appointment on {1} at {2} with {3}. Please arrive on time."
@@ -1050,28 +1135,42 @@ def send_appointment_reminder_manual(appointment_name, channel="sms"):
 		chat_name = result.get("chat_name") if isinstance(result, dict) else None
 		if chat_name:
 			frappe.db.set_value(
-				"Digital Whatsapp Chat", chat_name,
+				"Digital Whatsapp Chat",
+				chat_name,
 				{"reference_doctype": "Patient Appointment", "reference_name": doc.name},
 				update_modified=True,
 			)
 	elif channel == "sms":
 		if not patient_mobile:
-			frappe.throw(_("Patient has no mobile number"))
+			frappe.throw(_("Patient has no mobile number. Enter a temporary mobile on the appointment or update the patient."))
 		message = frappe.db.get_single_value("Healthcare Settings", "appointment_reminder_msg") or _(
 			"Dear {0}, you have an appointment on {1}. Please arrive on time."
-		).format(doc.patient_name or doc.patient, format_date(doc.appointment_date))
-		send_message(doc, message)
+		).format(
+			doc.patient_name or doc.get("temporary_patient_name") or doc.patient or _("Patient"),
+			format_date(doc.appointment_date),
+		)
+		# Walk-ins have no Patient doc — send SMS directly with resolved mobile
+		if doc.patient:
+			send_message(doc, message)
+		else:
+			context = {"doc": doc, "alert": doc, "comments": None}
+			rendered = frappe.render_template(message, context)
+			try:
+				send_sms([patient_mobile], rendered)
+			except Exception:
+				frappe.msgprint(_("SMS not sent, please check SMS Settings"), alert=True)
+				raise
 	elif channel == "email":
 		patient_email = frappe.db.get_value("Patient", doc.patient, "email") if doc.patient else None
 		if not patient_email:
-			frappe.throw(_("Patient has no email address"))
+			frappe.throw(_("Patient has no email address. Walk-in appointments cannot receive email reminders until a patient file is linked."))
 		frappe.sendmail(
 			recipients=[patient_email],
 			subject=_("Appointment Reminder"),
 			message=_(
 				"Dear {0}, this is a reminder for your appointment on {1} at {2} with {3}."
 			).format(
-				doc.patient_name or doc.patient,
+				doc.patient_name or doc.get("temporary_patient_name") or doc.patient,
 				format_date(doc.appointment_date),
 				doc.appointment_time or "-",
 				doc.practitioner_name or "your doctor",
@@ -1079,6 +1178,245 @@ def send_appointment_reminder_manual(appointment_name, channel="sms"):
 		)
 
 	return {"sent": True, "channel": channel, "appointment": doc.name}
+
+
+def _get_appointment_whatsapp_templates(doc):
+	"""Resolve approved WhatsApp templates for Patient Appointment from settings mapping."""
+	seen = set()
+	out = []
+
+	def add_template(name, purpose=None):
+		if not name or name in seen:
+			return
+		row = frappe.db.get_value(
+			"Digital Whatsapp Template",
+			name,
+			[
+				"name",
+				"template_name",
+				"actual_name",
+				"status",
+				"header_type",
+				"header_text",
+				"body_text",
+				"footer_text",
+				"field_names",
+				"language_code",
+			],
+			as_dict=True,
+		)
+		if not row or row.status != "APPROVED":
+			return
+		seen.add(name)
+		out.append(
+			{
+				"name": row.name,
+				"template_name": row.template_name,
+				"actual_name": row.actual_name,
+				"purpose": purpose or "",
+				"header_type": row.header_type,
+				"header_text": row.header_text or "",
+				"body_text": row.body_text or "",
+				"footer_text": row.footer_text or "",
+				"field_names": row.field_names or "",
+				"language_code": row.language_code or "",
+				"variable_count": _count_template_variables(row.header_text if row.header_type == "TEXT" else "")
+				+ _count_template_variables(row.body_text),
+			}
+		)
+
+	if doc.get("whatsapp_template"):
+		add_template(doc.whatsapp_template, purpose="Appointment Template")
+
+	if frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		settings = frappe.get_single("Digital Connect Whatsap Settings")
+		for row in settings.get("template_mapping") or []:
+			if row.get("reference_document") == "Patient Appointment" and row.get("template"):
+				add_template(row.template, purpose=row.get("purpose") or "")
+
+	if not out:
+		for name in frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={"for_doctype": "Patient Appointment", "status": "APPROVED"},
+			pluck="name",
+		):
+			add_template(name)
+
+	return out
+
+
+def _count_template_variables(text):
+	import re
+
+	if not text:
+		return 0
+	matches = re.findall(r"\{\{(\d+)\}\}", text)
+	if not matches:
+		return 0
+	return max(int(m) for m in matches)
+
+
+def _get_digiconnect_branch_info(cost_center):
+	"""Return branch contacts/prefix from DigiConnect Branch for a cost center."""
+	info = {"branch": cost_center or "", "branch_label": "", "branch_prefix": "", "contacts": ""}
+	if cost_center:
+		info["branch_label"] = (
+			frappe.db.get_value("Cost Center", cost_center, "cost_center_name") or cost_center
+		)
+	if not cost_center or not frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		return info
+
+	settings = frappe.get_single("Digital Connect Whatsap Settings")
+	for row in settings.get("branch_wise_contact") or []:
+		if row.get("branch") == cost_center:
+			info["branch_prefix"] = (row.get("branch_prefix") or "").strip()
+			info["contacts"] = (row.get("contacts") or "").strip()
+			if info["branch_prefix"]:
+				info["branch_label"] = info["branch_prefix"]
+			break
+	return info
+
+
+def _format_appointment_datetime_whatsapp(doc):
+	"""Format like: TUE 07-JUL-2026 at 10:00 AM"""
+	if not doc.appointment_date:
+		return ""
+	d = getdate(doc.appointment_date)
+	date_part = f"{d.strftime('%a').upper()} {d.strftime('%d-%b-%Y').upper()}"
+	time_raw = doc.appointment_time or doc.get("old_time")
+	if not time_raw:
+		return date_part
+	try:
+		t = get_time(time_raw)
+		hour = t.hour
+		minute = t.minute
+		ampm = "PM" if hour >= 12 else "AM"
+		hour12 = hour % 12 or 12
+		return f"{date_part} at {hour12}:{minute:02d} {ampm}"
+	except Exception:
+		return f"{date_part} at {time_raw}"
+
+
+def _build_appointment_whatsapp_param_map(doc):
+	"""Build a lookup of common appointment WhatsApp template parameters."""
+	branch = _get_digiconnect_branch_info(doc.get("cost_center"))
+	patient_name = (
+		doc.patient_name or doc.get("temporary_patient_name") or doc.patient or ""
+	)
+	practitioner = doc.practitioner_name or doc.practitioner or ""
+	datetime_str = _format_appointment_datetime_whatsapp(doc)
+	contacts = branch.get("contacts") or ""
+	branch_label = branch.get("branch_label") or branch.get("branch") or ""
+
+	values = {
+		"patient_name": patient_name,
+		"patient": patient_name,
+		"practitioner_name": practitioner,
+		"practitioner": practitioner,
+		"doctor": practitioner,
+		"doctor_name": practitioner,
+		"branch": branch_label,
+		"cost_center": branch_label,
+		"branch_prefix": branch.get("branch_prefix") or branch_label,
+		"branch_contacts": contacts,
+		"contacts": contacts,
+		"appointment_datetime": datetime_str,
+		"appointment_date_time": datetime_str,
+		"date_time": datetime_str,
+		"datetime": datetime_str,
+		"appointment_date": format_date(doc.appointment_date) if doc.appointment_date else "",
+		"appointment_time": cstr(doc.appointment_time or ""),
+		"company": doc.company or "",
+	}
+	# Also expose raw appointment fields
+	for key in (
+		"name",
+		"department",
+		"service_unit",
+		"appointment_type",
+		"status",
+		"notes",
+	):
+		if key not in values:
+			values[key] = cstr(doc.get(key) or "")
+	return values
+
+
+def _build_appointment_whatsapp_parameters(doc, template_name):
+	"""Build ordered parameter values for a WhatsApp template."""
+	import re
+
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	param_map = _build_appointment_whatsapp_param_map(doc)
+	header_count = (
+		_count_template_variables(template.header_text) if template.header_type == "TEXT" else 0
+	)
+	body_count = _count_template_variables(template.body_text)
+	total = header_count + body_count
+
+	field_names = []
+	if template.field_names:
+		field_names = [x.strip() for x in re.split(r"[,\n;]+", template.field_names) if x.strip()]
+
+	defaults = [
+		param_map["patient_name"],
+		param_map["practitioner_name"],
+		param_map["branch"],
+		param_map["appointment_datetime"],
+		param_map["branch_contacts"],
+	]
+
+	values = []
+	for i in range(total):
+		if i < len(field_names):
+			key = field_names[i]
+			if key in param_map:
+				values.append(cstr(param_map[key]))
+			else:
+				raw = doc.get(key) if hasattr(doc, "get") else None
+				values.append("" if raw is None else cstr(raw))
+		elif i < len(defaults):
+			values.append(cstr(defaults[i]))
+		else:
+			values.append("")
+	return values
+
+
+def _render_whatsapp_template_preview(template_name, parameters):
+	"""Replace {{n}} placeholders with parameter values for UI preview."""
+	import re
+
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	params = list(parameters or [])
+
+	def fill(text, offset=0):
+		if not text:
+			return ""
+
+		def repl(match):
+			idx = int(match.group(1)) - 1
+			abs_idx = offset + idx
+			if 0 <= abs_idx < len(params):
+				return cstr(params[abs_idx])
+			return match.group(0)
+
+		return re.sub(r"\{\{(\d+)\}\}", repl, text)
+
+	header_offset = 0
+	header_text = ""
+	if template.header_type == "TEXT" and template.header_text:
+		header_count = _count_template_variables(template.header_text)
+		header_text = fill(template.header_text, 0)
+		header_offset = header_count
+
+	body_text = fill(template.body_text or "", header_offset)
+	return {
+		"header": header_text,
+		"body": body_text,
+		"footer": template.footer_text or "",
+		"template_name": template.template_name,
+		"actual_name": template.actual_name,
+	}
 
 
 @frappe.whitelist()
@@ -1105,21 +1443,103 @@ def send_appointment_reminders_bulk(appointment_names=None, channel="sms"):
 
 
 def _resolve_appointment_mobile_for_reminder(doc):
-	"""Resolve patient mobile number from appointment."""
-	temporary = (doc.get("temporary_mobile_no") or "").strip()
-	if temporary:
-		return temporary
+	"""Resolve mobile for WhatsApp: Patient first, then appointment temporary number.
+
+	Normalizes local numbers using the company's country ISD code
+	(e.g. Kenya 0740743521 → 254740743521).
+	"""
+	raw = ""
 	if doc.patient:
 		values = frappe.db.get_value(
-			"Patient", doc.patient,
+			"Patient",
+			doc.patient,
 			["mobile", "mobile_no", "mobile_no_1", "phone"],
 			as_dict=True,
 		) or {}
 		for field in ("mobile", "mobile_no", "mobile_no_1", "phone"):
 			number = (values.get(field) or "").strip()
 			if number:
-				return number
-	return ""
+				raw = number
+				break
+
+	if not raw:
+		raw = (doc.get("temporary_mobile_no") or "").strip()
+
+	if not raw:
+		return ""
+
+	return _normalize_whatsapp_phone(raw, company=doc.get("company"))
+
+
+def _get_company_country_isd(company=None):
+	"""Return (country_name, isd_digits) from Company.country via frappe country_info."""
+	country = None
+	if company:
+		country = frappe.db.get_value("Company", company, "country")
+	if not country:
+		country = frappe.db.get_single_value("Global Defaults", "country")
+	if not country:
+		return "", ""
+
+	try:
+		from frappe.geo.country_info import get_country_info
+
+		info = get_country_info(country) or {}
+		isd = (info.get("isd") or "").strip()
+	except Exception:
+		isd = ""
+
+	isd_digits = "".join(ch for ch in isd if ch.isdigit())
+	return country or "", isd_digits
+
+
+def _normalize_whatsapp_phone(phone, company=None):
+	"""Normalize a phone number to international digits without '+' .
+
+	Examples (Kenya / +254):
+	- 0740743521 → 254740743521
+	- 740743521 → 254740743521
+	- +254 740 743 521 → 254740743521
+	- 254740743521 → 254740743521
+	"""
+	if not phone:
+		return ""
+
+	import re
+
+	text = str(phone).strip()
+	# Keep leading + indication briefly, then digits only
+	has_plus = text.startswith("+")
+	digits = re.sub(r"\D", "", text)
+	if not digits:
+		return ""
+
+	# Strip international access prefix 00…
+	while digits.startswith("00") and len(digits) > 2:
+		digits = digits[2:]
+
+	_country, isd = _get_company_country_isd(company)
+	if not isd:
+		# No country context — strip leading zeros only if it looked local (+ not used)
+		if not has_plus and digits.startswith("0"):
+			digits = digits.lstrip("0")
+		return digits
+
+	# Already in international form for this country
+	if digits.startswith(isd):
+		return digits
+
+	# Local numbers often start with trunk prefix 0 (e.g. 07…)
+	if digits.startswith("0"):
+		digits = digits.lstrip("0")
+
+	if not digits:
+		return ""
+
+	if digits.startswith(isd):
+		return digits
+
+	return f"{isd}{digits}"
 
 
 def send_appointment_reminder():

@@ -490,9 +490,81 @@ export async function createEncounterFromAppointment(appointmentId: string): Pro
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
 
+export interface WhatsAppTemplateOption {
+  name: string
+  template_name: string
+  actual_name?: string
+  purpose?: string
+  header_type?: string
+  header_text?: string
+  body_text?: string
+  footer_text?: string
+  field_names?: string
+  language_code?: string
+  variable_count?: number
+}
+
+export interface WhatsAppTemplatePreview {
+  header: string
+  body: string
+  footer: string
+  template_name?: string
+  actual_name?: string
+}
+
+export interface AppointmentWhatsAppPreview {
+  appointment: string
+  patient?: string
+  patient_name?: string
+  phone_number: string
+  country?: string
+  country_isd?: string
+  templates: WhatsAppTemplateOption[]
+  selected_template: string | null
+  parameters: string[]
+  preview: WhatsAppTemplatePreview | null
+  branch?: {
+    branch?: string
+    branch_label?: string
+    branch_prefix?: string
+    contacts?: string
+  }
+  selected?: WhatsAppTemplateOption | null
+}
+
+export async function getAppointmentWhatsAppPreview(
+  appointmentName: string,
+  templateName?: string
+): Promise<AppointmentWhatsAppPreview> {
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_appointment.patient_appointment.get_appointment_whatsapp_preview',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        appointment_name: appointmentName,
+        ...(templateName ? { template_name: templateName } : {}),
+      }),
+    }
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return data?.message as AppointmentWhatsAppPreview
+}
+
 export async function sendAppointmentReminder(
   appointmentName: string,
-  channel: ReminderChannel = 'sms'
+  channel: ReminderChannel = 'sms',
+  options?: {
+    phone_number?: string
+    template_name?: string
+    template_parameters?: string | string[]
+  }
 ): Promise<{ sent: boolean; channel: string; appointment: string }> {
   const csrf = await ensureCSRF()
   const res = await fetch(
@@ -504,7 +576,19 @@ export async function sendAppointmentReminder(
         'Content-Type': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
-      body: JSON.stringify({ appointment_name: appointmentName, channel }),
+      body: JSON.stringify({
+        appointment_name: appointmentName,
+        channel,
+        ...(options?.phone_number ? { phone_number: options.phone_number } : {}),
+        ...(options?.template_name ? { template_name: options.template_name } : {}),
+        ...(options?.template_parameters != null
+          ? {
+              template_parameters: Array.isArray(options.template_parameters)
+                ? JSON.stringify(options.template_parameters)
+                : options.template_parameters,
+            }
+          : {}),
+      }),
     }
   )
   const data = await res.json()
