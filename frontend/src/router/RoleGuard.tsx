@@ -3,7 +3,10 @@ import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../providers/AuthProvider'
 import { canAccessRoute, getDefaultRouteForUser, isAdmin, isCEO } from '../config/permissions'
 
-type Props = { roles?: string[]; children: ReactNode }
+// Access is gated by pathname via canAccessRoute (below), not by a per-route roles
+// prop — a prior `roles` prop was never read, so it was removed to avoid the
+// false impression that routes were role-scoped by it.
+type Props = { children: ReactNode }
 
 export const RoleGuard = ({ children }: Props) => {
   const { isAuthenticated, loading, user } = useAuth()

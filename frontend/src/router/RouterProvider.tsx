@@ -45,7 +45,7 @@ export const RouterProvider = () => {
     {
       path: '/doctor',
       element: (
-        <RoleGuard roles={['doctor']}>
+        <RoleGuard>
           <DoctorPage />
         </RoleGuard>
       )
@@ -53,7 +53,7 @@ export const RouterProvider = () => {
     {
       path: '/nurse',
       element: (
-        <RoleGuard roles={['nurse']}>
+        <RoleGuard>
           <NursePage />
         </RoleGuard>
       )
@@ -61,7 +61,7 @@ export const RouterProvider = () => {
     {
       path: '/patient',
       element: (
-        <RoleGuard roles={['patient']}>
+        <RoleGuard>
           <PatientPage />
         </RoleGuard>
       )
@@ -69,7 +69,7 @@ export const RouterProvider = () => {
     {
       path: '/lab',
       element: (
-        <RoleGuard roles={['lab']}>
+        <RoleGuard>
           <LabPage />
         </RoleGuard>
       )
@@ -85,7 +85,7 @@ export const RouterProvider = () => {
     {
       path: '/reception',
       element: (
-        <RoleGuard roles={['admin']}>
+        <RoleGuard>
           <ReceptionistPage />
         </RoleGuard>
       )
@@ -153,7 +153,7 @@ export const RouterProvider = () => {
     {
       path: '/psychologist',
       element: (
-        <RoleGuard roles={['psychologist']}>
+        <RoleGuard>
           <PsychologistPage />
         </RoleGuard>
       )
@@ -161,7 +161,7 @@ export const RouterProvider = () => {
     {
       path: '/therapy',
       element: (
-        <RoleGuard roles={['therapist']}>
+        <RoleGuard>
           <TherapyPage />
         </RoleGuard>
       )
@@ -169,7 +169,7 @@ export const RouterProvider = () => {
     {
       path: '/anesthesiologist',
       element: (
-        <RoleGuard roles={['anesthesiologist']}>
+        <RoleGuard>
           <AnesthesiologistPage />
         </RoleGuard>
       )
@@ -177,7 +177,7 @@ export const RouterProvider = () => {
     {
       path: '/insurance',
       element: (
-        <RoleGuard roles={['insurance']}>
+        <RoleGuard>
           <InsurancePage />
         </RoleGuard>
       )
