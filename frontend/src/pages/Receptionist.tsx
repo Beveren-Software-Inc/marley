@@ -1,7 +1,6 @@
 import { useState, useEffect, useLayoutEffect } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { dummyPatients } from '../config/patients'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientList } from '../components/patients/PatientList'
 import { toast } from '../hooks/useToast'
@@ -308,7 +307,6 @@ export const ReceptionistPage = () => {
         <PatientCareHeader
           selectedPatient={patientForBar}
           onPatientSelect={handlePatientSelect}
-          patients={dummyPatients}
         />
         <div className="flex-1 min-h-0 overflow-hidden bg-white">
           <DischargeAdmissionView
@@ -325,7 +323,7 @@ export const ReceptionistPage = () => {
 
   return (
     <div className="flex flex-col h-full">
-      <PatientCareHeader selectedPatient={selectedPatient} onPatientSelect={handlePatientSelect} patients={dummyPatients} />
+      <PatientCareHeader selectedPatient={selectedPatient} onPatientSelect={handlePatientSelect} />
 
       <div className="flex-1 overflow-y-auto">
         {canBrowsePatientList && currentView === 'patient' && (

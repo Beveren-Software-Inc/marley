@@ -619,7 +619,7 @@ export const CreateMedicineGivenModal = ({
 
     if (doseWarning && !overrideChecked) {
       const proceed = window.confirm(
-        `${doseWarning.message || 'This dose exceeds the configured maximum dose limit.'}\n\n`
+        `${doseWarning.message || 'Entered dose exceeds recommended maximum daily dose.'}\n\n`
           + 'To continue, enable Override below and enter a mandatory reason. Open override section now?'
       )
       if (proceed) {

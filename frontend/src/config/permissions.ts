@@ -318,5 +318,6 @@ export function getDefaultRouteForUser(roles: string[]): string {
   if (r.some(x => x === 'therapist' || x.includes('therapist'))) return '/therapy'
   if (r.some(x => x.includes('psychologist'))) return '/psychologist'
   if (r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist'))) return '/anesthesiologist'
+  if (r.some(x => x.includes('insurance'))) return '/insurance'
   return '/patient'
 }
