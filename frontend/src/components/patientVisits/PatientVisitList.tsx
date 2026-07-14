@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { createPortal } from 'react-dom'
+import { useCardFilters, useDashboardCompactClinical, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -16,9 +17,9 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchDoctorPractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { fetchDoctorPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
-import { fetchPatientVisitsFull } from '../../services/patientVisits'
+import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
@@ -66,6 +67,8 @@ interface PatientVisitListProps {
   hideLabPharmacyAmounts?: boolean
   /** Doctor dashboard: detailed 15-column table (Visit No/Date/Type, File/CPR, amounts, Total Due, Discount, Balance, Doctor, User). */
   detailedColumns?: boolean
+  /** Default the Doctor filter to the logged-in user's Healthcare Practitioner (any specialty). */
+  defaultToCurrentPractitioner?: boolean
 }
 
 function visitPatientDisplayName(visit: PatientVisitListRow): string {
@@ -96,6 +99,7 @@ export const PatientVisitList = ({
   showAppointmentAmount = false,
   hideLabPharmacyAmounts = false,
   detailedColumns = false,
+  defaultToCurrentPractitioner = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -112,6 +116,7 @@ export const PatientVisitList = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const cardFilters = useCardFilters()
   const cardCompactLayout = useDashboardCompactClinical()
+  const headerSlot = useCardHeaderSlot()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -127,6 +132,14 @@ export const PatientVisitList = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
+  // Visit Type filter — options from the Patient Visit Type master (name === visit_type).
+  const [visitTypeFilter, setVisitTypeFilter] = useState('')
+  const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
+  // Effective visit type: a fixed prop (typed sub-lists) wins over the user filter.
+  const effectiveVisitType = visitType || visitTypeFilter || undefined
+  // Default the Doctor filter to the logged-in practitioner (browse view only, no patient).
+  const shouldDefaultPractitioner = defaultToCurrentPractitioner && !patient
+  const [practitionerDefaultReady, setPractitionerDefaultReady] = useState(!shouldDefaultPractitioner)
   // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
   const [filterBranch, setFilterBranch] = useState('')
   const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
@@ -134,6 +147,32 @@ export const PatientVisitList = ({
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
     return () => { cancelled = true }
+  }, [])
+
+  // Load Visit Type options for the filter dropdown (skip when the type is fixed by a prop).
+  useEffect(() => {
+    if (visitType) return
+    let cancelled = false
+    fetchPatientVisitTypes().then((opts) => { if (!cancelled) setVisitTypeOptions(opts) }).catch(() => {})
+    return () => { cancelled = true }
+  }, [visitType])
+
+  // Default the Doctor filter to the logged-in practitioner, then release the first fetch.
+  useEffect(() => {
+    if (!shouldDefaultPractitioner) return
+    let cancelled = false
+    getCurrentUserPractitionerOption()
+      .then((opt) => {
+        if (cancelled) return
+        if (opt) {
+          setSelectedPractitioner(opt)
+          setPractitionerFilter(opt.name)
+        }
+      })
+      .finally(() => { if (!cancelled) setPractitionerDefaultReady(true) })
+    return () => { cancelled = true }
+    // Resolve once on mount; user edits afterwards must not re-trigger the default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
@@ -206,7 +245,7 @@ export const PatientVisitList = ({
         dateFrom || undefined,
         dateTo || undefined,
         selectedStatus || undefined,
-        visitType || undefined,
+        effectiveVisitType,
         pageSize,
         (page - 1) * pageSize,
         filterBranch || undefined,
@@ -222,13 +261,14 @@ export const PatientVisitList = ({
   }
 
   useEffect(() => {
+    if (!practitionerDefaultReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, filterBranch])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, visitTypeFilter, filterBranch, practitionerDefaultReady])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, filterBranch])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, visitTypeFilter, filterBranch])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -311,10 +351,11 @@ export const PatientVisitList = ({
     setDateTo('')
     setSelectedStatus('')
     setFilterBranch('')
+    setVisitTypeFilter('')
   }
 
   const hasActiveFilters = Boolean(
-    selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch,
+    selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch || visitTypeFilter,
   )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
@@ -538,24 +579,17 @@ export const PatientVisitList = ({
         </div>
       )}
 
-      {shouldUseOpDefaults && dateFrom === localDateISO() && dateTo === localDateISO() && (
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-900 text-xs mb-2">
-          <span>
-            Showing <span className="font-semibold">today&apos;s</span> visits.
-            Change dates in filters to widen the list.
-          </span>
-        </div>
-      )}
-
-      {isInsideCard && detailedColumns && (
-        <div className="flex items-center justify-end gap-2 mb-2">
-          <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white">
+      {/* PDF / Excel export — portaled into the card header, to the left of the + button. */}
+      {isInsideCard && detailedColumns && headerSlot && createPortal(
+        <>
+          <button type="button" onClick={printFilteredList} className="px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium">
             PDF
           </button>
-          <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white">
+          <button type="button" onClick={exportFilteredCsv} className="px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium">
             Excel
           </button>
-        </div>
+        </>,
+        headerSlot,
       )}
 
       {/* --- Header (hidden when inside a DashboardCard) --- */}
@@ -669,6 +703,21 @@ export const PatientVisitList = ({
             {statuses.map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
+
+        {/* Visit Type — hidden when the type is fixed by a prop (typed sub-lists). */}
+        {!visitType && (
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Visit Type</label>
+            <select
+              value={visitTypeFilter}
+              onChange={e => setVisitTypeFilter(e.target.value)}
+              className={inputClass}
+            >
+              <option value="">Select All</option>
+              {visitTypeOptions.map(vt => <option key={vt.name} value={vt.name}>{vt.visit_type}</option>)}
+            </select>
+          </div>
+        )}
 
         <div className="flex items-end">
           <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />

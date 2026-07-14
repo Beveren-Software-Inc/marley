@@ -112,6 +112,7 @@ export function OutpatientVisitsCard({
       >
         <PatientVisitList
           detailedColumns
+          defaultToCurrentPractitioner
           patient={patient || undefined}
           refreshKey={refreshKey}
           onPatientFromVisit={onPatientSelect}

@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CardFilterContext,
+  CardHeaderSlotContext,
   DashboardCompactClinicalContext,
   DashboardFullListingContext,
 } from '../../contexts/CardFilterContext'
@@ -144,6 +145,8 @@ export const DashboardCard = ({
 
   // ↗ toggles an in-place full-screen expand of this card (no route change); ↙ collapses it.
   const [expanded, setExpanded] = useState(false)
+  // Header slot node — children (e.g. list toolbars) portal controls here, left of +/↗.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
     if (!expanded) return
     const onKey = (e: KeyboardEvent) => {
@@ -203,6 +206,7 @@ export const DashboardCard = ({
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {headerExtra}
+            <span ref={setHeaderSlot} className="contents" />
             <CardHeaderActions
               onAdd={handleAdd}
               addButtonTitle={resolvedAddTitle}
@@ -231,7 +235,9 @@ export const DashboardCard = ({
         >
           <DashboardFullListingContext.Provider value={fullList}>
             <DashboardCompactClinicalContext.Provider value={compactClinical}>
-              <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+              <CardHeaderSlotContext.Provider value={headerSlot}>
+                <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+              </CardHeaderSlotContext.Provider>
             </DashboardCompactClinicalContext.Provider>
           </DashboardFullListingContext.Provider>
         </div>

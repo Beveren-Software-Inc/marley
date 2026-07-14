@@ -53,8 +53,38 @@ def get_current_user_healthcare_practitioner():
 		{"user_id": user, "status": "Active"},
 		"name"
 	)
-	
+
 	return practitioner if practitioner else None
+
+
+@frappe.whitelist()
+def get_current_user_practitioner_option():
+	"""Current user's linked Healthcare Practitioner as a {name, label} option.
+
+	Unlike get_doctor_practitioners this is NOT restricted to doctors — it covers
+	any specialty (psychologist / nutritionist / therapist / etc.) so their
+	dashboards can default the "Doctor" filter to themselves. `name` is the
+	practitioner docname (sent to the visit filter), `label` is the display name.
+	"""
+	user = frappe.session.user
+
+	if user == "Guest":
+		return None
+
+	practitioner = frappe.db.get_value(
+		"Healthcare Practitioner",
+		{"user_id": user, "status": "Active"},
+		["name", "practitioner_name"],
+		as_dict=True,
+	)
+
+	if not practitioner:
+		return None
+
+	return {
+		"name": practitioner.name,
+		"label": practitioner.practitioner_name or practitioner.name,
+	}
 
 
 @frappe.whitelist()

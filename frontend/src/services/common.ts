@@ -246,13 +246,35 @@ export async function getCurrentUserPractitioner(): Promise<string | null> {
   try {
     const response = await fetch('/api/method/healthcare.api.common.get_current_user_healthcare_practitioner')
     const resData = await response.json()
-    
+
     if (resData?.message && typeof resData.message === 'string') {
       return resData.message as string
     }
     return null
   } catch (err) {
     console.error('Failed to fetch current user practitioner:', err)
+    return null
+  }
+}
+
+/**
+ * Current logged-in user's linked Healthcare Practitioner as a {name, label} option
+ * (any specialty, not just doctors). Returns null if the user has no practitioner.
+ * Use to default the "Doctor" filter to the practitioner viewing the list.
+ */
+export async function getCurrentUserPractitionerOption(): Promise<LinkFieldOption | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.common.get_current_user_practitioner_option', {
+      credentials: 'include',
+    })
+    const resData = await response.json()
+    const msg = resData?.message
+    if (msg && typeof msg === 'object' && typeof msg.name === 'string') {
+      return { name: msg.name, label: msg.label || msg.name }
+    }
+    return null
+  } catch (err) {
+    console.error('Failed to fetch current user practitioner option:', err)
     return null
   }
 }

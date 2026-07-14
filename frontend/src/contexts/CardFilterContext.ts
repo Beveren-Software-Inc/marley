@@ -15,3 +15,11 @@ export const useDashboardFullListing = () => useContext(DashboardFullListingCont
 /** Compact columns + metadata popover — only on small fixed-height dashboard tiles. */
 export const DashboardCompactClinicalContext = createContext(false)
 export const useDashboardCompactClinical = () => useContext(DashboardCompactClinicalContext)
+
+/**
+ * Header slot node for a `DashboardCard` — a list rendered inside a card can portal
+ * extra controls (e.g. PDF/Excel) into the header, to the left of the +/↗ buttons.
+ * null when not inside a card (or the slot hasn't mounted yet).
+ */
+export const CardHeaderSlotContext = createContext<HTMLElement | null>(null)
+export const useCardHeaderSlot = () => useContext(CardHeaderSlotContext)
