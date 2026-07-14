@@ -19,8 +19,8 @@ const fmtAmt = (v: number | null | undefined) =>
 const RECEIPT_COLS = [
   ['rv_no', 'RV No.'], ['rv_date', 'RV Date'], ['payment_type', 'Payment Type'],
   ['file_no', 'File No.'], ['patient_name', 'Patient Name'], ['chq_num', 'Chq Num'],
-  ['chq_date', 'Chq Date'], ['case_no', 'Visit/Case No.'], ['received_by', 'Received By'],
-  ['received_date', 'Received Date'], ['amount', 'Amount'],
+  ['chq_date', 'Chq Date'], ['case_no', 'Visit/Case No.'], ['visit_booked_by', 'Visit Booked By'],
+  ['received_by', 'Received By'], ['received_date', 'Received Date'], ['amount', 'Amount'],
 ] as const
 
 const PD_COLS = [

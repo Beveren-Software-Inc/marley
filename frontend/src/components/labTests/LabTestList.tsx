@@ -2190,6 +2190,20 @@ const FilterToggleButton = ({
   </button>
 )
 
+// Lab workflow tabs — each tab filters the list to one status. First tab is the
+// default (Lab Requested). "All" clears the status filter.
+const LAB_STATUS_TABS: { label: string; status: string }[] = [
+  { label: 'Lab Requested', status: 'Requested' },
+  { label: 'Sample Collected', status: 'Sample Collected' },
+  { label: 'Testing in Progress', status: 'Testing in Progress' },
+  { label: 'Completed', status: 'Completed' },
+  { label: 'Pending Review', status: 'Pending Review' },
+  { label: 'Reviewed', status: 'Reviewed' },
+  { label: 'Approved', status: 'Approved' },
+  { label: 'Rejected', status: 'Rejected' },
+  { label: 'All', status: '' },
+]
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const LabTestList = ({
@@ -2206,11 +2220,14 @@ export const LabTestList = ({
   focusLabTest,
   focusOpenSampleCollection = false,
   focusOpenReview = false,
+  statusTabs = false,
 }: {
   patient?: string
   isOutsourced?: boolean
   defaultStatus?: string
   byNurse?: boolean
+  /** Show workflow status tabs (Lab Requested → Sample Collected → …) driving the status filter. */
+  statusTabs?: boolean
   onPatientClick?: (patient: string) => void
   hideAmount?: boolean
   onPendingCountChange?: (count: number) => void
@@ -2254,8 +2271,14 @@ export const LabTestList = ({
   const [defaultsReady, setDefaultsReady] = useState(!doctorLabDefaults)
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
-    status: defaultStatus ?? '',
+    // Status tabs default to the first tab (Lab Requested) unless a defaultStatus is given.
+    status: defaultStatus ?? (statusTabs ? LAB_STATUS_TABS[0].status : ''),
   }))
+
+  const selectStatusTab = (status: string) => {
+    setFilters((prev) => ({ ...prev, status }))
+    setPage(1)
+  }
 
   // All lists start unfiltered — no default practitioner filter (nurse-dept request).
   useEffect(() => {
@@ -3290,6 +3313,28 @@ export const LabTestList = ({
               </button>
             ) : null}
           </div>
+        </div>
+      )}
+
+      {statusTabs && (
+        <div className="flex flex-wrap gap-1.5 border-b border-slate-200 px-1 pb-2 pt-1">
+          {LAB_STATUS_TABS.map((tab) => {
+            const active = (filters.status || '') === tab.status
+            return (
+              <button
+                key={tab.label}
+                type="button"
+                onClick={() => selectStatusTab(tab.status)}
+                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? 'bg-primary text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {tab.label}
+              </button>
+            )
+          })}
         </div>
       )}
 

@@ -1111,6 +1111,7 @@ export const LabPage = () => {
               <LabTestList
                 patient={selectedPatient}
                 key={labTestRefreshKey}
+                statusTabs
                 onPatientClick={handlePatientSelect}
                 hideAmount={isLabTechnologist}
                 title="Lab Test & Result"

@@ -114,6 +114,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 		refs_by_pe.setdefault(r.parent, []).append(r)
 
 	so_cache, base_cache, cust_cache, pat_cache, name_cache = {}, {}, {}, {}, {}
+	booked_cache = {}
 	allowed_cc = None
 	if isinstance(resolved_cc, list):
 		allowed_cc = set(resolved_cc)
@@ -145,6 +146,15 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 		else:
 			section, case_no = "payment_only", base_name
 
+		# Visit Booked By = the creator of the Patient Visit / Inpatient Admission.
+		booked_by = None
+		if base_ref and base_name:
+			bkey = (base_ref, base_name)
+			if bkey not in booked_cache:
+				owner = frappe.db.get_value(base_ref, base_name, "owner")
+				booked_cache[bkey] = _full_name(owner, name_cache)
+			booked_by = booked_cache[bkey]
+
 		amount = flt(e.paid_amount)
 		grand_total += amount
 		mode = (e.mode_of_payment or "Other").upper()
@@ -162,6 +172,7 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 			"chq_num": chq,
 			"chq_date": str(e.reference_date) if chq and e.reference_date else None,
 			"case_no": case_no,
+			"visit_booked_by": booked_by,
 			"received_by": _full_name(e.owner, name_cache),
 			"received_date": str(e.creation)[:19],
 			"amount": amount,
