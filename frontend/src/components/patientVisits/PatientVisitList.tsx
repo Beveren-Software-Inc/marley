@@ -17,7 +17,7 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
-import { fetchDoctorPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import { fetchAppointmentPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -101,7 +101,7 @@ export const PatientVisitList = ({
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
 }: PatientVisitListProps = {}) => {
-  const { mode, activeVisit, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter } = useCareContext()
   const formatMoney = useFormatMoney()
   const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
@@ -174,6 +174,15 @@ export const PatientVisitList = ({
     // Resolve once on mount; user edits afterwards must not re-trigger the default.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Default the Branch filter to the global (top-bar) branch, once it resolves.
+  const branchDefaultApplied = useRef(false)
+  useEffect(() => {
+    if (branchDefaultApplied.current) return
+    if (!userCostCenter) return
+    branchDefaultApplied.current = true
+    setFilterBranch((prev) => prev || userCostCenter)
+  }, [userCostCenter])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -211,7 +220,7 @@ export const PatientVisitList = ({
     if (!practitionerOpen) return
     const t = setTimeout(async () => {
       try {
-        const options = await fetchDoctorPractitioners(practitionerQuery || undefined)
+        const options = await fetchAppointmentPractitioners(practitionerQuery || undefined)
         setPractitionerOptions(options)
       } catch (err) {
         console.error('Failed to load practitioners', err)

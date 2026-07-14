@@ -1,9 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { usePatients } from '../../hooks/usePatients'
 import { EditPatientModal } from './EditPatientModal'
-import { Pencil } from 'lucide-react'
+import { Pencil, Users } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 interface PatientListProps {
   refreshKey?: string | number
@@ -60,9 +59,6 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   const previousPatientRef = useRef<string>('')
   const isInitialLoadRef = useRef<boolean>(true)
 
-  const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
-  
   // Track loading with a delay to prevent flashing
   const [showRefreshing, setShowRefreshing] = useState<boolean>(false)
   const loadingTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -71,9 +67,8 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(searchQuery)
-      setPage(1)
     }, 500)
-    
+
     return () => clearTimeout(timer)
   }, [searchQuery])
   
@@ -86,13 +81,8 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
     }
   }, [globalSelectedPatient])
 
-  const offset = (page - 1) * pageSize
-  const { patients, totalCount, fullDirectoryRestricted, loading, error, refetch } = usePatients(debouncedQuery || undefined, pageSize, offset)
-
-  const handlePageSizeChange = useCallback((size: PageSize) => {
-    setPageSize(size)
-    setPage(1)
-  }, [])
+  // One patient is searched at a time, so the card shows a single record — no pagination.
+  const { patients, loading, error, refetch } = usePatients(debouncedQuery || undefined)
 
   // Handle loading state with delay to prevent blinking
   useEffect(() => {
@@ -195,78 +185,63 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   }
 
   return (
-    <div className="w-full h-full flex flex-col min-h-[400px]">
-      {/* Fixed height container for search hint - prevents layout shift */}
-      <div className="flex-shrink-0">
-        {!debouncedQuery && fullDirectoryRestricted && (
-          <div className="text-sm text-slate-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-2">
-            The full patient directory is restricted to users with the <strong>Data Officer</strong> role. Type in the search box to find patients by name, file number, or ID.
-          </div>
-        )}
-        {searchQuery && debouncedQuery && (
-          <div className="text-sm text-slate-500 bg-slate-50 rounded-md px-3 py-2 mb-2">
-            Showing patients matching: <span className="font-medium text-slate-700">{searchQuery}</span>
-            {patients.length === 0 && !loading && (
-              <span className="ml-2 text-amber-600">NO RESULTS FOUND</span>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Fixed height container for loading indicator with smooth visibility */}
-      <div className="flex-shrink-0 h-8 relative">
-        <div 
-          className={`
-            absolute inset-0 flex items-center justify-center transition-opacity duration-200
-            ${showRefreshing ? 'opacity-100' : 'opacity-0 pointer-events-none'}
-          `}
+    <div className="w-full flex flex-col">
+      {/* Stable table container — isolate stacking so sticky headers cover scrolling rows */}
+      <div className="flex-1 min-h-0 overflow-auto relative isolate" data-sticky-table-scroll>
+        {/* Loading indicator overlays the table — takes no layout space */}
+        <div
+          className={`absolute top-1.5 right-3 z-20 transition-opacity duration-200 ${showRefreshing ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         >
           <div className="text-xs text-slate-400">
             Refreshing...
           </div>
         </div>
-      </div>
-
-      {/* Stable table container — isolate stacking so sticky headers cover scrolling rows */}
-      <div className="flex-1 min-h-0 overflow-auto relative isolate" data-sticky-table-scroll>
-        <div className="min-w-[950px]">
+        <div className="min-w-[1150px]">
           <table className="w-full table-fixed border-separate border-spacing-0">
             <colgroup>
+              <col className="w-[90px]" />
+              <col className="w-[110px]" />
+              <col className="w-[170px]" />
+              <col className="w-[110px]" />
               <col className="w-[100px]" />
-              <col className="w-[150px]" />
-              <col className="w-[80px]" />
               <col className="w-[120px]" />
-              <col className="w-[120px]" />
+              <col className="w-[110px]" />
               <col className="w-[100px]" />
               <col className="w-[140px]" />
-              <col className="w-[80px]" />
+              <col className="w-[90px]" />
             </colgroup>
-            
+
             <thead>
               <tr>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  File Number
+                  File No.
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  Patient Name
+                  CPR No. / ID
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  Gender
+                  Full Name
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Mobile
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  ID Number
+                  Blood Group
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  Category
+                  Patient Category
+                </th>
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
+                  Nationality
+                </th>
+                <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
+                  Has Insurance
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
                   Status
                 </th>
                 <th className="sticky top-0 z-10 bg-slate-50 px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase shadow-[0_1px_0_0_rgb(226_232_240)]">
-                  Actions
+                  Edit Details
                 </th>
               </tr>
             </thead>
@@ -274,12 +249,16 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
             <tbody className="divide-y divide-slate-200">
               {patients.length === 0 && !loading ? (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-slate-500">
-                    {debouncedQuery
-                      ? 'No Patient Found.'
-                      : fullDirectoryRestricted
-                        ? 'Use search above to find a patient.'
-                        : 'NO PATIENTS FOUND.'}
+                  <td colSpan={10} className="p-0">
+                    {debouncedQuery ? (
+                      <div className="px-4 py-8 text-center text-slate-500">No Patient Found.</div>
+                    ) : (
+                      <div className="flex items-center justify-center py-10 bg-gradient-to-b from-slate-50 via-white to-slate-50">
+                        <div className="flex items-center justify-center w-16 h-16 rounded-full bg-slate-100">
+                          <Users className="w-8 h-8 text-slate-300" />
+                        </div>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ) : (
@@ -303,19 +282,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       `}
                     >
                       <td className="px-4 py-3 text-sm font-medium text-slate-900">
-                        {patient.name}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {patient.patient_name || '-'}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {patient.sex || '-'}
-                      </td>
-
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {patient.mobile || '-'}
+                        {patient.file_number || patient.name}
                       </td>
 
                       <td className="px-4 py-3 text-sm text-slate-700">
@@ -323,7 +290,27 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                       </td>
 
                       <td className="px-4 py-3 text-sm text-slate-700">
+                        {patient.patient_name || '-'}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {patient.mobile || '-'}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {patient.blood_group || '-'}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-slate-700">
                         {patient.category || '-'}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {patient.nationality || '-'}
+                      </td>
+
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {patient.has_insurance ? 'Yes' : 'No'}
                       </td>
 
                       <td className="px-4 py-3">
@@ -346,7 +333,7 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
                         <button
                           type="button"
                           onClick={() => guardClinicalEdit(() => setEditPatientName(patient.name))}
-                          className="p-2 text-slate-500 hover:text-primary hover:bg-slate-100 rounded-md transition-colors"
+                          className="p-2 rounded-md bg-primary/10 text-primary border border-primary/20 hover:bg-primary hover:text-white transition-colors"
                           title="Edit patient"
                         >
                           <Pencil className="w-4 h-4" />
@@ -360,16 +347,6 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
           </table>
         </div>
       </div>
-
-      {/* Pagination */}
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
 
       {/* Edit Modal */}
       {editPatientName && (

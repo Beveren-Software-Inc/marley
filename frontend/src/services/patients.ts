@@ -9,6 +9,9 @@ export interface PatientListItem {
   sex?: string
   id_number?: string
   category?: string
+  blood_group?: string
+  nationality?: string
+  has_insurance?: number | boolean
 }
 
 export interface PatientMedicalHistoryRow {

@@ -105,7 +105,8 @@ def get_patients(limit=20, offset=0, search=None):
 
 		patients = frappe.db.sql(
 			f"""SELECT p.name, p.patient_name, p.file_no as file_number,
-				p.mobile, p.email, p.sex, p.id_number, p.category
+				p.mobile, p.email, p.sex, p.id_number, p.category,
+				p.blood_group, p.nationality, p.is_insurance, p.insurance
 			FROM `tabPatient` p {where_clause}
 			ORDER BY p.patient_name
 			LIMIT %(limit)s OFFSET %(offset)s""",
@@ -116,7 +117,9 @@ def get_patients(limit=20, offset=0, search=None):
 		data = [
 			{'name': p.name, 'patient_name': p.patient_name or p.name,
 			 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email,
-			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category}
+			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,
+			 'blood_group': p.blood_group, 'nationality': p.nationality,
+			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0}
 			for p in patients
 		]
 		return {"data": data, "total_count": total_count}
@@ -128,7 +131,8 @@ def get_patients(limit=20, offset=0, search=None):
 
 		patients = frappe.get_all(
 			'Patient',
-			fields=['name', 'patient_name', 'file_no', 'mobile', 'email', 'sex', 'id_number', 'category'],
+			fields=['name', 'patient_name', 'file_no', 'mobile', 'email', 'sex', 'id_number', 'category',
+				'blood_group', 'nationality', 'is_insurance', 'insurance'],
 			limit=limit,
 			limit_start=offset,
 			order_by='patient_name',
@@ -142,6 +146,8 @@ def get_patients(limit=20, offset=0, search=None):
 			{'name': p.name, 'patient_name': p.patient_name or p.name,
 			 'file_number': p.file_no, 'mobile': p.mobile, 'email': p.email,
 			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,
+			 'blood_group': p.blood_group, 'nationality': p.nationality,
+			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0,
 			 'appointment_status': appointment_map.get(p.name),
 			 'inpatient_status': inpatient_map.get(p.name)}
 			for p in patients

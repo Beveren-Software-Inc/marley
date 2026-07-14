@@ -56,8 +56,8 @@ export const PatientPage = () => {
       <div className="flex flex-col gap-4 p-4">
         {/* Patient List Section */}
         <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-semibold">Patients</h2>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="font-semibold">SEARCH FOR PATIENT TO EDIT DETAILS</h2>
           </div>
 
           <PatientList />

@@ -635,6 +635,7 @@ import {
   dashboardCardRowHoverClass,
   type CardMetaField,
 } from '../ui/dashboardCardListing'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { useState, useEffect, useRef, useCallback } from 'react'
 import {
   fetchPractitionerAppointments,
@@ -892,6 +893,7 @@ export const AppointmentList = ({
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Filters (server-side)
+  const { userCostCenter } = useCareContext()
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -933,6 +935,14 @@ export const AppointmentList = ({
   const [filterDateFrom, setFilterDateFrom] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterDateTo, setFilterDateTo] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterBranch, setFilterBranch] = useState<string>('')
+  // Default the Branch filter to the global (top-bar) branch, once it resolves.
+  const branchDefaultApplied = useRef(false)
+  useEffect(() => {
+    if (branchDefaultApplied.current) return
+    if (!userCostCenter) return
+    branchDefaultApplied.current = true
+    setFilterBranch((prev) => prev || userCostCenter)
+  }, [userCostCenter])
   const [bulkSending, setBulkSending] = useState(false)
   const [bulkChannelMenuOpen, setBulkChannelMenuOpen] = useState(false)
   const bulkMenuRef = useRef<HTMLDivElement>(null)
@@ -1397,22 +1407,6 @@ export const AppointmentList = ({
   return (
     <>
       <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
-      {doctorScheduleMode && !patient && filterPractitioner && (
-        <div className="flex flex-wrap items-center gap-2 mb-2 px-3 py-2 rounded-md bg-blue-50 border border-blue-200 text-blue-900 text-xs">
-          <span>
-            Showing appointments for <span className="font-semibold">{practitionerFilterDisplayValue || filterPractitioner}</span> only.
-          </span>
-          {canChangePractitioner && (
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="underline font-medium hover:text-blue-700"
-            >
-              Show all doctors
-            </button>
-          )}
-        </div>
-      )}
       {/* Header row */}
       {!isInsideCard && !embedded && (
       <div className="flex items-center justify-between gap-2 mb-3">
@@ -1559,7 +1553,7 @@ export const AppointmentList = ({
             </select>
           </div>
 
-          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} className="!ml-0" />
 
           {/* Spacer + Bulk Reminder (full listing only) */}
           {!cardCompactLayout && (

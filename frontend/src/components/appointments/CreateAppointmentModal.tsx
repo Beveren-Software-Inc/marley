@@ -614,16 +614,13 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                     : 'bg-slate-100 text-slate-600 border-slate-300 hover:bg-slate-200'
                 }`}
               >
-                {isWalkIn ? '↩ Back to file search' : '⚡ Walk-in (no file)'}
+                {isWalkIn ? '↩ Back to file search' : '⚡ WALK-IN PATIENT (NO FILE)'}
               </button>
             </div>
 
             {isWalkIn ? (
               /* Walk-in fields */
               <div className="space-y-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                <p className="text-xs text-amber-700 font-medium">
-                  Patient has no file — enter their name and mobile number below.
-                </p>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">
                     Patient Name <span className="text-red-500">*</span>
@@ -804,8 +801,8 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <select
               value={costCenter}
               onChange={(e) => setCostCenter(e.target.value)}
-              disabled={costCenterLoading || costCenterLocked}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white disabled:bg-slate-50 disabled:text-slate-700"
+              disabled={costCenterLoading}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary bg-white"
             >
               <option value="">
                 {costCenterLoading ? 'Loading branches…' : 'Select branch'}

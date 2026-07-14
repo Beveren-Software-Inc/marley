@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
-import { fetchHealthcarePractitioners, fetchBranchOptions, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -88,6 +88,7 @@ export const AdmissionList = ({
     userRole,
     applyIpCareContext,
     setSelectedPatient,
+    userCostCenter,
   } = useCareContext()
 
   const effectivePatient = patient !== undefined ? (patient || undefined) : (contextPatient || undefined)
@@ -147,6 +148,20 @@ export const AdmissionList = ({
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
 
+  // Default the Admission By Doctor filter to the logged-in practitioner (browse view only, no patient in scope).
+  useEffect(() => {
+    if (effectivePatient || effectiveNameFilter) return
+    let cancelled = false
+    getCurrentUserPractitionerOption().then((opt) => {
+      if (cancelled || !opt) return
+      setSelectedPractitioner(opt)
+      setPractitionerFilter(opt.name)
+    })
+    return () => { cancelled = true }
+    // Resolve once on mount; user edits afterwards must not re-trigger the default.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
 
@@ -160,6 +175,14 @@ export const AdmissionList = ({
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
+  // Default the Branch filter to the global (top-bar) branch, once it resolves.
+  const branchDefaultApplied = useRef(false)
+  useEffect(() => {
+    if (branchDefaultApplied.current) return
+    if (!userCostCenter) return
+    branchDefaultApplied.current = true
+    setFilterBranch((prev) => prev || userCostCenter)
+  }, [userCostCenter])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -502,7 +525,7 @@ export const AdmissionList = ({
           </div>
           {/* Practitioner — searchable dropdown */}
           <div data-filter-dropdown className="relative">
-            <label className="block text-xs font-medium text-slate-600 mb-1">Doctor</label>
+            <label className="block text-xs font-medium text-slate-600 mb-1">ADMISSION BY DOCTOR</label>
             <input
               type="text"
               value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
@@ -532,10 +555,6 @@ export const AdmissionList = ({
             )}
           </div>
 
-          {/* Date From */}
-
-          {/* Date To */}
-
           {/* Branch — dropdown (defaults to global branch) */}
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
@@ -562,11 +581,9 @@ export const AdmissionList = ({
             </select>
           </div>
 
-          {hasActiveFilters && (
-            <div className="flex items-end">
-              <ClearFiltersButton onClick={handleClearFilters} />
-            </div>
-          )}
+          <div className="flex items-end">
+            <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />
+          </div>
         </div>
         )}
 
@@ -582,13 +599,13 @@ export const AdmissionList = ({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Patient Name</th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission Date</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Branch</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Status</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission by Doctor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Resident Doctor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Psychologist</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Room No.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Days</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Branch</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Status</th>
                 {onAdmissionSelect && (
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Actions</th>
                 )}
@@ -635,15 +652,15 @@ export const AdmissionList = ({
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
                       {formatAdmissionDate(record)}
                     </td>
+                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
+                    </td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.admission_doctor_name || record.admission_by_doctor || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.resident_doctor_name || record.residents_doctor_no || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.psychologist_doctor_name || record.psychologist_doctor || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.room_service_no || record.bed_no || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap text-center">{record.expected_length_of_stay ?? '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
-                    </td>
 
                     {onAdmissionSelect && (
                       <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>

@@ -92,7 +92,8 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 			conditions.append("(ia.name LIKE %(search)s OR ia.patient_name LIKE %(search)s OR ia.patient LIKE %(search)s OR p.file_no LIKE %(search)s)")
 			params['search'] = f'%{search}%'
 		if practitioner:
-			conditions.append("(ia.primary_practitioner = %(practitioner)s OR ia.secondary_practitioner = %(practitioner)s)")
+			# The list's doctor filter targets the Admission By Doctor field (matches the table column).
+			conditions.append("ia.admission_by_doctor = %(practitioner)s")
 			params['practitioner'] = practitioner
 		if from_date:
 			conditions.append("ia.scheduled_date >= %(from_date)s")

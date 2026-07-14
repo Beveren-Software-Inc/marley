@@ -636,8 +636,8 @@ export const NursePage = () => {
    
           <div className="p-4">
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-              <div className="font-semibold mb-4 flex items-center justify-between">
-                <span>Patients</span>
+              <div className="font-semibold mb-1 flex items-center justify-between">
+                <span>SEARCH FOR PATIENT TO EDIT DETAILS</span>
                 <button
                   onClick={() => setShowCreatePatientModal(true)}
                   className="inline-flex items-center gap-1 px-2 py-1 rounded text-white text-xs font-medium bg-primary hover:bg-primary/90 transition-colors"

@@ -111,9 +111,8 @@ export const PatientHistoryPage = () => {
 
       {!selectedPatient ? (
         <div className="flex-1 p-4 flex items-center justify-center">
-          <div className="text-center text-slate-500 max-w-sm">
-            <p className="font-medium text-slate-700 mb-1">Patient History</p>
-            <p className="text-sm">Search and select a patient above to view demographics, visit and admission summary, and full history cards.</p>
+          <div className="text-center text-slate-500">
+            <p className="text-lg font-semibold tracking-wide">SEARCH FOR PATIENT TO VIEW PATIENT HISTORY</p>
           </div>
         </div>
       ) : (
