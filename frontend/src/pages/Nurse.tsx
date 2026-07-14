@@ -35,7 +35,6 @@ import { CreateWarningMessageModal } from '../components/warnings/CreateWarningM
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 import { LabTestHistory } from '../components/labTests/LabTestHistory'
-import { CreateDoctorServiceModal } from '../components/services/CreateDoctorServiceModal'
 import { AdmissionPage } from './Admission'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
@@ -133,7 +132,6 @@ export const NursePage = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
     const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
-  const [showServiceModal, setShowServiceModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
@@ -1798,17 +1796,6 @@ export const NursePage = () => {
           }}
           initialPatient={selectedPatient}
           templatesNurseOnly
-        />
-      )}
-
-      {showServiceModal && (
-        <CreateDoctorServiceModal
-          onClose={() => setShowServiceModal(false)}
-          onSuccess={() => {
-            setShowServiceModal(false)
-            // TODO: Refresh service details table when backend is wired
-          }}
-          patient={selectedPatient}
         />
       )}
 
