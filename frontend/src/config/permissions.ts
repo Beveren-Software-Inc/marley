@@ -140,7 +140,7 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (pathname === '/psychologist') return normalizedRoles.some(r => r.includes('psychologist'))
   if (pathname === '/therapy') return normalizedRoles.some(r => r === 'therapist' || r.includes('therapist'))
   if (pathname === '/anesthesiologist') return normalizedRoles.some(r => r.includes('anesthesiologist') || r.includes('anaesthesiologist'))
-  if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance') || r.includes('reception'))
+  if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance'))
 
   return false
 }

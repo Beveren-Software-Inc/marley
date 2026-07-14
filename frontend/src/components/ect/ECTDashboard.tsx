@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useAuth } from '../../providers/AuthProvider'
+import { isAdmin } from '../../config/permissions'
 import { ECTDetailsList } from './ECTDetailsList'
 import { ConsolidatedECTDetailsList } from './ConsolidatedECTDetailsList'
 import { ECTChart } from './ECTChart'  // ADDED: Import ECTChart
@@ -43,6 +45,17 @@ interface ECTDashboardProps {
 export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [ectTab, setEctTab] = useState<EctTab>('all')
 
+  // F046: only anesthesiologists/admins may see the anesthesia sub-workflow cards
+  // (Recovery Room / Alderete / Pre-ECT); their doctypes 403 for other roles.
+  const { user } = useAuth()
+  const roles = user?.roles ?? []
+  const canSeeAnesthesia =
+    isAdmin(roles) ||
+    roles.some((r) => {
+      const rl = r.trim().toLowerCase()
+      return rl.includes('anesthesiologist') || rl.includes('anaesthesiologist')
+    })
+
   // Modal show states
   const [showECTModal, setShowECTModal] = useState(false)
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
@@ -69,7 +82,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
-  const CARDS: CardDef[] = [
+  const ALL_CARDS: CardDef[] = [
     { id: 'all',                title: 'All',                 desc: 'View all ECT sections',          color: 'bg-slate-100 text-slate-700 border-slate-300',      dot: 'bg-slate-400' },
     { id: 'anesthesia-consent', title: 'Anesthesia Consent',  desc: 'Consent with signatures',        color: 'bg-indigo-50 text-indigo-700 border-indigo-200',    dot: 'bg-indigo-500',   onAdd: () => setShowECTAnesthesiaConsentModal(true) },
     { id: 'pre-anesthesia',     title: 'Pre-Anesthesia',      desc: 'Pre-op body system assessment',  color: 'bg-purple-50 text-purple-700 border-purple-200',    dot: 'bg-purple-500',   onAdd: () => setShowPreAnesthesiaModal(true) },
@@ -88,7 +101,12 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
     { id: 'patient-history',    title: 'Patient History',     desc: 'Complaints & past history',      color: 'bg-slate-50 text-slate-700 border-slate-200',       dot: 'bg-slate-500',    onAdd: () => setShowPatientHistoryModal(true) },
   ]
 
-  const activeCard = CARDS.find(c => c.id === ectTab)!
+  const ANESTHESIA_ONLY: EctTab[] = ['recovery-room', 'alderete', 'pre-ect']
+  const CARDS: CardDef[] = ALL_CARDS.filter(
+    (c) => canSeeAnesthesia || !ANESTHESIA_ONLY.includes(c.id),
+  )
+
+  const activeCard = CARDS.find(c => c.id === ectTab) ?? CARDS[0]
 
   const sectionContent = (id: EctTab) => {
     switch (id) {

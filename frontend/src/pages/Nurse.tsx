@@ -15,7 +15,6 @@ import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignMo
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
-import { NursingTaskList } from '../components/nursing/NursingTaskList'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
@@ -569,7 +568,13 @@ export const NursePage = () => {
                 </p>
               </div>
             </div>
-            <NursingTaskList myTasks />
+            <NurseTaskList
+              myTasks
+              patient={selectedPatient}
+              refreshKey={nurseTaskRefreshKey}
+              allowStatusChange
+              onRefresh={() => setNurseTaskRefreshKey((k) => k + 1)}
+            />
           </section>
         </div>
       </div>
