@@ -16,7 +16,7 @@ interface CreateDoctorServiceModalProps {
   patient?: string
 }
 
-export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorServiceModalProps) => {
+export const CreateDoctorServiceModal = ({ onClose }: CreateDoctorServiceModalProps) => {
   const [formData, setFormData] = useState({
     code: '',
     service_name: '',
@@ -25,7 +25,6 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorSer
     discount: '',
     net_amount: ''
   })
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Item dropdown state
@@ -51,28 +50,12 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorSer
       return
     }
 
-    try {
-      setLoading(true)
-      setError(null)
-
-      // TODO: Wire this to actual backend API when available
-      // For now, just show success message
-      await new Promise(resolve => setTimeout(resolve, 500))
-      
-      toast.success('Doctor service detail added successfully')
-      
-      if (onSuccess) {
-        onSuccess()
-      }
-      
-      onClose()
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to add service detail'
-      setError(errorMessage)
-      toast.error(errorMessage)
-    } finally {
-      setLoading(false)
-    }
+    // F001: there is no backend for Doctor Service yet. Do NOT fake a successful
+    // save (which silently discarded the data). Fail honestly until the Doctor
+    // Service doctype + API exist. See QA finding F001.
+    const msg = 'Saving doctor services is not available yet — this screen is pending its backend.'
+    setError(msg)
+    toast.error(msg)
   }
 
   const handleChange = (field: string, value: string) => {
@@ -260,8 +243,8 @@ export const CreateDoctorServiceModal = ({ onClose, onSuccess }: CreateDoctorSer
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
-              {loading ? 'Adding...' : 'Add Service'}
+            <button type="submit" className={CM_BTN_PRIMARY}>
+              Add Service
             </button>
           </CreateModalFooter>
         </form>

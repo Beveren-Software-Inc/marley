@@ -818,8 +818,14 @@ def set_ip_order_cancelled(inpatient_record, reason, encounter=None):
 	inpatient_record = frappe.get_doc("Inpatient Admission", inpatient_record)
 	if inpatient_record.status == "Admission Scheduled":
 		inpatient_record.status = "Cancelled"
-		inpatient_record.reason_for_cancellation = reason
 		inpatient_record.save(ignore_permissions=True)
+		# F028: there is no reason_for_cancellation field on the doctype, so the reason
+		# was previously written to a virtual attribute and silently dropped. Persist it
+		# as a timeline comment instead (audited, visible on the record).
+		if reason:
+			inpatient_record.add_comment(
+				"Comment", frappe._("Admission cancelled. Reason: {0}").format(reason)
+			)
 		encounter_name = encounter if encounter else inpatient_record.admission_encounter
 		if encounter_name:
 			frappe.db.set_value(
