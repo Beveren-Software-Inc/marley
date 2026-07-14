@@ -133,6 +133,32 @@ export async function createIOPDay(payload: {
   return data.message
 }
 
+export async function createIOPDaysBulk(payload: {
+  start_date: string
+  end_date: string
+  weekdays: number[]
+  company?: string
+  cost_center?: string
+  sessions: { session_type: string; from_time?: string; to_time?: string }[]
+}): Promise<{ created: string[]; skipped_existing: string[]; count: number }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch('/api/method/healthcare.api.iop.bulk_create_iop_days', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ data: payload }),
+  })
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  if (!data?.message) throw new Error('Failed to bulk-create IOP days')
+  return data.message as { created: string[]; skipped_existing: string[]; count: number }
+}
+
 export async function updateIOPDay(
   name: string,
   payload: {

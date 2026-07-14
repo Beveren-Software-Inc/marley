@@ -33,6 +33,7 @@ import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryV
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
+import { BulkScheduleIOPModal } from '../components/iop/BulkScheduleIOPModal'
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
 import { MoodDisorderAssessmentList } from '../components/mood_disorder/MoodDisorderAssessmentList'
 import { MorseFallScaleList } from '../components/morse/MorseFallScaleList'
@@ -1124,30 +1125,10 @@ export const DoctorPage = () => {
           </div>
         </div>
         {showBulkScheduleModal && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-900">Bulk Schedule</h2>
-                <button
-                  onClick={() => setShowBulkScheduleModal(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              <p className="text-sm text-slate-500">Bulk Schedule modal coming soon.</p>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setShowBulkScheduleModal(false)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+          <BulkScheduleIOPModal
+            onClose={() => setShowBulkScheduleModal(false)}
+            onSuccess={() => setShowBulkScheduleModal(false)}
+          />
         )}
       </div>
     )
