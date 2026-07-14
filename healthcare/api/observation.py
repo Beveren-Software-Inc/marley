@@ -105,6 +105,7 @@ def get_observations(
 	offset=0,
 	patient=None,
 	observation_level=None,
+	practitioner=None,
 	date_from=None,
 	date_to=None,
 	dc_date_from=None,
@@ -124,13 +125,23 @@ def get_observations(
 	if level:
 		filters["observation_level"] = level
 
-	if date_from and date_to:
-		filters["start_date"] = ["between", [date_from, date_to]]
-	elif date_from:
-		filters["start_date"] = [">=", date_from]
-	elif date_to:
-		filters["start_date"] = ["<=", date_to]
+	practitioner = (practitioner or "").strip()
+	if practitioner:
+		filters["healthcare_practitioner"] = practitioner
 
+	# One From/To range covers both dates: a row matches when its start date OR DC date falls inside.
+	or_filters = None
+	if date_from and date_to:
+		or_filters = [
+			["start_date", "between", [date_from, date_to]],
+			["dc_date", "between", [date_from, date_to]],
+		]
+	elif date_from:
+		or_filters = [["start_date", ">=", date_from], ["dc_date", ">=", date_from]]
+	elif date_to:
+		or_filters = [["start_date", "<=", date_to], ["dc_date", "<=", date_to]]
+
+	# Legacy explicit DC-date range (no longer sent by the list UI, kept for compatibility)
 	if dc_date_from and dc_date_to:
 		filters["dc_date"] = ["between", [dc_date_from, dc_date_to]]
 	elif dc_date_from:
@@ -141,6 +152,7 @@ def get_observations(
 	observations = frappe.get_all(
 		'Observation',
 		filters=filters,
+		or_filters=or_filters,
 		fields=[
 			'name',
 			'trans_no',

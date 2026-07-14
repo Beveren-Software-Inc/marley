@@ -28,7 +28,7 @@ const OP_ONLY_DOCTOR_SCREEN_IDS = new Set([
 const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'admission', 'df', 'obs'])
 const OP_MODE_DOCTOR_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation'])
 
-/** Clinical observation — inpatient only (hidden unless mode is IP) */
+/** Clinical observation — hidden only in OP mode (visible for IP and when no mode is selected) */
 const IP_ONLY_OBSERVATION_DOCTOR_SCREEN_IDS = new Set(['obs'])
 const IP_ONLY_OBSERVATION_DOCTOR_GROUP_TITLES = new Set(['Observation'])
 const IP_ONLY_OBSERVATION_NURSE_SCREEN_IDS = new Set(['n-ob'])
@@ -36,7 +36,7 @@ const IP_ONLY_OBSERVATION_NURSE_GROUP_TITLES = new Set(['Observation & Monitorin
 const IP_ONLY_OBSERVATION_RECEPTION_SCREEN_IDS = new Set(['r-observation'])
 
 export function observationsAllowedForMode(mode?: CareMode): boolean {
-  return mode === 'IP'
+  return mode !== 'OP'
 }
 
 /** Doctor sidebar / deep links blocked for IP-only sites */

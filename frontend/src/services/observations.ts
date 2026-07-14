@@ -75,6 +75,7 @@ export async function fetchObservationLevelDetails(name: string): Promise<Observ
 
 export interface ObservationListFilters {
   observationLevel?: string
+  practitioner?: string
   dateFrom?: string
   dateTo?: string
   dcDateFrom?: string
@@ -92,6 +93,7 @@ export async function fetchObservations(
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
   if (filters?.observationLevel) params.append('observation_level', filters.observationLevel)
+  if (filters?.practitioner) params.append('practitioner', filters.practitioner)
   if (filters?.dateFrom) params.append('date_from', filters.dateFrom)
   if (filters?.dateTo) params.append('date_to', filters.dateTo)
   if (filters?.dcDateFrom) params.append('dc_date_from', filters.dcDateFrom)

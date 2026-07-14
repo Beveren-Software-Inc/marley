@@ -503,15 +503,12 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     ? visitQuery
     : (formData.patient_visit ? visitLabel || formData.patient_visit : '')
 
-  // Get mode-specific help text
+  // Get mode-specific help text (IP mode intentionally shows nothing)
   const getModeHelpText = () => {
-    if (isIPMode) {
-      return `Creating observation in IP mode${formData.admission_no ? ` · admission ${formData.admission_no}` : ''}`
-    }
     if (isOPMode) {
       return `Creating observation for OP visit: ${visitLabel || formData.patient_visit || 'not selected yet'}`
     }
-    return 'Select either IP or OP mode from the context switcher above'
+    return ''
   }
 
   return (
@@ -521,11 +518,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
           title="Create Observation"
           subtitle={
             <>
-              {isIPMode ? (
-                <span className="mr-2 inline-flex items-center gap-1 rounded bg-blue-100 px-1.5 py-0.5 text-[10px] font-medium text-blue-700">
-                  IP Mode Active
-                </span>
-              ) : null}
               {isOPMode ? (
                 <span className="mr-2 inline-flex items-center gap-1 rounded bg-emerald-100 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700">
                   OP Mode Active
@@ -544,20 +536,19 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             </div>
           )}
 
-          {/* Mode indicator box */}
-          <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
-            <p className="text-xs font-semibold text-primary mb-1">
-              {isIPMode ? '🏥 Creating Observation for Inpatient' : isOPMode ? '👤 Creating Observation for Outpatient' : '📋 Select Context'}
-            </p>
-            <p className="text-xs text-slate-600">
-              {isIPMode 
-                ? `Link an inpatient admission when available, or leave blank. Room is still required for IP observations.`
-                : isOPMode
-                ? `The observation will be linked to the selected outpatient visit. Make sure you have a visit selected below.`
-                : 'Please select either IP or OP mode from the top navbar before creating an observation.'
-              }
-            </p>
-          </div>
+          {/* Mode indicator box — hidden in IP mode */}
+          {!isIPMode && (
+            <div className="rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
+              <p className="text-xs font-semibold text-primary mb-1">
+                {isOPMode ? '👤 Creating Observation for Outpatient' : '📋 SEARCH PATIENT & SELECT VISIT NO. / ADMISSION NO.'}
+              </p>
+              {isOPMode && (
+                <p className="text-xs text-slate-600">
+                  The observation will be linked to the selected outpatient visit. Make sure you have a visit selected below.
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="md:col-span-2">
@@ -573,13 +564,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     setPatientOpen(true)
                   }}
                   onFocus={() => setPatientOpen(true)}
-                  placeholder="Search patient..."
+                  placeholder="SEARCH PATIENT"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   disabled={Boolean(contextPatient)}
                 />
-                {contextPatient && (
-                  <p className="text-xs text-slate-400 mt-1">Patient auto-selected from context</p>
-                )}
                 {patientOpen && !contextPatient && patientOptions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                     {patientLoading && (
@@ -612,7 +600,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     setObservationLevelOpen(true)
                   }}
                   onFocus={() => setObservationLevelOpen(true)}
-                  placeholder="Search observation level..."
+                  placeholder="SEARCH OBSERVATION LEVEL"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {observationLevelOpen && (
@@ -677,7 +665,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     setPractitionerOpen(true)
                   }}
                   onFocus={() => setPractitionerOpen(true)}
-                  placeholder="Search doctor..."
+                  placeholder="SEARCH DOCTOR"
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                 />
                 {practitionerOpen && practitionerOptions.length > 0 && (
@@ -714,7 +702,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                         readOnly
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
                       />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from IP context</p>
                     </div>
                   ) : (
                     <>
@@ -736,7 +723,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                           }
                         }}
                         onBlur={() => setTimeout(() => setAdmissionOpen(false), 200)}
-                        placeholder={formData.patient ? 'Search or choose admission...' : 'Select patient first'}
+                        placeholder={formData.patient ? 'SEARCH OR CHOOSE ADMISSION' : 'SELECT PATIENT FIRST'}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-100"
                         disabled={!formData.patient}
                         autoComplete="off"
@@ -782,7 +769,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                         readOnly
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-slate-100 cursor-not-allowed"
                       />
-                      <p className="text-xs text-slate-400 mt-1">Auto-selected from OP context</p>
                     </div>
                   ) : (
                     <>
@@ -804,7 +790,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                           }
                         }}
                         onBlur={() => setTimeout(() => setVisitOpen(false), 200)}
-                        placeholder={formData.patient ? 'Search or choose visit...' : 'Select patient first'}
+                        placeholder={formData.patient ? 'SEARCH OR CHOOSE VISIT' : 'SELECT PATIENT FIRST'}
                         className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-100"
                         disabled={!formData.patient}
                         autoComplete="off"
@@ -846,11 +832,10 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                     }}
                     onFocus={() => setRoomOpen(true)}
                     onBlur={() => setTimeout(() => setRoomOpen(false), 200)}
-                    placeholder="Search vacant rooms..."
+                    placeholder="SEARCH VACANT ROOMS"
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                     autoComplete="off"
                   />
-                  <p className="text-xs text-slate-400 mt-1">Only vacant inpatient units are shown. Room is marked Occupied when saved.</p>
                   {roomOpen && (
                     <div data-dd className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                       {roomLoading ? (
@@ -880,6 +865,18 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 </div>
               </div>
             )}
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+                Frequency
+              </label>
+              <input
+                type="text"
+                value={formData.duration}
+                onChange={(e) => handleChange('duration', e.target.value)}
+                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -891,7 +888,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 type="text"
                 value={formData.designated_security_personel}
                 onChange={(e) => handleChange('designated_security_personel', e.target.value)}
-                placeholder="Enter security personnel name..."
+                placeholder="ENTER SECURITY PERSONNEL NAME"
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
               />
             </div>
@@ -910,18 +907,6 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
-                Frequency
-              </label>
-              <input
-                type="text"
-                value={formData.duration}
-                onChange={(e) => handleChange('duration', e.target.value)}
-                placeholder="Auto-filled from observation level interval (e.g. 60M, 24H)"
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              />
-            </div>
           </div>
 
           <div className="mt-4">
@@ -931,7 +916,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
             <textarea
               value={formData.note}
               onChange={(e) => handleChange('note', e.target.value)}
-              placeholder="Enter observation notes..."
+              placeholder="ENTER OBSERVATION NOTES"
               rows={3}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />

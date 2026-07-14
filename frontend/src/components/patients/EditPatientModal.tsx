@@ -236,6 +236,15 @@ type Tab = 'details' | 'relations' | 'insurance' | 'documents' | 'cpr'
 
 const PATIENT_RELATION_OPTIONS = ['Father', 'Mother', 'Spouse', 'Siblings', 'Family', 'Other'] as const
 
+// Native selects keep their browser look unless appearance is reset — match them to text inputs
+// and draw our own chevron so both field types render identically.
+const SELECT_CHEVRON_STYLE: React.CSSProperties = {
+  backgroundImage: `url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'/%3e%3c/svg%3e")`,
+  backgroundRepeat: 'no-repeat',
+  backgroundPosition: 'right 0.5rem center',
+  backgroundSize: '1rem',
+}
+
 export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatientModalProps) => {
   const blockIfEditingLocked = useBlockIfEditingLocked()
   useRejectEditModeWhenLocked(true, onClose)
@@ -314,9 +323,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   const [showCreateNationality, setShowCreateNationality] = useState(false)
 
   const [categoryOptions, setCategoryOptions] = useState<LinkFieldOption[]>([])
-  const [categoryOpen, setCategoryOpen] = useState(false)
-  const [categoryQuery, setCategoryQuery] = useState('')
-  const [selectedCategory, setSelectedCategory] = useState<LinkFieldOption | null>(null)
 
   const [salutationOptions, setSalutationOptions] = useState<LinkFieldOption[]>([])
   const [salutationOpen, setSalutationOpen] = useState(false)
@@ -440,13 +446,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
         const sal = salutations.find((s) => s.name === patient.title)
         if (sal) setSelectedSalutation(sal)
-
-        const cat = categories.find((c) => c.name === patient.category)
-        if (cat) {
-          setSelectedCategory(cat)
-        } else if (patient.category) {
-          setSelectedCategory({ name: patient.category, label: patient.category })
-        }
 
         if (patient.insurance) {
           setSelectedInsurance({ name: patient.insurance, label: patient.insurance })
@@ -607,11 +606,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
       setActiveTab('details')
       return
     }
-    if (!formData.category) {
-      setError('Patient category is required')
-      setActiveTab('details')
-      return
-    }
     if (!hasInsuranceChoice) {
       setError('Please select Yes or No for Has Insurance')
       setActiveTab('insurance')
@@ -713,14 +707,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
   }, [sourceQuery, sourceOpen])
 
   useEffect(() => {
-    if (!categoryOpen) return
-    const t = setTimeout(() => {
-      fetchPatientCategories(categoryQuery).then(setCategoryOptions).catch(() => setCategoryOptions([]))
-    }, categoryQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [categoryQuery, categoryOpen])
-
-  useEffect(() => {
     if (!nationalityOpen) return
     const t = setTimeout(() => {
       fetchNationalities(nationalityQuery).then(setNationalityOptions).catch(() => setNationalityOptions([]))
@@ -757,13 +743,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     setFormData((prev) => ({ ...prev, source: source.name }))
     setSourceOpen(false)
     setSourceQuery('')
-  }
-
-  const handleCategorySelect = (cat: LinkFieldOption) => {
-    setSelectedCategory(cat)
-    setFormData((prev) => ({ ...prev, category: cat.name }))
-    setCategoryOpen(false)
-    setCategoryQuery('')
   }
 
   const handleNationalitySelect = (nat: LinkFieldOption) => {
@@ -871,14 +850,22 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             }
           }}
         >
-          <div className="overflow-y-auto p-6 space-y-4 text-slate-900" style={{ height: "520px" }}>
+          {/* All field labels and placeholders render uppercase via text-transform */}
+          <div className="overflow-y-auto p-6 space-y-4 text-slate-900 [&_label]:uppercase [&_input::placeholder]:uppercase [&_textarea::placeholder]:uppercase" style={{ height: "520px" }}>
             {/* ── TAB: Patient Details ── */}
             {activeTab === 'details' && (
               <>
-                {/* Basic Information */}
+                {/* Is Black List — pinned top-right */}
+                <div className="flex justify-end">
+                  <label htmlFor="edit_is_black_list" className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 cursor-pointer select-none">
+                    <input type="checkbox" id="edit_is_black_list" checked={formData.is_black_list} onChange={(e) => handleChange('is_black_list', e.target.checked)} className="rounded border-slate-300 text-primary focus:ring-primary" />
+                    <span className="text-sm font-medium text-slate-700">Is Black List ?</span>
+                  </label>
+                </div>
+
+                {/* Basic details */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Basic Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
                       <div className="relative">
@@ -917,8 +904,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Gender <span className="text-red-500">*</span>
                       </label>
-                      <select value={formData.sex} onChange={(e) => handleChange('sex', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" required>
-                        <option value="">Select Gender</option>
+                      <select value={formData.sex} onChange={(e) => handleChange('sex', e.target.value)} className="w-full appearance-none rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" style={SELECT_CHEVRON_STYLE} required>
+                        <option value="">SELECT GENDER</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
                         <option value="Other">Other</option>
@@ -931,8 +918,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Blood Group</label>
-                      <select value={formData.blood_group} onChange={(e) => handleChange('blood_group', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                        <option value="">Select Blood Group</option>
+                      <select value={formData.blood_group} onChange={(e) => handleChange('blood_group', e.target.value)} className="w-full appearance-none rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" style={SELECT_CHEVRON_STYLE}>
+                        <option value="">SELECT BLOOD GROUP</option>
                         <option value="A Positive">A Positive</option>
                         <option value="A Negative">A Negative</option>
                         <option value="AB Positive">AB Positive</option>
@@ -946,10 +933,9 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                   </div>
                 </div>
 
-                {/* Contact Information */}
+                {/* Contact */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Contact Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Mobile <span className="text-red-500">*</span>
@@ -961,11 +947,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 1</label>
                       <input type="tel" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No 2</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 2</label>
                       <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div className="md:col-span-2">
@@ -977,8 +963,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
                 {/* Identification */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Identification</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">CPR / ID / Passport No.</label>
                       <input type="text" value={formData.id_number} onChange={(e) => handleChange('id_number', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -1009,39 +994,22 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       </div>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Category <span className="text-red-500">*</span>
-                      </label>
-                      <div className="relative flex items-center">
-                        <input
-                          type="text"
-                          value={selectedCategory ? selectedCategory.label : categoryQuery}
-                          onChange={(e) => {
-                            setCategoryQuery(e.target.value)
-                            setSelectedCategory(null)
-                            setFormData((prev) => ({ ...prev, category: '' }))
-                            setCategoryOpen(true)
-                          }}
-                          onFocus={() => setCategoryOpen(true)}
-                          placeholder="Search patient category..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                          required
-                        />
-                        {categoryOpen && categoryOptions.length > 0 && (
-                          <div className="absolute z-10 w-full mt-1 top-full bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {categoryOptions.map((cat) => (
-                              <button
-                                key={cat.name}
-                                type="button"
-                                onClick={() => handleCategorySelect(cat)}
-                                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                              >
-                                {cat.label}
-                              </button>
-                            ))}
-                          </div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                      <select
+                        value={formData.category}
+                        onChange={(e) => handleChange('category', e.target.value)}
+                        className="w-full appearance-none rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                        style={SELECT_CHEVRON_STYLE}
+                      >
+                        <option value="">SELECT CATEGORY</option>
+                        {/* Keep a stored value visible even if its Patient Category record is missing from the list */}
+                        {formData.category && !categoryOptions.some((c) => c.name === formData.category) && (
+                          <option value={formData.category}>{formData.category}</option>
                         )}
-                      </div>
+                        {categoryOptions.map((cat) => (
+                          <option key={cat.name} value={cat.name}>{cat.label}</option>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -1073,8 +1041,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Marital Status</label>
-                      <select value={formData.marital_status} onChange={(e) => handleChange('marital_status', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                        <option value="">Select Marital Status</option>
+                      <select value={formData.marital_status} onChange={(e) => handleChange('marital_status', e.target.value)} className="w-full appearance-none rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" style={SELECT_CHEVRON_STYLE}>
+                        <option value="">SELECT MARITAL STATUS</option>
                         <option value="Single">Single</option>
                         <option value="Married">Married</option>
                         <option value="Divorced">Divorced</option>
@@ -1084,25 +1052,23 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                   </div>
                 </div>
 
-                {/* Job Details */}
+                {/* Job details — company first, then designation */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Job Details</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Job Title</label>
-                      <input type="text" value={formData.job_title} onChange={(e) => handleChange('job_title', e.target.value)} placeholder="e.g. Nurse, Engineer, Teacher" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Job Company</label>
                       <input type="text" value={formData.job_company} onChange={(e) => handleChange('job_company', e.target.value)} placeholder="Company / Organization" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Designation</label>
+                      <input type="text" value={formData.job_title} onChange={(e) => handleChange('job_title', e.target.value)} placeholder="e.g. Nurse, Engineer, Teacher" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
 
                 {/* Address */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Address</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Address Line 1 <span className="text-red-500">*</span>
@@ -1118,38 +1084,29 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <input type="text" value={formData.city} onChange={(e) => handleChange('city', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">State/Province</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">State</label>
                       <input type="text" value={formData.state} onChange={(e) => handleChange('state', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Country</label>
-                      <select value={formData.country} onChange={(e) => handleChange('country', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white">
-                        <option value="">Select country</option>
+                      <select value={formData.country} onChange={(e) => handleChange('country', e.target.value)} className="w-full appearance-none rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white" style={SELECT_CHEVRON_STYLE}>
+                        <option value="">SELECT COUNTRY</option>
                         {countries.map((c) => (
                           <option key={c.name} value={c.name}>{c.name}</option>
                         ))}
                       </select>
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Pincode/ZIP</label>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Postal Code</label>
                       <input type="text" value={formData.pincode} onChange={(e) => handleChange('pincode', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
 
-                {/* Other Information */}
+                {/* Remarks */}
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-widest text-blue-600 mb-3 mt-2">Other Information</h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-2">
-                      <input type="checkbox" id="edit_is_black_list" checked={formData.is_black_list} onChange={(e) => handleChange('is_black_list', e.target.checked)} className="rounded border-slate-300 text-primary focus:ring-primary" />
-                      <label htmlFor="edit_is_black_list" className="text-sm font-medium text-slate-700">Is Black List?</label>
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Any Other Information / Remarks</label>
-                      <textarea value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                  </div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Other Informations / Remarks</label>
+                  <textarea value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} rows={2} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
               </>
             )}
@@ -1279,30 +1236,21 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             {/* ── TAB: Next of Kin ── */}
             {activeTab === 'relations' && (
               <div>
-                <p className="text-sm text-slate-500 mb-4">
-                  Add family members, emergency contacts, and other relations for this patient.
-                </p>
                 <div className="space-y-3">
                   {relations.length === 0 && (
                     <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
-                      No relations added yet. Click below to add one.
+                      NO RELATIVE ADDED
                     </div>
                   )}
                   {relations.map((row, idx) => (
                     <div key={idx} className="rounded-lg border border-slate-200 p-4 bg-slate-50/50 space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Relation #{idx + 1}</span>
-                        <div className="flex items-center gap-3">
-                          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                            <input type="checkbox" checked={row.is_next_of_kin} onChange={(e) => updateRelationRow(idx, 'is_next_of_kin', e.target.checked)} className="rounded border-slate-300 text-primary focus:ring-primary" />
-                            <span className="text-xs font-medium text-slate-700">Next of Kin</span>
-                          </label>
-                          <button type="button" onClick={() => removeRelationRow(idx)} className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
-                            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        </div>
+                        <button type="button" onClick={() => removeRelationRow(idx)} className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove">
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div>
@@ -1311,8 +1259,8 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Relation</label>
-                          <select value={row.relation || ''} onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)} className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary">
-                            <option value="">Select relation</option>
+                          <select value={row.relation || ''} onChange={(e) => updateRelationRow(idx, 'relation', e.target.value)} className="w-full appearance-none rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 pr-7 text-sm focus:outline-none focus:ring-2 focus:ring-primary" style={SELECT_CHEVRON_STYLE}>
+                            <option value="">SELECT RELATION</option>
                             {PATIENT_RELATION_OPTIONS.map((opt) => (<option key={opt} value={opt}>{opt}</option>))}
                           </select>
                         </div>
@@ -1329,7 +1277,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                   ))}
                   <button type="button" onClick={addRelationRow} className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                    Add Next of Kin / relative
+                    Add Next of Kin
                   </button>
                 </div>
               </div>
@@ -1338,13 +1286,10 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             {/* ── TAB: Documents ── */}
             {activeTab === 'documents' && (
               <div>
-                <p className="text-sm text-slate-500 mb-4">
-                  Attach identification documents, reports, or other files. You can upload a file <em>or</em> draw a digital signature directly on-screen.
-                </p>
                 <div className="space-y-4">
                   {documents.length === 0 && (
-                    <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
-                      No documents added yet. Click below to add one.
+                    <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm font-medium tracking-wide">
+                      NO DOCUMENT ADDED
                     </div>
                   )}
 
@@ -1381,11 +1326,17 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)} placeholder="Remarks" className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                           </div>
                           <div className="sm:col-span-2">
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
-                              File Attachment <span className="ml-1 font-normal text-slate-400">(photo, PDF, etc.)</span>
+                            <label
+                              className={`inline-flex items-center gap-2 h-8 px-3 rounded text-xs font-semibold cursor-pointer transition-colors ${
+                                documentUploading === idx
+                                  ? 'bg-slate-200 text-slate-500'
+                                  : 'bg-primary text-white hover:bg-primary/90'
+                              }`}
+                            >
+                              <Upload className="w-3.5 h-3.5" />
+                              {documentUploading === idx ? 'UPLOADING…' : 'UPLOAD FILE'}
+                              <input type="file" disabled={documentUploading === idx} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }} className="hidden" />
                             </label>
-                            <input type="file" disabled={documentUploading === idx} onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }} className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
-                            {documentUploading === idx && (<span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>)}
                             {row.document && documentUploading !== idx && signatureUploading !== idx && (
                               <PatientDocumentAttachmentPreview
                                 url={row.document}
@@ -1399,8 +1350,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                         <div className="p-4 flex flex-col gap-2">
                           <div className="flex items-center gap-1.5 mb-1">
                             <PenLine className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-600">Digital Signature</span>
-                            <span className="text-xs text-slate-400 ml-1">— draw &amp; save as file</span>
+                            <span className="text-xs font-medium text-slate-600 uppercase">Digital Signature</span>
                           </div>
                           <div className="flex-1">
                             <SignaturePad
@@ -1410,7 +1360,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             />
                           </div>
                           {signatureUploading === idx && (<p className="text-xs text-slate-500 text-center">Uploading signature...</p>)}
-                          <p className="text-xs text-slate-400 leading-relaxed">Draw your signature above, then tap <strong>Save Signature</strong> — stored as a PNG attached to this row.</p>
                         </div>
                       </div>
                     </div>
@@ -1426,21 +1375,22 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
 
             {/* ── TAB: Attach CPR front & back ── */}
             {activeTab === 'cpr' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {([
-                  { side: 'front' as const, label: 'CPR Front', value: cprPhoto, setValue: setCprPhoto },
-                  { side: 'back' as const, label: 'CPR Back', value: cprPhotoBack, setValue: setCprPhotoBack },
-                ]).map(({ side, label, value, setValue }) => (
-                  <div key={side} className="space-y-3">
-                    <h4 className="text-sm font-semibold text-slate-800">{label}</h4>
-                    <div className="flex items-center gap-3">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800 mb-4">UPLOAD CPR</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {([
+                    { side: 'front' as const, label: 'CPR FRONT SIDE IMAGE', buttonLabel: 'UPLOAD FRONT SIDE IMAGE', value: cprPhoto, setValue: setCprPhoto },
+                    { side: 'back' as const, label: 'CPR BACK SIDE IMAGE', buttonLabel: 'UPLOAD BACK SIDE IMAGE', value: cprPhotoBack, setValue: setCprPhotoBack },
+                  ]).map(({ side, label, buttonLabel, value, setValue }) => (
+                    <div key={side} className="space-y-3">
+                      <div className="flex items-center gap-3">
                         <label
-                          className={`inline-flex h-8 w-8 items-center justify-center rounded-md cursor-pointer transition-colors ${
+                          className={`inline-flex items-center gap-2 h-9 px-3 rounded-md text-xs font-semibold cursor-pointer transition-colors ${
                             cprUploading === side
                               ? 'bg-slate-200 text-slate-500'
                               : 'bg-primary text-white hover:bg-primary/90'
                           }`}
-                          title={cprUploading === side ? 'Uploading…' : value ? `Replace ${label}` : `Attach ${label}`}
+                          title={cprUploading === side ? 'Uploading…' : value ? `Replace ${label}` : buttonLabel}
                         >
                           {cprUploading === side ? (
                             <Loader2 className="w-4 h-4 animate-spin" />
@@ -1449,6 +1399,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                           ) : (
                             <Upload className="w-4 h-4" />
                           )}
+                          {cprUploading === side ? 'UPLOADING…' : buttonLabel}
                           <input
                             type="file"
                             accept="image/*"
@@ -1466,7 +1417,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             <a
                               href={value}
                               download
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
                               title={`Download ${label}`}
                             >
                               <Download className="w-4 h-4" />
@@ -1474,25 +1425,26 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             <button
                               type="button"
                               onClick={() => setValue('')}
-                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-red-500 hover:bg-red-50"
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-red-500 hover:bg-red-50"
                               title={`Remove ${label}`}
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
                           </>
                         )}
-                    </div>
-                    {value ? (
-                      <a href={value} target="_blank" rel="noreferrer" title="Click to open full size" className="block rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
-                        <img src={value} alt={label} className="mx-auto max-h-56 object-contain" />
-                      </a>
-                    ) : (
-                      <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
-                        Attach the patient's CPR {side} image (image files only).
                       </div>
-                    )}
-                  </div>
-                ))}
+                      {value ? (
+                        <a href={value} target="_blank" rel="noreferrer" title="Click to open full size" className="block rounded-lg border border-slate-200 bg-white p-2 hover:ring-2 hover:ring-primary/40">
+                          <img src={value} alt={label} className="mx-auto max-h-56 object-contain" />
+                        </a>
+                      ) : (
+                        <div className="rounded-lg border-2 border-dashed border-slate-200 p-8 text-center text-sm font-medium tracking-wide text-slate-400">
+                          {label}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

@@ -4,12 +4,12 @@ import {
   createObservationSalesOrder,
   type Observation,
 } from '../../services/observations'
-import { fetchObservationLevels, type LinkFieldOption } from '../../services/common'
-import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { fetchObservationLevels, fetchHealthcarePractitioners, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { isDoctorRole } from '../../config/permissions'
 import { toast } from '../../hooks/useToast'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
 import { isObservationActive } from './observationDisplayUtils'
@@ -49,7 +49,6 @@ const FilterToggleButton = ({
 )
 
 export const ObservationList = ({ patient, refreshKey, onPatientClick }: ObservationListProps) => {
-  const formatCurrency = useFormatMoney()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -68,27 +67,48 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
-  const [dcDateFrom, setDcDateFrom] = useState('')
-  const [dcDateTo, setDcDateTo] = useState('')
   const [observationLevelFilter, setObservationLevelFilter] = useState('')
   const [observationLevelOptions, setObservationLevelOptions] = useState<LinkFieldOption[]>([])
   const [observationLevelOpen, setObservationLevelOpen] = useState(false)
   const [observationLevelQuery, setObservationLevelQuery] = useState('')
 
-  const hasActiveFilters = Boolean(
-    dateFrom || dateTo || dcDateFrom || dcDateTo || observationLevelFilter,
-  )
+  const [doctorFilter, setDoctorFilter] = useState('')
+  const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
+  const [doctorOpen, setDoctorOpen] = useState(false)
+  const [doctorQuery, setDoctorQuery] = useState('')
+  const doctorFilterRef = useRef<HTMLDivElement>(null)
+
+  // Doctors get the filter pre-applied to their own records; other roles start unfiltered.
+  const { userRole } = useCareContext()
+  const doctorDefaultApplied = useRef(false)
+  useEffect(() => {
+    if (doctorDefaultApplied.current) return
+    if (!isDoctorRole(userRole)) return
+    doctorDefaultApplied.current = true
+    let cancelled = false
+    getCurrentUserPractitionerOption()
+      .then((opt) => {
+        if (cancelled || !opt) return
+        setDoctorOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [opt, ...prev]))
+        setDoctorFilter(opt.name)
+        setDoctorQuery(opt.label || opt.name)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userRole])
+
+  const hasActiveFilters = Boolean(dateFrom || dateTo || observationLevelFilter || doctorFilter)
 
   const loadObservations = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
+      // One From/To range filters on both Start Date and DC Date (backend ORs the two).
       const response = await fetchObservations(50, 0, patient, {
         observationLevel: observationLevelFilter || undefined,
+        practitioner: doctorFilter || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
-        dcDateFrom: dcDateFrom || undefined,
-        dcDateTo: dcDateTo || undefined,
       })
       setObservations(response)
     } catch (err) {
@@ -97,7 +117,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
     } finally {
       setLoading(false)
     }
-  }, [patient, observationLevelFilter, dateFrom, dateTo, dcDateFrom, dcDateTo])
+  }, [patient, observationLevelFilter, doctorFilter, dateFrom, dateTo])
 
   useEffect(() => {
     loadObservations()
@@ -116,16 +136,32 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
     return () => clearTimeout(t)
   }, [observationLevelQuery, observationLevelOpen])
 
+  // Doctor filter — debounced practitioner search when the dropdown is open
+  useEffect(() => {
+    if (!doctorOpen) return
+    const t = setTimeout(async () => {
+      try {
+        const opts = await fetchHealthcarePractitioners(doctorQuery || undefined)
+        setDoctorOptions(opts)
+      } catch {
+        setDoctorOptions([])
+      }
+    }, doctorQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [doctorQuery, doctorOpen])
+
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       const el = e.target as HTMLElement
       if (el.closest('[data-portal-actions-menu]')) return
       if (el.closest('button[aria-label="Actions"]')) return
       if (levelFilterRef.current?.contains(el)) return
+      if (doctorFilterRef.current?.contains(el)) return
       if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
         setOpenActionRow(null)
       }
       setObservationLevelOpen(false)
+      setDoctorOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -134,11 +170,12 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
   const clearFilters = () => {
     setDateFrom('')
     setDateTo('')
-    setDcDateFrom('')
-    setDcDateTo('')
     setObservationLevelFilter('')
     setObservationLevelQuery('')
     setObservationLevelOpen(false)
+    setDoctorFilter('')
+    setDoctorQuery('')
+    setDoctorOpen(false)
   }
 
   const handleOpenSalesOrder = (soName: string) => {
@@ -190,7 +227,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
     <>
       {!inDashboardCard && (
         <div className="flex items-center justify-between gap-2 mb-3">
-          <h2 className="text-xl font-semibold text-slate-900">Observation</h2>
+          <h2 className="text-xl font-semibold text-slate-900">Observation Level</h2>
           <FilterToggleButton
             active={Boolean(showFilters)}
             onClick={() => setShowFiltersInternal((prev) => !prev)}
@@ -267,23 +304,62 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
               )}
             </div>
           </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">DC From Date</label>
-            <DateFilterInput
-              value={dcDateFrom}
-              onChange={(e) => setDcDateFrom(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
+          <div ref={doctorFilterRef} className="flex flex-col gap-1 min-w-[200px]">
+            <label className="text-xs font-medium text-slate-500">Doctor</label>
+            <div className="relative">
+              <input
+                type="text"
+                value={
+                  doctorFilter
+                    ? doctorOptions.find((p) => p.name === doctorFilter)?.label || doctorQuery || doctorFilter
+                    : doctorQuery
+                }
+                onChange={(e) => {
+                  setDoctorQuery(e.target.value)
+                  setDoctorFilter('')
+                  setDoctorOpen(true)
+                }}
+                onFocus={() => setDoctorOpen(true)}
+                placeholder="Search doctor…"
+                className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
+                  doctorFilter ? 'pr-8' : ''
+                }`}
+              />
+              {doctorFilter && (
+                <button
+                  type="button"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  aria-label="Clear doctor filter"
+                  onClick={() => {
+                    setDoctorFilter('')
+                    setDoctorQuery('')
+                    setDoctorOpen(false)
+                  }}
+                >
+                  ×
+                </button>
+              )}
+              {doctorOpen && doctorOptions.length > 0 && (
+                <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
+                  {doctorOptions.map((p) => (
+                    <button
+                      key={p.name}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                      onClick={() => {
+                        setDoctorFilter(p.name)
+                        setDoctorQuery(p.label || p.name)
+                        setDoctorOpen(false)
+                      }}
+                    >
+                      {p.label || p.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <div className="flex flex-col gap-1 min-w-[130px]">
-            <label className="text-xs font-medium text-slate-500">DC To Date</label>
-            <DateFilterInput
-              value={dcDateTo}
-              onChange={(e) => setDcDateTo(e.target.value)}
-              className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
-          </div>
-          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} className="!ml-0" />
         </div>
       )}
 
@@ -301,7 +377,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
       ) : observations.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-500">
-            No observations found{hasActiveFilters ? ' for the selected filters' : ''}.
+            NO OBSERVATION FOUND
           </div>
         </div>
       ) : (
@@ -314,39 +390,36 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Observation ID
+                    Observation Level
                   </th>
-                  {!patient && (
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                      Patient
-                    </th>
-                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Start Date
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     DC Date
                   </th>
+                  {!patient && (
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Patient Name
+                    </th>
+                  )}
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Obs Level
+                    Care Context
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Room
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Security Personnel
+                    Frequency
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Result
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Amount
+                    Doctor Name
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Frequency
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Practitioner
+                    Security Personnel
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[140px]">
                     Actions
@@ -359,31 +432,19 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                   return (
                     <tr
                       key={obs.name}
-                      className={
+                      onClick={() => {
+                        setDetailPreview(obs)
+                        setDetailName(obs.name)
+                      }}
+                      className={`cursor-pointer ${
                         active
                           ? 'bg-green-100 hover:bg-green-200 ring-2 ring-inset ring-emerald-500/80'
                           : 'hover:bg-slate-50'
-                      }
+                      }`}
                     >
-                      <td
-                        className="px-4 py-3 text-sm font-medium text-primary cursor-pointer hover:underline"
-                        onClick={() => {
-                          setDetailPreview(obs)
-                          setDetailName(obs.name)
-                        }}
-                      >
-                        {obs.trans_no || obs.name}
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {obs.observation_level || '-'}
                       </td>
-                      {!patient && (
-                        <td
-                          className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
-                          onClick={() => obs.patient && onPatientClick?.(obs.patient)}
-                        >
-                          <span className="font-medium text-primary hover:underline">
-                            {obs.patient_name || obs.patient || '-'}
-                          </span>
-                        </td>
-                      )}
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.start_date ? new Date(obs.start_date).toLocaleDateString('en-GB') : '-'}
                       </td>
@@ -398,28 +459,40 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                           '—'
                         )}
                       </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.observation_level || '-'}
+                      {!patient && (
+                        <td
+                          className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            if (obs.patient) onPatientClick?.(obs.patient)
+                          }}
+                        >
+                          <span className="font-medium text-primary hover:underline">
+                            {obs.patient_name || obs.patient || '-'}
+                          </span>
+                        </td>
+                      )}
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                        {obs.admission_no
+                          ? `IP · ${obs.admission_no}`
+                          : obs.reference_doctype === 'Patient Visit' && obs.reference_docname
+                            ? `OP · ${obs.reference_docname}`
+                            : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.room_name || obs.room || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.designated_security_personel || '-'}
+                        {obs.duration || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {getResultDisplay(obs)}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.amount !== undefined && obs.amount !== null
-                          ? formatCurrency(Number(obs.amount))
-                          : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.duration || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.practitioner_name || obs.healthcare_practitioner || '-'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700">
+                        {obs.designated_security_personel || '-'}
                       </td>
                       <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">
@@ -487,12 +560,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                               )}
                             </PortalActionsMenu>
                           </div>
-                          <PrintFormatDropdown
-                            doctype="Observation"
-                            docName={obs.name}
-                            noLetterhead={0}
-                            triggerPrint={1}
-                          />
                         </div>
                       </td>
                     </tr>

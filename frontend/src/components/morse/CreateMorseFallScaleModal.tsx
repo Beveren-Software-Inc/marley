@@ -29,6 +29,7 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { isDoctorRole } from '../../config/permissions'
 import { toast } from '../../hooks/useToast'
 
 interface LinkComboboxProps {
@@ -225,7 +226,7 @@ export function CreateMorseFallScaleModal({
   onClose,
   onCreated,
 }: CreateMorseFallScaleModalProps) {
-  const { activeAdmission } = useCareContext()
+  const { activeAdmission, userRole } = useCareContext()
   const lockedAdmission = activeAdmission || defaultAdmission || ''
 
   const [activeTab, setActiveTab] = useState<TabId>('assessment')
@@ -276,7 +277,12 @@ export function CreateMorseFallScaleModal({
       .catch(() => setCompanyOptions([]))
   }, [])
 
+  // Default the Doctor Name to the logged-in doctor only; nurses (and other roles) start blank.
+  const practitionerDefaultApplied = useRef(false)
   useEffect(() => {
+    if (practitionerDefaultApplied.current) return
+    if (!isDoctorRole(userRole)) return
+    practitionerDefaultApplied.current = true
     getCurrentUserPractitioner()
       .then(async (id) => {
         if (!id) return
@@ -290,7 +296,7 @@ export function CreateMorseFallScaleModal({
         }
       })
       .catch(() => {})
-  }, [])
+  }, [userRole])
 
   const totalFromStandard = selections.reduce<number>((sum, pts) => sum + (pts ?? 0), 0)
   const totalFromExtra = extraRows.reduce<number>((sum, r) => sum + (r.points || 0), 0)

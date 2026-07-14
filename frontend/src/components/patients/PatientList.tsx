@@ -82,7 +82,9 @@ export const PatientList = ({ refreshKey }: PatientListProps = {}) => {
   }, [globalSelectedPatient])
 
   // One patient is searched at a time, so the card shows a single record — no pagination.
-  const { patients, loading, error, refetch } = usePatients(debouncedQuery || undefined)
+  // The query is always a patient ID picked in the global search, so fetch it exactly —
+  // fuzzy matching could also hit look-alike mobile numbers and show a second patient.
+  const { patients, loading, error, refetch } = usePatients(undefined, 20, 0, debouncedQuery || undefined)
 
   // Handle loading state with delay to prevent blinking
   useEffect(() => {

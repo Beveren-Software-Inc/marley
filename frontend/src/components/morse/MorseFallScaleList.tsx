@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   fetchHealthcarePractitioners,
+  getCurrentUserPractitionerOption,
   type LinkFieldOption,
 } from '../../services/common'
+import { isDoctorRole } from '../../config/permissions'
 import {
   fetchMorseFallScales,
   type MorseFallScale,
@@ -88,7 +90,7 @@ export const MorseFallScaleList = ({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
-  const { guardClinicalCreate } = useCareContext()
+  const { guardClinicalCreate, userRole } = useCareContext()
   const [rows, setRows] = useState<MorseFallScale[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -103,6 +105,24 @@ export const MorseFallScaleList = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
+
+  // Doctors get the filter pre-applied to their own records; nurses and other roles start unfiltered.
+  const practitionerDefaultApplied = useRef(false)
+  useEffect(() => {
+    if (practitionerDefaultApplied.current) return
+    if (!isDoctorRole(userRole)) return
+    practitionerDefaultApplied.current = true
+    let cancelled = false
+    getCurrentUserPractitionerOption()
+      .then((opt) => {
+        if (cancelled || !opt) return
+        setPractitionerOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [opt, ...prev]))
+        setPractitionerFilter(opt.name)
+        setPractitionerQuery(opt.label || opt.name)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [userRole])
 
   const showCreateModal = createModalOpen ?? internalCreateOpen
   const setShowCreateModal = onCreateModalOpenChange ?? setInternalCreateOpen
@@ -190,7 +210,7 @@ export const MorseFallScaleList = ({
   if (!patient) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
-        Select a patient to view Morse Fall Scale records.
+        SEARCH PATIENT TO VIEW MORSE FALL SCALE
       </div>
     )
   }
@@ -293,7 +313,7 @@ export const MorseFallScaleList = ({
               )}
             </div>
           </div>
-          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} />
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} className="!ml-0" />
         </div>
       )}
 
@@ -303,7 +323,7 @@ export const MorseFallScaleList = ({
         <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">{error}</div>
       ) : rows.length === 0 ? (
         <div className="bg-blue-50 border border-blue-200 rounded-md px-4 py-3 text-sm text-blue-700">
-          No Morse Fall Scale records found{hasActiveFilters ? ' for the selected filters' : ''}.
+          NO RECORD FOUND
         </div>
       ) : (
         <div className="bg-white border border-slate-200 rounded-lg overflow-hidden">

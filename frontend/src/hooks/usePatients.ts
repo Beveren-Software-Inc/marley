@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { fetchPatientsPaginated, type PatientListItem } from '../services/patients'
 
-export function usePatients(search?: string, limit: number = 20, offset: number = 0) {
+export function usePatients(search?: string, limit: number = 20, offset: number = 0, patient?: string) {
   const [patients, setPatients] = useState<PatientListItem[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [fullDirectoryRestricted, setFullDirectoryRestricted] = useState(false)
@@ -12,7 +12,7 @@ export function usePatients(search?: string, limit: number = 20, offset: number 
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchPatientsPaginated(limit, offset, search)
+      const response = await fetchPatientsPaginated(limit, offset, search, patient)
       setPatients(response.data)
       setTotalCount(response.total_count)
       setFullDirectoryRestricted(Boolean(response.full_directory_restricted))
@@ -21,7 +21,7 @@ export function usePatients(search?: string, limit: number = 20, offset: number 
     } finally {
       setLoading(false)
     }
-  }, [search, limit, offset])
+  }, [search, limit, offset, patient])
 
   useEffect(() => {
     loadPatients()

@@ -79,13 +79,42 @@ def get_patient_display_name(patient: str | None = None) -> dict:
 
 
 @frappe.whitelist()
-def get_patients(limit=20, offset=0, search=None):
-	"""Get list of patients with server-side pagination."""
+def get_patients(limit=20, offset=0, search=None, patient=None):
+	"""Get list of patients with server-side pagination.
+
+	`patient` fetches exactly one record by ID — used when a patient is selected
+	in the global search, so fuzzy matching can't pull in look-alike records.
+	"""
 	limit = int(limit) if limit else 20
 	offset = int(offset) if offset else 0
 
 	search = (search or "").strip()
 	search = search if search else None
+
+	patient = (patient or "").strip()
+	if patient:
+		rows = frappe.db.sql(
+			"""SELECT p.name, p.patient_name, p.file_no as file_number,
+				p.mobile, p.email, p.sex, p.id_number, p.category,
+				p.blood_group, p.nationality, p.is_insurance, p.insurance
+			FROM `tabPatient` p WHERE p.name = %(patient)s""",
+			{'patient': patient},
+			as_dict=True,
+		)
+		patient_names = [p.name for p in rows]
+		appointment_map = get_latest_appointment_status(patient_names)
+		inpatient_map = get_latest_inpatient_status(patient_names)
+		data = [
+			{'name': p.name, 'patient_name': p.patient_name or p.name,
+			 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email,
+			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,
+			 'blood_group': p.blood_group, 'nationality': p.nationality,
+			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0,
+			 'appointment_status': appointment_map.get(p.name),
+			 'inpatient_status': inpatient_map.get(p.name)}
+			for p in rows
+		]
+		return {"data": data, "total_count": len(data)}
 
 	if search:
 		search_param = f'%{search}%'

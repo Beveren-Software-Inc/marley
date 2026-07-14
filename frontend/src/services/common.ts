@@ -327,27 +327,21 @@ export async function fetchLeadSources(search?: string): Promise<LinkFieldOption
   }
 }
 
-/** Link options for Patient.category → DocType Patient Category. */
+/** Link options for Patient.category → DocType Patient Category.
+ * Uses a whitelisted endpoint (not /api/resource) so portal roles without
+ * doctype read permission (Doctor, Nurse) still get the option list. */
 export async function fetchPatientCategories(search?: string): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
-  params.append('fields', JSON.stringify(['name', 'patient_category']))
-  params.append('limit_page_length', '200')
-  params.append('order_by', 'patient_category asc')
   const q = (search || '').trim()
-  if (q) {
-    const safe = q.replace(/\\/g, '\\\\').replace(/%/g, '\\%')
-    params.append('filters', JSON.stringify([['patient_category', 'like', `%${safe}%`]]))
-  }
-  const response = await fetch(`/api/resource/Patient%20Category?${params.toString()}`)
+  if (q) params.append('search', q)
+  const response = await fetch(
+    `/api/method/healthcare.api.common.get_patient_categories${params.toString() ? `?${params.toString()}` : ''}`
+  )
   const resData = await response.json()
-  const rows = Array.isArray(resData?.data)
-    ? resData.data
-    : Array.isArray(resData?.message)
-      ? resData.message
-      : []
-  return (rows as { name: string; patient_category?: string }[]).map((r) => ({
+  const rows = Array.isArray(resData?.message) ? resData.message : []
+  return (rows as { name: string; label?: string }[]).map((r) => ({
     name: r.name,
-    label: (r.patient_category || r.name || '').trim() || r.name,
+    label: (r.label || r.name || '').trim() || r.name,
   }))
 }
 

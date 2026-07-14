@@ -25,7 +25,7 @@ import { PatientHistoryList } from '../patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 
 type EctTab =
-  | 'all' | 'anesthesia-consent' | 'pre-anesthesia' | 'anesthesia-record'
+  | 'anesthesia-consent' | 'pre-anesthesia' | 'anesthesia-record'
   | 'recovery-room' | 'alderete' | 'timeout' | 'pre-ect' | 'suicidal'
   | 'ect-admission' | 'ect-procedure' | 'ect-details' | 'consolidated-ect-details' | 'ect-chart' | 'physical' | 'patient-history'
 
@@ -43,7 +43,7 @@ interface ECTDashboardProps {
 }
 
 export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
-  const [ectTab, setEctTab] = useState<EctTab>('all')
+  const [ectTab, setEctTab] = useState<EctTab>('anesthesia-consent')
 
   // F046: only anesthesiologists/admins may see the anesthesia sub-workflow cards
   // (Recovery Room / Alderete / Pre-ECT); their doctypes 403 for other roles.
@@ -83,7 +83,6 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
   const ALL_CARDS: CardDef[] = [
-    { id: 'all',                title: 'All',                 desc: 'View all ECT sections',          color: 'bg-slate-100 text-slate-700 border-slate-300',      dot: 'bg-slate-400' },
     { id: 'anesthesia-consent', title: 'Anesthesia Consent',  desc: 'Consent with signatures',        color: 'bg-indigo-50 text-indigo-700 border-indigo-200',    dot: 'bg-indigo-500',   onAdd: () => setShowECTAnesthesiaConsentModal(true) },
     { id: 'pre-anesthesia',     title: 'Pre-Anesthesia',      desc: 'Pre-op body system assessment',  color: 'bg-purple-50 text-purple-700 border-purple-200',    dot: 'bg-purple-500',   onAdd: () => setShowPreAnesthesiaModal(true) },
     { id: 'anesthesia-record',  title: 'Anesthesia Record',   desc: 'Administration & monitoring',    color: 'bg-violet-50 text-violet-700 border-violet-200',    dot: 'bg-violet-500',   onAdd: () => setShowAnesthesiaRecordModal(true) },
@@ -154,50 +153,27 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       </div>
 
       {/* ── Content panel ── */}
-      {ectTab === 'all' ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {CARDS.filter(c => c.id !== 'all').map(card => (
-            <section key={card.id} className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-hidden">
-              <div className={`flex items-center justify-between px-4 py-2.5 border-b border-slate-100 ${card.color} border-0`}>
-                <div className="flex items-center gap-2">
-                  <span className={`w-2 h-2 rounded-full ${card.dot}`} />
-                  <span className="text-sm font-semibold">{card.title}</span>
-                </div>
-                {card.onAdd && (
-                  <button
-                    onClick={card.onAdd}
-                    className="w-6 h-6 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
-                    title={`Add ${card.title}`}
-                  >+</button>
-                )}
-              </div>
-              <div className="p-3 flex-1 min-h-[80px]">{sectionContent(card.id)}</div>
-            </section>
-          ))}
-        </div>
-      ) : (
-        <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
-          <div className={`flex items-center justify-between px-4 py-3 border-b border-slate-100 ${activeCard.color} border-0`}>
-            <div className="flex items-center gap-2">
-              <span className={`w-2.5 h-2.5 rounded-full ${activeCard.dot}`} />
-              <div>
-                <p className="text-sm font-semibold">{activeCard.title}</p>
-                <p className="text-xs opacity-75 mt-0.5">{activeCard.desc}</p>
-              </div>
+      <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+        <div className={`flex items-center justify-between px-4 py-3 border-b border-slate-100 ${activeCard.color} border-0`}>
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${activeCard.dot}`} />
+            <div>
+              <p className="text-sm font-semibold">{activeCard.title}</p>
+              <p className="text-xs opacity-75 mt-0.5">{activeCard.desc}</p>
             </div>
-            {activeCard.onAdd && (
-              <button
-                onClick={activeCard.onAdd}
-                className="w-7 h-7 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
-                title={`Add ${activeCard.title}`}
-              >+</button>
-            )}
           </div>
-          <div className="p-4 overflow-y-auto" style={{ maxHeight: '65vh', scrollbarWidth: 'thin' }}>
-            {sectionContent(ectTab)}
-          </div>
-        </section>
-      )}
+          {activeCard.onAdd && (
+            <button
+              onClick={activeCard.onAdd}
+              className="w-7 h-7 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
+              title={`Add ${activeCard.title}`}
+            >+</button>
+          )}
+        </div>
+        <div className="p-4 overflow-y-auto" style={{ maxHeight: '65vh', scrollbarWidth: 'thin' }}>
+          {sectionContent(ectTab)}
+        </div>
+      </section>
 
       {/* ── Modals ── */}
       {showECTAdmissionModal && (

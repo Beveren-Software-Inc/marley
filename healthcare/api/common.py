@@ -482,6 +482,24 @@ def get_nursing_checklist_templates(search=None):
 
 
 @frappe.whitelist()
+def get_patient_categories(search=None):
+	"""Patient Category options for dropdowns — portal roles (Doctor, Nurse) lack doctype read perms."""
+	filters = {}
+
+	if search:
+		filters['patient_category'] = ['like', f'%{search}%']
+
+	rows = frappe.get_all(
+		'Patient Category',
+		filters=filters,
+		fields=['name', 'patient_category'],
+		limit_page_length=200,
+		order_by='patient_category asc',
+	)
+	return [{'name': r.name, 'label': (r.patient_category or r.name or '').strip() or r.name} for r in rows]
+
+
+@frappe.whitelist()
 def get_lead_sources(search=None):
 	"""Get Lead Source options for dropdown"""
 	filters = {}

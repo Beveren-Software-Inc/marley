@@ -132,12 +132,15 @@ export async function fetchPatients(
 export async function fetchPatientsPaginated(
   limit: number = 20,
   offset: number = 0,
-  search?: string
+  search?: string,
+  /** Exact patient ID — returns only that record, bypassing fuzzy search. */
+  patient?: string
 ): Promise<PaginatedPatients> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
 
   const response = await fetch(
     `/api/method/healthcare.api.patient.get_patients?${params.toString()}`
