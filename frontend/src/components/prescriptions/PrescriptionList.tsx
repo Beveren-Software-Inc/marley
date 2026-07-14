@@ -8,7 +8,8 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
-import { prescriptionNeedsSignature } from '../../utils/prescriptionSigning'
+import { AddMedicationEntryModal } from './SinglePrescription'
+import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
@@ -103,6 +104,7 @@ export const PrescriptionList = ({
   const [signTarget, setSignTarget] = useState<Prescription | null>(null)
   const [editTarget, setEditTarget] = useState<Prescription | null>(null)
   const [editLoadingName, setEditLoadingName] = useState<string | null>(null)
+  const [addMedicationTarget, setAddMedicationTarget] = useState<Prescription | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -699,6 +701,21 @@ export const PrescriptionList = ({
                           </button>
                         </>
                       )}
+                      {prescriptionIsSigned(row) &&
+                        (Boolean(row.inpatient_record) || row.care_context === 'Inpatient Admission') &&
+                        row.status !== 'Completed' &&
+                        row.status !== 'Stopped' && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenActionRow(null)
+                              guardClinicalEdit(() => setAddMedicationTarget(row))
+                            }}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            Add Medication
+                          </button>
+                        )}
                       <button
                         type="button"
                         onClick={() => {
@@ -793,6 +810,21 @@ export const PrescriptionList = ({
           onSuccess={() => {
             setEditTarget(null)
             toast.success('Prescription updated')
+            load()
+          }}
+        />
+      )}
+
+      {addMedicationTarget && (
+        <AddMedicationEntryModal
+          prescriptionName={addMedicationTarget.name}
+          patient={addMedicationTarget.patient}
+          patientEncounter={addMedicationTarget.patient_encounter}
+          inpatientRecord={addMedicationTarget.inpatient_record}
+          onClose={() => setAddMedicationTarget(null)}
+          onSaved={() => {
+            setAddMedicationTarget(null)
+            toast.success('Medication added')
             load()
           }}
         />

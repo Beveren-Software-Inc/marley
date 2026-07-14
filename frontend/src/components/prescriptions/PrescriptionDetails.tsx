@@ -5,6 +5,7 @@ import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
+import { AddMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import {
@@ -296,6 +297,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [showSignModal, setShowSignModal] = useState(false)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showAddMedicationModal, setShowAddMedicationModal] = useState(false)
 
   // Per-drug Hold / Continue / Discontinue (doctor only)
   const { user } = useAuth()
@@ -388,6 +390,10 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const completionPct = (prescription.total_orders ?? 0) > 0
     ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)
     : 0
+  const isIpPrescription =
+    Boolean(prescription.inpatient_record) || prescription.care_context === 'Inpatient Admission'
+  const canAddMedication =
+    prescriptionIsSigned(prescription) && isIpPrescription && prescription.status !== 'Completed' && prescription.status !== 'Stopped'
 
   return (
     <div className="space-y-5">
@@ -446,6 +452,21 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           onClose={() => setShowEditModal(false)}
           onSuccess={() => {
             setShowEditModal(false)
+            load()
+            onUpdate?.()
+          }}
+        />
+      )}
+
+      {showAddMedicationModal && (
+        <AddMedicationEntryModal
+          prescriptionName={prescription.name}
+          patient={prescription.patient}
+          patientEncounter={prescription.patient_encounter}
+          inpatientRecord={prescription.inpatient_record}
+          onClose={() => setShowAddMedicationModal(false)}
+          onSaved={() => {
+            setShowAddMedicationModal(false)
             load()
             onUpdate?.()
           }}
@@ -660,6 +681,15 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                 Sign Prescription
               </button>
             </>
+          )}
+          {canAddMedication && (
+            <button
+              type="button"
+              onClick={() => setShowAddMedicationModal(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+            >
+              Add Medication
+            </button>
           )}
           <button
             onClick={() => setShowDuplicateModal(true)}
