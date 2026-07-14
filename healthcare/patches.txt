@@ -33,3 +33,5 @@ healthcare.patches.v16_0.seed_doctor_commission_sources
 healthcare.patches.v16_0.ensure_doctor_commission_workspace
 
 healthcare.patches.v16_0.normalize_lab_test_sample_statuses
+
+healthcare.patches.v16_0.grant_occupational_therapist_therapy_access
