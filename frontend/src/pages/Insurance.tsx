@@ -12,6 +12,7 @@ import { InsuranceClaimsDashboard } from '../components/insurance/InsuranceClaim
 import { InvoicesNeedingClaimList } from '../components/insurance/InvoicesNeedingClaimList'
 import { HealthInsuranceList } from '../components/insurance/HealthInsuranceList'
 import { CreateHealthInsuranceModal } from '../components/insurance/CreateHealthInsuranceModal'
+import { DashboardCard } from '../components/ui/DashboardCard'
 import type { InvoiceNeedingClaimRow } from '../services/common'
 
 type Tab = 'dashboard' | 'invoices-needing-claim' | 'health-insurance' | 'registers' | 'claims'
@@ -160,15 +161,13 @@ export const InsurancePage = () => {
           })}
         </div>
 
-        {/* Active section */}
-        <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          {/* Section header */}
-          <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
-            <div>
-              <h2 className="font-semibold text-slate-800">{activeCard.title}</h2>
-              <p className="text-xs text-slate-500 mt-0.5">{activeCard.desc}</p>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+        {/* Active section — unified DashboardCard (matches the Doctor module) */}
+        <DashboardCard
+          title={activeCard.title}
+          filterable={false}
+          noHeightLimit
+          headerExtra={
+            <>
               {activeTab !== 'dashboard' && (
                 <button
                   type="button"
@@ -216,51 +215,42 @@ export const InsurancePage = () => {
                   </button>
                 </>
               )}
-            </div>
-          </div>
-
-          {/* Content */}
-          <div className="p-4 overflow-y-auto" style={{ maxHeight: '65vh', scrollbarWidth: 'thin' }}>
-            {activeTab === 'dashboard' && (
-              <InsuranceClaimsDashboard
-                patient={selectedPatient}
-                currency={companyCurrency}
-                refreshKey={claimRefreshKey}
-              />
-            )}
-            {activeTab === 'invoices-needing-claim' && (
-              <InvoicesNeedingClaimList
-                patient={selectedPatient}
-                refreshKey={claimRefreshKey}
-                showFilters={showFilters}
-                onPatientClick={handlePatientSelect}
-                onCreateClaim={openCreateClaim}
-              />
-            )}
-            {activeTab === 'health-insurance' && (
-              <HealthInsuranceList
-                refreshKey={hiRefreshKey}
-                showFilters={showFilters}
-              />
-            )}
-            {activeTab === 'registers' && (
-              <InsurancePatientRegisterList
-                refreshKey={registerRefreshKey}
-                showFilters={showFilters}
-              />
-            )}
-            {activeTab === 'claims' && (
-              <InsuranceClaimList
-                refreshKey={claimRefreshKey}
-                patient={selectedPatient}
-                onPatientClick={handlePatientSelect}
-                showFilters={showFilters}
-                onEditDraft={openEditClaim}
-                onRefresh={bumpClaims}
-              />
-            )}
-          </div>
-        </section>
+            </>
+          }
+        >
+          {activeTab === 'dashboard' && (
+            <InsuranceClaimsDashboard
+              patient={selectedPatient}
+              currency={companyCurrency}
+              refreshKey={claimRefreshKey}
+            />
+          )}
+          {activeTab === 'invoices-needing-claim' && (
+            <InvoicesNeedingClaimList
+              patient={selectedPatient}
+              refreshKey={claimRefreshKey}
+              showFilters={showFilters}
+              onPatientClick={handlePatientSelect}
+              onCreateClaim={openCreateClaim}
+            />
+          )}
+          {activeTab === 'health-insurance' && (
+            <HealthInsuranceList refreshKey={hiRefreshKey} showFilters={showFilters} />
+          )}
+          {activeTab === 'registers' && (
+            <InsurancePatientRegisterList refreshKey={registerRefreshKey} showFilters={showFilters} />
+          )}
+          {activeTab === 'claims' && (
+            <InsuranceClaimList
+              refreshKey={claimRefreshKey}
+              patient={selectedPatient}
+              onPatientClick={handlePatientSelect}
+              showFilters={showFilters}
+              onEditDraft={openEditClaim}
+              onRefresh={bumpClaims}
+            />
+          )}
+        </DashboardCard>
       </div>
 
       {/* Modals */}

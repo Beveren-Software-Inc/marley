@@ -710,6 +710,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History, Clock } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
+import { DashboardCard } from '../components/ui/DashboardCard'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
@@ -926,17 +927,13 @@ export const LabPage = () => {
         <div className="p-4 space-y-4">
 
           {/* Lab Test Templates */}
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Lab Test Templates</span>
-              <button
-                onClick={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Create Lab Test Template"
-              >
-                +
-              </button>
-            </div>
+          <DashboardCard
+            title="Lab Test Templates"
+            filterable={false}
+            noHeightLimit
+            onAdd={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
+            addButtonTitle="Create Lab Test Template"
+          >
             <div className="overflow-y-auto max-h-72" style={{ scrollbarWidth: 'thin' }}>
               <LabTestTemplateList
                 refreshKey={templateRefreshKey}
@@ -944,22 +941,18 @@ export const LabPage = () => {
                 onEditClick={handleEditTemplate}
               />
             </div>
-          </section>
+          </DashboardCard>
 
           <div className="grid gap-4 md:grid-cols-2">
             {/* Lab Test Samples */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-              <div className="font-semibold mb-3 flex items-center justify-between">
-                <span>Lab Test Samples</span>
-                <button
-                  onClick={() => setShowCreateSampleModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                  title="Create Lab Test Sample"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-y-auto max-h-56" style={{ scrollbarWidth: 'thin' }}>
+            <DashboardCard
+              title="Lab Test Samples"
+              filterable={false}
+              fixedHeight
+              onAdd={() => setShowCreateSampleModal(true)}
+              addButtonTitle="Create Lab Test Sample"
+            >
+              <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 {samplesLoading ? (
                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
                 ) : labSamples.length === 0 ? (
@@ -985,21 +978,17 @@ export const LabPage = () => {
                   </table>
                 )}
               </div>
-            </section>
+            </DashboardCard>
 
             {/* Sample Types */}
-            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-              <div className="font-semibold mb-3 flex items-center justify-between">
-                <span>Sample Types</span>
-                <button
-                  onClick={() => setShowCreateSampleTypeModal(true)}
-                  className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                  title="Create Sample Type"
-                >
-                  +
-                </button>
-              </div>
-              <div className="overflow-y-auto max-h-56" style={{ scrollbarWidth: 'thin' }}>
+            <DashboardCard
+              title="Sample Types"
+              filterable={false}
+              fixedHeight
+              onAdd={() => setShowCreateSampleTypeModal(true)}
+              addButtonTitle="Create Sample Type"
+            >
+              <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                 {sampleTypesLoading ? (
                   <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
                 ) : sampleTypes.length === 0 ? (
@@ -1015,7 +1004,7 @@ export const LabPage = () => {
                   </div>
                 )}
               </div>
-            </section>
+            </DashboardCard>
           </div>
         </div>
 
@@ -1055,21 +1044,22 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-visible">
-            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList
-                patient={selectedPatient}
-                isOutsourced={true}
-                key={labTestRefreshKey}
-                onPatientClick={handlePatientSelect}
-                hideAmount={isLabTechnologist}
-                title="Outsourced Tests"
-                headerExtra={labTestSaveHeader}
-                onAdd={() => setShowLabTestModal(true)}
-                {...batchListProps}
-              />
-            </div>
-          </section>
+          <DashboardCard
+            title="Outsourced Tests"
+            noHeightLimit
+            headerExtra={labTestSaveHeader}
+            onAdd={() => setShowLabTestModal(true)}
+            addButtonTitle="Add Lab Test"
+          >
+            <LabTestList
+              patient={selectedPatient}
+              isOutsourced={true}
+              key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
+              hideAmount={isLabTechnologist}
+              {...batchListProps}
+            />
+          </DashboardCard>
         </div>
         {showLabTestModal && (
           <CreateLabTestModal
@@ -1090,10 +1080,9 @@ export const LabPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4">Inventory Dashboard</div>
+          <DashboardCard title="Inventory Dashboard" filterable={false} noHeightLimit>
             <NursingInventoryDashboard warehouseContext="laboratory" />
-          </section>
+          </DashboardCard>
         </div>
       </div>
     )
@@ -1106,21 +1095,22 @@ export const LabPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg shadow-sm flex flex-col overflow-visible">
-            <div className="overflow-x-auto overflow-visible" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestList
-                patient={selectedPatient}
-                key={labTestRefreshKey}
-                statusTabs
-                onPatientClick={handlePatientSelect}
-                hideAmount={isLabTechnologist}
-                title="Lab Test & Result"
-                headerExtra={labTestSaveHeader}
-                onAdd={() => setShowLabTestModal(true)}
-                {...batchListProps}
-              />
-            </div>
-          </section>
+          <DashboardCard
+            title="Lab Test & Result"
+            noHeightLimit
+            headerExtra={labTestSaveHeader}
+            onAdd={() => setShowLabTestModal(true)}
+            addButtonTitle="Add Lab Test"
+          >
+            <LabTestList
+              patient={selectedPatient}
+              key={labTestRefreshKey}
+              statusTabs
+              onPatientClick={handlePatientSelect}
+              hideAmount={isLabTechnologist}
+              {...batchListProps}
+            />
+          </DashboardCard>
         </div>
         {showLabTestModal && (
           <CreateLabTestModal
@@ -1178,102 +1168,83 @@ export const LabPage = () => {
           })}
         </div>
 
-        {/* Active section */}
-        <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          {resolvedTab !== 'lab-tests' && resolvedTab !== 'pending-lab-tests' && (
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
-            <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
-            {resolvedTab === 'lab-templates' && (
-              <button
-                type="button"
-                onClick={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
-                className="w-7 h-7 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-base font-bold"
-                title="New Lab Test Template"
-              >
-                +
-              </button>
-            )}
-          </div>
+        {/* Active section — unified DashboardCard (matches the Doctor module) */}
+        <DashboardCard
+          title={activeCard.title}
+          noHeightLimit
+          filterable={resolvedTab === 'pending-lab-tests' || resolvedTab === 'lab-tests'}
+          {...(resolvedTab === 'pending-lab-tests' || resolvedTab === 'lab-tests'
+            ? {
+                headerExtra: labTestSaveHeader,
+                onAdd: () => setShowLabTestModal(true),
+                addButtonTitle: 'Add Lab Test',
+              }
+            : resolvedTab === 'lab-templates'
+              ? {
+                  onAdd: () => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) },
+                  addButtonTitle: 'New Lab Test Template',
+                }
+              : {})}
+        >
+          {resolvedTab === 'pending-lab-tests' && (
+            <LabTestList
+              patient={selectedPatient}
+              key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
+              hideAmount={isLabTechnologist}
+              pipelinePending
+              {...batchListProps}
+            />
           )}
-
-          <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-1" style={{ scrollbarWidth: 'thin' }}>
-            {resolvedTab === 'pending-lab-tests' && (
-              <LabTestList
-                patient={selectedPatient}
-                key={labTestRefreshKey}
-                onPatientClick={handlePatientSelect}
-                hideAmount={isLabTechnologist}
-                title={activeCard.title}
-                pipelinePending
-                headerExtra={labTestSaveHeader}
-                onAdd={() => setShowLabTestModal(true)}
-                {...batchListProps}
+          {resolvedTab === 'lab-tests' && (
+            <LabTestList
+              patient={selectedPatient}
+              key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
+              hideAmount={isLabTechnologist}
+              {...batchListProps}
+            />
+          )}
+          {resolvedTab === 'sample-collection' && (
+            <div className="p-1">
+              <SampleCollectionList patient={selectedPatient} refreshKey={sampleCollectionRefreshKey} />
+            </div>
+          )}
+          {resolvedTab === 'lab-templates' && (
+            <div className="p-1">
+              <LabTestTemplateList
+                refreshKey={templateRefreshKey}
+                selectedPatient={selectedPatient}
+                onEditClick={handleEditTemplate}
               />
-            )}
-            {resolvedTab === 'lab-tests' && (
-              <LabTestList
-                patient={selectedPatient}
-                key={labTestRefreshKey}
-                onPatientClick={handlePatientSelect}
-                hideAmount={isLabTechnologist}
-                title={activeCard.title}
-                headerExtra={labTestSaveHeader}
-                onAdd={() => setShowLabTestModal(true)}
-                {...batchListProps}
-              />
-            )}
-            {resolvedTab === 'sample-collection' && (
-              <div className="p-3">
-                <SampleCollectionList
-                  patient={selectedPatient}
-                  refreshKey={sampleCollectionRefreshKey}
-                />
+            </div>
+          )}
+          {resolvedTab === 'lab-history' && (
+            <div className="p-1">
+              <LabTestHistory patientId={selectedPatient} onPatientChange={(p) => handlePatientSelect(p)} />
+            </div>
+          )}
+          {resolvedTab === 'medical-history' && (
+            needsPatient && !selectedPatient ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <BookOpen className="w-10 h-10 mb-3 opacity-40" />
+                <p className="text-sm font-medium">Select a patient to view medical history</p>
               </div>
-            )}
-            {resolvedTab === 'lab-templates' && (
-              <div className="p-3">
-                <LabTestTemplateList
-                  refreshKey={templateRefreshKey}
-                  selectedPatient={selectedPatient}
-                  onEditClick={handleEditTemplate}
-                />
+            ) : (
+              <div className="p-1"><MedicalHistoryView patient={selectedPatient!} /></div>
+            )
+          )}
+          {resolvedTab === 'warnings' && (
+            needsPatient && !selectedPatient ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <AlertTriangle className="w-10 h-10 mb-3 opacity-40" />
+                <p className="text-sm font-medium">Select a patient to view allergies & warnings</p>
               </div>
-            )}
-            {/* ADD Lab History Tab - placed before medical-history */}
-            {resolvedTab === 'lab-history' && (
-              <div className="p-1">
-                <LabTestHistory
-                  patientId={selectedPatient}
-                  onPatientChange={(p) => handlePatientSelect(p)}
-                />
-              </div>
-            )}
-            {resolvedTab === 'medical-history' && (
-              needsPatient && !selectedPatient ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                  <BookOpen className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm font-medium">Select a patient to view medical history</p>
-                </div>
-              ) : (
-                <div className="p-3">
-                  <MedicalHistoryView patient={selectedPatient!} />
-                </div>
-              )
-            )}
-            {resolvedTab === 'warnings' && (
-              needsPatient && !selectedPatient ? (
-                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                  <AlertTriangle className="w-10 h-10 mb-3 opacity-40" />
-                  <p className="text-sm font-medium">Select a patient to view allergies & warnings</p>
-                </div>
-              ) : (
-                <div className="p-3">
-                  <WarningMessagesList patient={selectedPatient!} onPatientClick={handlePatientSelect} />
-                </div>
-              )
-            )}
-          </div>
-        </section>
+            ) : (
+              <div className="p-1"><WarningMessagesList patient={selectedPatient!} onPatientClick={handlePatientSelect} /></div>
+            )
+          )}
+        </DashboardCard>
 
       </div>
 

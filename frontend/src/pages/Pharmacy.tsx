@@ -14,6 +14,8 @@ import {
 import { Plus } from 'lucide-react'
 import { MobileNavMenuButton } from '../components/layout/MobileNavMenuButton'
 import { CreateMaterialRequestModal } from '../components/pharmacy/CreateMaterialRequestModal'
+import { DashboardCard } from '../components/ui/DashboardCard'
+import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
 import { PharmacyDischargePage } from './PharmacyDischargePage'
 
 const PHARM_POS_URL = '/klik_pos/pos'
@@ -191,9 +193,9 @@ function PharmacyStockPage() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {error && (
-          <div className="mb-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
+          <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
             {error}
           </div>
         )}
@@ -258,6 +260,11 @@ function PharmacyStockPage() {
             </StockCard>
           </div>
         )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <OutpatientVisitsCard />
+          <InpatientAdmissionsCard />
+        </div>
       </div>
 
       {showMaterialRequestModal && (
@@ -287,15 +294,17 @@ function StockCard({
   children: React.ReactNode
 }) {
   return (
-    <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden flex flex-col min-h-[280px]">
-      <div className="px-4 py-3 bg-primary/20 border-b border-slate-100 flex items-center justify-between gap-2 flex-shrink-0">
-        <h2 className="font-semibold text-slate-800 flex items-center gap-1.5">
-          {title}
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium">
-            {count}
-          </span>
-        </h2>
-        <div className="flex items-center gap-2 flex-shrink-0">
+    <DashboardCard
+      title={title}
+      filterable={false}
+      fixedHeight
+      titleAddon={
+        <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 rounded-full bg-red-500 text-white text-xs font-medium">
+          {count}
+        </span>
+      }
+      headerExtra={
+        <>
           {headerRight}
           {onAddClick && (
             <button
@@ -307,16 +316,15 @@ function StockCard({
               <Plus className="w-5 h-5" />
             </button>
           )}
-        </div>
-      </div>
-      <div className="p-4 flex-1 overflow-y-auto min-h-0">
-        {count === 0 ? (
-          <p className="text-slate-500 text-sm">{emptyMessage}</p>
-        ) : (
-          children
-        )}
-      </div>
-    </section>
+        </>
+      }
+    >
+      {count === 0 ? (
+        <p className="text-slate-500 text-sm">{emptyMessage}</p>
+      ) : (
+        children
+      )}
+    </DashboardCard>
   )
 }
 

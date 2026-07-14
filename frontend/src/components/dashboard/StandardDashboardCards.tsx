@@ -12,10 +12,10 @@ import type { PatientVisitListRow } from '../../services/patientVisits'
 import type { InpatientRecord } from '../../services/inpatientRecords'
 
 /**
- * Standardised dashboard cards — Appointments, Outpatient Visit Details and
- * Inpatient Admissions render identically on the doctor, nurse and reception
- * dashboards (and their full-screen listings via `fullScreen`). Change them
- * here and every portal follows. Create modals + refresh live inside.
+ * Standardised dashboard cards — Appointments, Patient Visits and
+ * Patient Admissions render identically on the doctor, nurse, reception and
+ * pharmacy dashboards (and their full-screen listings via `fullScreen`). Change
+ * them here and every portal follows. Create modals + refresh live inside.
  */
 
 interface CommonCardProps {
@@ -104,7 +104,7 @@ export function OutpatientVisitsCard({
       <DashboardCard
         fixedHeight={!fullScreen}
         noHeightLimit={fullScreen}
-        title="Outpatient Visit Details"
+        title="Patient Visits"
         onAdd={() => setShowCreate(true)}
         addButtonTitle="Create Patient Visit"
         listingScreen={listingScreen}
@@ -150,7 +150,7 @@ export function InpatientAdmissionsCard({
       <DashboardCard
         fixedHeight={!fullScreen}
         noHeightLimit={fullScreen}
-        title="Inpatient Admissions"
+        title="Patient Admissions"
         onAdd={() => setShowCreate(true)}
         addButtonTitle="Create Admission"
         listingScreen={listingScreen}

@@ -242,6 +242,17 @@ const therapyScreenGroups: ScreenGroup[] = [
   },
 ]
 
+const nutritionistScreens = [
+  { id: 'nut-notes', title: 'Nutritionist Notes' },
+]
+
+const nutritionistScreenGroups: ScreenGroup[] = [
+  {
+    groupTitle: 'Nutritionist',
+    screens: nutritionistScreens,
+  },
+]
+
 // ─── Main links ───────────────────────────────────────────────────────────────
 
 const ALL_MAIN_LINKS: MainLinkItem[] = [
@@ -250,6 +261,7 @@ const ALL_MAIN_LINKS: MainLinkItem[] = [
   { to: '/lab',              label: 'Lab',              screens: labScreens,                  prefix: '/lab' },
   { to: '/psychologist',     label: 'Psychologist',     screenGroups: psychologistScreenGroups, prefix: '/psychologist' },
   { to: '/therapy',          label: 'Occupational Therapist',          screenGroups: therapyScreenGroups,      prefix: '/therapy' },
+  { to: '/nutritionist',     label: 'Nutritionist',     screenGroups: nutritionistScreenGroups, prefix: '/nutritionist' },
   { to: '/anesthesiologist', label: 'Anesthesiologist', screens: anesthesiologistScreens,     prefix: '/anesthesiologist' },
   { to: '/reception',        label: 'Reception',        screenGroups: receptionScreenGroups,   prefix: '/reception' },
   { to: '/insurance',        label: 'Insurance',        screens: insuranceScreens,            prefix: '/insurance' },

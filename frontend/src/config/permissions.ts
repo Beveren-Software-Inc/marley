@@ -107,6 +107,7 @@ export function hasHealthcareRole(roles: string[]): boolean {
     r.some(x => x.includes('reception')) ||
     r.some(x => x.includes('psychologist')) ||
     r.some(x => x === 'therapist' || x.includes('therapist')) ||
+    r.some(x => x.includes('nutritionist')) ||
     r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist')) ||
     r.some(x => x.includes('insurance'))
   )
@@ -139,6 +140,7 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
   if (pathname === '/reception') return normalizedRoles.some(r => r.includes('reception'))
   if (pathname === '/psychologist') return normalizedRoles.some(r => r.includes('psychologist'))
   if (pathname === '/therapy') return normalizedRoles.some(r => r === 'therapist' || r.includes('therapist'))
+  if (pathname === '/nutritionist') return normalizedRoles.some(r => r.includes('nutritionist'))
   if (pathname === '/anesthesiologist') return normalizedRoles.some(r => r.includes('anesthesiologist') || r.includes('anaesthesiologist'))
   if (pathname === '/insurance') return normalizedRoles.some(r => r.includes('insurance') || r.includes('reception'))
 
@@ -316,6 +318,7 @@ export function getDefaultRouteForUser(roles: string[]): string {
   if (r.some(x => x.includes('pharmacist') || x.includes('pharmacy') || x === 'pharmacy user')) return '/pharmacy'
   if (r.some(x => x.includes('reception'))) return '/reception'
   if (r.some(x => x === 'therapist' || x.includes('therapist'))) return '/therapy'
+  if (r.some(x => x.includes('nutritionist'))) return '/nutritionist'
   if (r.some(x => x.includes('psychologist'))) return '/psychologist'
   if (r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist'))) return '/anesthesiologist'
   return '/patient'
