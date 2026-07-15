@@ -5,6 +5,7 @@ import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { EditInsurancePatientRegisterModal } from './EditInsurancePatientRegisterModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
 
 const STATUS_COLORS: Record<string, string> = {
   Active: 'bg-green-100 text-green-700',
@@ -107,8 +108,14 @@ export const InsurancePatientRegisterList = ({
         await linkPatientToInsuranceRegister(createPatientForRegister.name, patientName)
         setCreatePatientForRegister(null)
         load()
-      } catch {
+      } catch (e) {
+        // The patient was created but linking to the register failed — tell the user so the
+        // register isn't silently left unlinked.
+        toast.error(
+          e instanceof Error ? e.message : `Patient created but could not be linked to register ${createPatientForRegister.name}. Link it manually.`,
+        )
         setCreatePatientForRegister(null)
+        load()
       }
     }
   }

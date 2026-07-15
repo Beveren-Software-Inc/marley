@@ -1,4 +1,20 @@
 /**
+ * Local "today" as a YYYY-MM-DD string for date inputs / min bounds.
+ * Uses local time (not UTC) so it doesn't shift a day in +/- timezones.
+ */
+export function localDateInputValue(date: Date = new Date()): string {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 10)
+}
+
+/**
+ * Local "now" as a YYYY-MM-DDTHH:mm string for datetime-local inputs.
+ * Uses local time (not UTC) so the picker defaults to the actual local time.
+ */
+export function localDatetimeInputValue(date: Date = new Date()): string {
+  return new Date(date.getTime() - date.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+/**
  * Portal-wide date formatting: dd/mm/yyyy.
  *
  * Frappe returns dates as "YYYY-MM-DD" and datetimes as "YYYY-MM-DD HH:MM:SS".

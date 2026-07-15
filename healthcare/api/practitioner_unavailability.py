@@ -12,7 +12,7 @@ from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 def _require_reception_access() -> None:
-	frappe.only_for(("System Manager", "Healthcare Administrator", "Reception"))
+	frappe.only_for(("System Manager", "Healthcare Administrator", "Reception", "Receptionist"))
 
 
 def _serialize_row(row: dict) -> dict:

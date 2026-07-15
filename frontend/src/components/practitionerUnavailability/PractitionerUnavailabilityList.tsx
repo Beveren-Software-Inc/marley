@@ -18,6 +18,7 @@ export const PractitionerUnavailabilityList = ({
 }: PractitionerUnavailabilityListProps) => {
   const [rows, setRows] = useState<PractitionerUnavailabilityRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [includeCancelled, setIncludeCancelled] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [localRefresh, setLocalRefresh] = useState(0)
@@ -26,14 +27,17 @@ export const PractitionerUnavailabilityList = ({
   useEffect(() => {
     const load = async () => {
       setLoading(true)
+      setLoadError(null)
       try {
         const data = await fetchPractitionerUnavailabilities({
           limit: 200,
           include_cancelled: includeCancelled,
         })
         setRows(data)
-      } catch {
+      } catch (e) {
+        // Distinguish a failed load from "no records" so the roster isn't assumed empty.
         setRows([])
+        setLoadError(e instanceof Error ? e.message : 'Failed to load practitioner unavailability')
       } finally {
         setLoading(false)
       }
@@ -56,6 +60,12 @@ export const PractitionerUnavailabilityList = ({
 
   return (
     <div>
+      {loadError && (
+        <div className="mb-3 flex items-center justify-between gap-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <span>{loadError}</span>
+          <button type="button" onClick={() => setLocalRefresh((k) => k + 1)} className="font-medium underline shrink-0">Retry</button>
+        </div>
+      )}
       <div className="flex items-center gap-3 mb-3 flex-wrap">
         <label className="inline-flex items-center gap-2 text-sm text-slate-600">
           <input

@@ -242,7 +242,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   }
 
   const statusOptions = ['Draft', 'Submitted', 'Cancelled']
-  const dischargeTypeOptions = ['Home', 'Dama', 'Refer To Another Hospital']
+  const dischargeTypeOptions = ['Home', 'DAMA', 'Refer To Another Hospital']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const isDraftDischarge = (discharge: Discharge) => discharge.docstatus === 0

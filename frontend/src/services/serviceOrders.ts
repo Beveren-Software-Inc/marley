@@ -359,6 +359,31 @@ export async function createBulkInvoice(options: CreateBulkInvoiceOptions): Prom
   return parseBulkInvoiceMessage(data.message)
 }
 
+/** Create + submit a credit note (return Sales Invoice) against a submitted invoice (BIL-11). */
+export async function createCreditNote(salesInvoice: string, reason: string): Promise<{ credit_note: string; grand_total: number }> {
+  const csrf = await ensureCSRF()
+  const response = await fetch('/api/method/healthcare.api.billing.create_credit_note', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ sales_invoice: salesInvoice, reason }),
+  })
+  const data = await response.json()
+  if (!response.ok || data.exc) {
+    let msg: string | undefined
+    try {
+      const parsed = JSON.parse(data._server_messages) as string[]
+      msg = parsed[0] ? (JSON.parse(parsed[0]) as { message?: string }).message : undefined
+    } catch { /* ignore */ }
+    throw new Error(msg || data.exc || 'Failed to create credit note')
+  }
+  return data.message as { credit_note: string; grand_total: number }
+}
+
 export async function createServiceOrder(data: any): Promise<string> {
   const response = await fetch('/api/method/healthcare.api.sales_order.create_service_order', {
     method: 'POST',

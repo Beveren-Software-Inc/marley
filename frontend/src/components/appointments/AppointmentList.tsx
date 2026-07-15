@@ -677,7 +677,7 @@ import {
   fetchBranchOptions,
   type LinkFieldOption,
 } from '../../services/common'
-import { formatDate } from '../../utils/formatDate'
+import { formatDate, localDateInputValue } from '../../utils/formatDate'
 import { DateFilterInput } from '../ui/DateFilterInput'
 
 const statusColors: Record<string, string> = {
@@ -933,7 +933,7 @@ export const AppointmentList = ({
   const canChangePractitioner = true
   const [filterStatus, setFilterStatus] = useState<string>('')
   const [filterPractitioner, setFilterPractitioner] = useState<string>('')
-  const todayISO = new Date().toISOString().split('T')[0]
+  const todayISO = localDateInputValue()
   const [filterDateFrom, setFilterDateFrom] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterDateTo, setFilterDateTo] = useState<string>(defaultTodayDates ? todayISO : '')
   const [filterBranch, setFilterBranch] = useState<string>('')

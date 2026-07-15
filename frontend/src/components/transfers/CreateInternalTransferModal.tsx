@@ -39,7 +39,11 @@ export const CreateInternalTransferModal = ({
   const [serviceUnits, setServiceUnits] = useState<ServiceUnit[]>([])
   const [toServiceUnit, setToServiceUnit] = useState('')
   const [reason, setReason] = useState('')
-  const [transferDatetime, setTransferDatetime] = useState(new Date().toISOString().slice(0, 16))
+  const [transferDatetime, setTransferDatetime] = useState(() => {
+    // Seed the datetime-local input from LOCAL time, not UTC, so it defaults to "now".
+    const d = new Date()
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  })
 
   const selectedAdmission = useMemo(
     () => admissions.find((a) => a.name === admission),

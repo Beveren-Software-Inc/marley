@@ -914,8 +914,22 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         setError(errorMsg)
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to create admission'
-      toast.error(errorMessage, 5000)
+      // apiRequest throws on a Frappe `exc`, so map the backend message to friendly guidance here
+      // (the message.exc branch above never runs).
+      let errorMessage = err instanceof Error ? err.message : 'Failed to create admission'
+      if (errorMessage.includes('Already Admission Scheduled')) {
+        const match = errorMessage.match(/Already Admission Scheduled Patient (.+?) with Inpatient Record (.+?)(?:\n|$)/)
+        errorMessage = match && match.length >= 3
+          ? `This patient (${match[1].trim()}) already has a scheduled admission (${match[2].trim()}). Please check the existing admission or cancel it before creating a new one.`
+          : 'This patient already has a scheduled admission. Please check existing admissions or cancel the current one before creating a new admission.'
+      } else if (errorMessage.includes('Missing required details')) {
+        errorMessage = 'Please fill in all required fields: Patient, Medical Department, and Consultant Doctor are required.'
+      } else if (errorMessage.includes('Primary Practitioner is required')) {
+        errorMessage = 'Consultant Doctor is required when creating admission without a Patient Visit.'
+      } else if (errorMessage.includes('Patient is required')) {
+        errorMessage = 'Please select a patient.'
+      }
+      toast.error(errorMessage, 7000)
       setError(errorMessage)
     } finally {
       setSubmitting(false)

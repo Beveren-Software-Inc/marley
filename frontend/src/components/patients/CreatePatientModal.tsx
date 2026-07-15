@@ -259,6 +259,9 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     category: '',
     source: '',
     marital_status: '',
+    emergency_contact_name: '',
+    emergency_contact_relation: '',
+    emergency_contact_phone: '',
     is_black_list: false,
     remarks: '',
     address_line1: '',
@@ -482,12 +485,20 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       setLoading(true)
       setError(null)
 
-      const dupCheck = await checkPatientDuplicate(
-        (formData.patient_name || '').trim(),
-        formData.mobile,
-        formData.phone,
-      )
-      if (dupCheck.duplicate && dupCheck.patient) {
+      // A failed duplicate check (network/500) must not block registering a genuinely new
+      // patient — warn and proceed rather than aborting.
+      let dupCheck: Awaited<ReturnType<typeof checkPatientDuplicate>> | null = null
+      try {
+        dupCheck = await checkPatientDuplicate(
+          (formData.patient_name || '').trim(),
+          formData.mobile,
+          formData.phone,
+          formData.dob,
+        )
+      } catch (dupErr) {
+        console.warn('Duplicate check failed; proceeding with registration:', dupErr)
+      }
+      if (dupCheck?.duplicate && dupCheck.patient) {
         const label = dupCheck.patient.patient_name || dupCheck.patient.name
         const fileNo = dupCheck.patient.file_no || dupCheck.patient.name
         setError(
@@ -1017,6 +1028,24 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                         <option value="Widow">Widow</option>
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Name</label>
+                      <input type="text" value={formData.emergency_contact_name} onChange={(e) => handleChange('emergency_contact_name', e.target.value)}
+                        placeholder="Next of kin / emergency contact"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Relation</label>
+                      <input type="text" value={formData.emergency_contact_relation} onChange={(e) => handleChange('emergency_contact_relation', e.target.value)}
+                        placeholder="e.g. Father, Spouse"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Phone</label>
+                      <input type="tel" value={formData.emergency_contact_phone} onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
+                        placeholder="Emergency contact number"
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
                   </div>
                 </div>
 
@@ -1184,18 +1213,18 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Insurance Type</label>
-                      <input value={formData.insurance_type || ''} readOnly
-                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                      <input value={formData.insurance_type || ''} onChange={(e) => handleChange('insurance_type', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Insurance Company No</label>
-                      <input value={formData.insurance_company_no || ''} readOnly
-                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                      <input value={formData.insurance_company_no || ''} onChange={(e) => handleChange('insurance_company_no', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Policy No</label>
-                      <input value={formData.insurance_policy || ''} readOnly
-                        className="w-full rounded-md border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-700 cursor-default focus:outline-none" />
+                      <input value={formData.insurance_policy || ''} onChange={(e) => handleChange('insurance_policy', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:outline-none" />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-xs font-medium text-slate-600">Reference No</label>

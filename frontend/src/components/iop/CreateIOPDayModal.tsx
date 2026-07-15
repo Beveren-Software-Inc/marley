@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { localDateInputValue } from '../../utils/formatDate'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -116,6 +117,7 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
             <label className="block text-sm font-medium text-slate-700 mb-1">Date <span className="text-red-500">*</span></label>
             <input
               type="date"
+              min={localDateInputValue()}
               value={posting_date}
               onChange={(e) => setPostingDate(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

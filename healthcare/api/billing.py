@@ -482,6 +482,11 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
         return []
     if patient:
         visit_filters["patient"] = patient
+    # The all-patients worklist (no patient, no date range) would otherwise fetch EVERY visit and
+    # then do per-visit type + invoice lookups (N+1), taking 40s+. Bound it to a recent window so
+    # the dashboard doesn't hang; a specific patient or explicit date range overrides this.
+    if not patient and not from_date and not to_date:
+        from_date = frappe.utils.add_days(frappe.utils.today(), -180)
     if from_date and to_date:
         visit_filters["encounter_date"] = ["between", [from_date, to_date]]
     elif from_date:
@@ -502,6 +507,8 @@ def _get_patient_visit_balances(patient=None, from_date=None, to_date=None, iop_
             "cost_center",
             "visit_type",
         ],
+        order_by="encounter_date desc",
+        limit=1000,
     )
 
     balances = []
@@ -880,6 +887,17 @@ def get_payment_summary(
 @frappe.whitelist()
 def get_patient_statement_of_account(patient=None, from_date=None, to_date=None, company=None):
     """Customer statement of account (General Ledger) for a patient's linked Customer."""
+    # Financial data — restrict to billing-facing roles (the GL report is run privileged below).
+    frappe.only_for((
+        "System Manager",
+        "Healthcare Administrator",
+        "Reception",
+        "Receptionist",
+        "Accounts User",
+        "Accounts Manager",
+        "Doctor",
+        "Physician",
+    ))
     if not patient:
         frappe.throw(_("Patient is required"))
 
@@ -916,7 +934,15 @@ def get_patient_statement_of_account(patient=None, from_date=None, to_date=None,
         }
     )
 
-    _columns, raw_data = execute(filters)
+    # The General Ledger report reads GL Entry, which portal roles (e.g. Receptionist) have
+    # no DocPerm on. This endpoint is already scoped to one patient's Customer (party filter),
+    # so run the report privileged and restore the user, instead of exposing GL Entry broadly.
+    _original_user = frappe.session.user
+    try:
+        frappe.set_user("Administrator")
+        _columns, raw_data = execute(filters)
+    finally:
+        frappe.set_user(_original_user)
 
     entries = []
     for row in raw_data or []:
@@ -952,6 +978,47 @@ def get_patient_statement_of_account(patient=None, from_date=None, to_date=None,
         "entries": entries,
         "closing_balance": flt(entries[-1].get("balance")) if entries else 0.0,
     }
+
+
+@frappe.whitelist()
+def create_credit_note(sales_invoice=None, reason=None):
+    """Create and submit a credit note (return Sales Invoice) against a submitted invoice.
+
+    Financial action — restricted to billing-facing roles. The reason is recorded on the
+    credit note for audit (BIL-11).
+    """
+    frappe.only_for((
+        "System Manager",
+        "Healthcare Administrator",
+        "Accounts User",
+        "Accounts Manager",
+        "Reception",
+        "Receptionist",
+    ))
+    if not sales_invoice:
+        frappe.throw(_("Sales Invoice is required"))
+    if not (reason and str(reason).strip()):
+        frappe.throw(_("A reason is required to create a credit note."))
+
+    src = frappe.db.get_value(
+        "Sales Invoice", sales_invoice, ["docstatus", "is_return"], as_dict=True
+    )
+    if not src:
+        frappe.throw(_("Sales Invoice {0} was not found.").format(frappe.bold(sales_invoice)))
+    if src.is_return:
+        frappe.throw(_("{0} is already a credit note.").format(frappe.bold(sales_invoice)))
+    if src.docstatus != 1:
+        frappe.throw(_("A credit note can only be created against a submitted invoice."))
+
+    from erpnext.controllers.sales_and_purchase_return import make_return_doc
+
+    credit_note = make_return_doc("Sales Invoice", sales_invoice)
+    credit_note.remarks = ((credit_note.remarks or "").strip() + f"\nCredit Note reason: {reason.strip()}").strip()
+    credit_note.flags.ignore_permissions = True
+    credit_note.insert(ignore_permissions=True)
+    credit_note.submit()
+
+    return {"credit_note": credit_note.name, "grand_total": flt(credit_note.grand_total)}
 
 
 def _compute_patient_advance_amount(patient=None):

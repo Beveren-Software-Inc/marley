@@ -591,6 +591,7 @@ export const AdmissionFormModal = ({
           'Vacant',
           serviceUnitQuery || undefined,
           undefined,
+          record?.cost_center || undefined,
         )
         setServiceUnits(results)
       } catch (err) {
@@ -644,10 +645,10 @@ export const AdmissionFormModal = ({
     })
     setServiceUnitQuery('')
     setBedNumbers([])
-    fetchServiceUnits(selectedRoomType.name, 'Vacant', undefined, undefined)
+    fetchServiceUnits(selectedRoomType.name, 'Vacant', undefined, undefined, record?.cost_center || undefined)
       .then(setServiceUnits)
       .catch(() => setServiceUnits([]))
-  }, [selectedRoomType?.name])
+  }, [selectedRoomType?.name, record?.cost_center])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -746,6 +747,7 @@ export const AdmissionFormModal = ({
             'Vacant',
             undefined,
             undefined,
+            recordData?.cost_center || undefined,
           ),
           fetchServiceUnitTypes(),
         ])
@@ -942,6 +944,16 @@ export const AdmissionFormModal = ({
 
     if (days <= 0) {
       setError(new Error('Number of days must be greater than 0'))
+      return
+    }
+
+    if (!selectedRoomType) {
+      setError(new Error('Select a Room Type'))
+      return
+    }
+
+    if (selectedServiceUnits.length === 0) {
+      setError(new Error('Select at least one Room'))
       return
     }
 

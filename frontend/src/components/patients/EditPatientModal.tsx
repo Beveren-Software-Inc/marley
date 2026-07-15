@@ -437,15 +437,19 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         setCprPhoto(patient.cpr_photo || '')
         setCprPhotoBack(patient.cpr_photo_back || '')
 
-        // Set selected dropdown values
+        // Set selected dropdown values. Fall back to the stored value itself when it isn't in
+        // the initial (unsearched) option page, so required fields don't render blank.
         const src = sources.find((s) => s.name === patient.source)
         if (src) setSelectedSource(src)
+        else if (patient.source) setSelectedSource({ name: patient.source, label: patient.source })
 
         const nat = nationalities.find((n) => n.name === patient.nationality)
         if (nat) setSelectedNationality(nat)
+        else if (patient.nationality) setSelectedNationality({ name: patient.nationality, label: patient.nationality })
 
         const sal = salutations.find((s) => s.name === patient.title)
         if (sal) setSelectedSalutation(sal)
+        else if (patient.title) setSelectedSalutation({ name: patient.title, label: patient.title })
 
         if (patient.insurance) {
           setSelectedInsurance({ name: patient.insurance, label: patient.insurance })
@@ -615,15 +619,18 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     try {
       setSubmitting(true)
 
+      // Preserve a middle name: first token = first name, last token = last name,
+      // anything in between = middle name (instead of wiping middle and folding it into last).
       const nameParts = formData.patient_name.trim().split(/\s+/)
       const firstName = nameParts[0] || ''
-      const lastName = nameParts.slice(1).join(' ') || ''
+      const lastName = nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
+      const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : ''
 
       const patientPayload: UpdatePatientData = {
         title: formData.title || undefined,
         patient_name: formData.patient_name.trim(),
         first_name: firstName,
-        middle_name: undefined,
+        middle_name: middleName || undefined,
         last_name: lastName || undefined,
         sex: formData.sex,
         dob: formData.dob || undefined,
@@ -644,12 +651,13 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         job_company: formData.job_company || undefined,
         file_no: formData.file_no,
         has_insurance: hasInsuranceChoice === 'Yes' ? 1 : 0,
-        insurance: formData.insurance || undefined,
-        insurance_type: formData.insurance_type || undefined,
-        insurance_company_no: formData.insurance_company_no || undefined,
-        insurance_policy: formData.insurance_policy || undefined,
-        ref_no: formData.ref_no || undefined,
-        insurance_register: formData.insurance_register || undefined,
+        // When Has Insurance is "No", clear the insurer/policy fields instead of sending stale values.
+        insurance: hasInsuranceChoice === 'Yes' ? (formData.insurance || undefined) : undefined,
+        insurance_type: hasInsuranceChoice === 'Yes' ? (formData.insurance_type || undefined) : undefined,
+        insurance_company_no: hasInsuranceChoice === 'Yes' ? (formData.insurance_company_no || undefined) : undefined,
+        insurance_policy: hasInsuranceChoice === 'Yes' ? (formData.insurance_policy || undefined) : undefined,
+        ref_no: hasInsuranceChoice === 'Yes' ? (formData.ref_no || undefined) : undefined,
+        insurance_register: hasInsuranceChoice === 'Yes' ? (formData.insurance_register || undefined) : undefined,
         patient_relation: relations
           .filter((r) => (r.full_name || r.relation || r.mobile_no || r.email || '').trim())
           .map((r) => ({
@@ -1271,6 +1279,16 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Email</label>
                           <input type="email" value={row.email || ''} onChange={(e) => updateRelationRow(idx, 'email', e.target.value)} placeholder="Email address" className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Note</label>
+                          <input type="text" value={row.description || ''} onChange={(e) => updateRelationRow(idx, 'description', e.target.value)} placeholder="Additional note (optional)" className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer select-none">
+                            <input type="checkbox" checked={!!row.is_next_of_kin} onChange={(e) => updateRelationRow(idx, 'is_next_of_kin', e.target.checked)} className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary" />
+                            Mark as Next of Kin
+                          </label>
                         </div>
                       </div>
                     </div>

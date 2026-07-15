@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { localDateInputValue } from '../../utils/formatDate'
 import { X } from 'lucide-react'
 import {
   CM_BTN_CANCEL,
@@ -153,6 +154,7 @@ export const CreatePractitionerUnavailabilityModal = ({
               </label>
               <input
                 type="date"
+                min={localDateInputValue()}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"
@@ -165,6 +167,7 @@ export const CreatePractitionerUnavailabilityModal = ({
               </label>
               <input
                 type="date"
+                min={startDate || localDateInputValue()}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-full border border-slate-300 rounded-md px-3 py-2 text-sm"

@@ -9,6 +9,7 @@ import {
 import { useCareContext } from '../../providers/CareContextProvider'
 import { RefreshCw, FileText } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { createCreditNote } from '../../services/serviceOrders'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -455,9 +456,18 @@ export const ServiceInvoicesList = ({
                                 <div className="border-t border-slate-100 my-1" />
                                 <button
                                   type="button"
-                                  onClick={() => {
+                                  onClick={async () => {
                                     setOpenActionRow(null)
-                                    toast.info('Create credit note from Desk if required.')
+                                    const reason = window.prompt('Reason for credit note (recorded for audit):')?.trim()
+                                    if (!reason) return
+                                    try {
+                                      const res = await createCreditNote(invoice.name, reason)
+                                      toast.success(`Credit note ${res.credit_note} created`)
+                                      loadData()
+                                      onAfterInvoiceMutation?.()
+                                    } catch (e) {
+                                      toast.error(e instanceof Error ? e.message : 'Failed to create credit note')
+                                    }
                                   }}
                                   className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-purple-700 font-medium hover:bg-purple-50"
                                 >

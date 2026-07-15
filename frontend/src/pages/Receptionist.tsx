@@ -376,6 +376,7 @@ export const ReceptionistPage = () => {
             >
               <AdmissionList
                 refreshKey={admissionRefreshKey}
+                defaultStatus="Admission Scheduled"
                 onAdmissionSelect={() => {}}
                 onPatientFromAdmission={handlePatientSelect}
               />
@@ -1028,7 +1029,10 @@ export const ReceptionistPage = () => {
       {showBulkScheduleModal && (
         <BulkScheduleIOPModal
           onClose={() => setShowBulkScheduleModal(false)}
-          onSuccess={() => setShowBulkScheduleModal(false)}
+          onSuccess={() => {
+            setShowBulkScheduleModal(false)
+            setPatientVisitRefreshKey(prev => prev + 1)
+          }}
         />
       )}
     </div>

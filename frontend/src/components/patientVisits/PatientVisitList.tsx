@@ -17,6 +17,7 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
+import { getInvoicesByReference } from '../../services/serviceOrders'
 import { fetchAppointmentPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
@@ -349,9 +350,21 @@ export const PatientVisitList = ({
     setOpenActionRow(null)
   }
 
-  const handlePrintInvoice = (visitName: string) => {
-    const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(visitName)}&trigger_print=1&format=Standard&no_letterhead=0`
-    window.open(url, '_blank')
+  const handlePrintInvoice = async (visit: PatientVisitListRow) => {
+    // visit.value is the Patient Visit id, not a Sales Invoice name — resolve the visit's
+    // actual invoice first, otherwise printview opens a non-existent Sales Invoice.
+    try {
+      const invoices = await getInvoicesByReference(visit.value, 'Patient Visit', visit.patient || undefined)
+      if (!invoices.length) {
+        toast.error('No invoice found for this visit')
+        return
+      }
+      const invoiceName = invoices[0].name
+      const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(invoiceName)}&trigger_print=1&format=Standard&no_letterhead=0`
+      window.open(url, '_blank')
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to open invoice')
+    }
   }
 
   const handleClearFilters = () => {
@@ -425,7 +438,7 @@ export const PatientVisitList = ({
             )}
             <button
               type="button"
-              onClick={() => { handlePrintInvoice(visit.value); setOpenActionRow(null) }}
+              onClick={() => { void handlePrintInvoice(visit); setOpenActionRow(null) }}
               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             >
               Print Invoice
@@ -1042,6 +1055,7 @@ export const PatientVisitList = ({
       {showPaymentModal && paymentVisit && (
         <CreatePaymentModal
           visitName={paymentVisit.value}
+          patient={paymentVisit.patient || undefined}
           patientName={paymentVisit.patient_name || paymentVisit.label?.split(' - ')[1] || ''}
           onClose={() => { setShowPaymentModal(false); setPaymentVisit(null) }}
           onSuccess={() => { setShowPaymentModal(false); setPaymentVisit(null); fetchVisits() }}

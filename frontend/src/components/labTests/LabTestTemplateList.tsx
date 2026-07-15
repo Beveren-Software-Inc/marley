@@ -3,7 +3,6 @@ import { MoreHorizontal, FlaskConical, Pencil } from 'lucide-react'
 import { fetchLabTestTemplateList, type LabTestTemplateListRow } from '../../services/common'
 import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
 import { LabTestTemplateDetailPanel } from './LabTestTemplateDetailPanel'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 
 interface LabTestTemplateListProps {
   refreshKey?: number
@@ -258,12 +257,6 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                         </button>
                       </div>
                     )}
-                    <PrintFormatDropdown
-                        doctype="Lab Test Template"
-                        docName={row.name}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                      />
                   </td>
                 </tr>
               ))}

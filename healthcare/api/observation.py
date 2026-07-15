@@ -30,6 +30,8 @@ OBSERVATION_PORTAL_READ_ROLES = frozenset(
 		"Anesthesiologist",
 		"Therapist",
 		"Nutritionist",
+		"Reception",
+		"Receptionist",
 	}
 )
 

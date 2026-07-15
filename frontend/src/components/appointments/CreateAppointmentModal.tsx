@@ -24,6 +24,7 @@ import {
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
+import { localDateInputValue } from '../../utils/formatDate'
 import { X } from 'lucide-react'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
@@ -61,7 +62,7 @@ function isSlotDisabledForNew(
 ): boolean {
   const slotStart = timeToMinutes(slot.from_time)
   const slotEnd = slot.to_time ? timeToMinutes(slot.to_time) : slotStart + (slot.duration ?? 60)
-  const today = new Date().toISOString().split('T')[0]
+  const today = localDateInputValue()
   if (appointmentDate === today) {
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
     if (slotStart < nowMin) return true
@@ -126,7 +127,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     appointment_type: '',
-    appointment_date: new Date().toISOString().split('T')[0],
+    appointment_date: localDateInputValue(),
     appointment_time: '',
     practitioner: initialPractitioner || ''
   })
@@ -190,13 +191,15 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       .then((d) => {
         if (cancelled) return
         const cc = d?.message
-        if (cc && typeof cc === 'string') setCostCenter(cc)
+        // Only auto-set a branch the user is actually permitted to book in; otherwise leave
+        // the selection unset so the Branch <select> doesn't render blank with a hidden value.
+        if (cc && typeof cc === 'string' && costCenterOptions.some((o) => o.name === cc)) setCostCenter(cc)
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [formData.practitioner, formData.appointment_date, costCenterLocked])
+  }, [formData.practitioner, formData.appointment_date, costCenterLocked, costCenterOptions])
 
   const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
     const n = parseInt(raw.trim(), 10)
@@ -240,6 +243,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
 
     if (!formData.appointment_date) {
       setError('Appointment Date is required')
+      return
+    }
+
+    if (!formData.practitioner) {
+      setError('Please select a doctor')
       return
     }
 
@@ -821,6 +829,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             </label>
             <input
               type="date"
+              min={localDateInputValue()}
               value={formData.appointment_date}
               onChange={(e) => {
                 setFormData(prev => ({ ...prev, appointment_date: e.target.value }))

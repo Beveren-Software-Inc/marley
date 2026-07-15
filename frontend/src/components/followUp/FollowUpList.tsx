@@ -4,7 +4,6 @@ import {
   getOpFollowUpVisits,
   getIpFollowUpAdmissions,
   sendFollowUpReminder,
-  sendFollowUpRemindersBulk,
   sendFollowUpRemindersSelected,
   updateFollowUpStatus,
   getCostCenters,
@@ -324,36 +323,36 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
 
   const handleSendAllMatching = async (channel: ReminderChannel) => {
     const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    // Confirm before firing potentially hundreds of reminders on a single click.
+    if (!window.confirm(`Send ${channelLabel} reminders to all ${totalCount} matching follow-up${totalCount === 1 ? '' : 's'}?`)) {
+      return
+    }
     setSendingBulk(true)
     try {
+      // Fetch exactly the rows the current filters (status + date range) show, then send by
+      // name/reference. Using the same query as the list guarantees the recipients match the
+      // visible set (honours the date filter, and the actual status — not a forced 'Open').
+      const commonParams = {
+        cost_center: costCenter || undefined,
+        patient: patient || undefined,
+        search: search || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        limit: totalCount > 0 ? totalCount : 500,
+        offset: 0,
+      }
+      const names: string[] = []
+      const references: FollowUpReferencePayload[] = []
       if (isNormal) {
-        const result = await sendFollowUpRemindersBulk({
-          status: status || 'Open',
-          cost_center: costCenter || undefined,
-          follow_up_type: 'Normal',
-          search: search || undefined,
-          channel,
-        })
-        toast.success(`${channelLabel} reminders sent: ${result.sent} of ${result.total}`)
+        // Normal rows are real Patient Follow Up records — send by their record name.
+        const res = await getFollowUps({ ...commonParams, status: status || undefined, follow_up_type: 'Normal' })
+        res.data.forEach((row) => { if (row.name) names.push(row.name) })
       } else {
-        // Fetch all matching rows (up to 500) for current filters
-        const commonParams = {
-          cost_center: costCenter || undefined,
-          patient: patient || undefined,
-          search: search || undefined,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-          limit: 500,
-          offset: 0,
-        }
-        const result =
-          category === 'OP'
-            ? await getOpFollowUpVisits(commonParams)
-            : await getIpFollowUpAdmissions(commonParams)
-
-        const names: string[] = []
-        const references: FollowUpReferencePayload[] = []
-        result.data.forEach((row) => {
+        // OP/IP candidates: send by follow-up name if one exists, else by visit/admission reference.
+        const res = category === 'OP'
+          ? await getOpFollowUpVisits(commonParams)
+          : await getIpFollowUpAdmissions(commonParams)
+        res.data.forEach((row) => {
           if (row.follow_up_name) names.push(row.follow_up_name)
           else {
             references.push({
@@ -363,14 +362,14 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
             })
           }
         })
-
-        const sendResult = await sendFollowUpRemindersSelected({
-          channel,
-          names: names.length ? names : undefined,
-          references: references.length ? references : undefined,
-        })
-        toast.success(`${channelLabel} reminders sent: ${sendResult.sent} of ${sendResult.total}`)
       }
+
+      const sendResult = await sendFollowUpRemindersSelected({
+        channel,
+        names: names.length ? names : undefined,
+        references: references.length ? references : undefined,
+      })
+      toast.success(`${channelLabel} reminders sent: ${sendResult.sent} of ${sendResult.total}`)
       loadList()
     } catch (e) {
       toast.error(e instanceof Error ? e.message : `Failed to send ${channelLabel} reminders`)

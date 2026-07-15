@@ -1,4 +1,5 @@
 
+import { localDateInputValue, localDatetimeInputValue } from '../../utils/formatDate'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -1043,7 +1044,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [formData, setFormData] = useState({
     discharge_type: '',
     ama_type: '',
-    discharge_date: new Date().toISOString().slice(0, 16),
+    discharge_date: localDatetimeInputValue(),
     discharge_time: new Date().toISOString().slice(0, 10),
     final_discharge_date: new Date().toISOString().slice(0, 10),
     final_discharge_time: new Date().toTimeString().slice(0, 5),
@@ -2433,6 +2434,11 @@ const loadDailyVisitSetup = async () => {
     setError(null)
     setUnbilledServices(null)
 
+    if (!formData.discharge_type) {
+      setError('Select a Discharge Type')
+      return
+    }
+
     if (!canSubmitDischarge) {
       setError(
         `Please complete all discharge checklist items. ${checklistIncomplete} item${checklistIncomplete !== 1 ? 's' : ''} remaining (excluding finance-only items such as Billing Finalization).`
@@ -3430,13 +3436,13 @@ const loadDailyVisitSetup = async () => {
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Next Appointment Date</label>
-                    <input type="date" value={formData.next_appointment_date}
+                    <input type="date" min={localDateInputValue()} value={formData.next_appointment_date}
                       onChange={(e) => setFormData({ ...formData, next_appointment_date: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Next Appointment Time</label>
-                    <input type="datetime-local" value={formData.next_appointment_time}
+                    <input type="time" value={formData.next_appointment_time}
                       onChange={(e) => setFormData({ ...formData, next_appointment_time: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>

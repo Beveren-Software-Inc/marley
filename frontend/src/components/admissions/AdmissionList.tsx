@@ -68,6 +68,9 @@ interface AdmissionListProps {
   patient?: string
   refreshKey?: string | number
   onCreateNew?: () => void
+  /** Initial Status filter. Defaults to 'Admitted'; reception passes 'Admission Scheduled'
+   *  so the admit queue is visible on load. */
+  defaultStatus?: string
 }
 
 export const AdmissionList = ({
@@ -78,6 +81,7 @@ export const AdmissionList = ({
   patient,
   refreshKey,
   onCreateNew,
+  defaultStatus = DEFAULT_ADMISSION_STATUS,
 }: AdmissionListProps = {}) => {
   const navigate = useNavigate()
   const location = useLocation()
@@ -96,7 +100,7 @@ export const AdmissionList = ({
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(DEFAULT_ADMISSION_STATUS)
+  const [selectedStatus, setSelectedStatus] = useState<string>(defaultStatus)
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -402,14 +406,14 @@ export const AdmissionList = ({
     setSelectedPractitioner(null)
     setDateFrom('')
     setDateTo('')
-    setSelectedStatus(DEFAULT_ADMISSION_STATUS)
+    setSelectedStatus(defaultStatus)
     setFilterBranch('')
   }
 
   const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
   const hasActiveFilters =
     Boolean(practitionerFilter || dateFrom || dateTo || filterBranch) ||
-    selectedStatus !== DEFAULT_ADMISSION_STATUS
+    selectedStatus !== defaultStatus
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const exportFilteredCsv = () => {

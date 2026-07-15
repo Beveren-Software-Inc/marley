@@ -222,11 +222,11 @@ def get_latest_inpatient_status(patient_names: list[str]) -> dict:
 	return {d.patient: d.status for d in data}
 
 @frappe.whitelist()
-def check_patient_duplicate(patient_name=None, mobile=None, phone=None, category=None):
-	"""Portal: check before create (full name + mobile; category is ignored)."""
+def check_patient_duplicate(patient_name=None, mobile=None, phone=None, category=None, dob=None):
+	"""Portal: check before create (full name + mobile or DOB; category is ignored)."""
 	from healthcare.healthcare.doctype.patient.patient_duplicate import find_duplicate_patient
 
-	dup = find_duplicate_patient(patient_name, mobile=mobile, phone=phone)
+	dup = find_duplicate_patient(patient_name, mobile=mobile, phone=phone, dob=dob)
 	if not dup:
 		return {"duplicate": False}
 	return {
@@ -383,6 +383,9 @@ def create_patient(data):
 		"category": category,
 		"source": data.get("source") or None,
 		"marital_status": data.get("marital_status") or None,
+		"emergency_contact_name": data.get("emergency_contact_name") or None,
+		"emergency_contact_relation": data.get("emergency_contact_relation") or None,
+		"emergency_contact_phone": data.get("emergency_contact_phone") or None,
 		"is_black_list": 1 if data.get("is_black_list") else 0,
 		"patient_details": data.get("remarks") or None,
 		"alter_mobile_no": data.get("alternative_mobile_no_1") or None,
@@ -728,6 +731,9 @@ def _apply_patient_scalar_fields(patient, data):
 		"insurance_company_no": "insurance_company_no",
 		"ref_no": "ref_no",
 		"insurance_register": "insurance_register",
+		"emergency_contact_name": "emergency_contact_name",
+		"emergency_contact_relation": "emergency_contact_relation",
+		"emergency_contact_phone": "emergency_contact_phone",
 	}
 
 	for src, field in scalar_map.items():

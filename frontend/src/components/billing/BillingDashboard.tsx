@@ -277,17 +277,24 @@ const handleMakePayment = async (
       toast.error('No invoices found for this admission/visit')
       return
     }
-    
-    // Use the first invoice's name
-    const invoiceName = invoices[0].name
-    
+
+    // Pay one invoice at a time — the oldest with an outstanding balance — and cap the amount
+    // to THAT invoice's balance (not the reference's aggregate). This stops the whole
+    // outstanding being recorded against invoices[0] (excess -> credit, other invoices unpaid)
+    // and lets the PaymentModal's "exceeds outstanding" guard work correctly.
+    const payable = invoices
+      .filter((inv) => Number(inv.outstanding_amount) > 0)
+      .sort((a, b) => (a.posting_date || '').localeCompare(b.posting_date || ''))
+    const target = payable[0] || invoices[0]
+    const invoiceName = target.name
+
     // Fetch invoice details to get company and branch
     const invoiceDetails = await getInvoiceDetails(invoiceName)
-    
+
     setSelectedPaymentInvoice({
       name: invoiceName,  // Now this is the actual invoice name, not the admission ID
       customer_name: customerName,
-      outstanding_amount: outstandingAmount,
+      outstanding_amount: Number(target.outstanding_amount) || outstandingAmount,
       company: invoiceDetails?.company || '',
       cost_center: invoiceDetails?.cost_center || '',
       department:invoiceDetails?.department || '',

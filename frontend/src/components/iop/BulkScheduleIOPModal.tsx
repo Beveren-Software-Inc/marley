@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { localDateInputValue } from '../../utils/formatDate'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -140,12 +141,12 @@ export const BulkScheduleIOPModal = ({ onClose, onSuccess }: BulkScheduleIOPModa
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">From <span className="text-red-500">*</span></label>
-              <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              <input type="date" min={localDateInputValue()} value={startDate} onChange={(e) => setStartDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">To <span className="text-red-500">*</span></label>
-              <input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              <input type="date" min={startDate || localDateInputValue()} value={endDate} onChange={(e) => setEndDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
           </div>

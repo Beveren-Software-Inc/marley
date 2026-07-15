@@ -329,11 +329,13 @@ export async function checkPatientDuplicate(
   patient_name: string,
   mobile?: string,
   phone?: string,
+  dob?: string,
 ): Promise<PatientDuplicateCheck> {
   const params = new URLSearchParams()
   params.append('patient_name', patient_name.trim())
   if (mobile?.trim()) params.append('mobile', mobile.trim())
   if (phone?.trim()) params.append('phone', phone.trim())
+  if (dob?.trim()) params.append('dob', dob.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.patient.check_patient_duplicate?${params}`,

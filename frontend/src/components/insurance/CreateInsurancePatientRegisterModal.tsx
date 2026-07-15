@@ -175,6 +175,8 @@ export const CreateInsurancePatientRegisterModal = ({
           `Register ${created.name} created and linked to patient ${selectedPatient.name}`,
           4000
         )
+      } else {
+        toast.success(`Insurance register ${created.name} created`, 4000)
       }
 
       onSuccess?.(created)

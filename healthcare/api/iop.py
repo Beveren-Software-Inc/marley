@@ -20,15 +20,24 @@ def get_iop_days(limit=50, offset=0, from_date=None, to_date=None):
 		filters["posting_date"] = ["<=", to_date]
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
+	# IOP Days are hospital-wide (one per date, name = IOP-DAY-{date}). Show days in a
+	# permitted cost centre OR days with no cost centre (unscoped/global), so a scoped
+	# receptionist can still see globally-created days.
+	or_filters = None
 	permitted_cc = get_permitted_cost_centers()
 	if permitted_cc is not None:
 		if not permitted_cc:
-			return []
-		filters["cost_center"] = ["in", permitted_cc]
+			filters["cost_center"] = ["is", "not set"]
+		else:
+			or_filters = [
+				["cost_center", "in", permitted_cc],
+				["cost_center", "is", "not set"],
+			]
 
 	days = frappe.get_all(
 		"IOP Day",
 		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "posting_date", "company", "cost_center"],
 		limit=int(limit),
 		limit_start=int(offset),
