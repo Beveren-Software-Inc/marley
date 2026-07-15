@@ -112,7 +112,7 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
   }
 
   if (!patient) {
-    return <div className="text-sm text-slate-600">Select a patient to view the medication chart.</div>
+    return <div className="text-sm text-slate-600">SEARCH PATIENT TO VIEW MEDICATION CHART</div>
   }
 
   return (

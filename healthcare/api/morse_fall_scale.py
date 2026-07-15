@@ -62,6 +62,52 @@ def get_morse_fall_scale(name: str | None = None):
 
 
 @frappe.whitelist()
+def get_morse_fall_scale_list(patient=None, practitioner=None, from_date=None, to_date=None, limit=50, offset=0):
+	"""List Morse Fall Scale records for the healthcare portal (avoids REST DocPerm gaps).
+
+	Portal roles (incl. Nurse) read through this endpoint instead of /api/resource,
+	which only grants read to Nursing User / Physician / System Manager.
+	"""
+	if not _user_can_read_morse_fall_scale_portal():
+		frappe.throw(_("Not permitted to read Morse Fall Scale"), frappe.PermissionError)
+
+	limit = frappe.utils.cint(limit) or 50
+	offset = frappe.utils.cint(offset)
+
+	filters = [["docstatus", "<", 2]]
+	if patient:
+		filters.append(["patient_no", "=", patient])
+	if practitioner:
+		filters.append(["practitioner", "=", practitioner])
+	if from_date:
+		filters.append(["date", ">=", from_date])
+	if to_date:
+		filters.append(["date", "<=", to_date])
+
+	return frappe.get_all(
+		"Morse Fall Scale",
+		filters=filters,
+		fields=[
+			"name",
+			"trans_no",
+			"admission_no",
+			"patient_no",
+			"company",
+			"practitioner",
+			"practitioner_name",
+			"cost_center",
+			"total_points",
+			"date",
+			"modified",
+		],
+		order_by="modified desc",
+		limit_page_length=limit,
+		limit_start=offset,
+		ignore_permissions=True,
+	)
+
+
+@frappe.whitelist()
 def create_morse_fall_scale(data):
 	"""Create a Morse Fall Scale doc through backend API."""
 	if isinstance(data, str):

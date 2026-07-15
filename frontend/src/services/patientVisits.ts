@@ -158,17 +158,17 @@ export interface PatientVisitTypeOption {
   visit_type: string
 }
 
-/** Fetch Patient Visit Type list for dropdown with optional search query. */
+/** Fetch Patient Visit Type list for dropdown with optional search query.
+ * Uses a whitelisted endpoint (not /api/resource) so portal roles without
+ * Patient Visit Type read permission (e.g. Nurse) still get the options. */
 export async function fetchPatientVisitTypes(query?: string): Promise<PatientVisitTypeOption[]> {
-  let url = '/api/resource/Patient%20Visit%20Type?fields=["name","visit_type"]&limit_page_length=100'
-  if (query && query.trim()) {
-    const filters = JSON.stringify([["visit_type", "like", `%${query.trim()}%`]])
-    url += `&filters=${encodeURIComponent(filters)}`
-  }
+  const params = new URLSearchParams()
+  if (query && query.trim()) params.append('search', query.trim())
+  const url = `/api/method/healthcare.api.common.get_patient_visit_types${params.toString() ? `?${params.toString()}` : ''}`
   const response = await fetch(url)
   const resData = await response.json()
-  if (resData?.data && Array.isArray(resData.data)) {
-    return resData.data as PatientVisitTypeOption[]
+  if (Array.isArray(resData?.message)) {
+    return resData.message as PatientVisitTypeOption[]
   }
   return []
 }

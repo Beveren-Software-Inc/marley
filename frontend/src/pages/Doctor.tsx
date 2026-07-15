@@ -903,10 +903,10 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Observation" 
+          <DashboardCard
+            title="Observation Level"
             onAdd={() => guardClinicalCreate(() => setShowObservationModal(true))}
-            addButtonTitle="Add Observation"
+            addButtonTitle="Add Observation Level"
           >
             <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
           </DashboardCard>

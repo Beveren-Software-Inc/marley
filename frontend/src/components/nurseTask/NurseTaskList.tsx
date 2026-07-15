@@ -202,6 +202,7 @@ export const NurseTaskList = ({
   const [dateTo, setDateTo] = useState('')
   const [updatingName, setUpdatingName] = useState<string | null>(null)
   const [currentShiftInfo, setCurrentShiftInfo] = useState<CurrentNurseShiftInfo | null>(null)
+  const [shiftLoading, setShiftLoading] = useState(false)
 
   const hasActiveFilters = Boolean(statusFilter || taskTypeFilter || dateFrom || dateTo)
   const restrictToCurrentShift = currentShiftOnly && !dateFrom && !dateTo
@@ -209,11 +210,14 @@ export const NurseTaskList = ({
   useEffect(() => {
     if (!restrictToCurrentShift) {
       setCurrentShiftInfo(null)
+      setShiftLoading(false)
       return
     }
+    setShiftLoading(true)
     void fetchCurrentNurseShift()
       .then(setCurrentShiftInfo)
-      .catch(() => setCurrentShiftInfo(null))
+      .catch(() => setCurrentShiftInfo({ shift: null }))
+      .finally(() => setShiftLoading(false))
   }, [restrictToCurrentShift, refreshKey])
 
   const load = useCallback(async () => {
@@ -313,7 +317,7 @@ export const NurseTaskList = ({
       {restrictToCurrentShift ? (
         <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-slate-700">
           <span className="font-medium text-primary">Current shift:</span>{' '}
-          {currentShiftInfo?.shift?.label || 'Loading…'}
+          {shiftLoading ? 'Loading…' : (currentShiftInfo?.shift?.label || 'No active shift assigned')}
           {currentShiftInfo?.shift?.from_time && currentShiftInfo?.shift?.to_time ? (
             <span className="text-slate-500">
               {' '}

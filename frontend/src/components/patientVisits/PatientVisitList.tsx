@@ -25,6 +25,7 @@ import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { isDoctorRole } from '../../config/permissions'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
@@ -101,7 +102,7 @@ export const PatientVisitList = ({
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
 }: PatientVisitListProps = {}) => {
-  const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter } = useCareContext()
+  const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole } = useCareContext()
   const formatMoney = useFormatMoney()
   const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
@@ -137,8 +138,9 @@ export const PatientVisitList = ({
   const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
   // Effective visit type: a fixed prop (typed sub-lists) wins over the user filter.
   const effectiveVisitType = visitType || visitTypeFilter || undefined
-  // Default the Doctor filter to the logged-in practitioner (browse view only, no patient).
-  const shouldDefaultPractitioner = defaultToCurrentPractitioner && !patient
+  // Default the Doctor filter to the logged-in practitioner — ONLY for doctors, browse view only.
+  // Other roles (nurse, etc.) must not get a self-filter that hides visits.
+  const shouldDefaultPractitioner = defaultToCurrentPractitioner && !patient && isDoctorRole(userRole)
   const [practitionerDefaultReady, setPractitionerDefaultReady] = useState(!shouldDefaultPractitioner)
   // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
   const [filterBranch, setFilterBranch] = useState('')
@@ -510,12 +512,6 @@ export const PatientVisitList = ({
             </button>
           </PortalActionsMenu>
         </div>
-        <PrintFormatDropdown
-          doctype="Patient Visit"
-          docName={visit.value}
-          noLetterhead={0}
-          triggerPrint={1}
-        />
       </div>
     </td>
   )

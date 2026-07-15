@@ -1905,17 +1905,12 @@ export async function fetchIpRiskAnalysisOptions(
 }
 
 export async function fetchInpatientAdmissionOptions(search?: string, patient?: string): Promise<LinkFieldOption[]> {
-  const filters: [string, string, string][] = []
-  if (search) filters.push(['name', 'like', `%${search}%`])
-  if (patient) filters.push(['patient', '=', patient])
-  const params = new URLSearchParams({
-    doctype: 'Inpatient Admission',
-    fields: JSON.stringify(['name', 'patient', 'patient_name', 'status']),
-    filters: JSON.stringify(filters),
-    limit: '20',
-    order_by: 'creation desc',
-  })
-  const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+  // Use the whitelisted, cost-center-scoped endpoint (not frappe.client.get_list, which
+  // 403s for portal roles like Nurse that lack direct Inpatient Admission read permission).
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+  if (patient) params.append('patient', patient)
+  const res = await fetch(`/api/method/healthcare.api.common.get_inpatient_admissions?${params}`)
   const data = await res.json()
   return (data?.message || []).map((r: { name: string; patient?: string; patient_name?: string }) => ({
     name: r.name,

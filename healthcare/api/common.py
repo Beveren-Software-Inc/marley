@@ -482,6 +482,25 @@ def get_nursing_checklist_templates(search=None):
 
 
 @frappe.whitelist()
+def get_patient_visit_types(search=None):
+	"""Patient Visit Type options for dropdowns — portal roles (e.g. Nurse) lack doctype read perms
+	(REST grants Patient Visit Type only to Doctor / Reception / System Manager)."""
+	filters = {}
+
+	if search:
+		filters['visit_type'] = ['like', f'%{search}%']
+
+	rows = frappe.get_all(
+		'Patient Visit Type',
+		filters=filters,
+		fields=['name', 'visit_type'],
+		limit_page_length=200,
+		order_by='visit_type asc',
+	)
+	return [{'name': r.name, 'visit_type': r.visit_type or r.name} for r in rows]
+
+
+@frappe.whitelist()
 def get_patient_categories(search=None):
 	"""Patient Category options for dropdowns — portal roles (Doctor, Nurse) lack doctype read perms."""
 	filters = {}
@@ -2168,7 +2187,7 @@ def get_inpatient_admissions(search=None, patient=None, limit=20):
 	admissions = frappe.get_all(
 		"Inpatient Admission",
 		filters=filters,
-		fields=["name", "patient", "admitted_datetime", "cost_center"],
+		fields=["name", "patient", "patient_name", "status", "admitted_datetime", "cost_center"],
 		limit=limit,
 		order_by="creation desc",
 	)
@@ -2176,6 +2195,9 @@ def get_inpatient_admissions(search=None, patient=None, limit=20):
 		{
 			"name": a.name,
 			"label": f"{a.name} ({frappe.utils.formatdate(a.admitted_datetime) if a.admitted_datetime else '—'})",
+			"patient": a.get("patient"),
+			"patient_name": a.get("patient_name"),
+			"status": a.get("status"),
 			"cost_center": a.get("cost_center"),
 		}
 		for a in admissions

@@ -28,49 +28,26 @@ export interface MorseFallScaleListFilters {
   practitioner?: string
 }
 
-const LIST_FIELDS = [
-  'name',
-  'trans_no',
-  'admission_no',
-  'patient_no',
-  'company',
-  'practitioner',
-  'practitioner_name',
-  'cost_center',
-  'total_points',
-  'date',
-  'modified',
-]
-
 export async function fetchMorseFallScales(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
   filters: MorseFallScaleListFilters = {}
 ): Promise<MorseFallScale[]> {
+  // Read through the whitelisted portal endpoint (not /api/resource) so all portal
+  // roles — including Nurse — can load the list. REST grants read only to
+  // Nursing User / Physician / System Manager, which 403s for a plain Nurse.
   const params = new URLSearchParams()
-  params.append('fields', JSON.stringify(LIST_FIELDS))
+  if (patient) params.append('patient', patient)
+  if (filters.practitioner) params.append('practitioner', filters.practitioner)
+  if (filters.dateFrom) params.append('from_date', filters.dateFrom)
+  if (filters.dateTo) params.append('to_date', filters.dateTo)
+  params.append('limit', limit.toString())
+  params.append('offset', offset.toString())
 
-  const frappeFilters: [string, string, string, string?][] = [['Morse Fall Scale', 'docstatus', '<', '2']]
-  if (patient) {
-    frappeFilters.push(['Morse Fall Scale', 'patient_no', '=', patient])
-  }
-  if (filters.practitioner) {
-    frappeFilters.push(['Morse Fall Scale', 'practitioner', '=', filters.practitioner])
-  }
-  if (filters.dateFrom) {
-    frappeFilters.push(['Morse Fall Scale', 'date', '>=', filters.dateFrom])
-  }
-  if (filters.dateTo) {
-    frappeFilters.push(['Morse Fall Scale', 'date', '<=', filters.dateTo])
-  }
-
-  params.append('filters', JSON.stringify(frappeFilters))
-  params.append('limit_page_length', limit.toString())
-  params.append('limit_start', offset.toString())
-  params.append('order_by', 'modified desc')
-
-  return apiRequest<MorseFallScale[]>(`/api/resource/Morse Fall Scale?${params.toString()}`)
+  return apiRequest<MorseFallScale[]>(
+    `/api/method/healthcare.api.morse_fall_scale.get_morse_fall_scale_list?${params.toString()}`
+  )
 }
 
 export async function fetchMorseFallScale(name: string): Promise<MorseFallScale> {

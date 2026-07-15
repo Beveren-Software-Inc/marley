@@ -209,9 +209,16 @@ export const MorseFallScaleList = ({
 
   if (!patient) {
     return (
-      <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
-        SEARCH PATIENT TO VIEW MORSE FALL SCALE
-      </div>
+      <>
+        {!inDashboardCard && (
+          <div className="font-semibold mb-3">
+            <span>Morse Fall Scale</span>
+          </div>
+        )}
+        <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
+          SEARCH PATIENT TO VIEW MORSE FALL SCALE
+        </div>
+      </>
     )
   }
 

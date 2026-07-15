@@ -62,7 +62,7 @@ const nurseScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'n-ob', title: 'Observation' }],
+    screens: [{ id: 'n-ob', title: 'Observation Level' }],
   },
   {
     groupTitle: '',

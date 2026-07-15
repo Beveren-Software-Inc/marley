@@ -166,6 +166,12 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
     return hasHealthcareRole(roles)
   }
 
+  // QMPS is a separate module every clinical/portal user can reach — the BRD
+  // requires all users to be able to report safety events (anonymously).
+  if (pathname === '/qmps') {
+    return hasHealthcareRole(roles)
+  }
+
   // Role-specific pages
   const normalizedRoles = roles.map(r => r.trim().toLowerCase())
   if (pathname === '/doctor') return normalizedRoles.some(r => r.includes('doctor') || r.includes('physician') || r.includes('practitioner'))

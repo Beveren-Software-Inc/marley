@@ -864,21 +864,13 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
-            <div className="font-semibold mb-4 flex items-center justify-between">
-              <span>Observation</span>
-              <button
-                onClick={() => setShowObservationModal(true)}
-                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
-                title="Add Observation"
-              >
-                +
-              </button>
-            </div>
-            <div className="overflow-x-auto overscroll-x-contain" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <DashboardCard
+            title="Observation Level"
+            onAdd={() => setShowObservationModal(true)}
+            addButtonTitle="Add Observation Level"
+          >
             <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
-            </div>
-          </section>
+          </DashboardCard>
         </div>
         {showObservationModal && (
           <CreateObservationModal

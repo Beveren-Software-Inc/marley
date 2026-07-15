@@ -148,9 +148,11 @@ export const AdmissionList = ({
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const [practitionerFilter, setPractitionerFilter] = useState('')
 
-  // Default the Admission By Doctor filter to the logged-in practitioner (browse view only, no patient in scope).
+  // Default the Admission By Doctor filter to the logged-in practitioner — ONLY for doctors.
+  // Other roles (nurse, etc.) must not get a self-filter that hides admissions.
   useEffect(() => {
     if (effectivePatient || effectiveNameFilter) return
+    if (!isDoctorRole(userRole)) return
     let cancelled = false
     getCurrentUserPractitionerOption().then((opt) => {
       if (cancelled || !opt) return

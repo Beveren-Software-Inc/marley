@@ -160,7 +160,7 @@ export const EnvironmentalChecklistList = ({
   if (!patient) {
     return (
       <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 rounded-md px-4 py-3 text-sm">
-        Select a patient to view Environmental Checklist records.
+        SEARCH PATIENT TO VIEW ENVIRONMENTAL CHECKLIST
       </div>
     )
   }

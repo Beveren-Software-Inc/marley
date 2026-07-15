@@ -1404,469 +1404,8 @@ export const AppointmentList = ({
     )
   }
 
-  return (
-    <>
-      <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
-      {/* Header row */}
-      {!isInsideCard && !embedded && (
-      <div className="flex items-center justify-between gap-2 mb-3">
-        <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
-        <button
-          type="button"
-          onClick={() => setShowFiltersInternal(prev => !prev)}
-          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-          title={showFilters ? 'Hide filters' : 'Show filters'}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-        </button>
-      </div>
-      )}
-
-      {/* ── Filters + Bulk Reminder bar ── */}
-      {showFilters && (
-      <div className="card-filter-bar mb-3 space-y-2">
-        {/* Top row: filters */}
-        <div className="flex flex-wrap items-end gap-3">
-          {/* From Date */}
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>From Date</label>
-            <DateFilterInput
-              value={filterDateFrom}
-              onChange={(e) => handleFilterDateFromChange(e.target.value)}
-              className={FILTER_CONTROL_CLASS}
-            />
-          </div>
-
-          {/* To Date */}
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>To Date</label>
-            <DateFilterInput
-              value={filterDateTo}
-              onChange={(e) => handleFilterDateToChange(e.target.value)}
-              className={FILTER_CONTROL_CLASS}
-            />
-          </div>
-
-          {/* Doctor */}
-          {useAllAppointmentsApi && (
-            <div data-filter-dropdown className="flex flex-col gap-1 min-w-[220px]">
-              <label className={FILTER_LABEL_CLASS}>Doctor</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  value={practitionerFilterDisplayValue}
-                  disabled={!canChangePractitioner}
-                  title={!canChangePractitioner ? 'Locked to your linked practitioner' : undefined}
-                  onChange={(e) => {
-                    setPractitionerQuery(e.target.value)
-                    setFilterPractitioner('')
-                    setPractitionerOpen(true)
-                    setPage(1)
-                  }}
-                  onFocus={() => canChangePractitioner && setPractitionerOpen(true)}
-                  placeholder="Search by ID or name..."
-                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}${!canChangePractitioner ? ' bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
-                />
-                {filterPractitioner && canChangePractitioner && (
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    aria-label="Clear doctor filter"
-                    onClick={() => {
-                      setFilterPractitioner('')
-                      setPractitionerQuery('')
-                      setPractitionerOpen(false)
-                      setPage(1)
-                    }}
-                  >
-                    ×
-                  </button>
-                )}
-                {practitionerOpen && canChangePractitioner && practitionerDropdownOptions.length > 0 && (
-                  <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
-                    {practitionerDropdownOptions.map((pr) => {
-                      const displayId = pr.practitioner_id || pr.name
-                      return (
-                      <button
-                        key={pr.name}
-                        type="button"
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                        onClick={() => {
-                          setFilterPractitioner(pr.name)
-                          setPractitionerQuery(pr.practitioner_name || pr.label || pr.name)
-                          setPractitionerOpen(false)
-                          setPage(1)
-                        }}
-                      >
-                        {pr.practitioner_name ? (
-                          <>
-                            <div className="font-medium text-slate-900 leading-tight">
-                              {pr.practitioner_name}
-                              {pr.name === myPractitionerId ? ' (you)' : ''}
-                            </div>
-                            <div className="text-xs text-slate-500 mt-0.5">{displayId}</div>
-                          </>
-                        ) : (
-                          <div className="font-medium text-slate-900 leading-tight">
-                            {displayId}
-                            {pr.name === myPractitionerId ? ' (you)' : ''}
-                          </div>
-                        )}
-                      </button>
-                      )
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Branch */}
-          <div className="flex flex-col gap-1 min-w-[150px]">
-            <label className={FILTER_LABEL_CLASS}>Branch</label>
-            <select
-              value={filterBranch}
-              onChange={(e) => { setFilterBranch(e.target.value); setPage(1) }}
-              className={FILTER_CONTROL_CLASS}
-            >
-              <option value="">Select All</option>
-              {branchOptions.map((b) => (
-                <option key={b.name} value={b.name}>{b.label}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Status */}
-          <div className="flex flex-col gap-1 min-w-[120px]">
-            <label className={FILTER_LABEL_CLASS}>Status</label>
-            <select
-              value={filterStatus}
-              onChange={(e) => handleFilterStatusChange(e.target.value)}
-              className={FILTER_CONTROL_CLASS}
-            >
-              <option value="">Select All</option>
-              {ALL_STATUSES.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-
-          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} className="!ml-0" />
-
-          {/* Spacer + Bulk Reminder (full listing only) */}
-          {!cardCompactLayout && (
-          <>
-          <div className="flex-1" />
-          <div className="relative self-end" ref={bulkMenuRef}>
-            <button
-              type="button"
-              onClick={() => setBulkChannelMenuOpen((p) => !p)}
-              disabled={bulkSending || reminderEligible.length === 0}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
-            >
-              {bulkSending ? (
-                <>
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                  </svg>
-                  Sending…
-                </>
-              ) : (
-                <>
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                  </svg>
-                  Bulk Send Reminders{reminderEligible.length > 0 ? ` (${reminderEligible.length})` : ''}
-                  <svg className="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
-                </>
-              )}
-            </button>
-            {bulkChannelMenuOpen && (
-              <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
-                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
-                  Choose Channel
-                </div>
-                {CHANNEL_OPTIONS.map((ch) => (
-                  <button
-                    key={ch.value}
-                    type="button"
-                    onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders(ch.value) }}
-                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
-                  >
-                    <span>{ch.icon}</span> {ch.label}
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          </>
-          )}
-        </div>
-
-        {/* Result count — full listing only */}
-        {!cardCompactLayout && (
-        <p className="text-xs text-slate-500">
-          Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
-          {hasActiveFilters && ' (filtered)'}
-        </p>
-        )}
-      </div>
-      )}
-
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <div
-          className={`flex-1 min-h-0 ${cardHorizontalScroll ? 'overflow-x-auto overflow-y-auto' : 'overflow-auto'}`}
-          style={{ scrollbarWidth: 'thin' }}
-        >
-      {/* ── Table ── */}
-      {appointments.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-slate-500">
-          {totalCount === 0 ? 'NO APPOINTMENTS FOUND' : 'NO APPOINTMENTS MATCH THE CURRENT FILTERS'}
-        </div>
-      ) : (
-        <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
-          {detailedColumns ? (
-            <table className="w-full min-w-[760px] table-auto">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  {['File No.', 'Patient Name', 'Date', 'Time', 'Doctor Name', 'Branch', 'Status'].map((h) => (
-                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {appointments.map((apt) => (
-                  <tr key={apt.name} className={dashboardCardRowHoverClass} onClick={() => setDetailApt(apt)}>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '—'}</td>
-                    <td
-                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
-                      onClick={(e) => {
-                        if (apt.patient) {
-                          e.stopPropagation()
-                          onPatientClick?.(apt.patient)
-                        }
-                      }}
-                    >
-                      <span
-                        className={apt.patient ? 'font-medium text-primary hover:underline' : ''}
-                        title={apt.patient_name || apt.temporary_patient_name || undefined}
-                      >
-                        {apt.patient_name || apt.temporary_patient_name || '—'}
-                      </span>
-                      {isWalkInAppointment(apt) && (
-                        <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                          WALK-IN · NO FILE
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
-                      {apt.appointment_date ? formatDate(apt.appointment_date) : '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
-                      {apt.practitioner_name || apt.practitioner || '—'}
-                    </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={apt.cost_center || undefined}>
-                      {branchLabel(apt.cost_center)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {apt.status ? (
-                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
-                      ) : (
-                        <span className="text-sm text-slate-500">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : cardCompactLayout ? (
-            <table className="w-full table-fixed">
-              <colgroup>
-                <col className={patient ? 'w-[48%]' : 'w-[34%]'} />
-                <col className={patient ? 'w-[52%]' : 'w-[26%]'} />
-                {!patient && <col className="w-[40%]" />}
-              </colgroup>
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Date &amp; Time
-                  </th>
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Status
-                  </th>
-                  {!patient && (
-                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
-                      Patient
-                    </th>
-                  )}
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {appointments.map((apt) => (
-                  <tr
-                    key={apt.name}
-                    className={dashboardCardRowHoverClass}
-                    onClick={() => setDetailApt(apt)}
-                  >
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
-                      <span className="text-primary font-medium break-words">
-                        {formatAppointmentDateTime(apt.appointment_date, apt)}
-                      </span>
-                      <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
-                    </td>
-                    <td className="px-3 py-2.5 align-top">
-                      {apt.status ? (
-                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
-                      ) : (
-                        <span className="text-sm text-slate-500">-</span>
-                      )}
-                    </td>
-                    {!patient && (
-                      <td
-                        className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0"
-                        onClick={(e) => {
-                          if (apt.patient) {
-                            e.stopPropagation()
-                            onPatientClick?.(apt.patient)
-                          }
-                        }}
-                      >
-                        <span
-                          className={`block truncate ${apt.patient ? 'font-medium text-primary hover:underline' : ''}`}
-                          title={apt.patient_name || apt.temporary_patient_name || undefined}
-                        >
-                          {apt.patient_name || apt.temporary_patient_name || '—'}
-                          {isWalkInAppointment(apt) && (
-                            <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                              WALK-IN · NO FILE
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                    )}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-          <table
-            className={
-              cardHorizontalScroll
-                ? 'w-max min-w-full table-auto'
-                : 'w-full min-w-[1080px] table-auto'
-            }
-          >
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                  Appointment Type
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
-                  File No.
-                </th>
-                {!patient && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[10rem]">
-                    Patient Name
-                  </th>
-                )}
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
-                  Date
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[5rem]">
-                  Time
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                  Doctor Name
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                  Branch
-                </th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
-                  Status
-                </th>
-                {showPractitionerColumn && showAll && (
-                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[9.5rem]">
-                    Doctor Status
-                  </th>
-                )}
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200">
-              {appointments.map((apt) => {
-                const availabilityResponse = practitionerAvailability[apt.name]
-                const isAvailable = availabilityResponse?.available ?? true
-                const leaveDetails = availabilityResponse?.leave_details
-                const isLoadingAvailability = availabilityLoading[apt.name]
-                const showPractitionerStatus = showAll && apt.practitioner
-                
-                return (
-                  <tr
-                    key={apt.name}
-                    className="group hover:bg-slate-50"
-                  >
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '-'}</td>
-                    {!patient && (
-                      <td
-                        className={`px-3 py-2.5 text-sm text-slate-700 ${cardHorizontalScroll ? 'whitespace-nowrap' : 'max-w-[220px]'}`}
-                        onClick={(e) => {
-                          if (apt.patient) {
-                            e.stopPropagation()
-                            onPatientClick?.(apt.patient)
-                          }
-                        }}
-                      >
-                        <span className={`${cardHorizontalScroll ? 'inline-flex items-center gap-1.5' : 'truncate block'} ${apt.patient ? 'font-medium text-primary hover:underline cursor-pointer' : ''}`}>
-                          {apt.patient_name || apt.temporary_patient_name || '-'}
-                          {isWalkInAppointment(apt) && (
-                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
-                              WALK-IN · NO FILE
-                            </span>
-                          )}
-                        </span>
-                      </td>
-                    )}
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_date ? formatDate(apt.appointment_date) : '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.practitioner_name || apt.practitioner || '-'}</td>
-                    <td
-                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap max-w-[12rem] truncate"
-                      title={apt.cost_center || undefined}
-                    >
-                      {branchLabel(apt.cost_center)}
-                    </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {apt.status
-                        ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
-                        : <span className="text-sm text-slate-500">-</span>}
-                    </td>
-                    {showPractitionerColumn && showAll && (
-                      <td className="px-3 py-2.5">
-                        {showPractitionerStatus && (
-                          isLoadingAvailability ? (
-                            <div className="flex items-center gap-2">
-                              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-pulse" />
-                              <span className="text-sm text-slate-400">Checking...</span>
-                            </div>
-                          ) : (
-                            <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
-                          )
-                        )}
-                        {!apt.practitioner && (
-                          <span className="text-sm text-slate-400">No doctor assigned</span>
-                        )}
-                      </td>
-                    )}
-                    <td className={`px-3 py-2 align-middle ${cardHorizontalScroll ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]' : ''}`}>
+  const renderActionsCell = (apt: Appointment) => (
+                    <td onClick={(e) => e.stopPropagation()} className={`px-3 py-2 align-middle ${cardHorizontalScroll ? 'sticky right-0 bg-white group-hover:bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]' : ''}`}>
                       <div className="relative" ref={openActionRow === apt.name ? menuRef : undefined}>
                         <button
                           type="button"
@@ -2119,6 +1658,472 @@ export const AppointmentList = ({
                         </PortalActionsMenu>
                       </div>
                     </td>
+  )
+
+  return (
+    <>
+      <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
+      {/* Header row */}
+      {!isInsideCard && !embedded && (
+      <div className="flex items-center justify-between gap-2 mb-3">
+        <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
+        <button
+          type="button"
+          onClick={() => setShowFiltersInternal(prev => !prev)}
+          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+          title={showFilters ? 'Hide filters' : 'Show filters'}
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+          </svg>
+        </button>
+      </div>
+      )}
+
+      {/* ── Filters + Bulk Reminder bar ── */}
+      {showFilters && (
+      <div className="card-filter-bar mb-3 space-y-2">
+        {/* Top row: filters */}
+        <div className="flex flex-wrap items-end gap-3">
+          {/* From Date */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>From Date</label>
+            <DateFilterInput
+              value={filterDateFrom}
+              onChange={(e) => handleFilterDateFromChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+
+          {/* To Date */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>To Date</label>
+            <DateFilterInput
+              value={filterDateTo}
+              onChange={(e) => handleFilterDateToChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            />
+          </div>
+
+          {/* Doctor */}
+          {useAllAppointmentsApi && (
+            <div data-filter-dropdown className="flex flex-col gap-1 min-w-[220px]">
+              <label className={FILTER_LABEL_CLASS}>Doctor</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  value={practitionerFilterDisplayValue}
+                  disabled={!canChangePractitioner}
+                  title={!canChangePractitioner ? 'Locked to your linked practitioner' : undefined}
+                  onChange={(e) => {
+                    setPractitionerQuery(e.target.value)
+                    setFilterPractitioner('')
+                    setPractitionerOpen(true)
+                    setPage(1)
+                  }}
+                  onFocus={() => canChangePractitioner && setPractitionerOpen(true)}
+                  placeholder="Search by ID or name..."
+                  className={`${FILTER_CONTROL_CLASS}${filterPractitioner ? ' pr-8' : ''}${!canChangePractitioner ? ' bg-slate-100 cursor-not-allowed text-slate-500' : ''}`}
+                />
+                {filterPractitioner && canChangePractitioner && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    aria-label="Clear doctor filter"
+                    onClick={() => {
+                      setFilterPractitioner('')
+                      setPractitionerQuery('')
+                      setPractitionerOpen(false)
+                      setPage(1)
+                    }}
+                  >
+                    ×
+                  </button>
+                )}
+                {practitionerOpen && canChangePractitioner && practitionerDropdownOptions.length > 0 && (
+                  <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-auto">
+                    {practitionerDropdownOptions.map((pr) => {
+                      const displayId = pr.practitioner_id || pr.name
+                      return (
+                      <button
+                        key={pr.name}
+                        type="button"
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
+                        onClick={() => {
+                          setFilterPractitioner(pr.name)
+                          setPractitionerQuery(pr.practitioner_name || pr.label || pr.name)
+                          setPractitionerOpen(false)
+                          setPage(1)
+                        }}
+                      >
+                        {pr.practitioner_name ? (
+                          <>
+                            <div className="font-medium text-slate-900 leading-tight">
+                              {pr.practitioner_name}
+                              {pr.name === myPractitionerId ? ' (you)' : ''}
+                            </div>
+                            <div className="text-xs text-slate-500 mt-0.5">{displayId}</div>
+                          </>
+                        ) : (
+                          <div className="font-medium text-slate-900 leading-tight">
+                            {displayId}
+                            {pr.name === myPractitionerId ? ' (you)' : ''}
+                          </div>
+                        )}
+                      </button>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Branch */}
+          <div className="flex flex-col gap-1 min-w-[150px]">
+            <label className={FILTER_LABEL_CLASS}>Branch</label>
+            <select
+              value={filterBranch}
+              onChange={(e) => { setFilterBranch(e.target.value); setPage(1) }}
+              className={FILTER_CONTROL_CLASS}
+            >
+              <option value="">Select All</option>
+              {branchOptions.map((b) => (
+                <option key={b.name} value={b.name}>{b.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Status */}
+          <div className="flex flex-col gap-1 min-w-[120px]">
+            <label className={FILTER_LABEL_CLASS}>Status</label>
+            <select
+              value={filterStatus}
+              onChange={(e) => handleFilterStatusChange(e.target.value)}
+              className={FILTER_CONTROL_CLASS}
+            >
+              <option value="">Select All</option>
+              {ALL_STATUSES.map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
+
+          <ClearFiltersButton onClick={clearFilters} disabled={!hasActiveFilters} className="!ml-0" />
+
+          {/* Spacer + Bulk Reminder (full listing only) */}
+          {!cardCompactLayout && (
+          <>
+          <div className="flex-1" />
+          <div className="relative self-end" ref={bulkMenuRef}>
+            <button
+              type="button"
+              onClick={() => setBulkChannelMenuOpen((p) => !p)}
+              disabled={bulkSending || reminderEligible.length === 0}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+            >
+              {bulkSending ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Sending…
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  Bulk Send Reminders{reminderEligible.length > 0 ? ` (${reminderEligible.length})` : ''}
+                  <svg className="w-3 h-3 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                </>
+              )}
+            </button>
+            {bulkChannelMenuOpen && (
+              <div className="absolute right-0 z-30 mt-1 w-48 bg-white border border-slate-200 rounded-md shadow-lg py-1">
+                <div className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide border-b border-slate-100">
+                  Choose Channel
+                </div>
+                {CHANNEL_OPTIONS.map((ch) => (
+                  <button
+                    key={ch.value}
+                    type="button"
+                    onClick={() => { setBulkChannelMenuOpen(false); handleBulkSendReminders(ch.value) }}
+                    className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2"
+                  >
+                    <span>{ch.icon}</span> {ch.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          </>
+          )}
+        </div>
+
+        {/* Result count — full listing only */}
+        {!cardCompactLayout && (
+        <p className="text-xs text-slate-500">
+          Showing {appointments.length} of {totalCount} appointment{totalCount !== 1 ? 's' : ''}
+          {hasActiveFilters && ' (filtered)'}
+        </p>
+        )}
+      </div>
+      )}
+
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div
+          className={`flex-1 min-h-0 ${cardHorizontalScroll ? 'overflow-x-auto overflow-y-auto' : 'overflow-auto'}`}
+          style={{ scrollbarWidth: 'thin' }}
+        >
+      {/* ── Table ── */}
+      {appointments.length === 0 ? (
+        <div className="flex items-center justify-center p-8 text-slate-500">
+          {totalCount === 0 ? 'NO APPOINTMENTS FOUND' : 'NO APPOINTMENTS MATCH THE CURRENT FILTERS'}
+        </div>
+      ) : (
+        <div className={cardHorizontalScroll ? 'inline-block min-w-full align-top' : 'min-w-full'}>
+          {detailedColumns ? (
+            <table className="w-full min-w-[760px] table-auto">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  {['File No.', 'Patient Name', 'Date', 'Time', 'Doctor Name', 'Branch', 'Status', 'Actions'].map((h) => (
+                    <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+                      {h}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {appointments.map((apt) => (
+                  <tr key={apt.name} className={dashboardCardRowHoverClass} onClick={() => setDetailApt(apt)}>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '—'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      onClick={(e) => {
+                        if (apt.patient) {
+                          e.stopPropagation()
+                          onPatientClick?.(apt.patient)
+                        }
+                      }}
+                    >
+                      <span
+                        className={apt.patient ? 'font-medium text-primary hover:underline' : ''}
+                        title={apt.patient_name || apt.temporary_patient_name || undefined}
+                      >
+                        {apt.patient_name || apt.temporary_patient_name || '—'}
+                      </span>
+                      {isWalkInAppointment(apt) && (
+                        <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                          WALK-IN · NO FILE
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.appointment_date ? formatDate(apt.appointment_date) : '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">
+                      {apt.practitioner_name || apt.practitioner || '—'}
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={apt.cost_center || undefined}>
+                      {branchLabel(apt.cost_center)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {apt.status ? (
+                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                      ) : (
+                        <span className="text-sm text-slate-500">—</span>
+                      )}
+                    </td>
+                    {renderActionsCell(apt)}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : cardCompactLayout ? (
+            <table className="w-full table-fixed">
+              <colgroup>
+                <col className={patient ? 'w-[48%]' : 'w-[34%]'} />
+                <col className={patient ? 'w-[52%]' : 'w-[26%]'} />
+                {!patient && <col className="w-[40%]" />}
+              </colgroup>
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Date &amp; Time
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Status
+                  </th>
+                  {!patient && (
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                      Patient
+                    </th>
+                  )}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-200">
+                {appointments.map((apt) => (
+                  <tr
+                    key={apt.name}
+                    className={dashboardCardRowHoverClass}
+                    onClick={() => setDetailApt(apt)}
+                  >
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
+                      <span className="text-primary font-medium break-words">
+                        {formatAppointmentDateTime(apt.appointment_date, apt)}
+                      </span>
+                      <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
+                    </td>
+                    <td className="px-3 py-2.5 align-top">
+                      {apt.status ? (
+                        <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                      ) : (
+                        <span className="text-sm text-slate-500">-</span>
+                      )}
+                    </td>
+                    {!patient && (
+                      <td
+                        className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0"
+                        onClick={(e) => {
+                          if (apt.patient) {
+                            e.stopPropagation()
+                            onPatientClick?.(apt.patient)
+                          }
+                        }}
+                      >
+                        <span
+                          className={`block truncate ${apt.patient ? 'font-medium text-primary hover:underline' : ''}`}
+                          title={apt.patient_name || apt.temporary_patient_name || undefined}
+                        >
+                          {apt.patient_name || apt.temporary_patient_name || '—'}
+                          {isWalkInAppointment(apt) && (
+                            <span className="ml-1 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                              WALK-IN · NO FILE
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    )}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+          <table
+            className={
+              cardHorizontalScroll
+                ? 'w-max min-w-full table-auto'
+                : 'w-full min-w-[1080px] table-auto'
+            }
+          >
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Appointment Type
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
+                  File No.
+                </th>
+                {!patient && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[10rem]">
+                    Patient Name
+                  </th>
+                )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[6rem]">
+                  Date
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[5rem]">
+                  Time
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Doctor Name
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
+                  Branch
+                </th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
+                  Status
+                </th>
+                {showPractitionerColumn && showAll && (
+                  <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[9.5rem]">
+                    Doctor Status
+                  </th>
+                )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {appointments.map((apt) => {
+                const availabilityResponse = practitionerAvailability[apt.name]
+                const isAvailable = availabilityResponse?.available ?? true
+                const leaveDetails = availabilityResponse?.leave_details
+                const isLoadingAvailability = availabilityLoading[apt.name]
+                const showPractitionerStatus = showAll && apt.practitioner
+                
+                return (
+                  <tr
+                    key={apt.name}
+                    className="group hover:bg-slate-50"
+                  >
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '-'}</td>
+                    {!patient && (
+                      <td
+                        className={`px-3 py-2.5 text-sm text-slate-700 ${cardHorizontalScroll ? 'whitespace-nowrap' : 'max-w-[220px]'}`}
+                        onClick={(e) => {
+                          if (apt.patient) {
+                            e.stopPropagation()
+                            onPatientClick?.(apt.patient)
+                          }
+                        }}
+                      >
+                        <span className={`${cardHorizontalScroll ? 'inline-flex items-center gap-1.5' : 'truncate block'} ${apt.patient ? 'font-medium text-primary hover:underline cursor-pointer' : ''}`}>
+                          {apt.patient_name || apt.temporary_patient_name || '-'}
+                          {isWalkInAppointment(apt) && (
+                            <span className="ml-1.5 inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 border border-amber-200">
+                              WALK-IN · NO FILE
+                            </span>
+                          )}
+                        </span>
+                      </td>
+                    )}
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_date ? formatDate(apt.appointment_date) : '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apptTime(apt)}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.practitioner_name || apt.practitioner || '-'}</td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap max-w-[12rem] truncate"
+                      title={apt.cost_center || undefined}
+                    >
+                      {branchLabel(apt.cost_center)}
+                    </td>
+                    <td className="px-3 py-2.5 whitespace-nowrap">
+                      {apt.status
+                        ? <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
+                        : <span className="text-sm text-slate-500">-</span>}
+                    </td>
+                    {showPractitionerColumn && showAll && (
+                      <td className="px-3 py-2.5">
+                        {showPractitionerStatus && (
+                          isLoadingAvailability ? (
+                            <div className="flex items-center gap-2">
+                              <div className="w-2.5 h-2.5 bg-slate-300 rounded-full animate-pulse" />
+                              <span className="text-sm text-slate-400">Checking...</span>
+                            </div>
+                          ) : (
+                            <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
+                          )
+                        )}
+                        {!apt.practitioner && (
+                          <span className="text-sm text-slate-400">No doctor assigned</span>
+                        )}
+                      </td>
+                    )}
+                    {renderActionsCell(apt)}
                   </tr>
                 )
               })}
