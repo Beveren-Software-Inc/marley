@@ -230,23 +230,22 @@ export const CreateLabTestModal = ({
   // Load initial options and auto-fill current user's practitioner
   useEffect(() => {
     const loadOptions = async () => {
-      try {
-        const [templates, practs, depts, costCenters, currentPract] = await Promise.all([
-          fetchLabTestTemplates(undefined, undefined, templatesNurseOnly),
-          fetchHealthcarePractitioners(),
-          fetchMedicalDepartments(),
-          fetchCostCenters(),
-          getCurrentUserPractitioner(),
-        ])
-        setTemplateOptions(templates)
-        setPractitionerOptions(practs)
-        setDepartmentOptions(depts)
-        setCostCenterOptions(costCenters)
-        if (currentPract) {
-          setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev)
-        }
-      } catch (err) {
-        console.error('Failed to load options:', err)
+      // Load each option list independently so one failed lookup does not blank the whole form.
+      const [templates, practs, depts, costCenters, currentPract] = await Promise.allSettled([
+        fetchLabTestTemplates(undefined, undefined, templatesNurseOnly),
+        fetchHealthcarePractitioners(),
+        fetchMedicalDepartments(),
+        fetchCostCenters(),
+        getCurrentUserPractitioner(),
+      ])
+      if (templates.status === 'fulfilled') setTemplateOptions(templates.value)
+      else console.error('Failed to load lab test templates:', templates.reason)
+      if (practs.status === 'fulfilled') setPractitionerOptions(practs.value)
+      if (depts.status === 'fulfilled') setDepartmentOptions(depts.value)
+      if (costCenters.status === 'fulfilled') setCostCenterOptions(costCenters.value)
+      if (currentPract.status === 'fulfilled' && currentPract.value) {
+        const pract = currentPract.value
+        setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
       }
     }
     loadOptions()

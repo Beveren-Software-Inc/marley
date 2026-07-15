@@ -8,6 +8,24 @@ import {
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 
+// Full Lab Test status list (matches the Lab Test doctype status field options), so the
+// Status dropdown always contains the test's current status and every valid transition.
+const LAB_TEST_STATUS_OPTIONS = [
+  'Draft',
+  'Requested',
+  'Awaiting sample collection',
+  'Sample Collection in Progress',
+  'Sample Collected',
+  'Partial Result Enter',
+  'Testing in Progress',
+  'Completed',
+  'Pending Review',
+  'Reviewed',
+  'Approved',
+  'Rejected',
+  'Cancelled',
+]
+
 interface EditLabTestModalProps {
   labTestName: string
   onClose: () => void
@@ -107,11 +125,16 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
         }
         setFormData(initialFormData)
 
-        const [templates, depts, practs] = await Promise.all([
+        // Load each lookup independently so one failed list doesn't abort loading the whole lab test.
+        const [templatesR, deptsR, practsR] = await Promise.allSettled([
           fetchLabTestTemplates(undefined, doc.department || undefined),
           fetchMedicalDepartments(),
           fetchHealthcarePractitioners(undefined, doc.department || undefined),
         ])
+        const templates = templatesR.status === 'fulfilled' ? templatesR.value : []
+        const depts = deptsR.status === 'fulfilled' ? deptsR.value : []
+        const practs = practsR.status === 'fulfilled' ? practsR.value : []
+        if (templatesR.status === 'rejected') console.error('Failed to load lab test templates:', templatesR.reason)
 
         setTemplateOptions(templates)
         setDepartmentOptions(depts)
@@ -484,11 +507,14 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                     onChange={(e) => handleChange('status', e.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   >
-                    <option value="Draft">Draft</option>
-                    <option value="Requested">Requested</option>
-                    <option value="Pending Review">Pending Review</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Cancelled">Cancelled</option>
+                    {/* Ensure the current status is always selectable even if it's an
+                        unexpected/custom value, so the field never renders blank. */}
+                    {formData.status && !LAB_TEST_STATUS_OPTIONS.includes(formData.status) && (
+                      <option value={formData.status}>{formData.status}</option>
+                    )}
+                    {LAB_TEST_STATUS_OPTIONS.map((st) => (
+                      <option key={st} value={st}>{st}</option>
+                    ))}
                   </select>
                 </div>
 

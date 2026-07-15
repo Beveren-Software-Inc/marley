@@ -169,7 +169,7 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center text-slate-400 py-6">
+                  <td colSpan={16} className="text-center text-slate-400 py-6">
                     {searchQuery ? 'No templates match your search' : 'NO LAB TEST TEMPLATES FOUND'}
                   </td>
                 </tr>

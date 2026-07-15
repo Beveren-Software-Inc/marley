@@ -644,7 +644,7 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			"male_max_range",
 			"min_range",
 			"max_range",
-			"uom",
+			"lab_test_uom",
 		],
 		"limit": 100,
 		"order_by": "lab_test_name asc",
@@ -666,7 +666,7 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			'male_max_range': t.male_max_range,
 			'min_range': t.min_range,
 			'max_range': t.max_range,
-			'uom': t.uom
+			'uom': t.lab_test_uom
 		}
 		for t in templates
 	]

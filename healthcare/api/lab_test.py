@@ -141,6 +141,11 @@ def get_lab_test_template_details(template):
 		'lab_test_template_type': doc.lab_test_template_type,
 		'min_range': doc.get('min_range'),
 		'max_range': doc.get('max_range'),
+		# Gendered ranges so result-entry validation can use the patient-appropriate range.
+		'female_min_range': doc.get('female_min_range'),
+		'female_max_range': doc.get('female_max_range'),
+		'male_min_range': doc.get('male_min_range'),
+		'male_max_range': doc.get('male_max_range'),
 		'worksheet_instructions': doc.get('worksheet_instructions') or '',
 		'sample_details': doc.get('sample_details') or '',
 		'lab_test_uom': doc.get('lab_test_uom') or '',
@@ -708,14 +713,17 @@ def get_lab_tests(
 	if practitioner:
 		filters["practitioner"] = practitioner
 	
-	# Date range filter — apply on result_date
+	# Date range filter — apply on the order/registration date (creation), which is always
+	# present. Filtering on result_date emptied every pre-result worklist tab (Requested /
+	# Sample Collected / Testing in Progress) because those tests have no result date yet.
 	if from_date or to_date:
-		if from_date and to_date:
-			filters["result_date"] = ["between", [from_date, to_date]]
-		elif from_date:
-			filters["result_date"] = [">=", from_date]
-		elif to_date:
-			filters["result_date"] = ["<=", to_date]
+		start = frappe.utils.get_datetime(from_date) if from_date else frappe.utils.get_datetime("1900-01-01")
+		end = (
+			frappe.utils.get_datetime(to_date).replace(hour=23, minute=59, second=59)
+			if to_date
+			else frappe.utils.now_datetime()
+		)
+		filters["creation"] = ["between", [start, end]]
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	permitted_cc = get_permitted_cost_centers()

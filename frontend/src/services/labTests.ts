@@ -337,6 +337,10 @@ export interface LabTestTemplateDetails {
   lab_test_template_type?: string
   min_range?: number | null
   max_range?: number | null
+  female_min_range?: number | null
+  female_max_range?: number | null
+  male_min_range?: number | null
+  male_max_range?: number | null
   worksheet_instructions?: string
   sample_details?: string
   lab_test_uom?: string

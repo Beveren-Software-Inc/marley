@@ -36,8 +36,8 @@ def _require_lab_roles() -> None:
 			"Healthcare Administrator",
 			"Receptionist",
 			"Doctor",
-			"Lab Technologist",
-			"Lab Technician",
+			"Laboratory User",
+			"LabTest Approver",
 		)
 	)
 

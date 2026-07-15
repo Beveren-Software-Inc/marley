@@ -1107,6 +1107,59 @@ export const LabPage = () => {
     )
   }
 
+  // Full-listing screens for the dashboard cards' ↗ "open full listing" button.
+  // These mirror the Doctor dashboard (screens 'pvh' / 'admission' / 'warn' are URL-reachable
+  // expand targets, not sidebar tabs) so the expand button on the Patient Visits, Inpatient
+  // Admissions and Warnings cards opens a real full-screen listing instead of doing nothing.
+  if (screen === 'pvh') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <OutpatientVisitsCard
+            fullScreen
+            patient={selectedPatient || undefined}
+            onPatientSelect={handlePatientSelect}
+            onVisitActivate={handleVisitActivate}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'admission') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <InpatientAdmissionsCard
+            fullScreen
+            patient={selectedPatient || undefined}
+            onPatientSelect={handlePatientSelect}
+            onAdmissionActivate={handleAdmissionActivate}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'warn') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Warnings & Messages" noHeightLimit>
+            <WarningMessagesList
+              patient={selectedPatient || undefined}
+              noPatientScope="all"
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
   // Note: the old "Lab Test & Result" screen (screen === 'l-results') was merged into
   // the default dashboard's "Tests & Results" card (which now carries the status tabs).
 

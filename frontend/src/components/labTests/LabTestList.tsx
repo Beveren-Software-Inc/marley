@@ -1729,7 +1729,7 @@ export type LabTestListBatchSaveRef = {
 
 const STATUS_OPTIONS = [
   'Draft', 'Requested', 'Awaiting sample collection', 'Sample Collection in Progress',
-  'Sample Collected', 'Testing in progress', 'Completed', 'Pending Review',
+  'Sample Collected', 'Testing in Progress', 'Completed', 'Pending Review',
   'Reviewed', 'Rejected', 'Cancelled',
 ] as const
 
@@ -1751,7 +1751,7 @@ const statusColors: Record<string, string> = {
   'Pending Review': 'warning', 'Submitted': 'info', 'Cancelled': 'default',
   'Draft': 'warning', 'Pending': 'warning', 'Requested': 'info',
   'Awaiting sample collection': 'warning', 'Sample Collection in Progress': 'info',
-  'Sample Collected': 'info', 'Testing in progress': 'info',
+  'Sample Collected': 'info', 'Testing in Progress': 'info', 'Testing in progress': 'info',
 }
 
 const LAB_POST_SAMPLE_REVIEW_STATUSES = new Set([
@@ -1909,11 +1909,51 @@ const getLabTestResultFlag = (labTest: LabTest, getDisplayResult: (lt: LabTest) 
     labTest.max_range,
   ).flag
 
-/** Table display: collapse critical flags to High / Low only. */
-const simplifyResultFlagLabel = (flag: string): string => {
-  if (flag === 'Critically High' || flag === 'High') return 'High'
-  if (flag === 'Critically Low' || flag === 'Low') return 'Low'
+/** True when a flag is a critical (panic) value that needs urgent attention. */
+const isCriticalResultFlag = (flag: string): boolean =>
+  flag === 'Critically High' || flag === 'Critically Low'
+
+/** Table display label — keeps the critical distinction (LAB-07/LAB-08). */
+const resultFlagLabel = (flag: string): string => {
+  if (flag === 'Critically High') return 'Critical High'
+  if (flag === 'Critically Low') return 'Critical Low'
+  if (flag === 'High') return 'High'
+  if (flag === 'Low') return 'Low'
   return ''
+}
+
+/** Parse a normal-range string ("4 - 11", "<200", ">5") into numeric bounds. */
+const parseNormalRange = (raw?: string | null): { min: number | null; max: number | null } => {
+  if (raw == null) return { min: null, max: null }
+  const s = String(raw).replace(/[–—]/g, '-').trim()
+  if (!s) return { min: null, max: null }
+  const between = s.match(/^(-?\d+(?:\.\d+)?)\s*(?:-|to)\s*(-?\d+(?:\.\d+)?)$/i)
+  if (between) return { min: parseFloat(between[1]), max: parseFloat(between[2]) }
+  const lt = s.match(/^[<≤]\s*=?\s*(-?\d+(?:\.\d+)?)$/)
+  if (lt) return { min: null, max: parseFloat(lt[1]) }
+  const gt = s.match(/^[>≥]\s*=?\s*(-?\d+(?:\.\d+)?)$/)
+  if (gt) return { min: parseFloat(gt[1]), max: null }
+  return { min: null, max: null }
+}
+
+/**
+ * Effective (min,max) reference range for a result-entry row (LAB-07):
+ * the row's own normal_range (compound panels) first, then the template's
+ * gender-appropriate range, then the template's generic range.
+ */
+const effectiveRowRange = (
+  row: NormalTestResultRow,
+  details: LabTestTemplateDetails,
+  sex?: string,
+): { min: number | null; max: number | null } => {
+  const rowRange = parseNormalRange((row as { normal_range?: string | null }).normal_range)
+  if (rowRange.min != null || rowRange.max != null) return rowRange
+  const s = (sex || '').toLowerCase()
+  if (s === 'female' && (details.female_min_range != null || details.female_max_range != null))
+    return { min: details.female_min_range ?? null, max: details.female_max_range ?? null }
+  if (s === 'male' && (details.male_min_range != null || details.male_max_range != null))
+    return { min: details.male_min_range ?? null, max: details.male_max_range ?? null }
+  return { min: details.min_range ?? null, max: details.max_range ?? null }
 }
 
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
@@ -2290,10 +2330,13 @@ export const LabTestList = ({
   const compactClinical = useDashboardCompactClinical()
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
   const [defaultsReady, setDefaultsReady] = useState(!doctorLabDefaults)
+  // The status the list starts on: an explicit defaultStatus, else the first status tab
+  // (when status tabs are shown), else none. Used so the initial tab isn't counted as an
+  // "active filter" and Clear returns to it rather than jumping to the "All" tab.
+  const effectiveDefaultStatus = defaultStatus ?? (statusTabs ? LAB_STATUS_TABS[0].status : '')
   const [filters, setFilters] = useState<Filters>(() => ({
     ...makeEmptyFilters(),
-    // Status tabs default to the first tab (Lab Requested) unless a defaultStatus is given.
-    status: defaultStatus ?? (statusTabs ? LAB_STATUS_TABS[0].status : ''),
+    status: effectiveDefaultStatus,
     // Outsourced Tests screen: lock the Is Outsourced filter to Yes.
     isOutsourced: isOutsourced ? 'yes' : '',
   }))
@@ -2343,7 +2386,7 @@ export const LabTestList = ({
   }, [filters])
 
   const activeCount = [
-    filters.status && filters.status !== (defaultStatus ?? '') ? filters.status : '',
+    filters.status && filters.status !== effectiveDefaultStatus ? filters.status : '',
     filters.fromDate,
     filters.toDate,
     // On the Outsourced screen the Is Outsourced value is a locked default, not a user filter.
@@ -2355,7 +2398,7 @@ export const LabTestList = ({
   const handleClearFilters = async () => {
     const cleared: Filters = {
       ...makeEmptyFilters(),
-      status: defaultStatus ?? '',
+      status: effectiveDefaultStatus,
       isOutsourced: isOutsourced ? 'yes' : '',
     }
     if (doctorLabDefaults && defaultPractitionerId) {
@@ -2980,11 +3023,11 @@ export const LabTestList = ({
     }
 
     const Icon = isLow ? ArrowDown : ArrowUp
-    const colorClass = 'text-orange-600'
+    const colorClass = isCriticalResultFlag(flag) ? 'text-red-600' : 'text-orange-600'
 
     return (
-      <td className="px-2 py-1.5 text-center" title={simplifyResultFlagLabel(flag)}>
-        <Icon className={`mx-auto h-4 w-4 ${colorClass}`} aria-label={simplifyResultFlagLabel(flag)} />
+      <td className="px-2 py-1.5 text-center" title={resultFlagLabel(flag)}>
+        <Icon className={`mx-auto h-4 w-4 ${colorClass}`} aria-label={resultFlagLabel(flag)} />
       </td>
     )
   }
@@ -2992,7 +3035,7 @@ export const LabTestList = ({
   // Helper: render result flag cell
   const renderResultFlagCell = (labTest: LabTest) => {
     const rawFlag = getLabTestResultFlag(labTest, batch.getDisplayResult)
-    const flag = simplifyResultFlagLabel(rawFlag)
+    const flag = resultFlagLabel(rawFlag)
 
     if (!flag) {
       return (
@@ -3002,9 +3045,15 @@ export const LabTestList = ({
       )
     }
 
+    const critical = isCriticalResultFlag(rawFlag)
     return (
       <td className="px-3 py-1.5">
-        <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-orange-100 text-orange-700">
+        <span
+          className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+            critical ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'bg-orange-100 text-orange-700'
+          }`}
+          title={critical ? 'Critical value — urgent attention required' : undefined}
+        >
           {flag}
         </span>
       </td>
@@ -3985,8 +4034,11 @@ export const LabTestList = ({
                           <tbody className="divide-y divide-slate-100">
                             {normalTestItems.map((row, idx) => {
                               const result = parseFloat(row.result_value || '')
-                              const min = templateDetails.min_range; const max = templateDetails.max_range
-                              const outOfRange = row.result_value !== '' && row.result_value != null && !isNaN(result) && min != null && max != null ? (result < min || result > max) : false
+                              // Per-row reference range: the row's own normal_range (panels),
+                              // else the patient's gendered range, else the template range.
+                              const { min, max } = effectiveRowRange(row, templateDetails, activeLabTest?.patient_sex || activeLabTest?.gender)
+                              const hasResult = row.result_value !== '' && row.result_value != null && !isNaN(result)
+                              const outOfRange = hasResult && ((min != null && result < min) || (max != null && result > max))
                               return (
                                 <tr key={idx} className={outOfRange ? 'bg-red-50' : 'hover:bg-slate-50/50'}>
                                   <td className="px-3 py-3">
