@@ -109,7 +109,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   drug: '',
   drug_name: '',
   dosage: '',
-  uom: '',
+  uom: 'UNIT',
   no_of_days: 1,
   dosage_form: '',
   instructions: '',

@@ -668,6 +668,7 @@ import { AppointmentCreateSalesOrderModal } from './AppointmentCreateSalesOrderM
 import { AppointmentPaymentModal } from './AppointmentPaymentModal'
 import { AppointmentAdRemarkModal } from './AppointmentAdRemarkModal'
 import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
+import { SendWhatsAppAppointmentModal } from './SendWhatsAppAppointmentModal'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
@@ -883,6 +884,7 @@ export const AppointmentList = ({
   const [paymentTarget, setPaymentTarget] = useState<Appointment | null>(null)
   const [adRemarkTarget, setAdRemarkTarget] = useState<Appointment | null>(null)
   const [doctorNoteTarget, setDoctorNoteTarget] = useState<Appointment | null>(null)
+  const [whatsappTarget, setWhatsappTarget] = useState<Appointment | null>(null)
   const [registerWalkInTarget, setRegisterWalkInTarget] = useState<Appointment | null>(null)
   /** After registration, auto mark arrived and create patient visit. */
   const [registerThenArrive, setRegisterThenArrive] = useState(false)
@@ -1167,7 +1169,9 @@ export const AppointmentList = ({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const reminderEligible = appointments.filter((apt) => apt.patient)
+  const reminderEligible = appointments.filter(
+    (apt) => apt.patient || isWalkInAppointment(apt)
+  )
 
   const getStatusColor = (status?: string): string => {
     if (!status) return 'default'
@@ -1329,8 +1333,12 @@ export const AppointmentList = ({
 
   const handleSendReminder = async (apt: Appointment, channel: ReminderChannel) => {
     setOpenActionRow(null)
+    if (channel === 'whatsapp') {
+      setWhatsappTarget(apt)
+      return
+    }
     setActionLoading(apt.name)
-    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    const channelLabel = channel === 'sms' ? 'SMS' : 'Email'
     try {
       await sendAppointmentReminderAPI(apt.name, channel)
       toast.success(`${channelLabel} reminder sent for ${apt.patient_name || apt.patient}`)
@@ -1637,7 +1645,7 @@ export const AppointmentList = ({
                               </button>
                             </>
                           )}
-                          {apt.patient && (
+                          {(apt.patient || isWalkInAppointment(apt)) && (
                             <>
                               <div className="border-t border-slate-100 mt-1 px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
                                 Send Reminder
@@ -2215,6 +2223,13 @@ export const AppointmentList = ({
           appointment={doctorNoteTarget}
           onClose={() => setDoctorNoteTarget(null)}
           onSuccess={() => setRefreshTrigger((t) => t + 1)}
+        />
+      )}
+
+      {whatsappTarget && (
+        <SendWhatsAppAppointmentModal
+          appointment={whatsappTarget}
+          onClose={() => setWhatsappTarget(null)}
         />
       )}
 

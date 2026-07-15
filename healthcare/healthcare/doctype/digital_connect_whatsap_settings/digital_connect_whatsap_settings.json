@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "creation": "2025-01-27 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
@@ -9,7 +10,11 @@
   "section_break_yvoe",
   "base_url",
   "column_break_clyv",
-  "api_key"
+  "api_key",
+  "section_break_eoog",
+  "branch_wise_contact",
+  "section_break_eekg",
+  "template_mapping"
  ],
  "fields": [
   {
@@ -40,12 +45,32 @@
   {
    "fieldname": "column_break_clyv",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_eoog",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "branch_wise_contact",
+   "fieldtype": "Table",
+   "label": "Branch Wise Contact",
+   "options": "DigiConnect Branch"
+  },
+  {
+   "fieldname": "section_break_eekg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "template_mapping",
+   "fieldtype": "Table",
+   "label": "Template Mapping",
+   "options": "DigiConnect Template Mapping"
   }
  ],
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2026-04-23 13:19:09.456994",
+ "modified": "2026-07-15 01:10:43.092130",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Digital Connect Whatsap Settings",
