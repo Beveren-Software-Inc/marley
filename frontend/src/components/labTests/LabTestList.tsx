@@ -1064,7 +1064,7 @@
 //                         <td className="px-3 py-1.5 text-sm text-slate-500">{child.patient_name || child.patient}</td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700 pl-6">{child.lab_test_name || child.template || '-'}</td>
 //                         <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
-//                         <td className="px-3 py-1.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
+//                         <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(child.status || 'Draft')} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
 //                         <td className="px-3 py-1.5">
 //                           {child.is_outsourced
 //                             ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
@@ -1108,7 +1108,7 @@
 //                   <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.patient_name || labTest.patient}</td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.lab_test_name || labTest.template || '-'}</td>
 //                   <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
-//                   <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
+//                   <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(labTest.status || 'Draft')} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
 //                   <td className="px-3 py-1.5">
 //                     {labTest.is_outsourced
 //                       ? <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700">Outsourced</span>
@@ -1733,6 +1733,19 @@ const STATUS_OPTIONS = [
   'Reviewed', 'Rejected', 'Cancelled',
 ] as const
 
+// Outsourced tests are sent out, so the internal request/sample-collection stages don't apply.
+const OUTSOURCED_HIDDEN_STATUSES = new Set<string>([
+  'Draft', 'Requested', 'Awaiting sample collection', 'Sample Collection in Progress', 'Sample Collected',
+])
+const OUTSOURCED_STATUS_OPTIONS = STATUS_OPTIONS.filter((s) => !OUTSOURCED_HIDDEN_STATUSES.has(s))
+
+// Display label overrides for the Status dropdown (the value stays the stored status).
+const STATUS_DISPLAY_LABELS: Record<string, string> = {
+  'Testing in progress': 'Test In-Progress',
+  'Testing in Progress': 'Test In-Progress',
+}
+const statusDisplayLabel = (status: string) => STATUS_DISPLAY_LABELS[status] || status
+
 const statusColors: Record<string, string> = {
   'Reviewed': 'success', 'Rejected': 'danger', 'Completed': 'success',
   'Pending Review': 'warning', 'Submitted': 'info', 'Cancelled': 'default',
@@ -1915,10 +1928,12 @@ const templateRowMatchesQuery = (row: LabTestTemplateListRow, query: string): bo
   )
 }
 
-const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
+const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse, outsourced }: {
   filters: Filters; onChange: (f: Filters) => void; onClear: () => void; activeCount: number
   /** When true, template search only lists Lab Test Templates with by_nurse set */
   byNurse?: boolean
+  /** Outsourced Tests screen: lock "Is Outsourced" to Yes, hide Status + Doctor filters. */
+  outsourced?: boolean
 }) => {
   const set = (key: keyof Filters, value: string) => onChange({ ...filters, [key]: value })
   const [templateQuery, setTemplateQuery] = useState('')
@@ -2016,7 +2031,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           <select value={filters.status} onChange={(e) => set('status', e.target.value)}
             className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
             <option value="">Select All</option>
-            {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            {(outsourced ? OUTSOURCED_STATUS_OPTIONS : STATUS_OPTIONS).map((s) => <option key={s} value={s}>{statusDisplayLabel(s)}</option>)}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
@@ -2033,7 +2048,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
               setPractitionerOpen(true)
             }}
             onFocus={() => setPractitionerOpen(true)}
-            placeholder="Search doctor..."
+            placeholder="SELECT DOCTOR"
             className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
           />
           {filters.practitioner && (
@@ -2071,12 +2086,17 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           </div>
         )}
       </div>
-      <div className="flex flex-col gap-1 min-w-[160px]">
-        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">Is Outsourced</label>
+      <div className="flex flex-col gap-1 min-w-[120px]">
+        <label className="text-xs font-medium text-slate-500 uppercase tracking-wide whitespace-nowrap">Is Outsourced</label>
         <div className="relative">
-          <select value={filters.isOutsourced} onChange={(e) => set('isOutsourced', e.target.value)}
-            className="w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 bg-white focus:outline-none focus:ring-2 focus:ring-primary">
-            <option value="">Select All</option><option value="yes">Yes</option><option value="no">No</option>
+          <select
+            value={outsourced ? 'yes' : filters.isOutsourced}
+            onChange={(e) => set('isOutsourced', e.target.value)}
+            disabled={outsourced}
+            className={`w-full appearance-none pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary ${outsourced ? 'bg-slate-100 text-slate-600 cursor-not-allowed' : 'bg-white'}`}>
+            {!outsourced && <option value="">Select All</option>}
+            <option value="yes">Yes</option>
+            {!outsourced && <option value="no">No</option>}
           </select>
           <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
         </div>
@@ -2086,7 +2106,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
         <div className="relative">
           <input type="text" value={filters.template ? filters.templateLabel : templateQuery}
             onChange={(e) => { setTemplateQuery(e.target.value); onChange({ ...filters, template: '', templateLabel: '' }); setTemplateOpen(true) }}
-            onFocus={() => setTemplateOpen(true)} placeholder="Search template ID or name…"
+            onFocus={() => setTemplateOpen(true)} placeholder="SELECT TEMPLATE"
             className="w-full pl-3 pr-8 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary" />
           {filters.template && (
             <button type="button" onClick={() => { setTemplateQuery(''); onChange({ ...filters, template: '', templateLabel: '' }) }}
@@ -2120,8 +2140,8 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
                       {row.lab_test_name || row.name}
                     </span>
                     {row.is_group ? (
-                      <span className="shrink-0 rounded border border-amber-200 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
-                        Group
+                      <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700 shrink-0">
+                        GROUP
                       </span>
                     ) : null}
                   </div>
@@ -2144,9 +2164,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse }: {
           </div>
         )}
       </div>
-      {activeCount > 0 ? (
-        <ClearFiltersButton onClick={onClear} activeCount={activeCount} />
-      ) : null}
+      <ClearFiltersButton className="!ml-0" onClick={onClear} activeCount={activeCount || undefined} disabled={activeCount === 0} />
     </div>
   )
 }
@@ -2192,15 +2210,18 @@ const FilterToggleButton = ({
 
 // Lab workflow tabs — each tab filters the list to one status. First tab is the
 // default (Lab Requested). "All" clears the status filter.
+// Ordered to follow the lab workflow sequence:
+// Requested → Sample Collected → Test In Progress → Review Pending → Reviewed →
+// Completed → Rejected, then Approved and All (kept so no status filter is lost).
 const LAB_STATUS_TABS: { label: string; status: string }[] = [
-  { label: 'Lab Requested', status: 'Requested' },
+  { label: 'Requested', status: 'Requested' },
   { label: 'Sample Collected', status: 'Sample Collected' },
-  { label: 'Testing in Progress', status: 'Testing in Progress' },
-  { label: 'Completed', status: 'Completed' },
-  { label: 'Pending Review', status: 'Pending Review' },
+  { label: 'Test In-Progress', status: 'Testing in Progress' },
+  { label: 'Review Pending', status: 'Pending Review' },
   { label: 'Reviewed', status: 'Reviewed' },
-  { label: 'Approved', status: 'Approved' },
+  { label: 'Completed', status: 'Completed' },
   { label: 'Rejected', status: 'Rejected' },
+  { label: 'Approved', status: 'Approved' },
   { label: 'All', status: '' },
 ]
 
@@ -2273,6 +2294,8 @@ export const LabTestList = ({
     ...makeEmptyFilters(),
     // Status tabs default to the first tab (Lab Requested) unless a defaultStatus is given.
     status: defaultStatus ?? (statusTabs ? LAB_STATUS_TABS[0].status : ''),
+    // Outsourced Tests screen: lock the Is Outsourced filter to Yes.
+    isOutsourced: isOutsourced ? 'yes' : '',
   }))
 
   const selectStatusTab = (status: string) => {
@@ -2323,7 +2346,8 @@ export const LabTestList = ({
     filters.status && filters.status !== (defaultStatus ?? '') ? filters.status : '',
     filters.fromDate,
     filters.toDate,
-    filters.isOutsourced,
+    // On the Outsourced screen the Is Outsourced value is a locked default, not a user filter.
+    isOutsourced ? '' : filters.isOutsourced,
     doctorLabDefaults && filters.practitioner === (defaultPractitionerId || '') ? '' : filters.practitioner,
     filters.template,
   ].filter(Boolean).length
@@ -2332,6 +2356,7 @@ export const LabTestList = ({
     const cleared: Filters = {
       ...makeEmptyFilters(),
       status: defaultStatus ?? '',
+      isOutsourced: isOutsourced ? 'yes' : '',
     }
     if (doctorLabDefaults && defaultPractitionerId) {
       cleared.practitioner = defaultPractitionerId
@@ -3163,7 +3188,22 @@ export const LabTestList = ({
   )
 
   const handlePrintGroup = async (serviceRequest: string, groupLabel: string, children: LabTest[]) => {
-    
+    // The "Lab Test Print" format renders the whole Service Request group when given
+    // any member, so open the Frappe print view for the first child.
+    const firstChild = children[0]?.name
+    if (firstChild) {
+      const params = new URLSearchParams({
+        doctype: 'Lab Test',
+        name: firstChild,
+        format: 'Lab Test Print',
+        trigger_print: '1',
+        no_letterhead: '0',
+      })
+      const base = typeof window !== 'undefined' ? window.location.origin : ''
+      window.open(`${base}/printview?${params.toString()}`, '_blank', 'noopener,noreferrer')
+      return
+    }
+
     try {
       const fullTests = await Promise.all(children.map((c) => fetchLabTest(c.name)))
       const issuedOn = new Date().toLocaleString('en-GB')
@@ -3345,6 +3385,7 @@ export const LabTestList = ({
           onClear={handleClearFilters}
           activeCount={activeCount}
           byNurse={byNurse}
+          outsourced={isOutsourced === true}
         />
       )}
 
@@ -3416,7 +3457,12 @@ export const LabTestList = ({
                 const { serviceRequest, children } = row
                 const isExpanded = !!expandedGroupKeys[serviceRequest]
                 const representativeChild = children[0]
-                const groupLabel = representativeChild.lab_test_group || representativeChild.lab_test_name || representativeChild.template || 'Group'
+                // Show the test group's NAME (e.g. "Lipid Profile"), resolved from the
+                // group code (lab_test_group like LAB-004) by the backend — not the child test names.
+                const groupLabel =
+                  representativeChild.lab_test_group_name ||
+                  representativeChild.lab_test_group ||
+                  'Group'
                 const practitioner = representativeChild.practitioner_name || representativeChild.practitioner || '-'
                 const combinedAmount = children.reduce((sum, c) => sum + (typeof c.grand_total === 'number' ? c.grand_total : typeof c.amount === 'number' ? c.amount : 0), 0)
                 const latestDate = children.reduce((latest, c) => {
@@ -3454,7 +3500,7 @@ export const LabTestList = ({
                             className="flex items-center gap-2 text-indigo-700 font-semibold hover:text-indigo-900">
                             {isExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                             <span>{groupLabel}</span>
-                            <span className="text-xs font-normal text-indigo-500">({children.length} tests)</span>
+                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700" title={`${children.length} test${children.length === 1 ? '' : 's'}`}>{children.length}</span>
                           </button>
                         </div>
                        </td>
@@ -3596,7 +3642,7 @@ export const LabTestList = ({
                           {typeof child.grand_total === 'number' ? child.grand_total.toFixed(3) : typeof child.amount === 'number' ? child.amount.toFixed(3) : '-'}
                         </td>}
                         {/* Status */}
-                        <td className="px-3 py-1.5"><StatusPill status={child.status || 'Draft'} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
+                        <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(child.status || 'Draft')} color={statusColors[child.status || 'Draft'] || 'default'} /></td>
                         {/* Actions */}
                         {renderActionsCell(child)}
                       </tr>
@@ -3683,7 +3729,7 @@ export const LabTestList = ({
                     {typeof labTest.grand_total === 'number' ? labTest.grand_total.toFixed(3) : typeof labTest.amount === 'number' ? labTest.amount.toFixed(3) : '-'}
                   </td>}
                   {/* Status */}
-                  <td className="px-3 py-1.5"><StatusPill status={labTest.status || 'Draft'} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
+                  <td className="px-3 py-1.5"><StatusPill status={statusDisplayLabel(labTest.status || 'Draft')} color={statusColors[labTest.status || 'Draft'] || 'default'} /></td>
                   {/* Actions */}
                   {renderActionsCell(labTest)}
                 </tr>

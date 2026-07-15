@@ -370,6 +370,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 		template_cache = {}
 
 	patient_file_no_cache = {}
+	group_name_cache: dict[str, str] = {}
 	for lab_test in lab_tests:
 		lab_test["female_min_range"] = None
 		lab_test["female_max_range"] = None
@@ -411,6 +412,15 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
 				or lab_test.lab_technician
 			)
+
+		# Group name — lab_test_group is a Lab Test Template code (e.g. LAB-004); resolve its name.
+		group_code = (lab_test.get("lab_test_group") or "").strip()
+		if group_code:
+			if group_code not in group_name_cache:
+				group_name_cache[group_code] = (
+					frappe.db.get_value("Lab Test Template", group_code, "lab_test_name") or group_code
+				)
+			lab_test["lab_test_group_name"] = group_name_cache[group_code]
 
 	service_requests = {
 		lt.service_request

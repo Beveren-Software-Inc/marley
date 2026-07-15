@@ -67,6 +67,8 @@ export interface LabTest {
   service_request?: string
   service_request_status?: string
   lab_test_group?: string
+  /** Display name of the group (Lab Test Template.lab_test_name for lab_test_group). */
+  lab_test_group_name?: string
   is_group_lab_test?: number
   reference_document?: string
   employee_name?: string

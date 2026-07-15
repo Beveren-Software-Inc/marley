@@ -13,7 +13,6 @@ import { CreateStockTransferModal } from './CreateStockTransfer'
 import {
   MiniWarehouseInventoryProvider,
   type WarehouseContext,
-  useMiniWarehouseContext,
 } from './MiniWarehouseInventoryContext'
 
 type InventoryTab =
@@ -46,8 +45,6 @@ export function NursingInventoryDashboard({
 }
 
 function NursingInventoryDashboardInner() {
-  const warehouseContext = useMiniWarehouseContext()
-  const moduleLabel = warehouseContext === 'laboratory' ? 'Laboratory' : 'Nursing'
   const { userCostCenter } = useCareContext()
   const [activeTab, setActiveTab] = useState<InventoryTab>('stock-ledger')
 
@@ -165,10 +162,7 @@ function NursingInventoryDashboardInner() {
               />
             </svg>
           </div>
-          <h3 className="text-lg font-semibold text-amber-800 mb-2">No Branch Selected</h3>
-          <p className="text-sm text-amber-700">
-            Choose a branch from the selector in the top navbar to use {moduleLabel} Inventory.
-          </p>
+          <h3 className="text-lg font-semibold text-amber-800">SELECT BRANCH</h3>
         </div>
       </div>
     )

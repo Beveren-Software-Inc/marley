@@ -273,6 +273,7 @@ jinja = {
 		"healthcare.healthcare.doctype.diagnostic_report.diagnostic_report.diagnostic_report_print",
 		"healthcare.healthcare.utils.generate_barcodes",
 		"healthcare.healthcare.doctype.observation.observation.get_observations_for_medical_record",
+		"healthcare.api.lab_test_print.render_lab_test_result_report",
 	]
 }
 

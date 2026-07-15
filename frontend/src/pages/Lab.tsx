@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, BookOpen, AlertTriangle, Droplet, FileCode, History, Clock } from 'lucide-react'
+import { FlaskConical, BookOpen, Droplet, History, Clock } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { DashboardCard } from '../components/ui/DashboardCard'
@@ -722,34 +722,27 @@ import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeMo
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
+import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
+import type { PatientVisitListRow } from '../services/patientVisits'
+import type { InpatientRecord } from '../services/inpatientRecords'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
-type LabTab = 'pending-lab-tests' | 'lab-tests' | 'medical-history' | 'warnings' | 'sample-collection' | 'lab-templates' | 'lab-history'
+type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
 
 const VALID_LAB_TABS: LabTab[] = [
   'pending-lab-tests',
-  'lab-tests',
   'sample-collection',
-  'lab-templates',
+  'lab-tests',
   'lab-history',
-  'medical-history',
-  'warnings',
 ]
 
 const NAV_CARDS = [
   {
     id: 'pending-lab-tests' as LabTab,
-    title: 'Pending Result',
+    title: 'Lab Request',
     icon: Clock,
     color: 'bg-orange-50 text-orange-700 border-orange-200',
     iconColor: 'text-orange-600',
-  },
-  {
-    id: 'lab-tests' as LabTab,
-    title: 'Tests & Results',
-    icon: FlaskConical,
-    color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    iconColor: 'text-emerald-600',
   },
   {
     id: 'sample-collection' as LabTab,
@@ -759,32 +752,18 @@ const NAV_CARDS = [
     iconColor: 'text-cyan-600',
   },
   {
-    id: 'lab-templates' as LabTab,
-    title: 'Templates',
-    icon: FileCode,
-    color: 'bg-purple-50 text-purple-700 border-purple-200',
-    iconColor: 'text-purple-600',
+    id: 'lab-tests' as LabTab,
+    title: 'Tests & Results',
+    icon: FlaskConical,
+    color: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    iconColor: 'text-emerald-600',
   },
   {
     id: 'lab-history' as LabTab,
-    title: 'History',
+    title: 'Lab Test History',
     icon: History,
     color: 'bg-teal-50 text-teal-700 border-teal-200',
     iconColor: 'text-teal-600',
-  },
-  {
-    id: 'medical-history' as LabTab,
-    title: 'Medical History',
-    icon: BookOpen,
-    color: 'bg-blue-50 text-blue-700 border-blue-200',
-    iconColor: 'text-blue-600',
-  },
-  {
-    id: 'warnings' as LabTab,
-    title: 'Allergies & Warnings',
-    icon: AlertTriangle,
-    color: 'bg-amber-50 text-amber-700 border-amber-200',
-    iconColor: 'text-amber-600',
   },
 ]
 
@@ -793,6 +772,9 @@ export const LabPage = () => {
     selectedPatient: globalPatient,
     setSelectedPatient: setGlobalPatient,
     userRole,
+    setMode,
+    setActiveVisit,
+    setActiveAdmission,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
@@ -809,7 +791,9 @@ export const LabPage = () => {
       : 'pending-lab-tests'
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
-  const [activeTab, setActiveTab] = useState<LabTab>(tabFromUrl)
+  // 'l-results' (the old "Lab Test & Result" tab) was merged into this dashboard's
+  // "Tests & Results" card; land legacy deep links on that tab.
+  const [activeTab, setActiveTab] = useState<LabTab>(screen === 'l-results' ? 'lab-tests' : tabFromUrl)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [sampleCollectionRefreshKey, setSampleCollectionRefreshKey] = useState(0)
@@ -902,6 +886,21 @@ export const LabPage = () => {
     const newSearchParams = new URLSearchParams(searchParams)
     newSearchParams.set('tab', newTab)
     setSearchParams(newSearchParams, { replace: true })
+  }
+
+  // Selecting a visit / admission from the dashboard cards sets the care context (same as doctor).
+  const handleVisitActivate = (visit: PatientVisitListRow) => {
+    if (visit.patient) handlePatientSelect(visit.patient)
+    setMode('OP')
+    setActiveAdmission(undefined)
+    setActiveVisit(visit.value)
+  }
+
+  const handleAdmissionActivate = (record: InpatientRecord) => {
+    if (record.patient) handlePatientSelect(record.patient)
+    setMode('IP')
+    setActiveVisit(undefined)
+    setActiveAdmission(record.name)
   }
 
   const handleLabTestCreated = () => {
@@ -1088,43 +1087,28 @@ export const LabPage = () => {
     )
   }
 
-  if (screen === 'l-results') {
-    // Lab Test & Result - show all lab tests
+  if (screen === 'l-mh') {
     return (
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-
         <div className="p-4">
-          <DashboardCard
-            title="Lab Test & Result"
-            noHeightLimit
-            headerExtra={labTestSaveHeader}
-            onAdd={() => setShowLabTestModal(true)}
-            addButtonTitle="Add Lab Test"
-          >
-            <LabTestList
-              patient={selectedPatient}
-              key={labTestRefreshKey}
-              statusTabs
-              onPatientClick={handlePatientSelect}
-              hideAmount={isLabTechnologist}
-              {...batchListProps}
-            />
+          <DashboardCard title="Past Medical History" filterable={false} noHeightLimit>
+            {selectedPatient ? (
+              <div className="p-1"><MedicalHistoryView patient={selectedPatient} /></div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <BookOpen className="w-10 h-10 mb-3 opacity-40" />
+                <p className="text-sm font-medium">SEARCH PATIENT TO VIEW PAST MEDICAL HISTORY</p>
+              </div>
+            )}
           </DashboardCard>
         </div>
-        {showLabTestModal && (
-          <CreateLabTestModal
-            onClose={() => setShowLabTestModal(false)}
-            onSuccess={() => {
-              setShowLabTestModal(false)
-              handleLabTestCreated()
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
+
+  // Note: the old "Lab Test & Result" screen (screen === 'l-results') was merged into
+  // the default dashboard's "Tests & Results" card (which now carries the status tabs).
 
   // Default view — card-based navigation
   const labNavCards = NAV_CARDS
@@ -1133,8 +1117,6 @@ export const LabPage = () => {
     labNavCards.find((c) => c.id === resolvedTab) ??
     labNavCards.find((c) => c.id === 'pending-lab-tests') ??
     labNavCards[0]
-  const needsPatient = resolvedTab === 'medical-history' || resolvedTab === 'warnings' || resolvedTab === 'lab-history' // ADD lab-history
-
   return (
     <div className="flex flex-col h-full min-w-0">
       <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1179,12 +1161,7 @@ export const LabPage = () => {
                 onAdd: () => setShowLabTestModal(true),
                 addButtonTitle: 'Add Lab Test',
               }
-            : resolvedTab === 'lab-templates'
-              ? {
-                  onAdd: () => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) },
-                  addButtonTitle: 'New Lab Test Template',
-                }
-              : {})}
+            : {})}
         >
           {resolvedTab === 'pending-lab-tests' && (
             <LabTestList
@@ -1200,6 +1177,7 @@ export const LabPage = () => {
             <LabTestList
               patient={selectedPatient}
               key={labTestRefreshKey}
+              statusTabs
               onPatientClick={handlePatientSelect}
               hideAmount={isLabTechnologist}
               {...batchListProps}
@@ -1210,40 +1188,34 @@ export const LabPage = () => {
               <SampleCollectionList patient={selectedPatient} refreshKey={sampleCollectionRefreshKey} />
             </div>
           )}
-          {resolvedTab === 'lab-templates' && (
-            <div className="p-1">
-              <LabTestTemplateList
-                refreshKey={templateRefreshKey}
-                selectedPatient={selectedPatient}
-                onEditClick={handleEditTemplate}
-              />
-            </div>
-          )}
           {resolvedTab === 'lab-history' && (
             <div className="p-1">
               <LabTestHistory patientId={selectedPatient} onPatientChange={(p) => handlePatientSelect(p)} />
             </div>
           )}
-          {resolvedTab === 'medical-history' && (
-            needsPatient && !selectedPatient ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <BookOpen className="w-10 h-10 mb-3 opacity-40" />
-                <p className="text-sm font-medium">Select a patient to view medical history</p>
-              </div>
-            ) : (
-              <div className="p-1"><MedicalHistoryView patient={selectedPatient!} /></div>
-            )
-          )}
-          {resolvedTab === 'warnings' && (
-            needsPatient && !selectedPatient ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <AlertTriangle className="w-10 h-10 mb-3 opacity-40" />
-                <p className="text-sm font-medium">Select a patient to view allergies & warnings</p>
-              </div>
-            ) : (
-              <div className="p-1"><WarningMessagesList patient={selectedPatient!} onPatientClick={handlePatientSelect} /></div>
-            )
-          )}
+        </DashboardCard>
+
+        {/* Patient Visits + Inpatient Admissions + Warnings — same as the Doctor dashboard */}
+        <OutpatientVisitsCard
+          listingScreen="pvh"
+          patient={selectedPatient || undefined}
+          onPatientSelect={handlePatientSelect}
+          onVisitActivate={handleVisitActivate}
+        />
+
+        <InpatientAdmissionsCard
+          listingScreen="admission"
+          patient={selectedPatient || undefined}
+          onPatientSelect={handlePatientSelect}
+          onAdmissionActivate={handleAdmissionActivate}
+        />
+
+        <DashboardCard fixedHeight title="Warnings & Messages" listingScreen="warn">
+          <WarningMessagesList
+            patient={selectedPatient || undefined}
+            noPatientScope="all"
+            onPatientClick={handlePatientSelect}
+          />
         </DashboardCard>
 
       </div>

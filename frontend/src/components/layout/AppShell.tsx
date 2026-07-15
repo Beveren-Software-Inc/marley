@@ -121,10 +121,11 @@ const labScreens = [
   // { id: 'l-pending', title: 'Pending Samples / Tests' },
   // { id: 'l-history', title: 'Patient History (Medical)' },
   { id: 'l-setup',     title: 'Lab Test Setup' },
-  { id: 'l-results',   title: 'Lab Test & Result' },
+  // 'l-results' (Lab Test & Result) merged into the Lab Dashboard's "Tests & Results" card.
   // { id: 'l-sample',  title: 'Sample Collection' },
   { id: 'l-out',       title: 'Outsourced Tests' },
-  { id: 'l-inventory', title: 'Dashboard Inventory' },
+  { id: 'l-mh',        title: 'Past Medical History' },
+  { id: 'l-inventory', title: 'Inventory Dashboard' },
   // { id: 'l-review',  title: 'Lab Test Review' },
 ]
 
