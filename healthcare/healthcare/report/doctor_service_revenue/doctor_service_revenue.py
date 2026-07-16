@@ -1,23 +1,11 @@
-# Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and contributors
-# For license information, please see license.txt
-
-# import frappe
-from frappe import _
-
-
 # Copyright (c) 2026, Healthcare and contributors
 # For license information, please see license.txt
 """
-Doctor Service Earnings — amounts attributed to doctors from all billed services.
+Doctor Service Revenue — amounts attributed to doctors from all billed services.
 
 Data source: submitted Sales Orders linked to healthcare base docs
 (via custom_base_reference / custom_base_reference_name), with practitioner
 resolved from the base document.
-
-To create manually as a Script Report in Desk:
-1. New Report → Script Report → Ref DocType = Sales Order
-2. Paste filters from doctor_service_earnings.js
-3. Paste this module's execute / helpers into the Script field (or sync standard report)
 """
 
 from __future__ import annotations
