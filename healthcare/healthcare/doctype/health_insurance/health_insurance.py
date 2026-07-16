@@ -6,21 +6,22 @@ from frappe.model.document import Document
 
 
 class HealthInsurance(Document):
-     def before_save(self):
-        """Apply parent discounts to inclusive items only"""
+	def before_save(self):
+		"""Apply parent discounts to inclusive items only when the row % is blank.
 
-        for row in self.inclusive_item:
+		0 is a valid intentional value (e.g. OP services: inpatient discount = 0%)
+		and must not be overwritten by the parent plan %.
+		"""
 
-            # Skip rows without item
-            if not row.item_code:
-                continue
+		for row in self.inclusive_item:
+			if not row.item_code:
+				continue
 
-            # Only fill if EMPTY (do not override manual entry)
-            if not row.outpatient_discount:
-                row.outpatient_discount = self.outpatient_discount or 0
+			if row.outpatient_discount in (None, ""):
+				row.outpatient_discount = self.outpatient_discount or 0
 
-            if not row.inpatient_discount:
-                row.inpatient_discount = self.inpatient_discount or 0
+			if row.inpatient_discount in (None, ""):
+				row.inpatient_discount = self.inpatient_discount or 0
 
 
 @frappe.whitelist()

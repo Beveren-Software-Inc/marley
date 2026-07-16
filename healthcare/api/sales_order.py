@@ -529,6 +529,8 @@ def _create_invoice_from_sales_orders(sales_orders, reference_type=None, referen
 		invoice.patient = pt
 	invoice.posting_date = today()
 	invoice.due_date = frappe.utils.add_days(today(), 30)
+	# Preserve SO list + insurance discount; do not let pricing rules/margins reinflate rates.
+	invoice.ignore_pricing_rule = 1
 
 	items_added = 0
 	header_cc = None

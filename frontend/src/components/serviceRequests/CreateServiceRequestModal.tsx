@@ -65,7 +65,11 @@ interface CreateServiceRequestModalProps {
 interface PricingRow {
   patient_category: string
   multiplier?: number | null
+  /** Inclusive / catalog list price (before insurance %) */
   price: number | null
+  discount_pct?: number | null
+  discount_amount?: number | null
+  rate?: number | null
 }
 
 interface GroupTemplateRow {
@@ -125,7 +129,10 @@ export const CreateServiceRequestModal = ({
   const [pricingRows, setPricingRows] = useState<PricingRow[]>([])
   const [groupRows, setGroupRows] = useState<GroupTemplateRow[]>([])
   const [selectedGroupTemplates, setSelectedGroupTemplates] = useState<string[]>([])
+  /** Discount amount shown in the UI (auto-filled from insurance % when applicable) */
   const [discountPct, setDiscountPct] = useState(0)
+  /** Insurance discount % from pricing API — persisted on Service Request.discount */
+  const [insuranceDiscountPct, setInsuranceDiscountPct] = useState(0)
   const [manualCost, setManualCost] = useState(0)
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
 
@@ -153,14 +160,18 @@ export const CreateServiceRequestModal = ({
   const isOtherService = isOtherServiceRequest(form.template_dt)
   const orderingClinicianLabel = serviceRequestPractitionerLabel(form.template_dt)
 
-  const getBestPrice = (rows: PricingRow[]) => {
+  const getBestPricingRow = (rows: PricingRow[]) => {
     if (!rows.length) return null
     if (patientCategory) {
       const match = rows.find((r) => r.patient_category === patientCategory && r.price != null)
-      if (match?.price != null) return Number(match.price)
+      if (match) return match
     }
-    const first = rows.find((r) => r.price != null)
-    return first?.price != null ? Number(first.price) : null
+    return rows.find((r) => r.price != null) || null
+  }
+
+  const getBestPrice = (rows: PricingRow[]) => {
+    const row = getBestPricingRow(rows)
+    return row?.price != null ? Number(row.price) : null
   }
 
   const groupTotal = useMemo(() => {
@@ -249,7 +260,27 @@ export const CreateServiceRequestModal = ({
       return
     }
     getMultiLabRequestPricing(basketWithDiscounts, form.patient, mode === 'OP' ? 'OP' : 'IP')
-      .then(setBasketPricing)
+      .then((pricing) => {
+        setBasketPricing(pricing)
+        // Prefill per-test discount amounts from insurance so they are visible/editable.
+        setLineDiscounts((prev) => {
+          let changed = false
+          const next = { ...prev }
+          for (const line of pricing.lines || []) {
+            const existing = prev[line.template]
+            const applied = Number(line.discount_applied || 0)
+            if ((!existing || Number(existing.discount) === 0) && applied !== 0) {
+              next[line.template] = {
+                discount_type: 'Amount',
+                discount: applied,
+                discount_rate: 0,
+              }
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
+      })
       .catch(() => setBasketPricing({ lines: [], subtotal: 0 }))
   }, [useLabBasket, form.patient, labBasket.length, basketWithDiscounts, mode])
 
@@ -419,11 +450,16 @@ export const CreateServiceRequestModal = ({
       }
       return
     }
-    fetch(
-      `/api/method/healthcare.api.service_request.get_service_request_template_pricing?template_dt=${encodeURIComponent(
-        form.template_dt
-      )}&template_dn=${encodeURIComponent(templateDn)}&patient_care_type=${encodeURIComponent(mode === 'OP' ? 'OP' : 'IP')}`
-    )
+    const careType = mode === 'OP' ? 'OP' : 'IP'
+    const params = new URLSearchParams({
+      template_dt: form.template_dt,
+      template_dn: templateDn,
+      patient_care_type: careType,
+    })
+    if (form.patient) {
+      params.set('patient', form.patient)
+    }
+    fetch(`/api/method/healthcare.api.service_request.get_service_request_template_pricing?${params}`)
       .then((res) => res.json())
       .then((data) => {
         const payload: PricingResponse = data?.message || {}
@@ -436,16 +472,28 @@ export const CreateServiceRequestModal = ({
         } else {
           setSelectedGroupTemplates([])
         }
-        setDiscountPct(0)
+        const best = getBestPricingRow(rows)
+        const insPct = Number(best?.discount_pct || 0)
+        const list = best?.price != null ? Number(best.price) : 0
+        const insAmt =
+          best?.discount_amount != null && Number(best.discount_amount) > 0
+            ? Number(best.discount_amount)
+            : insPct > 0 && list > 0
+              ? (list * insPct) / 100
+              : 0
+        setInsuranceDiscountPct(insPct)
+        setDiscountPct(insAmt)
         setManualCost(0)
       })
       .catch(() => {
         setPricingRows([])
         setGroupRows([])
         setSelectedGroupTemplates([])
+        setInsuranceDiscountPct(0)
+        setDiscountPct(0)
         setManualCost(0)
       })
-  }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket, mode])
+  }, [form.template_dt, form.template_dn, pendingTemplateDn, patientCategory, useLabBasket, mode, form.patient])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -537,6 +585,12 @@ export const CreateServiceRequestModal = ({
         }
         const discountAmount = orderDiscountAmount
         const afterDiscount = listAmount - discountAmount
+        const expectedInsAmt =
+          insuranceDiscountPct > 0 && listAmount > 0
+            ? (listAmount * insuranceDiscountPct) / 100
+            : 0
+        const usingInsurancePct =
+          insuranceDiscountPct > 0 && Math.abs(discountAmount - expectedInsAmt) < 0.01
         await createServiceRequest({
           patient: form.patient,
           template_dt: form.template_dt,
@@ -548,7 +602,8 @@ export const CreateServiceRequestModal = ({
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,
           cost: listAmount,
-          discount: 0,
+          discount: usingInsurancePct ? insuranceDiscountPct : 0,
+          discount_margin: usingInsurancePct ? 'Percentage' : discountAmount !== 0 ? 'Amount' : '',
           discount_amount: discountAmount,
           grand_total: afterDiscount,
           selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,

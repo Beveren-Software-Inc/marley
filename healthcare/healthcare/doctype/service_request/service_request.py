@@ -52,17 +52,10 @@ def _get_lab_template_base_rate(template_name, patient_care_type=None):
 
 
 def _get_patient_category_multiplier(patient_name):
-	category = frappe.db.get_value("Patient", patient_name, "category")
-	if not category:
-		return 1, None
+	"""Category multiplier; skipped for insured patients when Apply Multiplier on Insurance is off."""
+	from healthcare.controllers.insurance_pricing import get_effective_category_multiplier
 
-	settings = frappe.get_cached_doc("Healthcare Settings")
-	for row in (settings.get("patient_category_pricing") or []):
-		if getattr(row, "patient_category", None) == category:
-			multiplier = flt(getattr(row, "multiplier", None) or 0)
-			if multiplier > 0:
-				return multiplier, category
-	return 1, category
+	return get_effective_category_multiplier(patient_name)
 
 
 class ServiceRequest(ServiceRequestController):

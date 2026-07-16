@@ -681,6 +681,7 @@ def create_invoice(reference_doctype: str, reference_name: str):
     invoice.company = company
     invoice.customer = sales_orders[0].customer
     invoice.patient = sales_orders[0].patient
+    invoice.ignore_pricing_rule = 1
     
     # Set transaction date
     invoice.posting_date = nowdate()

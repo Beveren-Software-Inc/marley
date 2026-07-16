@@ -32,6 +32,7 @@
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
+  "apply_multiplier_on_insurance",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -715,11 +716,18 @@
    "fieldname": "combine_admission_fee_and_case_management",
    "fieldtype": "Check",
    "label": "Combine Admission Fee and Case Management"
+  },
+  {
+   "default": "0",
+   "description": "When checked, patient-category price multipliers also apply to insured patients (e.g. TRICARE). When unchecked, multipliers apply only to patients without insurance; insured patients use Inclusive Item price + outpatient/inpatient discount % (0% = no discount).",
+   "fieldname": "apply_multiplier_on_insurance",
+   "fieldtype": "Check",
+   "label": "Apply Multiplier on Insurance"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-14 01:31:18.441285",
+ "modified": "2026-07-16 02:19:49.350882",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

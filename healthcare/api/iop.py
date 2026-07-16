@@ -341,10 +341,11 @@ def _linked_patient_visits_by_enrollment(enrollment_names):
 	return linked
 
 
-def _healthcare_service_template_rates(template_names, patient_care_type="OP"):
+def _healthcare_service_template_rates(template_names, patient_care_type="OP", patient=None):
 	"""Map Healthcare Service Template name -> service_name, item_code, rate."""
 	if not template_names:
 		return {}
+	from healthcare.controllers.insurance_pricing import resolve_charge
 	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
 		get_healthcare_service_template_rate,
 	)
@@ -355,23 +356,36 @@ def _healthcare_service_template_rates(template_names, patient_care_type="OP"):
 		filters={"name": ["in", list(set(template_names))]},
 		fields=["name", "service_name", "item_code", "rate", "op_rate"],
 	):
+		base = get_healthcare_service_template_rate(
+			template_name=row.name,
+			patient_care_type=patient_care_type,
+		)
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base,
+			patient_care_type=patient_care_type,
+			template_dt="Healthcare Service Template",
+			template_dn=row.name,
+			service_type="IOP",
+		)
 		rates[row.name] = {
 			"service_name": row.service_name or row.name,
 			"item_code": row.item_code,
-			"rate": get_healthcare_service_template_rate(
-				template_name=row.name,
-				patient_care_type=patient_care_type,
-			),
+			"rate": flt(charged["rate_before_discount"]),
+			"discount_pct": flt(charged["discount_pct"]),
+			"discount_amount": flt(charged.get("discount_amount") or 0),
+			"net_rate": flt(charged["rate"]),
 		}
 	return rates
 
 
-def _enrich_sessions_with_template_details(sessions):
+def _enrich_sessions_with_template_details(sessions, patient=None):
 	"""Add service_name and rate to session rows for the portal."""
 	if not sessions:
 		return sessions
 	rates = _healthcare_service_template_rates(
-		[s.get("session_type") for s in sessions if s.get("session_type")]
+		[s.get("session_type") for s in sessions if s.get("session_type")],
+		patient=patient,
 	)
 	for session in sessions:
 		details = rates.get(session.get("session_type"), {})
@@ -383,13 +397,14 @@ def _enrich_sessions_with_template_details(sessions):
 
 def _enrollment_cost_details(enrollment_name):
 	"""Sum session rates and optional linked visit billing total."""
+	patient = frappe.db.get_value("IOP Enrollment", enrollment_name, "patient")
 	sessions = frappe.get_all(
 		"IOP Day Session",
 		filters={"parent": enrollment_name, "parenttype": "IOP Enrollment"},
 		fields=["session_type"],
 	)
 	session_types = [s.session_type for s in sessions if s.session_type]
-	rates = _healthcare_service_template_rates(session_types)
+	rates = _healthcare_service_template_rates(session_types, patient=patient)
 	session_costs = []
 	session_total = 0.0
 	for row in sessions:

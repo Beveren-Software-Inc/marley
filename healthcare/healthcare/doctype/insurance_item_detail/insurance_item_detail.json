@@ -16,7 +16,11 @@
   "discount_apply",
   "column_break_tzqa",
   "outpatient_discount",
-  "inpatient_discount"
+  "inpatient_discount",
+  "price",
+  "from_date",
+  "to_date",
+  "service_type"
  ],
  "fields": [
   {
@@ -81,13 +85,34 @@
    "fieldtype": "Link",
    "label": "Lab Test Template",
    "options": "Lab Test Template"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "label": "Test Price"
+  },
+  {
+   "fieldname": "service_type",
+   "fieldtype": "Select",
+   "label": "Service Type",
+   "options": "\nIOP\nIP\nOP"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-07-01 00:10:03.790620",
+ "modified": "2026-07-16 01:39:21.086991",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Item Detail",

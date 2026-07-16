@@ -66,10 +66,33 @@ def expand_lab_test_specs(
 	patient: str,
 	patient_care_type: str | None = None,
 ) -> list[dict[str, Any]]:
-	"""Expand basket lines into concrete lab tests to create."""
+	"""Expand basket lines into concrete lab tests to create.
+
+	Uses TRICARE/insurance inclusive price + OP/IP discount when the patient is insured.
+	Category multiplier is skipped for insurance when Apply Multiplier on Insurance is off.
+	"""
+	from healthcare.controllers.insurance_pricing import resolve_charge
+
 	multiplier, _ = _get_patient_category_multiplier(patient)
 	specs: list[dict[str, Any]] = []
 	seen_templates: set[str] = set()
+
+	def _priced_row(template: str) -> dict[str, Any]:
+		base_rate = _get_lab_template_base_rate(template, patient_care_type)
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base_rate,
+			patient_care_type=patient_care_type,
+			template_dt="Lab Test Template",
+			template_dn=template,
+			multiplier=multiplier,
+		)
+		list_amt = flt(charged["rate_before_discount"])
+		return {
+			"amount": list_amt,
+			"insurance_discount_pct": flt(charged["discount_pct"]),
+			"insurance_discount_amount": max(0.0, list_amt - flt(charged["rate"])),
+		}
 
 	for item in items or []:
 		kind = (item.get("kind") or "").strip().lower()
@@ -78,12 +101,12 @@ def expand_lab_test_specs(
 			if not tpl or tpl in seen_templates:
 				continue
 			seen_templates.add(tpl)
-			base_rate = _get_lab_template_base_rate(tpl, patient_care_type)
+			priced = _priced_row(tpl)
 			specs.append(
 				{
 					"template": tpl,
-					"amount": flt(base_rate) * flt(multiplier),
 					"parent_group": None,
+					**priced,
 				}
 			)
 			continue
@@ -113,12 +136,12 @@ def expand_lab_test_specs(
 				if not tpl or tpl in seen_templates:
 					continue
 				seen_templates.add(tpl)
-				base_rate = _get_lab_template_base_rate(tpl, patient_care_type)
+				priced = _priced_row(tpl)
 				specs.append(
 					{
 						"template": tpl,
-						"amount": flt(base_rate) * flt(multiplier),
 						"parent_group": parent,
+						**priced,
 					}
 				)
 
@@ -213,12 +236,32 @@ def compute_test_net_amount(
 def apply_discounts_to_specs(
 	specs: list[dict[str, Any]], items: list[dict[str, Any]]
 ) -> list[dict[str, Any]]:
-	"""Attach discount + net_amount to expanded lab test specs."""
+	"""Attach discount + net_amount to expanded lab test specs.
+
+	Manual basket discounts win when set; otherwise insurance % / amount is used
+	so list price stays in ``amount`` and the insurance cut is tracked as discount.
+	"""
 	enriched: list[dict[str, Any]] = []
 	for spec in specs or []:
 		tpl = spec.get("template")
 		amount = flt(spec.get("amount") or 0)
 		disc = discount_for_template(items, tpl)
+		has_manual = flt(disc.get("discount_rate")) != 0 or flt(disc.get("discount")) != 0
+		if not has_manual:
+			ins_pct = flt(spec.get("insurance_discount_pct"))
+			ins_amt = flt(spec.get("insurance_discount_amount"))
+			if ins_pct > 0:
+				disc = {
+					"discount_type": "Percentage",
+					"discount_rate": ins_pct,
+					"discount": 0.0,
+				}
+			elif ins_amt > 0:
+				disc = {
+					"discount_type": "Amount",
+					"discount_rate": 0.0,
+					"discount": ins_amt,
+				}
 		net, applied = compute_test_net_amount(
 			amount,
 			disc["discount_type"],

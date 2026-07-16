@@ -30,8 +30,12 @@ function mergePricingIntoRow(
 ): Partial<BillingInvoiceItemInput> {
   const mult = p.multiplier ?? 1
   const base = p.base_rate ?? p.rate
+  const discountPct = Number(p.discount_pct || 0)
   return {
+    // List / Inclusive price; insurance % goes into discount_percentage for invoice tracking.
     rate: Number(p.rate) || 0,
+    discount_percentage: discountPct > 0 ? discountPct : 0,
+    discount_amount: discountPct > 0 ? 0 : Number(p.discount_amount || 0) || 0,
     uom: p.uom || undefined,
     stock_uom: p.stock_uom || undefined,
     item_name: (p.item_name as string) || itemNameFallback,
@@ -41,6 +45,8 @@ function mergePricingIntoRow(
       multiplier: mult,
       patient_category: p.patient_category ?? null,
       pricing_source: p.pricing_source ?? null,
+      discount_pct: discountPct || null,
+      net_rate: p.net_rate != null ? Number(p.net_rate) : null,
     },
   }
 }
@@ -377,6 +383,14 @@ export function BillingInvoiceItemsEditor({
                 Base {formatBase(item.billing_price_meta.base_rate)} × {item.billing_price_meta.multiplier}
                 {item.billing_price_meta.patient_category
                   ? ` (${item.billing_price_meta.patient_category})`
+                  : ''}
+              </p>
+            ) : null}
+            {(item.discount_percentage || 0) > 0 ? (
+              <p className="text-[10px] text-emerald-700 mt-1">
+                Insurance discount {Number(item.discount_percentage).toFixed(2)}%
+                {item.billing_price_meta?.net_rate != null
+                  ? ` → ${formatBase(item.billing_price_meta.net_rate)}`
                   : ''}
               </p>
             ) : null}

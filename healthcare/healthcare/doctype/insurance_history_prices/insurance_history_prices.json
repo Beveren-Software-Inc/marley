@@ -1,0 +1,169 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "hash",
+ "creation": "2026-07-16 01:25:07.035487",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "health_insurance",
+  "lab_test_name",
+  "healthcare_service",
+  "healthcare_service_name",
+  "lab_test_template",
+  "item_code",
+  "item_name",
+  "discount_apply",
+  "column_break_tzqa",
+  "outpatient_discount",
+  "inpatient_discount",
+  "price",
+  "from_date",
+  "to_date",
+  "service_type"
+ ],
+ "fields": [
+  {
+   "fieldname": "health_insurance",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Health Insurance",
+   "options": "Health Insurance",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "lab_test_template.lab_test_name",
+   "fieldname": "lab_test_name",
+   "fieldtype": "Data",
+   "label": "Lab Test Name"
+  },
+  {
+   "fieldname": "healthcare_service",
+   "fieldtype": "Link",
+   "label": "Healthcare Service",
+   "options": "Healthcare Service Template"
+  },
+  {
+   "fieldname": "healthcare_service_name",
+   "fieldtype": "Data",
+   "label": "Healthcare Service Name"
+  },
+  {
+   "fieldname": "lab_test_template",
+   "fieldtype": "Link",
+   "label": "Lab Test Template",
+   "options": "Lab Test Template"
+  },
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Code",
+   "options": "Item"
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Name"
+  },
+  {
+   "default": "0",
+   "fieldname": "discount_apply",
+   "fieldtype": "Check",
+   "label": "Discount Apply"
+  },
+  {
+   "fieldname": "column_break_tzqa",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "outpatient_discount",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Outpatient Discount(%)"
+  },
+  {
+   "fieldname": "inpatient_discount",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Discount(%)"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "From Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "To Date"
+  },
+  {
+   "fieldname": "price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price"
+  },
+  {
+   "fieldname": "service_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Service Type",
+   "options": "\nIOP\nOP\nIP"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-16 02:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Insurance History Prices",
+ "naming_rule": "Random",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "item_name",
+ "track_changes": 1
+}

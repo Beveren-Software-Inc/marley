@@ -155,10 +155,20 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const canBill = (schedule: SessionSchedule): boolean =>
     Boolean(
       schedule.session_type &&
-      schedule.admission_number &&
+      (schedule.patient_num || schedule.admission_number || schedule.patient_visit) &&
       !schedule.sales_order &&
       schedule.transaction_status !== 'Cancelled',
     )
+
+  const billDisabledReason = (schedule: SessionSchedule): string | undefined => {
+    if (schedule.sales_order) return undefined
+    if (schedule.transaction_status === 'Cancelled') return 'Cancelled sessions cannot be billed'
+    if (!schedule.session_type) return 'Select a service template before billing'
+    if (!schedule.patient_num && !schedule.admission_number && !schedule.patient_visit) {
+      return 'Select a patient (visit/admission optional) before billing'
+    }
+    return undefined
+  }
 
   const isRowBusy = (schedule: SessionSchedule) =>
     actionLoading === schedule.name || statusLoadingId === schedule.name
@@ -439,11 +449,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                             <button
                               type="button"
                               disabled={!canBill(schedule) || isRowBusy(schedule)}
-                              title={
-                                !canBill(schedule)
-                                  ? 'Link an admission and service template before billing'
-                                  : undefined
-                              }
+                              title={billDisabledReason(schedule)}
                               onClick={() => handleBill(schedule)}
                               className="block w-full text-left px-3 py-2 text-sm text-primary hover:bg-primary/5 disabled:opacity-40 disabled:cursor-not-allowed"
                             >

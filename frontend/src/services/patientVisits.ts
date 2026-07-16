@@ -281,6 +281,9 @@ export interface PatientVisitChargeLine {
   item_code?: string | null
   item_name?: string | null
   rate?: number
+  discount_pct?: number
+  discount_amount?: number
+  net_rate?: number
   source?: 'visit_type' | 'default' | 'template' | null
 }
 
@@ -295,10 +298,12 @@ export interface PatientVisitChargeLines {
 
 export async function fetchPatientVisitChargeLines(
   visitType?: string,
+  patient?: string,
 ): Promise<PatientVisitChargeLines> {
   try {
     const params = new URLSearchParams()
     if (visitType) params.append('visit_type', visitType)
+    if (patient) params.append('patient', patient)
     const response = await fetch(
       `/api/method/healthcare.api.patient_visit_charge.get_patient_visit_charge_lines?${params.toString()}`,
       { credentials: 'include' },
