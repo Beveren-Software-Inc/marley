@@ -6,7 +6,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate
+from frappe.utils import flt, nowdate
 
 from healthcare.api.portal_errors import portal_mandatory_message, portal_validation_message
 from healthcare.api.sales_order_cost_center import (
@@ -121,15 +121,65 @@ def _get_patient_category_multipliers():
 	return rows
 
 
-def _build_pricing_rows_for_template(template_dt: str, template_dn: str, patient_care_type: str | None = None):
+def _build_pricing_rows_for_template(
+	template_dt: str,
+	template_dn: str,
+	patient_care_type: str | None = None,
+	patient: str | None = None,
+):
+	from healthcare.controllers.insurance_pricing import resolve_charge, should_apply_category_multiplier
+
 	base_rate = _get_template_base_rate(template_dt, template_dn, patient_care_type)
+	apply_mult = should_apply_category_multiplier(patient) if patient else True
 	rows = []
 	for row in _get_patient_category_multipliers():
+		mult = row["multiplier"] if apply_mult else 1.0
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base_rate,
+			patient_care_type=patient_care_type,
+			template_dt=template_dt,
+			template_dn=template_dn,
+			multiplier=mult,
+		)
+		list_price = (
+			charged["rate_before_discount"]
+			if base_rate or charged["used_insurance_price"]
+			else 0.0
+		)
 		rows.append(
 			{
 				"patient_category": row["patient_category"],
-				"multiplier": row["multiplier"],
-				"price": (base_rate * row["multiplier"]) if base_rate else 0.0,
+				"multiplier": mult,
+				# Catalog / Inclusive list price (before insurance %). Net is rate.
+				"price": list_price,
+				"rate": charged["rate"],
+				"discount_pct": charged["discount_pct"],
+				"discount_amount": charged.get("discount_amount") or 0.0,
+				"base_rate": charged["base_rate"],
+				"insurance": charged["insurance"],
+			}
+		)
+	# When there are no category rows, still return a single effective price for the patient.
+	if not rows and (base_rate or patient):
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base_rate,
+			patient_care_type=patient_care_type,
+			template_dt=template_dt,
+			template_dn=template_dn,
+			multiplier=1.0,
+		)
+		rows.append(
+			{
+				"patient_category": None,
+				"multiplier": 1.0,
+				"price": charged["rate_before_discount"],
+				"rate": charged["rate"],
+				"discount_pct": charged["discount_pct"],
+				"discount_amount": charged.get("discount_amount") or 0.0,
+				"base_rate": charged["base_rate"],
+				"insurance": charged["insurance"],
 			}
 		)
 	return rows
@@ -324,11 +374,14 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 # 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 @frappe.whitelist(allow_guest=False)
-def get_service_request_template_pricing(template_dt, template_dn, patient_care_type=None):
+def get_service_request_template_pricing(template_dt, template_dn, patient_care_type=None, patient=None):
 	"""
 	Return computed pricing rows for any service request template type.
-	Price is derived as: template_base_rate * Healthcare Settings category multiplier.
-	For group lab templates, child-template pricing is returned per child.
+
+	When ``patient`` is insured (e.g. TRICARE):
+	- uses Inclusive Item price when set
+	- applies outpatient/inpatient % (0% = no discount)
+	- category multiplier only if Healthcare Settings Apply Multiplier on Insurance is on
 	"""
 	if not template_dt or not template_dn:
 		return {'is_group': False, 'pricing': [], 'group_templates': []}
@@ -351,7 +404,7 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 				order_by='lab_test_name asc',
 				ignore_permissions=True,
 			)
-			
+
 			group_templates = []
 			for child in child_templates:
 				if not child.name:
@@ -360,16 +413,22 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 				group_templates.append({
 					'template_dn': child.name,
 					'template_label': label,
-					'pricing': _build_pricing_rows_for_template('Lab Test Template', child.name, patient_care_type),
+					'pricing': _build_pricing_rows_for_template(
+						'Lab Test Template', child.name, patient_care_type, patient=patient
+					),
 				})
 			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
 		else:
 			# Regular lab test template (not a group)
-			pricing = _build_pricing_rows_for_template(template_dt, template_dn, patient_care_type)
+			pricing = _build_pricing_rows_for_template(
+				template_dt, template_dn, patient_care_type, patient=patient
+			)
 			return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 	# Regular / all other template types
-	pricing = _build_pricing_rows_for_template(template_dt, template_dn, patient_care_type)
+	pricing = _build_pricing_rows_for_template(
+		template_dt, template_dn, patient_care_type, patient=patient
+	)
 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 
@@ -632,11 +691,12 @@ def create_service_request(data):
 	if not isinstance(lab_request_items, list):
 		lab_request_items = []
 
+	patient_care_type = (
+		"OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None
+	)
+
 	if lab_request_items and data.get("template_dt") == "Lab Test Template":
 		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
-		patient_care_type = (
-			"OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None
-		)
 		specs = expand_lab_test_specs(
 			lab_request_items,
 			data.get("patient"),
@@ -649,6 +709,46 @@ def create_service_request(data):
 		data["discount_amount"] = totals["discount_amount"]
 		data["discount"] = 0
 		data["discount_margin"] = ""
+	elif data.get("template_dt") == "Healthcare Service Template" and data.get("template_dn"):
+		# List price in cost; insurance % in discount; net in grand_total (trackable to invoice)
+		from healthcare.controllers.insurance_pricing import apply_discount as _apply_pct
+		from healthcare.controllers.insurance_pricing import charge_list_and_discount, resolve_charge
+
+		base = _get_template_base_rate(
+			data["template_dt"], data["template_dn"], patient_care_type
+		)
+		charged = resolve_charge(
+			patient=data.get("patient"),
+			base_rate=base,
+			patient_care_type=patient_care_type,
+			template_dt=data["template_dt"],
+			template_dn=data["template_dn"],
+			service_type=patient_care_type,
+		)
+		parts = charge_list_and_discount(charged)
+		qty = flt(data.get("quantity") or 1) or 1
+		list_unit = flt(parts["list_rate"])
+		insurance_pct = flt(parts["discount_pct"])
+		# Prefer UI-submitted discount when already set (reception override);
+		# otherwise use insurance %.
+		header_pct = flt(data.get("discount") or 0)
+		header_amt = flt(data.get("discount_amount") or 0)
+		if header_pct <= 0 and header_amt <= 0 and insurance_pct > 0:
+			header_pct = insurance_pct
+			data["discount"] = insurance_pct
+			data["discount_margin"] = "Percentage"
+		if header_pct > 0:
+			unit_net = _apply_pct(list_unit, header_pct)
+			data["discount"] = header_pct
+			data["discount_margin"] = data.get("discount_margin") or "Percentage"
+		elif header_amt > 0:
+			unit_net = max(0.0, list_unit - (header_amt / qty))
+			data["discount_margin"] = data.get("discount_margin") or "Amount"
+		else:
+			unit_net = flt(parts["net_rate"])
+		data["cost"] = list_unit * qty
+		data["grand_total"] = unit_net * qty
+		data["discount_amount"] = max(0.0, flt(data["cost"]) - flt(data["grand_total"]))
 
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
@@ -973,16 +1073,21 @@ def confirm_payment(service_request_name):
 	so.delivery_date = delivery_date
 	so.ignore_pricing_rule = 1
 
-	# Use grand_total (post-discount) if set and non-zero; fall back to cost
-	billing_rate = frappe.utils.flt(sr.grand_total) or frappe.utils.flt(sr.cost) or amount or 0
+	from healthcare.controllers.insurance_pricing import sales_item_from_list_and_discount
 
-	so.append("items", {
-		"item_code": item_code,
-		"qty": 1,
-		"rate": billing_rate,
-		"price_list_rate": billing_rate,
-		"description": f"Service Request {sr.name}"
-	})
+	list_rate = frappe.utils.flt(sr.cost) or frappe.utils.flt(amount) or 0
+	net_rate = frappe.utils.flt(sr.grand_total) or list_rate
+	so.append(
+		"items",
+		sales_item_from_list_and_discount(
+			item_code=item_code,
+			list_rate=list_rate,
+			discount_pct=frappe.utils.flt(sr.discount),
+			discount_amount=frappe.utils.flt(sr.discount_amount),
+			net_rate=net_rate,
+			description=f"Service Request {sr.name}",
+		),
+	)
 	apply_service_request_refs_to_sales_order(so, sr)
 	apply_cost_center_to_sales_order(so, cost_center_from_service_request(sr))
 
@@ -1005,17 +1110,16 @@ def confirm_payment(service_request_name):
 				row.get("test_code") == sr.name
 				for row in visit.get("lab_tests_charges", [])
 			)
-			print("amount ni: ", sr.amount)
 			if not already_added:
-				# You need to define lab_test here - maybe from sr or template_doc
 				lab_test_name = getattr(sr, "lab_test", None) or getattr(template_doc, "name", None)
 				visit.append("lab_tests_charges", {
 					"test_code": lab_test_name,                         
 					"test_name": sr.template_dn or "", 
-					"amount": amount or 0,
-					"discount_type": "Percentage",
-					"discount_rate": 0,
-					"net_amount": amount or 0
+					"amount": list_rate or 0,
+					"discount_type": "Percentage" if frappe.utils.flt(sr.discount) else "Amount",
+					"discount_rate": frappe.utils.flt(sr.discount) or 0,
+					"discount": frappe.utils.flt(sr.discount_amount) or 0,
+					"net_amount": net_rate or 0
 				})
 				visit.save(ignore_permissions=True)
 				frappe.db.commit()
@@ -1068,11 +1172,10 @@ def confirm_session_payment(service_request_name):
 			)
 		)
 
-	billing_rate = (
-		frappe.utils.flt(sr.grand_total)
-		or frappe.utils.flt(sr.cost)
-		or 0
-	)
+	from healthcare.controllers.insurance_pricing import sales_item_from_list_and_discount
+
+	list_rate = frappe.utils.flt(sr.cost) or 0
+	net_rate = frappe.utils.flt(sr.grand_total) or list_rate
 	delivery_date = sr.get("expected_date") or nowdate()
 
 	customer = frappe.db.get_value("Patient", sr.patient, "customer") if sr.patient else None
@@ -1091,13 +1194,17 @@ def confirm_session_payment(service_request_name):
 	so.transaction_date = nowdate()
 	so.delivery_date = delivery_date
 	so.ignore_pricing_rule = 1
-	so.append("items", {
-		"item_code": item_code,
-		"qty": 1,
-		"rate": billing_rate,
-		"price_list_rate": billing_rate,
-		"description": f"Service Request {sr.name}",
-	})
+	so.append(
+		"items",
+		sales_item_from_list_and_discount(
+			item_code=item_code,
+			list_rate=list_rate,
+			discount_pct=frappe.utils.flt(sr.discount),
+			discount_amount=frappe.utils.flt(sr.discount_amount),
+			net_rate=net_rate,
+			description=f"Service Request {sr.name}",
+		),
+	)
 	apply_service_request_refs_to_sales_order(so, sr)
 	apply_cost_center_to_sales_order(so, cost_center_from_service_request(sr))
 	so.insert(ignore_permissions=True)

@@ -23,6 +23,8 @@ export interface SessionSchedule {
 
 export interface CreateSessionScheduleData {
   date: string
+  /** Patient id — required when visit/admission is not linked */
+  patient?: string
   admission_number?: string
   patient_visit?: string
   session_type: string
@@ -132,6 +134,53 @@ export async function getHealthcareServiceTemplates(
     return resData.message as HealthcareServiceTemplateOption[]
   }
   return []
+}
+
+export interface SessionScheduleAmountPreview {
+  /** Inclusive / catalog list price (before insurance %) */
+  amount: number
+  base_rate?: number
+  discount_pct?: number
+  discount_amount?: number
+  net_rate?: number
+  insurance?: string | null
+  used_insurance_price?: boolean
+  patient?: string | null
+  patient_care_type?: string | null
+}
+
+/** Insured amount for a Healthcare Service Template on Session Schedule (Inclusive price + OP/IP %). */
+export async function fetchSessionScheduleAmount(args: {
+  sessionType: string
+  patient?: string
+  patientVisit?: string
+  admissionNumber?: string
+  patientCareType?: 'OP' | 'IP'
+}): Promise<SessionScheduleAmountPreview> {
+  const params = new URLSearchParams()
+  params.set('session_type', args.sessionType)
+  if (args.patient) params.set('patient', args.patient)
+  if (args.patientVisit) params.set('patient_visit', args.patientVisit)
+  if (args.admissionNumber) params.set('admission_number', args.admissionNumber)
+  if (args.patientCareType) params.set('patient_care_type', args.patientCareType)
+
+  const response = await fetch(
+    `/api/method/healthcare.api.session_schedule.get_session_schedule_amount?${params.toString()}`,
+    { credentials: 'include' },
+  )
+  const resData = await response.json()
+  const msg = (resData?.message || {}) as Partial<SessionScheduleAmountPreview>
+  return {
+    amount: Number(msg.amount) || 0,
+    base_rate: msg.base_rate != null ? Number(msg.base_rate) : undefined,
+    discount_pct: msg.discount_pct != null ? Number(msg.discount_pct) : undefined,
+    discount_amount: msg.discount_amount != null ? Number(msg.discount_amount) : undefined,
+    net_rate: msg.net_rate != null ? Number(msg.net_rate) : undefined,
+    insurance: msg.insurance ?? null,
+    used_insurance_price: Boolean(msg.used_insurance_price),
+    patient: msg.patient ?? null,
+    patient_care_type: msg.patient_care_type ?? null,
+  }
 }
 
 /** @deprecated Use getHealthcareServiceTemplates */

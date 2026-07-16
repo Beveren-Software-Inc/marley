@@ -260,7 +260,7 @@ const ServiceUnitSelect = ({
   return (
     <div ref={containerRef} className="relative">
       <label className="block text-sm font-medium text-slate-700 mb-1">
-        Room
+        Room <span className="text-slate-400 font-normal">(optional)</span>
       </label>
 
       {/* Search input */}
@@ -947,16 +947,6 @@ export const AdmissionFormModal = ({
       return
     }
 
-    if (!selectedRoomType) {
-      setError(new Error('Select a Room Type'))
-      return
-    }
-
-    if (selectedServiceUnits.length === 0) {
-      setError(new Error('Select at least one Room'))
-      return
-    }
-
     if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
       setError(new Error('Select a Case Management service template'))
       setActiveTab('case_management')
@@ -1168,7 +1158,7 @@ export const AdmissionFormModal = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div ref={roomTypePickerRef} className="relative">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Room Type <span className="text-red-500">*</span>
+                      Room Type <span className="text-slate-400 font-normal">(optional)</span>
                     </label>
                     <input
                       type="text"
@@ -1227,7 +1217,8 @@ export const AdmissionFormModal = ({
                     onOpenChange={setServiceUnitOpen}
                     primaryUnit={formData.serviceUnit}
                     onSetPrimary={handleSetPrimaryUnit}
-                    disabled={!selectedRoomType}
+                    disabled={false}
+                    disabledPlaceholder="Search rooms…"
                   />
                 </div>
 

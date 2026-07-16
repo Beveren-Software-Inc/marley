@@ -1225,6 +1225,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_insurance_claim_bundle_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('TRICARE Price Lists (June 16 2026)'), () => {
+			open_tricare_price_update_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),
@@ -3642,6 +3646,181 @@ function open_ip_admission_bundle_upload() {
 
 	dialog.show();
 	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.ip-admission-bundle-status'));
+}
+
+function open_tricare_price_update_upload() {
+	const files = {
+		lab: null,
+		ip: null,
+		iop: null,
+		op: null,
+	};
+
+	function pickFile(label, onDone) {
+		new frappe.ui.FileUploader({
+			dialog_title: label,
+			allow_multiple: false,
+			restrictions: {
+				allowed_file_types: ['.xlsx', '.xls'],
+			},
+			on_success(file) {
+				onDone(file.file_url);
+			},
+		});
+	}
+
+	function fileLabel(url) {
+		if (!url) {
+			return `<span class="text-muted">${__('Not uploaded')}</span>`;
+		}
+		const name = url.split('/').pop();
+		return `<span class="text-success">✓ ${frappe.utils.escape_html(name)}</span>`;
+	}
+
+	function refreshStatus($wrapper) {
+		$wrapper.html(`
+			<p>${__(
+				'Upload TRICARE price lists. New prices (Effective June 16 2026 – Dec 31 2027) update Inclusive Items on Health Insurance TRICARE (price, %). Older Excel period prices are saved as Insurance History Prices. Lab: 1% inpatient / 6% outpatient. IP: 3% on both. OP: 20% outpatient / 0% inpatient. IOP: 0% on both (Discount Apply off). Lab → Test Code; IP → Services Code; IOP → IOP column as IOP-{name} (e.g. MEDICAL REPORT → IOP-MEDICAL REPORT); OP → OUT column (e.g. ECG → OP-ECG).'
+			)}</p>
+			<table class="table table-bordered table-condensed" style="margin-bottom:0">
+				<tbody>
+					<tr>
+						<td><strong>1.</strong> ${__('Lab Tests')}</td>
+						<td class="bundle-tri-lab-status">${fileLabel(files.lab)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-tri-lab">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>2.</strong> ${__('In Patient')}</td>
+						<td class="bundle-tri-ip-status">${fileLabel(files.ip)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-tri-ip">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>3.</strong> ${__('IOP')}</td>
+						<td class="bundle-tri-iop-status">${fileLabel(files.iop)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-tri-iop">${__('Upload')}</button></td>
+					</tr>
+					<tr>
+						<td><strong>4.</strong> ${__('Out Patient')}</td>
+						<td class="bundle-tri-op-status">${fileLabel(files.op)}</td>
+						<td><button type="button" class="btn btn-xs btn-default btn-pick-tri-op">${__('Upload')}</button></td>
+					</tr>
+				</tbody>
+			</table>
+		`);
+
+		$wrapper.find('.btn-pick-tri-lab').on('click', () => {
+			pickFile(__('Lab Tests Price List Excel'), (url) => {
+				files.lab = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-tri-ip').on('click', () => {
+			pickFile(__('In Patient Price List Excel'), (url) => {
+				files.ip = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-tri-iop').on('click', () => {
+			pickFile(__('IOP Price List Excel'), (url) => {
+				files.iop = url;
+				refreshStatus($wrapper);
+			});
+		});
+		$wrapper.find('.btn-pick-tri-op').on('click', () => {
+			pickFile(__('Out Patient Price List Excel'), (url) => {
+				files.op = url;
+				refreshStatus($wrapper);
+			});
+		});
+	}
+
+	const dialog = new frappe.ui.Dialog({
+		title: __('TRICARE Price Lists — June 16 2026'),
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'bundle_status',
+				options: '<div class="tricare-price-bundle-status"></div>',
+			},
+		],
+		primary_action_label: __('Preview & Update'),
+		primary_action() {
+			if (!files.lab && !files.ip && !files.iop && !files.op) {
+				frappe.msgprint({
+					title: __('File required'),
+					message: __('Upload at least one TRICARE price list Excel file.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			const args = {
+				lab_file_url: files.lab || null,
+				ip_file_url: files.ip || null,
+				iop_file_url: files.iop || null,
+				op_file_url: files.op || null,
+			};
+
+			frappe.call({
+				method: 'healthcare.api.tricare_price_update.preview_tricare_price_update',
+				args,
+				freeze: true,
+				freeze_message: __('Reading TRICARE price lists…'),
+				callback(preview) {
+					const counts = preview.message || {};
+					frappe.confirm(
+						__(
+							'Update TRICARE inclusive item prices and archive older Excel prices?\n\n'
+								+ 'Insurance: {0}\n'
+								+ 'New period: {1} → {2}\n\n'
+								+ 'New inclusive rows to apply: lab {3}, IP {4}, IOP {5}, OP {6}\n'
+								+ 'History price rows: {7}\n'
+								+ 'Unmatched sample count: {8}\n\nContinue?',
+							[
+								counts.insurance || 'TRICARE',
+								counts.new_from || '',
+								counts.new_to || '',
+								counts.lab_current || 0,
+								counts.ip_current || 0,
+								counts.iop_current || 0,
+								counts.op_current || 0,
+								counts.history_rows || 0,
+								counts.missing_count || 0,
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.tricare_price_update.update_tricare_prices_from_excel',
+								args,
+								freeze: true,
+								freeze_message: __('Updating TRICARE prices…'),
+								callback(r) {
+									const m = r.message || {};
+									dialog.hide();
+									let details = (m.message || __('Update complete.')).replace(/\n/g, '<br>');
+									if (m.missing_count) {
+										const sample = (m.missing_sample || []).join('<br>');
+										details += `<br><br>${__('Unmatched')}: ${m.missing_count}`;
+										if (sample) {
+											details += `<br>${sample}`;
+										}
+									}
+									frappe.msgprint({
+										title: __('TRICARE Prices Updated'),
+										message: details,
+										indicator: m.missing_count ? 'orange' : 'green',
+									});
+								},
+							});
+						}
+					);
+				},
+			});
+		},
+	});
+
+	dialog.show();
+	refreshStatus(dialog.fields_dict.bundle_status.$wrapper.find('.tricare-price-bundle-status'));
 }
 
 function open_insurance_claim_bundle_upload() {

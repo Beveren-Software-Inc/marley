@@ -44,11 +44,20 @@ interface ChargeLineRow {
   service_name: string
   item_name: string
   rate: number
+  discount_pct?: number
+  discount_amount?: number
   include: boolean
 }
 
 function chargeLineNet(row: ChargeLineRow): number {
-  return row.rate || 0
+  const list = row.rate || 0
+  if (row.discount_pct && row.discount_pct > 0) {
+    return list * (1 - row.discount_pct / 100)
+  }
+  if (row.discount_amount && row.discount_amount > 0) {
+    return Math.max(0, list - row.discount_amount)
+  }
+  return list
 }
 
 const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
@@ -300,7 +309,10 @@ export const CreatePatientVisitModal = ({
   useEffect(() => {
     let cancelled = false
     const loadCharge = async () => {
-      const data = await fetchPatientVisitChargeLines(formData.visit_type || undefined)
+      const data = await fetchPatientVisitChargeLines(
+        formData.visit_type || undefined,
+        selectedPatient?.name,
+      )
       if (cancelled) return
       setChargeNoCharges(data.no_charges)
       const rows: ChargeLineRow[] = (data.lines || [])
@@ -310,6 +322,8 @@ export const CreatePatientVisitModal = ({
           service_name: l.service_name || l.item_name || 'Visit fee',
           item_name: l.item_name || '',
           rate: l.rate || 0,
+          discount_pct: Number(l.discount_pct || 0) || undefined,
+          discount_amount: Number(l.discount_amount || 0) || undefined,
           include: true,
         }))
       setChargeLines(rows)
@@ -318,7 +332,7 @@ export const CreatePatientVisitModal = ({
     return () => {
       cancelled = true
     }
-  }, [formData.visit_type])
+  }, [formData.visit_type, selectedPatient?.name])
 
   useEffect(() => {
     if (userCostCenter && !costCenter) {
@@ -671,8 +685,11 @@ export const CreatePatientVisitModal = ({
           template: row.template,
           rate: row.rate,
           qty: 1,
-          discount_type: 'Amount',
-          discount: 0,
+          ...(row.discount_pct && row.discount_pct > 0
+            ? { discount_type: 'Percentage', discount_rate: row.discount_pct, discount: 0 }
+            : row.discount_amount && row.discount_amount > 0
+              ? { discount_type: 'Amount', discount: row.discount_amount, discount_rate: 0 }
+              : { discount_type: 'Amount', discount: 0, discount_rate: 0 }),
         })),
       })
 

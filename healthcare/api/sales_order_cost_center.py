@@ -141,7 +141,11 @@ def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 
 
 def sales_invoice_item_from_sales_order_item(so, item):
-	"""Map a Sales Order Item row to a Sales Invoice Item dict (incl. cost center)."""
+	"""Map a Sales Order Item row to a Sales Invoice Item dict (incl. cost center).
+
+	Copies list rate + discount % so insurance discounts survive SO → Invoice.
+	Does not copy margin fields — those can reinflate rate (e.g. 140 → 220).
+	"""
 	from healthcare.api.pos_dispense_return import get_net_billable_qty_for_so_item
 
 	so_cc = cost_center_from_sales_order(so)
@@ -151,16 +155,37 @@ def sales_invoice_item_from_sales_order_item(so, item):
 		return None
 
 	rate = flt(item.rate)
+	price_list_rate = flt(getattr(item, "price_list_rate", 0) or 0)
+	if price_list_rate <= 0:
+		price_list_rate = rate
+	discount_pct = flt(getattr(item, "discount_percentage", 0) or 0)
+	discount_amt = flt(getattr(item, "discount_amount", 0) or 0)
+
 	line = {
 		"item_code": item.item_code,
 		"item_name": item.item_name or item.item_code,
 		"qty": net_qty,
+		"price_list_rate": price_list_rate,
 		"rate": rate,
 		"amount": flt(net_qty * rate, item.precision("amount") if hasattr(item, "precision") else 2),
 		"description": item.description or frappe._("Order: {0}").format(so.name),
 		"sales_order": so.name,
 		"so_detail": item.name,
+		# Keep healthcare insurance pricing (list + %) and block ERPNext pricing rules/margins.
+		"ignore_pricing_rule": 1,
+		"margin_type": "",
+		"margin_rate_or_amount": 0,
+		"rate_with_margin": 0,
 	}
+	if discount_pct > 0:
+		line["discount_percentage"] = discount_pct
+		line["discount_amount"] = 0
+	elif discount_amt > 0:
+		line["discount_percentage"] = 0
+		line["discount_amount"] = discount_amt
+	else:
+		line["discount_percentage"] = 0
+		line["discount_amount"] = 0
 	if getattr(item, "uom", None):
 		line["uom"] = item.uom
 	if getattr(item, "warehouse", None) and frappe.get_meta("Sales Invoice Item").has_field("warehouse"):

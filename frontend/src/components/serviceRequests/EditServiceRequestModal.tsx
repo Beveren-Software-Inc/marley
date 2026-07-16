@@ -47,6 +47,9 @@ interface PricingRow {
   patient_category: string
   price: number | null
   multiplier?: number | null
+  discount_pct?: number | null
+  discount_amount?: number | null
+  rate?: number | null
 }
 
 const defaultFormData = {
@@ -276,7 +279,26 @@ export const EditServiceRequestModal = ({
     }
     const careType = formData.patient_visit ? 'OP' : formData.inpatient_record ? 'IP' : undefined
     getMultiLabRequestPricing(basketWithDiscounts, selectedPatient.name, careType)
-      .then(setBasketPricing)
+      .then((pricing) => {
+        setBasketPricing(pricing)
+        setLineDiscounts((prev) => {
+          let changed = false
+          const next = { ...prev }
+          for (const line of pricing.lines || []) {
+            const existing = prev[line.template]
+            const applied = Number(line.discount_applied || 0)
+            if ((!existing || Number(existing.discount) === 0) && applied !== 0) {
+              next[line.template] = {
+                discount_type: 'Amount',
+                discount: applied,
+                discount_rate: 0,
+              }
+              changed = true
+            }
+          }
+          return changed ? next : prev
+        })
+      })
       .catch(() => setBasketPricing({ lines: [], subtotal: 0 }))
   }, [hasMultiLabItems, selectedPatient, basketWithDiscounts, formData.patient_visit, formData.inpatient_record])
 
@@ -302,31 +324,56 @@ export const EditServiceRequestModal = ({
     const careType = formData.patient_visit ? 'OP' : formData.inpatient_record ? 'IP' : ''
     const load = async () => {
       try {
+        const params = new URLSearchParams({
+          template_dt: formData.template_dt,
+          template_dn: formData.template_dn,
+          patient_care_type: careType,
+        })
+        if (selectedPatient?.name) {
+          params.set('patient', selectedPatient.name)
+        }
         const res = await fetch(
-          `/api/method/healthcare.api.service_request.get_service_request_template_pricing?template_dt=${encodeURIComponent(
-            formData.template_dt
-          )}&template_dn=${encodeURIComponent(formData.template_dn)}&patient_care_type=${encodeURIComponent(careType)}`
+          `/api/method/healthcare.api.service_request.get_service_request_template_pricing?${params}`
         )
         const resData = await res.json()
         const payload = resData?.message || {}
         const rows: PricingRow[] = Array.isArray(payload.pricing) ? payload.pricing : []
         setPricing(rows)
 
-        let catalogPrice: number | null = null
+        let match: PricingRow | undefined
         if (rows.length > 0 && patientCategory) {
-          const match = rows.find((r) => r.patient_category === patientCategory)
-          if (match?.price != null) catalogPrice = Number(match.price)
+          match = rows.find((r) => r.patient_category === patientCategory && r.price != null)
         }
-        if (catalogPrice == null) {
-          const first = rows.find((r) => r.price != null)
-          if (first?.price != null) catalogPrice = Number(first.price)
+        if (!match) {
+          match = rows.find((r) => r.price != null)
         }
-
+        const catalogPrice = match?.price != null ? Number(match.price) : null
         const hasCatalogPrice = catalogPrice != null && catalogPrice > 0
         setAllowManualCost(!hasCatalogPrice)
         if (hasCatalogPrice) {
           setSelectedPrice(catalogPrice)
-          setFormData((prev) => ({ ...prev, cost: catalogPrice as number }))
+          const insPct = Number(match?.discount_pct || 0)
+          const insAmt =
+            match?.discount_amount != null && Number(match.discount_amount) > 0
+              ? Number(match.discount_amount)
+              : insPct > 0
+                ? ((catalogPrice as number) * insPct) / 100
+                : 0
+          setFormData((prev) => {
+            // Prefer saved discount; auto-fill insurance only when empty.
+            const hasSavedDisc = Number(prev.discount) !== 0 || Number(prev.discount_amount) !== 0
+            return {
+              ...prev,
+              cost: catalogPrice as number,
+              ...(hasSavedDisc
+                ? {}
+                : {
+                    discount: insPct,
+                    discount_value: insPct > 0 ? 'Percentage' : prev.discount_value,
+                    discount_amount: insAmt,
+                  }),
+            }
+          })
         }
       } catch {
         setPricing([])
@@ -334,7 +381,7 @@ export const EditServiceRequestModal = ({
       }
     }
     load()
-  }, [formData.template_dt, formData.template_dn, patientCategory, formData.patient_visit, formData.inpatient_record])
+  }, [formData.template_dt, formData.template_dn, patientCategory, formData.patient_visit, formData.inpatient_record, selectedPatient?.name])
 
   /* ────────────── LOAD VISITS + ADMISSIONS ────────────── */
 

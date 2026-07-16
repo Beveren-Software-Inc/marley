@@ -15,7 +15,11 @@ from healthcare.healthcare.doctype.healthcare_service_template.healthcare_servic
 )
 
 
-def _template_to_config(template_name: str | None, patient_care_type: str | None = "OP") -> dict:
+def _template_to_config(
+	template_name: str | None,
+	patient_care_type: str | None = "OP",
+	patient: str | None = None,
+) -> dict:
 	template_name = (template_name or "").strip()
 	if not template_name:
 		return {
@@ -39,9 +43,20 @@ def _template_to_config(template_name: str | None, patient_care_type: str | None
 			"source": None,
 		}
 
+	from healthcare.controllers.insurance_pricing import charge_list_and_discount, resolve_charge
+
 	tpl = frappe.get_doc("Healthcare Service Template", template_name)
 	item_code = (tpl.item_code or "").strip()
-	rate = get_healthcare_service_template_rate(template_doc=tpl, patient_care_type=patient_care_type)
+	base_rate = get_healthcare_service_template_rate(template_doc=tpl, patient_care_type=patient_care_type)
+	charged = resolve_charge(
+		patient=patient,
+		base_rate=base_rate,
+		patient_care_type=patient_care_type or "OP",
+		template_dt="Healthcare Service Template",
+		template_dn=template_name,
+		service_type="OP",
+	)
+	parts = charge_list_and_discount(charged)
 	item_name = frappe.db.get_value("Item", item_code, "item_name") if item_code else None
 
 	return {
@@ -50,8 +65,12 @@ def _template_to_config(template_name: str | None, patient_care_type: str | None
 		"service_name": tpl.service_name or template_name,
 		"item_code": item_code,
 		"item_name": item_name,
-		"rate": rate,
-		"source": "template",
+		# List / Inclusive price before insurance % — discount tracked separately.
+		"rate": parts["list_rate"],
+		"discount_pct": parts["discount_pct"],
+		"discount_amount": parts["discount_amount"],
+		"net_rate": parts["net_rate"],
+		"source": "insurance" if charged.get("used_insurance_price") or charged.get("discount_pct") else "template",
 	}
 
 
@@ -63,7 +82,7 @@ def visit_type_no_charges(visit_type: str | None) -> bool:
 	return bool(cint(frappe.db.get_value("Patient Visit Type", visit_type, "no_charges")))
 
 
-def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
+def resolve_visit_charge_config(visit_type: str | None = None, patient: str | None = None) -> dict:
 	"""Resolve charge from Patient Visit Type.service_charge, else Healthcare Settings default."""
 	visit_type = (visit_type or "").strip()
 	no_charges = visit_type_no_charges(visit_type)
@@ -82,7 +101,7 @@ def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
 		if template_name:
 			source = "default"
 
-	config = _template_to_config(template_name)
+	config = _template_to_config(template_name, patient=patient)
 	config["source"] = source
 	config["visit_type"] = visit_type or None
 	config["no_charges"] = no_charges
@@ -92,9 +111,9 @@ def resolve_visit_charge_config(visit_type: str | None = None) -> dict:
 
 
 @frappe.whitelist()
-def get_patient_visit_charge_preview(visit_type: str | None = None) -> dict:
+def get_patient_visit_charge_preview(visit_type: str | None = None, patient: str | None = None) -> dict:
 	"""API for create-visit UI: show configured charge amount for a visit type."""
-	return resolve_visit_charge_config(visit_type)
+	return resolve_visit_charge_config(visit_type, patient=patient)
 
 
 def get_default_visit_type() -> str | None:
@@ -102,7 +121,7 @@ def get_default_visit_type() -> str | None:
 	return frappe.db.get_value("Patient Visit Type", {"is_default": 1}, "name")
 
 
-def resolve_visit_charge_lines(visit_type: str | None = None) -> dict:
+def resolve_visit_charge_lines(visit_type: str | None = None, patient: str | None = None) -> dict:
 	"""Resolve every charge line to bill for a visit.
 
 	Order of resolution:
@@ -137,12 +156,12 @@ def resolve_visit_charge_lines(visit_type: str | None = None) -> dict:
 	if rows:
 		source = "visit_type_services"
 		for row in rows:
-			config = _template_to_config((row.get("service_charge") or "").strip())
+			config = _template_to_config((row.get("service_charge") or "").strip(), patient=patient)
 			if not config.get("configured"):
 				continue
 			lines.append({**config, "source": "visit_type"})
 	else:
-		config = resolve_visit_charge_config(visit_type)
+		config = resolve_visit_charge_config(visit_type, patient=patient)
 		source = config.get("source")
 		if config.get("configured"):
 			lines.append(
@@ -153,6 +172,9 @@ def resolve_visit_charge_lines(visit_type: str | None = None) -> dict:
 					"item_code": config.get("item_code"),
 					"item_name": config.get("item_name"),
 					"rate": config.get("rate"),
+					"discount_pct": config.get("discount_pct") or 0,
+					"discount_amount": config.get("discount_amount") or 0,
+					"net_rate": config.get("net_rate"),
 					"source": config.get("source"),
 				}
 			)
@@ -171,9 +193,9 @@ def resolve_visit_charge_lines(visit_type: str | None = None) -> dict:
 
 
 @frappe.whitelist()
-def get_patient_visit_charge_lines(visit_type: str | None = None) -> dict:
+def get_patient_visit_charge_lines(visit_type: str | None = None, patient: str | None = None) -> dict:
 	"""API for create-visit UI: list every configured charge line for a visit type."""
-	return resolve_visit_charge_lines(visit_type)
+	return resolve_visit_charge_lines(visit_type, patient=patient)
 
 
 def _visit_charge_sales_order_names(
@@ -206,13 +228,18 @@ def _existing_visit_charge_sales_order(visit_name: str, item_code: str) -> str |
 	return names[0] if names else None
 
 
-def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | None) -> list[dict]:
+def _resolve_charge_lines_for_so(
+	visit_type: str | None,
+	charge_lines: list | None,
+	patient: str | None = None,
+) -> list[dict]:
 	"""Turn the requested charge lines (or the auto defaults) into SO line configs.
 
 	`charge_lines` (from the UI) is a list of dicts:
 	    {template, item_code, rate?, qty?, discount_type?, discount_rate?, discount?}
 	When rate is explicitly provided by the UI, it overrides the template rate.
 	When no charge lines are supplied the visit type's default service(s) are used.
+	Insured patients get Inclusive Item price + outpatient discount when rates are auto.
 	"""
 	resolved: list[dict] = []
 
@@ -223,66 +250,96 @@ def _resolve_charge_lines_for_so(visit_type: str | None, charge_lines: list | No
 			template = (cl.get("template") or "").strip()
 			item_code = (cl.get("item_code") or "").strip()
 			ui_rate = cl.get("rate")
-			
+
 			if template:
-				config = _template_to_config(template)
+				config = _template_to_config(template, patient=patient)
 				if not config.get("configured"):
 					continue
-				# If UI provided an explicit rate, use it instead of template rate
-				if ui_rate is not None and ui_rate != "":
+				# Explicit UI rate overrides list rate; insurance discount still applied below.
+				if ui_rate is not None and ui_rate != "" and flt(ui_rate) > 0:
 					config["rate"] = flt(ui_rate)
 					config["source"] = "manual"
 			elif item_code:
+				from healthcare.controllers.insurance_pricing import charge_list_and_discount, resolve_charge
+
+				base = flt(ui_rate) if ui_rate is not None else 0
+				charged = resolve_charge(
+					patient=patient,
+					base_rate=base,
+					patient_care_type="OP",
+					item_code=item_code,
+					service_type="OP",
+				)
+				parts = charge_list_and_discount(charged)
 				config = {
 					"configured": True,
 					"template": None,
 					"service_name": cl.get("item_name") or cl.get("service_name") or item_code,
 					"item_code": item_code,
 					"item_name": cl.get("item_name"),
-					"rate": flt(ui_rate) if ui_rate is not None else 0,
+					"rate": parts["list_rate"] if patient else base,
+					"discount_pct": parts["discount_pct"],
+					"discount_amount": parts["discount_amount"],
+					"net_rate": parts["net_rate"],
 					"source": "manual",
 				}
 			else:
 				continue
+			discount_type = (cl.get("discount_type") or "").strip()
+			discount_rate = flt(cl.get("discount_rate"))
+			discount = flt(cl.get("discount"))
+			# Default to insurance % when the UI didn't send a discount.
+			if not discount_type and flt(config.get("discount_pct") or 0) > 0:
+				discount_type = "Percentage"
+				discount_rate = flt(config.get("discount_pct"))
 			resolved.append(
 				{
 					**config,
 					"qty": flt(cl.get("qty")) or 1,
-					"discount_type": (cl.get("discount_type") or "").strip(),
-					"discount_rate": flt(cl.get("discount_rate")),
-					"discount": flt(cl.get("discount")),
+					"discount_type": discount_type,
+					"discount_rate": discount_rate,
+					"discount": discount,
 				}
 			)
 		return resolved
 
-	data = resolve_visit_charge_lines(visit_type)
+	data = resolve_visit_charge_lines(visit_type, patient=patient)
 	for line in data.get("lines") or []:
 		if line.get("configured"):
-			resolved.append({**line, "qty": 1})
+			row = {**line, "qty": 1}
+			if not row.get("discount_type") and flt(row.get("discount_pct") or 0) > 0:
+				row["discount_type"] = "Percentage"
+				row["discount_rate"] = flt(row.get("discount_pct"))
+			resolved.append(row)
 	return resolved
 
 
 def _append_charge_line_to_so(so, line: dict, visit_label: str) -> float:
 	"""Append one resolved charge line to the Sales Order. Returns the line net total."""
+	from healthcare.controllers.insurance_pricing import sales_item_from_list_and_discount
+
 	rate = flt(line.get("rate"))
 	qty = flt(line.get("qty")) or 1
 	service_name = line.get("service_name") or _("Patient Visit Charge")
-	item = {
-		"item_code": line["item_code"],
-		"item_name": line.get("item_name") or service_name,
-		"description": _("Visit charge: {0}").format(visit_label),
-		"qty": qty,
-		"price_list_rate": rate,
-		"rate": rate,
-	}
-
 	discount_type = (line.get("discount_type") or "").strip()
+	discount_pct = 0.0
+	discount_amount = 0.0
 	if rate > 0 and discount_type == "Percentage" and flt(line.get("discount_rate")) > 0:
-		item["discount_percentage"] = min(100.0, flt(line.get("discount_rate")))
-	elif rate > 0 and discount_type == "Amount" and flt(line.get("discount")) > 0:
-		item["discount_amount"] = min(rate, flt(line.get("discount")))
-		item["rate"] = max(0.0, rate - item["discount_amount"])
+		discount_pct = min(100.0, flt(line.get("discount_rate")))
+	elif rate > 0 and discount_type == "Amount" and flt(line.get("discount")) != 0:
+		discount_amount = flt(line.get("discount"))
+	elif flt(line.get("discount_pct") or 0) > 0:
+		discount_pct = flt(line.get("discount_pct"))
 
+	item = sales_item_from_list_and_discount(
+		item_code=line["item_code"],
+		list_rate=rate,
+		discount_pct=discount_pct,
+		discount_amount=discount_amount,
+		qty=qty,
+		item_name=line.get("item_name") or service_name,
+		description=_("Visit charge: {0}").format(visit_label),
+	)
 	so.append("items", item)
 	return flt(item.get("rate")) * qty
 
@@ -302,7 +359,7 @@ def create_patient_visit_charge_sales_order(
 	visit = frappe.get_doc("Patient Visit", visit_name)
 	visit_type = visit_type or visit.visit_type
 
-	lines = _resolve_charge_lines_for_so(visit_type, charge_lines)
+	lines = _resolve_charge_lines_for_so(visit_type, charge_lines, patient=visit.patient)
 	if not lines:
 		frappe.throw(
 			_(

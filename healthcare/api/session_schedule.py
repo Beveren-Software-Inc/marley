@@ -53,23 +53,117 @@ def _patient_care_type_from_schedule(doc):
 	return None
 
 
-def _default_amount_from_template(session_type, amount=None, patient_care_type=None):
-	resolved = flt(amount, 2)
-	if resolved > 0:
-		return resolved
-	if session_type and frappe.db.exists("Healthcare Service Template", session_type):
-		from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
-			get_healthcare_service_template_rate,
-		)
+def _patient_from_schedule_refs(admission_number=None, patient_visit=None):
+	"""Resolve Patient from IP admission or OP visit context."""
+	admission_number = (admission_number or "").strip() or None
+	patient_visit = (patient_visit or "").strip() or None
+	if patient_visit and frappe.db.exists("Patient Visit", patient_visit):
+		return frappe.db.get_value("Patient Visit", patient_visit, "patient")
+	if admission_number and frappe.db.exists("Inpatient Admission", admission_number):
+		return frappe.db.get_value("Inpatient Admission", admission_number, "patient")
+	return None
 
-		return flt(
-			get_healthcare_service_template_rate(
-				template_name=session_type,
-				patient_care_type=patient_care_type,
-			),
-			2,
+
+def _default_amount_from_template(session_type, amount=None, patient_care_type=None, patient=None):
+	"""Template/OP rate, then TRICARE inclusive price + OP/IP discount when patient is insured.
+
+	If the UI stamped the raw template rate, replace it with the insured charge.
+	A manually typed amount that differs from the template rate is kept as an override.
+	"""
+	if not session_type or not frappe.db.exists("Healthcare Service Template", session_type):
+		return flt(amount, 2)
+
+	from healthcare.controllers.insurance_pricing import get_patient_insurance, resolve_charge
+	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+		get_healthcare_service_template_rate,
+	)
+
+	base = flt(
+		get_healthcare_service_template_rate(
+			template_name=session_type,
+			patient_care_type=patient_care_type,
+		),
+		2,
+	)
+	submitted = flt(amount, 2)
+	service_type = patient_care_type if patient_care_type in ("OP", "IP", "IOP") else None
+
+	_patient_doc, insurance_doc = get_patient_insurance(patient)
+	if insurance_doc:
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base or submitted,
+			patient_care_type=patient_care_type,
+			template_dt="Healthcare Service Template",
+			template_dn=session_type,
+			service_type=service_type,
 		)
-	return 0
+		# Store Inclusive / catalog list price on Session Schedule.amount;
+		# insurance % is applied when creating the Sales Order.
+		list_rate = flt(charged["rate_before_discount"], 2)
+		if submitted <= 0 or (base > 0 and submitted == base):
+			return list_rate
+		# Also replace if UI previously stamped the net insured charge.
+		net_rate = flt(charged["rate"], 2)
+		if net_rate > 0 and submitted == net_rate and list_rate != net_rate:
+			return list_rate
+		return submitted
+
+	if submitted > 0:
+		return submitted
+	return base
+
+
+@frappe.whitelist()
+def get_session_schedule_amount(
+	session_type: str | None = None,
+	patient: str | None = None,
+	patient_visit: str | None = None,
+	admission_number: str | None = None,
+	patient_care_type: str | None = None,
+):
+	"""Return the amount to show when picking a Healthcare Service Template on Session Schedule."""
+	session_type = (session_type or "").strip()
+	if not session_type:
+		return {"amount": 0, "base_rate": 0, "discount_pct": 0, "insurance": None}
+
+	patient = (patient or "").strip() or _patient_from_schedule_refs(admission_number, patient_visit)
+	care_type = (patient_care_type or "").strip().upper() or None
+	if not care_type:
+		care_type = "IP" if (admission_number or "").strip() else "OP"
+
+	from healthcare.controllers.insurance_pricing import resolve_charge
+	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
+		get_healthcare_service_template_rate,
+	)
+
+	base = flt(
+		get_healthcare_service_template_rate(
+			template_name=session_type,
+			patient_care_type=care_type,
+		),
+		2,
+	)
+	charged = resolve_charge(
+		patient=patient,
+		base_rate=base,
+		patient_care_type=care_type,
+		template_dt="Healthcare Service Template",
+		template_dn=session_type,
+		service_type=care_type if care_type in ("OP", "IP", "IOP") else None,
+	)
+	return {
+		# Amount shown/stored = list (Inclusive price × multiplier); discount tracked on SO.
+		"amount": flt(charged["rate_before_discount"], 2),
+		"base_rate": flt(charged["base_rate"], 2),
+		"discount_pct": flt(charged["discount_pct"], 2),
+		"discount_amount": flt(charged.get("discount_amount") or 0, 2),
+		"net_rate": flt(charged["rate"], 2),
+		"insurance": charged.get("insurance"),
+		"used_insurance_price": charged.get("used_insurance_price"),
+		"patient": patient,
+		"patient_care_type": care_type,
+	}
 
 
 def _resolve_session_schedule_billing(doc):
@@ -84,16 +178,35 @@ def _resolve_session_schedule_billing(doc):
 			_("Healthcare Service Template {0} has no valid Item for billing.").format(template_name)
 		)
 
+	care_type = _patient_care_type_from_schedule(doc)
+	patient = (
+		doc.get("patient_num")
+		or doc.get("patient")
+		or _patient_from_schedule_refs(doc.get("admission_number"), doc.get("patient_visit"))
+	)
 	amount = _default_amount_from_template(
 		template_name,
 		doc.amount,
-		patient_care_type=_patient_care_type_from_schedule(doc),
+		patient_care_type=care_type,
+		patient=patient,
 	)
+
 	if amount <= 0:
 		frappe.throw(_("Amount is required to create a Sales Order."))
 
 	description = doc.session_name or template.service_name or template_name
-	return item_code, amount, description
+	return item_code, amount, description, patient
+
+
+def _session_schedule_billing_refs(doc):
+	"""Prefer admission, then visit, else the Session Schedule itself (standalone bill)."""
+	admission = (doc.get("admission_number") or "").strip() or None
+	visit = (doc.get("patient_visit") or "").strip() or None
+	if admission:
+		return "Inpatient Admission", admission
+	if visit:
+		return "Patient Visit", visit
+	return "Session Schedule", doc.name
 
 
 def _default_company(doc=None):
@@ -102,6 +215,10 @@ def _default_company(doc=None):
 		return doc.company
 	if doc and doc.get("admission_number"):
 		company = frappe.db.get_value("Inpatient Admission", doc.admission_number, "company")
+		if company:
+			return company
+	if doc and doc.get("patient_visit"):
+		company = frappe.db.get_value("Patient Visit", doc.patient_visit, "company")
 		if company:
 			return company
 	return frappe.defaults.get_user_default("company") or frappe.db.get_single_value(
@@ -119,29 +236,52 @@ def _create_session_schedule_sales_order(doc):
 		status = frappe.db.get_value("Session Schedule", doc.name, "transaction_status")
 		return {"sales_order": so.name, "existing": True, "transaction_status": status}
 
-	if not doc.admission_number:
-		frappe.throw(_("Admission Number is required to create a Sales Order."))
-	if not doc.patient_num:
-		frappe.throw(_("Patient is required to create a Sales Order."))
-
-	ref_type = "Inpatient Admission"
-	ref_name = doc.admission_number
-
 	from healthcare.api.patient_file_no_charge import _ensure_patient_customer
 	from healthcare.api.sales_order_cost_center import (
 		apply_cost_center_to_sales_order,
 		cost_center_from_visit_or_admission,
 	)
 
-	patient = doc.patient_num
+	item_code, amount, description, patient = _resolve_session_schedule_billing(doc)
+	patient = patient or (doc.get("patient_num") or "").strip() or None
+	if not patient:
+		frappe.throw(
+			_("Patient is required to create a Sales Order. Link a patient, visit, or admission on the session.")
+		)
+
+	ref_type, ref_name = _session_schedule_billing_refs(doc)
 	customer = _ensure_patient_customer(patient)
 
 	company = _default_company(doc)
 	if not company:
 		frappe.throw(_("Company is required to create a Sales Order."))
 
-	item_code, amount, description = _resolve_session_schedule_billing(doc)
 	billing_date = getdate(doc.date or nowdate())
+
+	from healthcare.controllers.insurance_pricing import (
+		charge_list_and_discount,
+		resolve_charge,
+		sales_item_from_list_and_discount,
+	)
+
+	care_type = _patient_care_type_from_schedule(doc)
+	charged = resolve_charge(
+		patient=patient,
+		base_rate=amount,
+		patient_care_type=care_type,
+		template_dt="Healthcare Service Template",
+		template_dn=doc.session_type,
+		service_type=care_type if care_type in ("OP", "IP", "IOP") else None,
+	)
+	parts = charge_list_and_discount(charged)
+	# Prefer session amount as list when it matches insurance/template list; keep overrides.
+	list_rate = flt(amount)
+	insured_list = flt(parts["list_rate"])
+	use_insurance_discount = insured_list > 0 and (
+		list_rate <= 0 or abs(list_rate - insured_list) < 0.005
+	)
+	if use_insurance_discount:
+		list_rate = insured_list
 
 	so = frappe.new_doc("Sales Order")
 	so.company = company
@@ -164,13 +304,13 @@ def _create_session_schedule_sales_order(doc):
 
 	so.append(
 		"items",
-		{
-			"item_code": item_code,
-			"qty": 1,
-			"rate": amount,
-			"price_list_rate": amount,
-			"description": _("Session Schedule {0}: {1}").format(doc.name, description),
-		},
+		sales_item_from_list_and_discount(
+			item_code=item_code,
+			list_rate=list_rate,
+			discount_pct=parts["discount_pct"] if use_insurance_discount else 0,
+			net_rate=parts["net_rate"] if use_insurance_discount else list_rate,
+			description=_("Session Schedule {0}: {1}").format(doc.name, description),
+		),
 	)
 
 	cc = doc.cost_center or cost_center_from_visit_or_admission(ref_type, ref_name)
@@ -184,6 +324,57 @@ def _create_session_schedule_sales_order(doc):
 		doc.db_set("transaction_status", "Submitted", update_modified=False)
 
 	return {"sales_order": so.name, "existing": False, "transaction_status": "Submitted"}
+
+
+def _backfill_blank_patient_num():
+	"""Fill patient_num from visit/admission when it was left blank (older create bug)."""
+	frappe.db.sql(
+		"""
+		UPDATE `tabSession Schedule` ss
+		INNER JOIN `tabPatient Visit` pv ON ss.patient_visit = pv.name
+		SET ss.patient_num = pv.patient
+		WHERE IFNULL(ss.patient_num, '') = ''
+			AND IFNULL(ss.patient_visit, '') != ''
+			AND IFNULL(pv.patient, '') != ''
+		"""
+	)
+	frappe.db.sql(
+		"""
+		UPDATE `tabSession Schedule` ss
+		INNER JOIN `tabInpatient Admission` ia ON ss.admission_number = ia.name
+		SET ss.patient_num = ia.patient
+		WHERE IFNULL(ss.patient_num, '') = ''
+			AND IFNULL(ss.admission_number, '') != ''
+			AND IFNULL(ia.patient, '') != ''
+		"""
+	)
+
+
+def _session_schedule_list_fields():
+	return [
+		"name",
+		"date",
+		"admission_number",
+		"patient_num",
+		"patient_visit",
+		"session_type",
+		"session_name",
+		"transaction_status",
+		"company",
+		"doctor",
+		"doctor_name",
+		"practitioner",
+		"practitioner_name",
+		"cost_center",
+		"invoice_no",
+		"doc_code",
+		"doc_remarks",
+		"visit_00_05",
+		"sr_num",
+		"from_time",
+		"to_time",
+		"amount",
+	]
 
 
 @frappe.whitelist()
@@ -203,15 +394,38 @@ def get_session_schedules(
 
 	practitioner filters by Session Schedule.practitioner (who entered the session).
 	"""
+	_backfill_blank_patient_num()
+
 	filters = {}
-	or_filters = None
-	if patient:
-		filters["patient_num"] = patient
+	patient = (patient or "").strip() or None
+	admission_number = (admission_number or "").strip() or None
+	practitioner = (practitioner or "").strip() or None
+	role_group = (role_group or "").strip() or None
+
 	if admission_number:
 		filters["admission_number"] = admission_number
 	if practitioner:
 		filters["practitioner"] = practitioner
 
+	patient_or_filters = None
+	if patient:
+		visit_names = frappe.get_all(
+			"Patient Visit",
+			filters={"patient": patient},
+			pluck="name",
+		) or []
+		admission_names = frappe.get_all(
+			"Inpatient Admission",
+			filters={"patient": patient},
+			pluck="name",
+		) or []
+		patient_or_filters = [["patient_num", "=", patient]]
+		if visit_names:
+			patient_or_filters.append(["patient_visit", "in", visit_names])
+		if admission_names:
+			patient_or_filters.append(["admission_number", "in", admission_names])
+
+	role_or_filters = None
 	if role_group:
 		from healthcare.api.common import get_medical_roles_under
 
@@ -221,43 +435,46 @@ def get_session_schedules(
 			filters={"medical_role": ["in", roles]},
 			pluck="name",
 		) or ["__none__"]
-		or_filters = [
+		role_or_filters = [
 			["doctor", "in", practitioners],
 			["doctor", "is", "not set"],
 		]
+
+	fetch_limit = limit
+	fetch_offset = offset
+	or_filters = None
+
+	if patient_or_filters and role_or_filters:
+		# get_list can't AND two or_filter groups — over-fetch by patient, then role-filter.
+		or_filters = patient_or_filters
+		fetch_limit = max(limit * 10, 200)
+		fetch_offset = 0
+	elif patient_or_filters:
+		or_filters = patient_or_filters
+	elif role_or_filters:
+		or_filters = role_or_filters
 
 	schedules = frappe.get_list(
 		"Session Schedule",
 		filters=filters,
 		or_filters=or_filters,
-		fields=[
-			"name",
-			"date",
-			"admission_number",
-			"patient_num",
-			"patient_visit",
-			"session_type",
-			"session_name",
-			"transaction_status",
-			"company",
-			"doctor",
-			"doctor_name",
-			"practitioner",
-			"practitioner_name",
-			"cost_center",
-			"invoice_no",
-			"doc_code",
-			"doc_remarks",
-			"visit_00_05",
-			"sr_num",
-			"from_time",
-			"to_time",
-			"amount",
-		],
-		limit_page_length=limit,
-		limit_start=offset,
+		fields=_session_schedule_list_fields(),
+		limit_page_length=fetch_limit,
+		limit_start=fetch_offset,
 		order_by="date desc",
 	)
+
+	if patient_or_filters and role_or_filters:
+		allowed_doctors = set()
+		for row in role_or_filters:
+			if row[0] == "doctor" and row[1] == "in":
+				allowed_doctors.update(row[2] or [])
+		schedules = [
+			row
+			for row in schedules
+			if not row.get("doctor") or row.get("doctor") in allowed_doctors
+		]
+		schedules = schedules[offset : offset + limit]
 
 	return _attach_sales_orders(schedules)
 
@@ -273,6 +490,7 @@ def create_session_schedule(data: dict):
 
 		admission_number = (data.get("admission_number") or "").strip() or None
 		patient_visit = (data.get("patient_visit") or "").strip() or None
+		explicit_patient = (data.get("patient") or data.get("patient_num") or "").strip() or None
 		care_type = "IP" if admission_number else ("OP" if patient_visit else None)
 
 		session_schedule.date = data.get("date")
@@ -293,10 +511,24 @@ def create_session_schedule(data: dict):
 		session_schedule.admission_number = admission_number
 		session_schedule.patient_visit = patient_visit
 		session_schedule.company = _default_company(session_schedule)
+
+		patient = (
+			_patient_from_schedule_refs(admission_number, patient_visit)
+			or explicit_patient
+		)
+		if patient:
+			# patient_num is read_only on the form; set it in code so list filters work.
+			session_schedule.patient_num = patient
+		else:
+			frappe.throw(
+				_("Select a patient (or link a Patient Visit / Admission) before creating a session schedule.")
+			)
+
 		session_schedule.amount = _default_amount_from_template(
 			data.get("session_type"),
 			data.get("amount"),
 			patient_care_type=care_type,
+			patient=patient,
 		) or None
 		session_schedule.transaction_status = "Draft"
 

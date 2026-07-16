@@ -315,14 +315,40 @@ def get_sales_item_pricing_for_billing(
 
 	multiplier = 1.0
 	patient_category = None
+	discount_pct = 0.0
+	discount_amount = 0.0
+	net_rate = None
+	final_rate = flt(base_before_multiplier)
 	if patient and is_service_item and frappe.db.exists("Patient", patient):
+		from healthcare.controllers.insurance_pricing import resolve_charge
 		from healthcare.healthcare.doctype.service_request.service_request import (
 			_get_patient_category_multiplier,
 		)
 
 		multiplier, patient_category = _get_patient_category_multiplier(patient)
-
-	final_rate = flt(base_before_multiplier) * flt(multiplier)
+		# Infer OP/IP when caller didn't pass a care type — admission refs are IP.
+		patient_care_type = None
+		charged = resolve_charge(
+			patient=patient,
+			base_rate=base_before_multiplier,
+			patient_care_type=patient_care_type,
+			item_code=item_code,
+			template_dt=template_dt,
+			template_dn=template_dn,
+			multiplier=multiplier,
+		)
+		# Return list rate; caller puts insurance % into discount_percentage on the SI line.
+		final_rate = flt(charged["rate_before_discount"])
+		multiplier = flt(charged["multiplier"])
+		discount_pct = flt(charged["discount_pct"])
+		discount_amount = flt(charged.get("discount_amount") or 0)
+		net_rate = flt(charged["rate"])
+		if charged.get("used_insurance_price"):
+			base_before_multiplier = flt(charged["base_rate"])
+			pricing_source = "insurance_inclusive_price"
+	else:
+		final_rate = flt(base_before_multiplier) * flt(multiplier)
+		net_rate = final_rate
 
 	uom_options = _billing_item_uom_options(item_code)
 
@@ -340,6 +366,9 @@ def get_sales_item_pricing_for_billing(
 		"service_template_dn": template_dn,
 		"patient_category": patient_category,
 		"multiplier": multiplier,
+		"discount_pct": discount_pct,
+		"discount_amount": discount_amount,
+		"net_rate": flt(net_rate if net_rate is not None else final_rate),
 		"uom_options": uom_options,
 	}
 
@@ -1842,6 +1871,7 @@ def create_additional_collection_invoice(
     invoice.posting_date = posting_date or nowdate()
     invoice.due_date = due_date or invoice.posting_date
     invoice.custom_created_at = created_at_cost_center
+    invoice.ignore_pricing_rule = 1
     if patient:
         invoice.patient = patient
     if reference_type and reference_name:

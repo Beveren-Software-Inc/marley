@@ -6,6 +6,7 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   createSessionSchedule,
+  fetchSessionScheduleAmount,
   getHealthcareServiceTemplates,
   type CreateSessionScheduleData,
   type HealthcareServiceTemplateOption,
@@ -208,9 +209,65 @@ export const CreateSessionScheduleModal = ({
       .finally(() => setServiceTemplatesLoading(false))
   }
 
+  const [insurancePricingHint, setInsurancePricingHint] = useState<{
+    discount_pct: number
+    discount_amount: number
+    net_rate: number
+    insurance?: string | null
+  } | null>(null)
+
+  const applyInsuredAmount = async (sessionType: string, fallbackRate?: number | null) => {
+    if (!sessionType) return
+    try {
+      const preview = await fetchSessionScheduleAmount({
+        sessionType,
+        patient: selectedPatient || undefined,
+        patientVisit: formData.patient_visit || undefined,
+        admissionNumber: formData.admission_number || undefined,
+        patientCareType: isIPMode ? 'IP' : 'OP',
+      })
+      if (preview.amount > 0) {
+        handleChange('amount', String(preview.amount))
+        const pct = Number(preview.discount_pct || 0)
+        const net = Number(preview.net_rate || 0)
+        if (pct > 0 || (net > 0 && net < preview.amount)) {
+          setInsurancePricingHint({
+            discount_pct: pct,
+            discount_amount: Number(preview.discount_amount || 0),
+            net_rate: net || preview.amount * (1 - pct / 100),
+            insurance: preview.insurance,
+          })
+        } else {
+          setInsurancePricingHint(null)
+        }
+        return
+      }
+    } catch (err) {
+      console.error('Failed to load insured session amount:', err)
+    }
+    setInsurancePricingHint(null)
+    if (fallbackRate != null && Number(fallbackRate) > 0) {
+      handleChange('amount', String(fallbackRate))
+    }
+  }
+
   useEffect(() => {
     loadServiceTemplates('')
   }, [isIPMode, isOPMode])
+
+  // Refresh amount when visit/admission/patient context changes after a template is chosen
+  useEffect(() => {
+    if (!formData.session_type) return
+    void applyInsuredAmount(formData.session_type)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    formData.session_type,
+    formData.patient_visit,
+    formData.admission_number,
+    selectedPatient,
+    isIPMode,
+    isOPMode,
+  ])
 
   useEffect(() => {
     if (isIPMode && activeAdmission && !formData.admission_number) {
@@ -335,12 +392,18 @@ export const CreateSessionScheduleModal = ({
       return
     }
 
+    if (!selectedPatient && !formData.admission_number && !formData.patient_visit) {
+      setError('Select a patient (or link a Patient Visit / Admission) before creating a session schedule.')
+      return
+    }
+
     try {
       setLoading(true)
       setError(null)
 
       const data: CreateSessionScheduleData = {
         date: formData.date,
+        patient: selectedPatient || undefined,
         session_type: formData.session_type,
         session_name: formData.session_name || undefined,
         practitioner: formData.practitioner || undefined,
@@ -512,6 +575,7 @@ export const CreateSessionScheduleModal = ({
                   handleChange('session_type', '')
                   handleChange('session_name', '')
                   handleChange('amount', '')
+                  setInsurancePricingHint(null)
                 }
                 loadServiceTemplates(q)
               }}
@@ -524,15 +588,15 @@ export const CreateSessionScheduleModal = ({
                 const template = serviceTemplates.find((tpl) => tpl.name === opt.name)
                 handleChange('session_type', opt.name)
                 handleChange('session_name', template?.service_name || opt.label || opt.name)
-                if (template?.rate != null && Number(template.rate) > 0) {
-                  handleChange('amount', String(template.rate))
-                }
                 setServiceTemplateQuery(template?.service_name || opt.label || opt.name)
+                // Prefer TRICARE/inclusive price + discount over raw template rate
+                void applyInsuredAmount(opt.name, template?.rate)
               }}
               onClear={() => {
                 handleChange('session_type', '')
                 handleChange('session_name', '')
                 handleChange('amount', '')
+                setInsurancePricingHint(null)
                 setServiceTemplateQuery('')
               }}
               renderOption={(opt) => {
@@ -579,8 +643,18 @@ export const CreateSessionScheduleModal = ({
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
             />
             <p className="mt-1 text-xs text-slate-500">
-              Defaults from the Healthcare Service Template rate; you can override before saving.
+              List / Inclusive price. Insurance discount is applied on the Sales Order → Invoice.
             </p>
+            {insurancePricingHint ? (
+              <p className="mt-1 text-xs text-emerald-700">
+                {insurancePricingHint.insurance ? `${insurancePricingHint.insurance}: ` : ''}
+                {insurancePricingHint.discount_pct > 0
+                  ? `${insurancePricingHint.discount_pct}% discount`
+                  : 'Discount'}
+                {' → patient net '}
+                {Number(insurancePricingHint.net_rate).toFixed(2)}
+              </p>
+            ) : null}
           </div>
 
           {/* Branch */}

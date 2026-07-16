@@ -766,6 +766,9 @@ export interface BillingInvoiceItemInput {
   description?: string
   qty: number
   rate: number
+  /** Insurance / negotiated list stays in rate; % tracked for SO/SI → invoice */
+  discount_percentage?: number
+  discount_amount?: number
   cost_center?: string
   /** Default sales / line UOM from Item (ERPNext resolution) */
   uom?: string
@@ -779,6 +782,8 @@ export interface BillingInvoiceItemInput {
     multiplier: number
     patient_category: string | null
     pricing_source?: string | null
+    discount_pct?: number | null
+    net_rate?: number | null
   }
 }
 
@@ -796,6 +801,9 @@ export interface SalesItemPricingForBilling {
   service_template_dn?: string | null
   patient_category?: string | null
   multiplier?: number
+  discount_pct?: number
+  discount_amount?: number
+  net_rate?: number
   uom_options?: string[]
 }
 
