@@ -7627,6 +7627,101 @@ def start_sleeping_pattern_import_migration(file_url: str) -> dict:
 	}
 
 
+# ── Patient CPR photo folder import ───────────────────────────────────────────
+
+
+@frappe.whitelist()
+def start_patient_cpr_photo_import_migration(items=None, replace_existing=1) -> dict:
+	"""Import CPR front/back images uploaded from a local folder."""
+	_require_admin()
+	from healthcare.api.patient_cpr_photo_import import cache_import_items
+
+	if isinstance(items, str):
+		import json
+
+		items = json.loads(items) if items.strip() else []
+	if not isinstance(items, list) or not items:
+		frappe.throw(_("No uploaded images to import."))
+
+	job = "patient_cpr_photo_import"
+	_acquire_lock(job)
+	summary = cache_import_items(items, replace_existing=cint(replace_existing))
+	total_items = (summary.get("front_images") or 0) + (summary.get("back_images") or 0)
+	_set_progress(
+		job,
+		0,
+		total_items=total_items,
+		front_images=summary.get("front_images"),
+		back_images=summary.get("back_images"),
+		patients_found=summary.get("patients_found"),
+		patients_missing=summary.get("patients_missing"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_cpr_photo_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_cpr_photo_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"CPR photo import started ({0} front, {1} back, {2} patients found)."
+		).format(
+			summary.get("front_images") or 0,
+			summary.get("back_images") or 0,
+			summary.get("patients_found") or 0,
+		),
+	}
+
+
+def process_patient_cpr_photo_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_cpr_photo_import import run_patient_cpr_photo_import_batch
+
+	job = "patient_cpr_photo_import"
+	try:
+		result = run_patient_cpr_photo_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			uploaded_front=cint(prev.get("uploaded_front", 0)) + cint(result.get("uploaded_front", 0)),
+			uploaded_back=cint(prev.get("uploaded_back", 0)) + cint(result.get("uploaded_back", 0)),
+			skip_invalid=cint(prev.get("skip_invalid", 0)) + cint(result.get("skip_invalid", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_existing=cint(prev.get("skip_existing", 0)) + cint(result.get("skip_existing", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_items=prev.get("total_items"),
+			front_images=prev.get("front_images"),
+			back_images=prev.get("back_images"),
+			patients_found=prev.get("patients_found"),
+			patients_missing=prev.get("patients_missing"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_cpr_photo_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_cpr_photo_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient CPR photo import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 def process_sleeping_pattern_import_batch(offset: int = 0) -> None:
 	from healthcare.api.sleeping_pattern_import import run_sleeping_pattern_import_batch
 
