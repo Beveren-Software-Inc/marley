@@ -181,8 +181,8 @@ def _create_ip_service_sales_order(doc):
 
 
 @frappe.whitelist()
-def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
-	"""Get list of IP Service documents. Optionally filter by patient (file_number) or admission."""
+def get_ip_services(limit=50, offset=0, patient=None, admission_no=None, patient_visit=None):
+	"""Get list of IP Service documents. Optionally filter by patient, admission, or visit."""
 	from healthcare.api.common import get_permitted_cost_centers
 	if not frappe.db.exists("DocType", "IP Service"):
 		return []
@@ -192,6 +192,8 @@ def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 		filters["file_number"] = patient
 	if admission_no:
 		filters["admission_no"] = admission_no
+	if patient_visit:
+		filters["patient_visit"] = patient_visit
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	permitted_cc = get_permitted_cost_centers()
@@ -206,6 +208,7 @@ def get_ip_services(limit=50, offset=0, patient=None, admission_no=None):
 		fields=[
 			"name",
 			"admission_no",
+			"patient_visit",
 			"file_number",
 			"patient_full_name",
 			"category",
