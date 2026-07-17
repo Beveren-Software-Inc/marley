@@ -37,6 +37,23 @@ export function viewPatientDocument(url?: string | null): void {
 
 /** Print an image via a hidden iframe so the browser print dialog opens in-place. */
 function printImageInPlace(displayUrl: string, title: string): void {
+  printImagesInPlace([{ url: displayUrl, label: title }], title)
+}
+
+/** Print one or more images on a single page via a hidden iframe. */
+export function printImagesInPlace(
+  images: Array<{ url: string; label?: string }>,
+  title = 'Print'
+): void {
+  const resolved = images
+    .map((img) => ({
+      url: resolvePatientDocumentDisplayUrl(img.url) || '',
+      label: (img.label || '').replace(/[<>&"]/g, ''),
+    }))
+    .filter((img) => img.url)
+
+  if (!resolved.length) return
+
   const existing = document.getElementById('hc-attach-print-frame')
   if (existing) existing.remove()
 
@@ -54,17 +71,55 @@ function printImageInPlace(displayUrl: string, title: string): void {
   }
 
   const safeTitle = title.replace(/[<>&"]/g, '')
-  const safeUrl = displayUrl.replace(/"/g, '&quot;')
+  const multi = resolved.length > 1
+  const blocks = resolved
+    .map((img, idx) => {
+      const safeUrl = img.url.replace(/"/g, '&quot;')
+      const caption = img.label
+        ? `<div class="caption">${img.label}</div>`
+        : ''
+      return `<div class="block">${caption}<img class="print-img" data-idx="${idx}" src="${safeUrl}" alt="${img.label || safeTitle}" /></div>`
+    })
+    .join('')
+
   doc.open()
   doc.write(`<!DOCTYPE html><html><head><title>${safeTitle}</title>
     <style>
-      @page { margin: 10mm; }
+      @page { margin: 8mm; size: auto; }
       html, body { margin: 0; padding: 0; background: #fff; }
-      img { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+      .page {
+        display: flex;
+        flex-direction: column;
+        gap: ${multi ? '6mm' : '0'};
+        min-height: 100vh;
+        box-sizing: border-box;
+        padding: 2mm;
+      }
+      .block {
+        flex: ${multi ? '1 1 0' : '0 0 auto'};
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 0;
+        page-break-inside: avoid;
+      }
+      .caption {
+        font: 600 11px/1.3 system-ui, sans-serif;
+        color: #334155;
+        margin-bottom: 2mm;
+        text-align: center;
+      }
+      img.print-img {
+        max-width: 100%;
+        max-height: ${multi ? '48vh' : '90vh'};
+        width: auto;
+        height: auto;
+        object-fit: contain;
+        display: block;
+      }
     </style>
-  </head><body>
-    <img id="print-img" src="${safeUrl}" alt="${safeTitle}" />
-  </body></html>`)
+  </head><body><div class="page">${blocks}</div></body></html>`)
   doc.close()
 
   const cleanup = () => {
@@ -82,7 +137,6 @@ function printImageInPlace(displayUrl: string, title: string): void {
       return
     }
     win.onafterprint = cleanup
-    // Fallback cleanup if onafterprint never fires (some browsers).
     setTimeout(cleanup, 60_000)
     try {
       win.focus()
@@ -92,16 +146,25 @@ function printImageInPlace(displayUrl: string, title: string): void {
     }
   }
 
-  const img = doc.getElementById('print-img') as HTMLImageElement | null
-  if (img) {
-    if (img.complete && img.naturalWidth > 0) {
-      setTimeout(runPrint, 50)
-    } else {
-      img.onload = () => setTimeout(runPrint, 50)
-      img.onerror = cleanup
-    }
-  } else {
+  const imgs = Array.from(doc.querySelectorAll('img.print-img')) as HTMLImageElement[]
+  if (!imgs.length) {
     setTimeout(runPrint, 100)
+    return
+  }
+
+  let pending = imgs.length
+  const onReady = () => {
+    pending -= 1
+    if (pending <= 0) setTimeout(runPrint, 50)
+  }
+
+  for (const img of imgs) {
+    if (img.complete && img.naturalWidth > 0) {
+      onReady()
+    } else {
+      img.onload = onReady
+      img.onerror = onReady
+    }
   }
 }
 

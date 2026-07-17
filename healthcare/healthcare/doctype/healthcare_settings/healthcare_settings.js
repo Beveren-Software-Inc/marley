@@ -1063,6 +1063,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_patient_cpr_folder_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Legacy Signatures — Local Folder'), () => {
+			open_patient_legacy_signature_folder_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient Allergies — PATIENT_INFO_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Patient Allergies (PATIENT_INFO_01)'),
@@ -2171,10 +2175,11 @@ frappe.ui.form.on('Healthcare Settings', {
 							+ 'Detail rows: {1}\n'
 							+ 'Distinct TRANS_NUM: {2}\n'
 							+ 'Parents already imported (master): {3}\n'
-							+ 'Missing parents (lines skipped until master upload): {4}\n'
+							+ 'Missing parents (will be auto-created as stubs): {4}\n'
 							+ 'ITEM_NUM resolved to ITEM_00_01 (sample of {5}): {6}\n\n'
-							+ 'Upload master (SALES_DATA_MASTER) first. Lines append to the Items child table '
-							+ 'by TRANS_NUM + SR_NUM. ITEM_NUM links to legacy ITEM_00_01 (not ERP Item).\n'
+							+ 'Lines append to the Items child table by TRANS_NUM + SR_NUM. '
+							+ 'If a parent is missing, it is created automatically so no lines are skipped. '
+							+ 'ITEM_NUM links to legacy ITEM_00_01 (not ERP Item).\n'
 							+ 'Sample TRANS_NUM: {7}\n\nContinue?',
 						[
 							sheetLines || __('(none)'),
@@ -3772,6 +3777,288 @@ function start_patient_cpr_photo_import(dialog, replace_existing) {
 					indicator: 'green',
 				});
 				poll_migration_status('patient_cpr_photo_import');
+			}
+		},
+	});
+}
+
+function open_patient_legacy_signature_folder_upload() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Import Legacy Signatures'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select a folder or multiple image files. Filenames must match '
+						+ '<code>{FileNo}-{Admission}-SIGNATURE_{nn}.jpg</code>, e.g. '
+						+ '<code>190791-2249-SIGNATURE_01.jpg</code>. '
+						+ 'When the admission exists, signatures are stored on Inpatient Admission e-Signatures; '
+						+ 'otherwise on Patient Documents. Document Type: Legacy Signature.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'replace_existing',
+				label: __('Replace existing matching signature rows'),
+				default: 1,
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No files selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Import'),
+		primary_action() {
+			if (!dialog._sig_upload_items || !dialog._sig_upload_items.length) {
+				frappe.msgprint({
+					title: __('No files'),
+					message: __('Select a folder or files first.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const replace_existing = dialog.get_value('replace_existing') ? 1 : 0;
+			frappe.confirm(
+				__(
+					'Import {0} signature image(s)?\n\n'
+						+ 'Valid signatures: {1}\n'
+						+ 'Patients found: {2}\n'
+						+ 'Patients missing: {3}\n'
+						+ 'Admissions found: {4}\n'
+						+ 'Admissions missing (will attach to Patient): {5}\n\nContinue?',
+					[
+						dialog._sig_upload_items.length,
+						dialog._sig_preview_counts?.valid_signatures || 0,
+						dialog._sig_preview_counts?.patients_found || 0,
+						dialog._sig_preview_counts?.patients_missing || 0,
+						dialog._sig_preview_counts?.admissions_found || 0,
+						dialog._sig_preview_counts?.admissions_missing || 0,
+					]
+				),
+				() => start_patient_legacy_signature_import(dialog, replace_existing)
+			);
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_legacy_signature_files(dialog, true))
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Files'))
+			.on('click', () => pick_patient_legacy_signature_files(dialog, false))
+	);
+
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_legacy_signature_files(dialog, use_folder) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'image/*';
+	if (use_folder) {
+		input.setAttribute('webkitdirectory', '');
+		input.setAttribute('directory', '');
+	}
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) {
+			return;
+		}
+		preview_and_upload_patient_legacy_signature_files(dialog, files);
+	};
+	input.click();
+}
+
+function is_legacy_signature_filename(name) {
+	const upper = (name || '').toUpperCase();
+	return /^\d+\-[A-Z0-9]+\-SIGNATURE[_\-]?\d+/i.test(upper.replace(/\.[^.]+$/, ''));
+}
+
+function preview_and_upload_patient_legacy_signature_files(dialog, files) {
+	const filenames = files.map((file) => {
+		const path = file.webkitRelativePath || file.name || '';
+		return path.replace(/\\/g, '/').split('/').pop();
+	});
+
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Checking filenames…') + '</p>'
+	);
+	dialog.fields_dict.progress_html.$wrapper.html('');
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog._sig_upload_items = null;
+	dialog._sig_preview_counts = null;
+
+	frappe.call({
+		method: 'healthcare.api.patient_legacy_signature_import.preview_patient_legacy_signature_filenames',
+		args: { filenames },
+		freeze: true,
+		freeze_message: __('Analyzing filenames…'),
+		callback(r) {
+			const counts = r.message || {};
+			dialog._sig_preview_counts = counts;
+			const missingPatients = (counts.sample_missing_file_nos || []).join(', ') || __('(none)');
+			const missingAdms = (counts.sample_missing_admissions || []).join(', ') || __('(none)');
+			dialog.fields_dict.preview_html.$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Files selected') + ':</strong> ' + files.length + '</p>'
+					+ '<p><strong>' + __('Valid signature images') + ':</strong> ' + (counts.valid_signatures || 0) + '</p>'
+					+ '<p><strong>' + __('Invalid / skipped filenames') + ':</strong> ' + (counts.invalid_filenames || 0) + '</p>'
+					+ '<p><strong>' + __('Patients found') + ':</strong> ' + (counts.patients_found || 0) + '</p>'
+					+ '<p><strong>' + __('Patients missing') + ':</strong> ' + (counts.patients_missing || 0) + '</p>'
+					+ '<p><strong>' + __('Admissions found') + ':</strong> ' + (counts.admissions_found || 0) + '</p>'
+					+ '<p><strong>' + __('Admissions missing') + ':</strong> ' + (counts.admissions_missing || 0) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample missing File Nos') + ':</strong> '
+					+ frappe.utils.escape_html(missingPatients) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample missing admissions') + ':</strong> '
+					+ frappe.utils.escape_html(missingAdms) + '</p>'
+					+ '</div>'
+			);
+
+			if (!counts.valid_signatures) {
+				frappe.msgprint({
+					title: __('No signature images found'),
+					message: __('No filenames matched the expected pattern (e.g. 190791-2249-SIGNATURE_01.jpg).'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			upload_patient_legacy_signature_files_sequential(dialog, files);
+		},
+	});
+}
+
+function upload_patient_legacy_signature_files_sequential(dialog, files) {
+	const valid_files = files.filter((file) => {
+		const name = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+		return is_legacy_signature_filename(name);
+	});
+
+	if (!valid_files.length) {
+		frappe.msgprint({
+			title: __('No signature images'),
+			message: __('No image files matched the SIGNATURE naming pattern.'),
+			indicator: 'orange',
+		});
+		return;
+	}
+
+	const items = [];
+	const failed = [];
+	let index = 0;
+
+	const render_progress = () => {
+		const pct = Math.round((index / valid_files.length) * 100);
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+				+ __('Uploading {0} of {1} ({2}%)…', [index, valid_files.length, pct])
+				+ '</p>'
+		);
+	};
+
+	const render_upload_summary = () => {
+		dialog._sig_upload_items = items;
+		const failed_list = failed
+			.map((entry) => {
+				const sizeInfo = entry.before ? ` (${frappe.utils.escape_html(entry.before)})` : '';
+				const reason = entry.reason
+					? ` - ${frappe.utils.escape_html(entry.reason)}`
+					: '';
+				return `${frappe.utils.escape_html(entry.filename)}${sizeInfo}${reason}`;
+			})
+			.join('<br>');
+		let html = '';
+		if (failed.length) {
+			html += '<p class="text-orange small"><strong>'
+				+ __('{0} of {1} uploaded. {2} failed — those will not be imported unless you retry.', [
+					items.length,
+					valid_files.length,
+					failed.length,
+				])
+				+ '</strong></p>';
+			html += '<p class="small text-muted"><strong>' + __('Failed files') + ':</strong><br>' + failed_list + '</p>';
+		} else {
+			html += '<p class="text-success small">'
+				+ __('All {0} file(s) uploaded. Click Import to attach signatures.', [items.length])
+				+ '</p>';
+		}
+		dialog.fields_dict.progress_html.$wrapper.html(html);
+		dialog.get_primary_btn().prop('disabled', !items.length);
+	};
+
+	const upload_next = () => {
+		if (index >= valid_files.length) {
+			render_upload_summary();
+			return;
+		}
+
+		const file = valid_files[index];
+		const filename = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+		render_progress();
+
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push({ file_url, filename });
+			})
+			.catch((err) => {
+				const reason = err instanceof Error ? err.message : String(err || '');
+				failed.push({
+					filename,
+					before: format_bytes(file.size),
+					reason,
+				});
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [filename]),
+					indicator: 'red',
+				}, 5);
+				console.error('Legacy signature upload failed:', {
+					filename,
+					reason,
+					sizeBytes: file.size,
+					size: format_bytes(file.size),
+				});
+			})
+			.finally(() => {
+				index += 1;
+				upload_next();
+			});
+	};
+
+	render_progress();
+	upload_next();
+}
+
+function start_patient_legacy_signature_import(dialog, replace_existing) {
+	frappe.call({
+		method: 'healthcare.api.data_migration_jobs.start_patient_legacy_signature_import_migration',
+		args: {
+			items: dialog._sig_upload_items,
+			replace_existing,
+		},
+		freeze: true,
+		freeze_message: __('Starting background import…'),
+		callback(r) {
+			if (r.message?.ok) {
+				dialog.hide();
+				frappe.show_alert({
+					message: r.message.message || __('Legacy signature import started'),
+					indicator: 'green',
+				});
+				poll_migration_status('patient_legacy_signature_import');
 			}
 		},
 	});
@@ -5376,6 +5663,19 @@ function poll_migration_status(jobKey) {
 								jobKey,
 								s.uploaded_front || 0,
 								s.uploaded_back || 0,
+								s.skip_invalid || 0,
+								s.skip_no_patient || 0,
+								s.skip_existing || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'patient_legacy_signature_import') {
+						msg = __(
+							'{0} finished: {1} on admissions, {2} on patients, {3} invalid, {4} patient not found, {5} skipped (existing), {6} errors.',
+							[
+								jobKey,
+								s.uploaded_admission || 0,
+								s.uploaded_patient || 0,
 								s.skip_invalid || 0,
 								s.skip_no_patient || 0,
 								s.skip_existing || 0,

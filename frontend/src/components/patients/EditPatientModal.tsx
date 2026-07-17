@@ -24,7 +24,7 @@ import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
-import { PatientDocumentAttachmentPreview, printPatientDocument } from '../ui/PatientDocumentAttachmentPreview'
+import { PatientDocumentAttachmentPreview, printImagesInPlace } from '../ui/PatientDocumentAttachmentPreview'
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
@@ -1394,7 +1394,30 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             {/* ── TAB: Attach CPR front & back ── */}
             {activeTab === 'cpr' && (
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800 mb-4">UPLOAD CPR</h3>
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="text-sm font-bold uppercase tracking-widest text-slate-800">UPLOAD CPR</h3>
+                  {(cprPhoto || cprPhotoBack) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const images = [
+                          cprPhoto
+                            ? { url: cprPhoto, label: 'CPR Front' }
+                            : null,
+                          cprPhotoBack
+                            ? { url: cprPhotoBack, label: 'CPR Back' }
+                            : null,
+                        ].filter(Boolean) as Array<{ url: string; label: string }>
+                        printImagesInPlace(images, 'CPR')
+                      }}
+                      className="inline-flex h-9 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-xs font-semibold text-slate-700 hover:bg-slate-50"
+                      title="Print CPR front and back on one page"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Print CPR
+                    </button>
+                  )}
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {([
                     { side: 'front' as const, label: 'CPR FRONT SIDE IMAGE', buttonLabel: 'UPLOAD FRONT SIDE IMAGE', value: cprPhoto, setValue: setCprPhoto },
@@ -1440,14 +1463,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             >
                               <Download className="w-4 h-4" />
                             </a>
-                            <button
-                              type="button"
-                              onClick={() => printPatientDocument(value, label, { asImage: true })}
-                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
-                              title={`Print ${label}`}
-                            >
-                              <Printer className="w-4 h-4" />
-                            </button>
                             <button
                               type="button"
                               onClick={() => setValue('')}
