@@ -728,24 +728,32 @@ def create_service_request(data):
 		parts = charge_list_and_discount(charged)
 		qty = flt(data.get("quantity") or 1) or 1
 		list_unit = flt(parts["list_rate"])
+		# Catalog may have no rate (free / no-payment nursing Other Services).
+		# Prefer UI-submitted cost when catalog list price is zero.
+		ui_cost = data.get("cost")
+		if list_unit <= 0 and ui_cost is not None:
+			list_unit = flt(ui_cost) / qty if qty else flt(ui_cost)
 		insurance_pct = flt(parts["discount_pct"])
 		# Prefer UI-submitted discount when already set (reception override);
 		# otherwise use insurance %.
 		header_pct = flt(data.get("discount") or 0)
 		header_amt = flt(data.get("discount_amount") or 0)
-		if header_pct <= 0 and header_amt <= 0 and insurance_pct > 0:
+		if header_pct <= 0 and header_amt <= 0 and insurance_pct > 0 and list_unit > 0:
 			header_pct = insurance_pct
 			data["discount"] = insurance_pct
 			data["discount_margin"] = "Percentage"
-		if header_pct > 0:
+		if header_pct > 0 and list_unit > 0:
 			unit_net = _apply_pct(list_unit, header_pct)
 			data["discount"] = header_pct
 			data["discount_margin"] = data.get("discount_margin") or "Percentage"
-		elif header_amt > 0:
+		elif header_amt > 0 and list_unit > 0:
 			unit_net = max(0.0, list_unit - (header_amt / qty))
 			data["discount_margin"] = data.get("discount_margin") or "Amount"
 		else:
-			unit_net = flt(parts["net_rate"])
+			# No catalog price → keep UI list (may be 0 for free services)
+			unit_net = (
+				flt(parts["net_rate"]) if flt(parts["list_rate"]) > 0 else list_unit
+			)
 		data["cost"] = list_unit * qty
 		data["grand_total"] = unit_net * qty
 		data["discount_amount"] = max(0.0, flt(data["cost"]) - flt(data["grand_total"]))

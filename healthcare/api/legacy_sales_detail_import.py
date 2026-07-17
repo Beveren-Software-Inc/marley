@@ -246,14 +246,46 @@ def _build_item_fields(row: dict) -> dict[str, Any]:
 	return {key: value for key, value in fields.items() if value not in (None, "")}
 
 
+def _ensure_parent_transaction(trans_no: str, lines: list[dict] | None = None) -> tuple[Any, bool]:
+	"""Return (doc, created). Create a stub Legacy Sales Transactions header if missing."""
+	if frappe.db.exists(PARENT_DOCTYPE, trans_no):
+		return frappe.get_doc(PARENT_DOCTYPE, trans_no), False
+
+	# Seed header fields from the first detail line when available.
+	first = (lines or [{}])[0] if lines else {}
+	fields: dict[str, Any] = {"doctype": PARENT_DOCTYPE, "trans_no": trans_no}
+	trans_type = _cell_text(first.get("trans_type_num")) or _clean_oracle_num(first.get("trans_type_num"))
+	if trans_type:
+		fields["trans_type_num"] = trans_type
+	for date_field in ("cr_date", "up_date"):
+		legacy_date = _format_legacy_datetime(
+			first.get(date_field),
+			datemode=cint(first.get("_datemode") or 0),
+		)
+		if legacy_date:
+			fields[date_field] = legacy_date
+	cr_id = _cell_text(first.get("cr_id"))
+	if cr_id:
+		fields["cr_id"] = cr_id
+	up_id = _cell_text(first.get("up_id"))
+	if up_id:
+		fields["up_id"] = up_id
+
+	doc = frappe.get_doc(fields)
+	doc.flags.ignore_validate = True
+	doc.flags.ignore_links = True
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_permissions = True
+	doc.flags.legacy_import = True
+	doc.insert(ignore_permissions=True)
+	return doc, True
+
+
 def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 	if not lines:
 		return {"status": "skip_empty", "trans_no": trans_no}
 
-	if not frappe.db.exists(PARENT_DOCTYPE, trans_no):
-		return {"status": "skip_no_parent", "trans_no": trans_no}
-
-	doc = frappe.get_doc(PARENT_DOCTYPE, trans_no)
+	doc, parent_created = _ensure_parent_transaction(trans_no, lines)
 	existing_by_sr = {}
 	for child in doc.get(CHILD_TABLE) or []:
 		if child.sr_num is None:
@@ -288,6 +320,7 @@ def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 			"status": "skip_no_lines",
 			"trans_no": trans_no,
 			"skipped": skipped,
+			"parent_created": 1 if parent_created else 0,
 		}
 
 	doc.flags.ignore_validate = True
@@ -304,6 +337,7 @@ def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 		"updated": updated,
 		"skipped": skipped,
 		"items_resolved": items_resolved,
+		"parent_created": 1 if parent_created else 0,
 	}
 
 
@@ -384,7 +418,8 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	ok = skip_no_parent = skip_no_lines = 0
+	ok = skip_no_lines = 0
+	parents_created = 0
 	items_added = items_updated = items_skipped = items_resolved = 0
 	errors: list[str] = []
 
@@ -393,14 +428,13 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 		try:
 			result = import_items_for_trans(key, lines)
 			status = result.get("status")
+			parents_created += cint(result.get("parent_created", 0))
 			if status == "ok":
 				ok += 1
 				items_added += cint(result.get("added", 0))
 				items_updated += cint(result.get("updated", 0))
 				items_skipped += cint(result.get("skipped", 0))
 				items_resolved += cint(result.get("items_resolved", 0))
-			elif status == "skip_no_parent":
-				skip_no_parent += 1
 			elif status == "skip_no_lines":
 				skip_no_lines += 1
 				items_skipped += cint(result.get("skipped", 0))
@@ -415,7 +449,8 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 		"done": len(batch_keys) < LEGACY_SALES_DETAIL_IMPORT_BATCH_SIZE,
 		"batch_count": len(batch_keys),
 		"ok": ok,
-		"skip_no_parent": skip_no_parent,
+		"parents_created": parents_created,
+		"skip_no_parent": 0,
 		"skip_no_lines": skip_no_lines,
 		"items_added": items_added,
 		"items_updated": items_updated,

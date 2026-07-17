@@ -4836,8 +4836,9 @@ def process_legacy_sales_detail_import_batch(offset: int = 0) -> None:
 			job,
 			processed,
 			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
-			skip_no_parent=cint(prev.get("skip_no_parent", 0))
-			+ cint(result.get("skip_no_parent", 0)),
+			parents_created=cint(prev.get("parents_created", 0))
+			+ cint(result.get("parents_created", 0)),
+			skip_no_parent=0,
 			skip_no_lines=cint(prev.get("skip_no_lines", 0)) + cint(result.get("skip_no_lines", 0)),
 			items_added=cint(prev.get("items_added", 0)) + cint(result.get("items_added", 0)),
 			items_updated=cint(prev.get("items_updated", 0))
@@ -7888,6 +7889,107 @@ def process_patient_cpr_photo_import_batch(offset: int = 0) -> None:
 			_release_lock(job)
 			frappe.log_error(
 				title="Patient CPR photo import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
+# ── Patient / Admission legacy signature folder import ────────────────────────
+
+
+@frappe.whitelist()
+def start_patient_legacy_signature_import_migration(items=None, replace_existing=1) -> dict:
+	"""Import legacy signature images uploaded from a local folder."""
+	_require_admin()
+	from healthcare.api.patient_legacy_signature_import import cache_import_items
+
+	if isinstance(items, str):
+		import json
+
+		items = json.loads(items) if items.strip() else []
+	if not isinstance(items, list) or not items:
+		frappe.throw(_("No uploaded images to import."))
+
+	job = "patient_legacy_signature_import"
+	_acquire_lock(job)
+	summary = cache_import_items(items, replace_existing=cint(replace_existing))
+	total_items = summary.get("valid_signatures") or 0
+	_set_progress(
+		job,
+		0,
+		total_items=total_items,
+		valid_signatures=summary.get("valid_signatures"),
+		patients_found=summary.get("patients_found"),
+		patients_missing=summary.get("patients_missing"),
+		admissions_found=summary.get("admissions_found"),
+		admissions_missing=summary.get("admissions_missing"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_legacy_signature_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_legacy_signature_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Legacy signature import started ({0} images, {1} patients found, {2} admissions found)."
+		).format(
+			summary.get("valid_signatures") or 0,
+			summary.get("patients_found") or 0,
+			summary.get("admissions_found") or 0,
+		),
+	}
+
+
+def process_patient_legacy_signature_import_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_legacy_signature_import import (
+		run_patient_legacy_signature_import_batch,
+	)
+
+	job = "patient_legacy_signature_import"
+	try:
+		result = run_patient_legacy_signature_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			uploaded_admission=cint(prev.get("uploaded_admission", 0))
+			+ cint(result.get("uploaded_admission", 0)),
+			uploaded_patient=cint(prev.get("uploaded_patient", 0))
+			+ cint(result.get("uploaded_patient", 0)),
+			skip_invalid=cint(prev.get("skip_invalid", 0)) + cint(result.get("skip_invalid", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_existing=cint(prev.get("skip_existing", 0)) + cint(result.get("skip_existing", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_items=prev.get("total_items"),
+			valid_signatures=prev.get("valid_signatures"),
+			patients_found=prev.get("patients_found"),
+			patients_missing=prev.get("patients_missing"),
+			admissions_found=prev.get("admissions_found"),
+			admissions_missing=prev.get("admissions_missing"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_legacy_signature_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_legacy_signature_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient legacy signature import complete",
 				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
 			)
 	except Exception:

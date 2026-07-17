@@ -477,7 +477,12 @@ export const EditServiceRequestModal = ({
       return
     }
 
-    if (allowManualCost && !hasMultiLabItems && !(selectedPrice != null && selectedPrice > 0)) {
+    if (
+      allowManualCost &&
+      !hasMultiLabItems &&
+      !(selectedPrice != null && selectedPrice > 0) &&
+      !isOtherService
+    ) {
       setError('Enter an amount for this item/service (no price configured).')
       setActiveTab('billing_pricing')
       return
@@ -909,7 +914,9 @@ export const EditServiceRequestModal = ({
                     />
                     {allowManualCost && (
                       <p className="mt-1 text-[11px] text-amber-700">
-                        No price on this item/service — enter the amount to charge.
+                        {isOtherService
+                          ? 'No catalog price — leave blank if no payment is required, or enter an amount to charge.'
+                          : 'No price on this item/service — enter the amount to charge.'}
                       </p>
                     )}
                   </div>
