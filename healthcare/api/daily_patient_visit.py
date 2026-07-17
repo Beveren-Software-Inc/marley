@@ -20,24 +20,43 @@ from healthcare.healthcare.editing_lock import assert_editing_allowed
 DAILY_AUTO_VISIT_TYPE = "Daily Auto Visit"
 
 
+def _line_amount(line) -> float:
+	if isinstance(line, dict):
+		return flt(line.get("amount"))
+	return flt(getattr(line, "amount", 0))
+
+
 def _setup_total_amount(setup) -> float:
-    """Sum service line amounts; supports doc, dict, or setup name."""
-    if hasattr(setup, "services") and setup.services:
-        return sum(flt(line.amount) for line in setup.services)
+	"""Sum service line amounts; supports doc, dict, or setup name."""
+	services = None
+	if isinstance(setup, dict):
+		services = setup.get("services")
+	elif hasattr(setup, "services"):
+		services = setup.services
 
-    name = setup.name if hasattr(setup, "name") else (setup.get("name") if isinstance(setup, dict) else setup)
-    if name:
-        rows = frappe.get_all(
-            "Daily Patient Visit Setup Service",
-            filters={"parent": name},
-            fields=["amount"],
-        )
-        if rows:
-            return sum(flt(row.amount) for row in rows)
+	if services:
+		return sum(_line_amount(line) for line in services)
 
-    if isinstance(setup, dict):
-        return flt(setup.get("amount"))
-    return flt(getattr(setup, "amount", 0))
+	name = None
+	if isinstance(setup, dict):
+		name = setup.get("name")
+	elif hasattr(setup, "name"):
+		name = setup.name("name") if hasattr(setup, "get") else getattr(setup, "name", None)
+	elif isinstance(setup, str):
+		name = setup
+
+	if name:
+		rows = frappe.get_all(
+			"Daily Patient Visit Setup Service",
+			filters={"parent": name},
+			fields=["amount"],
+		)
+		if rows:
+			return sum(flt(row.amount) for row in rows)
+
+	if isinstance(setup, dict):
+		return flt(setup.get("amount"))
+	return flt(getattr(setup, "amount", 0))
 
 
 def _apply_services_to_doc(doc, data: dict):
@@ -95,6 +114,7 @@ def create_daily_patient_visit_setup(data):
             'Healthcare Practitioner', practioner, 'practitioner_name'
         )
 
+    branch = (data.get('branch') or data.get('cost_center') or '').strip() or None
     doc = frappe.get_doc({
         'doctype': 'Daily Patient Visit Setup',
         'patient': data.get('patient'),
@@ -103,10 +123,15 @@ def create_daily_patient_visit_setup(data):
         'posting_date': data.get('posting_date') or today(),
         'admission': data.get('admission'),
         'discharge': data.get('discharge'),
-        'from_date': data.get('from_date'),
-        'to_date': data.get('to_date'),
-        'time': data.get('time'),
-        'is_active': data.get('is_active', 0),
+        'from_date': data.get('from_date') or None,
+        'to_date': data.get('to_date') or None,
+        'time': data.get('time') or None,
+        'branch': branch,
+        'is_active': (
+            frappe.utils.cint(data.get('is_active'))
+            if 'is_active' in data
+            else 1
+        ),
     })
     _apply_services_to_doc(doc, data)
     doc.insert(ignore_permissions=True)
@@ -132,6 +157,15 @@ def update_daily_patient_visit_setup(name, data):
             or frappe.db.get_value('Healthcare Practitioner', practioner, 'practitioner_name')
         )
     _apply_services_to_doc(doc, data)
+    # Empty strings from UI should clear optional Date/Time fields
+    if "to_date" in data and not data.get("to_date"):
+        data["to_date"] = None
+    if "time" in data and not data.get("time"):
+        data["time"] = None
+    if "cost_center" in data and "branch" not in data:
+        data["branch"] = data.pop("cost_center") or None
+    if "branch" in data and not data.get("branch"):
+        data["branch"] = None
     doc.update(data)
     doc.save()
     frappe.db.commit()
@@ -177,13 +211,16 @@ def get_daily_patient_visit_setup(name):
 
 
 @frappe.whitelist()
-def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
+def get_daily_patient_visit_setups(patient=None, active_only=0, branch=None, limit=100):
     """List Daily Patient Visit Setup rows for UI."""
     filters = {}
     if patient:
         filters["patient"] = patient
     if str(active_only).lower() in ("1", "true", "yes"):
         filters["is_active"] = 1
+    branch = (branch or "").strip()
+    if branch:
+        filters["branch"] = branch
 
     rows = frappe.get_all(
         "Daily Patient Visit Setup",
@@ -202,6 +239,7 @@ def get_daily_patient_visit_setups(patient=None, active_only=0, limit=100):
             "from_date",
             "to_date",
             "time",
+            "branch",
             "is_active",
         ],
         order_by="creation desc",
@@ -295,40 +333,110 @@ def add_op_charge_to_patient_visit(visit_name, amount, charge_date=None):
 
 
 def _resolve_setup_cost_center(setup):
-    if setup.admission and frappe.db.exists('Inpatient Admission', setup.admission):
-        return cost_center_from_visit_or_admission('Inpatient Admission', setup.admission)
-    return None
+	"""Prefer setup.branch (Cost Center); fall back to linked admission branch."""
+	raw = _setup_field(setup, "branch")
+	branch = (raw or "").strip() if raw else None
+	if branch:
+		return branch
+	admission = _setup_field(setup, "admission")
+	if admission and frappe.db.exists("Inpatient Admission", admission):
+		return cost_center_from_visit_or_admission("Inpatient Admission", admission)
+	return None
+
+
+def _setup_field(setup, field):
+	if isinstance(setup, dict):
+		return setup.get(field)
+	return getattr(setup, field, None)
 
 
 def _visit_dates_for_setup(setup, current_date):
-    """All dates from from_date through min(to_date, current_date)."""
-    start = getdate(setup.from_date)
-    end = getdate(setup.to_date)
-    today_date = getdate(current_date)
-    if end > today_date:
-        end = today_date
-    if not start or not end or start > end:
-        return []
+	"""All dates from setup from_date through min(to_date or today, current_date).
 
-    dates = []
-    cursor = start
-    while cursor <= end:
-        dates.append(cursor)
-        cursor = add_days(cursor, 1)
-    return dates
+	If to_date is blank, the setup stays open-ended while active and runs through today.
+	"""
+	return _visit_dates_in_range(setup, None, current_date)
+
+
+def _visit_dates_in_range(setup, range_from, range_to):
+	"""Dates to create for a setup, clipped to an optional requested range and not past today."""
+	today_date = getdate(today())
+	setup_start = getdate(_setup_field(setup, "from_date")) if _setup_field(setup, "from_date") else None
+	if not setup_start:
+		return []
+
+	setup_end_raw = _setup_field(setup, "to_date")
+	setup_end = getdate(setup_end_raw) if setup_end_raw else today_date
+
+	req_start = getdate(range_from) if range_from else setup_start
+	req_end = getdate(range_to) if range_to else today_date
+
+	start = max(setup_start, req_start)
+	end = min(setup_end, req_end, today_date)
+
+	if start > end:
+		return []
+
+	dates = []
+	cursor = start
+	while cursor <= end:
+		dates.append(cursor)
+		cursor = add_days(cursor, 1)
+	return dates
 
 
 def _existing_daily_auto_visit_dates(patient, from_date, to_date):
-    rows = frappe.get_all(
-        'Patient Visit',
-        filters={
-            'patient': patient,
-            'visit_type': DAILY_AUTO_VISIT_TYPE,
-            'encounter_date': ['between', [from_date, to_date]],
-        },
-        pluck='encounter_date',
-    )
-    return {getdate(row) for row in rows if row}
+	rows = frappe.get_all(
+		'Patient Visit',
+		filters={
+			'patient': patient,
+			'visit_type': DAILY_AUTO_VISIT_TYPE,
+			'encounter_date': ['between', [from_date, to_date]],
+		},
+		pluck='encounter_date',
+	)
+	return {getdate(row) for row in rows if row}
+
+
+def _process_setup_visit_dates(setup, visit_dates) -> dict:
+	"""Create missing Daily Auto Visits (and orders) for the given dates. Skip existing."""
+	created = skipped_existing = billed_existing = errors = 0
+	if not visit_dates:
+		return {
+			"created": 0,
+			"skipped_existing": 0,
+			"billed_existing": 0,
+			"errors": 0,
+		}
+
+	patient = _setup_field(setup, "patient")
+	existing_dates = _existing_daily_auto_visit_dates(patient, visit_dates[0], visit_dates[-1])
+
+	for visit_date in visit_dates:
+		try:
+			if visit_date in existing_dates:
+				visit_name = _get_daily_auto_visit_name(patient, visit_date)
+				if visit_name:
+					_ensure_daily_auto_visit_billing(setup, visit_name, visit_date)
+					billed_existing += 1
+				skipped_existing += 1
+				continue
+			_create_daily_auto_visit_for_date(setup, visit_date)
+			existing_dates.add(visit_date)
+			created += 1
+		except Exception:
+			errors += 1
+			frappe.log_error(
+				title=f"Daily auto visit failed: {_setup_field(setup, 'name')} @ {visit_date}",
+				message=frappe.get_traceback(),
+			)
+
+	return {
+		"created": created,
+		"skipped_existing": skipped_existing,
+		"billed_existing": billed_existing,
+		"errors": errors,
+	}
 
 
 def create_daily_auto_visit_sales_order(visit_name, amount, charge_date=None, cost_center=None):
@@ -432,17 +540,19 @@ def _create_daily_auto_visit_for_date(setup, visit_date):
     cost_center = _resolve_setup_cost_center(setup)
     visit_fields = {
         'doctype': 'Patient Visit',
-        'patient': setup.patient,
+        'patient': _setup_field(setup, 'patient'),
         'case_no': get_next_transaction_number('Patient Visit', fieldname='case_no'),
         'encounter_date': visit_date,
-        'encounter_time': setup.time or '00:00:00',
+        'encounter_time': _setup_field(setup, 'time') or '00:00:00',
         'visit_type': DAILY_AUTO_VISIT_TYPE,
         'status': 'Open',
     }
-    if setup.practioner:
-        visit_fields['practitioner'] = setup.practioner
-    if setup.admission and frappe.db.exists('Inpatient Admission', setup.admission):
-        visit_fields['inpatient_record'] = setup.admission
+    practioner = _setup_field(setup, 'practioner')
+    if practioner:
+        visit_fields['practitioner'] = practioner
+    admission = _setup_field(setup, 'admission')
+    if admission and frappe.db.exists('Inpatient Admission', admission):
+        visit_fields['inpatient_record'] = admission
     if cost_center:
         visit_fields['cost_center'] = cost_center
 
@@ -473,81 +583,160 @@ def _create_daily_auto_visit_for_date(setup, visit_date):
 
 @frappe.whitelist()
 def process_daily_patient_visits():
-    """
-    Scheduler function that runs daily at 12:01 AM to create patient visits
-    for active daily visit setups. Backfills any missing dates in the setup range.
-    """
-    
-    current_date = today()
-    setups = frappe.get_all(
-        'Daily Patient Visit Setup',
-        filters={
-            'is_active': 1,
-            'from_date': ('<=', current_date),
-            'to_date': ('>=', current_date)
-        },
-        fields=[
-            'name',
-            'patient',
-            'practioner',
-            'admission',
-            'from_date',
-            'to_date',
-            'time',
-        ]
-    )
-    services_map = _services_for_setup_names([row.get("name") for row in setups if row.get("name")])
-    for setup in setups:
-        try:
-            if not setup.patient:
-                continue
-            setup["services"] = services_map.get(setup.name, [])
-            setup["amount"] = sum(flt(line.get("amount")) for line in setup["services"])
+	"""
+	Scheduler function that runs daily to create patient visits
+	for active daily visit setups. Backfills any missing dates in the setup range.
+	"""
+	current_date = today()
+	setups = frappe.get_all(
+		'Daily Patient Visit Setup',
+		filters={
+			'is_active': 1,
+			'from_date': ('<=', current_date),
+		},
+		or_filters=[
+			['to_date', 'is', 'not set'],
+			['to_date', '>=', current_date],
+		],
+		fields=[
+			'name',
+			'patient',
+			'practioner',
+			'admission',
+			'from_date',
+			'to_date',
+			'time',
+			'branch',
+		]
+	)
+	services_map = _services_for_setup_names([row.get("name") for row in setups if row.get("name")])
+	for setup in setups:
+		try:
+			if not setup.patient:
+				continue
+			setup["services"] = services_map.get(setup.name, [])
+			setup["amount"] = sum(flt(line.get("amount")) for line in setup["services"])
 
-            visit_dates = _visit_dates_for_setup(setup, current_date)
-            if not visit_dates:
-                continue
+			visit_dates = _visit_dates_for_setup(setup, current_date)
+			_process_setup_visit_dates(setup, visit_dates)
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			frappe.log_error(
+				title=f"Failed to create daily visit for setup {setup.name}",
+				message=frappe.get_traceback(),
+			)
 
-            existing_dates = _existing_daily_auto_visit_dates(
-                setup.patient,
-                visit_dates[0],
-                visit_dates[-1],
-            )
+	# Deactivate setups where to_date < current_date
+	expired_setups = frappe.get_all(
+		'Daily Patient Visit Setup',
+		filters={
+			'is_active': 1,
+			'to_date': ('<', current_date)
+		},
+		fields=['name']
+	)
 
-            for visit_date in visit_dates:
-                if visit_date in existing_dates:
-                    visit_name = _get_daily_auto_visit_name(setup.patient, visit_date)
-                    if visit_name:
-                        _ensure_daily_auto_visit_billing(setup, visit_name, visit_date)
-                    continue
-                _create_daily_auto_visit_for_date(setup, visit_date)
-                existing_dates.add(visit_date)
+	for expired in expired_setups:
+		try:
+			doc = frappe.get_doc('Daily Patient Visit Setup', expired.name)
+			doc.is_active = 0
+			doc.save()
+			frappe.db.commit()
+		except Exception as e:
+			frappe.log_error(f"Failed to deactivate setup {expired.name}: {str(e)}", "Daily Patient Visit")
 
-            frappe.db.commit()
-                
-        except Exception:
-            frappe.db.rollback()
-            frappe.log_error(
-                title=f"Failed to create daily visit for setup {setup.name}",
-                message=frappe.get_traceback(),
-            )
-    
-    # Deactivate setups where to_date < current_date
-    expired_setups = frappe.get_all(
-        'Daily Patient Visit Setup',
-        filters={
-            'is_active': 1,
-            'to_date': ('<', current_date)
-        },
-        fields=['name']
-    )
-    
-    for expired in expired_setups:
-        try:
-            doc = frappe.get_doc('Daily Patient Visit Setup', expired.name)
-            doc.is_active = 0
-            doc.save()
-            frappe.db.commit()
-        except Exception as e:
-            frappe.log_error(f"Failed to deactivate setup {expired.name}: {str(e)}", "Daily Patient Visit")
 
+@frappe.whitelist()
+def run_daily_patient_visits_backfill(from_date, to_date, setup_name=None, include_stopped=0):
+	"""Manually create Daily Auto Visits + sales orders for a date range (missed / catch-up)."""
+	if not from_date or not to_date:
+		frappe.throw(_("From Date and To Date are required"))
+
+	range_from = getdate(from_date)
+	range_to = getdate(to_date)
+	if range_to < range_from:
+		frappe.throw(_("To Date cannot be before From Date"))
+	if range_from > getdate(today()):
+		frappe.throw(_("From Date cannot be in the future"))
+	if range_to > getdate(today()):
+		range_to = getdate(today())
+
+	filters: dict = {
+		"from_date": ("<=", range_to),
+	}
+	or_filters = None
+	if setup_name:
+		filters = {"name": setup_name}
+	else:
+		if not frappe.utils.cint(include_stopped):
+			filters["is_active"] = 1
+		or_filters = [
+			["to_date", "is", "not set"],
+			["to_date", ">=", range_from],
+		]
+
+	setups = frappe.get_all(
+		"Daily Patient Visit Setup",
+		filters=filters,
+		or_filters=or_filters,
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"practioner",
+			"admission",
+			"from_date",
+			"to_date",
+			"time",
+			"branch",
+			"is_active",
+		],
+	)
+
+	if setup_name and not setups:
+		frappe.throw(_("Daily Patient Visit Setup {0} not found or does not overlap this date range").format(setup_name))
+
+	services_map = _services_for_setup_names([row.name for row in setups])
+	created = skipped_existing = billed_existing = errors = 0
+	setups_processed = 0
+	setups_skipped = 0
+
+	for setup in setups:
+		if not setup.patient:
+			setups_skipped += 1
+			continue
+		setup["services"] = services_map.get(setup.name, [])
+		setup["amount"] = sum(flt(line.get("amount")) for line in setup["services"])
+		visit_dates = _visit_dates_in_range(setup, range_from, range_to)
+		if not visit_dates:
+			setups_skipped += 1
+			continue
+		try:
+			result = _process_setup_visit_dates(setup, visit_dates)
+			created += result["created"]
+			skipped_existing += result["skipped_existing"]
+			billed_existing += result["billed_existing"]
+			errors += result["errors"]
+			setups_processed += 1
+			frappe.db.commit()
+		except Exception:
+			frappe.db.rollback()
+			errors += 1
+			frappe.log_error(
+				title=f"Daily auto visit backfill failed: {setup.name}",
+				message=frappe.get_traceback(),
+			)
+
+	return {
+		"ok": True,
+		"from_date": str(range_from),
+		"to_date": str(range_to),
+		"setups_matched": len(setups),
+		"setups_processed": setups_processed,
+		"setups_skipped": setups_skipped,
+		"visits_created": created,
+		"visits_already_existed": skipped_existing,
+		"existing_billed": billed_existing,
+		"errors": errors,
+	}

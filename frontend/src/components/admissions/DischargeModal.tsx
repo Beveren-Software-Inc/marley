@@ -545,7 +545,7 @@ const DailyVisitSetupForm = ({
     to_date: initialData?.to_date || '',
     time: initialData?.time || '',
     session: initialData?.session || '',
-    is_active: initialData?.is_active || false,
+    is_active: initialData?.is_active ?? true,
     amount: initialData?.amount || 0,
   })
 

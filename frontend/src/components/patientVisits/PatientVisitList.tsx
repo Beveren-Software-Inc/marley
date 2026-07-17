@@ -178,13 +178,10 @@ export const PatientVisitList = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Default the Branch filter to the global (top-bar) branch, once it resolves.
-  const branchDefaultApplied = useRef(false)
+  // Keep the Branch filter in sync with the global (top-bar) navbar branch.
   useEffect(() => {
-    if (branchDefaultApplied.current) return
     if (!userCostCenter) return
-    branchDefaultApplied.current = true
-    setFilterBranch((prev) => prev || userCostCenter)
+    setFilterBranch(userCostCenter)
   }, [userCostCenter])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
@@ -374,7 +371,7 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
-    setFilterBranch('')
+    setFilterBranch(userCostCenter || '')
     setVisitTypeFilter('')
   }
 

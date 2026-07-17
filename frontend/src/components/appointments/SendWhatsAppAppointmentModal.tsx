@@ -190,8 +190,8 @@ export function SendWhatsAppAppointmentModal({
                 />
                 <p className="mt-1 text-xs text-slate-500">
                   {countryIsd
-                    ? `Patient number first, then temporary. Local numbers use ${countryHint} (e.g. 0740743521 → ${countryIsd}740743521). Edit if needed.`
-                    : 'Patient number first, then appointment temporary number. You can edit before sending.'}
+                    ? `Defaults to patient/temporary number with ${countryHint}. Local numbers like 07… become ${countryIsd}…. If you enter another country code (+254… or 254…), it is sent as-is — not combined with ${countryIsd}.`
+                    : 'Patient number first, then appointment temporary number. You can edit before sending. Include country code with + if it is not the company default.'}
                 </p>
               </div>
 
