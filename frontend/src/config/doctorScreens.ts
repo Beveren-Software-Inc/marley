@@ -71,7 +71,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Clinical Documentation',
     screens: [
-      { id: 'dpn', title: 'Doctor Progress Note' },
+      { id: 'dpn', title: 'Patient Progress Note' },
       { id: 'dos', title: 'Doctors Order' },
       { id: 'dx', title: 'Diagnoses' },
       { id: 'psy-n', title: 'Psychology Notes' },

@@ -6,11 +6,23 @@ import {
   FileText,
   Lock,
   NotebookPen,
+  Pill,
   Stethoscope,
   User,
 } from 'lucide-react'
 import { fetchClinicalNote, type ClinicalNote } from '../../services/clinicalNotes'
 import { fetchActiveCareEpisodeStatus } from '../../services/careEpisode'
+import {
+  fetchMedicationsForClinicalNoteDay,
+  type ClinicalNoteDayMedication,
+} from '../../services/prescriptions'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugName,
+  displayMedicationFrequency,
+  displayMedicationInstructions,
+  displayMedicationStartDate,
+} from '../../utils/medicationOrderDisplayUtils'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { CareModeBadges } from '../ui/CareModeBadges'
 import type { CareMode } from '../../providers/CareContextProvider'
@@ -23,7 +35,7 @@ type ClinicalNoteDoc = ClinicalNote & Record<string, unknown>
 interface ClinicalNoteDetailPanelProps {
   name: string
   onClose: () => void
-  /** Slide-over title, e.g. "Doctor Progress Note" */
+  /** Slide-over title, e.g. "Patient Progress Note" */
   title?: string
   /** List row for instant header context while the full note loads */
   preview?: ClinicalNote
@@ -41,6 +53,35 @@ function formatDateTime(value?: string): string {
     return new Date(value).toLocaleString('en-GB')
   } catch {
     return value
+  }
+}
+
+/** Calendar day (YYYY-MM-DD) from Clinical Note posting_date datetime. */
+function noteCalendarDay(value?: string | null): string | null {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  // Prefer date portion before time (avoids timezone shifting server dates).
+  const datePart = raw.includes('T') ? raw.slice(0, 10) : raw.slice(0, 10)
+  if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) return datePart
+  try {
+    const d = new Date(raw)
+    if (Number.isNaN(d.getTime())) return null
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}-${m}-${day}`
+  } catch {
+    return null
+  }
+}
+
+function formatShortDate(value?: string | null): string {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleDateString('en-GB')
+  } catch {
+    return String(value).slice(0, 10)
   }
 }
 
@@ -139,6 +180,8 @@ export function ClinicalNoteDetailPanel({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [visitIsIOP, setVisitIsIOP] = useState(false)
+  const [dayMedications, setDayMedications] = useState<ClinicalNoteDayMedication[]>([])
+  const [loadingMedications, setLoadingMedications] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -160,6 +203,59 @@ export function ClinicalNoteDetailPanel({
       cancelled = true
     }
   }, [name])
+
+  useEffect(() => {
+    const source = doc ?? preview
+    const patient = source?.patient
+    const noteDay = noteCalendarDay(source?.posting_date)
+    if (!patient || !noteDay) {
+      setDayMedications([])
+      return
+    }
+
+    const inpatientAdmission =
+      (source as ClinicalNoteDoc)?.inpatient_admission ||
+      ((source as ClinicalNoteDoc)?.reference_doctype === 'Inpatient Admission'
+        ? (source as ClinicalNoteDoc)?.reference_document
+        : undefined)
+    const patientVisit =
+      (source as ClinicalNoteDoc)?.reference_doctype === 'Patient Visit'
+        ? (source as ClinicalNoteDoc)?.reference_document
+        : undefined
+
+    let cancelled = false
+    setLoadingMedications(true)
+    fetchMedicationsForClinicalNoteDay({
+      patient,
+      noteDate: noteDay,
+      inpatientAdmission: inpatientAdmission || undefined,
+      patientVisit: patientVisit || undefined,
+    })
+      .then((result) => {
+        if (!cancelled) setDayMedications(result.medications || [])
+      })
+      .catch(() => {
+        if (!cancelled) setDayMedications([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingMedications(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [
+    doc?.patient,
+    doc?.posting_date,
+    doc?.inpatient_admission,
+    doc?.reference_doctype,
+    doc?.reference_document,
+    preview?.patient,
+    preview?.posting_date,
+    preview?.inpatient_admission,
+    preview?.reference_doctype,
+    preview?.reference_document,
+  ])
 
   useEffect(() => {
     const source = doc ?? preview
@@ -199,7 +295,10 @@ export function ClinicalNoteDetailPanel({
   }, [doc, preview, name])
 
   const noteLabel =
-    title === 'Doctor Progress Note' || doc?.clinical_note_type === 'Doctor Progress Note'
+    title === 'Patient Progress Note' ||
+    title === 'Doctor Progress Note' ||
+    doc?.clinical_note_type === 'Doctor Progress Note' ||
+    doc?.clinical_note_type === 'Patient Progress Note'
       ? 'Progress note'
       : 'Clinical note'
 
@@ -289,6 +388,65 @@ export function ClinicalNoteDetailPanel({
 
           <section className={MODAL_SECTION_CLASS}>
             <h3 className={MODAL_SECTION_TITLE_CLASS}>
+              <Pill className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+              Medications
+            </h3>
+            {loadingMedications ? (
+              <div className="flex items-center gap-2 py-3 text-sm text-slate-500">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
+                Loading medications…
+              </div>
+            ) : dayMedications.length === 0 ? (
+              <p className="text-sm italic text-slate-400">
+                No medications prescribed or started on this day.
+              </p>
+            ) : (
+              <ul className="divide-y divide-emerald-50 overflow-hidden rounded-lg border border-emerald-100 bg-white">
+                {dayMedications.map((med, idx) => {
+                  const drugName = displayMedicationDrugName(med) || med.display_drug_name || 'Medication'
+                  const dosage = displayMedicationDosage(med) || med.display_dosage
+                  const frequency = displayMedicationFrequency(med) || med.frequency
+                  const instructions = displayMedicationInstructions(med)
+                  const startDate = displayMedicationStartDate(med) || med.start_date || med.date
+                  return (
+                    <li
+                      key={med.name || `${med.order_name}-${idx}`}
+                      className="px-3 py-3 sm:px-4"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{drugName}</p>
+                          <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-slate-600">
+                            {dosage && dosage !== '-' ? <span>Dose: {dosage}</span> : null}
+                            {frequency && frequency !== '-' ? <span>Freq: {frequency}</span> : null}
+                            {med.dosage_form ? <span>Form: {med.dosage_form}</span> : null}
+                            {med.is_prn ? (
+                              <span className="font-semibold text-amber-700">PRN</span>
+                            ) : null}
+                          </div>
+                          {instructions ? (
+                            <p className="mt-1 text-xs text-slate-500 whitespace-pre-wrap">{instructions}</p>
+                          ) : null}
+                        </div>
+                        <div className="shrink-0 text-right text-xs text-slate-400">
+                          {startDate ? <div>Start: {formatShortDate(startDate)}</div> : null}
+                          {med.order_name ? (
+                            <div className="mt-0.5 font-mono text-[11px]">{med.order_name}</div>
+                          ) : null}
+                          {med.practitioner_name ? (
+                            <div className="mt-0.5">Dr: {med.practitioner_name}</div>
+                          ) : null}
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </section>
+
+          <section className={MODAL_SECTION_CLASS}>
+            <h3 className={MODAL_SECTION_TITLE_CLASS}>
               <ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />
               Details
             </h3>
@@ -330,10 +488,14 @@ export function ClinicalNoteDetailPanel({
                   icon={<NotebookPen className="h-4 w-4" strokeWidth={2} />}
                   label="Note type"
                   value={displayValue(
-                    doc?.clinical_note_type_name ||
-                      doc?.clinical_note_type ||
-                      preview?.clinical_note_type_name ||
-                      preview?.clinical_note_type,
+                    (() => {
+                      const typeName =
+                        doc?.clinical_note_type_name ||
+                        doc?.clinical_note_type ||
+                        preview?.clinical_note_type_name ||
+                        preview?.clinical_note_type
+                      return typeName === 'Doctor Progress Note' ? 'Patient Progress Note' : typeName
+                    })(),
                   )}
                 />
               ) : null}

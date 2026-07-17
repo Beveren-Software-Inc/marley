@@ -15,7 +15,7 @@ import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/lab
 // site so the expand/collapse UI works correctly against the real runtime shape.
 import { fetchInpatientPrescriptions, type InpatientPrescription, type InpatientPrescriptionRow } from '../../services/prescriptions'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
-import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown } from 'lucide-react'
+import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown, PenLine } from 'lucide-react'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import {
   displayMedicationDosage,
@@ -24,6 +24,9 @@ import {
   displayMedicationInstructions,
   displayMedicationStartDate,
 } from '../../utils/medicationOrderDisplayUtils'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
+import { attachFileDisplayUrl } from '../ui/SignaturePad'
+import type { PatientDocumentRow } from '../../services/patients'
 
 // Constants
 const STATUS_COLORS: Record<string, string> = {
@@ -34,7 +37,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Cancelled': 'danger',
 } as const
 
-type TabType = 'details' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions'
+type TabType = 'details' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'signatures'
 
 interface InpatientAdmissionDetailsProps {
   admissionName: string
@@ -973,6 +976,75 @@ const PrescriptionsTab = ({
   )
 }
 
+function resolveAdmissionSignatureRows(record: InpatientRecord): PatientDocumentRow[] {
+  const rows = record.e_signatures || record.patient_documents || []
+  return rows.filter((row) => row?.document || row?.file_name || row?.document_type)
+}
+
+const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
+  const eSignatures = resolveAdmissionSignatureRows(record)
+  const admissionSignatureUrl = attachFileDisplayUrl(record.signature)
+  const hasAny = Boolean(admissionSignatureUrl) || eSignatures.length > 0
+
+  return (
+    <div>
+      <h3 className="text-md font-semibold text-slate-800 mb-4">Signatures</h3>
+      {!hasAny ? (
+        <EmptyState icon={PenLine} message="NO SIGNATURES ON THIS ADMISSION" />
+      ) : (
+        <div className="space-y-4">
+          {admissionSignatureUrl ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Admission signature
+              </p>
+              <div className="rounded-md border border-slate-200 bg-white p-3">
+                <img
+                  src={admissionSignatureUrl}
+                  alt="Admission signature"
+                  className="mx-auto max-h-28 object-contain"
+                />
+              </div>
+            </div>
+          ) : null}
+
+          {eSignatures.map((row, idx) => {
+            const label =
+              row.file_name?.trim() ||
+              row.document_type?.trim() ||
+              row.transaction_no?.trim() ||
+              `Signature ${idx + 1}`
+            return (
+              <div
+                key={`${row.document || label}-${idx}`}
+                className="rounded-lg border border-slate-200 bg-slate-50 p-4"
+              >
+                <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800 truncate">{label}</p>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                      {row.document_type ? <span>Type: {row.document_type}</span> : null}
+                      {row.transaction_no ? <span>Txn: {row.transaction_no}</span> : null}
+                    </div>
+                    {row.upload_remarks ? (
+                      <p className="mt-1 text-xs text-slate-600 whitespace-pre-wrap">{row.upload_remarks}</p>
+                    ) : null}
+                  </div>
+                </div>
+                {row.document ? (
+                  <PatientDocumentAttachmentPreview url={row.document} fileName={row.file_name} />
+                ) : (
+                  <p className="text-sm italic text-slate-400">No file attached</p>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Main Component
 export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: InpatientAdmissionDetailsProps) => {
   const navigate = useNavigate()
@@ -1053,12 +1125,19 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     onUpdate?.()
   }
 
+  const signatureCount =
+    (record?.signature ? 1 : 0) +
+    (record?.e_signatures || record?.patient_documents || []).filter(
+      (row) => row?.document || row?.file_name || row?.document_type
+    ).length
+
   const tabs = [
     { id: 'details' as TabType, label: 'Admission Details', icon: Info, count: 0 },
     { id: 'diagnosis' as TabType, label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
     { id: 'prescriptions' as TabType, label: 'Prescriptions', icon: FileText, count: prescriptions.length },
+    { id: 'signatures' as TabType, label: 'Signatures', icon: PenLine, count: signatureCount },
   ]
 
   if (loading) {
@@ -1159,6 +1238,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             <MedicineGivenTab medicineGiven={medicineGiven} missedMedicine={missedMedicine} loading={loadingMedicine} />
           )}
           {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={prescriptions} loading={loadingPrescriptions} />}
+          {activeTab === 'signatures' && <SignaturesTab record={record} />}
         </div>
       </div>
 
