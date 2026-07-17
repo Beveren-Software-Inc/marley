@@ -206,6 +206,31 @@ def _serialize_admission(admission_name: str) -> dict | None:
 	}
 
 
+def _serialize_admission_signatures(admission_name: str) -> dict:
+	"""Return admission signature + e_signatures child rows for clinical summary."""
+	if not admission_name or not frappe.db.exists("Inpatient Admission", admission_name):
+		return {"signature": None, "e_signatures": []}
+
+	signature = frappe.db.get_value("Inpatient Admission", admission_name, "signature") or None
+	e_signatures = []
+	try:
+		doc = frappe.get_doc("Inpatient Admission", admission_name)
+		for row in getattr(doc, "e_signatures", []) or []:
+			e_signatures.append(
+				{
+					"file_name": getattr(row, "file_name", None),
+					"document_type": getattr(row, "document_type", None),
+					"transaction_no": getattr(row, "transaction_no", None),
+					"upload_remarks": getattr(row, "upload_remarks", None),
+					"document": getattr(row, "document", None),
+				}
+			)
+	except Exception:
+		e_signatures = []
+
+	return {"signature": signature, "e_signatures": e_signatures}
+
+
 def _serialize_discharge(admission_name: str) -> dict | None:
 	rows = frappe.get_all(
 		"Discharge",
@@ -401,6 +426,7 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 	clinical_notes = _clinical_notes_for_admission(admission, patient)
 	history_form = _history_form_for_admission(admission)
 	medical_history = _medical_history_for_admission(patient, admission)
+	signatures = _serialize_admission_signatures(admission)
 
 	has_data = bool(
 		admission_doc
@@ -411,6 +437,8 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 		or history_form
 		or warnings
 		or medical_history
+		or signatures.get("signature")
+		or signatures.get("e_signatures")
 	)
 
 	return {
@@ -425,5 +453,7 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 		"history_form": history_form,
 		"medical_history": medical_history,
 		"warnings": warnings,
+		"signature": signatures.get("signature"),
+		"e_signatures": signatures.get("e_signatures") or [],
 		"has_data": has_data,
 	}

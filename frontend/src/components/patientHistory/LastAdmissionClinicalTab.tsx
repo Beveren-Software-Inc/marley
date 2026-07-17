@@ -6,6 +6,7 @@ import {
   ClipboardList,
   LogOut,
   NotebookPen,
+  PenLine,
   Pill,
   Stethoscope,
 } from 'lucide-react'
@@ -14,6 +15,8 @@ import {
   type AdmissionClinicalBundle,
 } from '../../services/patientAdmissionClinical'
 import { RichTextContent } from '../ui/RichTextContent'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
+import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
 
 interface LastAdmissionClinicalTabProps {
@@ -186,6 +189,11 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
   )
   const hasDiagnosis = bundle.diagnoses.length > 0
   const hasHistoryForm = Boolean(bundle.history_form?.history_detail?.length)
+  const eSignatures = (bundle.e_signatures || []).filter(
+    (row) => row?.document || row?.file_name || row?.document_type,
+  )
+  const admissionSignatureUrl = attachFileDisplayUrl(bundle.signature)
+  const hasSignatures = Boolean(admissionSignatureUrl) || eSignatures.length > 0
 
   return (
     <div className="space-y-4">
@@ -364,7 +372,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
               icon={<NotebookPen className="h-5 w-5" strokeWidth={2} />}
               title="Progress notes"
               empty={!hasProgressNotes}
-              emptyMessage="No doctor progress notes for this admission."
+              emptyMessage="No patient progress notes for this admission."
             >
               <ul className="space-y-3">
                 {bundle.clinical_notes.map((note) => (
@@ -500,6 +508,63 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
             </Section>
           }
         />
+
+        {/* Row 5: Signatures (full width) */}
+        <Section
+          icon={<PenLine className="h-5 w-5" strokeWidth={2} />}
+          title="Signatures"
+          empty={!hasSignatures}
+          emptyMessage="No signatures recorded for this admission."
+        >
+          <div className="space-y-4">
+            {admissionSignatureUrl ? (
+              <div className="rounded-lg border border-emerald-50 bg-emerald-50/40 px-3 py-3">
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                  Admission signature
+                </p>
+                <div className="rounded-md border border-slate-200 bg-white p-3">
+                  <img
+                    src={admissionSignatureUrl}
+                    alt="Admission signature"
+                    className="mx-auto max-h-28 object-contain"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {eSignatures.map((row, idx) => {
+              const label =
+                row.file_name?.trim() ||
+                row.document_type?.trim() ||
+                row.transaction_no?.trim() ||
+                `Signature ${idx + 1}`
+              return (
+                <div
+                  key={`${row.document || label}-${idx}`}
+                  className="rounded-lg border border-emerald-50 px-3 py-3"
+                >
+                  <p className="text-sm font-semibold text-slate-900">{label}</p>
+                  <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                    {row.document_type ? <span>Type: {row.document_type}</span> : null}
+                    {row.transaction_no ? <span>Txn: {row.transaction_no}</span> : null}
+                  </div>
+                  {row.upload_remarks ? (
+                    <p className="mt-1 text-xs text-slate-600 whitespace-pre-wrap">{row.upload_remarks}</p>
+                  ) : null}
+                  {row.document ? (
+                    <div className="mt-2">
+                      <PatientDocumentAttachmentPreview
+                        url={row.document}
+                        fileName={row.file_name}
+                        compact
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              )
+            })}
+          </div>
+        </Section>
       </div>
 
       {loading ? <p className="text-center text-xs text-slate-400">Refreshing…</p> : null}

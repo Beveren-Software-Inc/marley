@@ -1418,6 +1418,170 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
 
 
 @frappe.whitelist()
+def get_medications_for_clinical_note_day(
+	patient=None,
+	note_date=None,
+	inpatient_admission=None,
+	patient_visit=None,
+):
+	"""
+	Medications prescribed for the calendar day of a clinical / doctor progress note.
+
+	Includes child lines when:
+	- Parent Patient Medication Order was posted/created that day and the line
+	  starts that day (or has no line start date), OR
+	- The child line Start Date (`date`) equals that day (even if the parent
+	  order was created earlier — e.g. meds added mid-admission).
+	"""
+	from frappe.utils import getdate
+
+	patient = (patient or "").strip()
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	try:
+		note_day = getdate(note_date) if note_date else None
+	except Exception:
+		note_day = None
+	if not note_day:
+		frappe.throw(_("Note date is required"))
+
+	inpatient_admission = (inpatient_admission or "").strip() or None
+	patient_visit = (patient_visit or "").strip() or None
+
+	conditions = [
+		"parent.patient = %(patient)s",
+		"parent.docstatus != 2",
+		"IFNULL(parent.status, '') != 'Cancelled'",
+		"""(
+			(
+				DATE(IFNULL(parent.posting_date, parent.creation)) = %(note_day)s
+				AND (child.date IS NULL OR child.date = '' OR child.date = %(note_day)s)
+			)
+			OR child.date = %(note_day)s
+		)""",
+	]
+	params = {
+		"patient": patient,
+		"note_day": str(note_day),
+	}
+
+	if inpatient_admission:
+		conditions.append("parent.inpatient_record = %(inpatient_admission)s")
+		params["inpatient_admission"] = inpatient_admission
+	elif patient_visit:
+		conditions.append("parent.patient_encounter = %(patient_visit)s")
+		params["patient_visit"] = patient_visit
+
+	where_sql = " AND ".join(conditions)
+	rows = frappe.db.sql(
+		f"""
+		SELECT
+			child.name AS entry_name,
+			child.drug,
+			child.drug_name,
+			child.medication,
+			child.old_medicine_code,
+			child.old_medicine_name,
+			child.medicine_no,
+			child.dosage,
+			child.dosage_form,
+			child.quantity,
+			child.uom,
+			child.instructions,
+			child.patient_frequency,
+			child.written_frequency,
+			child.date,
+			child.end_date,
+			child.time,
+			child.is_prn,
+			child.route_of_administration,
+			child.strength,
+			parent.name AS order_name,
+			parent.posting_date,
+			parent.start_date AS order_start_date,
+			parent.end_date AS order_end_date,
+			parent.status AS order_status,
+			parent.practitioner,
+			parent.healthcare_practitioner_name,
+			parent.user_name,
+			parent.inpatient_record,
+			parent.patient_encounter,
+			parent.care_context
+		FROM `tabInpatient Medication Order Entry` AS child
+		INNER JOIN `tabPatient Medication Order` AS parent
+			ON child.parent = parent.name
+			AND child.parenttype = 'Patient Medication Order'
+		WHERE {where_sql}
+		ORDER BY IFNULL(child.date, parent.posting_date) ASC, parent.creation ASC, child.idx ASC
+		""",
+		params,
+		as_dict=True,
+	)
+
+	from healthcare.api.medication_order_display import medication_entry_display_fields
+
+	seen = set()
+	medications = []
+	for row in rows:
+		entry_name = row.get("entry_name")
+		if entry_name and entry_name in seen:
+			continue
+		if entry_name:
+			seen.add(entry_name)
+
+		display = medication_entry_display_fields(
+			row,
+			parent_start_date=row.get("order_start_date"),
+			parent_end_date=row.get("order_end_date"),
+		)
+		drug_name = row.get("drug_name") or ""
+		if not drug_name and row.get("drug"):
+			drug_name = frappe.get_cached_value("Item", row.drug, "item_name") or ""
+
+		medications.append(
+			{
+				"name": entry_name,
+				"order_name": row.get("order_name"),
+				"drug": row.get("drug"),
+				"drug_name": drug_name,
+				"medication": row.get("medication"),
+				"old_medicine_code": row.get("old_medicine_code"),
+				"old_medicine_name": row.get("old_medicine_name"),
+				"medicine_no": row.get("medicine_no"),
+				"dosage": row.get("dosage"),
+				"dosage_form": row.get("dosage_form"),
+				"quantity": row.get("quantity"),
+				"uom": row.get("uom"),
+				"instructions": row.get("instructions"),
+				"frequency": display["display_frequency"],
+				"patient_frequency": row.get("patient_frequency"),
+				"date": row.get("date"),
+				"start_date": display["display_start_date"],
+				"end_date": display["display_end_date"],
+				"time": row.get("time"),
+				"is_prn": row.get("is_prn"),
+				"route_of_administration": row.get("route_of_administration"),
+				"display_drug_name": display["display_drug_name"],
+				"display_dosage": display["display_dosage"],
+				"is_legacy": display["is_legacy"],
+				"order_status": row.get("order_status"),
+				"posting_date": str(row.get("posting_date")) if row.get("posting_date") else None,
+				"practitioner": row.get("practitioner"),
+				"practitioner_name": row.get("healthcare_practitioner_name") or row.get("user_name"),
+				"care_context": row.get("care_context"),
+			}
+		)
+
+	return {
+		"note_date": str(note_day),
+		"patient": patient,
+		"medications": medications,
+		"count": len(medications),
+	}
+
+
+@frappe.whitelist()
 def update_medication_order_status(name: str, status: str):
     """
     Update medication order status
