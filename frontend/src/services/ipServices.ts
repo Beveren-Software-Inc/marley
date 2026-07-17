@@ -48,13 +48,15 @@ export async function fetchIPServices(
   limit: number = 50,
   offset: number = 0,
   patient?: string,
-  admission_no?: string
+  admission_no?: string,
+  patient_visit?: string,
 ): Promise<IPServiceRow[]> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
   if (patient) params.append('patient', patient)
   if (admission_no) params.append('admission_no', admission_no)
+  if (patient_visit) params.append('patient_visit', patient_visit)
 
   const data = await apiRequest<IPServiceRow[]>(
     `/api/method/healthcare.api.ip_service.get_ip_services?${params.toString()}`

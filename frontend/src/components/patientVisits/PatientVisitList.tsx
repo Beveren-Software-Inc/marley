@@ -11,6 +11,7 @@ import {
   type CardMetaField,
 } from '../ui/dashboardCardListing'
 import { PatientVisitDetails } from './PatientVisitDetails'
+import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { cancelVisit, createInvoiceForVisit, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
@@ -391,12 +392,9 @@ export const PatientVisitList = ({
       (hideLabPharmacyAmounts ? 2 : 0)
 
   const openVisitRow = (visit: PatientVisitListRow) => {
-    if (onVisitActivate) {
-      onVisitActivate(visit)
-    } else {
-      setDetailVisit(visit.value)
-      onVisitSelect?.(visit.value)
-    }
+    setDetailVisit(visit.value)
+    onVisitSelect?.(visit.value)
+    onVisitActivate?.(visit)
   }
 
   const visitMetaOptions = { patient }
@@ -1007,45 +1005,23 @@ export const PatientVisitList = ({
 
       {/* Slide-over Detail */}
       {detailVisit && (
-        <div
-          className="fixed inset-0 z-50 flex items-start justify-end"
-          onClick={() => setDetailVisit(null)}
+        <DetailSlideOver
+          title="Patient Visit"
+          subtitle={detailVisit}
+          onClose={() => setDetailVisit(null)}
+          maxWidthClass="max-w-3xl"
+          headerActions={
+            <PrintFormatDropdown
+              doctype="Patient Visit"
+              docName={detailVisit}
+              noLetterhead={0}
+              triggerPrint={1}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+            />
+          }
         >
-          <div className="absolute inset-0 bg-black/30" />
-          <div
-            className="relative z-10 h-full w-full max-w-2xl bg-white shadow-xl flex flex-col"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
-              <div>
-                <p className="text-xs text-slate-500 uppercase tracking-wide">Patient Visit</p>
-                <p className="text-sm font-semibold text-slate-800">{detailVisit}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <PrintFormatDropdown
-                  doctype="Patient Visit"
-                  docName={detailVisit}
-                  noLetterhead={0}
-                  triggerPrint={1}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                />
-                <button
-                  type="button"
-                  onClick={() => setDetailVisit(null)}
-                  className="inline-flex items-center justify-center w-8 h-8 rounded-md text-slate-500 hover:text-slate-800 hover:bg-slate-200 transition-colors"
-                  aria-label="Close"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <PatientVisitDetails visitNo={detailVisit} onUpdate={fetchVisits} />
-            </div>
-          </div>
-        </div>
+          <PatientVisitDetails visitNo={detailVisit} onUpdate={fetchVisits} />
+        </DetailSlideOver>
       )}
 
       {/* Payment Modal */}

@@ -442,6 +442,8 @@ def get_service_requests(
 	search=None,
 	practitioner=None,
 	patient_search=None,
+	patient_visit=None,
+	inpatient_record=None,
 ):
 	"""Get list of Service Requests.
 
@@ -476,6 +478,10 @@ def get_service_requests(
 		filters['practitioner'] = practitioner
 	if search:
 		filters['name'] = ['like', f'%{search}%']
+	if patient_visit:
+		filters['patient_visit'] = patient_visit
+	if inpatient_record:
+		filters['inpatient_record'] = inpatient_record
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	# Records with no cost_center are visible regardless (use or_filters).

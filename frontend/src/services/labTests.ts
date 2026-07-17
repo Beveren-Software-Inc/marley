@@ -709,6 +709,24 @@ export async function fetchLabTestsByInpatientRecord(
   }
 }
 
+export async function fetchLabTestsByPatientVisit(patientVisit: string): Promise<LabTest[]> {
+  if (!patientVisit) return []
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.lab_test.get_lab_tests_by_patient_visit?patient_visit=${encodeURIComponent(patientVisit)}`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    )
+    const resData = await response.json()
+    if (resData?.message && Array.isArray(resData.message)) {
+      return resData.message as LabTest[]
+    }
+    return []
+  } catch (error) {
+    console.error('Failed to fetch lab tests by patient visit:', error)
+    return []
+  }
+}
+
 // NEW: Fetch lab test by ID
 export async function fetchLabTestById(name: string): Promise<LabTest | null> {
   if (!name) {
