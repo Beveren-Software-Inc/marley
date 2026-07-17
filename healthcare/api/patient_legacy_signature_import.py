@@ -282,7 +282,11 @@ def _import_one_item(item: dict, *, replace_existing: bool = True) -> str:
 
 	if admission:
 		doc = frappe.get_doc("Inpatient Admission", admission)
+		# Attach-only import — skip admission business rules (e.g. duplicate active admission).
 		doc.flags.ignore_permissions = True
+		doc.flags.ignore_validate = True
+		doc.flags.ignore_mandatory = True
+		doc.flags.ignore_links = True
 		doc.flags.skip_editing_lock = True
 		result = _upsert_document_row(
 			doc,
@@ -302,6 +306,9 @@ def _import_one_item(item: dict, *, replace_existing: bool = True) -> str:
 	# No matching admission — store on Patient documents table
 	doc = frappe.get_doc("Patient", patient)
 	doc.flags.ignore_permissions = True
+	doc.flags.ignore_validate = True
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_links = True
 	doc.flags.skip_editing_lock = True
 	result = _upsert_document_row(
 		doc,
