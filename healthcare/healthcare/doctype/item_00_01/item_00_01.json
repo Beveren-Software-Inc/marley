@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:item_num",
  "creation": "2026-06-02 08:50:21.617600",
@@ -315,7 +316,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-02 09:06:09.533673",
+ "modified": "2026-07-17 01:38:28.361062",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ITEM_00_01",
@@ -337,6 +338,7 @@
  ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
+ "search_fields": "item_nam",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": []

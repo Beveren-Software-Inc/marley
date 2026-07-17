@@ -2105,6 +2105,92 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Legacy Sales — SALES_DATA_MASTER'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Legacy Sales Transactions (SALES_DATA_MASTER)'),
+				preview_method: 'healthcare.api.legacy_sales_master_import.preview_legacy_sales_master_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_legacy_sales_master_import_migration',
+				job_key: 'legacy_sales_master_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Legacy Sales Transactions from SALES_DATA_MASTER?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Sample resolve checks (first {5} rows):\n'
+							+ '  Visits resolved: {6}\n'
+							+ '  Patients from visit: {7}\n'
+							+ '  Admissions resolved: {8}\n'
+							+ '  Branches mapped: {9}\n\n'
+							+ 'Mapping: TRANS_NUM → Trans No (ID), VISIT_NUM → Patient Visit '
+							+ '(patient + patient name from visit), ADMISSION_NUM → Admission, '
+							+ 'BRANCH_NUM → Cost Center (1=Serene Hospital, 2=Serene Center, 8=Jau Hospital), '
+							+ 'CR_DATE → Date Created. Item lines are imported separately from DETAILS.\n'
+							+ 'Sample TRANS_NUM: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.new_records || 0,
+							counts.sample_size || 0,
+							counts.resolved_visits || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_admissions || 0,
+							counts.resolved_branches || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Legacy Sales Detail — SALES_DATA_DETAILS'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Legacy Sales Detail (SALES_DATA_DETAILS)'),
+				preview_method:
+					'healthcare.api.legacy_sales_detail_import.preview_legacy_sales_detail_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_legacy_sales_detail_import_migration',
+				job_key: 'legacy_sales_detail_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Legacy Sales item lines from SALES_DATA_DETAILS?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Detail rows: {1}\n'
+							+ 'Distinct TRANS_NUM: {2}\n'
+							+ 'Parents already imported (master): {3}\n'
+							+ 'Missing parents (lines skipped until master upload): {4}\n'
+							+ 'ITEM_NUM resolved to ITEM_00_01 (sample of {5}): {6}\n\n'
+							+ 'Upload master (SALES_DATA_MASTER) first. Lines append to the Items child table '
+							+ 'by TRANS_NUM + SR_NUM. ITEM_NUM links to legacy ITEM_00_01 (not ERP Item).\n'
+							+ 'Sample TRANS_NUM: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || 0,
+							counts.transactions || 0,
+							counts.linked_parents || 0,
+							counts.missing_parents || 0,
+							counts.sample_size || 0,
+							counts.resolved_items || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient Adjustment — PATIENT_ADJUSTMENT_01'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Patient Adjustment (PATIENT_ADJUSTMENT_01)'),

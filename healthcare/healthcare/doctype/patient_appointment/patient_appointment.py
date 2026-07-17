@@ -1082,10 +1082,13 @@ def send_appointment_reminder_manual(
 	if channel not in valid_channels:
 		frappe.throw(_("Invalid channel '{0}'. Must be one of: {1}").format(channel, ", ".join(valid_channels)))
 
-	patient_mobile = (phone_number or "").strip() or _resolve_appointment_mobile_for_reminder(doc)
-	if patient_mobile:
-		# Always normalize (handles user-edited local numbers too)
-		patient_mobile = _normalize_whatsapp_phone(patient_mobile, company=doc.get("company"))
+	# UI/user override: normalize lightly (don't stack a second country code).
+	# Default path: resolve already returns a normalized number.
+	override = (phone_number or "").strip()
+	if override:
+		patient_mobile = _normalize_whatsapp_phone(override, company=doc.get("company"))
+	else:
+		patient_mobile = _resolve_appointment_mobile_for_reminder(doc)
 	if channel == "whatsapp":
 		from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
 			send_test_message,
@@ -1496,11 +1499,14 @@ def _get_company_country_isd(company=None):
 def _normalize_whatsapp_phone(phone, company=None):
 	"""Normalize a phone number to international digits without '+' .
 
-	Examples (Kenya / +254):
+	Examples (company country Kenya / +254):
 	- 0740743521 → 254740743521
 	- 740743521 → 254740743521
 	- +254 740 743 521 → 254740743521
 	- 254740743521 → 254740743521
+
+	If the user already typed an international number (+… / 00… / full E.164),
+	do **not** prepend the company ISD again (avoids 973254740743521).
 	"""
 	if not phone:
 		return ""
@@ -1508,8 +1514,8 @@ def _normalize_whatsapp_phone(phone, company=None):
 	import re
 
 	text = str(phone).strip()
-	# Keep leading + indication briefly, then digits only
-	has_plus = text.startswith("+")
+	# Explicit international markers — trust the country code the user entered.
+	had_intl_prefix = text.startswith("+") or text.startswith("00")
 	digits = re.sub(r"\D", "", text)
 	if not digits:
 		return ""
@@ -1517,26 +1523,36 @@ def _normalize_whatsapp_phone(phone, company=None):
 	# Strip international access prefix 00…
 	while digits.startswith("00") and len(digits) > 2:
 		digits = digits[2:]
+		had_intl_prefix = True
 
 	_country, isd = _get_company_country_isd(company)
 	if not isd:
-		# No country context — strip leading zeros only if it looked local (+ not used)
-		if not has_plus and digits.startswith("0"):
+		# No country context — strip leading zeros only for local-looking numbers
+		if not had_intl_prefix and digits.startswith("0"):
 			digits = digits.lstrip("0")
 		return digits
 
-	# Already in international form for this country
+	# Already in international form for this company
 	if digits.startswith(isd):
+		return digits
+
+	# User supplied another country's number with + / 00 — keep as-is
+	if had_intl_prefix:
 		return digits
 
 	# Local numbers often start with trunk prefix 0 (e.g. 07…)
 	if digits.startswith("0"):
 		digits = digits.lstrip("0")
+		if not digits:
+			return ""
+		if digits.startswith(isd):
+			return digits
+		return f"{isd}{digits}"
 
-	if not digits:
-		return ""
-
-	if digits.startswith(isd):
+	# No trunk 0: short numbers are treated as local (prepend company ISD).
+	# Longer digit strings usually already include a country calling code
+	# (e.g. 254740743521) — do not prepend again.
+	if len(digits) >= 11:
 		return digits
 
 	return f"{isd}{digits}"

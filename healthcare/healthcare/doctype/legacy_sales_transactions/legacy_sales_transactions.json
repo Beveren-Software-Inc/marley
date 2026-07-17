@@ -1,0 +1,490 @@
+{
+ "actions": [],
+ "allow_import": 1,
+ "autoname": "field:trans_no",
+ "creation": "2026-07-17 01:30:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "trans_no",
+  "trans_type_num",
+  "trans_date",
+  "column_break_header",
+  "branch",
+  "vch_status",
+  "trans_source",
+  "trans_sub_source",
+  "section_break_patient",
+  "patient_visit",
+  "visit_num",
+  "column_break_patient",
+  "patient",
+  "patient_name",
+  "admission",
+  "admission_num",
+  "section_break_period",
+  "trans_year",
+  "trans_month",
+  "trans_period",
+  "column_break_invoice",
+  "invoice_num",
+  "invoice_date",
+  "st_num",
+  "section_break_amounts",
+  "total_bill_amount",
+  "discount_percentage",
+  "total_discount_amount",
+  "total_tax_amount",
+  "column_break_net",
+  "net_bill_amount",
+  "total_profit_amt",
+  "freight_amount",
+  "other_amount_1",
+  "other_amount_2",
+  "other_amount_3",
+  "section_break_services",
+  "charge_yn",
+  "total_services_charges",
+  "only_services_charges",
+  "services_charges_percentage",
+  "column_break_pink",
+  "pink_presc_num",
+  "is_pink_presc_charge",
+  "pink_presc_amt",
+  "section_break_branch",
+  "from_branch",
+  "to_branch",
+  "to_branch_num",
+  "column_break_return",
+  "return_trans_num",
+  "link_grn_num",
+  "is_return_slr_srv_charges",
+  "section_break_remarks",
+  "trans_remarks",
+  "section_break_items",
+  "items",
+  "section_break_audit",
+  "date_created",
+  "cr_id",
+  "cr_date",
+  "column_break_up",
+  "up_id",
+  "up_date",
+  "column_break_ap",
+  "ap_id",
+  "ap_date",
+  "ck_id",
+  "ck_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "trans_no",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans No",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "trans_type_num",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans Type"
+  },
+  {
+   "fieldname": "trans_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Trans Date"
+  },
+  {
+   "fieldname": "column_break_header",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "branch",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "vch_status",
+   "fieldtype": "Data",
+   "label": "Voucher Status"
+  },
+  {
+   "fieldname": "trans_source",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Trans Source"
+  },
+  {
+   "fieldname": "trans_sub_source",
+   "fieldtype": "Data",
+   "label": "Trans Sub Source"
+  },
+  {
+   "fieldname": "section_break_patient",
+   "fieldtype": "Section Break",
+   "label": "Patient / Visit"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "description": "Raw VISIT_NUM from legacy file (commas stripped)",
+   "fieldname": "visit_num",
+   "fieldtype": "Data",
+   "label": "Visit Num"
+  },
+  {
+   "fieldname": "column_break_patient",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "admission",
+   "fieldtype": "Link",
+   "label": "Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "description": "Raw ADMISSION_NUM from legacy file (commas stripped)",
+   "fieldname": "admission_num",
+   "fieldtype": "Data",
+   "label": "Admission Num"
+  },
+  {
+   "fieldname": "section_break_period",
+   "fieldtype": "Section Break",
+   "label": "Period / Invoice"
+  },
+  {
+   "fieldname": "trans_year",
+   "fieldtype": "Int",
+   "label": "Trans Year"
+  },
+  {
+   "fieldname": "trans_month",
+   "fieldtype": "Int",
+   "label": "Trans Month"
+  },
+  {
+   "fieldname": "trans_period",
+   "fieldtype": "Data",
+   "label": "Trans Period"
+  },
+  {
+   "fieldname": "column_break_invoice",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "invoice_num",
+   "fieldtype": "Data",
+   "label": "Invoice Num"
+  },
+  {
+   "fieldname": "invoice_date",
+   "fieldtype": "Date",
+   "label": "Invoice Date"
+  },
+  {
+   "fieldname": "st_num",
+   "fieldtype": "Data",
+   "label": "ST Num"
+  },
+  {
+   "fieldname": "section_break_amounts",
+   "fieldtype": "Section Break",
+   "label": "Amounts"
+  },
+  {
+   "fieldname": "total_bill_amount",
+   "fieldtype": "Float",
+   "label": "Total Bill Amount"
+  },
+  {
+   "fieldname": "discount_percentage",
+   "fieldtype": "Float",
+   "label": "Discount %"
+  },
+  {
+   "fieldname": "total_discount_amount",
+   "fieldtype": "Float",
+   "label": "Total Discount Amount"
+  },
+  {
+   "fieldname": "total_tax_amount",
+   "fieldtype": "Float",
+   "label": "Total Tax Amount"
+  },
+  {
+   "fieldname": "column_break_net",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "net_bill_amount",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Net Bill Amount"
+  },
+  {
+   "fieldname": "total_profit_amt",
+   "fieldtype": "Float",
+   "label": "Total Profit Amt"
+  },
+  {
+   "fieldname": "freight_amount",
+   "fieldtype": "Float",
+   "label": "Freight Amount"
+  },
+  {
+   "fieldname": "other_amount_1",
+   "fieldtype": "Float",
+   "label": "Other Amount 1"
+  },
+  {
+   "fieldname": "other_amount_2",
+   "fieldtype": "Float",
+   "label": "Other Amount 2"
+  },
+  {
+   "fieldname": "other_amount_3",
+   "fieldtype": "Float",
+   "label": "Other Amount 3"
+  },
+  {
+   "fieldname": "section_break_services",
+   "fieldtype": "Section Break",
+   "label": "Services / Pink Prescription"
+  },
+  {
+   "fieldname": "charge_yn",
+   "fieldtype": "Data",
+   "label": "Charge YN"
+  },
+  {
+   "fieldname": "total_services_charges",
+   "fieldtype": "Float",
+   "label": "Total Services Charges"
+  },
+  {
+   "fieldname": "only_services_charges",
+   "fieldtype": "Float",
+   "label": "Only Services Charges"
+  },
+  {
+   "fieldname": "services_charges_percentage",
+   "fieldtype": "Float",
+   "label": "Services Charges %"
+  },
+  {
+   "fieldname": "column_break_pink",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "pink_presc_num",
+   "fieldtype": "Data",
+   "label": "Pink Presc Num"
+  },
+  {
+   "fieldname": "is_pink_presc_charge",
+   "fieldtype": "Data",
+   "label": "Is Pink Presc Charge"
+  },
+  {
+   "fieldname": "pink_presc_amt",
+   "fieldtype": "Float",
+   "label": "Pink Presc Amt"
+  },
+  {
+   "fieldname": "section_break_branch",
+   "fieldtype": "Section Break",
+   "label": "Branch Transfer / Return"
+  },
+  {
+   "fieldname": "from_branch",
+   "fieldtype": "Link",
+   "label": "From Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "to_branch",
+   "fieldtype": "Link",
+   "label": "To Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "to_branch_num",
+   "fieldtype": "Data",
+   "label": "To Branch Num"
+  },
+  {
+   "fieldname": "column_break_return",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_trans_num",
+   "fieldtype": "Data",
+   "label": "Return Trans Num"
+  },
+  {
+   "fieldname": "link_grn_num",
+   "fieldtype": "Data",
+   "label": "Link GRN Num"
+  },
+  {
+   "fieldname": "is_return_slr_srv_charges",
+   "fieldtype": "Data",
+   "label": "Is Return SLR Srv Charges"
+  },
+  {
+   "fieldname": "section_break_remarks",
+   "fieldtype": "Section Break",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "trans_remarks",
+   "fieldtype": "Small Text",
+   "label": "Trans Remarks"
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Items"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Legacy Sales Transaction Item"
+  },
+  {
+   "fieldname": "section_break_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit"
+  },
+  {
+   "description": "From CR_DATE",
+   "fieldname": "date_created",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Date Created"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "column_break_up",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  },
+  {
+   "fieldname": "column_break_ap",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "ap_id",
+   "fieldtype": "Data",
+   "label": "AP ID"
+  },
+  {
+   "fieldname": "ap_date",
+   "fieldtype": "Data",
+   "label": "AP Date"
+  },
+  {
+   "fieldname": "ck_id",
+   "fieldtype": "Data",
+   "label": "CK ID"
+  },
+  {
+   "fieldname": "ck_date",
+   "fieldtype": "Data",
+   "label": "CK Date"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-17 01:37:23.699240",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Legacy Sales Transactions",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "search_fields": "trans_no,patient,patient_name,visit_num,patient_visit",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "trans_no",
+ "track_changes": 1
+}

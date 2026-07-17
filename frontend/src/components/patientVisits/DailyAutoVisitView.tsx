@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { CalendarClock, ClipboardList, Settings, Eye, EyeOff, CalendarRange, X } from 'lucide-react'
+import { CalendarClock, ClipboardList, Settings, Eye, EyeOff, CalendarRange, X, Play } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { PatientVisitList } from './PatientVisitList'
 import { DailyPatientVisitSetupDetailPanel } from './DailyPatientVisitSetupDetailPanel'
 import { EditDailyPatientVisitSetupModal } from './EditDailyPatientVisitSetupModal'
@@ -10,13 +11,14 @@ import {
   fetchDailyPatientVisitSetups,
   stopDailyPatientVisitSetup,
   updateDailyPatientVisitSetup,
+  runDailyPatientVisitsBackfill,
   type DailyPatientVisitSetup,
   type DailyPatientVisitSetupServiceLine,
 } from '../../services/dailyPatientVisitSetup'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
-import { fetchIOPSessionTypes, type IOPSessionType } from '../../services/iop'
 import { SetupServicesEditor } from './SetupServicesEditor'
+import { InventoryBranchField } from '../nursingInventory/InventoryBranchField'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -78,6 +80,140 @@ function formatEntryDate(value?: string | null): string {
   }
 }
 
+const BackfillVisitsModal = ({
+  setupName,
+  setupLabel,
+  defaultFrom,
+  defaultTo,
+  onClose,
+  onDone,
+}: {
+  setupName?: string
+  setupLabel?: string
+  defaultFrom?: string
+  defaultTo?: string
+  onClose: () => void
+  onDone: () => void
+}) => {
+  const todayStr = new Date().toISOString().slice(0, 10)
+  const [fromDate, setFromDate] = useState(defaultFrom || todayStr)
+  const [toDate, setToDate] = useState(defaultTo || todayStr)
+  const [includeStopped, setIncludeStopped] = useState(!!setupName)
+  const [running, setRunning] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (!fromDate || !toDate) {
+      setError('From Date and To Date are required')
+      return
+    }
+    if (toDate < fromDate) {
+      setError('To Date cannot be before From Date')
+      return
+    }
+    try {
+      setRunning(true)
+      const result = await runDailyPatientVisitsBackfill({
+        fromDate,
+        toDate,
+        setupName,
+        includeStopped: setupName ? true : includeStopped,
+      })
+      toast.success(
+        `Backfill done: ${result.visits_created} visit(s) created` +
+          (result.visits_already_existed
+            ? `, ${result.visits_already_existed} already existed`
+            : '') +
+          (result.errors ? `, ${result.errors} error(s)` : ''),
+      )
+      if (result.errors) {
+        toast.error(`${result.errors} error(s) — check Error Log`)
+      }
+      onDone()
+      onClose()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Backfill failed'
+      setError(msg)
+      toast.error(msg)
+    } finally {
+      setRunning(false)
+    }
+  }
+
+  return (
+    <div className={CREATE_MODAL_OVERLAY}>
+      <div className={createModalShellClass('max-w-md w-full')}>
+        <CreateModalHeader
+          title="Run Daily Auto Visits"
+          subtitle={
+            setupLabel
+              ? `Catch up missed visits for ${setupLabel}`
+              : 'Catch up missed visits for active setups in a date range'
+          }
+          icon={<Play className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
+          onClose={onClose}
+          alert={error}
+        />
+        <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+          <div className={`${CREATE_MODAL_BODY_GRADIENT} px-5 py-5 sm:px-6 space-y-4`}>
+            <p className="text-xs text-slate-600">
+              Creates Patient Visits (Daily Auto Visit) and sales orders for days in this range that
+              are missing. Existing visits are skipped (billing is still checked).
+            </p>
+            <div>
+              <label className={MODAL_LABEL_CLASS}>
+                From Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={fromDate}
+                max={todayStr}
+                onChange={(e) => setFromDate(e.target.value)}
+                className={MODAL_FIELD_CLASS}
+                required
+              />
+            </div>
+            <div>
+              <label className={MODAL_LABEL_CLASS}>
+                To Date <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="date"
+                value={toDate}
+                max={todayStr}
+                onChange={(e) => setToDate(e.target.value)}
+                className={MODAL_FIELD_CLASS}
+                required
+              />
+            </div>
+            {!setupName && (
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={includeStopped}
+                  onChange={(e) => setIncludeStopped(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Include stopped setups
+              </label>
+            )}
+          </div>
+          <CreateModalFooter>
+            <button type="button" onClick={onClose} className={CM_BTN_CANCEL} disabled={running}>
+              Cancel
+            </button>
+            <button type="submit" disabled={running} className={CM_BTN_PRIMARY}>
+              {running ? 'Running…' : 'Run backfill'}
+            </button>
+          </CreateModalFooter>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 const CreateSetupModal = ({
   patient: initialPatient,
   onClose,
@@ -87,6 +223,7 @@ const CreateSetupModal = ({
   onClose: () => void
   onCreated: () => void
 }) => {
+  const { userCostCenter } = useCareContext()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [form, setForm] = useState<DailyPatientVisitSetup>({
@@ -95,6 +232,7 @@ const CreateSetupModal = ({
     to_date: '',
     time: '',
     practioner: '',
+    branch: userCostCenter || '',
     is_active: true,
     amount: 0,
     services: [{ session: '', amount: 0 }],
@@ -108,11 +246,15 @@ const CreateSetupModal = ({
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
 
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
-
   const containerRef = useRef<HTMLDivElement>(null)
 
   const update = (patch: Partial<DailyPatientVisitSetup>) => setForm((prev) => ({ ...prev, ...patch }))
+
+  useEffect(() => {
+    if (userCostCenter) {
+      update({ branch: userCostCenter })
+    }
+  }, [userCostCenter])
 
   useEffect(() => {
     if (!initialPatient) return
@@ -175,10 +317,6 @@ const CreateSetupModal = ({
   }, [doctorOpen, doctorQuery])
 
   useEffect(() => {
-    fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
-  }, [])
-
-  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setPatientOpen(false)
@@ -192,8 +330,12 @@ const CreateSetupModal = ({
   const submit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!form.patient || !form.from_date || !form.to_date || !form.time) {
-      setError('Patient, Start Date, End Date and Time are required')
+    if (!form.patient || !form.from_date) {
+      setError('Patient and Start Date are required')
+      return
+    }
+    if (!form.branch) {
+      setError('Please select a branch from the top navbar')
       return
     }
     try {
@@ -201,10 +343,13 @@ const CreateSetupModal = ({
       const services = (form.services || []).filter((line) => line.session || line.amount)
       const payload = {
         ...form,
+        branch: form.branch || userCostCenter || null,
+        to_date: form.to_date || null,
+        time: form.time || null,
         services,
         amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
       }
-      await createDailyPatientVisitSetup(payload)
+      await createDailyPatientVisitSetup(payload as DailyPatientVisitSetup)
       toast.success('Daily Patient Visit Setup created')
       onCreated()
       onClose()
@@ -325,28 +470,28 @@ const CreateSetupModal = ({
                   />
                 </div>
                 <div>
-                  <label className={MODAL_LABEL_CLASS}>
-                    End Date <span className="text-red-500">*</span>
-                  </label>
+                  <label className={MODAL_LABEL_CLASS}>End Date</label>
                   <input
                     type="date"
-                    value={form.to_date}
+                    value={form.to_date || ''}
                     onChange={(e) => update({ to_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}
-                    required
                   />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Leave blank to keep running daily while Active.
+                  </p>
                 </div>
                 <div>
-                  <label className={MODAL_LABEL_CLASS}>
-                    Time <span className="text-red-500">*</span>
-                  </label>
+                  <label className={MODAL_LABEL_CLASS}>Time</label>
                   <input
                     type="time"
-                    value={form.time}
+                    value={form.time || ''}
                     onChange={(e) => update({ time: e.target.value })}
                     className={MODAL_FIELD_CLASS}
-                    required
                   />
+                </div>
+                <div className="md:col-span-2">
+                  <InventoryBranchField costCenter={form.branch || userCostCenter || ''} />
                 </div>
               </div>
             </section>
@@ -361,8 +506,6 @@ const CreateSetupModal = ({
                     amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
                   })
                 }
-                sessionTypes={sessionTypes}
-                onSessionTypesUpdated={setSessionTypes}
               />
               <div className="mt-4">
                 <label className="inline-flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-900 cursor-pointer">
@@ -378,7 +521,7 @@ const CreateSetupModal = ({
             </section>
           </div>
 
-          <CreateModalFooter hint="Visits are created automatically at 12:01 AM while active.">
+          <CreateModalFooter hint="Visits are created automatically at 12:01 AM while active. No end date means it keeps running until stopped.">
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
@@ -393,20 +536,26 @@ const CreateSetupModal = ({
 }
 
 export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
+  const { userCostCenter } = useCareContext()
   const [activeTab, setActiveTab] = useState<TabId>('setups')
   const [setups, setSetups] = useState<DailyPatientVisitSetup[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [showCreate, setShowCreate] = useState(false)
+  const [backfillTarget, setBackfillTarget] = useState<{
+    setupName?: string
+    setupLabel?: string
+    defaultFrom?: string
+    defaultTo?: string
+  } | null>(null)
   const [stopping, setStopping] = useState<string | null>(null)
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
   const [detailSetup, setDetailSetup] = useState<DailyPatientVisitSetup | null>(null)
   const [editSetupName, setEditSetupName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [toggling, setToggling] = useState<string | null>(null)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'stopped'>('all')
+  const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'stopped'>('active')
   const menuRef = useRef<HTMLDivElement>(null)
 
   const activeCount = useMemo(() => setups.filter((s) => !!s.is_active).length, [setups])
@@ -427,12 +576,16 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
     })
   }, [setups, statusFilter, fromDate, toDate])
 
-  const filtersActive = !!(fromDate || toDate || statusFilter !== 'all')
+  const filtersActive = !!(fromDate || toDate || statusFilter !== 'active')
 
   const loadSetups = async () => {
     try {
       setLoading(true)
-      const rows = await fetchDailyPatientVisitSetups(patient || undefined, false)
+      const rows = await fetchDailyPatientVisitSetups(
+        patient || undefined,
+        false,
+        userCostCenter || undefined
+      )
       setSetups(rows)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load daily auto visit setups')
@@ -443,11 +596,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
 
   useEffect(() => {
     loadSetups()
-  }, [patient, refreshKey])
-
-  useEffect(() => {
-    fetchIOPSessionTypes().then(setSessionTypes).catch(() => setSessionTypes([]))
-  }, [])
+  }, [patient, refreshKey, userCostCenter])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -541,14 +690,30 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                 {filtersActive && ` · Showing ${filteredSetups.length} of ${setups.length}`}
               </p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowCreate(true)}
-              className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base font-bold shadow-md shadow-emerald-600/25 hover:from-emerald-500 hover:to-teal-500"
-              title="Create Daily Patient Visit Setup"
-            >
-              +
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setBackfillTarget({
+                    defaultFrom: fromDate || undefined,
+                    defaultTo: toDate || undefined,
+                  })
+                }
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-medium text-emerald-800 shadow-sm hover:bg-emerald-50"
+                title="Create missed Daily Auto Visits for a date range"
+              >
+                <Play className="h-3.5 w-3.5" />
+                Run for dates
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="w-8 h-8 rounded-full bg-gradient-to-r from-emerald-600 to-teal-600 text-white flex items-center justify-center text-base font-bold shadow-md shadow-emerald-600/25 hover:from-emerald-500 hover:to-teal-500"
+                title="Create Daily Patient Visit Setup"
+              >
+                +
+              </button>
+            </div>
           </div>
 
           <div className="mb-3 flex flex-wrap items-end gap-3 rounded-lg border border-slate-200 bg-slate-50/70 px-3 py-2.5">
@@ -594,7 +759,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                 onClick={() => {
                   setFromDate('')
                   setToDate('')
-                  setStatusFilter('all')
+                  setStatusFilter('active')
                 }}
                 className="inline-flex h-8 items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 text-sm text-slate-600 hover:bg-slate-100"
               >
@@ -619,6 +784,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">File No.</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient Name</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                     <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Start Date</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">End Date</th>
@@ -648,9 +814,14 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                         </span>
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">{row.practitioner_name || row.practioner || '—'}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{(row.amount || 0).toFixed(2)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={row.branch || undefined}>
+                        {row.branch || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-slate-700 text-right">{(row.amount || 0).toFixed(3)}</td>
                       <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{formatSetupDate(row.from_date)}</td>
-                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{formatSetupDate(row.to_date)}</td>
+                      <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                        {row.to_date ? formatSetupDate(row.to_date) : 'Open-ended'}
+                      </td>
                       <td className="px-4 py-3 text-sm">
                         <span
                           className={`inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium ${
@@ -705,6 +876,21 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
                             </button>
                             <button
                               type="button"
+                              onClick={() => {
+                                setBackfillTarget({
+                                  setupName: row.name,
+                                  setupLabel: row.patient_name || row.patient || row.name,
+                                  defaultFrom: row.from_date || undefined,
+                                  defaultTo: row.to_date || undefined,
+                                })
+                                setOpenActionRow(null)
+                              }}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Run for dates…
+                            </button>
+                            <button
+                              type="button"
                               disabled={!row.is_active || stopping === row.name}
                               onClick={() => stopSetup(row.name)}
                               className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
@@ -747,6 +933,17 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
         />
       )}
 
+      {backfillTarget && (
+        <BackfillVisitsModal
+          setupName={backfillTarget.setupName}
+          setupLabel={backfillTarget.setupLabel}
+          defaultFrom={backfillTarget.defaultFrom}
+          defaultTo={backfillTarget.defaultTo}
+          onClose={() => setBackfillTarget(null)}
+          onDone={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
+
       {editSetupName && (
         <EditDailyPatientVisitSetupModal
           setupName={editSetupName}
@@ -762,7 +959,6 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
       {detailSetup && (
         <DailyPatientVisitSetupDetailPanel
           row={detailSetup}
-          sessionTypes={sessionTypes}
           onClose={() => setDetailSetup(null)}
         />
       )}

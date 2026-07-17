@@ -636,7 +636,7 @@ import {
   type CardMetaField,
 } from '../ui/dashboardCardListing'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
 import {
   fetchPractitionerAppointments,
   fetchAllAppointments,
@@ -726,10 +726,12 @@ interface LeaveDetails {
   status: string
   from_date: string
   to_date: string
+  remarks?: string
 }
 
 interface AvailabilityResponse {
   available: boolean
+  reason?: 'unavailable' | 'leave' | string
   leave_details?: LeaveDetails
 }
 
@@ -781,8 +783,16 @@ const checkPractitionerAvailability = async (practitioner: string, date: string)
   }
 }
 
-// Tooltip component for leave information
-const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; children: React.ReactNode }) => {
+// Tooltip component for leave / unavailability information
+const LeaveTooltip = ({
+  leaveDetails,
+  reason,
+  children,
+}: {
+  leaveDetails?: LeaveDetails
+  reason?: string
+  children: ReactNode
+}) => {
   const [showTooltip, setShowTooltip] = useState(false)
   const tooltipRef = useRef<HTMLDivElement>(null)
 
@@ -791,33 +801,56 @@ const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; 
     return new Date(dateStr).toLocaleDateString('en-GB')
   }
 
+  const isUnavailability = reason === 'unavailable' || leaveDetails?.leave_type === 'Practitioner Unavailability'
+  const title = isUnavailability ? 'Doctor unavailable' : 'On Leave'
+
   return (
-    <div 
+    <div
       className="relative inline-block"
       onMouseEnter={() => setShowTooltip(true)}
       onMouseLeave={() => setShowTooltip(false)}
+      title={title}
     >
       {children}
       {showTooltip && (
         <>
-          {/* Arrow */}
-          <div 
-            className="absolute z-20 left-1/2 transform -translate-x-1/2 -bottom-2 
+          <div
+            className="absolute z-20 left-1/2 transform -translate-x-1/2 -bottom-2
                        w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-slate-800"
           />
-          {/* Tooltip content */}
-          <div 
+          <div
             ref={tooltipRef}
-            className="absolute z-20 left-1/2 transform -translate-x-1/2 mt-2 
-                        bg-red-200 rounded-lg shadow-xl p-3 min-w-[200px]"
+            className="absolute z-20 left-1/2 transform -translate-x-1/2 mt-2
+                        bg-slate-800 text-white rounded-lg shadow-xl p-3 min-w-[200px]"
             style={{ bottom: '100%', marginBottom: '8px' }}
           >
-            <div className="text-xs font-semibold text-red-300 mb-1">On Leave</div>
+            <div className="text-xs font-semibold text-red-300 mb-1">{title}</div>
             <div className="text-xs space-y-1">
-              <div><span className="text-slate-400">Leave Type:</span> {leaveDetails.leave_type}</div>
-              <div><span className="text-slate-400">Status:</span> {leaveDetails.status}</div>
-              <div><span className="text-slate-400">From:</span> {formatDate(leaveDetails.from_date)}</div>
-              <div><span className="text-slate-400">To:</span> {formatDate(leaveDetails.to_date)}</div>
+              {leaveDetails?.leave_type && (
+                <div>
+                  <span className="text-slate-400">Type:</span> {leaveDetails.leave_type}
+                </div>
+              )}
+              {leaveDetails?.status && (
+                <div>
+                  <span className="text-slate-400">Status:</span> {leaveDetails.status}
+                </div>
+              )}
+              {leaveDetails?.from_date && (
+                <div>
+                  <span className="text-slate-400">From:</span> {formatDate(leaveDetails.from_date)}
+                </div>
+              )}
+              {leaveDetails?.to_date && (
+                <div>
+                  <span className="text-slate-400">To:</span> {formatDate(leaveDetails.to_date)}
+                </div>
+              )}
+              {leaveDetails?.remarks && (
+                <div>
+                  <span className="text-slate-400">Remarks:</span> {leaveDetails.remarks}
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -827,16 +860,27 @@ const LeaveTooltip = ({ leaveDetails, children }: { leaveDetails: LeaveDetails; 
 }
 
 // Component to show practitioner status with red circle/dot for unavailable
-const PractitionerStatusIndicator = ({ available, leaveDetails }: { available: boolean; leaveDetails?: LeaveDetails }) => {
+const PractitionerStatusIndicator = ({
+  available,
+  leaveDetails,
+  reason,
+}: {
+  available: boolean
+  leaveDetails?: LeaveDetails
+  reason?: string
+}) => {
   if (!available) {
+    const isUnavailability = reason === 'unavailable' || leaveDetails?.leave_type === 'Practitioner Unavailability'
     return (
-      <LeaveTooltip leaveDetails={leaveDetails!}>
-        <div className="flex items-center gap-2 cursor-help">
+      <LeaveTooltip leaveDetails={leaveDetails} reason={reason}>
+        <div className="flex items-center gap-2 cursor-help" title="Doctor unavailable">
           <div className="relative">
             <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
             <div className="absolute inset-0 w-2.5 h-2.5 bg-red-500 rounded-full opacity-75 animate-ping" />
           </div>
-          <span className="text-sm text-red-600 font-medium">Not Available</span>
+          <span className="text-sm text-red-600 font-medium">
+            {isUnavailability ? 'Unavailable' : 'Not Available'}
+          </span>
         </div>
       </LeaveTooltip>
     )
@@ -847,6 +891,18 @@ const PractitionerStatusIndicator = ({ available, leaveDetails }: { available: b
       <span className="text-sm text-green-600">Available</span>
     </div>
   )
+}
+
+/** Strike-through + muted style when the booked doctor is on unavailability/leave. */
+function doctorUnavailableRowClass(isUnavailable: boolean, base = ''): string {
+  if (!isUnavailable) return base
+  return [
+    base,
+    'bg-red-50/70 text-slate-500',
+    '[&>td]:line-through [&>td]:decoration-red-400/80 [&>td:last-child]:no-underline',
+  ]
+    .filter(Boolean)
+    .join(' ')
 }
 
 export const AppointmentList = ({
@@ -1904,8 +1960,15 @@ export const AppointmentList = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {appointments.map((apt) => (
-                  <tr key={apt.name} className={dashboardCardRowHoverClass} onClick={() => setDetailApt(apt)}>
+                {appointments.map((apt) => {
+                  const unavailable = practitionerAvailability[apt.name]?.available === false
+                  return (
+                  <tr
+                    key={apt.name}
+                    className={doctorUnavailableRowClass(unavailable, dashboardCardRowHoverClass)}
+                    title={unavailable ? 'Doctor unavailable' : undefined}
+                    onClick={() => setDetailApt(apt)}
+                  >
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '—'}</td>
                     <td
                       className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
@@ -1947,7 +2010,8 @@ export const AppointmentList = ({
                     </td>
                     {renderActionsCell(apt)}
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           ) : cardCompactLayout ? (
@@ -2060,6 +2124,9 @@ export const AppointmentList = ({
                     Doctor Status
                   </th>
                 )}
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[10rem]">
+                  Remark
+                </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[4.5rem] sticky right-0 bg-slate-50 shadow-[-4px_0_6px_-2px_rgba(0,0,0,0.06)]">
                   Actions
                 </th>
@@ -2070,13 +2137,19 @@ export const AppointmentList = ({
                 const availabilityResponse = practitionerAvailability[apt.name]
                 const isAvailable = availabilityResponse?.available ?? true
                 const leaveDetails = availabilityResponse?.leave_details
+                const availabilityReason = availabilityResponse?.reason
                 const isLoadingAvailability = availabilityLoading[apt.name]
                 const showPractitionerStatus = showAll && apt.practitioner
-                
+                const doctorUnavailable = availabilityResponse?.available === false
+
                 return (
                   <tr
                     key={apt.name}
-                    className="group hover:bg-slate-50"
+                    className={doctorUnavailableRowClass(
+                      doctorUnavailable,
+                      'group hover:bg-slate-50'
+                    )}
+                    title={doctorUnavailable ? 'Doctor unavailable' : undefined}
                   >
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '-'}</td>
@@ -2123,7 +2196,11 @@ export const AppointmentList = ({
                               <span className="text-sm text-slate-400">Checking...</span>
                             </div>
                           ) : (
-                            <PractitionerStatusIndicator available={isAvailable} leaveDetails={leaveDetails} />
+                            <PractitionerStatusIndicator
+                              available={isAvailable}
+                              leaveDetails={leaveDetails}
+                              reason={availabilityReason}
+                            />
                           )
                         )}
                         {!apt.practitioner && (
@@ -2131,6 +2208,16 @@ export const AppointmentList = ({
                         )}
                       </td>
                     )}
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 max-w-[14rem]"
+                      title={apt.remarks || undefined}
+                    >
+                      {apt.remarks ? (
+                        <span className="line-clamp-2 whitespace-pre-wrap break-words">{apt.remarks}</span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
                     {renderActionsCell(apt)}
                   </tr>
                 )

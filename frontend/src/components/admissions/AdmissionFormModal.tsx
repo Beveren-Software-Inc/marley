@@ -498,11 +498,29 @@ export const AdmissionFormModal = ({
     ipCaseManagement: 0 as 0 | 1,
   })
   const [caseManagementTemplates, setCaseManagementTemplates] = useState<
-    Array<{ name: string; service_name?: string; rate: number }>
+    Array<{ name: string; service_name?: string; item_code?: string; rate: number }>
   >([])
   const [caseManagementTemplate, setCaseManagementTemplate] = useState('')
   const [caseManagementAmount, setCaseManagementAmount] = useState<number | null>(null)
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
+  const serviceDropdownRef = useRef<HTMLDivElement>(null)
   const [combineAdmissionAndCaseManagement, setCombineAdmissionAndCaseManagement] = useState(0)
+
+  const selectedCaseManagementService = useMemo(
+    () => caseManagementTemplates.find((t) => t.name === caseManagementTemplate) || null,
+    [caseManagementTemplates, caseManagementTemplate]
+  )
+
+  useEffect(() => {
+    if (!serviceDropdownOpen) return
+    const onDocClick = (e: MouseEvent) => {
+      if (serviceDropdownRef.current && !serviceDropdownRef.current.contains(e.target as Node)) {
+        setServiceDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', onDocClick)
+    return () => document.removeEventListener('mousedown', onDocClick)
+  }, [serviceDropdownOpen])
 
   // Admit defaults must come from the package program days — never the
   // admission's scheduled expected_length_of_stay / expected_discharge.
@@ -898,7 +916,7 @@ export const AdmissionFormModal = ({
       return
     }
     if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
-      setError(new Error('Select a Case Management service template on the Case Management tab'))
+      setError(new Error('Select an Admission Assessment Fee service template on the Admission Assessment Fee tab'))
       setActiveTab('case_management')
       return
     }
@@ -928,7 +946,7 @@ export const AdmissionFormModal = ({
       const includedCm = Boolean((result as any).case_management_included)
       toast.success(
         includedCm
-          ? 'Quotation drafted (admission + case management)'
+          ? 'Quotation drafted (admission + assessment fee)'
           : 'Quotation drafted for approval',
         4000
       )
@@ -948,7 +966,7 @@ export const AdmissionFormModal = ({
     }
 
     if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
-      setError(new Error('Select a Case Management service template'))
+      setError(new Error('Select an Admission Assessment Fee service template'))
       setActiveTab('case_management')
       return
     }
@@ -1021,7 +1039,7 @@ export const AdmissionFormModal = ({
 
   const tabs: { id: Tab; label: string; badge?: number }[] = [
     { id: 'admission', label: 'Admission Details' },
-    { id: 'case_management', label: 'Case Management' },
+    { id: 'case_management', label: 'Admission Assessment Fee' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
     { id: 'relatives', label: 'Relatives', badge: relatives.length || undefined },
   ]
@@ -1373,11 +1391,11 @@ export const AdmissionFormModal = ({
               </>
             )}
 
-            {/* ── TAB: CASE MANAGEMENT ── */}
+            {/* ── TAB: ADMISSION ASSESSMENT FEE ── */}
             {activeTab === 'case_management' && (
               <div className="space-y-5">
                 <YesNoField
-                  label="IP Case Management?"
+                  label="Admission Assessment Fee?"
                   value={formData.ipCaseManagement === 1 ? 'Yes' : 'No'}
                   onChange={(v) => {
                     const enabled = v === 'Yes'
@@ -1391,34 +1409,74 @@ export const AdmissionFormModal = ({
 
                 {formData.ipCaseManagement === 1 && (
                   <>
-                    <div>
+                    <div ref={serviceDropdownRef} className="relative">
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Healthcare Service Template <span className="text-red-500">*</span>
+                        Service <span className="text-red-500">*</span>
                       </label>
-                      <select
-                        value={caseManagementTemplate}
-                        onChange={(e) => {
-                          const name = e.target.value
-                          setCaseManagementTemplate(name)
-                          const selected = caseManagementTemplates.find((t) => t.name === name)
-                          setCaseManagementAmount(
-                            selected ? Number(selected.rate) || 0 : null
-                          )
-                        }}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                      <button
+                        type="button"
+                        onClick={() => setServiceDropdownOpen((o) => !o)}
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="">Select case management service…</option>
-                        {caseManagementTemplates.map((t) => (
-                          <option key={t.name} value={t.name}>
-                            {t.service_name || t.name}
-                            {t.rate != null ? ` — ${Number(t.rate).toLocaleString()} BHD` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      {caseManagementTemplates.length === 0 && (
-                        <p className="text-xs text-amber-700 mt-1">
-                          No templates found. Mark a Healthcare Service Template with “Is Case Management”.
-                        </p>
+                        {selectedCaseManagementService ? (
+                          <span className="block min-w-0">
+                            <span className="block font-medium text-slate-900 truncate">
+                              {selectedCaseManagementService.item_code ||
+                                selectedCaseManagementService.name}
+                            </span>
+                            {(selectedCaseManagementService.service_name ||
+                              selectedCaseManagementService.name) && (
+                              <span className="block text-xs text-slate-500 truncate">
+                                {selectedCaseManagementService.service_name ||
+                                  selectedCaseManagementService.name}
+                                {selectedCaseManagementService.rate != null
+                                  ? ` · ${Number(selectedCaseManagementService.rate).toLocaleString()} BHD`
+                                  : ''}
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-slate-400">Select service…</span>
+                        )}
+                      </button>
+                      {serviceDropdownOpen && (
+                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                          {caseManagementTemplates.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-amber-700">
+                              No templates found. Mark a Healthcare Service Template with “Is Case Management”.
+                            </div>
+                          ) : (
+                            caseManagementTemplates.map((t) => {
+                              const code = t.item_code || t.name
+                              const label = t.service_name || t.name
+                              const selected = caseManagementTemplate === t.name
+                              return (
+                                <button
+                                  key={t.name}
+                                  type="button"
+                                  onClick={() => {
+                                    setCaseManagementTemplate(t.name)
+                                    setCaseManagementAmount(Number(t.rate) || 0)
+                                    setServiceDropdownOpen(false)
+                                  }}
+                                  className={`w-full px-3 py-2 text-left hover:bg-emerald-50 ${
+                                    selected ? 'bg-emerald-50/80' : ''
+                                  }`}
+                                >
+                                  <span className="block text-sm font-medium text-slate-900 truncate">
+                                    {code}
+                                  </span>
+                                  <span className="block text-xs text-slate-500 truncate">
+                                    {label}
+                                    {t.rate != null
+                                      ? ` · ${Number(t.rate).toLocaleString()} BHD`
+                                      : ''}
+                                  </span>
+                                </button>
+                              )
+                            })
+                          )}
+                        </div>
                       )}
                     </div>
 
@@ -1438,13 +1496,13 @@ export const AdmissionFormModal = ({
                 <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600 space-y-1">
                   {combineAdmissionAndCaseManagement ? (
                     <p>
-                      Healthcare Settings: <strong>Combine Admission Fee and Case Management</strong> is on.
-                      Create Quotation will include case management on the same quotation. On admit, a Service Request is created (no separate Sales Order).
+                      Healthcare Settings: <strong>Combine Admission Fee and Admission Assessment Fee</strong> is on.
+                      Create Quotation will include the assessment fee on the same quotation. On admit, a Service Request is created (no separate Sales Order).
                     </p>
                   ) : (
                     <p>
                       Healthcare Settings: combine is off. Create Quotation is admission/package only.
-                      On admit, Case Management creates a Service Request that is billed with its own Sales Order.
+                      On admit, Admission Assessment Fee creates a Service Request that is billed with its own Sales Order.
                     </p>
                   )}
                 </div>

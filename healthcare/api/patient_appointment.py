@@ -662,43 +662,79 @@ def create_sales_order_from_appointment(appointment_name, create_sales_invoice=0
 
 @frappe.whitelist()
 def check_practitioner_availability(practitioner, date):
-    """
-    Check if a practitioner is available on a specific date.
-    Returns {'available': True/False, 'leave_details': {...} if on leave}
-    """
-    try:
-        # Get the employee linked to this healthcare practitioner
-        employee = frappe.db.get_value('Healthcare Practitioner', practitioner, 'employee')
-        
-        if not employee:
-            # No employee linked, assume available
-            return {'available': True}
-        
-        # Check if there's any leave application for this employee on the given date
-        # with status 'Approved' or 'Open'
-        leave_exists = frappe.db.exists('Leave Application', {
-            'employee': employee,
-            'from_date': ('<=', date),
-            'to_date': ('>=', date),
-            'status': ['in', ['Approved', 'Open']]
-        })
-        
-        if leave_exists:
-            leave_record = frappe.db.get_value('Leave Application', leave_exists, 
-                ['leave_type', 'status', 'from_date', 'to_date'], as_dict=True)
-            return {
-                'available': False,
-                'leave_details': {
-                    'leave_type': leave_record.get('leave_type') if leave_record else 'Unknown',
-                    'status': leave_record.get('status') if leave_record else 'Approved',
-                    'from_date': leave_record.get('from_date') if leave_record else date,
-                    'to_date': leave_record.get('to_date') if leave_record else date
-                }
-            }
-        
-        return {'available': True}
-        
-    except Exception as e:
-        frappe.log_error(f"Error checking practitioner availability: {str(e)}", "Appointment List")
-        # Default to available if there's an error
-        return {'available': True}
+	"""
+	Check if a practitioner is available on a specific date.
+	Considers Practitioner Unavailability (reception holds) and Leave Application.
+	Returns {'available': True/False, 'reason': '...', 'leave_details': {...} if unavailable}
+	"""
+	try:
+		if not practitioner or not date:
+			return {"available": True}
+
+		# Reception-booked unavailability / leave hold (active = is_cancel 0)
+		unavail_name = frappe.db.exists(
+			"Practitioner Unavailability",
+			{
+				"doctor_id": practitioner,
+				"start_date": ("<=", date),
+				"end_date": (">=", date),
+				"is_cancel": 0,
+			},
+		)
+		if unavail_name:
+			row = frappe.db.get_value(
+				"Practitioner Unavailability",
+				unavail_name,
+				["start_date", "end_date", "any_remarks", "is_cancel"],
+				as_dict=True,
+			) or {}
+			return {
+				"available": False,
+				"reason": "unavailable",
+				"leave_details": {
+					"leave_type": "Practitioner Unavailability",
+					"status": "Unavailable",
+					"from_date": row.get("start_date") or date,
+					"to_date": row.get("end_date") or date,
+					"remarks": (row.get("any_remarks") or "").strip(),
+				},
+			}
+
+		# HR Leave Application (employee-linked)
+		employee = frappe.db.get_value("Healthcare Practitioner", practitioner, "employee")
+		if not employee:
+			return {"available": True}
+
+		leave_exists = frappe.db.exists(
+			"Leave Application",
+			{
+				"employee": employee,
+				"from_date": ("<=", date),
+				"to_date": (">=", date),
+				"status": ["in", ["Approved", "Open"]],
+			},
+		)
+
+		if leave_exists:
+			leave_record = frappe.db.get_value(
+				"Leave Application",
+				leave_exists,
+				["leave_type", "status", "from_date", "to_date"],
+				as_dict=True,
+			)
+			return {
+				"available": False,
+				"reason": "leave",
+				"leave_details": {
+					"leave_type": leave_record.get("leave_type") if leave_record else "Unknown",
+					"status": leave_record.get("status") if leave_record else "Approved",
+					"from_date": leave_record.get("from_date") if leave_record else date,
+					"to_date": leave_record.get("to_date") if leave_record else date,
+				},
+			}
+
+		return {"available": True}
+
+	except Exception as e:
+		frappe.log_error(f"Error checking practitioner availability: {str(e)}", "Appointment List")
+		return {"available": True}

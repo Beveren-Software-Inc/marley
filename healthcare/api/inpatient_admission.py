@@ -2661,15 +2661,23 @@ def _create_case_management_service_request(admission, template_name, amount=Non
 def get_case_management_templates(search=None, limit=50):
 	"""Healthcare Service Templates marked as Case Management (IP rate)."""
 	filters = {"disabled": 0, "is_case_management": 1}
+	or_filters = None
 	if search:
-		filters["service_name"] = ["like", f"%{search}%"]
+		term = f"%{search}%"
+		or_filters = [
+			["service_name", "like", term],
+			["item_code", "like", term],
+			["name", "like", term],
+		]
+		filters = {"disabled": 0, "is_case_management": 1}
 
 	rows = frappe.get_all(
 		"Healthcare Service Template",
 		filters=filters,
+		or_filters=or_filters,
 		fields=["name", "service_name", "item_code", "rate", "op_rate"],
 		limit=cint(limit) or 50,
-		order_by="service_name",
+		order_by="item_code, service_name",
 	)
 	for row in rows:
 		row["rate"] = _get_case_management_ip_rate(row.name)
