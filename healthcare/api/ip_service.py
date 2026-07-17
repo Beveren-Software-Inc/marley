@@ -484,19 +484,24 @@ def get_ip_service_types(limit=50, search=None, is_ect=None, patient_care_type=N
 
     filters = {"disabled": 0}
 
-    if search:
-        filters["service_name"] = ["like", f"%{search}%"]
-
     if frappe.utils.cint(is_ect):
         filters["is_ect"] = 1
 
-    types = frappe.get_all(
-        "Healthcare Service Template",
-        filters=filters,
-        fields=["name", "service_name", "category", "rate", "op_rate"],
-        limit=limit,
-        order_by="service_name"
-    )
+    query_kwargs = {
+        "filters": filters,
+        "fields": ["name", "service_name", "category", "rate", "op_rate"],
+        "limit": limit,
+        "order_by": "service_name",
+    }
+
+    if search:
+        term = f"%{search}%"
+        query_kwargs["or_filters"] = [
+            ["service_name", "like", term],
+            ["name", "like", term],
+        ]
+
+    types = frappe.get_all("Healthcare Service Template", **query_kwargs)
 
     for row in types:
         row["rate"] = get_healthcare_service_template_rate(

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { CalendarClock } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 import {
   fetchDailyPatientVisitSetup,
   updateDailyPatientVisitSetup,
@@ -10,8 +11,8 @@ import {
 } from '../../services/dailyPatientVisitSetup'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { fetchIOPSessionTypes, type IOPSessionType } from '../../services/iop'
 import { SetupServicesEditor } from './SetupServicesEditor'
+import { InventoryBranchField } from '../nursingInventory/InventoryBranchField'
 import {
   CM_BTN_CANCEL,
   CM_BTN_PRIMARY,
@@ -42,6 +43,7 @@ export const EditDailyPatientVisitSetupModal = ({
   onClose,
   onSaved,
 }: EditDailyPatientVisitSetupModalProps) => {
+  const { userCostCenter } = useCareContext()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -55,7 +57,6 @@ export const EditDailyPatientVisitSetupModal = ({
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
 
-  const [sessionTypes, setSessionTypes] = useState<IOPSessionType[]>([])
   const containerRef = useRef<HTMLDivElement>(null)
 
   const update = (patch: Partial<DailyPatientVisitSetup>) =>
@@ -64,19 +65,21 @@ export const EditDailyPatientVisitSetupModal = ({
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    Promise.all([fetchDailyPatientVisitSetup(setupName), fetchIOPSessionTypes()])
-      .then(([setup, types]) => {
+    fetchDailyPatientVisitSetup(setupName)
+      .then((setup) => {
         if (cancelled) return
         const services = normalizeSetupServices(setup)
         setForm({
           ...setup,
           is_active: !!setup.is_active,
+          to_date: setup.to_date || '',
+          time: setup.time || '',
+          branch: setup.branch || userCostCenter || '',
           services,
           amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
         })
         setPatientQuery(setup.patient_name || setup.patient || '')
         setDoctorQuery(setup.practitioner_name || setup.practioner || '')
-        setSessionTypes(types)
       })
       .catch((err) => {
         if (!cancelled) {
@@ -133,8 +136,8 @@ export const EditDailyPatientVisitSetupModal = ({
     e.preventDefault()
     if (!form?.name) return
     setError(null)
-    if (!form.patient || !form.from_date || !form.to_date || !form.time) {
-      setError('Patient, Start Date, End Date and Time are required')
+    if (!form.patient || !form.from_date) {
+      setError('Patient and Start Date are required')
       return
     }
     try {
@@ -144,8 +147,9 @@ export const EditDailyPatientVisitSetupModal = ({
         patient: form.patient,
         practioner: form.practioner,
         from_date: form.from_date,
-        to_date: form.to_date,
-        time: form.time,
+        to_date: form.to_date || null,
+        time: form.time || null,
+        branch: form.branch || userCostCenter || null,
         services,
         is_active: form.is_active,
       })
@@ -279,27 +283,30 @@ export const EditDailyPatientVisitSetupModal = ({
                   />
                 </div>
                 <div>
-                  <label className={MODAL_LABEL_CLASS}>
-                    End Date <span className="text-red-500">*</span>
-                  </label>
+                  <label className={MODAL_LABEL_CLASS}>End Date</label>
                   <input
                     type="date"
-                    value={form.to_date}
+                    value={form.to_date || ''}
                     onChange={(e) => update({ to_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}
-                    required
                   />
+                  <p className="mt-1 text-[11px] text-slate-500">
+                    Leave blank to keep running daily while Active.
+                  </p>
                 </div>
                 <div>
-                  <label className={MODAL_LABEL_CLASS}>
-                    Time <span className="text-red-500">*</span>
-                  </label>
+                  <label className={MODAL_LABEL_CLASS}>Time</label>
                   <input
                     type="time"
-                    value={form.time}
+                    value={form.time || ''}
                     onChange={(e) => update({ time: e.target.value })}
                     className={MODAL_FIELD_CLASS}
-                    required
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <InventoryBranchField
+                    value={form.branch || ''}
+                    costCenter={form.branch || userCostCenter || ''}
                   />
                 </div>
               </div>
@@ -315,8 +322,6 @@ export const EditDailyPatientVisitSetupModal = ({
                     amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
                   })
                 }
-                sessionTypes={sessionTypes}
-                onSessionTypesUpdated={setSessionTypes}
               />
               <div className="mt-4">
                 <label className="inline-flex items-center gap-2.5 rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-2.5 text-sm text-emerald-900 cursor-pointer">

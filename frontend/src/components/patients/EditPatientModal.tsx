@@ -24,11 +24,11 @@ import { CreateLeadSourceModal } from './CreateLeadSourceModal'
 import { CreateNationalityModal } from './CreateNationalityModal'
 import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
-import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
+import { PatientDocumentAttachmentPreview, printPatientDocument } from '../ui/PatientDocumentAttachmentPreview'
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
-import { PenLine, Trash2, Check, X, Upload, Download, RefreshCw, Loader2 } from 'lucide-react'
+import { PenLine, Trash2, Check, X, Upload, Download, Printer, RefreshCw, Loader2 } from 'lucide-react'
 
 // ─── Signature Pad Component (same as CreatePatientModal) ───────────────────
 
@@ -1440,6 +1440,14 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                             >
                               <Download className="w-4 h-4" />
                             </a>
+                            <button
+                              type="button"
+                              onClick={() => printPatientDocument(value, label, { asImage: true })}
+                              className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+                              title={`Print ${label}`}
+                            >
+                              <Printer className="w-4 h-4" />
+                            </button>
                             <button
                               type="button"
                               onClick={() => setValue('')}

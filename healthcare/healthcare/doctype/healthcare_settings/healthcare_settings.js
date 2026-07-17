@@ -1059,6 +1059,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Patient CPR Photos — Local Folder'), () => {
+			open_patient_cpr_folder_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient Allergies — PATIENT_INFO_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Patient Allergies (PATIENT_INFO_01)'),
@@ -2098,6 +2102,92 @@ frappe.ui.form.on('Healthcare Settings', {
 							result.errors || 0,
 						]
 					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Legacy Sales — SALES_DATA_MASTER'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Legacy Sales Transactions (SALES_DATA_MASTER)'),
+				preview_method: 'healthcare.api.legacy_sales_master_import.preview_legacy_sales_master_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_legacy_sales_master_import_migration',
+				job_key: 'legacy_sales_master_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Legacy Sales Transactions from SALES_DATA_MASTER?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Raw rows: {1}\n'
+							+ 'Unique TRANS_NUM rows: {2}\n'
+							+ 'Existing (will update): {3}\n'
+							+ 'New: {4}\n'
+							+ 'Sample resolve checks (first {5} rows):\n'
+							+ '  Visits resolved: {6}\n'
+							+ '  Patients from visit: {7}\n'
+							+ '  Admissions resolved: {8}\n'
+							+ '  Branches mapped: {9}\n\n'
+							+ 'Mapping: TRANS_NUM → Trans No (ID), VISIT_NUM → Patient Visit '
+							+ '(patient + patient name from visit), ADMISSION_NUM → Admission, '
+							+ 'BRANCH_NUM → Cost Center (1=Serene Hospital, 2=Serene Center, 8=Jau Hospital), '
+							+ 'CR_DATE → Date Created. Item lines are imported separately from DETAILS.\n'
+							+ 'Sample TRANS_NUM: {10}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.raw_excel_rows || counts.excel_rows || 0,
+							counts.excel_rows || 0,
+							counts.existing_records || 0,
+							counts.new_records || 0,
+							counts.sample_size || 0,
+							counts.resolved_visits || 0,
+							counts.resolved_patients || 0,
+							counts.resolved_admissions || 0,
+							counts.resolved_branches || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Legacy Sales Detail — SALES_DATA_DETAILS'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Legacy Sales Detail (SALES_DATA_DETAILS)'),
+				preview_method:
+					'healthcare.api.legacy_sales_detail_import.preview_legacy_sales_detail_import',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_legacy_sales_detail_import_migration',
+				job_key: 'legacy_sales_detail_import',
+				freeze_message: __('Reading Excel…'),
+				build_confirm_message: (counts) => {
+					const sheetLines = Object.entries(counts.sheet_row_counts || {})
+						.map(([name, n]) => `${name}: ${n}`)
+						.join('\n');
+					return __(
+						'Import Legacy Sales item lines from SALES_DATA_DETAILS?\n\n'
+							+ 'Sheets read:\n{0}\n'
+							+ 'Detail rows: {1}\n'
+							+ 'Distinct TRANS_NUM: {2}\n'
+							+ 'Parents already imported (master): {3}\n'
+							+ 'Missing parents (lines skipped until master upload): {4}\n'
+							+ 'ITEM_NUM resolved to ITEM_00_01 (sample of {5}): {6}\n\n'
+							+ 'Upload master (SALES_DATA_MASTER) first. Lines append to the Items child table '
+							+ 'by TRANS_NUM + SR_NUM. ITEM_NUM links to legacy ITEM_00_01 (not ERP Item).\n'
+							+ 'Sample TRANS_NUM: {7}\n\nContinue?',
+						[
+							sheetLines || __('(none)'),
+							counts.excel_rows || 0,
+							counts.transactions || 0,
+							counts.linked_parents || 0,
+							counts.missing_parents || 0,
+							counts.sample_size || 0,
+							counts.resolved_items || 0,
+							(counts.sample_trans_nos || []).join(', ') || __('(none)'),
+						]
+					);
+				},
 			});
 		}, __('Direct Upload'));
 
@@ -3362,6 +3452,329 @@ function show_patient_appointment_import_analysis(res, file_url) {
 			.find('[data-create-missing-appointments]')
 			.on('click', () => create_missing_patient_appointments(file_url, res, dialog));
 	}
+}
+
+function open_patient_cpr_folder_upload() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Import Patient CPR Photos'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select a folder or multiple image files from your computer. '
+						+ 'Filenames must include the patient File No and CPR side, e.g. '
+						+ '<code>861343-PHOTO_CPR_FRONT.jpg</code> and '
+						+ '<code>861343-PHOTO_CPR_BACK.jpg</code>.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'replace_existing',
+				label: __('Replace existing CPR images on patient records'),
+				default: 1,
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No files selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Import'),
+		primary_action() {
+			if (!dialog._cpr_upload_items || !dialog._cpr_upload_items.length) {
+				frappe.msgprint({
+					title: __('No files'),
+					message: __('Select a folder or files first.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const replace_existing = dialog.get_value('replace_existing') ? 1 : 0;
+			frappe.confirm(
+				__(
+					'Import {0} CPR image(s) to patient records?\n\n'
+						+ 'Front: {1}\n'
+						+ 'Back: {2}\n'
+						+ 'Patients found: {3}\n'
+						+ 'Patients missing: {4}\n\nContinue?',
+					[
+						dialog._cpr_upload_items.length,
+						dialog._cpr_preview_counts?.front_images || 0,
+						dialog._cpr_preview_counts?.back_images || 0,
+						dialog._cpr_preview_counts?.patients_found || 0,
+						dialog._cpr_preview_counts?.patients_missing || 0,
+					]
+				),
+				() => start_patient_cpr_photo_import(dialog, replace_existing)
+			);
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_patient_cpr_files(dialog, true))
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Files'))
+			.on('click', () => pick_patient_cpr_files(dialog, false))
+	);
+
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+}
+
+function pick_patient_cpr_files(dialog, use_folder) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'image/*';
+	if (use_folder) {
+		input.setAttribute('webkitdirectory', '');
+		input.setAttribute('directory', '');
+	}
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) {
+			return;
+		}
+		preview_and_upload_patient_cpr_files(dialog, files);
+	};
+	input.click();
+}
+
+function preview_and_upload_patient_cpr_files(dialog, files) {
+	const filenames = files.map((file) => {
+		const path = file.webkitRelativePath || file.name || '';
+		return path.replace(/\\/g, '/').split('/').pop();
+	});
+
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Checking filenames…') + '</p>'
+	);
+	dialog.fields_dict.progress_html.$wrapper.html('');
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog._cpr_upload_items = null;
+	dialog._cpr_preview_counts = null;
+
+	frappe.call({
+		method: 'healthcare.api.patient_cpr_photo_import.preview_patient_cpr_photo_filenames',
+		args: { filenames },
+		freeze: true,
+		freeze_message: __('Analyzing filenames…'),
+		callback(r) {
+			const counts = r.message || {};
+			dialog._cpr_preview_counts = counts;
+			const missing = (counts.sample_missing_file_nos || []).join(', ') || __('(none)');
+			dialog.fields_dict.preview_html.$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Files selected') + ':</strong> ' + files.length + '</p>'
+					+ '<p><strong>' + __('CPR front images') + ':</strong> ' + (counts.front_images || 0) + '</p>'
+					+ '<p><strong>' + __('CPR back images') + ':</strong> ' + (counts.back_images || 0) + '</p>'
+					+ '<p><strong>' + __('Invalid / skipped filenames') + ':</strong> ' + (counts.invalid_filenames || 0) + '</p>'
+					+ '<p><strong>' + __('Patients found') + ':</strong> ' + (counts.patients_found || 0) + '</p>'
+					+ '<p><strong>' + __('Patients missing') + ':</strong> ' + (counts.patients_missing || 0) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample missing File Nos') + ':</strong> ' + frappe.utils.escape_html(missing) + '</p>'
+					+ '</div>'
+			);
+
+			if (!counts.front_images && !counts.back_images) {
+				frappe.msgprint({
+					title: __('No CPR images found'),
+					message: __('No filenames matched the expected pattern (e.g. 861343-PHOTO_CPR_FRONT.jpg).'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			upload_patient_cpr_files_sequential(dialog, files);
+		},
+	});
+}
+
+function upload_patient_cpr_files_sequential(dialog, files) {
+	const valid_files = files.filter((file) => {
+		const name = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop().toUpperCase();
+		return name.includes('CPR') && (name.includes('FRONT') || name.includes('BACK'));
+	});
+
+	if (!valid_files.length) {
+		frappe.msgprint({
+			title: __('No CPR images'),
+			message: __('No image files matched CPR FRONT/BACK naming.'),
+			indicator: 'orange',
+		});
+		return;
+	}
+
+	const items = [];
+	const failed = [];
+	let index = 0;
+
+	const render_progress = () => {
+		const pct = Math.round((index / valid_files.length) * 100);
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+				+ __('Uploading {0} of {1} ({2}%)…', [index, valid_files.length, pct])
+				+ '</p>'
+		);
+	};
+
+	const render_upload_summary = () => {
+		dialog._cpr_upload_items = items;
+		const failed_list = failed
+			.map((entry) => {
+				const sizeInfo = entry.before ? ` (${frappe.utils.escape_html(entry.before)})` : '';
+				const reason = entry.reason
+					? ` - ${frappe.utils.escape_html(entry.reason)}`
+					: '';
+				return `${frappe.utils.escape_html(entry.filename)}${sizeInfo}${reason}`;
+			})
+			.join('<br>');
+		let html = '';
+		if (failed.length) {
+			html += '<p class="text-orange small"><strong>'
+				+ __('{0} of {1} uploaded. {2} failed — those patients will not be updated unless you retry.', [
+					items.length,
+					valid_files.length,
+					failed.length,
+				])
+				+ '</strong></p>';
+			html += '<p class="small text-muted"><strong>' + __('Failed files') + ':</strong><br>' + failed_list + '</p>';
+		} else {
+			html += '<p class="text-success small">' + __('All {0} file(s) uploaded. Click Import to attach images to patients.', [items.length]) + '</p>';
+		}
+		dialog.fields_dict.progress_html.$wrapper.html(html);
+		dialog.get_primary_btn().prop('disabled', !items.length);
+	};
+
+	const upload_next = () => {
+		if (index >= valid_files.length) {
+			render_upload_summary();
+			return;
+		}
+
+		const file = valid_files[index];
+		const filename = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+		render_progress();
+
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push({ file_url, filename });
+			})
+			.catch((err) => {
+				const reason = err instanceof Error ? err.message : String(err || '');
+				failed.push({
+					filename,
+					before: format_bytes(file.size),
+					reason,
+				});
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [filename]),
+					indicator: 'red',
+				}, 5);
+				console.error('CPR upload failed:', {
+					filename,
+					reason,
+					sizeBytes: file.size,
+					size: format_bytes(file.size),
+				});
+			})
+			.finally(() => {
+				index += 1;
+				upload_next();
+			});
+	};
+
+	render_progress();
+	upload_next();
+}
+
+function format_bytes(bytes) {
+	if (!bytes) return '0 B';
+	const units = ['B', 'KB', 'MB', 'GB'];
+	let size = bytes;
+	let unitIndex = 0;
+	while (size >= 1024 && unitIndex < units.length - 1) {
+		size /= 1024;
+		unitIndex += 1;
+	}
+	return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+function upload_patient_cpr_file(file) {
+	return new Promise((resolve, reject) => {
+		const form = new FormData();
+		form.append('file', file);
+		form.append('is_private', '0');
+		form.append('folder', 'Home/Attachments');
+
+		fetch('/api/method/upload_file', {
+			method: 'POST',
+			headers: {
+				'X-Frappe-CSRF-Token': frappe.csrf_token,
+				Accept: 'application/json',
+			},
+			body: form,
+			credentials: 'include',
+		})
+			.then(async (response) => {
+				const data = await response.json().catch(() => ({}));
+				if (!response.ok || data.exc) {
+					let reason = '';
+					try {
+						const msgs = JSON.parse(data._server_messages || '[]');
+						const first = JSON.parse(msgs[0] || '{}');
+						reason = first.message || data.message || '';
+					} catch (e) {
+						reason = data.message || '';
+					}
+					reject(new Error(reason || `HTTP ${response.status}`));
+					return;
+				}
+				const doc = data.message;
+				const file_url =
+					(doc && typeof doc === 'object' && doc.file_url) ||
+					(typeof doc === 'string' ? doc : null);
+				if (!file_url) {
+					reject(new Error('No file URL returned'));
+					return;
+				}
+				resolve(file_url);
+			})
+			.catch(reject);
+	});
+}
+
+function start_patient_cpr_photo_import(dialog, replace_existing) {
+	frappe.call({
+		method: 'healthcare.api.data_migration_jobs.start_patient_cpr_photo_import_migration',
+		args: {
+			items: dialog._cpr_upload_items,
+			replace_existing,
+		},
+		freeze: true,
+		freeze_message: __('Starting background import…'),
+		callback(r) {
+			if (r.message?.ok) {
+				dialog.hide();
+				frappe.show_alert({
+					message: r.message.message || __('CPR photo import started'),
+					indicator: 'green',
+				});
+				poll_migration_status('patient_cpr_photo_import');
+			}
+		},
+	});
 }
 
 function open_direct_excel_upload({
@@ -4954,6 +5367,19 @@ function poll_migration_status(jobKey) {
 								s.skipped_existing || 0,
 								s.skipped_no_patient || 0,
 								s.errors || 0,
+							]
+						);
+					} else if (jobKey === 'patient_cpr_photo_import') {
+						msg = __(
+							'{0} finished: {1} front uploaded, {2} back uploaded, {3} invalid, {4} patient not found, {5} skipped (existing), {6} errors.',
+							[
+								jobKey,
+								s.uploaded_front || 0,
+								s.uploaded_back || 0,
+								s.skip_invalid || 0,
+								s.skip_no_patient || 0,
+								s.skip_existing || 0,
+								errN,
 							]
 						);
 					} else if (jobKey === 'patient_customer_name_sync') {

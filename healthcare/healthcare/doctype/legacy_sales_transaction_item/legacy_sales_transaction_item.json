@@ -1,0 +1,348 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "creation": "2026-07-17 01:30:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "sr_num",
+  "item",
+  "item_name",
+  "column_break_item",
+  "item_num",
+  "item_expiry_date",
+  "ais_batch_num",
+  "section_break_qty",
+  "show_flag",
+  "show_uom",
+  "show_qty",
+  "show_rate",
+  "show_amt",
+  "column_break_show",
+  "show_rate_pur",
+  "show_amt_pur",
+  "show_profit_amt",
+  "item_per_pack",
+  "section_break_big",
+  "item_big_uom_num",
+  "item_big_qty",
+  "item_big_rate",
+  "item_big_amt",
+  "column_break_small",
+  "item_small_uom_num",
+  "item_small_qty",
+  "item_small_rate",
+  "item_small_amt",
+  "section_break_stock",
+  "stock_qty_big",
+  "stock_qty_small",
+  "column_break_vat",
+  "item_vat",
+  "item_vat_amt_big",
+  "item_vat_amt_small",
+  "show_item_vat_amt",
+  "section_break_discount",
+  "item_big_discount_per",
+  "item_big_discount_amt",
+  "item_small_discount_per",
+  "item_small_discount_amt",
+  "column_break_disc_show",
+  "show_discount_per",
+  "show_discount_amt",
+  "section_break_remarks",
+  "trans_remarks_det",
+  "remarks_detail",
+  "column_break_audit",
+  "cr_id",
+  "cr_date",
+  "up_id",
+  "up_date"
+ ],
+ "fields": [
+  {
+   "columns": 1,
+   "fieldname": "sr_num",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "SR Num",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "ITEM_00_01"
+  },
+  {
+   "columns": 2,
+   "fetch_from": "item.item_nam",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_item",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Raw ITEM_NUM from legacy file",
+   "fieldname": "item_num",
+   "fieldtype": "Data",
+   "label": "Item Num"
+  },
+  {
+   "fieldname": "item_expiry_date",
+   "fieldtype": "Date",
+   "label": "Item Expiry Date"
+  },
+  {
+   "fieldname": "ais_batch_num",
+   "fieldtype": "Data",
+   "label": "AIS Batch Num"
+  },
+  {
+   "fieldname": "section_break_qty",
+   "fieldtype": "Section Break",
+   "label": "Shown Qty / Rate"
+  },
+  {
+   "fieldname": "show_flag",
+   "fieldtype": "Data",
+   "label": "Show Flag"
+  },
+  {
+   "fieldname": "show_uom",
+   "fieldtype": "Data",
+   "label": "Show UOM"
+  },
+  {
+   "columns": 1,
+   "fieldname": "show_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Show Qty"
+  },
+  {
+   "columns": 1,
+   "fieldname": "show_rate",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Show Rate"
+  },
+  {
+   "columns": 1,
+   "fieldname": "show_amt",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Show Amt"
+  },
+  {
+   "fieldname": "column_break_show",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "show_rate_pur",
+   "fieldtype": "Float",
+   "label": "Show Rate Pur"
+  },
+  {
+   "fieldname": "show_amt_pur",
+   "fieldtype": "Float",
+   "label": "Show Amt Pur"
+  },
+  {
+   "fieldname": "show_profit_amt",
+   "fieldtype": "Float",
+   "label": "Show Profit Amt"
+  },
+  {
+   "fieldname": "item_per_pack",
+   "fieldtype": "Float",
+   "label": "Item Per Pack"
+  },
+  {
+   "fieldname": "section_break_big",
+   "fieldtype": "Section Break",
+   "label": "Big / Small Units"
+  },
+  {
+   "fieldname": "item_big_uom_num",
+   "fieldtype": "Data",
+   "label": "Item Big UOM Num"
+  },
+  {
+   "fieldname": "item_big_qty",
+   "fieldtype": "Float",
+   "label": "Item Big Qty"
+  },
+  {
+   "fieldname": "item_big_rate",
+   "fieldtype": "Float",
+   "label": "Item Big Rate"
+  },
+  {
+   "fieldname": "item_big_amt",
+   "fieldtype": "Float",
+   "label": "Item Big Amt"
+  },
+  {
+   "fieldname": "column_break_small",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_small_uom_num",
+   "fieldtype": "Data",
+   "label": "Item Small UOM Num"
+  },
+  {
+   "fieldname": "item_small_qty",
+   "fieldtype": "Float",
+   "label": "Item Small Qty"
+  },
+  {
+   "fieldname": "item_small_rate",
+   "fieldtype": "Float",
+   "label": "Item Small Rate"
+  },
+  {
+   "fieldname": "item_small_amt",
+   "fieldtype": "Float",
+   "label": "Item Small Amt"
+  },
+  {
+   "fieldname": "section_break_stock",
+   "fieldtype": "Section Break",
+   "label": "Stock / VAT"
+  },
+  {
+   "fieldname": "stock_qty_big",
+   "fieldtype": "Float",
+   "label": "Stock Qty Big"
+  },
+  {
+   "fieldname": "stock_qty_small",
+   "fieldtype": "Float",
+   "label": "Stock Qty Small"
+  },
+  {
+   "fieldname": "column_break_vat",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item_vat",
+   "fieldtype": "Data",
+   "label": "Item VAT"
+  },
+  {
+   "fieldname": "item_vat_amt_big",
+   "fieldtype": "Float",
+   "label": "Item VAT Amt Big"
+  },
+  {
+   "fieldname": "item_vat_amt_small",
+   "fieldtype": "Float",
+   "label": "Item VAT Amt Small"
+  },
+  {
+   "fieldname": "show_item_vat_amt",
+   "fieldtype": "Float",
+   "label": "Show Item VAT Amt"
+  },
+  {
+   "fieldname": "section_break_discount",
+   "fieldtype": "Section Break",
+   "label": "Discount"
+  },
+  {
+   "fieldname": "item_big_discount_per",
+   "fieldtype": "Float",
+   "label": "Item Big Discount %"
+  },
+  {
+   "fieldname": "item_big_discount_amt",
+   "fieldtype": "Float",
+   "label": "Item Big Discount Amt"
+  },
+  {
+   "fieldname": "item_small_discount_per",
+   "fieldtype": "Float",
+   "label": "Item Small Discount %"
+  },
+  {
+   "fieldname": "item_small_discount_amt",
+   "fieldtype": "Float",
+   "label": "Item Small Discount Amt"
+  },
+  {
+   "fieldname": "column_break_disc_show",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "show_discount_per",
+   "fieldtype": "Float",
+   "label": "Show Discount %"
+  },
+  {
+   "fieldname": "show_discount_amt",
+   "fieldtype": "Float",
+   "label": "Show Discount Amt"
+  },
+  {
+   "fieldname": "section_break_remarks",
+   "fieldtype": "Section Break",
+   "label": "Remarks / Audit"
+  },
+  {
+   "fieldname": "trans_remarks_det",
+   "fieldtype": "Small Text",
+   "label": "Trans Remarks Det"
+  },
+  {
+   "fieldname": "remarks_detail",
+   "fieldtype": "Small Text",
+   "label": "Remarks Detail"
+  },
+  {
+   "fieldname": "column_break_audit",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cr_id",
+   "fieldtype": "Data",
+   "label": "CR ID"
+  },
+  {
+   "fieldname": "cr_date",
+   "fieldtype": "Data",
+   "label": "CR Date"
+  },
+  {
+   "fieldname": "up_id",
+   "fieldtype": "Data",
+   "label": "UP ID"
+  },
+  {
+   "fieldname": "up_date",
+   "fieldtype": "Data",
+   "label": "UP Date"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-17 01:30:00.000000",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Legacy Sales Transaction Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 0
+}

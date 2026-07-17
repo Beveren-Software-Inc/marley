@@ -167,7 +167,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [selectedSlot, setSelectedSlot] = useState<{ from_time: string; duration?: number } | null>(null)
   const [timeMode, setTimeMode] = useState<'schedule' | 'custom'>('schedule')
   const [customTime, setCustomTime] = useState('')
-  const [customDurationMinutes, setCustomDurationMinutes] = useState('30')
+  const [customDurationMinutes, setCustomDurationMinutes] = useState('')
   const [appointmentTypeDuration, setAppointmentTypeDuration] = useState<number | null>(null)
 
   const [costCenter, setCostCenter] = useState('')
@@ -264,19 +264,26 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         durationMinutes =
           selectedSlot.duration ??
           appointmentTypeDuration ??
-          parseCustomDurationMinutes(customDurationMinutes)
+          (customDurationMinutes.trim()
+            ? parseCustomDurationMinutes(customDurationMinutes, 0)
+            : undefined)
+        if (durationMinutes != null && durationMinutes < 1) {
+          durationMinutes = undefined
+        }
       } else {
         if (!customTime.trim()) {
           setError('Enter a start time for the custom appointment.')
           return
         }
-        const parsedDuration = parseCustomDurationMinutes(customDurationMinutes, 0)
-        if (!customDurationMinutes.trim() || parsedDuration < 1) {
-          setError('Enter duration in minutes (e.g. 45).')
-          return
-        }
         appointmentTime = toApiTime(customTime)
-        durationMinutes = parsedDuration
+        if (customDurationMinutes.trim()) {
+          const parsedDuration = parseCustomDurationMinutes(customDurationMinutes, 0)
+          if (parsedDuration < 1) {
+            setError('Duration must be at least 1 minute, or leave it blank.')
+            return
+          }
+          durationMinutes = parsedDuration
+        }
       }
     }
 
@@ -550,9 +557,9 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   }
 
   const applyAppointmentTypeDuration = (mins: number | null | undefined) => {
-    const d = mins != null && Number(mins) > 0 ? Number(mins) : 30
+    const d = mins != null && Number(mins) > 0 ? Number(mins) : null
     setAppointmentTypeDuration(d)
-    setCustomDurationMinutes(String(d))
+    // Duration is optional — do not force-fill the input.
   }
 
   const handleAppointmentTypeSelect = (aptType: LinkFieldOption) => {
@@ -959,7 +966,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1">
-                      Duration (minutes) <span className="text-red-500">*</span>
+                      Duration (minutes)
                     </label>
                     <input
                       type="text"
@@ -968,21 +975,22 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                       value={customDurationMinutes}
                       onChange={(e) => setCustomDurationMinutes(e.target.value.replace(/\D/g, ''))}
                       onBlur={() => {
+                        if (!customDurationMinutes.trim()) return
                         const n = parseCustomDurationMinutes(customDurationMinutes, 0)
-                        if (n < 1) {
-                          setCustomDurationMinutes(String(appointmentTypeDuration ?? 30))
-                        } else {
+                        if (n >= 1) {
                           setCustomDurationMinutes(String(n))
                         }
                       }}
-                      placeholder="e.g. 45"
+                      placeholder="Optional — e.g. 45"
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
                     />
                     {appointmentTypeDuration ? (
                       <p className="text-[11px] text-slate-500 mt-1">
-                        Appointment type default: {appointmentTypeDuration} min (you can change this)
+                        Appointment type default: {appointmentTypeDuration} min (optional override)
                       </p>
-                    ) : null}
+                    ) : (
+                      <p className="text-[11px] text-slate-500 mt-1">Leave blank if no duration is needed.</p>
+                    )}
                   </div>
                   <p className="sm:col-span-2 text-xs text-slate-500">
                     Use custom time when the visit needs a length other than the standard schedule slots

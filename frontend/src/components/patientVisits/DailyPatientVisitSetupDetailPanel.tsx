@@ -1,13 +1,11 @@
 import { useMemo, type ReactNode } from 'react'
 import { CalendarClock, CalendarDays, Clock, DollarSign, Stethoscope, User } from 'lucide-react'
 import { type DailyPatientVisitSetup } from '../../services/dailyPatientVisitSetup'
-import { type IOPSessionType } from '../../services/iop'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 
 interface DailyPatientVisitSetupDetailPanelProps {
   row: DailyPatientVisitSetup
-  sessionTypes?: IOPSessionType[]
   onClose: () => void
   onPatientClick?: (patient: string) => void
 }
@@ -27,6 +25,10 @@ function formatDate(value?: string | null): string {
   } catch {
     return value
   }
+}
+
+function formatBhd(amount: number): string {
+  return (Number(amount) || 0).toFixed(3)
 }
 
 function InfoTile({
@@ -69,22 +71,16 @@ function InfoTile({
 
 export function DailyPatientVisitSetupDetailPanel({
   row,
-  sessionTypes = [],
   onClose,
   onPatientClick,
 }: DailyPatientVisitSetupDetailPanelProps) {
-  const sessionLabelMap = useMemo(
-    () => new Map(sessionTypes.map((t) => [t.name, t.session_type_name || t.name])),
-    [sessionTypes]
-  )
-
   const services = row.services?.length
     ? row.services
     : row.session || row.amount
       ? [{ session: row.session || '', amount: row.amount || 0 }]
       : []
 
-  const totalAmount = services.reduce((sum, line) => sum + (Number(line.amount) || 0), row.amount || 0)
+  const totalAmount = services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0)
 
   const headerSubtitle = useMemo(() => {
     const parts = [
@@ -95,6 +91,7 @@ export function DailyPatientVisitSetupDetailPanel({
   }, [row])
 
   const statusLabel = row.is_active ? 'Active' : 'Stopped'
+  const endDateLabel = row.to_date ? formatDate(row.to_date) : 'Open-ended (while Active)'
 
   return (
     <DetailSlideOver
@@ -130,9 +127,10 @@ export function DailyPatientVisitSetupDetailPanel({
               onClick={row.patient && onPatientClick ? () => onPatientClick(row.patient) : undefined}
             />
             <InfoTile icon={<Stethoscope className="h-4 w-4" />} label="Doctor Name" value={displayValue(row.practitioner_name || row.practioner)} />
-            <InfoTile icon={<DollarSign className="h-4 w-4" />} label="Total Amount" value={totalAmount.toFixed(2)} />
+            <InfoTile icon={<User className="h-4 w-4" />} label="Branch" value={displayValue(row.branch)} />
+            <InfoTile icon={<DollarSign className="h-4 w-4" />} label="Total Amount" value={formatBhd(totalAmount)} />
             <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="Start Date" value={formatDate(row.from_date)} />
-            <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="End Date" value={formatDate(row.to_date)} />
+            <InfoTile icon={<CalendarDays className="h-4 w-4" />} label="End Date" value={endDateLabel} />
             <InfoTile
               icon={<CalendarClock className="h-4 w-4" />}
               label="Status"
@@ -155,18 +153,18 @@ export function DailyPatientVisitSetupDetailPanel({
               <table className="w-full min-w-[320px] text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
-                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">Session</th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold uppercase text-slate-600">
+                      Service template
+                    </th>
                     <th className="px-3 py-2 text-right text-xs font-semibold uppercase text-slate-600">Amount</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {services.map((line, index) => (
                     <tr key={line.name || `service-${index}`}>
-                      <td className="px-3 py-2 text-slate-700">
-                        {sessionLabelMap.get(line.session) || line.session || '—'}
-                      </td>
+                      <td className="px-3 py-2 text-slate-700">{line.session || '—'}</td>
                       <td className="px-3 py-2 text-right text-slate-700">
-                        {(Number(line.amount) || 0).toFixed(2)}
+                        {formatBhd(Number(line.amount) || 0)}
                       </td>
                     </tr>
                   ))}

@@ -20,8 +20,10 @@ export interface DailyPatientVisitSetup {
   admission?: string
   discharge?: string
   from_date: string
-  to_date: string
-  time: string
+  to_date?: string | null
+  time?: string | null
+  /** Cost Center / branch for visits and sales orders created from this setup. */
+  branch?: string | null
   /** First service session (legacy display). */
   session?: string
   services?: DailyPatientVisitSetupServiceLine[]
@@ -86,11 +88,13 @@ export async function fetchDailyPatientVisitSetup(name: string): Promise<DailyPa
 
 export async function fetchDailyPatientVisitSetups(
   patient?: string,
-  activeOnly: boolean = false
+  activeOnly: boolean = false,
+  branch?: string
 ): Promise<DailyPatientVisitSetup[]> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
   if (activeOnly) params.append('active_only', '1')
+  if (branch) params.append('branch', branch)
   const res = await fetch(
     `/api/method/healthcare.api.daily_patient_visit.get_daily_patient_visit_setups?${params.toString()}`
   )
@@ -125,6 +129,52 @@ export async function stopDailyPatientVisitSetup(name: string): Promise<void> {
       'Failed to stop Daily Patient Visit Setup'
     throw new Error(typeof msg === 'string' ? msg : String(msg))
   }
+}
+
+export interface DailyPatientVisitBackfillResult {
+  ok: boolean
+  from_date: string
+  to_date: string
+  setups_matched: number
+  setups_processed: number
+  setups_skipped: number
+  visits_created: number
+  visits_already_existed: number
+  existing_billed: number
+  errors: number
+}
+
+export async function runDailyPatientVisitsBackfill(args: {
+  fromDate: string
+  toDate: string
+  setupName?: string
+  includeStopped?: boolean
+}): Promise<DailyPatientVisitBackfillResult> {
+  const csrf = (window as any).csrf_token
+  const res = await fetch('/api/method/healthcare.api.daily_patient_visit.run_daily_patient_visits_backfill', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({
+      from_date: args.fromDate,
+      to_date: args.toDate,
+      setup_name: args.setupName || undefined,
+      include_stopped: args.includeStopped ? 1 : 0,
+    }),
+  })
+  const out = await res.json().catch(() => ({} as Record<string, unknown>))
+  if (!res.ok || (out as Record<string, unknown>)?.exc) {
+    const msg =
+      (out as Record<string, unknown>)?.message ||
+      (out as Record<string, unknown>)?.exc ||
+      'Failed to run Daily Auto Visit backfill'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+  return (out as Record<string, unknown>).message as DailyPatientVisitBackfillResult
 }
 
 export function normalizeSetupServices(setup: Partial<DailyPatientVisitSetup>): DailyPatientVisitSetupServiceLine[] {

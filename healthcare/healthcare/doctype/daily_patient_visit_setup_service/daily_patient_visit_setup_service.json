@@ -23,7 +23,8 @@
    "fieldname": "amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Amount"
+   "label": "Amount",
+   "precision": "3"
   },
   {
    "fetch_from": "session.service_name",
