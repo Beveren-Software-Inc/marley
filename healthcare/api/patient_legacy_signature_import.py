@@ -394,3 +394,341 @@ def run_patient_legacy_signature_import_batch(offset: int = 0) -> dict:
 	if stats["processed"] >= len(items):
 		stats["done"] = True
 	return stats
+
+
+def _document_rows_have_signature(parent_doctype: str, parent_name: str, signature_label: str, filename: str) -> dict | None:
+	"""Return matching document child row dict if signature is linked on parent."""
+	table = "e_signatures" if parent_doctype == "Inpatient Admission" else "patient_document"
+	# Child table Patient Upload Document
+	rows = frappe.get_all(
+		"Patient Upload Document",
+		filters={"parenttype": parent_doctype, "parent": parent_name, "parentfield": table},
+		fields=[
+			"name",
+			"file_name",
+			"document_type",
+			"document_name",
+			"document",
+			"upload_remarks",
+			"transaction_no",
+		],
+		limit=200,
+	)
+	label = (signature_label or "").upper()
+	fname = (filename or "").upper()
+	for row in rows:
+		blob = " ".join(
+			str(row.get(k) or "")
+			for k in ("document_name", "upload_remarks", "transaction_no", "file_name", "document")
+		).upper()
+		if label and label in blob:
+			return row
+		if fname and fname in blob:
+			return row
+		# Legacy Signature document type with any signature-ish remarks
+		if (row.get("document_type") or "") == DOCUMENT_TYPE_NAME and filename:
+			if _basename(row.get("document") or "").upper() == fname:
+				return row
+	return None
+
+
+def _patient_has_any_legacy_signature(patient: str) -> bool:
+	"""True if Patient.patient_document or any admission e_signatures has Legacy Signature / SIGNATURE_*."""
+	if frappe.db.exists(
+		"Patient Upload Document",
+		{
+			"parenttype": "Patient",
+			"parent": patient,
+			"parentfield": "patient_document",
+			"document_type": DOCUMENT_TYPE_NAME,
+		},
+	):
+		return True
+	# Any upload_remarks / document_name containing SIGNATURE
+	found = frappe.db.sql(
+		"""
+		SELECT name FROM `tabPatient Upload Document`
+		WHERE parenttype = 'Patient' AND parent = %s AND parentfield = 'patient_document'
+		  AND (
+			UPPER(IFNULL(document_name, '')) LIKE '%%SIGNATURE%%'
+			OR UPPER(IFNULL(upload_remarks, '')) LIKE '%%SIGNATURE%%'
+			OR UPPER(IFNULL(file_name, '')) LIKE '%%SIGNATURE%%'
+		  )
+		LIMIT 1
+		""",
+		patient,
+	)
+	if found:
+		return True
+
+	admissions = frappe.get_all("Inpatient Admission", filters={"patient": patient}, pluck="name")
+	if not admissions:
+		return False
+	found = frappe.db.sql(
+		"""
+		SELECT name FROM `tabPatient Upload Document`
+		WHERE parenttype = 'Inpatient Admission'
+		  AND parent IN %(parents)s
+		  AND parentfield = 'e_signatures'
+		  AND (
+			document_type = %(dtype)s
+			OR UPPER(IFNULL(document_name, '')) LIKE '%%SIGNATURE%%'
+			OR UPPER(IFNULL(upload_remarks, '')) LIKE '%%SIGNATURE%%'
+			OR UPPER(IFNULL(file_name, '')) LIKE '%%SIGNATURE%%'
+		  )
+		LIMIT 1
+		""",
+		{"parents": admissions, "dtype": DOCUMENT_TYPE_NAME},
+	)
+	return bool(found)
+
+
+def _write_signature_analysis_csv(rows: list[dict], suffix: str) -> str | None:
+	if not rows:
+		return None
+	import csv
+	import os
+
+	stamp = frappe.utils.now().replace(" ", "_").replace(":", "-")
+	file_name = f"legacy_signature_analysis_{suffix}_{stamp}.csv"
+	files_dir = frappe.get_site_path("private", "files")
+	os.makedirs(files_dir, exist_ok=True)
+	disk_path = os.path.join(files_dir, file_name)
+
+	with open(disk_path, "w", newline="", encoding="utf-8") as fh:
+		writer = csv.writer(fh)
+		writer.writerow(
+			[
+				"FILE_NO",
+				"PATIENT",
+				"PATIENT_NAME",
+				"ADMISSION_KEY",
+				"ADMISSION",
+				"SIGNATURE_LABEL",
+				"FILENAME",
+				"STATUS",
+				"DETAIL",
+				"DOCUMENT_URL",
+			]
+		)
+		for item in rows:
+			writer.writerow(
+				[
+					item.get("file_no") or "",
+					item.get("patient") or "",
+					item.get("patient_name") or "",
+					item.get("admission_key") or "",
+					item.get("admission") or "",
+					item.get("signature_label") or "",
+					item.get("filename") or "",
+					item.get("status") or "",
+					item.get("detail") or "",
+					item.get("document_url") or "",
+				]
+			)
+
+	file_url = f"/private/files/{file_name}"
+	if not frappe.db.exists("File", {"file_url": file_url}):
+		frappe.get_doc(
+			{
+				"doctype": "File",
+				"file_name": file_name,
+				"file_url": file_url,
+				"is_private": 1,
+				"folder": "Home/Attachments",
+			}
+		).insert(ignore_permissions=True)
+		frappe.db.commit()
+	return file_url
+
+
+@frappe.whitelist()
+def analyze_patient_legacy_signatures(filenames=None) -> dict:
+	"""Analyze legacy signature import coverage.
+
+	Pass folder filenames (same as Direct Upload) to find which signatures were not
+	attached. Also finds File rows that look like legacy signatures but are not linked
+	to Patient / Inpatient Admission document tables (patient had a signature file that
+	was never uploaded into e_signatures / patient_document).
+	"""
+	_require_admin()
+	if isinstance(filenames, str):
+		filenames = json.loads(filenames) if filenames.strip() else []
+	if filenames is None:
+		filenames = []
+	if not isinstance(filenames, list):
+		frappe.throw(_("Expected a list of filenames."))
+
+	uploaded_ok: list[dict] = []
+	not_uploaded: list[dict] = []
+	no_patient: list[dict] = []
+	broken_file: list[dict] = []
+	invalid = 0
+	seen: set[str] = set()
+
+	for raw in filenames:
+		name = _basename(str(raw or ""))
+		if not name:
+			continue
+		if not _is_image_filename(name):
+			invalid += 1
+			continue
+		parsed = parse_legacy_signature_filename(name)
+		if not parsed:
+			invalid += 1
+			continue
+
+		key = f"{parsed['file_no']}|{parsed['admission_key']}|{parsed['signature_label']}"
+		if key in seen:
+			continue
+		seen.add(key)
+
+		patient = resolve_patient_name(parsed["file_no"])
+		base = {
+			"file_no": parsed["file_no"],
+			"admission_key": parsed["admission_key"],
+			"signature_label": parsed["signature_label"],
+			"filename": parsed["filename"],
+		}
+		if not patient:
+			no_patient.append(
+				{
+					**base,
+					"patient": "",
+					"patient_name": "",
+					"admission": "",
+					"status": "no_patient",
+					"detail": "Patient File No not found",
+					"document_url": "",
+				}
+			)
+			continue
+
+		patient_name = frappe.db.get_value("Patient", patient, "patient_name") or ""
+		admission = resolve_admission_name(parsed["admission_key"], patient)
+		base.update({"patient": patient, "patient_name": patient_name, "admission": admission or ""})
+
+		match = None
+		if admission:
+			match = _document_rows_have_signature(
+				"Inpatient Admission", admission, parsed["signature_label"], parsed["filename"]
+			)
+		if not match:
+			match = _document_rows_have_signature(
+				"Patient", patient, parsed["signature_label"], parsed["filename"]
+			)
+
+		if not match:
+			not_uploaded.append(
+				{
+					**base,
+					"status": "not_uploaded",
+					"detail": (
+						"No matching e_signatures / patient_document row"
+						+ (f" (admission {admission})" if admission else " (no admission — expected on Patient)")
+					),
+					"document_url": "",
+				}
+			)
+			continue
+
+		doc_url = (match.get("document") or "").strip()
+		# Non-empty Attach URL = import linked the signature. Do not flag broken
+		# solely because tabFile URL differs (Oracle_Signatures* prefix) or disk
+		# path is missing on this site — those were false positives.
+		if not doc_url:
+			broken_file.append(
+				{
+					**base,
+					"status": "broken_file",
+					"detail": "Document row exists but attachment URL is empty",
+					"document_url": "",
+				}
+			)
+			continue
+
+		uploaded_ok.append(
+			{
+				**base,
+				"status": "uploaded_ok",
+				"detail": f"Found on {'admission' if admission else 'patient'}",
+				"document_url": doc_url,
+			}
+		)
+
+	# Files that look like legacy signatures but were never linked into document tables
+	orphan_files: list[dict] = []
+	file_rows = frappe.db.sql(
+		"""
+		SELECT name, file_name, file_url, attached_to_doctype, attached_to_name, attached_to_field
+		FROM `tabFile`
+		WHERE UPPER(IFNULL(file_name, '')) LIKE '%%SIGNATURE%%'
+		   OR UPPER(IFNULL(file_url, '')) LIKE '%%SIGNATURE%%'
+		LIMIT 20000
+		""",
+		as_dict=True,
+	)
+	for frow in file_rows:
+		parsed = parse_legacy_signature_filename(frow.file_name or "") or parse_legacy_signature_filename(
+			frow.file_url or ""
+		)
+		if not parsed:
+			continue
+		patient = resolve_patient_name(parsed["file_no"])
+		if not patient:
+			continue
+		admission = resolve_admission_name(parsed["admission_key"], patient)
+		match = None
+		if admission:
+			match = _document_rows_have_signature(
+				"Inpatient Admission", admission, parsed["signature_label"], parsed["filename"]
+			)
+		if not match:
+			match = _document_rows_have_signature(
+				"Patient", patient, parsed["signature_label"], parsed["filename"]
+			)
+		if match:
+			continue
+		# Patient exists and file exists, but signature was never put on document table
+		orphan_files.append(
+			{
+				"file_no": parsed["file_no"],
+				"patient": patient,
+				"patient_name": frappe.db.get_value("Patient", patient, "patient_name") or "",
+				"admission_key": parsed["admission_key"],
+				"admission": admission or "",
+				"signature_label": parsed["signature_label"],
+				"filename": parsed["filename"],
+				"status": "file_present_not_linked",
+				"detail": (
+					"Signature File exists for this patient but is not on e_signatures / patient_document"
+					+ (f"; File attached_to={frow.attached_to_doctype or '—'} {frow.attached_to_name or ''}")
+				),
+				"document_url": frow.file_url or "",
+			}
+		)
+
+	# Patients that have a signature File / orphan but no document row — sample unique patients
+	patients_with_unlinked = sorted({o["patient"] for o in orphan_files if o.get("patient")})
+
+	issue_rows = not_uploaded + no_patient + broken_file + orphan_files
+	return {
+		"folder_filenames": len(filenames),
+		"folder_valid": len(seen),
+		"folder_invalid": invalid,
+		"uploaded_ok": len(uploaded_ok),
+		"not_uploaded": len(not_uploaded),
+		"no_patient": len(no_patient),
+		"broken_file": len(broken_file),
+		"file_present_not_linked": len(orphan_files),
+		"patients_with_signature_file_not_linked": len(patients_with_unlinked),
+		"samples": {
+			"not_uploaded": [i["filename"] for i in not_uploaded[:15]],
+			"no_patient": [i["file_no"] for i in no_patient[:15]],
+			"broken_file": [i["filename"] for i in broken_file[:15]],
+			"file_present_not_linked": [i["filename"] for i in orphan_files[:15]],
+			"patients_with_signature_file_not_linked": patients_with_unlinked[:20],
+		},
+		"csv_file_url": _write_signature_analysis_csv(issue_rows, "issues"),
+		"csv_ok_file_url": _write_signature_analysis_csv(uploaded_ok, "ok"),
+	}

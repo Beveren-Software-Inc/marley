@@ -2601,6 +2601,22 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_patient_appointment_import_analysis();
 		}, __('Migration Analysis'));
 
+		frm.add_custom_button(__('Analyze: CPR Photos'), () => {
+			open_patient_cpr_photo_analysis();
+		}, __('Migration Analysis'));
+
+		frm.add_custom_button(__('Analyze: Legacy Signatures'), () => {
+			open_patient_legacy_signature_analysis();
+		}, __('Migration Analysis'));
+
+		frm.add_custom_button(__('Analyze: Legacy Sales Master'), () => {
+			open_legacy_sales_master_analysis();
+		}, __('Migration Analysis'));
+
+		frm.add_custom_button(__('Analyze: Legacy Sales Detail'), () => {
+			open_legacy_sales_detail_analysis();
+		}, __('Migration Analysis'));
+
 		frm.add_custom_button(__('Diagnosis OP - VISIT_DIAGNOSES_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Diagnosis OP (VISIT_DIAGNOSES_01)'),
@@ -3457,6 +3473,471 @@ function show_patient_appointment_import_analysis(res, file_url) {
 			.find('[data-create-missing-appointments]')
 			.on('click', () => create_missing_patient_appointments(file_url, res, dialog));
 	}
+}
+
+function _pick_local_image_filenames(use_folder, on_files) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'image/*';
+	if (use_folder) {
+		input.setAttribute('webkitdirectory', '');
+		input.setAttribute('directory', '');
+	}
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		on_files(files);
+	};
+	input.click();
+}
+
+function open_patient_cpr_photo_analysis() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Analyze CPR Photos'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the same CPR folder/files used for Direct Upload. Analysis checks which images were attached, which are missing, wrong-side placement (e.g. BACK file in CPR Front), and broken File links. You can also run a DB-only scan without selecting files.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No files selected — click “Scan patients only” for DB checks, or pick a folder.') + '</p>',
+			},
+		],
+		primary_action_label: __('Run Analysis'),
+		primary_action() {
+			run_patient_cpr_photo_analysis(dialog, dialog._cpr_analysis_filenames || []);
+		},
+	});
+
+	dialog._cpr_analysis_filenames = [];
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Pick Folder'))
+			.on('click', () => {
+				_pick_local_image_filenames(true, (files) => {
+					preview_cpr_analysis_filenames(dialog, files);
+				});
+			})
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Pick Files'))
+			.on('click', () => {
+				_pick_local_image_filenames(false, (files) => {
+					preview_cpr_analysis_filenames(dialog, files);
+				});
+			})
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Scan patients only'))
+			.on('click', () => {
+				dialog._cpr_analysis_filenames = [];
+				dialog.get_field('preview_html').$wrapper.html(
+					'<p class="text-muted">' + __('DB-only scan (no folder). Click Run Analysis.') + '</p>'
+				);
+			})
+	);
+
+	dialog.show();
+}
+
+function preview_cpr_analysis_filenames(dialog, files) {
+	const names = (files || []).map((f) => f.name).filter(Boolean);
+	dialog._cpr_analysis_filenames = names;
+	frappe.call({
+		method: 'healthcare.api.patient_cpr_photo_import.preview_patient_cpr_photo_filenames',
+		args: { filenames: names },
+		freeze: true,
+		freeze_message: __('Reading filenames…'),
+		callback(r) {
+			const counts = r.message || {};
+			dialog.get_field('preview_html').$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Files selected') + ':</strong> ' + names.length + '</p>'
+					+ '<p><strong>' + __('CPR front') + ':</strong> ' + (counts.front_images || 0)
+					+ ' &nbsp;·&nbsp; <strong>' + __('CPR back') + ':</strong> ' + (counts.back_images || 0) + '</p>'
+					+ '<p><strong>' + __('Patients found') + ':</strong> ' + (counts.patients_found || 0)
+					+ ' &nbsp;·&nbsp; <strong>' + __('Patients missing') + ':</strong> ' + (counts.patients_missing || 0) + '</p>'
+					+ '<p class="text-muted">' + __('Click Run Analysis to compare against Patient CPR fields.') + '</p>'
+					+ '</div>'
+			);
+		},
+	});
+}
+
+function run_patient_cpr_photo_analysis(dialog, filenames) {
+	frappe.call({
+		method: 'healthcare.api.patient_cpr_photo_import.analyze_patient_cpr_photos',
+		args: { filenames: filenames || [] },
+		freeze: true,
+		freeze_message: __('Analyzing CPR photos…'),
+		callback(r) {
+			if (dialog) dialog.hide();
+			show_patient_cpr_photo_analysis(r.message || {});
+		},
+	});
+}
+
+function show_patient_cpr_photo_analysis(res) {
+	const esc = frappe.utils.escape_html;
+	const samples = res.samples || {};
+	const list = (arr) => esc((arr || []).join(', ')) || '&mdash;';
+	const downloadIssues = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download issues CSV')}</a>`
+		: `<span class="text-muted">${__('No issues to download.')}</span>`;
+	const downloadOk = res.csv_ok_file_url
+		? ` <a href="${esc(res.csv_ok_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download OK CSV')}</a>`
+		: '';
+
+	const html = `
+		<div class="cpr-photo-analysis">
+			<div class="row">
+				<div class="col-sm-3"><div class="text-muted small">${__('Folder valid images')}</div>
+					<div class="h4">${frappe.format(res.folder_valid || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Uploaded OK')}</div>
+					<div class="h4 text-success">${frappe.format(res.uploaded_ok || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Not uploaded')}</div>
+					<div class="h4 text-danger">${frappe.format(res.not_uploaded || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Wrong side (DB)')}</div>
+					<div class="h4 text-warning">${frappe.format(res.db_wrong_side || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="small text-muted">
+				${__('Patients with front')}: ${frappe.format(res.db_patients_with_front || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('with back')}: ${frappe.format(res.db_patients_with_back || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('with both')}: ${frappe.format(res.db_patients_with_both || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Broken files (DB)')}: ${frappe.format(res.db_broken_file || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('No patient for folder file')}: ${frappe.format(res.no_patient || 0, { fieldtype: 'Int' })}
+			</div>
+			<hr>
+			<h5>${__('Samples')}</h5>
+			<table class="table table-bordered table-sm">
+				<thead><tr><th>${__('Issue')}</th><th>${__('Samples')}</th></tr></thead>
+				<tbody>
+					<tr><td>${__('Not uploaded')}</td><td class="small text-muted">${list(samples.not_uploaded)}</td></tr>
+					<tr><td>${__('Wrong side')}</td><td class="small text-muted">${list(samples.wrong_side)}</td></tr>
+					<tr><td>${__('Broken file')}</td><td class="small text-muted">${list(samples.broken_file)}</td></tr>
+					<tr><td>${__('No patient')}</td><td class="small text-muted">${list(samples.no_patient)}</td></tr>
+				</tbody>
+			</table>
+			<div>${downloadIssues}${downloadOk}</div>
+		</div>`;
+
+	frappe.msgprint({
+		title: __('CPR Photo Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.not_uploaded || res.db_wrong_side || res.db_broken_file) ? 'orange' : 'green',
+	});
+}
+
+function open_patient_legacy_signature_analysis() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Analyze Legacy Signatures'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the same signature folder/files used for Direct Upload. Finds signatures not attached to admission e-Signatures or Patient documents, and signature Files that exist but were never linked. You can also scan Files only without selecting a folder.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No files selected — click “Scan Files only” or pick a folder.') + '</p>',
+			},
+		],
+		primary_action_label: __('Run Analysis'),
+		primary_action() {
+			run_patient_legacy_signature_analysis(dialog, dialog._sig_analysis_filenames || []);
+		},
+	});
+
+	dialog._sig_analysis_filenames = [];
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Pick Folder'))
+			.on('click', () => {
+				_pick_local_image_filenames(true, (files) => {
+					preview_signature_analysis_filenames(dialog, files);
+				});
+			})
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Pick Files'))
+			.on('click', () => {
+				_pick_local_image_filenames(false, (files) => {
+					preview_signature_analysis_filenames(dialog, files);
+				});
+			})
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Scan Files only'))
+			.on('click', () => {
+				dialog._sig_analysis_filenames = [];
+				dialog.get_field('preview_html').$wrapper.html(
+					'<p class="text-muted">' + __('Will scan File records for unlinked legacy signatures. Click Run Analysis.') + '</p>'
+				);
+			})
+	);
+
+	dialog.show();
+}
+
+function preview_signature_analysis_filenames(dialog, files) {
+	const names = (files || []).map((f) => f.name).filter(Boolean);
+	dialog._sig_analysis_filenames = names;
+	frappe.call({
+		method: 'healthcare.api.patient_legacy_signature_import.preview_patient_legacy_signature_filenames',
+		args: { filenames: names },
+		freeze: true,
+		freeze_message: __('Reading filenames…'),
+		callback(r) {
+			const counts = r.message || {};
+			dialog.get_field('preview_html').$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Files selected') + ':</strong> ' + names.length + '</p>'
+					+ '<p><strong>' + __('Valid signatures') + ':</strong> ' + (counts.valid_signatures || 0) + '</p>'
+					+ '<p><strong>' + __('Patients found') + ':</strong> ' + (counts.patients_found || 0)
+					+ ' &nbsp;·&nbsp; <strong>' + __('Admissions found') + ':</strong> ' + (counts.admissions_found || 0) + '</p>'
+					+ '<p class="text-muted">' + __('Click Run Analysis to compare against Patient / Admission documents.') + '</p>'
+					+ '</div>'
+			);
+		},
+	});
+}
+
+function run_patient_legacy_signature_analysis(dialog, filenames) {
+	frappe.call({
+		method: 'healthcare.api.patient_legacy_signature_import.analyze_patient_legacy_signatures',
+		args: { filenames: filenames || [] },
+		freeze: true,
+		freeze_message: __('Analyzing legacy signatures…'),
+		callback(r) {
+			if (dialog) dialog.hide();
+			show_patient_legacy_signature_analysis(r.message || {});
+		},
+	});
+}
+
+function show_patient_legacy_signature_analysis(res) {
+	const esc = frappe.utils.escape_html;
+	const samples = res.samples || {};
+	const list = (arr) => esc((arr || []).join(', ')) || '&mdash;';
+	const downloadIssues = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download issues CSV')}</a>`
+		: `<span class="text-muted">${__('No issues to download.')}</span>`;
+	const downloadOk = res.csv_ok_file_url
+		? ` <a href="${esc(res.csv_ok_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download OK CSV')}</a>`
+		: '';
+
+	const html = `
+		<div class="legacy-signature-analysis">
+			<div class="row">
+				<div class="col-sm-3"><div class="text-muted small">${__('Folder valid images')}</div>
+					<div class="h4">${frappe.format(res.folder_valid || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Uploaded OK')}</div>
+					<div class="h4 text-success">${frappe.format(res.uploaded_ok || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Not uploaded')}</div>
+					<div class="h4 text-danger">${frappe.format(res.not_uploaded || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('File present, not linked')}</div>
+					<div class="h4 text-warning">${frappe.format(res.file_present_not_linked || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="small text-muted">
+				${__('No patient')}: ${frappe.format(res.no_patient || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Broken file')}: ${frappe.format(res.broken_file || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Patients with signature file not linked')}: ${frappe.format(res.patients_with_signature_file_not_linked || 0, { fieldtype: 'Int' })}
+			</div>
+			<hr>
+			<h5>${__('Samples')}</h5>
+			<table class="table table-bordered table-sm">
+				<thead><tr><th>${__('Issue')}</th><th>${__('Samples')}</th></tr></thead>
+				<tbody>
+					<tr><td>${__('Not uploaded')}</td><td class="small text-muted">${list(samples.not_uploaded)}</td></tr>
+					<tr><td>${__('File present, not linked')}</td><td class="small text-muted">${list(samples.file_present_not_linked)}</td></tr>
+					<tr><td>${__('Patients (file not linked)')}</td><td class="small text-muted">${list(samples.patients_with_signature_file_not_linked)}</td></tr>
+					<tr><td>${__('No patient')}</td><td class="small text-muted">${list(samples.no_patient)}</td></tr>
+					<tr><td>${__('Broken file')}</td><td class="small text-muted">${list(samples.broken_file)}</td></tr>
+				</tbody>
+			</table>
+			<div>${downloadIssues}${downloadOk}</div>
+		</div>`;
+
+	frappe.msgprint({
+		title: __('Legacy Signature Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.not_uploaded || res.file_present_not_linked || res.broken_file) ? 'orange' : 'green',
+	});
+}
+
+function open_legacy_sales_master_analysis() {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Analyze Legacy Sales Master (SALES_DATA_MASTER)'),
+		allow_multiple: false,
+		restrictions: { allowed_file_types: ['.xlsx', '.xls'] },
+		on_success(file) {
+			frappe.call({
+				method: 'healthcare.api.legacy_sales_master_import.analyze_legacy_sales_master_import',
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message: __('Analyzing Legacy Sales Master (all sheets)…'),
+				callback(r) {
+					show_legacy_sales_master_analysis(r.message || {});
+				},
+			});
+		},
+	});
+}
+
+function show_legacy_sales_master_analysis(res) {
+	const esc = frappe.utils.escape_html;
+	const samples = res.samples || {};
+	const list = (arr) => esc((arr || []).join(', ')) || '&mdash;';
+	const sheetRows = Object.entries(res.sheet_row_counts || {})
+		.map(([name, n]) => `<li>${esc(name)}: ${frappe.format(n, { fieldtype: 'Int' })}</li>`)
+		.join('');
+	const downloadIssues = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download issues CSV')}</a>`
+		: `<span class="text-muted">${__('No issues to download.')}</span>`;
+	const downloadOk = res.csv_ok_file_url
+		? ` <a href="${esc(res.csv_ok_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download OK CSV')}</a>`
+		: '';
+
+	const html = `
+		<div class="legacy-sales-master-analysis">
+			<div class="row">
+				<div class="col-sm-3"><div class="text-muted small">${__('Unique TRANS_NUM')}</div>
+					<div class="h4">${frappe.format(res.excel_unique_trans_nos || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Imported')}</div>
+					<div class="h4 text-success">${frappe.format(res.imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Not imported')}</div>
+					<div class="h4 text-danger">${frappe.format(res.not_imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Imported, no items')}</div>
+					<div class="h4 text-warning">${frappe.format(res.imported_no_items || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="small text-muted">
+				${__('Raw rows')}: ${frappe.format(res.raw_excel_rows || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Duplicates in file')}: ${frappe.format(res.duplicate_rows_in_file || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Visit unresolved')}: ${frappe.format(res.visit_unresolved || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Admission unresolved')}: ${frappe.format(res.admission_unresolved || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Branch unresolved')}: ${frappe.format(res.branch_unresolved || 0, { fieldtype: 'Int' })}
+			</div>
+			<ul class="small text-muted" style="margin-top:6px;">${sheetRows}</ul>
+			<hr>
+			<h5>${__('Samples')}</h5>
+			<table class="table table-bordered table-sm">
+				<thead><tr><th>${__('Issue')}</th><th>${__('Sample TRANS_NUM')}</th></tr></thead>
+				<tbody>
+					<tr><td>${__('Not imported')}</td><td class="small text-muted">${list(samples.not_imported)}</td></tr>
+					<tr><td>${__('Imported, no items')}</td><td class="small text-muted">${list(samples.imported_no_items)}</td></tr>
+					<tr><td>${__('Visit unresolved')}</td><td class="small text-muted">${list(samples.visit_unresolved)}</td></tr>
+					<tr><td>${__('Admission unresolved')}</td><td class="small text-muted">${list(samples.admission_unresolved)}</td></tr>
+					<tr><td>${__('Branch unresolved')}</td><td class="small text-muted">${list(samples.branch_unresolved)}</td></tr>
+				</tbody>
+			</table>
+			<div>${downloadIssues}${downloadOk}</div>
+		</div>`;
+
+	frappe.msgprint({
+		title: __('Legacy Sales Master Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.not_imported || res.imported_no_items) ? 'orange' : 'green',
+	});
+}
+
+function open_legacy_sales_detail_analysis() {
+	new frappe.ui.FileUploader({
+		dialog_title: __('Analyze Legacy Sales Detail (SALES_DATA_DETAILS)'),
+		allow_multiple: false,
+		restrictions: { allowed_file_types: ['.xlsx', '.xls'] },
+		on_success(file) {
+			frappe.call({
+				method: 'healthcare.api.legacy_sales_detail_import.analyze_legacy_sales_detail_import',
+				args: { file_url: file.file_url },
+				freeze: true,
+				freeze_message: __('Analyzing Legacy Sales Detail…'),
+				callback(r) {
+					show_legacy_sales_detail_analysis(r.message || {});
+				},
+			});
+		},
+	});
+}
+
+function show_legacy_sales_detail_analysis(res) {
+	const esc = frappe.utils.escape_html;
+	const samples = res.samples || {};
+	const list = (arr) => esc((arr || []).join(', ')) || '&mdash;';
+	const sheetRows = Object.entries(res.sheet_row_counts || {})
+		.map(([name, n]) => `<li>${esc(name)}: ${frappe.format(n, { fieldtype: 'Int' })}</li>`)
+		.join('');
+	const downloadIssues = res.csv_file_url
+		? `<a href="${esc(res.csv_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download issues CSV')}</a>`
+		: `<span class="text-muted">${__('No issues to download.')}</span>`;
+	const downloadOk = res.csv_ok_file_url
+		? ` <a href="${esc(res.csv_ok_file_url)}" target="_blank" class="btn btn-sm btn-default">${__('Download OK CSV')}</a>`
+		: '';
+
+	const html = `
+		<div class="legacy-sales-detail-analysis">
+			<div class="row">
+				<div class="col-sm-3"><div class="text-muted small">${__('Detail rows')}</div>
+					<div class="h4">${frappe.format(res.excel_detail_rows || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Lines imported')}</div>
+					<div class="h4 text-success">${frappe.format(res.lines_imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Lines not imported')}</div>
+					<div class="h4 text-danger">${frappe.format(res.lines_not_imported || 0, { fieldtype: 'Int' })}</div></div>
+				<div class="col-sm-3"><div class="text-muted small">${__('Parent missing (lines)')}</div>
+					<div class="h4 text-warning">${frappe.format(res.parent_missing_lines || 0, { fieldtype: 'Int' })}</div></div>
+			</div>
+			<hr>
+			<div class="small text-muted">
+				${__('Excel TRANSs')}: ${frappe.format(res.excel_transactions || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Parents found')}: ${frappe.format(res.parents_found || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Parents missing')}: ${frappe.format(res.parents_missing || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('ITEM unresolved')}: ${frappe.format(res.item_unresolved || 0, { fieldtype: 'Int' })}
+				&nbsp;·&nbsp; ${__('Line count mismatch')}: ${frappe.format(res.line_count_mismatch || 0, { fieldtype: 'Int' })}
+			</div>
+			<ul class="small text-muted" style="margin-top:6px;">${sheetRows}</ul>
+			<hr>
+			<h5>${__('Samples')}</h5>
+			<table class="table table-bordered table-sm">
+				<thead><tr><th>${__('Issue')}</th><th>${__('Samples')}</th></tr></thead>
+				<tbody>
+					<tr><td>${__('Parent missing')}</td><td class="small text-muted">${list(samples.parent_missing)}</td></tr>
+					<tr><td>${__('Line not imported')} (TRANS/SR)</td><td class="small text-muted">${list(samples.line_not_imported)}</td></tr>
+					<tr><td>${__('ITEM unresolved')}</td><td class="small text-muted">${list(samples.item_unresolved)}</td></tr>
+					<tr><td>${__('Line count mismatch')}</td><td class="small text-muted">${list(samples.line_count_mismatch)}</td></tr>
+				</tbody>
+			</table>
+			<div>${downloadIssues}${downloadOk}</div>
+		</div>`;
+
+	frappe.msgprint({
+		title: __('Legacy Sales Detail Analysis'),
+		message: html,
+		wide: true,
+		indicator: (res.lines_not_imported || res.parent_missing_lines || res.item_unresolved) ? 'orange' : 'green',
+	});
 }
 
 function open_patient_cpr_folder_upload() {

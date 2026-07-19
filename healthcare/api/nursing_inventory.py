@@ -347,18 +347,21 @@ def get_stock_ledger(cost_center, warehouse_context=None):
         if nhra_groups is not None and not nhra_groups:
             return []
 
+    # Prefer Bin.actual_qty — same balance ERPNext Stock Balance / Item stock UI use.
+    # SUM(SLE) without is_cancelled=0 can diverge and show wrong (often negative) qty.
     sql = """
         SELECT
-            sle.item_code,
+            b.item_code,
             i.item_name,
             i.item_group as category,
-            SUM(sle.actual_qty) as current_stock,
+            b.actual_qty as current_stock,
             i.stock_uom as uom,
             i.valuation_rate as unit_price,
-            MAX(sle.posting_date) as last_updated
-        FROM `tabStock Ledger Entry` sle
-        INNER JOIN `tabItem` i ON i.name = sle.item_code
-        WHERE sle.warehouse = %s
+            b.modified as last_updated
+        FROM `tabBin` b
+        INNER JOIN `tabItem` i ON i.name = b.item_code
+        WHERE b.warehouse = %s
+          AND IFNULL(b.actual_qty, 0) != 0
     """
     params = [warehouse]
     if nhra_groups is not None:
@@ -366,8 +369,6 @@ def get_stock_ledger(cost_center, warehouse_context=None):
         sql += f" AND i.item_group IN ({placeholders})"
         params.extend(nhra_groups)
     sql += """
-        GROUP BY sle.item_code
-        HAVING current_stock != 0
         ORDER BY i.item_name
     """
     stock_items = frappe.db.sql(sql, tuple(params), as_dict=1)

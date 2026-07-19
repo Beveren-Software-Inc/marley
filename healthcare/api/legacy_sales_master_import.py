@@ -542,3 +542,252 @@ def run_legacy_sales_master_import_batch(*, offset: int = 0) -> dict:
 		"errors": len(errors),
 		"total_rows": len(row_keys),
 	}
+
+
+MASTER_ANALYSIS_REASONS = {
+	"not_imported": "TRANS_NUM not found as Legacy Sales Transactions",
+	"imported_no_items": "Header imported but has zero item lines",
+	"visit_unresolved": "VISIT_NUM present but Patient Visit not resolved on document",
+	"admission_unresolved": "ADMISSION_NUM present but Inpatient Admission not resolved on document",
+	"branch_unresolved": "BRANCH_NUM present but Cost Center (branch) not set on document",
+}
+
+
+def _existing_legacy_sales_names(trans_nos: list[str]) -> set[str]:
+	existing: set[str] = set()
+	chunk_size = 1000
+	for i in range(0, len(trans_nos), chunk_size):
+		chunk = trans_nos[i : i + chunk_size]
+		if not chunk:
+			continue
+		existing.update(frappe.get_all(DOCTYPE, filters={"name": ["in", chunk]}, pluck="name"))
+	return existing
+
+
+def _item_counts_by_parent(trans_nos: list[str]) -> dict[str, int]:
+	"""Return {parent: item_count} for Legacy Sales Transaction Item rows."""
+	counts: dict[str, int] = {}
+	chunk_size = 1000
+	for i in range(0, len(trans_nos), chunk_size):
+		chunk = trans_nos[i : i + chunk_size]
+		if not chunk:
+			continue
+		rows = frappe.db.sql(
+			"""
+			SELECT parent, COUNT(*) AS cnt
+			FROM `tabLegacy Sales Transaction Item`
+			WHERE parent IN %(parents)s
+			GROUP BY parent
+			""",
+			{"parents": chunk},
+			as_dict=True,
+		)
+		for row in rows:
+			counts[row.parent] = cint(row.cnt)
+	return counts
+
+
+def _write_legacy_sales_master_analysis_csv(detailed: list[dict], label: str) -> str | None:
+	if not detailed:
+		return None
+	import csv
+
+	stamp = frappe.utils.now().replace(" ", "_").replace(":", "-")
+	file_name = f"legacy_sales_master_analysis_{label}_{stamp}.csv"
+	files_dir = frappe.get_site_path("private", "files")
+	os.makedirs(files_dir, exist_ok=True)
+	disk_path = os.path.join(files_dir, file_name)
+
+	with open(disk_path, "w", newline="", encoding="utf-8") as fh:
+		writer = csv.writer(fh)
+		writer.writerow(
+			[
+				"TRANS_NUM",
+				"TRANS_DATE",
+				"VISIT_NUM",
+				"ADMISSION_NUM",
+				"BRANCH_NUM",
+				"INVOICE_NUM",
+				"NET_BILL_AMOUNT",
+				"STATUS",
+				"DETAIL",
+				"ITEM_COUNT",
+			]
+		)
+		for item in detailed:
+			writer.writerow(
+				[
+					item.get("trans_no") or "",
+					item.get("trans_date") or "",
+					item.get("visit_num") or "",
+					item.get("admission_num") or "",
+					item.get("branch_num") or "",
+					item.get("invoice_num") or "",
+					item.get("net_bill_amount") or "",
+					item.get("status") or "",
+					item.get("detail") or "",
+					item.get("item_count", ""),
+				]
+			)
+
+	file_url = f"/private/files/{file_name}"
+	frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": file_name,
+			"file_url": file_url,
+			"is_private": 1,
+			"folder": "Home",
+		}
+	).insert(ignore_permissions=True)
+	return file_url
+
+
+@frappe.whitelist()
+def analyze_legacy_sales_master_import(file_url: str) -> dict:
+	"""Compare SALES_DATA_MASTER Excel against Legacy Sales Transactions headers.
+
+	Reports missing headers, headers with no item lines, and unresolved visit /
+	admission / branch links on imported documents.
+	"""
+	_require_admin()
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the SALES_DATA_MASTER Excel file."))
+
+	rows, sheet_row_counts = _parse_excel_rows(file_url)
+	# Deduplicate by trans_no (last wins, same as import cache)
+	by_key: dict[str, dict] = {}
+	for row in rows:
+		trans_no = row.get("trans_no") or ""
+		if trans_no:
+			by_key[trans_no] = row
+	unique_rows = list(by_key.values())
+	trans_nos = list(by_key.keys())
+	raw_excel_rows = sum(sheet_row_counts.values())
+
+	existing = _existing_legacy_sales_names(trans_nos)
+	item_counts = _item_counts_by_parent(list(existing)) if existing else {}
+
+	# Load link fields for imported docs (chunked)
+	doc_meta: dict[str, dict] = {}
+	existing_list = list(existing)
+	for i in range(0, len(existing_list), 1000):
+		chunk = existing_list[i : i + 1000]
+		for row in frappe.get_all(
+			DOCTYPE,
+			filters={"name": ["in", chunk]},
+			fields=["name", "patient_visit", "visit_num", "admission", "admission_num", "branch"],
+		):
+			doc_meta[row.name] = row
+
+	imported_ok: list[dict] = []
+	not_imported: list[dict] = []
+	imported_no_items: list[dict] = []
+	visit_unresolved: list[dict] = []
+	admission_unresolved: list[dict] = []
+	branch_unresolved: list[dict] = []
+
+	for row in unique_rows:
+		trans_no = row["trans_no"]
+		base = {
+			"trans_no": trans_no,
+			"trans_date": _cell_text(row.get("trans_date")),
+			"visit_num": row.get("visit_num") or "",
+			"admission_num": row.get("admission_num") or "",
+			"branch_num": row.get("branch_num") or "",
+			"invoice_num": _cell_text(row.get("invoice_num")),
+			"net_bill_amount": _cell_text(row.get("net_bill_amount")),
+		}
+
+		if trans_no not in existing:
+			not_imported.append(
+				{
+					**base,
+					"status": "not_imported",
+					"detail": MASTER_ANALYSIS_REASONS["not_imported"],
+					"item_count": 0,
+				}
+			)
+			continue
+
+		meta = doc_meta.get(trans_no) or {}
+		item_count = item_counts.get(trans_no, 0)
+		base["item_count"] = item_count
+
+		if item_count == 0:
+			imported_no_items.append(
+				{
+					**base,
+					"status": "imported_no_items",
+					"detail": MASTER_ANALYSIS_REASONS["imported_no_items"],
+				}
+			)
+
+		excel_visit = (row.get("visit_num") or "").strip()
+		if excel_visit and not (meta.get("patient_visit") or "").strip():
+			visit_unresolved.append(
+				{
+					**base,
+					"status": "visit_unresolved",
+					"detail": MASTER_ANALYSIS_REASONS["visit_unresolved"],
+				}
+			)
+
+		excel_admission = (row.get("admission_num") or "").strip()
+		if excel_admission and not (meta.get("admission") or "").strip():
+			admission_unresolved.append(
+				{
+					**base,
+					"status": "admission_unresolved",
+					"detail": MASTER_ANALYSIS_REASONS["admission_unresolved"],
+				}
+			)
+
+		excel_branch = (row.get("branch_num") or "").strip()
+		if excel_branch and not (meta.get("branch") or "").strip():
+			branch_unresolved.append(
+				{
+					**base,
+					"status": "branch_unresolved",
+					"detail": MASTER_ANALYSIS_REASONS["branch_unresolved"],
+				}
+			)
+
+		imported_ok.append(
+			{
+				**base,
+				"status": "imported_ok",
+				"detail": "Legacy Sales Transactions header present",
+			}
+		)
+
+	issues = (
+		not_imported
+		+ imported_no_items
+		+ visit_unresolved
+		+ admission_unresolved
+		+ branch_unresolved
+	)
+
+	return {
+		"excel_unique_trans_nos": len(trans_nos),
+		"raw_excel_rows": raw_excel_rows,
+		"duplicate_rows_in_file": max(raw_excel_rows - len(trans_nos), 0),
+		"sheet_row_counts": sheet_row_counts,
+		"imported": len(imported_ok),
+		"not_imported": len(not_imported),
+		"imported_no_items": len(imported_no_items),
+		"visit_unresolved": len(visit_unresolved),
+		"admission_unresolved": len(admission_unresolved),
+		"branch_unresolved": len(branch_unresolved),
+		"reason_labels": MASTER_ANALYSIS_REASONS,
+		"samples": {
+			"not_imported": [i["trans_no"] for i in not_imported[:15]],
+			"imported_no_items": [i["trans_no"] for i in imported_no_items[:15]],
+			"visit_unresolved": [i["trans_no"] for i in visit_unresolved[:15]],
+			"admission_unresolved": [i["trans_no"] for i in admission_unresolved[:15]],
+			"branch_unresolved": [i["trans_no"] for i in branch_unresolved[:15]],
+		},
+		"csv_file_url": _write_legacy_sales_master_analysis_csv(issues, "issues"),
+		"csv_ok_file_url": _write_legacy_sales_master_analysis_csv(imported_ok, "ok"),
+	}
