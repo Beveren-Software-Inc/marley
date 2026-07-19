@@ -115,6 +115,71 @@ export async function fetchInpatientPrescriptions(admission: string): Promise<In
   }
 }
 
+export type ClinicalNoteDayMedication = {
+  name?: string
+  order_name?: string
+  drug?: string
+  drug_name?: string
+  medication?: string
+  old_medicine_code?: string
+  old_medicine_name?: string
+  dosage?: string
+  dosage_form?: string
+  quantity?: number | string
+  uom?: string
+  instructions?: string
+  frequency?: string
+  patient_frequency?: string
+  date?: string
+  start_date?: string
+  end_date?: string
+  time?: string
+  is_prn?: number | boolean
+  route_of_administration?: string
+  display_drug_name?: string
+  display_dosage?: string
+  is_legacy?: boolean
+  order_status?: string
+  posting_date?: string
+  practitioner?: string
+  practitioner_name?: string
+  care_context?: string
+}
+
+export type ClinicalNoteDayMedicationsResult = {
+  note_date: string
+  patient: string
+  medications: ClinicalNoteDayMedication[]
+  count: number
+}
+
+/** Medications prescribed on the calendar day of a clinical / doctor progress note. */
+export async function fetchMedicationsForClinicalNoteDay(opts: {
+  patient: string
+  noteDate: string
+  inpatientAdmission?: string
+  patientVisit?: string
+}): Promise<ClinicalNoteDayMedicationsResult> {
+  const params = new URLSearchParams({
+    patient: opts.patient,
+    note_date: opts.noteDate,
+  })
+  if (opts.inpatientAdmission) params.set('inpatient_admission', opts.inpatientAdmission)
+  if (opts.patientVisit) params.set('patient_visit', opts.patientVisit)
+
+  const response = await fetch(
+    `/api/method/healthcare.api.patient_medication_order.get_medications_for_clinical_note_day?${params.toString()}`,
+    { credentials: 'include', headers: { Accept: 'application/json' } },
+  )
+  const result = await response.json()
+  if (result.message) {
+    return result.message as ClinicalNoteDayMedicationsResult
+  }
+  throw new Error(
+    typeof result?.message === 'string' ? result.message : 'Failed to load medications for note day',
+  )
+}
+
 /**
  * Fetch a single prescription by ID
  */

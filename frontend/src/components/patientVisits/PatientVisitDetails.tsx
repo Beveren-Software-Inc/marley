@@ -1,4 +1,14 @@
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState, type ElementType } from 'react'
+import {
+  ClipboardList,
+  FileText,
+  FlaskConical,
+  Info,
+  NotebookPen,
+  Package,
+  Pill,
+  Stethoscope,
+} from 'lucide-react'
 import { fetchPatientVisit, type PatientVisit, cancelVisit, createInvoiceForVisit } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
@@ -8,10 +18,169 @@ import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
+import { fetchLabTestsByPatientVisit, type LabTest } from '../../services/labTests'
+import { fetchServiceRequests, type ServiceRequest } from '../../services/serviceRequests'
+import { fetchIPServices, type IPServiceRow } from '../../services/ipServices'
+import { fetchPrescriptions, type Prescription } from '../../services/prescriptions'
+import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
+import {
+  getMedicalDiagnosisForContext,
+  type MedicalDiagnosisEntryRow,
+} from '../../services/medicalDiagnosisEntry'
+import {
+  displayMedicationDosage,
+  displayMedicationDrugName,
+  displayMedicationFrequency,
+} from '../../utils/medicationOrderDisplayUtils'
+import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
+import { htmlToPlainText } from '../../utils/htmlToPlainText'
 
 interface PatientVisitDetailsProps {
   visitNo: string
   onUpdate?: () => void
+}
+
+type TabType =
+  | 'details'
+  | 'diagnoses'
+  | 'lab_tests'
+  | 'services'
+  | 'prescriptions'
+  | 'notes'
+  | 'documents'
+
+const LoadingSpinner = ({ message = 'Loading...' }: { message?: string }) => (
+  <div className="flex items-center justify-center gap-2 py-8 text-sm text-slate-500">
+    <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200 border-t-primary" />
+    {message}
+  </div>
+)
+
+const EmptyState = ({ icon: Icon, message }: { icon: ElementType; message: string }) => (
+  <div className="flex flex-col items-center justify-center py-10 text-slate-400">
+    <Icon className="mb-2 h-8 w-8 opacity-40" />
+    <p className="text-xs font-semibold uppercase tracking-wide">{message}</p>
+  </div>
+)
+
+function formatDate(value?: string | null): string {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleDateString('en-GB')
+  } catch {
+    return String(value).slice(0, 10)
+  }
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '—'
+  try {
+    return new Date(value).toLocaleString('en-GB')
+  } catch {
+    return String(value)
+  }
+}
+
+function useVisitTabData(visitNo: string) {
+  const [diagnoses, setDiagnoses] = useState<MedicalDiagnosisEntryRow[]>([])
+  const [labTests, setLabTests] = useState<LabTest[]>([])
+  const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
+  const [ipServices, setIpServices] = useState<IPServiceRow[]>([])
+  const [prescriptions, setPrescriptions] = useState<Prescription[]>([])
+  const [notes, setNotes] = useState<ClinicalNote[]>([])
+  const [loadingDiagnoses, setLoadingDiagnoses] = useState(false)
+  const [loadingLabTests, setLoadingLabTests] = useState(false)
+  const [loadingServices, setLoadingServices] = useState(false)
+  const [loadingPrescriptions, setLoadingPrescriptions] = useState(false)
+  const [loadingNotes, setLoadingNotes] = useState(false)
+
+  const loadDiagnoses = useCallback(async () => {
+    setLoadingDiagnoses(true)
+    try {
+      setDiagnoses(await getMedicalDiagnosisForContext('Patient Visit', visitNo))
+    } catch {
+      setDiagnoses([])
+    } finally {
+      setLoadingDiagnoses(false)
+    }
+  }, [visitNo])
+
+  const loadLabTests = useCallback(async () => {
+    setLoadingLabTests(true)
+    try {
+      setLabTests(await fetchLabTestsByPatientVisit(visitNo))
+    } catch {
+      setLabTests([])
+    } finally {
+      setLoadingLabTests(false)
+    }
+  }, [visitNo])
+
+  const loadServices = useCallback(async () => {
+    setLoadingServices(true)
+    try {
+      const [sr, ips] = await Promise.all([
+        fetchServiceRequests(100, 0, undefined, undefined, undefined, undefined, undefined, undefined, visitNo),
+        fetchIPServices(100, 0, undefined, undefined, visitNo),
+      ])
+      setServiceRequests(sr.data || [])
+      setIpServices(ips || [])
+    } catch {
+      setServiceRequests([])
+      setIpServices([])
+    } finally {
+      setLoadingServices(false)
+    }
+  }, [visitNo])
+
+  const loadPrescriptions = useCallback(async () => {
+    setLoadingPrescriptions(true)
+    try {
+      const rows = await fetchPrescriptions(100, 0, {
+        careContext: 'Patient Visit',
+        patientEncounter: visitNo,
+      })
+      setPrescriptions(rows || [])
+    } catch {
+      setPrescriptions([])
+    } finally {
+      setLoadingPrescriptions(false)
+    }
+  }, [visitNo])
+
+  const loadNotes = useCallback(async () => {
+    setLoadingNotes(true)
+    try {
+      setNotes(await fetchClinicalNotes(100, 0, undefined, undefined, undefined, undefined, 'Patient Visit', visitNo))
+    } catch {
+      setNotes([])
+    } finally {
+      setLoadingNotes(false)
+    }
+  }, [visitNo])
+
+  useEffect(() => {
+    // Prefetch all tab data so counts show on the tab bar.
+    void loadDiagnoses()
+    void loadLabTests()
+    void loadServices()
+    void loadPrescriptions()
+    void loadNotes()
+  }, [visitNo, loadDiagnoses, loadLabTests, loadServices, loadPrescriptions, loadNotes])
+
+  return {
+    diagnoses,
+    labTests,
+    serviceRequests,
+    ipServices,
+    prescriptions,
+    notes,
+    loadingDiagnoses,
+    loadingLabTests,
+    loadingServices,
+    loadingPrescriptions,
+    loadingNotes,
+  }
 }
 
 export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsProps) => {
@@ -24,7 +193,23 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [activeTab, setActiveTab] = useState<'details' | 'documents'>('details')
+  const [activeTab, setActiveTab] = useState<TabType>('details')
+  const [showCancelModal, setShowCancelModal] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
+
+  const {
+    diagnoses,
+    labTests,
+    serviceRequests,
+    ipServices,
+    prescriptions,
+    notes,
+    loadingDiagnoses,
+    loadingLabTests,
+    loadingServices,
+    loadingPrescriptions,
+    loadingNotes,
+  } = useVisitTabData(visitNo)
 
   const loadVisit = async () => {
     try {
@@ -39,30 +224,26 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
     }
   }
 
-  useEffect(() => { loadVisit() }, [visitNo])
+  useEffect(() => {
+    void loadVisit()
+    setActiveTab('details')
+  }, [visitNo])
 
-  const handleScheduleAdmission = () => {
-    setShowAdmissionModal(true)
+  const handleCancelVisitConfirm = async (reason: string) => {
+    if (!visit) return
+    setCancelLoading(true)
+    try {
+      await cancelVisit(visit.name, reason)
+      toast.success('Visit cancelled successfully')
+      loadVisit()
+      onUpdate?.()
+      setShowCancelModal(false)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to cancel visit')
+    } finally {
+      setCancelLoading(false)
+    }
   }
-
-const [showCancelModal, setShowCancelModal] = useState(false)
-const [cancelLoading, setCancelLoading] = useState(false)
-
-const handleCancelVisitConfirm = async (reason: string) => {
-  if (!visit) return
-  setCancelLoading(true)
-  try {
-    await cancelVisit(visit.name, reason)
-    toast.success('Visit cancelled successfully')
-    loadVisit()
-    onUpdate?.()
-    setShowCancelModal(false)
-  } catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Failed to cancel visit')
-  } finally {
-    setCancelLoading(false)
-  }
-}
 
   const handleCreateInvoice = async () => {
     if (!visit) return
@@ -79,209 +260,364 @@ const handleCancelVisitConfirm = async (reason: string) => {
     }
   }
 
-  if (loading) return <div className="flex items-center justify-center p-8 text-slate-600">Loading visit details...</div>
-  if (error) return <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-700">{error.message}</div>
-  if (!visit) return <div className="text-slate-500 text-center p-8">Visit not found</div>
+  if (loading) return <LoadingSpinner message="Loading visit details..." />
+  if (error) {
+    return <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-red-700">{error.message}</div>
+  }
+  if (!visit) return <div className="p-8 text-center text-slate-500">Visit not found</div>
 
   const hasDocuments = !!visit.documents && visit.documents.length > 0
+  const servicesCount = serviceRequests.length + ipServices.length
+
+  const tabs: Array<{ id: TabType; label: string; icon: ElementType; count: number }> = [
+    { id: 'details', label: 'Details', icon: Info, count: 0 },
+    { id: 'diagnoses', label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
+    { id: 'lab_tests', label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
+    { id: 'services', label: 'Services', icon: Package, count: servicesCount },
+    { id: 'prescriptions', label: 'Prescriptions', icon: Pill, count: prescriptions.length },
+    { id: 'notes', label: 'Notes', icon: NotebookPen, count: notes.length },
+    {
+      id: 'documents',
+      label: 'Documents',
+      icon: FileText,
+      count: hasDocuments ? visit.documents!.length : 0,
+    },
+  ]
 
   return (
-    <div className="space-y-4">
-      {/* Tabs */}
-      <div className="border-b border-slate-200 mb-2">
-        <nav className="-mb-px flex gap-4 text-sm">
-          <button
-            type="button"
-            className={`pb-2 border-b-2 ${
-              activeTab === 'details'
-                ? 'border-primary text-primary font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-            onClick={() => setActiveTab('details')}
-          >
-            Details
-          </button>
-          <button
-            type="button"
-            className={`pb-2 border-b-2 flex items-center gap-1 ${
-              activeTab === 'documents'
-                ? 'border-primary text-primary font-semibold'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-            onClick={() => setActiveTab('documents')}
-          >
-            Documents
-            {hasDocuments && (
-              <span className="inline-flex items-center justify-center rounded-full bg-slate-100 px-1.5 text-[11px] font-medium text-slate-700">
-                {visit.documents!.length}
-              </span>
-            )}
-          </button>
-        </nav>
+    <div className="space-y-4 text-sm">
+      <div className="border-b border-slate-200">
+        <div className="flex space-x-3 overflow-x-auto">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? 'border-b-2 border-primary text-primary'
+                  : 'text-slate-500 hover:text-slate-700'
+              }`}
+            >
+              <tab.icon className="h-4 w-4" />
+              {tab.label}
+              {tab.count > 0 ? (
+                <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                  {tab.count}
+                </span>
+              ) : null}
+            </button>
+          ))}
+        </div>
       </div>
 
       {activeTab === 'details' && (
         <>
-          {/* Patient Info */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">Patient Information</h3>
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">Patient Information</h3>
               <div className="space-y-1 text-sm">
-                <div><span className="font-medium">Patient:</span> {visit.patient_name || visit.patient}</div>
-                <div><span className="font-medium">Visit No:</span> {visit.name}</div>
-                {visit.file_number && <div><span className="font-medium">File Number:</span> {visit.file_number}</div>}
-                <div><span className="font-medium">Status:</span> {visit.status}</div>
+                <div>
+                  <span className="font-medium">Patient:</span> {visit.patient_name || visit.patient}
+                </div>
+                <div>
+                  <span className="font-medium">Visit No:</span> {visit.name}
+                </div>
+                {visit.file_number ? (
+                  <div>
+                    <span className="font-medium">File Number:</span> {visit.file_number}
+                  </div>
+                ) : null}
+                <div>
+                  <span className="font-medium">Status:</span> {visit.status}
+                </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 mb-2">Visit Details</h3>
+              <h3 className="mb-2 text-sm font-semibold text-slate-700">Visit Details</h3>
               <div className="space-y-1 text-sm">
-                {visit.encounter_date && (
+                {visit.encounter_date ? (
                   <div>
                     <span className="font-medium">Encounter Date:</span>{' '}
-                    {new Date(visit.encounter_date).toLocaleDateString('en-GB')} {visit.encounter_time || ''}
+                    {formatDate(visit.encounter_date)} {visit.encounter_time || ''}
                   </div>
-                )}
+                ) : null}
                 {visit.practitioner_name || visit.practitioner ? (
                   <div>
                     <span className="font-medium">Doctor:</span>{' '}
                     {visit.practitioner_name || visit.practitioner}
                   </div>
                 ) : null}
-                {visit.medical_department && <div><span className="font-medium">Department:</span> {visit.medical_department}</div>}
-                {visit.visit_type && <div><span className="font-medium">Visit Type:</span> {visit.visit_type}</div>}
-                {visit.inpatient_record && (
+                {visit.medical_department ? (
+                  <div>
+                    <span className="font-medium">Department:</span> {visit.medical_department}
+                  </div>
+                ) : null}
+                {visit.visit_type ? (
+                  <div>
+                    <span className="font-medium">Visit Type:</span> {visit.visit_type}
+                  </div>
+                ) : null}
+                {visit.inpatient_record ? (
                   <div>
                     <span className="font-medium">Inpatient Admission:</span> {visit.inpatient_record}{' '}
-                    {visit.inpatient_status && `(${visit.inpatient_status})`}
+                    {visit.inpatient_status ? `(${visit.inpatient_status})` : ''}
                   </div>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
 
-          {/* Actions */}
           <div className="border-t border-slate-200 pt-4">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">Actions</h3>
+            <h3 className="mb-3 text-sm font-semibold text-slate-700">Actions</h3>
             <div className="flex flex-wrap gap-2">
-              {visit.status !== 'Cancelled' && (
+              {visit.status !== 'Cancelled' ? (
                 <button
                   type="button"
                   onClick={() => setShowEditModal(true)}
-                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50"
+                  className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Edit Visit
                 </button>
-              )}
+              ) : null}
 
-              {/* Create Invoice (green) */}
-              {visit.status === 'Completed' && (
+              {visit.status === 'Completed' ? (
                 <button
+                  type="button"
                   onClick={handleCreateInvoice}
                   disabled={actionLoading === 'invoice'}
-                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50"
+                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
                 >
                   {actionLoading === 'invoice' ? 'Creating…' : 'Create Invoice'}
                 </button>
-              )}
+              ) : null}
 
-              {/* Create Vital Sign */}
-              {visit.status !== 'Cancelled' && (
+              {visit.status !== 'Cancelled' ? (
                 <button
+                  type="button"
                   onClick={() => setShowVitalSignModal(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-md hover:bg-teal-700"
+                  className="rounded-md bg-teal-600 px-4 py-2 text-sm font-medium text-white hover:bg-teal-700"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
                   Create Vital Sign
                 </button>
-              )}
+              ) : null}
 
-              {/* Create Observation */}
-              {visit.status !== 'Cancelled' && observationsAllowedForMode(mode) && (
+              {visit.status !== 'Cancelled' && observationsAllowedForMode(mode) ? (
                 <button
+                  type="button"
                   onClick={() => setShowObservationModal(true)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-md hover:bg-violet-700"
+                  className="rounded-md bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700"
                 >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
-                  </svg>
                   Create Observation
                 </button>
-              )}
+              ) : null}
 
-              {/* Schedule Admission (blue) */}
-              {!visit.inpatient_record && visit.status === 'Completed' && (
+              {!visit.inpatient_record && visit.status === 'Completed' ? (
                 <button
-                  onClick={handleScheduleAdmission}
-                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+                  type="button"
+                  onClick={() => setShowAdmissionModal(true)}
+                  className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90"
                 >
                   Schedule Admission
                 </button>
-              )}
+              ) : null}
 
-              {visit.status !== 'Cancelled' && (
+              {visit.status !== 'Cancelled' ? (
                 <button
+                  type="button"
                   onClick={() => setShowCancelModal(true)}
-                  className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+                  className="rounded-md bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700"
                 >
                   Cancel Visit
                 </button>
-              )}
-
-              {showCancelModal && visit && (
-                <CancelVisitModal
-                  visitName={visit.name}
-                  onClose={() => setShowCancelModal(false)}
-                  onConfirm={handleCancelVisitConfirm}
-                  loading={cancelLoading}
-                />
-              )}
+              ) : null}
             </div>
           </div>
         </>
       )}
 
-      {activeTab === 'documents' && (
-        <div className="space-y-3">
-          {!hasDocuments && (
-            <div className="text-sm text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-              No documents uploaded for this visit.
-            </div>
+      {activeTab === 'diagnoses' && (
+        <div>
+          {loadingDiagnoses ? (
+            <LoadingSpinner message="Loading diagnoses..." />
+          ) : diagnoses.length === 0 ? (
+            <EmptyState icon={Stethoscope} message="No diagnoses for this visit" />
+          ) : (
+            <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+              {diagnoses.map((dx) => (
+                <li key={dx.name || `${dx.diagnosis}-${dx.posting_date}`} className="px-4 py-3">
+                  <p className="font-semibold text-slate-900">
+                    {dx.diagnosis_name || dx.diagnosis || 'Diagnosis'}
+                  </p>
+                  {dx.details ? (
+                    <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                      {htmlToPlainText(dx.details)}
+                    </p>
+                  ) : null}
+                  <p className="mt-1 text-xs text-slate-400">
+                    {[dx.posting_date ? formatDate(dx.posting_date) : null, dx.practitioner_name]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                </li>
+              ))}
+            </ul>
           )}
-          {hasDocuments && (
-            <div className="space-y-2">
-              {visit.documents!.map((doc) => (
-                <div
-                  key={doc.name || `${doc.document}-${doc.file_name}`}
-                  className="flex items-center justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
-                >
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium text-slate-800 truncate">
-                      {doc.file_name || (doc as { document_name?: string }).document_name || doc.document || 'Document'}
+        </div>
+      )}
+
+      {activeTab === 'lab_tests' && (
+        <div>
+          {loadingLabTests ? (
+            <LoadingSpinner message="Loading lab tests..." />
+          ) : labTests.length === 0 ? (
+            <EmptyState icon={FlaskConical} message="No lab tests for this visit" />
+          ) : (
+            <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+              {labTests.map((lab) => (
+                <li key={lab.name} className="px-4 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-slate-900">
+                        {lab.lab_test_name || lab.template || lab.name}
+                      </p>
+                      <p className="mt-0.5 font-mono text-xs text-slate-400">{lab.name}</p>
                     </div>
-                    <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
-                      {doc.document_type && <span>Type: {doc.document_type}</span>}
-                      {doc.transaction_no && <span>Txn: {doc.transaction_no}</span>}
-                    </div>
-                    {doc.upload_remarks && (
-                      <div className="text-xs text-slate-500 mt-0.5 line-clamp-2">
-                        {doc.upload_remarks}
-                      </div>
-                    )}
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                      {lab.status || '—'}
+                    </span>
                   </div>
-                  {doc.document && (
-                    <a
-                      href={doc.document}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="shrink-0 inline-flex items-center px-3 py-1.5 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5"
-                    >
-                      Open
-                    </a>
-                  )}
+                  <p className="mt-1 text-xs text-slate-500">
+                    {[lab.date ? formatDate(lab.date) : null, lab.practitioner_name || lab.practitioner]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'services' && (
+        <div className="space-y-4">
+          {loadingServices ? (
+            <LoadingSpinner message="Loading services..." />
+          ) : servicesCount === 0 ? (
+            <EmptyState icon={Package} message="No services for this visit" />
+          ) : (
+            <>
+              {serviceRequests.length > 0 ? (
+                <div>
+                  <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-slate-700">
+                    <ClipboardList className="h-4 w-4" />
+                    Service Requests
+                  </h3>
+                  <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {serviceRequests.map((sr) => (
+                      <li key={sr.name} className="px-4 py-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-slate-900">
+                              {sr.template_name || sr.template_dn || sr.name}
+                            </p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {[sr.template_dt, sr.name].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                            {sr.status || '—'}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-500">
+                          {[
+                            sr.order_date ? formatDate(sr.order_date) : null,
+                            sr.practitioner_name || sr.practitioner,
+                          ]
+                            .filter(Boolean)
+                            .join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {ipServices.length > 0 ? (
+                <div>
+                  <h3 className="mb-2 text-sm font-semibold text-slate-700">Other Services</h3>
+                  <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
+                    {ipServices.map((svc) => (
+                      <li key={svc.name} className="px-4 py-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-slate-900">{svc.name}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {[svc.category, svc.patient_full_name].filter(Boolean).join(' · ')}
+                            </p>
+                          </div>
+                          {svc.total_amount != null ? (
+                            <span className="text-sm font-medium text-slate-700">{svc.total_amount}</span>
+                          ) : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'prescriptions' && (
+        <div>
+          {loadingPrescriptions ? (
+            <LoadingSpinner message="Loading prescriptions..." />
+          ) : prescriptions.length === 0 ? (
+            <EmptyState icon={Pill} message="No prescriptions for this visit" />
+          ) : (
+            <div className="space-y-3">
+              {prescriptions.map((order) => (
+                <div key={order.name} className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="font-semibold text-primary">{order.name}</p>
+                      <p className="text-xs text-slate-500">
+                        {[
+                          order.posting_date ? formatDate(order.posting_date) : null,
+                          order.healthcare_practitioner_name || order.practitioner,
+                          order.status,
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                      </p>
+                    </div>
+                    <span className="text-xs text-slate-500">
+                      {(order.medication_orders || []).length} medication(s)
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
+                    {(order.medication_orders || []).map((med, idx) => (
+                      <li
+                        key={`${order.name}-${med.name || idx}`}
+                        className="rounded-md border border-slate-200 bg-white px-3 py-2"
+                      >
+                        <p className="font-medium text-slate-900">
+                          {displayMedicationDrugName(med) || med.drug_name || 'Medication'}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-600">
+                          {[
+                            displayMedicationDosage(med),
+                            displayMedicationFrequency(med),
+                          ]
+                            .filter((v) => v && v !== '-')
+                            .join(' · ')}
+                        </p>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               ))}
             </div>
@@ -289,33 +625,120 @@ const handleCancelVisitConfirm = async (reason: string) => {
         </div>
       )}
 
-      {/* Modals */}
-      {showAdmissionModal && visit && (
+      {activeTab === 'notes' && (
+        <div>
+          {loadingNotes ? (
+            <LoadingSpinner message="Loading notes..." />
+          ) : notes.length === 0 ? (
+            <EmptyState icon={NotebookPen} message="No clinical notes for this visit" />
+          ) : (
+            <ul className="space-y-3">
+              {notes.map((note) => (
+                <li key={note.name} className="rounded-lg border border-slate-200 bg-white p-4">
+                  <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {note.clinical_note_type_name ||
+                        (note.clinical_note_type === 'Doctor Progress Note'
+                          ? 'Patient Progress Note'
+                          : note.clinical_note_type) ||
+                        'Clinical Note'}
+                    </p>
+                    <p className="text-xs text-slate-400">
+                      {formatDateTime(note.posting_date)}
+                    </p>
+                  </div>
+                  <p className="whitespace-pre-wrap text-slate-800">
+                    {note.note ? htmlToPlainText(note.note) : '—'}
+                  </p>
+                  {(note.practitioner_name || note.practitioner) && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Dr: {note.practitioner_name || note.practitioner}
+                    </p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {activeTab === 'documents' && (
+        <div className="space-y-3">
+          {!hasDocuments ? (
+            <EmptyState icon={FileText} message="No documents for this visit" />
+          ) : (
+            visit.documents!.map((doc) => (
+              <div
+                key={doc.name || `${doc.document}-${doc.file_name}`}
+                className="rounded-md border border-slate-200 bg-white px-3 py-3"
+              >
+                <div className="mb-2 flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-medium text-slate-800">
+                      {doc.file_name ||
+                        (doc as { document_name?: string }).document_name ||
+                        doc.document ||
+                        'Document'}
+                    </div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
+                      {doc.document_type ? <span>Type: {doc.document_type}</span> : null}
+                      {doc.transaction_no ? <span>Txn: {doc.transaction_no}</span> : null}
+                    </div>
+                    {doc.upload_remarks ? (
+                      <div className="mt-0.5 line-clamp-2 text-xs text-slate-500">
+                        {doc.upload_remarks}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+                {doc.document ? (
+                  <PatientDocumentAttachmentPreview url={doc.document} fileName={doc.file_name} compact />
+                ) : null}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {showCancelModal && visit ? (
+        <CancelVisitModal
+          visitName={visit.name}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleCancelVisitConfirm}
+          loading={cancelLoading}
+        />
+      ) : null}
+
+      {showAdmissionModal && visit ? (
         <CreateAdmissionModal
           patientName={visit.patient}
           encounterName={visit.name}
           onClose={() => setShowAdmissionModal(false)}
-          onSuccess={() => { setShowAdmissionModal(false); loadVisit(); onUpdate?.() }}
+          onSuccess={() => {
+            setShowAdmissionModal(false)
+            loadVisit()
+            onUpdate?.()
+          }}
         />
-      )}
+      ) : null}
 
-      {showVitalSignModal && visit && (
+      {showVitalSignModal && visit ? (
         <CreateVitalSignModal
           initialPatient={visit.patient}
           onClose={() => setShowVitalSignModal(false)}
           onSuccess={() => setShowVitalSignModal(false)}
         />
-      )}
+      ) : null}
 
-      {showObservationModal && visit && (
+      {showObservationModal && visit ? (
         <CreateObservationModal
           initialPatient={visit.patient}
           onClose={() => setShowObservationModal(false)}
           onSuccess={() => setShowObservationModal(false)}
         />
-      )}
+      ) : null}
 
-      {showEditModal && visit && (
+      {showEditModal && visit ? (
         <EditPatientVisitModal
           visitName={visit.name}
           onClose={() => setShowEditModal(false)}
@@ -325,7 +748,7 @@ const handleCancelVisitConfirm = async (reason: string) => {
             onUpdate?.()
           }}
         />
-      )}
+      ) : null}
     </div>
   )
 }

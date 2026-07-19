@@ -246,14 +246,46 @@ def _build_item_fields(row: dict) -> dict[str, Any]:
 	return {key: value for key, value in fields.items() if value not in (None, "")}
 
 
+def _ensure_parent_transaction(trans_no: str, lines: list[dict] | None = None) -> tuple[Any, bool]:
+	"""Return (doc, created). Create a stub Legacy Sales Transactions header if missing."""
+	if frappe.db.exists(PARENT_DOCTYPE, trans_no):
+		return frappe.get_doc(PARENT_DOCTYPE, trans_no), False
+
+	# Seed header fields from the first detail line when available.
+	first = (lines or [{}])[0] if lines else {}
+	fields: dict[str, Any] = {"doctype": PARENT_DOCTYPE, "trans_no": trans_no}
+	trans_type = _cell_text(first.get("trans_type_num")) or _clean_oracle_num(first.get("trans_type_num"))
+	if trans_type:
+		fields["trans_type_num"] = trans_type
+	for date_field in ("cr_date", "up_date"):
+		legacy_date = _format_legacy_datetime(
+			first.get(date_field),
+			datemode=cint(first.get("_datemode") or 0),
+		)
+		if legacy_date:
+			fields[date_field] = legacy_date
+	cr_id = _cell_text(first.get("cr_id"))
+	if cr_id:
+		fields["cr_id"] = cr_id
+	up_id = _cell_text(first.get("up_id"))
+	if up_id:
+		fields["up_id"] = up_id
+
+	doc = frappe.get_doc(fields)
+	doc.flags.ignore_validate = True
+	doc.flags.ignore_links = True
+	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_permissions = True
+	doc.flags.legacy_import = True
+	doc.insert(ignore_permissions=True)
+	return doc, True
+
+
 def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 	if not lines:
 		return {"status": "skip_empty", "trans_no": trans_no}
 
-	if not frappe.db.exists(PARENT_DOCTYPE, trans_no):
-		return {"status": "skip_no_parent", "trans_no": trans_no}
-
-	doc = frappe.get_doc(PARENT_DOCTYPE, trans_no)
+	doc, parent_created = _ensure_parent_transaction(trans_no, lines)
 	existing_by_sr = {}
 	for child in doc.get(CHILD_TABLE) or []:
 		if child.sr_num is None:
@@ -288,6 +320,7 @@ def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 			"status": "skip_no_lines",
 			"trans_no": trans_no,
 			"skipped": skipped,
+			"parent_created": 1 if parent_created else 0,
 		}
 
 	doc.flags.ignore_validate = True
@@ -304,6 +337,7 @@ def import_items_for_trans(trans_no: str, lines: list[dict]) -> dict:
 		"updated": updated,
 		"skipped": skipped,
 		"items_resolved": items_resolved,
+		"parent_created": 1 if parent_created else 0,
 	}
 
 
@@ -384,7 +418,8 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	ok = skip_no_parent = skip_no_lines = 0
+	ok = skip_no_lines = 0
+	parents_created = 0
 	items_added = items_updated = items_skipped = items_resolved = 0
 	errors: list[str] = []
 
@@ -393,14 +428,13 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 		try:
 			result = import_items_for_trans(key, lines)
 			status = result.get("status")
+			parents_created += cint(result.get("parent_created", 0))
 			if status == "ok":
 				ok += 1
 				items_added += cint(result.get("added", 0))
 				items_updated += cint(result.get("updated", 0))
 				items_skipped += cint(result.get("skipped", 0))
 				items_resolved += cint(result.get("items_resolved", 0))
-			elif status == "skip_no_parent":
-				skip_no_parent += 1
 			elif status == "skip_no_lines":
 				skip_no_lines += 1
 				items_skipped += cint(result.get("skipped", 0))
@@ -415,11 +449,253 @@ def run_legacy_sales_detail_import_batch(*, offset: int = 0) -> dict:
 		"done": len(batch_keys) < LEGACY_SALES_DETAIL_IMPORT_BATCH_SIZE,
 		"batch_count": len(batch_keys),
 		"ok": ok,
-		"skip_no_parent": skip_no_parent,
+		"parents_created": parents_created,
+		"skip_no_parent": 0,
 		"skip_no_lines": skip_no_lines,
 		"items_added": items_added,
 		"items_updated": items_updated,
 		"items_skipped": items_skipped,
 		"items_resolved": items_resolved,
 		"errors": len(errors),
+	}
+
+
+DETAIL_ANALYSIS_REASONS = {
+	"parent_missing": "No Legacy Sales Transactions header for this TRANS_NUM",
+	"line_not_imported": "Header exists but this SR_NUM line is missing from items",
+	"item_unresolved": "ITEM_NUM present but ITEM_00_01 link not resolved on the child row",
+	"line_count_mismatch": "Excel line count for TRANS_NUM differs from items on the document",
+}
+
+
+def _existing_parent_names(trans_nos: list[str]) -> set[str]:
+	existing: set[str] = set()
+	chunk_size = 1000
+	for i in range(0, len(trans_nos), chunk_size):
+		chunk = trans_nos[i : i + chunk_size]
+		if not chunk:
+			continue
+		existing.update(
+			frappe.get_all(PARENT_DOCTYPE, filters={"name": ["in", chunk]}, pluck="name")
+		)
+	return existing
+
+
+def _child_rows_by_parent(trans_nos: list[str]) -> tuple[dict[str, set[int]], dict[tuple[str, int], dict]]:
+	"""Return ({parent: {sr_num}}, {(parent, sr_num): {item, item_num}})."""
+	by_parent: dict[str, set[int]] = {}
+	by_key: dict[tuple[str, int], dict] = {}
+	chunk_size = 1000
+	for i in range(0, len(trans_nos), chunk_size):
+		chunk = trans_nos[i : i + chunk_size]
+		if not chunk:
+			continue
+		rows = frappe.db.sql(
+			"""
+			SELECT parent, sr_num, item, item_num
+			FROM `tabLegacy Sales Transaction Item`
+			WHERE parent IN %(parents)s
+			""",
+			{"parents": chunk},
+			as_dict=True,
+		)
+		for row in rows:
+			sr = cint(row.sr_num)
+			by_parent.setdefault(row.parent, set()).add(sr)
+			by_key[(row.parent, sr)] = {
+				"item": row.item or "",
+				"item_num": row.item_num or "",
+			}
+	return by_parent, by_key
+
+
+def _write_legacy_sales_detail_analysis_csv(detailed: list[dict], label: str) -> str | None:
+	if not detailed:
+		return None
+	import csv
+	import os
+
+	stamp = frappe.utils.now().replace(" ", "_").replace(":", "-")
+	file_name = f"legacy_sales_detail_analysis_{label}_{stamp}.csv"
+	files_dir = frappe.get_site_path("private", "files")
+	os.makedirs(files_dir, exist_ok=True)
+	disk_path = os.path.join(files_dir, file_name)
+
+	with open(disk_path, "w", newline="", encoding="utf-8") as fh:
+		writer = csv.writer(fh)
+		writer.writerow(
+			[
+				"TRANS_NUM",
+				"SR_NUM",
+				"ITEM_NUM",
+				"SHOW_QTY",
+				"SHOW_AMT",
+				"STATUS",
+				"DETAIL",
+				"EXCEL_LINE_COUNT",
+				"DB_LINE_COUNT",
+			]
+		)
+		for item in detailed:
+			writer.writerow(
+				[
+					item.get("trans_no") or "",
+					item.get("sr_num", ""),
+					item.get("item_num") or "",
+					item.get("show_qty") or "",
+					item.get("show_amt") or "",
+					item.get("status") or "",
+					item.get("detail") or "",
+					item.get("excel_line_count", ""),
+					item.get("db_line_count", ""),
+				]
+			)
+
+	file_url = f"/private/files/{file_name}"
+	frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": file_name,
+			"file_url": file_url,
+			"is_private": 1,
+			"folder": "Home",
+		}
+	).insert(ignore_permissions=True)
+	return file_url
+
+
+@frappe.whitelist()
+def analyze_legacy_sales_detail_import(file_url: str) -> dict:
+	"""Compare SALES_DATA_DETAILS Excel against Legacy Sales Transaction Item lines.
+
+	Reports missing parents, missing SR_NUM lines, unresolved ITEM_00_01 links,
+	and per-transaction line-count mismatches.
+	"""
+	_require_admin()
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload the SALES_DATA_DETAILS Excel file."))
+
+	rows, sheet_row_counts = _parse_excel_rows(file_url)
+	grouped = _group_rows_by_trans(rows)
+	trans_keys = sorted(grouped.keys())
+	raw_excel_rows = sum(sheet_row_counts.values())
+
+	existing_parents = _existing_parent_names(trans_keys)
+	if existing_parents:
+		db_sr_by_parent, child_links = _child_rows_by_parent(list(existing_parents))
+	else:
+		db_sr_by_parent, child_links = {}, {}
+
+	line_ok: list[dict] = []
+	parent_missing: list[dict] = []
+	line_not_imported: list[dict] = []
+	item_unresolved: list[dict] = []
+	line_count_mismatch: list[dict] = []
+	seen_mismatch: set[str] = set()
+
+	for trans_no, lines in grouped.items():
+		excel_count = len(lines)
+		db_srs = db_sr_by_parent.get(trans_no) or set()
+		db_count = len(db_srs)
+
+		if trans_no not in existing_parents:
+			for row in lines:
+				parent_missing.append(
+					{
+						"trans_no": trans_no,
+						"sr_num": row.get("sr_num"),
+						"item_num": row.get("item_num") or "",
+						"show_qty": _cell_text(row.get("show_qty")),
+						"show_amt": _cell_text(row.get("show_amt")),
+						"status": "parent_missing",
+						"detail": DETAIL_ANALYSIS_REASONS["parent_missing"],
+						"excel_line_count": excel_count,
+						"db_line_count": 0,
+					}
+				)
+			continue
+
+		if excel_count != db_count and trans_no not in seen_mismatch:
+			seen_mismatch.add(trans_no)
+			line_count_mismatch.append(
+				{
+					"trans_no": trans_no,
+					"sr_num": "",
+					"item_num": "",
+					"show_qty": "",
+					"show_amt": "",
+					"status": "line_count_mismatch",
+					"detail": (
+						f"{DETAIL_ANALYSIS_REASONS['line_count_mismatch']} "
+						f"(excel={excel_count}, db={db_count})"
+					),
+					"excel_line_count": excel_count,
+					"db_line_count": db_count,
+				}
+			)
+
+		for row in lines:
+			sr_num = cint(row.get("sr_num"))
+			base = {
+				"trans_no": trans_no,
+				"sr_num": sr_num,
+				"item_num": row.get("item_num") or "",
+				"show_qty": _cell_text(row.get("show_qty")),
+				"show_amt": _cell_text(row.get("show_amt")),
+				"excel_line_count": excel_count,
+				"db_line_count": db_count,
+			}
+
+			if sr_num not in db_srs:
+				line_not_imported.append(
+					{
+						**base,
+						"status": "line_not_imported",
+						"detail": DETAIL_ANALYSIS_REASONS["line_not_imported"],
+					}
+				)
+				continue
+
+			child = child_links.get((trans_no, sr_num)) or {}
+			excel_item = (row.get("item_num") or "").strip()
+			if excel_item and not (child.get("item") or "").strip():
+				item_unresolved.append(
+					{
+						**base,
+						"status": "item_unresolved",
+						"detail": DETAIL_ANALYSIS_REASONS["item_unresolved"],
+					}
+				)
+
+			line_ok.append(
+				{
+					**base,
+					"status": "line_imported_ok",
+					"detail": "Item line present on Legacy Sales Transactions",
+				}
+			)
+
+	issues = parent_missing + line_not_imported + item_unresolved + line_count_mismatch
+
+	return {
+		"excel_detail_rows": len(rows),
+		"raw_excel_rows": raw_excel_rows,
+		"sheet_row_counts": sheet_row_counts,
+		"excel_transactions": len(trans_keys),
+		"parents_found": len(existing_parents),
+		"parents_missing": len(trans_keys) - len(existing_parents),
+		"lines_imported": len(line_ok),
+		"lines_not_imported": len(line_not_imported),
+		"parent_missing_lines": len(parent_missing),
+		"item_unresolved": len(item_unresolved),
+		"line_count_mismatch": len(line_count_mismatch),
+		"reason_labels": DETAIL_ANALYSIS_REASONS,
+		"samples": {
+			"parent_missing": list({i["trans_no"] for i in parent_missing})[:15],
+			"line_not_imported": [f"{i['trans_no']}/{i['sr_num']}" for i in line_not_imported[:15]],
+			"item_unresolved": [f"{i['trans_no']}/{i['sr_num']}" for i in item_unresolved[:15]],
+			"line_count_mismatch": [i["trans_no"] for i in line_count_mismatch[:15]],
+		},
+		"csv_file_url": _write_legacy_sales_detail_analysis_csv(issues, "issues"),
+		"csv_ok_file_url": _write_legacy_sales_detail_analysis_csv(line_ok, "ok"),
 	}

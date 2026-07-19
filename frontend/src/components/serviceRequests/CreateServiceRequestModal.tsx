@@ -579,7 +579,8 @@ export const CreateServiceRequestModal = ({
         })
       } else {
         const listAmount = listSubtotalBeforeDiscount
-        if (priceMissing && listAmount <= 0) {
+        // Other Services (nursing): amount/payment is optional — some services are free.
+        if (priceMissing && listAmount <= 0 && !isOtherService) {
           setError('Enter an amount for this item/service (no price configured).')
           return
         }
@@ -1075,7 +1076,11 @@ export const CreateServiceRequestModal = ({
                 {priceMissing ? (
                   <div className="mb-3 flex flex-col gap-1">
                     <label className="text-xs font-medium text-slate-500">
-                      Amount <span className="text-red-500">*</span>
+                      Amount
+                      {!isOtherService ? <span className="text-red-500"> *</span> : null}
+                      {isOtherService ? (
+                        <span className="ml-1 font-normal text-slate-400">(optional)</span>
+                      ) : null}
                     </label>
                     <input
                       type="number"
@@ -1091,10 +1096,16 @@ export const CreateServiceRequestModal = ({
                         if (!Number.isNaN(n)) setManualCost(n)
                       }}
                       className={inputClass}
-                      placeholder="Enter amount (no price on item)"
+                      placeholder={
+                        isOtherService
+                          ? 'Leave blank if no payment required'
+                          : 'Enter amount (no price on item)'
+                      }
                     />
-                    <p className="text-[11px] text-amber-700">
-                      This item/service has no price configured. Enter the amount to charge.
+                    <p className={`text-[11px] ${isOtherService ? 'text-slate-500' : 'text-amber-700'}`}>
+                      {isOtherService
+                        ? 'No catalog price. Leave blank for free / no-payment services, or enter an amount to charge.'
+                        : 'This item/service has no price configured. Enter the amount to charge.'}
                     </p>
                   </div>
                 ) : listSubtotalBeforeDiscount !== 0 ? (

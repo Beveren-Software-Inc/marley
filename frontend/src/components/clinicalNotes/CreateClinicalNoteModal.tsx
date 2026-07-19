@@ -976,7 +976,7 @@ export const CreateClinicalNoteModal = ({
   const getModeHelpText = () => {
     if (isIPMode) {
       if (admissionOptionalForThisNote) {
-        return `Creating doctor progress note in IP mode. Admission is optional${formData.admission_no ? `: ${formData.admission_no}` : ''}`
+        return `Creating patient progress note in IP mode. Admission is optional${formData.admission_no ? `: ${formData.admission_no}` : ''}`
       }
       return `Creating clinical note for IP admission: ${formData.admission_no || 'not selected yet'}`
     }

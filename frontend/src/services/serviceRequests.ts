@@ -40,6 +40,8 @@ export async function fetchServiceRequests(
   search?: string,
   practitioner?: string,
   patientSearch?: string,
+  patientVisit?: string,
+  inpatientRecord?: string,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -50,6 +52,8 @@ export async function fetchServiceRequests(
   if (search) params.append('search', search)
   if (practitioner) params.append('practitioner', practitioner)
   if (patientSearch?.trim()) params.append('patient_search', patientSearch.trim())
+  if (patientVisit) params.append('patient_visit', patientVisit)
+  if (inpatientRecord) params.append('inpatient_record', inpatientRecord)
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`

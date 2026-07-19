@@ -597,16 +597,16 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Doctor Progress Note
+  // Show Patient Progress Note
   if (screen === 'dpn') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Doctor Progress Notes" 
+            title="Patient Progress Notes" 
             onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
-            addButtonTitle="Add Doctor Progress Note"
+            addButtonTitle="Add Patient Progress Note"
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
@@ -625,7 +625,7 @@ export const DoctorPage = () => {
             }}
             initialPatient={selectedPatient}
             defaultClinicalNoteType="Doctor Progress Note"
-            title="Add Doctor Progress Note"
+            title="Add Patient Progress Note"
           />
         )}
       </div>
@@ -2018,7 +2018,7 @@ export const DoctorPage = () => {
         }}
         initialPatient={selectedPatient}
         defaultClinicalNoteType="Doctor Progress Note"
-        title="Add Doctor Progress Note"
+        title="Add Patient Progress Note"
       />
     )}
 

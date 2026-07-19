@@ -29,14 +29,21 @@ interface ClinicalNotesListProps {
   addButtonTitle?: string
 }
 
+function clinicalNoteTypeDisplayLabel(clinicalNoteType?: string): string {
+  if (!clinicalNoteType) return 'Clinical Note'
+  if (clinicalNoteType === 'Doctor Progress Note') return 'Patient Progress Note'
+  return clinicalNoteType
+}
+
 function resolveListTitle(clinicalNoteType?: string, title?: string): string {
   if (title) return title
   if (!clinicalNoteType) return 'Clinical Notes'
-  if (clinicalNoteType.endsWith(' Note')) {
-    return clinicalNoteType.replace(/ Note$/, ' Notes')
+  const displayType = clinicalNoteTypeDisplayLabel(clinicalNoteType)
+  if (displayType.endsWith(' Note')) {
+    return displayType.replace(/ Note$/, ' Notes')
   }
-  if (clinicalNoteType.endsWith(' Order')) {
-    return clinicalNoteType.replace(/ Order$/, ' Orders')
+  if (displayType.endsWith(' Order')) {
+    return displayType.replace(/ Order$/, ' Orders')
   }
   return clinicalNoteType
 }
@@ -621,10 +628,10 @@ export const ClinicalNotesList = ({
         <div className="mb-6 border border-amber-200 rounded-lg bg-amber-50/60 overflow-hidden">
           <div className="px-4 py-2 border-b border-amber-200 bg-amber-50">
             <h3 className="text-sm font-semibold text-slate-800">
-              Admitted or today&apos;s visits — no Doctor Progress Note yet
+              Admitted or today&apos;s visits — no Patient Progress Note yet
             </h3>
             <p className="text-xs text-slate-600 mt-0.5">
-              Shown until any practitioner adds a Doctor Progress Note for that admission or visit. Click a patient to open their file.
+              Shown until any practitioner adds a Patient Progress Note for that admission or visit. Click a patient to open their file.
             </p>
           </div>
           {pendingLoading ? (
@@ -707,7 +714,7 @@ export const ClinicalNotesList = ({
       {detailName ? (
         <ClinicalNoteDetailPanel
           name={detailName}
-          title={clinicalNoteType || 'Clinical Note'}
+          title={clinicalNoteTypeDisplayLabel(clinicalNoteType)}
           preview={clinicalNotes.find((n) => n.name === detailName)}
           onClose={() => setDetailName(null)}
           onPatientClick={onPatientClick}

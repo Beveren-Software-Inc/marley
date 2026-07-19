@@ -2688,6 +2688,44 @@ def get_lab_tests_by_inpatient_record(inpatient_record: str):
 
 
 @frappe.whitelist()
+def get_lab_tests_by_patient_visit(patient_visit: str):
+	"""Get all lab tests linked to a Patient Visit."""
+	if not patient_visit:
+		frappe.throw(_("Patient Visit is required"))
+
+	return frappe.get_all(
+		"Lab Test",
+		filters={
+			"patient_visit": patient_visit,
+			"docstatus": ("!=", 2),
+		},
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"lab_test_name",
+			"template",
+			"status",
+			"date",
+			"result_date",
+			"submitted_date",
+			"approved_date",
+			"practitioner",
+			"practitioner_name",
+			"department",
+			"invoiced",
+			"amount",
+			"grand_total",
+			"results",
+			"descriptive_result",
+			"lab_test_comment",
+			"patient_visit",
+		],
+		order_by="date desc",
+	)
+
+
+@frappe.whitelist()
 def get_lab_test_by_id(name: str):
     """
     Get a single lab test by ID with all details

@@ -100,11 +100,11 @@ def throw_if_duplicate_patient(
 
 	label = (dup.get("patient_name") or dup.get("name") or "").strip()
 	file_no = (dup.get("file_no") or dup.get("name") or "").strip()
-	frappe.throw(
-		_(
-			"A patient already exists with the same full name and mobile number: "
-			"{0} (File No: {1}). Open that record instead of creating a duplicate."
-		).format(label, file_no),
-		frappe.DuplicateEntryError,
-		title=_("Duplicate patient"),
-	)
+	# frappe.throw(
+	# 	_(
+	# 		"A patient already exists with the same full name and mobile number: "
+	# 		"{0} (File No: {1}). Open that record instead of creating a duplicate."
+	# 	).format(label, file_no),
+	# 	frappe.DuplicateEntryError,
+	# 	title=_("Duplicate patient"),
+	# )

@@ -106,6 +106,14 @@ export type AdmissionClinicalMedicalHistory = {
   previous_surgical_history?: string
 }
 
+export type AdmissionClinicalSignature = {
+  file_name?: string
+  document_type?: string
+  transaction_no?: string
+  upload_remarks?: string
+  document?: string
+}
+
 export type AdmissionClinicalBundle = {
   patient: string
   admission: string | null
@@ -123,6 +131,10 @@ export type AdmissionClinicalBundle = {
   } | null
   medical_history: AdmissionClinicalMedicalHistory | null
   warnings: AdmissionClinicalWarning[]
+  /** Parent Inpatient Admission.signature image URL */
+  signature?: string | null
+  /** Inpatient Admission.e_signatures child rows */
+  e_signatures?: AdmissionClinicalSignature[]
   has_data: boolean
 }
 
