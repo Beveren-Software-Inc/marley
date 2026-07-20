@@ -116,7 +116,8 @@ fixtures = [
                    "Item-custom_high_alert",
                    "Item-custom_drug_category",
                    "Sales Order-custom_is_pharmacy_give_out",
-                   "Item Group-custom_required_by_nhra"
+                   "Item Group-custom_required_by_nhra",
+                   "Customer-custom_patient_file_no",
 
                 ),
             ]
@@ -140,15 +141,15 @@ fixtures = [
     {
 		"doctype": "History Form Details Template"
 	},
-    {
-		"doctype": "Room Category"
-	},
+    # {
+	# 	"doctype": "Room Category"
+	# },
     {
 		"doctype":"Package Duration Class"
 	},
-    {
-		"doctype":"Patient Source"
-	},
+    # {
+	# 	"doctype":"Patient Source"
+	# },
     # {
 	# 	"doctype":"Patient Visit Type"
 	# },
@@ -158,9 +159,9 @@ fixtures = [
     {
 	"doctype":"Anesthesia Terms"	
 	},
-    {
-	"doctype":"Patient History Template"	
-	},
+    # {
+	# "doctype":"Patient History Template"	
+	# },
     {
 	"doctype":"Patient Assessment Template"	
 	},
@@ -200,9 +201,9 @@ fixtures = [
     {
 		"doctype":"DAMA Type"
 	},
-    {
-		"doctype":"Patient Category"
-	},
+    # {
+	# 	"doctype":"Patient Category"
+	# },
     {
 		"doctype":"Service Template Group"
 	},

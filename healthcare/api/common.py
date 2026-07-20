@@ -1946,26 +1946,39 @@ def get_companies(search=None):
 
 @frappe.whitelist()
 def get_default_company_currency(company=None):
-	"""Return ``Company.default_currency`` for the named company or the session default company."""
-	comp = (company or "").strip() if company else None
-	if comp:
-		if not frappe.db.exists("Company", comp):
-			frappe.throw(_("Company {0} not found").format(comp))
-		cur = frappe.get_cached_value("Company", comp, "default_currency") or "USD"
-		return {"currency": cur, "company": comp}
-	try:
-		import erpnext
+	"""Return ``Company.default_currency`` for the named company or the session default company.
 
-		comp = erpnext.get_default_company()
-		cur = erpnext.get_default_currency() if comp else None
-		return {"currency": (cur or "USD"), "company": comp}
-	except Exception:
-		pass
-	first = frappe.get_all("Company", fields=["name"], order_by="creation asc", limit_page_length=1)
-	if not first:
-		return {"currency": "USD", "company": None}
-	comp = first[0].name
-	cur = frappe.get_cached_value("Company", comp, "default_currency") or "USD"
+	Always prefers the Company document currency — not Global Defaults — so the UI
+	symbol matches billing (e.g. BHD) even when Global Defaults still say USD.
+	"""
+	comp = (company or "").strip() if company else None
+	if comp and not frappe.db.exists("Company", comp):
+		frappe.throw(_("Company {0} not found").format(comp))
+
+	if not comp:
+		try:
+			import erpnext
+
+			comp = erpnext.get_default_company()
+		except Exception:
+			comp = None
+
+	if not comp:
+		first = frappe.get_all("Company", fields=["name"], order_by="creation asc", limit_page_length=1)
+		comp = first[0].name if first else None
+
+	if not comp:
+		return {"currency": None, "company": None}
+
+	cur = frappe.get_cached_value("Company", comp, "default_currency")
+	if not cur:
+		try:
+			import erpnext
+
+			cur = erpnext.get_default_currency()
+		except Exception:
+			cur = None
+
 	return {"currency": cur, "company": comp}
 
 

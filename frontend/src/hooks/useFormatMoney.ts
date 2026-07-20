@@ -31,7 +31,8 @@ function useResolvedCurrencyCode(companyName?: string | null): string {
     }
   }, [companyName])
 
-  return ((overrideCurrency ?? companyCurrency) || 'USD').toUpperCase()
+  const resolved = ((overrideCurrency ?? companyCurrency) || '').trim()
+  return resolved ? resolved.toUpperCase() : ''
 }
 
 /**
@@ -40,7 +41,17 @@ function useResolvedCurrencyCode(companyName?: string | null): string {
  */
 export function useFormatMoney(companyName?: string | null) {
   const code = useResolvedCurrencyCode(companyName)
-  return useCallback((amount: number) => formatMoneyAmount(amount, code), [code])
+  return useCallback(
+    (amount: number) => {
+      if (!code) {
+        const safe = Number(amount)
+        if (Number.isNaN(safe)) return ''
+        return safe.toLocaleString('en', { minimumFractionDigits: 2, maximumFractionDigits: 3 })
+      }
+      return formatMoneyAmount(amount, code)
+    },
+    [code]
+  )
 }
 
 /** HTML number input settings aligned with company currency (3 decimals for BHD, etc.). */
