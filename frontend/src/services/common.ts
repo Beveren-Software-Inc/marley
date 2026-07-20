@@ -713,10 +713,8 @@ export async function fetchDefaultCompanyCurrency(company?: string): Promise<Def
     )
   }
   const msg = data?.message
-
-  console.log("Where",msg)
   return {
-    currency: (msg?.currency as string) || 'USD',
+    currency: (msg?.currency as string) || '',
     company: (msg?.company as string) || null,
   }
 }

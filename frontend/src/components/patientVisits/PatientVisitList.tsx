@@ -12,11 +12,10 @@ import {
 } from '../ui/dashboardCardListing'
 import { PatientVisitDetails } from './PatientVisitDetails'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { cancelVisit, createInvoiceForVisit, type PatientVisitListRow } from '../../services/patientVisits'
+import { cancelVisit, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
-import { CreatePaymentModal } from './CreatePaymentModal'
 import { toast } from '../../hooks/useToast'
 import { getInvoicesByReference } from '../../services/serviceOrders'
 import { fetchAppointmentPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
@@ -125,7 +124,6 @@ export const PatientVisitList = ({
   const isInsideCard = cardFilters !== undefined
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [admissionModalVisit, setAdmissionModalVisit] = useState<PatientVisitListRow | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -206,8 +204,6 @@ export const PatientVisitList = ({
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
   const [selectedVisitForCancel, setSelectedVisitForCancel] = useState<PatientVisitListRow | null>(null)
-  const [showPaymentModal, setShowPaymentModal] = useState(false)
-  const [paymentVisit, setPaymentVisit] = useState<PatientVisitListRow | null>(null)
   const [referralVisit, setReferralVisit] = useState<PatientVisitListRow | null>(null)
   const [vitalSignVisit, setVitalSignVisit] = useState<PatientVisitListRow | null>(null)
   const [observationVisit, setObservationVisit] = useState<PatientVisitListRow | null>(null)
@@ -329,20 +325,6 @@ export const PatientVisitList = ({
     }
   }
 
-  const handleCreateInvoice = async (visitName: string) => {
-    setActionLoading(visitName + '_invoice')
-    try {
-      const invoiceName = await createInvoiceForVisit(visitName)
-      toast.success('Invoice created: ' + invoiceName.sales_invoice)
-      fetchVisits()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create invoice')
-    } finally {
-      setActionLoading(null)
-      setOpenActionRow(null)
-    }
-  }
-
   const handleScheduleAdmission = (visit: PatientVisitListRow) => {
     setAdmissionModalVisit(visit)
     setOpenActionRow(null)
@@ -437,21 +419,6 @@ export const PatientVisitList = ({
               className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
             >
               Print Invoice
-            </button>
-            <button
-              type="button"
-              onClick={() => handleCreateInvoice(visit.value)}
-              disabled={actionLoading === visit.value + '_invoice'}
-              className="block w-full text-left px-3 py-2 text-sm text-green-600 hover:bg-green-50 disabled:opacity-50"
-            >
-              {actionLoading === visit.value + '_invoice' ? 'Creating…' : 'Create Invoice'}
-            </button>
-            <button
-              type="button"
-              onClick={() => { setPaymentVisit(visit); setShowPaymentModal(true); setOpenActionRow(null) }}
-              className="block w-full text-left px-3 py-2 text-sm text-blue-600 hover:bg-blue-50"
-            >
-              Create Payment
             </button>
             <button
               type="button"
@@ -1022,17 +989,6 @@ export const PatientVisitList = ({
         >
           <PatientVisitDetails visitNo={detailVisit} onUpdate={fetchVisits} />
         </DetailSlideOver>
-      )}
-
-      {/* Payment Modal */}
-      {showPaymentModal && paymentVisit && (
-        <CreatePaymentModal
-          visitName={paymentVisit.value}
-          patient={paymentVisit.patient || undefined}
-          patientName={paymentVisit.patient_name || paymentVisit.label?.split(' - ')[1] || ''}
-          onClose={() => { setShowPaymentModal(false); setPaymentVisit(null) }}
-          onSuccess={() => { setShowPaymentModal(false); setPaymentVisit(null); fetchVisits() }}
-        />
       )}
 
       {/* Admission Modal */}

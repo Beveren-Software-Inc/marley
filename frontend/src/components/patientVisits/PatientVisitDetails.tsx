@@ -9,7 +9,7 @@ import {
   Pill,
   Stethoscope,
 } from 'lucide-react'
-import { fetchPatientVisit, type PatientVisit, cancelVisit, createInvoiceForVisit } from '../../services/patientVisits'
+import { fetchPatientVisit, type PatientVisit, cancelVisit } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
@@ -192,7 +192,6 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
-  const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('details')
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
@@ -242,21 +241,6 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
       toast.error(err instanceof Error ? err.message : 'Failed to cancel visit')
     } finally {
       setCancelLoading(false)
-    }
-  }
-
-  const handleCreateInvoice = async () => {
-    if (!visit) return
-    setActionLoading('invoice')
-    try {
-      const invoiceName = await createInvoiceForVisit(visit.name)
-      toast.success('Invoice created: ' + invoiceName)
-      loadVisit()
-      onUpdate?.()
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to create invoice')
-    } finally {
-      setActionLoading(null)
     }
   }
 
@@ -379,17 +363,6 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                   className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Edit Visit
-                </button>
-              ) : null}
-
-              {visit.status === 'Completed' ? (
-                <button
-                  type="button"
-                  onClick={handleCreateInvoice}
-                  disabled={actionLoading === 'invoice'}
-                  className="rounded-md bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  {actionLoading === 'invoice' ? 'Creating…' : 'Create Invoice'}
                 </button>
               ) : null}
 

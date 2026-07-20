@@ -30,7 +30,56 @@ frappe.ui.form.on('Healthcare Settings', {
 			);
 		}, __('Data Maintenance'));
 
-		frm.add_custom_button(__('Sync Customer Name from File No'), () => {
+		frm.add_custom_button(__('Sync Customer File No Field'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_customer_file_no_sync.preview_patient_customer_file_no_sync',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.patient} / Customer “${row.customer}”: “${row.from_value}” → “${row.to_value}”`
+						)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Run in background: copy each Patient File No into the linked Customer field '
+							+ '“Patient File No” (custom_patient_file_no). This does not rename the Customer ID.\n\n'
+							+ 'Patients with customer: {0}\n'
+							+ 'Customers to update: {1}\n'
+							+ 'Already correct: {2}\n'
+							+ 'Skipped (no File No): {3}\n\n'
+							+ 'Sample:\n{4}\n\nContinue?',
+							[
+								counts.patients_with_customer || 0,
+								counts.needs_update || 0,
+								counts.skipped_ok || 0,
+								counts.skipped_no_file_no || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_customer_file_no_sync.start_patient_customer_file_no_sync',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_customer_file_no_sync');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Sync Customer ID to File No (merge)'), () => {
 			frappe.call({
 				method: 'healthcare.api.patient_customer_name_sync.preview_patient_customer_name_sync',
 				callback(preview) {
@@ -38,7 +87,7 @@ frappe.ui.form.on('Healthcare Settings', {
 					const sample = (counts.sample || [])
 						.map(
 							(row) =>
-								`${row.patient}: Customer ID “${row.from_id}” → “${row.to_id}”`
+								`${row.action || 'rename'}: ${row.patient}: Customer ID “${row.from_id}” → “${row.to_id}”`
 								+ (row.from_name && row.from_name !== row.from_id
 									? ` (name was “${row.from_name}”)`
 									: '')
@@ -46,17 +95,22 @@ frappe.ui.form.on('Healthcare Settings', {
 						.join('\n');
 					frappe.confirm(
 						__(
-							'Run in background: rename each linked Customer document ID to the Patient File No (or ID Number if File No is empty). Customer Name will also be set to the same value.\n\n'
-							+ 'This updates Customer links on Sales Invoices, Orders, Payment Entries, and other transactions automatically.\n\n'
+							'Run in background: rename each linked Customer document ID to the Patient File No '
+							+ '(or ID Number if File No is empty). Customer Name is set to the same value, '
+							+ 'and custom_patient_file_no is filled.\n\n'
+							+ 'If a Customer with that File No already exists (and is not another patient’s), '
+							+ 'ERPNext merge is used so invoices, orders, payments, and other links stay on the patient.\n\n'
 							+ 'Patients with customer: {0}\n'
-							+ 'Customers to rename (ID change): {1}\n'
-							+ 'Customers name-only fix: {2}\n'
-							+ 'Skipped (no File No / ID): {3}\n'
-							+ 'Skipped (File No already used by another customer): {4}\n\n'
-							+ 'Sample renames:\n{5}\n\nContinue?',
+							+ 'Simple renames: {1}\n'
+							+ 'Merges into existing File No customer: {2}\n'
+							+ 'Name-only fixes: {3}\n'
+							+ 'Skipped (no File No / ID): {4}\n'
+							+ 'Skipped (File No used by another patient): {5}\n\n'
+							+ 'Sample:\n{6}\n\nContinue?',
 							[
 								counts.patients_with_customer || 0,
 								counts.needs_rename || 0,
+								counts.needs_merge || 0,
 								counts.needs_name_only || 0,
 								counts.skipped_no_id || 0,
 								counts.skipped_conflict || 0,
@@ -6165,14 +6219,28 @@ function poll_migration_status(jobKey) {
 						);
 					} else if (jobKey === 'patient_customer_name_sync') {
 						msg = __(
-							'{0} finished: {1} renamed, {2} name-only updates, {3} already correct, {4} no File No/ID, {5} ID conflicts, {6} errors (scanned {7}).',
+							'{0} finished: {1} renamed, {2} merged, {3} name-only updates, {4} already correct, {5} no File No/ID, {6} ID conflicts, {7} errors (scanned {8}).',
 							[
 								jobKey,
 								s.renamed || 0,
+								s.merged || 0,
 								s.updated_name || 0,
 								s.skipped_already_ok || 0,
 								s.skipped_no_id || 0,
 								s.skipped_conflict || 0,
+								s.errors || 0,
+								s.processed || 0,
+							]
+						);
+					} else if (jobKey === 'patient_customer_file_no_sync') {
+						msg = __(
+							'{0} finished: {1} updated custom_patient_file_no, {2} already correct, {3} no customer, {4} no File No, {5} errors (scanned {6}).',
+							[
+								jobKey,
+								s.updated || 0,
+								s.skipped_ok || 0,
+								s.skipped_no_customer || 0,
+								s.skipped_no_file_no || 0,
 								s.errors || 0,
 								s.processed || 0,
 							]
