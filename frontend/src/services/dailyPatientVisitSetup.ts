@@ -1,5 +1,7 @@
 // services/dailyPatientVisit.ts
 
+import { frappeErrorMessage } from '../utils/frappeErrorMessage'
+
 export interface DailyPatientVisitSetupServiceLine {
   name?: string
   session: string
@@ -30,6 +32,8 @@ export interface DailyPatientVisitSetup {
   is_active: boolean
   /** Sum of service line amounts. */
   amount: number
+  /** Optional success message from API. */
+  message?: string
 }
 
 export async function createDailyPatientVisitSetup(data: DailyPatientVisitSetup): Promise<DailyPatientVisitSetup> {
@@ -47,7 +51,7 @@ export async function createDailyPatientVisitSetup(data: DailyPatientVisitSetup)
   })
   const resData = await response.json()
   if (resData?.exc) {
-    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+    throw new Error(frappeErrorMessage(resData, 'Failed to create Daily Auto Visit setup'))
   }
   return resData.message
 }
@@ -66,7 +70,7 @@ export async function updateDailyPatientVisitSetup(name: string, data: Partial<D
   })
   const resData = await response.json()
   if (resData?.exc) {
-    throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+    throw new Error(frappeErrorMessage(resData, 'Failed to update Daily Auto Visit setup'))
   }
   return resData.message
 }
