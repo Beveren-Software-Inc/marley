@@ -294,7 +294,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		"Inpatient Admission",
 		admission,
 		[
-			"name", "patient", "patient_name", "scheduled_date", "discharge_date",
+			"name", "patient", "patient_name", "scheduled_date", "discharge_datetime",
 			"cost_center", "admission_doctor_name", "case_no",
 		],
 		as_dict=True,
@@ -302,7 +302,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	file_no = frappe.db.get_value("Patient", adm.patient, "file_no") if adm.patient else None
 
 	start = getdate(adm.scheduled_date) if adm.scheduled_date else None
-	end = getdate(adm.discharge_date) if adm.discharge_date else getdate(frappe.utils.today())
+	end = getdate(adm.discharge_datetime) if adm.discharge_datetime else getdate(frappe.utils.today())
 	days_charged = max((end - start).days, 1) if start else None
 
 	sos = _admission_sales_orders(admission)
@@ -354,7 +354,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		"file_no": file_no,
 		"doctor_name": adm.admission_doctor_name,
 		"admission_date": str(adm.scheduled_date) if adm.scheduled_date else None,
-		"discharge_date": str(adm.discharge_date) if adm.discharge_date else None,
+		"discharge_date": str(adm.discharge_datetime)[:10] if adm.discharge_datetime else None,
 		"days_charged": days_charged,
 		"branch": (adm.cost_center or "").replace(" - SPH", "") or None,
 		"categories": by_category,

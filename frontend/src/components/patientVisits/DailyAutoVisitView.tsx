@@ -349,8 +349,8 @@ const CreateSetupModal = ({
         services,
         amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
       }
-      await createDailyPatientVisitSetup(payload as DailyPatientVisitSetup)
-      toast.success('Daily Patient Visit Setup created')
+      const created = await createDailyPatientVisitSetup(payload as DailyPatientVisitSetup)
+      toast.success(created.message || 'Daily Auto Visit setup created successfully')
       onCreated()
       onClose()
     } catch (err) {

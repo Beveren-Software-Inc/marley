@@ -53,6 +53,7 @@ import { fetchObservationLevels } from '../../services/common'
 import { fetchObservationLevelDetails, fetchLatestObservationForAdmission } from '../../services/observations'
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
+import { frappeErrorMessage } from '../../utils/frappeErrorMessage'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
   canEditMainDischargeChecklist,
@@ -1520,10 +1521,17 @@ const loadDailyVisitSetup = async () => {
       
       const resData = await response.json()
       if (resData?.exc) {
-        throw new Error(resData.exc_type ? `${resData.exc_type}: ${resData.exc}` : resData.exc)
+        throw new Error(
+          frappeErrorMessage(resData, 'Failed to save daily visit setup')
+        )
       }
       
-      toast.success(dailyVisitSetup?.name ? 'Daily visit setup updated successfully' : 'Daily visit setup created successfully')
+      const successMessage =
+        resData?.message?.message ||
+        (dailyVisitSetup?.name
+          ? 'Daily visit setup updated successfully'
+          : 'Daily visit setup created successfully')
+      toast.success(successMessage)
       setDailyVisitSaved(true)
       setShowDailyVisitForm(false)
       await loadDailyVisitSetup()

@@ -26,6 +26,72 @@ def _line_amount(line) -> float:
 	return flt(getattr(line, "amount", 0))
 
 
+def _setup_doc_name(setup):
+	if isinstance(setup, dict):
+		return setup.get("name")
+	if isinstance(setup, str):
+		return setup
+	if hasattr(setup, "get"):
+		return setup.get("name")
+	return getattr(setup, "name", None)
+
+
+def _effective_services_from_data(data: dict) -> list[dict]:
+	services = data.get("services")
+	if services is None:
+		session = data.get("session")
+		amount = data.get("amount")
+		if session or amount:
+			return [{"session": session, "amount": amount}]
+		return []
+	return services or []
+
+
+def _validate_daily_patient_visit_setup_payload(data: dict, *, for_update: bool = False):
+	data = data or {}
+
+	patient = (data.get("patient") or "").strip()
+	if not for_update and not patient:
+		frappe.throw(_("Please select a patient."))
+	if patient and not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient {0} was not found. Please select a valid patient.").format(patient))
+
+	from_date = data.get("from_date")
+	if not for_update and not from_date:
+		frappe.throw(_("Start Date is required for Daily Auto Visit setup."))
+	to_date = data.get("to_date")
+	if from_date and to_date:
+		if getdate(to_date) < getdate(from_date):
+			frappe.throw(_("End Date cannot be before Start Date."))
+
+	branch = (data.get("branch") or data.get("cost_center") or "").strip()
+	if not for_update and not branch:
+		frappe.throw(_("Branch is required. Select a branch from the top navigation bar."))
+
+	practioner = data.get("practioner") or data.get("practitioner") or data.get("doctor")
+	if practioner and not frappe.db.exists("Healthcare Practitioner", practioner):
+		frappe.throw(_("Doctor/Practitioner {0} was not found.").format(practioner))
+
+	admission = (data.get("admission") or "").strip()
+	if admission and not frappe.db.exists("Inpatient Admission", admission):
+		frappe.throw(_("Admission {0} was not found.").format(admission))
+
+	if not for_update or "services" in data or "session" in data or "amount" in data:
+		valid_lines = []
+		for line in _effective_services_from_data(data):
+			if not isinstance(line, dict):
+				continue
+			session = (line.get("session") or "").strip()
+			amount = flt(line.get("amount"))
+			if session or amount:
+				valid_lines.append((session, amount))
+		if not valid_lines:
+			frappe.throw(_("Add at least one service with a session name or amount."))
+		for _session, amount in valid_lines:
+			if amount < 0:
+				frappe.throw(_("Service amount cannot be negative."))
+
+
 def _setup_total_amount(setup) -> float:
 	"""Sum service line amounts; supports doc, dict, or setup name."""
 	services = None
@@ -37,13 +103,7 @@ def _setup_total_amount(setup) -> float:
 	if services:
 		return sum(_line_amount(line) for line in services)
 
-	name = None
-	if isinstance(setup, dict):
-		name = setup.get("name")
-	elif hasattr(setup, "name"):
-		name = setup.name("name") if hasattr(setup, "get") else getattr(setup, "name", None)
-	elif isinstance(setup, str):
-		name = setup
+	name = _setup_doc_name(setup)
 
 	if name:
 		rows = frappe.get_all(
@@ -107,37 +167,54 @@ def create_daily_patient_visit_setup(data):
         data = json.loads(data)
 
     data = dict(data or {})
-    practioner = data.get('practioner') or data.get('practitioner') or data.get('doctor')
-    practitioner_name = data.get('practitioner_name')
-    if practioner and not practitioner_name:
-        practitioner_name = frappe.db.get_value(
-            'Healthcare Practitioner', practioner, 'practitioner_name'
+    try:
+        _validate_daily_patient_visit_setup_payload(data)
+
+        practioner = data.get('practioner') or data.get('practitioner') or data.get('doctor')
+        practitioner_name = data.get('practitioner_name')
+        if practioner and not practitioner_name:
+            practitioner_name = frappe.db.get_value(
+                'Healthcare Practitioner', practioner, 'practitioner_name'
+            )
+
+        branch = (data.get('branch') or data.get('cost_center') or '').strip() or None
+        doc = frappe.get_doc({
+            'doctype': 'Daily Patient Visit Setup',
+            'patient': data.get('patient'),
+            'practioner': practioner,
+            'practitioner_name': practitioner_name,
+            'posting_date': data.get('posting_date') or today(),
+            'admission': data.get('admission'),
+            'discharge': data.get('discharge'),
+            'from_date': data.get('from_date') or None,
+            'to_date': data.get('to_date') or None,
+            'time': data.get('time') or None,
+            'branch': branch,
+            'is_active': (
+                frappe.utils.cint(data.get('is_active'))
+                if 'is_active' in data
+                else 1
+            ),
+        })
+        _apply_services_to_doc(doc, data)
+        doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+
+        result = _serialize_daily_patient_visit_setup(doc)
+        result["message"] = _(
+            "Daily Auto Visit setup {0} created for {1}."
+        ).format(doc.name, doc.patient_name or doc.patient)
+        return result
+    except frappe.ValidationError:
+        raise
+    except Exception:
+        frappe.log_error(
+            title="Create Daily Patient Visit Setup failed",
+            message=frappe.get_traceback(),
         )
-
-    branch = (data.get('branch') or data.get('cost_center') or '').strip() or None
-    doc = frappe.get_doc({
-        'doctype': 'Daily Patient Visit Setup',
-        'patient': data.get('patient'),
-        'practioner': practioner,
-        'practitioner_name': practitioner_name,
-        'posting_date': data.get('posting_date') or today(),
-        'admission': data.get('admission'),
-        'discharge': data.get('discharge'),
-        'from_date': data.get('from_date') or None,
-        'to_date': data.get('to_date') or None,
-        'time': data.get('time') or None,
-        'branch': branch,
-        'is_active': (
-            frappe.utils.cint(data.get('is_active'))
-            if 'is_active' in data
-            else 1
-        ),
-    })
-    _apply_services_to_doc(doc, data)
-    doc.insert(ignore_permissions=True)
-    frappe.db.commit()
-
-    return _serialize_daily_patient_visit_setup(doc)
+        frappe.throw(
+            _("Could not create Daily Auto Visit setup. Please check the details and try again.")
+        )
 
 @frappe.whitelist()
 def update_daily_patient_visit_setup(name, data):
@@ -148,29 +225,47 @@ def update_daily_patient_visit_setup(name, data):
         data = json.loads(data)
     
     data = dict(data or {})
-    doc = frappe.get_doc('Daily Patient Visit Setup', name)
-    practioner = data.pop('practioner', None) or data.pop('practitioner', None) or data.pop('doctor', None)
-    if practioner is not None:
-        doc.practioner = practioner
-        doc.practitioner_name = (
-            data.pop('practitioner_name', None)
-            or frappe.db.get_value('Healthcare Practitioner', practioner, 'practitioner_name')
-        )
-    _apply_services_to_doc(doc, data)
-    # Empty strings from UI should clear optional Date/Time fields
-    if "to_date" in data and not data.get("to_date"):
-        data["to_date"] = None
-    if "time" in data and not data.get("time"):
-        data["time"] = None
-    if "cost_center" in data and "branch" not in data:
-        data["branch"] = data.pop("cost_center") or None
-    if "branch" in data and not data.get("branch"):
-        data["branch"] = None
-    doc.update(data)
-    doc.save()
-    frappe.db.commit()
+    if not name or not frappe.db.exists('Daily Patient Visit Setup', name):
+        frappe.throw(_("Daily Auto Visit setup {0} was not found.").format(name or ""))
 
-    return _serialize_daily_patient_visit_setup(doc)
+    try:
+        _validate_daily_patient_visit_setup_payload(data, for_update=True)
+
+        doc = frappe.get_doc('Daily Patient Visit Setup', name)
+        practioner = data.pop('practioner', None) or data.pop('practitioner', None) or data.pop('doctor', None)
+        if practioner is not None:
+            doc.practioner = practioner
+            doc.practitioner_name = (
+                data.pop('practitioner_name', None)
+                or frappe.db.get_value('Healthcare Practitioner', practioner, 'practitioner_name')
+            )
+        _apply_services_to_doc(doc, data)
+        # Empty strings from UI should clear optional Date/Time fields
+        if "to_date" in data and not data.get("to_date"):
+            data["to_date"] = None
+        if "time" in data and not data.get("time"):
+            data["time"] = None
+        if "cost_center" in data and "branch" not in data:
+            data["branch"] = data.pop("cost_center") or None
+        if "branch" in data and not data.get("branch"):
+            data["branch"] = None
+        doc.update(data)
+        doc.save()
+        frappe.db.commit()
+
+        result = _serialize_daily_patient_visit_setup(doc)
+        result["message"] = _("Daily Auto Visit setup {0} updated.").format(doc.name)
+        return result
+    except frappe.ValidationError:
+        raise
+    except Exception:
+        frappe.log_error(
+            title=f"Update Daily Patient Visit Setup failed: {name}",
+            message=frappe.get_traceback(),
+        )
+        frappe.throw(
+            _("Could not update Daily Auto Visit setup. Please check the details and try again.")
+        )
 
 
 def _patient_file_no_map(patient_ids):
