@@ -238,7 +238,9 @@ def get_item_maximum_dose_limit(item_code: str, patient_weight: float | None = N
 	return get_item_max_dose_per_single_dose(item_code, patient_weight)
 
 
-def _resolve_single_and_daily_ceilings(medicine_code: str, patient_weight: float | None) -> dict:
+def _resolve_single_and_daily_ceilings(
+	medicine_code: str, patient_weight: float | None, patient: str | None = None
+) -> dict:
 	single_detail = _read_item_dose_limit_detail(
 		medicine_code, "custom_max_dose_per_single_dose"
 	) or _read_item_dose_limit_detail(medicine_code, "custom_maximum_dose_limit")
@@ -248,6 +250,23 @@ def _resolve_single_and_daily_ceilings(medicine_code: str, patient_weight: float
 
 	single = resolve_dose_ceiling(single_detail, patient_weight)
 	daily = resolve_dose_ceiling(daily_detail, patient_weight)
+
+	# DOC-124: tighten the adult ceiling for paediatric / geriatric patients and
+	# for patient categories carrying their own dose factor. Weight-based limits
+	# are already patient-specific, so they are left alone.
+	if patient:
+		from healthcare.api.dose_age_adjustment import adjust_ceiling_for_patient
+
+		for band in (single, daily):
+			if band.get("ceiling") and not band.get("weight_based"):
+				adj = adjust_ceiling_for_patient(patient, band["ceiling"])
+				if adj.get("adjusted"):
+					band["adult_ceiling"] = adj["adult_ceiling"]
+					band["ceiling"] = adj["ceiling"]
+					band["age_band"] = adj["age_band"]
+					band["patient_category"] = adj["category"]
+					band["adjustment_factor"] = adj["factor"]
+
 	return {
 		"single": single,
 		"daily": daily,
@@ -306,9 +325,10 @@ def evaluate_dose_against_item_limits(
 	dose,
 	patient_weight: float | None = None,
 	skip_if_frequency_style: bool = False,
+	patient: str | None = None,
 ) -> dict:
 	"""Check entered dose against Item single/daily ceilings (no 24h cumulative history)."""
-	ceilings = _resolve_single_and_daily_ceilings(medicine_code, patient_weight)
+	ceilings = _resolve_single_and_daily_ceilings(medicine_code, patient_weight, patient)
 	single = ceilings["single"]
 	daily = ceilings["daily"]
 	single_ceiling = single.get("ceiling")
@@ -451,8 +471,10 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 			).format(entered, single_ceiling, extra)
 		)
 	if evaluation.get("exceeds_cumulative_24h"):
+		# DOC-117: the BRD specifies this exact alert wording.
 		lines.append(
 			frappe._(
+				"Entered dose exceeds recommended maximum daily dose. "
 				"24-hour cumulative dose ({0}) would exceed the maximum daily dose ({1}). "
 				"Doses already given in the last 24 hours: {2}."
 			).format(

@@ -181,9 +181,20 @@ def set_pharmacy_warehouse_preference(warehouse=None):
 
 def _normalize_warehouse(warehouse=None):
 	warehouse = (warehouse or "").strip()
-	if warehouse:
-		return _effective_pharmacy_warehouse(warehouse=warehouse)
-	return _effective_pharmacy_warehouse(auto_save=True)
+	resolved = (
+		_effective_pharmacy_warehouse(warehouse=warehouse)
+		if warehouse
+		else _effective_pharmacy_warehouse(auto_save=True)
+	)
+	if resolved:
+		return resolved
+	# No pharmacy warehouse resolved (the user has no POS-Profile warehouse). Admins may view all
+	# warehouses; any other user must NOT see every warehouse's stock — return a sentinel warehouse
+	# that matches no Bin/Batch so pharmacy stock queries come back empty instead of leaking all.
+	roles = set(frappe.get_roles())
+	if roles & {"Administrator", "System Manager", "Healthcare Administrator"}:
+		return ""
+	return "__NO_PHARMACY_WAREHOUSE__"
 
 
 @frappe.whitelist()
@@ -231,15 +242,18 @@ def get_low_stock_items(limit=100, threshold=None, warehouse=None):
 	warehouse = _normalize_warehouse(warehouse)
 	# Default low-stock threshold if no reorder level: 10
 	default_threshold = 10
-	bin_filters = {"actual_qty": [">", 0]}
+	# Do NOT exclude out-of-stock bins — a fully-depleted medicine (qty <= 0) is exactly
+	# what the reorder alert must surface. Order by qty ascending so the lowest/out-of-stock
+	# bins come first; the per-item threshold check below decides what's actually "low".
+	bin_filters = {}
 	if warehouse:
 		bin_filters["warehouse"] = warehouse
 	bin_list = frappe.get_all(
 		"Bin",
-		filters=bin_filters,
+		filters=bin_filters or None,
 		fields=["item_code", "warehouse", "actual_qty"],
 		order_by="actual_qty asc",
-		limit=limit * 2,
+		limit=limit * 3,
 	)
 	# Get reorder levels per item/warehouse if available
 	reorder_map = {}
@@ -524,6 +538,11 @@ def create_material_request(
 		frappe.throw("Material Request doctype not found")
 	company = (company or "").strip()
 	material_request_type = (material_request_type or "Purchase").strip()
+	# Restrict to the purposes a pharmacy legitimately raises (procurement / ward indent / issue),
+	# so a client can't submit an arbitrary Material Request purpose via this portal endpoint.
+	allowed_mr_types = {"Purchase", "Material Transfer", "Material Issue"}
+	if material_request_type not in allowed_mr_types:
+		frappe.throw(_("Material Request type {0} is not allowed here.").format(material_request_type))
 	items = frappe.parse_json(items) if isinstance(items, str) else (items or [])
 	set_warehouse = (set_warehouse or "").strip() or None
 	cost_center = (cost_center or "").strip() or None

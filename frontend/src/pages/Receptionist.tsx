@@ -37,6 +37,9 @@ import { CreateInternalTransferModal } from '../components/transfers/CreateInter
 import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
+import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
+import { PromotionAnalysis } from '../components/reception/PromotionAnalysis'
+import { AdmissionSignatures } from '../components/admissions/AdmissionSignatures'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
 import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/costCenterCareScope'
 import { isDataOfficer } from '../config/permissions'
@@ -63,6 +66,10 @@ type View =
   | 'referral'
   | 'observation'
   | 'internal-transfer'
+  | 'medical-consent'
+  | 'financial-consent'
+  | 'signatures'
+  | 'promotions'
   | 'patients'
   | 'billing'
   | 'billing-additional-collection'
@@ -262,6 +269,14 @@ export const ReceptionistPage = () => {
       setCurrentView('observation')
     } else if (screen === 'r-internal-transfer') {
       setCurrentView('internal-transfer')
+    } else if (screen === 'r-medical-consent') {
+      setCurrentView('medical-consent')
+    } else if (screen === 'r-financial-consent') {
+      setCurrentView('financial-consent')
+    } else if (screen === 'r-signatures') {
+      setCurrentView('signatures')
+    } else if (screen === 'r-promotions') {
+      setCurrentView('promotions')
       } else if (screen === 'billing') {
       setCurrentView('billing')
     } else if (screen === 'billing-additional-collection') {
@@ -670,6 +685,98 @@ export const ReceptionistPage = () => {
                 onPatientClick={handlePatientSelect}
               />
             </div>
+          </div>
+        )}
+
+        {/* REC-063 / REC-064 - admission consent forms */}
+        {(currentView === 'medical-consent' || currentView === 'financial-consent') && (
+          <div className="p-4">
+            {currentView === 'medical-consent' ? (
+              <DashboardCard title="Patient Medical Consent">
+                <DoctypeListPanel
+                  doctype="Patient Medical Consent"
+                  columns={[
+                    { fieldname: 'name', label: 'Consent' },
+                    { fieldname: 'patient_name', label: 'Patient' },
+                    { fieldname: 'case_no', label: 'Case No' },
+                    { fieldname: 'procedure_or_treatment', label: 'Procedure' },
+                    { fieldname: 'consent_date', label: 'Consent Date' },
+                    { fieldname: 'status', label: 'Status' },
+                  ]}
+                  createFields={[
+                    { fieldname: 'patient', label: 'Patient', fieldtype: 'Link', options: 'Patient', reqd: true },
+                    { fieldname: 'inpatient_admission', label: 'Admission', fieldtype: 'Link', options: 'Inpatient Admission' },
+                    { fieldname: 'procedure_or_treatment', label: 'Procedure / Treatment', fieldtype: 'Data' },
+                    { fieldname: 'practitioner', label: 'Explaining Practitioner', fieldtype: 'Link', options: 'Healthcare Practitioner' },
+                    { fieldname: 'guardian_name', label: 'Legal Guardian Name', fieldtype: 'Data' },
+                    { fieldname: 'guardian_relationship', label: 'Guardian Relationship', fieldtype: 'Data' },
+                    { fieldname: 'witness_name', label: 'Witness Name', fieldtype: 'Data' },
+                    { fieldname: 'procedures_explained', label: 'Procedure Explained', fieldtype: 'Check' },
+                    { fieldname: 'risks_explained', label: 'Risks Explained', fieldtype: 'Check' },
+                    { fieldname: 'alternatives_explained', label: 'Alternatives Explained', fieldtype: 'Check' },
+                    { fieldname: 'questions_answered', label: 'Questions Answered', fieldtype: 'Check' },
+                    { fieldname: 'status', label: 'Status', fieldtype: 'Select', options: 'Draft\nSigned\nDeclined', default: 'Draft' },
+                  ]}
+                  emptyMessage="No medical consent recorded yet."
+                />
+              </DashboardCard>
+            ) : (
+              <DashboardCard title="Informed Financial Consent">
+                <DoctypeListPanel
+                  doctype="Informed Financial Consent"
+                  columns={[
+                    { fieldname: 'name', label: 'Consent' },
+                    { fieldname: 'patient_name', label: 'Patient' },
+                    { fieldname: 'case_no', label: 'Case No' },
+                    { fieldname: 'estimated_cost', label: 'Estimated Cost' },
+                    { fieldname: 'estimated_patient_share', label: 'Patient Share' },
+                    { fieldname: 'consent_date', label: 'Consent Date' },
+                    { fieldname: 'status', label: 'Status' },
+                  ]}
+                  createFields={[
+                    { fieldname: 'patient', label: 'Patient', fieldtype: 'Link', options: 'Patient', reqd: true },
+                    { fieldname: 'inpatient_admission', label: 'Admission', fieldtype: 'Link', options: 'Inpatient Admission' },
+                    { fieldname: 'estimated_cost', label: 'Estimated Total Cost', fieldtype: 'Currency', reqd: true },
+                    { fieldname: 'expected_length_of_stay', label: 'Expected Stay (Days)', fieldtype: 'Int' },
+                    { fieldname: 'insurance', label: 'Insurance', fieldtype: 'Link', options: 'Health Insurance' },
+                    { fieldname: 'insurance_coverage', label: 'Coverage (%)', fieldtype: 'Float' },
+                    { fieldname: 'estimated_patient_share', label: 'Estimated Patient Share', fieldtype: 'Currency' },
+                    { fieldname: 'advance_collected', label: 'Advance Collected', fieldtype: 'Currency' },
+                    { fieldname: 'guardian_name', label: 'Legal Guardian Name', fieldtype: 'Data' },
+                    { fieldname: 'witness_name', label: 'Witness Name', fieldtype: 'Data' },
+                    { fieldname: 'status', label: 'Status', fieldtype: 'Select', options: 'Draft\nSigned\nDeclined', default: 'Draft' },
+                  ]}
+                  emptyMessage="No financial consent recorded yet."
+                />
+              </DashboardCard>
+            )}
+          </div>
+        )}
+
+        {/* REC-061 / REC-062 - e-signature capture with auto-upload */}
+        {currentView === 'signatures' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Admission e-Signatures</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Capture guardian and consent signatures directly; each is uploaded and attached
+                to the document automatically.
+              </p>
+            </div>
+            <AdmissionSignatures patient={selectedPatient} admission={activeAdmission || undefined} />
+          </div>
+        )}
+
+        {/* REC-086 - promotion analysis */}
+        {currentView === 'promotions' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">Promotion Analysis</h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Track promotion uptake and value across OP and IP.
+              </p>
+            </div>
+            <PromotionAnalysis />
           </div>
         )}
 

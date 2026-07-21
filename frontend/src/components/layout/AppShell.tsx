@@ -113,7 +113,7 @@ const nurseScreenGroups: ScreenGroup[] = [
 // ─── Other role screens ───────────────────────────────────────────────────────
 
 const pharmacyScreens = [
-  { id: 'p-stock',     title: 'Stock' },
+  // 'p-stock' (Stock) removed — it rendered the same view as the Pharmacy dashboard landing (/pharmacy).
   { id: 'p-discharge', title: 'Pending Discharge' },
 ]
 
@@ -152,6 +152,9 @@ const receptionScreenGroups: ScreenGroup[] = [
     screens: [
       { id: 'r-reg',       title: 'Admission' },
       { id: 'r-discharge', title: 'Discharge' },
+      { id: 'r-medical-consent',   title: 'Patient Medical Consent' },
+      { id: 'r-financial-consent', title: 'Informed Financial Consent' },
+      { id: 'r-signatures',        title: 'Admission e-Signatures' },
     ],
   },
   {
@@ -182,6 +185,10 @@ const receptionScreenGroups: ScreenGroup[] = [
   {
     groupTitle: '',
     screens: [{ id: 'r-reports', title: 'Reports' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'r-promotions', title: 'Promotion Analysis' }],
   },
 ]
 

@@ -1,0 +1,89 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-07-20 11:51:08.153761",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "person_name",
+  "relationship",
+  "id_number",
+  "contact_number",
+  "consent_given",
+  "consent_date",
+  "scope",
+  "remarks"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "person_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Authorised Person",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "relationship",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Relationship"
+  },
+  {
+   "columns": 2,
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "ID / CPR No"
+  },
+  {
+   "columns": 2,
+   "fieldname": "contact_number",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Contact No"
+  },
+  {
+   "columns": 1,
+   "default": "1",
+   "fieldname": "consent_given",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Consent Given"
+  },
+  {
+   "fieldname": "consent_date",
+   "fieldtype": "Date",
+   "label": "Consent Date"
+  },
+  {
+   "fieldname": "scope",
+   "fieldtype": "Select",
+   "label": "Information Scope",
+   "options": "\nAll Clinical Information\nAppointments Only\nBilling Only\nLimited"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-20 11:51:08.153761",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Consent Contact",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

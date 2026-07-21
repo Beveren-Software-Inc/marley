@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { QualityIndicatorsBoard } from '../components/qmps/QualityIndicatorsBoard'
 import {
   createPatientSafetyEvent,
   fetchPatientSafetyEvents,
@@ -545,6 +546,12 @@ export const QMPSPage = () => {
               </table>
             )}
           </div>
+        </section>
+
+        {/* DOC-103 - QMPS quality indicators */}
+        <section className="md:col-span-2">
+          <h2 className="mb-2 text-sm font-semibold text-slate-800">Quality Indicators</h2>
+          <QualityIndicatorsBoard />
         </section>
       </div>
     </div>

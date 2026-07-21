@@ -1,0 +1,220 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "naming_series:",
+ "creation": "2026-07-20 13:37:30.933469",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "risk_title",
+  "risk_category",
+  "cb_head",
+  "identified_on",
+  "risk_owner",
+  "cost_center",
+  "sec_assess",
+  "description",
+  "likelihood",
+  "impact",
+  "cb_assess",
+  "risk_score",
+  "risk_level",
+  "sec_control",
+  "existing_controls",
+  "mitigation_plan",
+  "target_date",
+  "cb_control",
+  "status",
+  "linked_capa",
+  "review_date"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "RISK-.YYYY.-"
+  },
+  {
+   "fieldname": "risk_title",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Risk",
+   "reqd": 1
+  },
+  {
+   "fieldname": "risk_category",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Category",
+   "options": "Clinical\nPatient Safety\nOperational\nFinancial\nRegulatory & Compliance\nInformation Security\nReputational\nStaffing\nEnvironmental",
+   "reqd": 1
+  },
+  {
+   "fieldname": "cb_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "identified_on",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Identified On",
+   "reqd": 1
+  },
+  {
+   "fieldname": "risk_owner",
+   "fieldtype": "Link",
+   "label": "Risk Owner",
+   "options": "User"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Branch / Department",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "sec_assess",
+   "fieldtype": "Section Break",
+   "label": "Assessment"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "default": "3",
+   "fieldname": "likelihood",
+   "fieldtype": "Int",
+   "label": "Likelihood (1-5)"
+  },
+  {
+   "default": "3",
+   "fieldname": "impact",
+   "fieldtype": "Int",
+   "label": "Impact (1-5)"
+  },
+  {
+   "fieldname": "cb_assess",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Likelihood x Impact, computed on save.",
+   "fieldname": "risk_score",
+   "fieldtype": "Int",
+   "label": "Risk Score",
+   "read_only": 1
+  },
+  {
+   "fieldname": "risk_level",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Risk Level",
+   "options": "\nLow\nMedium\nHigh\nExtreme",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_control",
+   "fieldtype": "Section Break",
+   "label": "Controls & Mitigation"
+  },
+  {
+   "fieldname": "existing_controls",
+   "fieldtype": "Small Text",
+   "label": "Existing Controls"
+  },
+  {
+   "fieldname": "mitigation_plan",
+   "fieldtype": "Small Text",
+   "label": "Mitigation Plan"
+  },
+  {
+   "fieldname": "target_date",
+   "fieldtype": "Date",
+   "label": "Target Date"
+  },
+  {
+   "fieldname": "cb_control",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Open",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Open\nMitigating\nMonitoring\nClosed"
+  },
+  {
+   "fieldname": "linked_capa",
+   "fieldtype": "Link",
+   "label": "Linked CAPA",
+   "options": "Corrective Preventive Action"
+  },
+  {
+   "fieldname": "review_date",
+   "fieldtype": "Date",
+   "label": "Next Review"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-20 13:37:30.933469",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Organisational Risk",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Quality Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "risk_title",
+ "track_changes": 1
+}

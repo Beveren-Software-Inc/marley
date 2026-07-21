@@ -19,6 +19,7 @@ import { DepressionAssessmentList } from '../components/depression/DepressionAss
 import { DiagnosisSymptomsScreen } from '../components/diagnosis/DiagnosisSymptomsScreen'
 import { PatientDiagnosisModal } from '../components/diagnosis/PatientDiagnosisModal'
 import { DischargeList } from '../components/discharges/DischargeList'
+import { FollowUpList } from '../components/followUp/FollowUpList'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { EnvironmentalChecklistList } from '../components/environmental/EnvironmentalChecklistList'
 import { CreateGAD7AssessmentModal } from '../components/gad7/CreateGAD7AssessmentModal'
@@ -95,6 +96,11 @@ import { PatientVisitPage } from './PatientVisit'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
 import { AppointmentsCard, OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
+import { SickLeaveList } from '../components/nursing/SickLeaveList'
+import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
+import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
+import { OverdueClinicalActions } from '../components/doctor/OverdueClinicalActions'
+import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
 
 const CreateLabRequestModal = ({ 
   onClose, 
@@ -174,6 +180,9 @@ export const DoctorPage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [envChecklistCreateOpen, setEnvChecklistCreateOpen] = useState(false)
+  // DOC-072 sick leave issued from the doctor portal
+  const [doctorSickLeaveOpen, setDoctorSickLeaveOpen] = useState(false)
+  const [doctorSickLeaveRefresh, setDoctorSickLeaveRefresh] = useState(0)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
   const [longActingRefreshKey] = useState(0)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
@@ -726,6 +735,16 @@ export const DoctorPage = () => {
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
+
+          {/* DOC-018 - update diagnosis while reviewing lab results, without
+              navigating away to the separate Diagnoses screen. */}
+          {selectedPatient && (
+            <div className="mt-4">
+              <DashboardCard title="Diagnoses — update from lab findings">
+                <PatientDiagnosisList patient={selectedPatient} refreshKey={labTestRefreshKey} />
+              </DashboardCard>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -1069,6 +1088,222 @@ export const DoctorPage = () => {
     )
   }
 
+  // DOC-072 - sick leave certificates issued by the doctor
+  if (screen === 'd-sick-leave') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Sick Leave">
+            <SickLeaveList
+              patient={selectedPatient}
+              onPatientClick={handlePatientSelect}
+              refreshKey={doctorSickLeaveRefresh}
+              onAdd={() => setDoctorSickLeaveOpen(true)}
+              addButtonTitle="Issue Sick Leave"
+            />
+          </DashboardCard>
+        </div>
+        {doctorSickLeaveOpen && (
+          <CreateSickLeaveModal
+            patient={selectedPatient}
+            onClose={() => setDoctorSickLeaveOpen(false)}
+            onSuccess={() => {
+              setDoctorSickLeaveOpen(false)
+              setDoctorSickLeaveRefresh((n) => n + 1)
+              toast.success('Sick leave issued')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // DOC-093 / DOC-094 - read-only ledger and invoice printing for doctors
+  if (screen === 'd-ledger') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Ledger & Invoices (read-only)">
+            <DoctypeListPanel
+              doctype="Sales Invoice"
+              filters={selectedPatient ? { patient: selectedPatient, docstatus: 1 } : { docstatus: 1 }}
+              extraFields={['currency']}
+              columns={[
+                { fieldname: 'name', label: 'Invoice' },
+                { fieldname: 'posting_date', label: 'Date' },
+                { fieldname: 'patient_name', label: 'Patient' },
+                { fieldname: 'grand_total', label: 'Total' },
+                { fieldname: 'outstanding_amount', label: 'Outstanding' },
+                { fieldname: 'status', label: 'Status' },
+                {
+                  fieldname: 'print',
+                  label: 'Print',
+                  render: (r) => (
+                    <a
+                      className="text-primary underline"
+                      href={`/printview?doctype=Sales%20Invoice&name=${encodeURIComponent(
+                        r.name
+                      )}&format=IP%20Receipt&no_letterhead=0`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Print
+                    </a>
+                  ),
+                },
+              ]}
+              emptyMessage="No submitted invoices for this patient."
+            />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-008 - overdue clinical actions
+  if (screen === 'd-overdue-actions') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Overdue Clinical Actions">
+            <OverdueClinicalActions />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-110 - organisational risk register
+  if (screen === 'd-risk-register') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Organisational Risk Register">
+            <DoctypeListPanel
+              doctype="Organisational Risk"
+              columns={[
+                { fieldname: 'name', label: 'Risk' },
+                { fieldname: 'risk_title', label: 'Title' },
+                { fieldname: 'risk_category', label: 'Category' },
+                { fieldname: 'risk_score', label: 'Score' },
+                { fieldname: 'risk_level', label: 'Level' },
+                { fieldname: 'status', label: 'Status' },
+                { fieldname: 'risk_owner', label: 'Owner' },
+                { fieldname: 'target_date', label: 'Target' },
+              ]}
+              createFields={[
+                { fieldname: 'risk_title', label: 'Risk', fieldtype: 'Data', reqd: true },
+                { fieldname: 'risk_category', label: 'Category', fieldtype: 'Select', reqd: true,
+                  options: 'Clinical\nPatient Safety\nOperational\nFinancial\nRegulatory & Compliance\nInformation Security\nReputational\nStaffing\nEnvironmental' },
+                { fieldname: 'identified_on', label: 'Identified On', fieldtype: 'Date', reqd: true },
+                { fieldname: 'risk_owner', label: 'Risk Owner', fieldtype: 'Link', options: 'User' },
+                { fieldname: 'cost_center', label: 'Branch / Department', fieldtype: 'Link', options: 'Cost Center' },
+                { fieldname: 'description', label: 'Description', fieldtype: 'Small Text' },
+                { fieldname: 'likelihood', label: 'Likelihood (1-5)', fieldtype: 'Int', default: 3 },
+                { fieldname: 'impact', label: 'Impact (1-5)', fieldtype: 'Int', default: 3 },
+                { fieldname: 'existing_controls', label: 'Existing Controls', fieldtype: 'Small Text' },
+                { fieldname: 'mitigation_plan', label: 'Mitigation Plan', fieldtype: 'Small Text' },
+                { fieldname: 'target_date', label: 'Target Date', fieldtype: 'Date' },
+                { fieldname: 'status', label: 'Status', fieldtype: 'Select', options: 'Open\nMitigating\nMonitoring\nClosed', default: 'Open' },
+              ]}
+              emptyMessage="No organisational risks recorded yet."
+            />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-090 - other services provided to the patient
+  if (screen === 'd-other-services') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <ServiceRequestList
+            title="Other Services"
+            patient={selectedPatient}
+            onPatientClick={handlePatientSelect}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-026 - follow-up scheduling from the doctor portal
+  if (screen === 'd-followups') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Follow Ups">
+            <FollowUpList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-083 - discharge procedure presented as one checklist
+  if (screen === 'd-discharge-procedure') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4 space-y-4">
+          <DashboardCard title="Discharge Procedure - Department Clearance">
+            <DischargeList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  // DOC-073 - IP medical report
+  if (screen === 'd-ip-medical-report') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="IP Medical Report">
+            <DoctypeListPanel
+              doctype="IP Medical Report"
+              filters={selectedPatient ? { patient: selectedPatient } : {}}
+              columns={[
+                { fieldname: 'name', label: 'Report' },
+                { fieldname: 'patient_name', label: 'Patient' },
+                { fieldname: 'case_no', label: 'Case No' },
+                { fieldname: 'admission_date', label: 'Admitted' },
+                { fieldname: 'discharge_date', label: 'Discharged' },
+                { fieldname: 'practitioner', label: 'Consultant' },
+                { fieldname: 'report_status', label: 'Status' },
+              ]}
+              createDefaults={selectedPatient ? { patient: selectedPatient } : {}}
+              createFields={[
+                { fieldname: 'patient', label: 'Patient', fieldtype: 'Link', options: 'Patient', reqd: true },
+                { fieldname: 'inpatient_admission', label: 'Admission', fieldtype: 'Link', options: 'Inpatient Admission' },
+                { fieldname: 'admission_date', label: 'Admission Date', fieldtype: 'Date' },
+                { fieldname: 'discharge_date', label: 'Discharge Date', fieldtype: 'Date' },
+                { fieldname: 'practitioner', label: 'Consultant', fieldtype: 'Link', options: 'Healthcare Practitioner' },
+                { fieldname: 'reason_for_admission', label: 'Reason for Admission', fieldtype: 'Small Text' },
+                { fieldname: 'diagnosis', label: 'Diagnosis', fieldtype: 'Small Text' },
+                { fieldname: 'clinical_course', label: 'Clinical Course', fieldtype: 'Small Text' },
+                { fieldname: 'treatment_given', label: 'Treatment Given', fieldtype: 'Small Text' },
+                { fieldname: 'condition_on_discharge', label: 'Condition on Discharge', fieldtype: 'Small Text' },
+                { fieldname: 'recommendations', label: 'Recommendations', fieldtype: 'Small Text' },
+                { fieldname: 'report_status', label: 'Status', fieldtype: 'Select', options: 'Draft\nIssued\nCancelled', default: 'Draft' },
+              ]}
+              emptyMessage="No IP medical report issued yet."
+            />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
   // Environmental Checklist
   if (screen === 'env') {
     return (
@@ -1120,6 +1355,27 @@ export const DoctorPage = () => {
               <IOPEnrollmentListWithHeader
                 refreshKey={appointmentRefreshKey}
                 patientFilter={selectedPatient}
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+          </div>
+          {/* REC-038 - session notes, merged in from the separate IOP Notes
+              screen. That screen also carried an enrolments card identical to
+              the one above, so it collapses to a single list here. */}
+          <div className="mt-6">
+            <DashboardCard title="IOP Session Notes">
+              <DoctypeListPanel
+                doctype="IOP Day Session"
+                columns={[
+                  { fieldname: 'name', label: 'Session' },
+                  { fieldname: 'session_type', label: 'Healthcare Service' },
+                  { fieldname: 'notes', label: 'Notes' },
+                ]}
+                createFields={[
+                  { fieldname: 'session_type', label: 'Healthcare Service', fieldtype: 'Link', options: 'Healthcare Service Unit' },
+                  { fieldname: 'notes', label: 'Notes', fieldtype: 'Small Text' },
+                ]}
+                emptyMessage="No IOP session notes recorded."
               />
             </DashboardCard>
           </div>

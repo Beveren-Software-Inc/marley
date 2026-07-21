@@ -117,6 +117,44 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: '',
     screens: [{ id: 'fall', title: 'Morse Fall Scale' }],
   },
+  {
+    groupTitle: 'Certificates & Reports',
+    screens: [
+      { id: 'd-sick-leave', title: 'Sick Leave' },
+      { id: 'd-ip-medical-report', title: 'IP Medical Report' },
+    ],
+  },
+  {
+    // These have working handlers in Doctor.tsx but had been dropped from the
+    // sidebar, leaving them unreachable for doctors.
+    groupTitle: '',
+    screens: [
+      { id: 'env', title: 'Environmental Checklist' },
+      { id: 'pkg', title: 'Package Detail' },
+    ],
+  },
+  {
+    groupTitle: 'Scheduling & Services',
+    screens: [
+      { id: 'd-other-services', title: 'Other Services' },
+      { id: 'd-followups', title: 'Follow Ups' },
+    ],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-discharge-procedure', title: 'Discharge Procedure' }],
+  },
+  {
+    groupTitle: 'Risk & Quality',
+    screens: [
+      { id: 'd-overdue-actions', title: 'Overdue Clinical Actions' },
+      { id: 'd-risk-register', title: 'Risk Register' },
+    ],
+  },
+  {
+    groupTitle: 'Billing (read-only)',
+    screens: [{ id: 'd-ledger', title: 'Ledger & Invoices' }],
+  },
 ]
 
 // Psychologists run the standard assessments — shown in their sidebar, not the doctor's.

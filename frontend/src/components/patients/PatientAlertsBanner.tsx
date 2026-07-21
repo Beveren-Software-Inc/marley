@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react'
 import { X, AlertTriangle, FileText, Plus } from 'lucide-react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../services/patients'
+import { fetchPatientAllergies, type PatientAllergies } from '../../services/allergyRegistry'
 import { CreateWarningMessageModal } from '../warnings/CreateWarningMessageModal'
 import { CreatePatientMedicalHistoryModal } from '../medicalHistory/CreatePatientMedicalHistoryModal'
 import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHistoryUtils'
@@ -50,6 +51,7 @@ export const PatientAlertsBanner = ({
   const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(patient)
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistory | null>(null)
   const [medicalLoading, setMedicalLoading] = useState(false)
+  const [allergyRegistry, setAllergyRegistry] = useState<PatientAllergies | null>(null)
   const [showWarningModal, setShowWarningModal] = useState(false)
   const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
 
@@ -61,10 +63,15 @@ export const PatientAlertsBanner = ({
     const load = async () => {
       setMedicalLoading(true)
       try {
-        const data = await fetchPatientMedicalHistory(patient)
+        const [data, allergies] = await Promise.all([
+          fetchPatientMedicalHistory(patient),
+          fetchPatientAllergies(patient).catch(() => null),
+        ])
         setMedicalHistory(data)
+        setAllergyRegistry(allergies)
       } catch {
         setMedicalHistory(null)
+        setAllergyRegistry(null)
       } finally {
         setMedicalLoading(false)
       }
@@ -73,7 +80,11 @@ export const PatientAlertsBanner = ({
   }, [patient, canViewClinical])
 
   const hasWarnings = warnings.length > 0
-  const hasDocumentedAllergies = Boolean(medicalHistory?.allergies?.trim())
+  // Allergies live in five stores; the medical-history field alone covers one
+  // patient site-wide, so the registry read is what makes this reliable.
+  const hasDocumentedAllergies = Boolean(
+    medicalHistory?.allergies?.trim() || allergyRegistry?.checked
+  )
   const hasRequiredAlerts = hasWarnings || (canViewClinical && hasDocumentedAllergies)
   const alertsDataLoading =
     warningsLoading || (enforceWarnings && canViewClinical && medicalLoading)
@@ -198,6 +209,46 @@ export const PatientAlertsBanner = ({
                   </button>
                 )}
               </div>
+              {/* Allergies first and always shown: a blank panel must never be
+                  mistaken for "no allergies". Sources are labelled because most
+                  entries are legacy free text, not structured records. */}
+              {!medicalLoading && allergyRegistry && (
+                allergyRegistry.positive.length > 0 ? (
+                  <div className="mb-2 rounded-md border border-red-300 bg-red-50 px-2.5 py-2">
+                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-red-800">
+                      <AlertTriangle className="h-3.5 w-3.5" />
+                      Allergies ({allergyRegistry.positive.length})
+                    </div>
+                    <ul className="mt-1 max-h-24 space-y-1 overflow-y-auto">
+                      {allergyRegistry.positive.map((entry, idx) => (
+                        <li key={`allergy-${idx}`} className="text-xs text-red-900">
+                          <span className="font-semibold">
+                            {entry.allergen || entry.text}
+                          </span>
+                          {entry.severity && (
+                            <span className="ml-1.5 rounded bg-red-200 px-1 py-0.5 text-[10px] font-semibold">
+                              {entry.severity}
+                            </span>
+                          )}
+                          <span className="ml-1.5 text-[10px] text-red-700/80">
+                            {entry.source}
+                            {entry.is_legacy ? ' · free text' : ''}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : allergyRegistry.no_known_allergies ? (
+                  <p className="mb-2 text-xs text-slate-600">
+                    <span className="font-semibold text-slate-700">No known allergies</span>
+                    <span className="text-slate-500"> — recorded ({allergyRegistry.sources.join(', ')})</span>
+                  </p>
+                ) : (
+                  <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-900">
+                    No allergy record for this patient — allergy status has not been documented.
+                  </p>
+                )
+              )}
               {medicalLoading ? (
                 <p className="text-xs text-slate-500">Loading…</p>
               ) : hasMedicalHistory && medicalHistory ? (

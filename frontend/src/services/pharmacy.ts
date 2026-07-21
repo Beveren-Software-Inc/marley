@@ -86,6 +86,7 @@ export interface ItemBatchSearchRow {
   stock_quantity: number
   stock_uom?: string | null
   expiry_date?: string | null
+  warehouse?: string | null
 }
 
 export async function searchItemOrBatch(query: string, limit = 100, warehouse?: string): Promise<ItemBatchSearchRow[]> {

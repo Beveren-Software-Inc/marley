@@ -406,7 +406,96 @@ doc_events = {
 	"Pre Anesthesia Assessment": {
 		"validate": "healthcare.healthcare.care_episode_guard.validate_care_episode_open",
 	},
+	# --- Serene BRD rules -------------------------------------------------
+	"Patient Visit": {
+		"before_insert": "healthcare.api.entry_user_reassign.set_entry_user_on_insert",
+		"validate": [
+			"healthcare.healthcare.lab_request_guard.validate_lab_request_on_visit",
+			"healthcare.api.patient_priority.set_priority_on_save",
+			"healthcare.api.promotions.validate_promotion",
+		],
+	},
+	"Inpatient Admission": {
+		"validate": [
+			"healthcare.api.promotions.validate_promotion",
+			"healthcare.api.admission_controls.validate_admission_mandatory_fields",  # WF-056
+			"healthcare.api.admission_controls.validate_insurance_eligibility",  # WF-058
+			"healthcare.api.admission_controls.record_admission_cancellation",
+		],
+	},
+	"Patient Appointment": {
+		"validate": "healthcare.api.patient_priority.set_priority_on_save",
+	},
 }
+
+# REC-021: address is mandatory to register a patient.
+doc_events["Patient"]["validate"] = (
+	"healthcare.healthcare.patient_registration_guard.validate_patient_address"
+)
+
+# REC-051: credit the entering user on billing documents too.
+for _dt in ("Sales Invoice", "Payment Entry"):
+	doc_events.setdefault(_dt, {}).setdefault("before_insert", [])
+	_existing = doc_events[_dt]["before_insert"]
+	if isinstance(_existing, str):
+		_existing = [_existing]
+	_existing.append("healthcare.api.entry_user_reassign.set_entry_user_on_insert")
+	doc_events[_dt]["before_insert"] = _existing
+
+
+def _append_event(doctype: str, event: str, handler: str) -> None:
+	"""Add a handler without clobbering whatever is already registered."""
+	existing = doc_events.setdefault(doctype, {}).get(event)
+	if existing is None:
+		doc_events[doctype][event] = handler
+	elif isinstance(existing, str):
+		doc_events[doctype][event] = [existing, handler]
+	else:
+		doc_events[doctype][event] = [*existing, handler]
+
+
+# WF-078: billing & payments into patient history.
+_append_event("Sales Invoice", "on_submit", "healthcare.api.patient_history_extras.record_sales_invoice")
+_append_event("Sales Invoice", "on_cancel", "healthcare.api.patient_history_extras.remove_billing_record")
+_append_event("Payment Entry", "on_submit", "healthcare.api.patient_history_extras.record_payment_entry")
+_append_event("Payment Entry", "on_cancel", "healthcare.api.patient_history_extras.remove_billing_record")
+
+# WF-079: follow-ups into patient history (Patient Follow Up is not submittable).
+_append_event("Patient Follow Up", "on_update", "healthcare.api.patient_history_extras.record_follow_up")
+_append_event("Patient Follow Up", "on_trash", "healthcare.api.patient_history_extras.remove_follow_up_record")
+
+# WF-072 / WF-074 / WF-077: registration, clinical notes and admissions into
+# patient history. These are Healthcare-module but NOT submittable, so the core
+# on_submit feed can never reach them.
+_append_event("Patient", "after_insert", "healthcare.api.patient_history_extras.record_registration")
+_append_event("Clinical Note", "on_update", "healthcare.api.patient_history_extras.record_clinical_note")
+_append_event("Clinical Note", "on_trash", "healthcare.api.patient_history_extras.remove_clinical_extra")
+_append_event("Inpatient Admission", "on_update", "healthcare.api.patient_history_extras.record_admission")
+_append_event("Inpatient Admission", "on_trash", "healthcare.api.patient_history_extras.remove_clinical_extra")
+
+# LAB-013 / LAB-021: measure laboratory turnaround time.
+_append_event("Lab Test", "validate", "healthcare.api.lab_tat.set_turnaround_time")
+
+# DOC-048: free follow-up visit raised automatically on discharge.
+_append_event("Discharge", "on_submit",
+              "healthcare.api.post_discharge_followup.create_free_followup_visit")
+
+# LAB-062: management approval for discounts above a threshold.
+for _dt in ("Sales Invoice", "Sales Order"):
+	_append_event(_dt, "validate",
+	              "healthcare.api.discount_authorisation.validate_discount_authorisation")
+
+# DOC-110: organisational risk register scoring.
+_append_event("Organisational Risk", "validate",
+              "healthcare.api.organisational_risk.set_risk_score")
+
+# LAB-039: a collected sample locks the request against cancel / delete.
+doc_events["Lab Test"]["before_cancel"] = (
+	"healthcare.healthcare.lab_request_guard.block_cancel_after_sample_collection"
+)
+doc_events["Lab Test"]["on_trash"] = (
+	"healthcare.healthcare.lab_request_guard.block_delete_after_sample_collection"
+)
 
 scheduler_events = {
 	"all": [
@@ -428,9 +517,15 @@ scheduler_events = {
 		"healthcare.api.daily_patient_visit.process_daily_patient_visits",
 		"healthcare.api.whatsapp_reminders.send_daily_whatsapp_reminders",
 		"healthcare.api.lab_test.create_daily_repeat_lab_tests",
+		"healthcare.api.lab_request_reminder.send_missing_lab_request_reminders",
+	],
+	"hourly": [
+		"healthcare.api.nurse_task_escalation.escalate_overdue_nurse_tasks",
+		"healthcare.api.nurse_task_escalation.remind_upcoming_nurse_tasks",
 	],
 	"monthly": [
 		"healthcare.healthcare.doctype.patient_follow_up.follow_up_crm_messages.send_follow_up_mid_end_year_messages",
+		"healthcare.api.quality_indicators.snapshot_monthly_indicators",
 	],
 }
 
