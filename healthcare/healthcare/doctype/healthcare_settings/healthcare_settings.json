@@ -30,6 +30,7 @@
   "block_clinical_records_on_discharged_ip",
   "do_not_bill_inpatient_encounters",
   "require_discount_approval",
+  "auto_apply_patient_price_list",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -730,11 +731,17 @@
    "fieldname": "require_discount_approval",
    "fieldtype": "Check",
    "label": "Require Discount Approval"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_apply_patient_price_list",
+   "fieldtype": "Check",
+   "label": "auto_apply_patient_price_list"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-21 22:28:19.335676",
+ "modified": "2026-07-21 23:05:07.296996",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
