@@ -295,11 +295,18 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 		grand_total += net
 		discount_amount += applied
 		tpl = spec.get("template")
+		parent_group = spec.get("parent_group")
+		parent_group_name = None
+		if parent_group:
+			parent_group_name = (
+				frappe.db.get_value("Lab Test Template", parent_group, "lab_test_name") or parent_group
+			)
 		lines.append(
 			{
 				"template": tpl,
 				"lab_test_name": frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl,
-				"parent_group": spec.get("parent_group"),
+				"parent_group": parent_group,
+				"parent_group_name": parent_group_name,
 				"amount": amount,
 				"discount_type": spec.get("discount_type") or "Percentage",
 				"discount_rate": float(spec.get("discount_rate") or 0),
@@ -889,6 +896,30 @@ def create_service_request(data):
 	}
 
 
+def _get_general_lab_discount(doc, request_items=None):
+	"""Return the request-level discount excluding discounts stored on test lines."""
+	if doc.template_dt != "Lab Test Template" or not doc.patient:
+		return 0.0
+
+	from healthcare.healthcare.lab_request_items import (
+		apply_discounts_to_specs,
+		expand_lab_test_specs,
+		parse_lab_request_items,
+		totals_from_specs,
+	)
+
+	items = request_items if request_items is not None else parse_lab_request_items(doc)
+	if not items:
+		return flt(doc.discount_amount)
+	patient_care_type = (
+		"OP" if doc.patient_visit else "IP" if doc.inpatient_record else None
+	)
+	specs = expand_lab_test_specs(items, doc.patient, patient_care_type=patient_care_type)
+	specs = apply_discounts_to_specs(specs, items)
+	line_totals = totals_from_specs(specs)
+	return flt(doc.discount_amount) - flt(line_totals["discount_amount"])
+
+
 @frappe.whitelist()
 def get_service_request(name):
 	"""Get a single Service Request document for editing."""
@@ -897,7 +928,17 @@ def get_service_request(name):
 	if not frappe.db.exists("Service Request", name):
 		frappe.throw(_("Service Request not found"))
 	doc = frappe.get_doc("Service Request", name)
-	return doc.as_dict()
+	data = doc.as_dict()
+	if doc.template_dt == "Lab Test Template":
+		# Always expose normalized lines to the edit form. This also gives legacy
+		# single/group requests per-test discount controls even when they predate
+		# the lab_request_items JSON field.
+		from healthcare.healthcare.lab_request_items import parse_lab_request_items
+
+		request_items = parse_lab_request_items(doc)
+		data["lab_request_items"] = request_items
+		data["general_discount_amount"] = _get_general_lab_discount(doc, request_items)
+	return data
 
 
 @frappe.whitelist()
@@ -914,6 +955,10 @@ def update_service_request(name, data):
 	doc = frappe.get_doc("Service Request", name)
 	if doc.docstatus == 2:
 		frappe.throw(_("Cannot update a cancelled Service Request"))
+	general_discount_amount = data.pop("general_discount_amount", None)
+	if general_discount_amount is None:
+		general_discount_amount = _get_general_lab_discount(doc)
+	general_discount_amount = flt(general_discount_amount)
 	# Allowed fields for update (editable in edit modal).
 	# Exclude set_only_once fields: practitioner, referring_practitioner, source (cannot be changed after set).
 	allowed = {
@@ -956,11 +1001,17 @@ def update_service_request(name, data):
 		specs = expand_lab_test_specs(request_items, doc.patient, patient_care_type=patient_care_type)
 		specs = apply_discounts_to_specs(specs, request_items)
 		totals = totals_from_specs(specs)
+		line_grand_total = flt(totals["grand_total"])
+		if general_discount_amount > line_grand_total:
+			frappe.throw(
+				_("General discount cannot be greater than the total after per-test discounts.")
+			)
 		doc.cost = totals["cost"]
-		doc.grand_total = totals["grand_total"]
-		doc.discount_amount = totals["discount_amount"]
+		doc.grand_total = line_grand_total - general_discount_amount
+		doc.discount_amount = flt(totals["discount_amount"]) + general_discount_amount
 		if request_items:
 			doc.discount = 0
+			doc.discount_margin = "Amount"
 	doc.save()
 	return {"name": doc.name, "status": doc.status}
 
@@ -1003,6 +1054,64 @@ def apply_service_request_refs_to_sales_order(so, sr):
 	so.custom_base_reference_name = bdn
 
 
+def _resolve_template_item_code(template_dt, template_dn):
+	"""Resolve billing Item from a service/lab template."""
+	template_doc = frappe.get_doc(template_dt, template_dn)
+	item_code = (
+		getattr(template_doc, "item", None)
+		or getattr(template_doc, "item_code", None)
+		or getattr(template_doc, "service_item", None)
+		or getattr(template_doc, "service_item_code", None)
+	)
+	if not item_code:
+		frappe.throw(
+			_("{0} {1} must have an Item or Item Code configured for billing").format(
+				template_dt, template_dn
+			)
+		)
+	if not frappe.db.exists("Item", item_code):
+		frappe.throw(_("Item {0} does not exist in the system").format(item_code))
+	return item_code, template_doc
+
+
+def _ensure_lab_item_group(item_code):
+	"""Ensure billing Item has an Item Group (create Lab Test group if missing)."""
+	item_doc = frappe.get_doc("Item", item_code)
+	if item_doc.item_group:
+		return
+	item_group_name = "Lab Test"
+	if not frappe.db.exists("Item Group", item_group_name):
+		item_group = frappe.new_doc("Item Group")
+		item_group.item_group_name = item_group_name
+		item_group.parent_item_group = "All Item Groups"
+		item_group.insert(ignore_permissions=True)
+	item_doc.item_group = item_group_name
+	item_doc.save(ignore_permissions=True)
+
+
+def _lab_request_sales_order_specs(sr):
+	"""Expand multi-test lab baskets into concrete billed lines."""
+	from healthcare.healthcare.lab_request_items import (
+		apply_discounts_to_specs,
+		expand_lab_test_specs,
+		parse_lab_request_items,
+	)
+
+	request_items = parse_lab_request_items(sr)
+	if not request_items or sr.template_dt != "Lab Test Template":
+		return [], 0.0
+
+	patient_care_type = (
+		"OP" if sr.patient_visit else "IP" if sr.inpatient_record else None
+	)
+	specs = expand_lab_test_specs(
+		request_items, sr.patient, patient_care_type=patient_care_type
+	)
+	specs = apply_discounts_to_specs(specs, request_items)
+	general_discount = _get_general_lab_discount(sr, request_items)
+	return specs, general_discount
+
+
 @frappe.whitelist()
 def confirm_payment(service_request_name):
 
@@ -1019,52 +1128,7 @@ def confirm_payment(service_request_name):
 	if not sr.template_dt or not sr.template_dn:
 		frappe.throw(_("Template is required"))
 
-	# Load dynamic template document
-	template_doc = frappe.get_doc(sr.template_dt, sr.template_dn)
 	delivery_date = sr.expected_date or nowdate()
-
-	# ---- IMPORTANT PART ----
-	# Try multiple possible field names for item code
-	item_code = (
-		getattr(template_doc, "item", None) or 
-		getattr(template_doc, "item_code", None) or
-		getattr(template_doc, "service_item", None) or
-		getattr(template_doc, "service_item_code", None)
-	)
-	
-	if not item_code:
-		frappe.throw(_("{0} {1} must have an Item or Item Code configured for billing").format(sr.template_dt, sr.template_dn))
-
-	# Validate item exists and is properly configured
-	if not frappe.db.exists("Item", item_code):
-		frappe.throw(_("Item {0} does not exist in the system").format(item_code))
-	
-	# Check item configuration and create/fix item group if needed
-	item_doc = frappe.get_doc("Item", item_code)
-	
-	if not item_doc.item_group:
-		# Check if "Lab Test" item group exists, create if not
-		item_group_name = "Lab Test"
-		if not frappe.db.exists("Item Group", item_group_name):
-			item_group = frappe.new_doc("Item Group")
-			item_group.item_group_name = item_group_name
-			item_group.parent_item_group = "All Item Groups"  # or whatever your root is
-			item_group.insert(ignore_permissions=True)
-			frappe.db.commit()
-			frappe.log_error(title="Item Group Created", message=f"Created Item Group: {item_group_name}")
-		
-		# Update the item with the item group
-		item_doc.item_group = item_group_name
-		item_doc.save(ignore_permissions=True)
-		frappe.db.commit()
-		frappe.log_error(title="Item Updated", message=f"Updated Item {item_code} with Item Group: {item_group_name}")
-
-	amount = (
-		getattr(template_doc, "lab_test_rate", None) or
-		getattr(template_doc, "rate", None) or 
-		getattr(template_doc, "amount", None) or
-		0
-	)
 
 	# ------------------------
 	# Create Sales Order
@@ -1089,19 +1153,86 @@ def confirm_payment(service_request_name):
 
 	from healthcare.controllers.insurance_pricing import sales_item_from_list_and_discount
 
-	list_rate = frappe.utils.flt(sr.cost) or frappe.utils.flt(amount) or 0
-	net_rate = frappe.utils.flt(sr.grand_total) or list_rate
-	so.append(
-		"items",
-		sales_item_from_list_and_discount(
-			item_code=item_code,
-			list_rate=list_rate,
-			discount_pct=frappe.utils.flt(sr.discount),
-			discount_amount=frappe.utils.flt(sr.discount_amount),
-			net_rate=net_rate,
-			description=f"Service Request {sr.name}",
-		),
-	)
+	lab_specs, general_discount = _lab_request_sales_order_specs(sr)
+	visit_charge_rows = []
+
+	if lab_specs:
+		# One Sales Order line per concrete child lab test (not per group parent).
+		for spec in lab_specs:
+			tpl = spec.get("template")
+			item_code, _template_doc = _resolve_template_item_code("Lab Test Template", tpl)
+			_ensure_lab_item_group(item_code)
+			lab_test_name = (
+				frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl
+			)
+			list_rate = flt(spec.get("amount") or 0)
+			net_rate = flt(
+				spec.get("net_amount") if spec.get("net_amount") is not None else list_rate
+			)
+			disc_type = (spec.get("discount_type") or "Amount").strip()
+			so.append(
+				"items",
+				sales_item_from_list_and_discount(
+					item_code=item_code,
+					list_rate=list_rate,
+					discount_pct=flt(spec.get("discount_rate") or 0) if disc_type == "Percentage" else 0,
+					discount_amount=flt(spec.get("discount") or 0) if disc_type == "Amount" else 0,
+					net_rate=net_rate,
+					description=f"{lab_test_name} ({sr.name})",
+				),
+			)
+			visit_charge_rows.append(
+				{
+					"sr_no": sr.name,
+					"test_name": lab_test_name,
+					"lab_test_template": tpl,
+					"lab_test_group": spec.get("parent_group"),
+					"amount": list_rate,
+					"discount_type": disc_type,
+					"discount_rate": flt(spec.get("discount_rate") or 0) if disc_type == "Percentage" else 0,
+					"discount": flt(spec.get("discount") or 0) if disc_type == "Amount" else 0,
+					"net_amount": net_rate,
+				}
+			)
+		if general_discount:
+			so.apply_discount_on = "Grand Total"
+			so.additional_discount_amount = flt(general_discount)
+	else:
+		# Legacy / non-basket: single template line.
+		item_code, template_doc = _resolve_template_item_code(sr.template_dt, sr.template_dn)
+		_ensure_lab_item_group(item_code)
+		amount = (
+			getattr(template_doc, "lab_test_rate", None)
+			or getattr(template_doc, "rate", None)
+			or getattr(template_doc, "amount", None)
+			or 0
+		)
+		list_rate = flt(sr.cost) or flt(amount) or 0
+		net_rate = flt(sr.grand_total) or list_rate
+		so.append(
+			"items",
+			sales_item_from_list_and_discount(
+				item_code=item_code,
+				list_rate=list_rate,
+				discount_pct=flt(sr.discount),
+				discount_amount=flt(sr.discount_amount),
+				net_rate=net_rate,
+				description=f"Service Request {sr.name}",
+			),
+		)
+		visit_charge_rows.append(
+			{
+				"sr_no": sr.name,
+				"test_name": sr.template_dn or "",
+				"lab_test_template": sr.template_dn if sr.template_dt == "Lab Test Template" else None,
+				"amount": list_rate or 0,
+				"discount_type": "Percentage" if flt(sr.discount) else "Amount",
+				"discount_rate": flt(sr.discount) or 0,
+				"discount": flt(sr.discount_amount) or 0,
+				"net_amount": net_rate or 0,
+			}
+		)
+
 	apply_service_request_refs_to_sales_order(so, sr)
 	apply_cost_center_to_sales_order(so, cost_center_from_service_request(sr))
 
@@ -1114,31 +1245,34 @@ def confirm_payment(service_request_name):
 	sr.db_set("reference_document_name", so.name)
 
 	patient_visit_name = getattr(sr, "patient_visit", None)
-	
+
 	if patient_visit_name:
 		try:
 			visit = frappe.get_doc("Patient Visit", patient_visit_name)
 
-			# Avoid duplicate entries for the same service request
-			already_added = any(
-				row.get("test_code") == sr.name
+			existing_templates = {
+				(row.get("lab_test_template") or "").strip()
+				for row in visit.get("lab_tests_charges", [])
+			}
+			already_for_sr = any(
+				(row.get("sr_no") or "").strip() == sr.name
 				for row in visit.get("lab_tests_charges", [])
 			)
-			if not already_added:
-				lab_test_name = getattr(sr, "lab_test", None) or getattr(template_doc, "name", None)
-				visit.append("lab_tests_charges", {
-					"test_code": lab_test_name,                         
-					"test_name": sr.template_dn or "", 
-					"amount": list_rate or 0,
-					"discount_type": "Percentage" if frappe.utils.flt(sr.discount) else "Amount",
-					"discount_rate": frappe.utils.flt(sr.discount) or 0,
-					"discount": frappe.utils.flt(sr.discount_amount) or 0,
-					"net_amount": net_rate or 0
-				})
+			added = False
+			if not already_for_sr:
+				for row in visit_charge_rows:
+					key = (row.get("lab_test_template") or "").strip()
+					if key and key in existing_templates:
+						continue
+					visit.append("lab_tests_charges", row)
+					if key:
+						existing_templates.add(key)
+					added = True
+			if added:
 				visit.save(ignore_permissions=True)
 				frappe.db.commit()
 
-		except Exception as e:
+		except Exception:
 			frappe.log_error(
 				title="Failed to update Patient Visit lab charges",
 				message=frappe.get_traceback()
@@ -1150,7 +1284,8 @@ def confirm_payment(service_request_name):
 	return {
 		"ok": True,
 		"patient_accepted_cost": 1,
-		"sales_order": so.name
+		"sales_order": so.name,
+		"item_count": len(so.items),
 	}
 
 

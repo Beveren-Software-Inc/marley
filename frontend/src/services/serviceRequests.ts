@@ -123,6 +123,8 @@ export interface UpdateServiceRequestData {
   discount_margin?: string
   discount_value?: string
   discount_amount?: number
+  /** One request-level fixed discount, applied after any per-test discounts. */
+  general_discount_amount?: number
   grand_total?: number
   lab_request_items?: LabRequestItem[]
 }
@@ -232,6 +234,7 @@ export interface MultiLabPricingLine {
   template: string
   lab_test_name?: string
   parent_group?: string | null
+  parent_group_name?: string | null
   amount: number
   discount_type?: string
   discount_rate?: number

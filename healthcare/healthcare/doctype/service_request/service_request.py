@@ -632,7 +632,12 @@ def book_lab_and_forward(service_request_name):
 	if not request_items:
 		frappe.throw(_("No lab tests are configured on this service request."))
 
-	specs = expand_lab_test_specs(request_items, sr.patient)
+	patient_care_type = (
+		"OP" if sr.patient_visit else "IP" if sr.inpatient_record else None
+	)
+	specs = expand_lab_test_specs(
+		request_items, sr.patient, patient_care_type=patient_care_type
+	)
 	specs = apply_discounts_to_specs(specs, request_items)
 	if not specs:
 		frappe.throw(_("No lab tests are selected on this service request."))
@@ -649,7 +654,11 @@ def book_lab_and_forward(service_request_name):
 		lt.patient_name = sr.patient_name
 		lt.patient_sex = sr.patient_gender
 		lt.patient_age = sr.patient_age_data
+		lt.patient_visit = sr.patient_visit
 		lt.inpatient_record = sr.inpatient_record
+		# Lab Test has both the legacy inpatient_record and the newer visible
+		# inpatient_admission link; keep both aligned with the Service Request.
+		lt.inpatient_admission = sr.inpatient_record
 		lt.email = sr.patient_email
 		lt.mobile = sr.patient_mobile
 		
@@ -710,8 +719,9 @@ def book_lab_and_forward(service_request_name):
 			lt.insert(ignore_permissions=True)
 			created_names.append(lt.name)
 
-			if sr.order_group and frappe.db.exists("Patient Visit", sr.order_group):
-				visit = frappe.get_doc("Patient Visit", sr.order_group)
+			patient_visit = sr.patient_visit or sr.order_group
+			if patient_visit and frappe.db.exists("Patient Visit", patient_visit):
+				visit = frappe.get_doc("Patient Visit", patient_visit)
 				visit.append(
 					"lab_tests_charges",
 					{
@@ -752,9 +762,15 @@ def book_lab_and_forward(service_request_name):
 			"lab_test": created_names[0],
 			"lab_tests": created_names,
 			"count": 1,
-			"patient_visit": sr.order_group,
+			"patient_visit": sr.patient_visit or sr.order_group,
+			"inpatient_record": sr.inpatient_record,
 		}
-	return {"lab_tests": created_names, "count": len(created_names), "patient_visit": sr.order_group}
+	return {
+		"lab_tests": created_names,
+		"count": len(created_names),
+		"patient_visit": sr.patient_visit or sr.order_group,
+		"inpatient_record": sr.inpatient_record,
+	}
 
 @frappe.whitelist()
 def make_therapy_session(service_request):
