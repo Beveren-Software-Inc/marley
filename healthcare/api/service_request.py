@@ -553,6 +553,50 @@ def get_service_requests(
 		items = parse_lab_request_items(sr)
 		if items and sr.template_dt == 'Lab Test Template':
 			sr['template_name'] = lab_request_items_summary(items) or sr.template_dn
+			groups = []
+			for item in items:
+				if (item.get("kind") or "").strip().lower() != "group":
+					continue
+				parent = (item.get("parent") or "").strip()
+				if not parent:
+					continue
+				parent_label = (
+					frappe.db.get_value("Lab Test Template", parent, "lab_test_name")
+					or parent
+				)
+				child_templates = [child for child in (item.get("children") or []) if child]
+				if not child_templates:
+					# Legacy group requests may omit the selected child list; in
+					# that case the booking flow treats all active group children
+					# as selected, so the visit panel should display the same set.
+					child_templates = frappe.get_all(
+						"Lab Test Template",
+						filters={"lab_group": parent, "disabled": 0},
+						pluck="name",
+						order_by="lab_test_name asc",
+						ignore_permissions=True,
+					)
+				children = []
+				for child in child_templates:
+					children.append(
+						{
+							"template": child,
+							"label": (
+								frappe.db.get_value(
+									"Lab Test Template", child, "lab_test_name"
+								)
+								or child
+							),
+						}
+					)
+				groups.append(
+					{
+						"template": parent,
+						"label": parent_label,
+						"children": children,
+					}
+				)
+			sr["lab_request_groups"] = groups
 		elif sr.template_dn and sr.template_dt:
 			name_field = _template_name_field.get(sr.template_dt)
 			if name_field and name_field != 'name':
@@ -717,11 +761,19 @@ def create_service_request(data):
 		)
 		specs = apply_discounts_to_specs(specs, lab_request_items)
 		totals = totals_from_specs(specs)
+		general_discount_amount = flt(data.get("general_discount_amount") or 0)
+		line_grand_total = flt(totals["grand_total"])
+		if general_discount_amount > line_grand_total:
+			frappe.throw(
+				_("General discount cannot be greater than the total after per-test discounts.")
+			)
 		data["cost"] = totals["cost"]
-		data["grand_total"] = totals["grand_total"]
-		data["discount_amount"] = totals["discount_amount"]
+		data["grand_total"] = line_grand_total - general_discount_amount
+		data["discount_amount"] = (
+			flt(totals["discount_amount"]) + general_discount_amount
+		)
 		data["discount"] = 0
-		data["discount_margin"] = ""
+		data["discount_margin"] = "Amount"
 	elif data.get("template_dt") == "Healthcare Service Template" and data.get("template_dn"):
 		# List price in cost; insurance % in discount; net in grand_total (trackable to invoice)
 		from healthcare.controllers.insurance_pricing import apply_discount as _apply_pct
@@ -1195,8 +1247,11 @@ def confirm_payment(service_request_name):
 				}
 			)
 		if general_discount:
+			# ERPNext Sales Order additional/header discount field is discount_amount
+			# (not additional_discount_amount).
 			so.apply_discount_on = "Grand Total"
-			so.additional_discount_amount = flt(general_discount)
+			so.discount_amount = flt(general_discount)
+			so.additional_discount_percentage = 0
 	else:
 		# Legacy / non-basket: single template line.
 		item_code, template_doc = _resolve_template_item_code(sr.template_dt, sr.template_dn)

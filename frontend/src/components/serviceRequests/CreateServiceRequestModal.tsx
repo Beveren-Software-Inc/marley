@@ -137,6 +137,7 @@ export const CreateServiceRequestModal = ({
   const [insuranceDiscountPct, setInsuranceDiscountPct] = useState(0)
   const [manualCost, setManualCost] = useState(0)
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
+  const [generalLabDiscount, setGeneralLabDiscount] = useState(0)
 
   /** Multi-test lab basket (lab request flow only) */
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
@@ -200,7 +201,7 @@ export const CreateServiceRequestModal = ({
 
   const orderDiscountAmount = discountPct
   const estimatedTotalAfterDiscount = useLabBasket
-    ? (basketPricing.grand_total ?? basketPricing.subtotal)
+    ? (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount
     : listSubtotalBeforeDiscount - orderDiscountAmount
 
   const basketWithDiscounts = useMemo(
@@ -522,6 +523,12 @@ export const CreateServiceRequestModal = ({
         setError('Add at least one lab test or group to the request.')
         return
       }
+      if (
+        (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount < 0
+      ) {
+        setError('General discount cannot be greater than the total after per-test discounts.')
+        return
+      }
     } else if (!form.template_dn) {
       setError('Patient, Template Type and Template are required.')
       return
@@ -575,8 +582,10 @@ export const CreateServiceRequestModal = ({
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,
           cost: basketPricing.subtotal,
-          discount_amount: basketPricing.discount_amount || 0,
-          grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
+          general_discount_amount: generalLabDiscount,
+          discount_amount: (basketPricing.discount_amount || 0) + generalLabDiscount,
+          grand_total:
+            (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount,
         })
       } else {
         const listAmount = listSubtotalBeforeDiscount
@@ -1132,7 +1141,7 @@ export const CreateServiceRequestModal = ({
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
                   {useLabBasket
-                    ? 'Set a discount amount per lab test (negative values add a surcharge). Reception finalises billing.'
+                    ? 'Set individual test discounts, then optionally apply one general discount to the whole request.'
                     : 'Reference amount before discount (reception finalises billing). Enter a discount amount if applicable — negative values are allowed.'}
                 </p>
                 {priceMissing ? (
@@ -1177,11 +1186,37 @@ export const CreateServiceRequestModal = ({
                   </div>
                 ) : null}
                 {useLabBasket && basketPricing.lines.length > 0 ? (
-                  <LabTestLineDiscountTable
-                    lines={basketPricing.lines}
-                    lineDiscounts={lineDiscounts}
-                    onChange={handleLineDiscountChange}
-                  />
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        General discount amount
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={generalLabDiscount === 0 ? '' : generalLabDiscount}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            setGeneralLabDiscount(0)
+                            return
+                          }
+                          const value = Number(raw)
+                          if (!Number.isNaN(value)) setGeneralLabDiscount(value)
+                        }}
+                        className={inputClass}
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Applied once to the request total—not once per test.
+                      </p>
+                    </div>
+                    <LabTestLineDiscountTable
+                      lines={basketPricing.lines}
+                      lineDiscounts={lineDiscounts}
+                      onChange={handleLineDiscountChange}
+                    />
+                  </div>
                 ) : !useLabBasket ? (
                   <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="flex flex-col gap-1">
@@ -1211,11 +1246,14 @@ export const CreateServiceRequestModal = ({
                     {formatMoney(Math.abs(orderDiscountAmount))}
                   </p>
                 )}
-                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 && (
+                {useLabBasket &&
+                  ((basketPricing.discount_amount || 0) !== 0 || generalLabDiscount !== 0) && (
                   <p className="mt-3 text-xs text-slate-500">
                     Total discount:{' '}
-                    {(basketPricing.discount_amount || 0) > 0 ? '−' : '+'}
-                    {formatMoney(Math.abs(basketPricing.discount_amount || 0))}
+                    {(basketPricing.discount_amount || 0) + generalLabDiscount > 0 ? '−' : '+'}
+                    {formatMoney(
+                      Math.abs((basketPricing.discount_amount || 0) + generalLabDiscount)
+                    )}
                   </p>
                 )}
               </div>
@@ -1228,8 +1266,11 @@ export const CreateServiceRequestModal = ({
                   <Wallet className="h-4 w-4 text-white/90" />
                   Estimated patient total
                 </span>
-                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 ? (
-                  <span className="text-xs text-emerald-100/90">Per-test discounts applied</span>
+                {useLabBasket &&
+                ((basketPricing.discount_amount || 0) !== 0 || generalLabDiscount !== 0) ? (
+                  <span className="text-xs text-emerald-100/90">
+                    Per-test and general discounts applied
+                  </span>
                 ) : !useLabBasket && orderDiscountAmount !== 0 ? (
                   <span className="text-xs text-emerald-100/90">
                     {orderDiscountAmount > 0 ? 'Discount' : 'Surcharge'} applied
