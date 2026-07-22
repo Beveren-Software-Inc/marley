@@ -241,6 +241,9 @@ def get_clinical_notes(**kwargs):
 			'reference_document',
 			'inpatient_admission',
 			'branch',
+			'creation',
+			'modified',
+			'note_locked',
 		],
 		limit=int(limit),
 		limit_start=int(offset),
@@ -443,6 +446,92 @@ def create_clinical_note(data):
 		'medical_role': doc.medical_role,
 		'reference_doctype': doc.reference_doctype,
 		'reference_document': doc.reference_document,
+	}
+
+
+CLINICAL_NOTE_EDIT_WINDOW_HOURS = 24
+
+CLINICAL_NOTE_EDIT_LOCKED_MESSAGE = _(
+	"This clinical note can no longer be edited. Notes are locked 24 hours after creation."
+)
+
+
+def clinical_note_edit_window_expired(creation) -> bool:
+	"""True when more than 24 hours have passed since the note was created."""
+	from datetime import timedelta
+
+	from frappe.utils import get_datetime, now_datetime
+
+	if not creation:
+		return False
+	created_dt = get_datetime(creation)
+	if not created_dt:
+		return False
+	return now_datetime() - created_dt > timedelta(hours=CLINICAL_NOTE_EDIT_WINDOW_HOURS)
+
+
+def assert_clinical_note_editable(doc) -> None:
+	"""Reject portal edits when permanently locked, or past 24h if setting is on."""
+	if doc.is_new():
+		return
+	if frappe.db.get_value(doc.doctype, doc.name, "note_locked"):
+		frappe.throw(
+			_("This clinical note is locked and cannot be edited."),
+			title=_("Note Locked"),
+		)
+	# Only enforce the 24h window when Healthcare Settings asks for it.
+	if not frappe.db.get_single_value("Healthcare Settings", "therapy_note_uneditable_in_24_hour"):
+		return
+	creation = frappe.db.get_value(doc.doctype, doc.name, "creation")
+	if clinical_note_edit_window_expired(creation):
+		frappe.throw(
+			CLINICAL_NOTE_EDIT_LOCKED_MESSAGE,
+			title=_("Editing not allowed"),
+			exc=frappe.ValidationError,
+		)
+
+
+@frappe.whitelist()
+def update_clinical_note(data):
+	"""Update note text and/or posting_date (24h lock only if Healthcare Settings enables it)."""
+	from healthcare.healthcare.editing_lock import assert_editing_allowed
+
+	assert_editing_allowed()
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	data = data or {}
+
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Clinical Note name is required"))
+
+	if not frappe.db.exists("Clinical Note", name):
+		frappe.throw(_("Clinical Note {0} not found").format(name))
+
+	doc = frappe.get_doc("Clinical Note", name)
+	assert_clinical_note_editable(doc)
+
+	if "note" in data:
+		note = (data.get("note") or "").strip()
+		if not note:
+			frappe.throw(_("Note is required"))
+		doc.note = note
+
+	if data.get("posting_date"):
+		doc.posting_date = data.get("posting_date")
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"success": True,
+		"name": doc.name,
+		"note": doc.note,
+		"posting_date": str(doc.posting_date) if doc.posting_date else None,
+		"creation": str(doc.creation) if doc.creation else None,
+		"modified": str(doc.modified) if doc.modified else None,
 	}
  
  

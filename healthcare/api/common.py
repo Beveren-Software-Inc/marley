@@ -32,6 +32,9 @@ def get_healthcare_portal_settings():
 
 	return {
 		"lock_editing_data": is_editing_locked(),
+		"therapy_note_uneditable_in_24_hour": bool(
+			frappe.db.get_single_value("Healthcare Settings", "therapy_note_uneditable_in_24_hour")
+		),
 	}
 
 

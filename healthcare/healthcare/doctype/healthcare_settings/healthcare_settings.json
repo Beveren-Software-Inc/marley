@@ -39,6 +39,7 @@
   "require_patient_on_pharmacy_sale",
   "require_prescription_for_controlled_items",
   "record_pharmacy_sale_as_visit",
+  "therapy_note_uneditable_in_24_hour",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -857,10 +858,10 @@
    "label": "Send Missing Lab Request Reminder"
   },
   {
+   "description": "Name of the WhatsApp message template used for appointment reminders",
    "fieldname": "whatsapp_appointment_reminder_template",
    "fieldtype": "Data",
-   "label": "WhatsApp Appointment Reminder Template",
-   "description": "Name of the WhatsApp message template used for appointment reminders"
+   "label": "WhatsApp Appointment Reminder Template"
   },
   {
    "fieldname": "cb_serene_automations",
@@ -874,10 +875,10 @@
   },
   {
    "default": "0",
+   "depends_on": "remind_upcoming_nurse_tasks",
    "fieldname": "nurse_task_reminder_lead_minutes",
    "fieldtype": "Int",
-   "label": "Nurse Task Reminder Lead (Minutes)",
-   "depends_on": "remind_upcoming_nurse_tasks"
+   "label": "Nurse Task Reminder Lead (Minutes)"
   },
   {
    "default": "0",
@@ -887,17 +888,17 @@
   },
   {
    "default": "0",
+   "depends_on": "escalate_overdue_nurse_tasks",
    "fieldname": "nurse_task_overdue_grace_minutes",
    "fieldtype": "Int",
-   "label": "Nurse Task Overdue Grace (Minutes)",
-   "depends_on": "escalate_overdue_nurse_tasks"
+   "label": "Nurse Task Overdue Grace (Minutes)"
   },
   {
+   "depends_on": "escalate_overdue_nurse_tasks",
    "fieldname": "nurse_task_escalation_role",
    "fieldtype": "Link",
-   "options": "Role",
    "label": "Nurse Task Escalation Role",
-   "depends_on": "escalate_overdue_nurse_tasks"
+   "options": "Role"
   },
   {
    "default": "0",
@@ -913,21 +914,27 @@
   },
   {
    "default": "0",
+   "depends_on": "auto_free_visit_after_discharge",
    "fieldname": "free_visit_days_after_discharge",
    "fieldtype": "Int",
-   "label": "Free Visit Days After Discharge",
-   "depends_on": "auto_free_visit_after_discharge"
+   "label": "Free Visit Days After Discharge"
   },
   {
+   "description": "Template/item name used as the fallback IOP enrollment charge",
    "fieldname": "iop_charge_item",
    "fieldtype": "Data",
-   "label": "IOP Charge Item",
-   "description": "Template/item name used as the fallback IOP enrollment charge"
+   "label": "IOP Charge Item"
+  },
+  {
+   "default": "0",
+   "fieldname": "therapy_note_uneditable_in_24_hour",
+   "fieldtype": "Check",
+   "label": "Therapy Note Uneditable in 24 hour"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 15:46:35.886679",
+ "modified": "2026-07-23 01:11:18.216202",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

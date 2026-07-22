@@ -171,3 +171,43 @@ export async function createClinicalNote(data: CreateClinicalNoteData) {
 
   return resData.message
 }
+
+export interface UpdateClinicalNoteData {
+  name: string
+  note?: string
+  posting_date?: string
+}
+
+export async function updateClinicalNote(data: UpdateClinicalNoteData) {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const response = await fetch('/api/method/healthcare.api.clinical_note.update_clinical_note', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ data }),
+  })
+
+  const resData = await response.json()
+  if (!response.ok || resData.exc) {
+    const message =
+      resData?._error_message ||
+      resData?.message?.message ||
+      resData?.message ||
+      resData?.exc ||
+      'Failed to update clinical note'
+    throw new Error(typeof message === 'string' ? message : 'Failed to update clinical note')
+  }
+
+  return resData.message as {
+    success: boolean
+    name: string
+    note?: string
+    posting_date?: string | null
+  }
+}

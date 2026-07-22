@@ -1,13 +1,21 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { fetchClinicalNotes, fetchPendingDoctorProgressEncounters, type ClinicalNote, type PendingDoctorProgressEncounter } from '../../services/clinicalNotes'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { ClinicalNoteDetailPanel } from './ClinicalNoteDetailPanel'
+import { EditClinicalNoteModal } from './EditClinicalNoteModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import {
+  CLINICAL_NOTE_EDIT_LOCKED_MESSAGE,
+  isClinicalNoteEditableWithin24h,
+} from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -27,6 +35,8 @@ interface ClinicalNotesListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  /** Show ⋮ Edit for notes still within 24h of creation (therapy notes). */
+  allowEditWithin24h?: boolean
 }
 
 function clinicalNoteTypeDisplayLabel(clinicalNoteType?: string): string {
@@ -77,16 +87,21 @@ export const ClinicalNotesList = ({
   title,
   onAdd,
   addButtonTitle,
+  allowEditWithin24h = false,
 }: ClinicalNotesListProps) => {
   const listTitle = resolveListTitle(clinicalNoteType, title)
   const resolvedAddTitle = addButtonTitle ?? `Add ${clinicalNoteType || 'Clinical Note'}`
-  const { mode, activeVisit, activeAdmission, isIOPVisit } = useCareContext()
+  const { mode, activeVisit, activeAdmission, isIOPVisit, guardClinicalEdit, therapyNoteUneditableIn24Hour } = useCareContext()
   const [clinicalNotes, setClinicalNotes] = useState<ClinicalNote[]>([])
   const [pendingEncounters, setPendingEncounters] = useState<PendingDoctorProgressEncounter[]>([])
   const [pendingLoading, setPendingLoading] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [editNote, setEditNote] = useState<ClinicalNote | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
+  const [listRefreshKey, setListRefreshKey] = useState(0)
 
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -219,6 +234,7 @@ export const ClinicalNotesList = ({
     postingDateTo,
     notePractitionerFilter,
     practitionerInitDone,
+    listRefreshKey,
   ])
 
   useEffect(() => {
@@ -308,6 +324,97 @@ export const ClinicalNotesList = ({
     if (!note.note) return '-'
     const plainText = stripHtml(note.note)
     return plainText.length > maxLen ? `${plainText.substring(0, maxLen)}…` : plainText
+  }
+
+  const canEditNote = (note: ClinicalNote) =>
+    allowEditWithin24h &&
+    !note.note_locked &&
+    isClinicalNoteEditableWithin24h(note.creation, therapyNoteUneditableIn24Hour)
+
+  const openEditNote = (note: ClinicalNote) => {
+    if (!canEditNote(note)) {
+      toast.error(
+        note.note_locked
+          ? 'This clinical note is locked and cannot be edited.'
+          : CLINICAL_NOTE_EDIT_LOCKED_MESSAGE
+      )
+      return
+    }
+    guardClinicalEdit(() => setEditNote(note))
+  }
+
+  const renderNoteActions = (note: ClinicalNote) => {
+    if (!allowEditWithin24h) {
+      return (
+        <PrintFormatDropdown
+          doctype="Clinical Note"
+          docName={note.name}
+          noLetterhead={0}
+          triggerPrint={1}
+          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+        />
+      )
+    }
+
+    return (
+      <div className="inline-flex items-center justify-center gap-1">
+        <div className="relative" ref={openActionRow === note.name ? actionMenuRef : undefined}>
+          <button
+            type="button"
+            aria-label="Actions"
+            onClick={(e) => {
+              e.stopPropagation()
+              setOpenActionRow((prev) => (prev === note.name ? null : note.name))
+            }}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+          >
+            <MoreHorizontal className="h-4 w-4" aria-hidden />
+          </button>
+          <PortalActionsMenu
+            open={openActionRow === note.name}
+            onClose={() => setOpenActionRow(null)}
+            triggerRef={actionMenuRef}
+            minWidth={160}
+          >
+            {canEditNote(note) ? (
+              <button
+                type="button"
+                onClick={() => {
+                  setOpenActionRow(null)
+                  openEditNote(note)
+                }}
+                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+              >
+                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                Edit
+              </button>
+            ) : (
+              <div
+                className="px-3 py-2 text-xs text-slate-500"
+                title={
+                  note.note_locked
+                    ? 'This note is locked'
+                    : CLINICAL_NOTE_EDIT_LOCKED_MESSAGE
+                }
+              >
+                {note.note_locked
+                  ? 'Edit locked'
+                  : therapyNoteUneditableIn24Hour
+                    ? 'Edit locked (24h)'
+                    : 'Edit unavailable'}
+              </div>
+            )}
+          </PortalActionsMenu>
+        </div>
+        <PrintFormatDropdown
+          doctype="Clinical Note"
+          docName={note.name}
+          noLetterhead={0}
+          triggerPrint={1}
+          className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+        />
+      </div>
+    )
   }
 
   const notesTable = cardCompactLayout ? (
@@ -448,13 +555,7 @@ export const ClinicalNotesList = ({
                     )}
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-center align-middle">
-                    <PrintFormatDropdown
-                      doctype="Clinical Note"
-                      docName={note.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                    />
+                    {renderNoteActions(note)}
                   </td>
                 </>
               ) : (
@@ -498,13 +599,7 @@ export const ClinicalNotesList = ({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-center align-middle">
-                    <PrintFormatDropdown
-                      doctype="Clinical Note"
-                      docName={note.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                      className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                    />
+                    {renderNoteActions(note)}
                   </td>
                 </>
               )}
@@ -718,6 +813,20 @@ export const ClinicalNotesList = ({
           preview={clinicalNotes.find((n) => n.name === detailName)}
           onClose={() => setDetailName(null)}
           onPatientClick={onPatientClick}
+        />
+      ) : null}
+
+      {editNote ? (
+        <EditClinicalNoteModal
+          note={editNote}
+          title={
+            clinicalNoteType === 'Therapist Note' ? 'Edit Therapy Note' : 'Edit Clinical Note'
+          }
+          onClose={() => setEditNote(null)}
+          onSuccess={() => {
+            setEditNote(null)
+            setListRefreshKey((k) => k + 1)
+          }}
         />
       ) : null}
     </div>

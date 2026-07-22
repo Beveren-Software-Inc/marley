@@ -115,6 +115,8 @@ interface CareContextValue {
   /** True when Healthcare Settings.lock_editing_data is enabled. */
   lockEditingData: boolean
   editingLockMessage?: string
+  /** True when Healthcare Settings.therapy_note_uneditable_in_24_hour is enabled. */
+  therapyNoteUneditableIn24Hour: boolean
   /**
    * Wrap handlers that modify existing records (edit modals, append note, etc.).
    * Creating new records is still allowed via {@link guardClinicalCreate}.
@@ -169,6 +171,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [activeAdmissionStatus, setActiveAdmissionStatus] = useState<string | undefined>(undefined)
   const [careEpisodeStatus, setCareEpisodeStatus] = useState<ActiveCareEpisodeStatus | null>(null)
   const [lockEditingData, setLockEditingData] = useState(false)
+  const [therapyNoteUneditableIn24Hour, setTherapyNoteUneditableIn24Hour] = useState(false)
 
   const editingLockMessage =
     'Editing is locked in Healthcare Settings. You can create new records but cannot modify existing data.'
@@ -298,8 +301,10 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
         const portalSettings = await fetchHealthcarePortalSettings().catch(() => ({
           lock_editing_data: false,
+          therapy_note_uneditable_in_24_hour: false,
         }))
         setLockEditingData(Boolean(portalSettings.lock_editing_data))
+        setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))
       } catch (error) {
         console.warn('Failed to load user context:', error)
       }
@@ -311,9 +316,11 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       fetchHealthcarePortalSettings()
         .then((portalSettings) => {
           setLockEditingData(Boolean(portalSettings.lock_editing_data))
+          setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))
         })
         .catch(() => {
           setLockEditingData(false)
+          setTherapyNoteUneditableIn24Hour(false)
         })
     }
 
@@ -453,6 +460,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       guardClinicalEdit,
       lockEditingData,
       editingLockMessage,
+      therapyNoteUneditableIn24Hour,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,
@@ -478,6 +486,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       guardClinicalEdit,
       lockEditingData,
       editingLockMessage,
+      therapyNoteUneditableIn24Hour,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,
