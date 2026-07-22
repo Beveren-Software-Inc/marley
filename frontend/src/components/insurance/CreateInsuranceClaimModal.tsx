@@ -17,6 +17,7 @@ import {
 import { Plus, Trash2, FileText, AlertCircle } from 'lucide-react'
 import { fetchHealthcareInsurance, fetchInsuranceClaimDetail, saveInsuranceClaim, type LinkFieldOption, type InvoiceNeedingClaimRow } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
+import { fetchPatientDoc, type PatientInsuranceCoverageRow } from '../../services/patients'
 import {
   linkComboboxDropdownClassShort,
   linkComboboxInputClassCompact,
@@ -50,9 +51,16 @@ interface InvoiceOption {
   grand_total: number
   discount_amount: number
   outstanding_amount: number
+  claimed_amount?: number
+  remaining_claimable?: number
   status: string
   custom_base_reference: string | null
   custom_base_reference_name: string | null
+}
+
+interface PatientCoverageOption extends PatientInsuranceCoverageRow {
+  id: string
+  label: string
 }
 
 const SERVICE_TYPES = ['OP', 'IP', 'Lab', 'Pharmacy', 'Other']
@@ -260,6 +268,39 @@ const newRow = (): ClaimItemRow => ({
   paid_amount: '',
 })
 
+const to3 = (n: number) => Math.round(n * 1000) / 1000
+
+function formatCoverageLabel(row: PatientInsuranceCoverageRow, index: number): string {
+  const parts = [
+    row.health_insurance || `Insurance ${index + 1}`,
+    row.insurance_policy_no ? `Policy ${row.insurance_policy_no}` : '',
+    row.insurance_register ? `Register ${row.insurance_register}` : '',
+  ].filter(Boolean)
+  return parts.join(' • ')
+}
+
+function distributeClaimAmount(rows: ClaimItemRow[], amount: number): ClaimItemRow[] {
+  const validAmount = Math.max(to3(amount), 0)
+  const totalGross = rows.reduce((sum, row) => sum + (parseFloat(row.gross_amount) || 0), 0)
+  if (!rows.length || totalGross <= 0) return rows
+
+  let allocated = 0
+  return rows.map((row, index) => {
+    const gross = parseFloat(row.gross_amount) || 0
+    const share = index === rows.length - 1
+      ? to3(validAmount - allocated)
+      : to3((gross / totalGross) * validAmount)
+    allocated = to3(allocated + share)
+    const covered = Math.min(gross, Math.max(share, 0))
+    const patientLiability = Math.max(to3(gross - covered), 0)
+    return {
+      ...row,
+      covered_amount: covered.toFixed(3),
+      patient_liability: patientLiability.toFixed(3),
+    }
+  })
+}
+
 export const CreateInsuranceClaimModal = ({
   onClose, onSuccess, initialPatient, initialInvoice, editClaimName,
 }: CreateInsuranceClaimModalProps) => {
@@ -273,6 +314,9 @@ export const CreateInsuranceClaimModal = ({
   const [insOpen, setInsOpen] = useState(false)
   const [insQuery, setInsQuery] = useState('')
   const [selectedIns, setSelectedIns] = useState<LinkFieldOption | null>(null)
+  const [patientCoverages, setPatientCoverages] = useState<PatientCoverageOption[]>([])
+  const [selectedCoverageId, setSelectedCoverageId] = useState('')
+  const [claimAmount, setClaimAmount] = useState('')
 
   // Patient (same pattern as CreateAdmissionModal)
   const [patientQuery, setPatientQuery] = useState(initialPatient || '')
@@ -337,6 +381,34 @@ export const CreateInsuranceClaimModal = ({
     }
   }, [])
 
+  const loadPatientCoverages = useCallback(async (patientName: string) => {
+    try {
+      const patient = await fetchPatientDoc(patientName)
+      const rows = (patient.patient_insurance_coverages || [])
+        .filter(row => row.health_insurance)
+        .map((row, index) => ({
+          ...row,
+          id: row.name || `${row.health_insurance || 'insurance'}-${index}`,
+          label: formatCoverageLabel(row, index),
+        }))
+      setPatientCoverages(rows)
+      if (rows.length) {
+        const active = rows.find(row => row.is_active === 1) || rows[0]
+        setSelectedCoverageId(active.id)
+        if (active.health_insurance) {
+          setSelectedIns({ name: active.health_insurance, label: active.health_insurance })
+          setInsQuery(active.health_insurance)
+        }
+      } else {
+        setPatientCoverages([])
+        setSelectedCoverageId('')
+      }
+    } catch {
+      setPatientCoverages([])
+      setSelectedCoverageId('')
+    }
+  }, [])
+
   const loadInvoiceItems = useCallback(async (invoiceName: string) => {
     try {
       const res = await fetch(
@@ -378,7 +450,13 @@ export const CreateInsuranceClaimModal = ({
             sales_invoice_item: item.item_code || '',
           })
         )
-        setItems(mapped)
+        const baseAmount =
+          selectedInvoice?.remaining_claimable ??
+          selectedInvoice?.outstanding_amount ??
+          msg.items.reduce((sum: number, item: { net_amount: number; amount: number }) => sum + (item.net_amount ?? item.amount ?? 0), 0)
+        const normalizedAmount = to3(baseAmount || 0)
+        setClaimAmount(normalizedAmount ? normalizedAmount.toFixed(3) : '')
+        setItems(distributeClaimAmount(mapped, normalizedAmount))
       }
 
       // Auto-fill health insurance from invoice if not already chosen
@@ -394,16 +472,22 @@ export const CreateInsuranceClaimModal = ({
   useEffect(() => {
     if (selectedPatient?.name) {
       loadInvoices(selectedPatient.name)
+      loadPatientCoverages(selectedPatient.name)
     } else {
       setInvoices([])
       setSelectedInvoice(null)
+      setPatientCoverages([])
+      setSelectedCoverageId('')
     }
-  }, [selectedPatient?.name, loadInvoices])
+  }, [selectedPatient?.name, loadInvoices, loadPatientCoverages])
 
   // Pre-load initial patient invoices
   useEffect(() => {
-    if (initialPatient) loadInvoices(initialPatient)
-  }, [initialPatient, loadInvoices])
+    if (initialPatient) {
+      loadInvoices(initialPatient)
+      loadPatientCoverages(initialPatient)
+    }
+  }, [initialPatient, loadInvoices, loadPatientCoverages])
 
   // Pre-select invoice from "needs claim" card
   useEffect(() => {
@@ -414,6 +498,8 @@ export const CreateInsuranceClaimModal = ({
       grand_total: initialInvoice.grand_total,
       discount_amount: initialInvoice.discount_amount,
       outstanding_amount: initialInvoice.outstanding_amount,
+      claimed_amount: initialInvoice.claimed_amount,
+      remaining_claimable: initialInvoice.remaining_claimable,
       status: initialInvoice.status,
       custom_base_reference: initialInvoice.custom_base_reference,
       custom_base_reference_name: initialInvoice.custom_base_reference_name,
@@ -427,6 +513,8 @@ export const CreateInsuranceClaimModal = ({
       setSelectedIns({ name: initialInvoice.custom_health_insurance, label: initialInvoice.custom_health_insurance })
       setInsQuery(initialInvoice.custom_health_insurance)
     }
+    const baseAmount = initialInvoice.remaining_claimable ?? initialInvoice.outstanding_amount
+    setClaimAmount(baseAmount ? to3(baseAmount).toFixed(3) : '')
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialInvoice])
 
@@ -447,6 +535,9 @@ export const CreateInsuranceClaimModal = ({
           setSelectedIns({ name: detail.health_insurance, label: detail.health_insurance })
           setInsQuery(detail.health_insurance)
         }
+        if (detail.patient_insurance_coverage) {
+          setSelectedCoverageId(detail.patient_insurance_coverage)
+        }
         if (detail.sales_invoice) {
           setSelectedInvoice({
             name: detail.sales_invoice,
@@ -454,12 +545,15 @@ export const CreateInsuranceClaimModal = ({
             grand_total: detail.total_claimed,
             discount_amount: 0,
             outstanding_amount: 0,
+            claimed_amount: detail.total_claimed,
+            remaining_claimable: detail.total_claimed,
             status: '',
             custom_base_reference: detail.reference_doctype,
             custom_base_reference_name: detail.reference_name,
           })
         }
         if (detail.claim_items?.length) {
+          setClaimAmount((detail.total_claimed ?? 0).toFixed(3))
           setItems(detail.claim_items.map(ci => ({
             id: ++_itemId,
             service_type: ci.service_type || 'OP',
@@ -489,10 +583,27 @@ export const CreateInsuranceClaimModal = ({
     }
   }, [selectedInvoice?.name, loadInvoiceItems])
 
+  useEffect(() => {
+    if (!selectedCoverageId) return
+    const coverage = patientCoverages.find(row => row.id === selectedCoverageId)
+    if (!coverage?.health_insurance) return
+    setSelectedIns({ name: coverage.health_insurance, label: coverage.health_insurance })
+    setInsQuery(coverage.health_insurance)
+  }, [patientCoverages, selectedCoverageId])
+
   // ─── Row helpers ──────────────────────────────────────────────────────────
 
   const updateItem = (id: number, field: keyof ClaimItemRow, val: string) =>
     setItems(prev => prev.map(r => r.id === id ? { ...r, [field]: val } : r))
+
+  const handleClaimAmountChange = (value: string) => {
+    if (value !== '' && !/^\d*\.?\d{0,3}$/.test(value)) return
+    setClaimAmount(value)
+    const parsed = parseFloat(value)
+    if (!Number.isNaN(parsed)) {
+      setItems(prev => distributeClaimAmount(prev, parsed))
+    }
+  }
 
   const removeItem = (id: number) =>
     setItems(prev => prev.filter(r => r.id !== id))
@@ -511,6 +622,7 @@ export const CreateInsuranceClaimModal = ({
     claim_date: claimDate || null,
     status: submit ? 'Submitted' : 'Draft',
     health_insurance: selectedIns?.name || null,
+    patient_insurance_coverage: selectedCoverageId || null,
     sales_invoice: selectedInvoice?.name || null,
     reference_doctype: selectedInvoice?.custom_base_reference || null,
     reference_name: selectedInvoice?.custom_base_reference_name || null,
@@ -649,20 +761,37 @@ export const CreateInsuranceClaimModal = ({
                     </div>
                   </div>
 
-                  {/* Health Insurance */}
-                  <LinkField
-                    label="Health Insurance"
-                    placeholder="Search insurance record…"
-                    query={insQuery}
-                    options={insOpts}
-                    selected={selectedIns}
-                    open={insOpen}
-                    onFocus={() => loadInsurance()}
-                    onQueryChange={q => { setInsQuery(q); loadInsurance(q) }}
-                    onSelect={o => { setSelectedIns(o); setInsQuery(o.label || o.name) }}
-                    onClear={() => { setSelectedIns(null); setInsQuery('') }}
-                    onOpenChange={setInsOpen}
-                  />
+                  {patientCoverages.length > 0 ? (
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Patient Insurance</label>
+                      <select
+                        value={selectedCoverageId}
+                        onChange={e => setSelectedCoverageId(e.target.value)}
+                        className={MODAL_FIELD_CLASS_COMPACT}
+                      >
+                        <option value="">Select insurance coverage…</option>
+                        {patientCoverages.map(row => (
+                          <option key={row.id} value={row.id}>
+                            {row.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <LinkField
+                      label="Health Insurance"
+                      placeholder="Search insurance record…"
+                      query={insQuery}
+                      options={insOpts}
+                      selected={selectedIns}
+                      open={insOpen}
+                      onFocus={() => loadInsurance()}
+                      onQueryChange={q => { setInsQuery(q); loadInsurance(q) }}
+                      onSelect={o => { setSelectedIns(o); setInsQuery(o.label || o.name) }}
+                      onClear={() => { setSelectedIns(null); setInsQuery('') }}
+                      onOpenChange={setInsOpen}
+                    />
+                  )}
                 </div>
 
                 {/* Invoice selection card */}
@@ -693,7 +822,23 @@ export const CreateInsuranceClaimModal = ({
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Claim Amount</label>
+                      <input
+                        type="text"
+                        value={claimAmount}
+                        onChange={e => handleClaimAmountChange(e.target.value)}
+                        placeholder="0.000"
+                        className={MODAL_FIELD_CLASS_COMPACT}
+                      />
+                    </div>
                   </div>
+                  {selectedInvoice && (
+                    <p className="text-xs text-slate-500">
+                      Remaining claimable for this invoice:{' '}
+                      <strong>{fmtCurrency(selectedInvoice.remaining_claimable ?? selectedInvoice.outstanding_amount ?? 0)}</strong>
+                    </p>
+                  )}
                 </div>
 
                 {/* Totals preview */}

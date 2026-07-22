@@ -221,6 +221,10 @@ def ensure_claim_insurance(doc) -> None:
     """
     if not getattr(doc, "patient", None):
         return
+    if not doc.health_insurance and getattr(doc, "patient_insurance_coverage", None):
+        doc.health_insurance = frappe.db.get_value(
+            "Patient Insurance Cover", doc.patient_insurance_coverage, "health_insurance"
+        ) or None
     if not doc.health_insurance:
         doc.health_insurance = frappe.db.get_value("Patient", doc.patient, "insurance") or None
     if not doc.health_insurance and frappe.db.exists("Health Insurance", TRICARE):

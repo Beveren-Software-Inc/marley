@@ -283,6 +283,28 @@ def _serialize_patient_for_portal(patient_doc):
 			}
 		)
 
+	insurance_coverages = []
+	for row in patient_doc.get("patient_insurance_coverage") or []:
+		insurance_coverages.append(
+			{
+				"name": row.get("name"),
+				"health_insurance": row.get("health_insurance"),
+				"insurance_register": row.get("insurance_register"),
+				"insurance_type": row.get("insurance_type"),
+				"insurance_company_no": row.get("insurance_company_no"),
+				"insurance_policy_no": row.get("insurance_policy_no"),
+				"ref_no": row.get("ref_no"),
+				"insurance_valid_till": row.get("insurance_valid_till"),
+				"insurance_expiry_date": row.get("insurance_expiry_date"),
+				"insurance_work_place": row.get("insurance_work_place"),
+				"insurance_isdn_no": row.get("insurance_isdn_no"),
+				"insurance_deduction_amount": row.get("insurance_deduction_amount"),
+				"insurance_special_note": row.get("insurance_special_note"),
+				"employee_code": row.get("employee_code"),
+				"is_active": cint(row.get("is_active")),
+			}
+		)
+
 	return {
 		"name": patient_doc.name,
 		"patient_name": patient_doc.patient_name,
@@ -318,6 +340,7 @@ def _serialize_patient_for_portal(patient_doc):
 		"insurance_policy": getattr(patient_doc, "insurance_policy_no", None),
 		"ref_no": getattr(patient_doc, "ref_no", None),
 		"insurance_register": getattr(patient_doc, "insurance_register", None),
+		"patient_insurance_coverages": insurance_coverages,
 		"cpr_photo": getattr(patient_doc, "cprigama_front_photo", None),
 		"cpr_photo_back": getattr(patient_doc, "cprigama_back_photo", None),
 		"patient_relation": relations,
@@ -405,6 +428,7 @@ def create_patient(data):
 		"cprigama_back_photo": data.get("cpr_photo_back") or None,
 	})
 
+	_apply_patient_insurance_coverages(patient, data, replace=True)
 	patient.insert(ignore_permissions=True)
 
 	_add_patient_relations(patient, data)
@@ -459,6 +483,153 @@ def _parse_child_rows(data, key):
 		import json
 		rows = json.loads(rows) if rows.strip() else []
 	return rows if isinstance(rows, list) else []
+
+
+def _default_patient_insurance_row(data):
+	health_insurance = (data.get("insurance") or "").strip()
+	insurance_register = (data.get("insurance_register") or "").strip()
+	insurance_type = (data.get("insurance_type") or "").strip()
+	insurance_company_no = (data.get("insurance_company_no") or "").strip()
+	insurance_policy_no = (data.get("insurance_policy") or "").strip()
+	ref_no = (data.get("ref_no") or "").strip()
+	insurance_valid_till = data.get("insurance_valid_till") or None
+	if not any(
+		[
+			health_insurance,
+			insurance_register,
+			insurance_type,
+			insurance_company_no,
+			insurance_policy_no,
+			ref_no,
+			insurance_valid_till,
+		]
+	):
+		return None
+	return {
+		"health_insurance": health_insurance or None,
+		"insurance_register": insurance_register or None,
+		"insurance_type": insurance_type or None,
+		"insurance_company_no": insurance_company_no or None,
+		"insurance_policy_no": insurance_policy_no or None,
+		"ref_no": ref_no or None,
+		"insurance_valid_till": insurance_valid_till,
+		"is_active": 1,
+	}
+
+
+def _resolve_primary_patient_insurance(patient):
+	rows = [row for row in (patient.get("patient_insurance_coverage") or []) if row.get("health_insurance")]
+	if not rows:
+		return None
+	active_rows = [row for row in rows if cint(row.get("is_active"))]
+	return (active_rows or rows)[0]
+
+
+def _sync_patient_primary_insurance_fields(patient):
+	"""Mirror child → parent when rows exist; otherwise keep parent values."""
+	primary = _resolve_primary_patient_insurance(patient)
+	if not primary:
+		# Do not wipe parent insurance fields when the child table is empty.
+		# Portal create/update already builds a child row from parent fields when needed.
+		if cint(patient.is_insurance) or patient.get("insurance") or patient.get("insurance_register"):
+			patient.is_insurance = 1
+		return
+
+	patient.is_insurance = 1
+	patient.insurance = primary.get("health_insurance") or None
+	patient.insurance_type = primary.get("insurance_type") or None
+	patient.insurance_company_no = primary.get("insurance_company_no") or None
+	patient.insurance_policy_no = primary.get("insurance_policy_no") or None
+	patient.ref_no = primary.get("ref_no") or None
+	patient.insurance_register = primary.get("insurance_register") or None
+	patient.insurance_valid_till = primary.get("insurance_valid_till") or None
+	patient.insurance_expiry_date = primary.get("insurance_expiry_date") or None
+	patient.insurance_work_place = primary.get("insurance_work_place") or None
+	patient.insurance_isdn_no = primary.get("insurance_isdn_no") or None
+	patient.insurance_deduction_amount = primary.get("insurance_deduction_amount") or None
+	patient.insurance_special_note = primary.get("insurance_special_note") or None
+	patient.employee_code = primary.get("employee_code") or None
+
+
+def _apply_patient_insurance_coverages(patient, data, *, replace=False):
+	if replace:
+		patient.set("patient_insurance_coverage", [])
+
+	rows = _parse_child_rows(data, "patient_insurance_coverages")
+	if not rows and data.get("has_insurance"):
+		default_row = _default_patient_insurance_row(data)
+		rows = [default_row] if default_row else []
+
+	for row in rows:
+		if not isinstance(row, dict):
+			continue
+
+		health_insurance = (row.get("health_insurance") or row.get("insurance") or "").strip() or None
+		insurance_register = (row.get("insurance_register") or "").strip() or None
+		insurance_type = (row.get("insurance_type") or "").strip() or None
+		insurance_company_no = (row.get("insurance_company_no") or "").strip() or None
+		insurance_policy_no = (
+			row.get("insurance_policy_no") or row.get("insurance_policy") or ""
+		).strip() or None
+		ref_no = (row.get("ref_no") or "").strip() or None
+		insurance_valid_till = row.get("insurance_valid_till") or None
+		insurance_expiry_date = row.get("insurance_expiry_date") or None
+		insurance_work_place = (row.get("insurance_work_place") or "").strip() or None
+		insurance_isdn_no = (row.get("insurance_isdn_no") or "").strip() or None
+		insurance_deduction_amount = row.get("insurance_deduction_amount") or None
+		insurance_special_note = (row.get("insurance_special_note") or "").strip() or None
+		employee_code = (row.get("employee_code") or "").strip() or None
+		is_active = cint(row.get("is_active"))
+
+		if not any(
+			[
+				health_insurance,
+				insurance_register,
+				insurance_type,
+				insurance_company_no,
+				insurance_policy_no,
+				ref_no,
+				insurance_valid_till,
+				insurance_expiry_date,
+				insurance_work_place,
+				insurance_isdn_no,
+				insurance_deduction_amount,
+				insurance_special_note,
+				employee_code,
+			]
+		):
+			continue
+
+		if health_insurance and not insurance_type:
+			insurance_type = frappe.db.get_value("Health Insurance", health_insurance, "insurance_type")
+		if health_insurance and not insurance_company_no:
+			insurance_company_no = frappe.db.get_value(
+				"Health Insurance", health_insurance, "insurance_company"
+			)
+		if health_insurance and not insurance_policy_no:
+			insurance_policy_no = frappe.db.get_value("Health Insurance", health_insurance, "policy_no")
+
+		patient.append(
+			"patient_insurance_coverage",
+			{
+				"health_insurance": health_insurance,
+				"insurance_register": insurance_register,
+				"insurance_type": insurance_type,
+				"insurance_company_no": insurance_company_no,
+				"insurance_policy_no": insurance_policy_no,
+				"ref_no": ref_no,
+				"insurance_valid_till": insurance_valid_till,
+				"insurance_expiry_date": insurance_expiry_date,
+				"insurance_work_place": insurance_work_place,
+				"insurance_isdn_no": insurance_isdn_no,
+				"insurance_deduction_amount": insurance_deduction_amount,
+				"insurance_special_note": insurance_special_note,
+				"employee_code": employee_code,
+				"is_active": is_active if is_active in (0, 1) else 1,
+			},
+		)
+
+	_sync_patient_primary_insurance_fields(patient)
 
 
 def _apply_patient_relations(patient, data, *, replace=False):
@@ -768,6 +939,15 @@ def _apply_patient_scalar_fields(patient, data):
 		patient.cprigama_front_photo = data.get("cpr_photo") or None
 	if "cpr_photo_back" in data:
 		patient.cprigama_back_photo = data.get("cpr_photo_back") or None
+	if "patient_insurance_coverages" in data or "has_insurance" in data:
+		_apply_patient_insurance_coverages(
+			patient,
+			data,
+			replace=("patient_insurance_coverages" in data),
+		)
+		if "has_insurance" in data and not data.get("has_insurance"):
+			patient.set("patient_insurance_coverage", [])
+			_sync_patient_primary_insurance_fields(patient)
 
 	from healthcare.healthcare.doctype.patient.patient import resolve_patient_customer_group
 

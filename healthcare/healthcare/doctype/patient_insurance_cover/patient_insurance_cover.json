@@ -1,0 +1,130 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-22 12:18:45.062757",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "health_insurance",
+  "insurance_register",
+  "column_break_rkjb",
+  "is_active",
+  "insurance_valid_till",
+  "insurance_type",
+  "insurance_company_no",
+  "column_break_zuwl",
+  "insurance_policy_no",
+  "ref_no",
+  "employee_code",
+  "insurance_work_place",
+  "insurance_isdn_no",
+  "column_break_wafj",
+  "insurance_expiry_date",
+  "insurance_deduction_amount",
+  "insurance_special_note"
+ ],
+ "fields": [
+  {
+   "fieldname": "health_insurance",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Health Insurance",
+   "options": "Health Insurance"
+  },
+  {
+   "fieldname": "insurance_register",
+   "fieldtype": "Link",
+   "label": "Insurance Register",
+   "options": "Insurance Patient Register"
+  },
+  {
+   "fieldname": "column_break_rkjb",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "insurance_valid_till",
+   "fieldtype": "Date",
+   "label": "Insurance Valid Till"
+  },
+  {
+   "fieldname": "insurance_type",
+   "fieldtype": "Data",
+   "label": "Insurance Type"
+  },
+  {
+   "fieldname": "insurance_company_no",
+   "fieldtype": "Data",
+   "label": "Insurance Company No"
+  },
+  {
+   "fieldname": "column_break_zuwl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "insurance_policy_no",
+   "fieldtype": "Data",
+   "label": "Insurance Policy No"
+  },
+  {
+   "fieldname": "ref_no",
+   "fieldtype": "Data",
+   "label": "Ref No"
+  },
+  {
+   "fieldname": "employee_code",
+   "fieldtype": "Data",
+   "label": "Insurance Employee Code"
+  },
+  {
+   "fieldname": "insurance_work_place",
+   "fieldtype": "Data",
+   "label": "Insurance Work Place"
+  },
+  {
+   "fieldname": "insurance_isdn_no",
+   "fieldtype": "Data",
+   "label": "Insurance ISDN No"
+  },
+  {
+   "fieldname": "column_break_wafj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "insurance_expiry_date",
+   "fieldtype": "Date",
+   "label": "Insurance Expiry Date"
+  },
+  {
+   "fieldname": "insurance_deduction_amount",
+   "fieldtype": "Currency",
+   "label": "Insurance Deduction Amount"
+  },
+  {
+   "fieldname": "insurance_special_note",
+   "fieldtype": "Small Text",
+   "label": "Insurance Special Note"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-22 12:18:45.062757",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Insurance Cover",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

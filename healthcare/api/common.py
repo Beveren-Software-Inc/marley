@@ -2626,6 +2626,25 @@ def _claimed_sales_invoices(exclude_claim=None):
 	)
 
 
+def _get_claimed_invoice_totals(exclude_claim=None):
+	"""Map sales_invoice -> total claimed across non-cancelled claims."""
+	filters = {"sales_invoice": ["is", "set"], "docstatus": ["!=", 2]}
+	if exclude_claim:
+		filters["name"] = ["!=", exclude_claim]
+	rows = frappe.get_all(
+		"Insurance Claim",
+		filters=filters,
+		fields=["sales_invoice", "total_claimed"],
+		limit_page_length=0,
+	)
+	totals = {}
+	for row in rows:
+		if not row.sales_invoice:
+			continue
+		totals[row.sales_invoice] = flt(totals.get(row.sales_invoice)) + flt(row.total_claimed)
+	return totals
+
+
 def _is_insurance_patient(patient):
 	if not patient:
 		return False
@@ -2784,8 +2803,8 @@ def _get_invoices_needing_insurance_claim_rows(
 	date_to=None,
 	health_insurance=None,
 ):
-	"""Draft or unpaid/partly-paid invoices for insured patients with active register, no claim yet."""
-	claimed = _claimed_sales_invoices()
+	"""Draft or unpaid/partly-paid invoices for insured patients with remaining claimable amount."""
+	claimed_totals = _get_claimed_invoice_totals()
 	limit = int(limit)
 
 	if patient and not _patient_eligible_for_insurance_claim(patient):
@@ -2883,8 +2902,6 @@ def _get_invoices_needing_insurance_claim_rows(
 
 	result = []
 	for r in rows:
-		if r.name in claimed:
-			continue
 		if r.patient not in eligible:
 			continue
 		pm = patient_meta.get(r.patient)
@@ -2904,6 +2921,11 @@ def _get_invoices_needing_insurance_claim_rows(
 		r["insurance_provider"] = reg.insurance_provider if reg else None
 		r["health_insurance"] = effective_hi or ""
 		r["patient_category"] = (getattr(pm, "category", None) or "") if pm else ""
+		r["claimed_amount"] = flt(claimed_totals.get(r.name))
+		base_claimable = flt(r.outstanding_amount) if r.docstatus == 1 else flt(r.grand_total)
+		r["remaining_claimable"] = max(base_claimable - flt(r["claimed_amount"]), 0)
+		if r["remaining_claimable"] <= 0:
+			continue
 		if r.docstatus == 0:
 			r["status"] = r.status or "Draft"
 			if not r.outstanding_amount:
@@ -2974,6 +2996,7 @@ def get_insurance_claim_detail(claim_name):
 		"patient_name": doc.patient_name,
 		"patient_category": patient_category or "",
 		"health_insurance": doc.health_insurance,
+		"patient_insurance_coverage": doc.patient_insurance_coverage,
 		"insurance_payor": doc.insurance_payor,
 		"claim_date": str(doc.claim_date) if doc.claim_date else None,
 		"status": doc.status,
@@ -2993,6 +3016,7 @@ def _apply_insurance_claim_payload(doc, data):
 	"""Set header fields on an Insurance Claim from portal payload."""
 	doc.patient = data.get("patient")
 	doc.health_insurance = data.get("health_insurance") or None
+	doc.patient_insurance_coverage = data.get("patient_insurance_coverage") or None
 	doc.insurance_payor = data.get("insurance_payor") or None
 	doc.claim_date = data.get("claim_date") or None
 	doc.status = data.get("status") or "Draft"
@@ -3020,6 +3044,13 @@ def _append_claim_items(doc, claim_items):
 		})
 
 
+def _claim_payload_total(claim_items):
+	total = 0
+	for ci in claim_items or []:
+		total += flt(ci.get("covered_amount") or ci.get("gross_amount") or 0)
+	return total
+
+
 @frappe.whitelist()
 def save_insurance_claim(data):
 	"""Create or update a draft Insurance Claim; optionally submit."""
@@ -3033,13 +3064,44 @@ def save_insurance_claim(data):
 	submit = cint(data.get("submit"))
 	claim_name = (data.get("name") or "").strip()
 	sales_invoice = data.get("sales_invoice")
+	health_insurance = data.get("health_insurance")
+	claim_items = data.get("claim_items") or []
 
 	if sales_invoice:
-		claimed = _claimed_sales_invoices(exclude_claim=claim_name or None)
-		if sales_invoice in claimed:
+		existing_claims = frappe.get_all(
+			"Insurance Claim",
+			filters={
+				"sales_invoice": sales_invoice,
+				"docstatus": ["!=", 2],
+				"name": ["!=", claim_name or ""],
+			},
+			fields=["name", "health_insurance", "total_claimed"],
+			limit_page_length=0,
+		)
+		if health_insurance and any(c.health_insurance == health_insurance for c in existing_claims):
 			frappe.throw(
-				_("Sales Invoice {0} is already linked to an Insurance Claim").format(sales_invoice)
+				_("Sales Invoice {0} already has a claim for insurance {1}").format(
+					sales_invoice, health_insurance
+				)
 			)
+		invoice = frappe.db.get_value(
+			"Sales Invoice",
+			sales_invoice,
+			["docstatus", "grand_total", "outstanding_amount"],
+			as_dict=True,
+		)
+		if invoice:
+			base_claimable = (
+				flt(invoice.outstanding_amount) if cint(invoice.docstatus) == 1 else flt(invoice.grand_total)
+			)
+			existing_total = sum(flt(c.total_claimed) for c in existing_claims)
+			requested_total = _claim_payload_total(claim_items)
+			if existing_total + requested_total > base_claimable + 0.001:
+				frappe.throw(
+					_(
+						"Claim amount exceeds the remaining claimable amount for Sales Invoice {0}. Remaining: {1}"
+					).format(sales_invoice, frappe.format_value(base_claimable - existing_total, {"fieldtype": "Currency"}))
+				)
 
 	if claim_name:
 		doc = frappe.get_doc("Insurance Claim", claim_name)
@@ -3053,7 +3115,7 @@ def save_insurance_claim(data):
 		doc.status = "Draft"
 	if submit and doc.status == "Draft":
 		doc.status = "Submitted"
-	_append_claim_items(doc, data.get("claim_items"))
+	_append_claim_items(doc, claim_items)
 
 	if not claim_name:
 		# New claim: auto-generate a legacy-style trans_no and make sure an
@@ -4866,7 +4928,15 @@ def get_patient_unpaid_invoices(patient):
 		order_by="posting_date desc, creation desc",
 		limit=100,
 	)
-	return rows
+	claimed_totals = _get_claimed_invoice_totals()
+	result = []
+	for row in rows:
+		row["claimed_amount"] = flt(claimed_totals.get(row.name))
+		row["remaining_claimable"] = max(flt(row.outstanding_amount) - flt(row["claimed_amount"]), 0)
+		if row["remaining_claimable"] <= 0:
+			continue
+		result.append(row)
+	return result
 
 
 @frappe.whitelist()

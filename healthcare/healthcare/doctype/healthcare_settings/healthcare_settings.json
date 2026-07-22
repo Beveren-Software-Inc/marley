@@ -31,6 +31,10 @@
   "do_not_bill_inpatient_encounters",
   "require_discount_approval",
   "auto_apply_patient_price_list",
+  "require_patient_address",
+  "record_clinical_extras_in_history",
+  "enforce_admission_mandatory_fields",
+  "verify_insurance_eligibility_on_admission",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -737,11 +741,35 @@
    "fieldname": "auto_apply_patient_price_list",
    "fieldtype": "Check",
    "label": "auto_apply_patient_price_list"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_patient_address",
+   "fieldtype": "Check",
+   "label": "require_patient_address"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_clinical_extras_in_history",
+   "fieldtype": "Check",
+   "label": "record_clinical_extras_in_history"
+  },
+  {
+   "default": "0",
+   "fieldname": "enforce_admission_mandatory_fields",
+   "fieldtype": "Check",
+   "label": "enforce_admission_mendatory_fields"
+  },
+  {
+   "default": "0",
+   "fieldname": "verify_insurance_eligibility_on_admission",
+   "fieldtype": "Check",
+   "label": "verify_insurance_eligibility_on_admission"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-21 23:05:07.296996",
+ "modified": "2026-07-22 12:38:32.949551",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -81,6 +81,8 @@
   "insurance_expiry_date",
   "insurance_deduction_amount",
   "insurance_special_note",
+  "section_break_ppax",
+  "patient_insurance_coverage",
   "more_info",
   "patient_details",
   "section_break_imgx",
@@ -1077,6 +1079,16 @@
    "fieldname": "pat_marital_status_name",
    "fieldtype": "Data",
    "label": "Pat Marital Status Name"
+  },
+  {
+   "fieldname": "section_break_ppax",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient_insurance_coverage",
+   "fieldtype": "Table",
+   "label": "Patient Insurance Coverage",
+   "options": "Patient Insurance Cover"
   }
  ],
  "grid_page_length": 50,
@@ -1180,7 +1192,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-07-01 13:45:19.552540",
+ "modified": "2026-07-22 12:19:14.686727",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

@@ -1519,6 +1519,8 @@ export interface InvoiceNeedingClaimRow {
   insurance_provider?: string | null
   patient_category?: string | null
   health_insurance?: string | null
+  claimed_amount?: number
+  remaining_claimable?: number
 }
 
 export interface InvoicesNeedingClaimFilters {
@@ -1556,6 +1558,7 @@ export interface InsuranceClaimDetail {
   patient_name: string
   patient_category: string
   health_insurance: string
+  patient_insurance_coverage?: string | null
   insurance_payor: string
   claim_date: string | null
   status: string
@@ -1595,6 +1598,7 @@ export interface SaveInsuranceClaimPayload {
   claim_date?: string | null
   status?: string
   health_insurance?: string | null
+  patient_insurance_coverage?: string | null
   insurance_payor?: string | null
   sales_invoice?: string | null
   reference_doctype?: string | null
