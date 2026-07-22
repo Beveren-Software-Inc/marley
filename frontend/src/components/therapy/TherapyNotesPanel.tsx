@@ -34,6 +34,7 @@ export function TherapyNotesPanel({
       key={refreshKey}
       onPatientClick={onPatientClick}
       onAdd={embedded ? () => guardClinicalCreate(() => setShowModal(true)) : undefined}
+      allowEditWithin24h
     />
   )
 

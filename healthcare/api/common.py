@@ -32,6 +32,9 @@ def get_healthcare_portal_settings():
 
 	return {
 		"lock_editing_data": is_editing_locked(),
+		"therapy_note_uneditable_in_24_hour": bool(
+			frappe.db.get_single_value("Healthcare Settings", "therapy_note_uneditable_in_24_hour")
+		),
 	}
 
 
@@ -537,14 +540,51 @@ def get_lead_sources(search=None):
 	return [{'name': s.name, 'label': s.source or s.name} for s in sources]
 
 
+def get_receptionist_user_names() -> list[str]:
+	"""Users for receptionist pickers: Active Employees in a Reception* department.
+
+	Only users linked to an Employee whose department name starts with
+	"Reception" (e.g. Reception, Reception-sph, Reception Desk).
+	"""
+	dept_users = frappe.db.sql(
+		"""
+		SELECT DISTINCT e.user_id
+		FROM `tabEmployee` e
+		INNER JOIN `tabUser` u ON u.name = e.user_id
+		WHERE IFNULL(e.user_id, '') != ''
+			AND IFNULL(e.status, '') = 'Active'
+			AND u.enabled = 1
+			AND LOWER(IFNULL(e.department, '')) LIKE %(dept)s
+		""",
+		{"dept": "reception%"},
+		pluck=True,
+	) or []
+
+	return sorted(
+		{
+			u
+			for u in dept_users
+			if u and u not in ("Guest", "Administrator")
+		}
+	)
+
+
 @frappe.whitelist()
 def get_users(search=None, role=None):
-	"""Get list of enabled Users. Optionally filter by Role (Has Role)."""
+	"""Get list of enabled Users. Optionally filter by Role (Has Role).
+
+	When role is Receptionist or Reception, only return users linked to an
+	Active Employee whose department name starts with "Reception".
+	"""
 	role = (role or "").strip() or None
 	search = (search or "").strip() or None
 
 	role_users = None
-	if role:
+	if role and role.lower() in ("receptionist", "reception"):
+		role_users = get_receptionist_user_names()
+		if not role_users:
+			return []
+	elif role:
 		role_users = frappe.get_all(
 			"Has Role",
 			filters={"role": role, "parenttype": "User"},

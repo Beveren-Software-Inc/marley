@@ -720,13 +720,44 @@ export function friendlyAvailabilityMessage(raw: string): string {
   if (/holiday/i.test(msg)) {
     return msg
   }
-  if (/leave/i.test(msg)) {
+  if (/leave|unavailable|not available/i.test(msg)) {
     return msg
   }
   if (/Traceback|File \"/i.test(msg)) {
     return 'Could not load schedule slots. Check the doctor\'s schedule or use Custom time.'
   }
   return msg
+}
+
+export interface PractitionerLeaveDetails {
+  leave_type?: string
+  status?: string
+  from_date?: string
+  to_date?: string
+  remarks?: string
+}
+
+export interface PractitionerAvailabilityResponse {
+  available: boolean
+  reason?: string
+  leave_details?: PractitionerLeaveDetails
+}
+
+/** Check leave / Practitioner Unavailability for a doctor on a date (blocks booking in UI). */
+export async function checkPractitionerAvailability(
+  practitioner: string,
+  date: string
+): Promise<PractitionerAvailabilityResponse> {
+  try {
+    const response = await fetch(
+      `/api/method/healthcare.api.patient_appointment.check_practitioner_availability?practitioner=${encodeURIComponent(practitioner)}&date=${encodeURIComponent(date)}`,
+      { credentials: 'include', headers: { Accept: 'application/json' } }
+    )
+    const resData = await response.json()
+    return resData?.message ?? { available: true }
+  } catch {
+    return { available: true }
+  }
 }
 
 /** Ensure CSRF token exists (fetch from API if missing). Required for POST on 8000/live. */

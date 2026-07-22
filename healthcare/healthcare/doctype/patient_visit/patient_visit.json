@@ -70,6 +70,7 @@
   "ip_admission_no",
   "print_count",
   "rv_no",
+  "visit_owner",
   "column_break_reeh",
   "op_vat_no",
   "patient_weight",
@@ -728,6 +729,14 @@
    "fieldtype": "Link",
    "label": "Promotion",
    "options": "Promotion"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "visit_owner",
+   "fieldtype": "Link",
+   "ignore_user_permissions": 1,
+   "label": "Visit Owner",
+   "options": "User"
   }
  ],
  "is_submittable": 1,
@@ -773,7 +782,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-07-19 11:06:14.231269",
+ "modified": "2026-07-23 00:50:41.699946",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit",

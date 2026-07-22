@@ -259,13 +259,16 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, limit=20, offset=0):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, visit_owner=None, limit=20, offset=0):
 	"""
 	Fetch patient visits with all filters and pagination.
 	Returns { data: [...], total_count: N }
+
+	visit_owner filters by credited receptionist (visit_owner, falling back to owner).
 	"""
 	from frappe.utils import cint
 	from healthcare.api.common import apply_cost_center_scope_to_list_filters
+	from healthcare.api.entry_user_reassign import resolve_credited_user
 
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
@@ -297,6 +300,20 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	if to_date:
 		filters.append(["encounter_date", "<=", to_date])
 
+	if visit_owner:
+		owner_names = frappe.db.sql(
+			"""
+			SELECT name FROM `tabPatient Visit`
+			WHERE IFNULL(NULLIF(visit_owner, ''), owner) = %(visit_owner)s
+				AND docstatus != 2
+			""",
+			{"visit_owner": visit_owner},
+			pluck=True,
+		)
+		if not owner_names:
+			return {"data": [], "total_count": 0}
+		filters.append(["name", "in", owner_names])
+
 	total_count = len(frappe.get_all(
 		"Patient Visit",
 		filters=filters,
@@ -326,7 +343,8 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			"company",
 			"cost_center",
 			"invoice_created",
-			"owner"
+			"owner",
+			"visit_owner",
 		],
 		limit=limit,
 		start=offset,
@@ -341,6 +359,20 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	if patient_ids:
 		for row in frappe.get_all("Patient", filters={"name": ["in", patient_ids]}, fields=["name", "id_number", "file_no"]):
 			cpr_map[row.name] = row
+
+	credited_ids = {
+		resolve_credited_user(v.get("visit_owner"), v.get("owner"))
+		for v in visits
+	}
+	credited_ids.discard("")
+	user_name_map = {}
+	if credited_ids:
+		for row in frappe.get_all(
+			"User",
+			filters={"name": ["in", list(credited_ids)]},
+			fields=["name", "full_name"],
+		):
+			user_name_map[row.name] = row.full_name or row.name
 
 	visit_names = [v.name for v in visits if v.get("name")]
 	lab_amount_map = {}
@@ -519,7 +551,11 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 				"visit_type": v.get("visit_type") or '',
 				"file_no": v.get("file_number") or (cpr_map.get(v.patient) or {}).get("file_no") or '',
 				"cpr_no": (cpr_map.get(v.patient) or {}).get("id_number") or '',
-				"user": v.get("owner") or '',
+				"user": resolve_credited_user(v.get("visit_owner"), v.get("owner")),
+				"user_name": user_name_map.get(
+					resolve_credited_user(v.get("visit_owner"), v.get("owner")),
+					resolve_credited_user(v.get("visit_owner"), v.get("owner")),
+				),
 				"discount": discount_map.get(v.name, 0),
 				"total_due": lab_amount_map.get(v.name, 0) + service_amount_map.get(v.name, 0) + pharmacy_amount_map.get(v.name, 0),
 				"balance": (lab_amount_map.get(v.name, 0) + service_amount_map.get(v.name, 0) + pharmacy_amount_map.get(v.name, 0)) - paid_map.get(v.name, 0),
@@ -930,6 +966,7 @@ def create_patient_visit(data):
 		"appointment": data.get("appointment"),
 		"iop_enrollment": data.get("iop_enrollment"),
 		"status": data.get("status") or "Open",
+		"visit_owner": data.get("visit_owner") or frappe.session.user,
 	})
 
 	# Optional child table rows (Patient Upload Document table on Patient Visit).

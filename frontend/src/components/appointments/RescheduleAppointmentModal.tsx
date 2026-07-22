@@ -2,9 +2,11 @@ import { useState, useEffect } from 'react'
 import {
   rescheduleAppointment,
   getAvailabilityData,
+  checkPractitionerAvailability,
   type Appointment,
   type SlotDetail,
-  type AvailabilitySlotInfo
+  type AvailabilitySlotInfo,
+  type PractitionerAvailabilityResponse,
 } from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
 import { X, AlertCircle, CalendarOff } from 'lucide-react'
@@ -145,8 +147,32 @@ export const RescheduleAppointmentModal = ({
     service_unit?: string | null
   } | null>(null)
   const [isPractitionerOnLeave, setIsPractitionerOnLeave] = useState(false)
+  const [unavailabilityInfo, setUnavailabilityInfo] =
+    useState<PractitionerAvailabilityResponse | null>(null)
 
   const hasPractitioner = Boolean(appointment.practitioner)
+
+  const leaveBannerMessage = (() => {
+    if (!isPractitionerOnLeave) return null
+    const details = unavailabilityInfo?.leave_details
+    const isUnavail = unavailabilityInfo?.reason === 'unavailable'
+    const from = details?.from_date
+    const to = details?.to_date
+    const range =
+      from && to
+        ? from === to
+          ? ` on ${from}`
+          : ` from ${from} to ${to}`
+        : appointment_date
+          ? ` on ${appointment_date}`
+          : ''
+    if (isUnavail) {
+      const remarks = details?.remarks ? ` (${details.remarks})` : ''
+      return `The doctor is marked unavailable${range}${remarks}. Please select a different date.`
+    }
+    const leaveType = details?.leave_type ? ` (${details.leave_type})` : ''
+    return `The doctor is on leave${leaveType}${range}. Please select a different date.`
+  })()
 
   useEffect(() => {
     if (!hasPractitioner || !appointment_date) {
@@ -154,6 +180,7 @@ export const RescheduleAppointmentModal = ({
       setSlotsError(null)
       setSelectedSlot(null)
       setIsPractitionerOnLeave(false)
+      setUnavailabilityInfo(null)
       return
     }
     let cancelled = false
@@ -162,36 +189,53 @@ export const RescheduleAppointmentModal = ({
     setSlotDetails(null)
     setSelectedSlot(null)
     setIsPractitionerOnLeave(false)
-    
-    getAvailabilityData(appointment_date, appointment.practitioner!, appointment.name)
-      .then((res) => {
-        if (!cancelled) {
-          setSlotDetails(res.slot_details || [])
-          if (res.user_message) {
-            setSlotsError(res.user_message)
-          } else if (!res.slot_details?.length) {
-            setSlotsError('No slots available for this date. The doctor may be on leave or it\'s a holiday.')
-          }
+    setUnavailabilityInfo(null)
+
+    const run = async () => {
+      try {
+        const availability = await checkPractitionerAvailability(
+          appointment.practitioner!,
+          appointment_date
+        )
+        if (cancelled) return
+        if (availability.available === false) {
+          setIsPractitionerOnLeave(true)
+          setUnavailabilityInfo(availability)
+          setSlotsLoading(false)
+          return
         }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          const errorMessage = err instanceof Error ? err.message : 'Failed to load slots'
-          
-          // Check if the error is about holiday or leave
-          if (errorMessage.toLowerCase().includes('holiday') || 
-              errorMessage.toLowerCase().includes('leave') ||
-              errorMessage.toLowerCase().includes('not available')) {
-            setIsPractitionerOnLeave(true)
-            setSlotsError(`❌ Doctor is not available on ${appointment_date}. Please select a different date.`)
-          } else {
-            setSlotsError(errorMessage)
-          }
+        const res = await getAvailabilityData(
+          appointment_date,
+          appointment.practitioner!,
+          appointment.name
+        )
+        if (cancelled) return
+        setSlotDetails(res.slot_details || [])
+        if (res.user_message) {
+          setSlotsError(res.user_message)
+        } else if (!res.slot_details?.length) {
+          setSlotsError(
+            "No slots available for this date. The doctor may be on leave or it's a holiday."
+          )
         }
-      })
-      .finally(() => {
+      } catch (err) {
+        if (cancelled) return
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load slots'
+        if (
+          /holiday|leave|unavailable|not available/i.test(errorMessage)
+        ) {
+          setIsPractitionerOnLeave(true)
+          setSlotsError(
+            `Doctor is not available on ${appointment_date}. Please select a different date.`
+          )
+        } else {
+          setSlotsError(errorMessage)
+        }
+      } finally {
         if (!cancelled) setSlotsLoading(false)
-      })
+      }
+    }
+    run()
     return () => {
       cancelled = true
     }
@@ -209,9 +253,12 @@ export const RescheduleAppointmentModal = ({
       return
     }
     
-    // Check if practitioner is on leave before submitting
+    // Check if practitioner is on leave / unavailable before submitting
     if (isPractitionerOnLeave) {
-      setError(`Cannot reschedule: Doctor is not available on ${appointment_date}. Please select a different date.`)
+      setError(
+        leaveBannerMessage ||
+          `Cannot reschedule: Doctor is not available on ${appointment_date}. Please select a different date.`
+      )
       return
     }
     
@@ -297,12 +344,13 @@ export const RescheduleAppointmentModal = ({
             </div>
           )}
 
-          {/* Practitioner on leave warning */}
+          {/* Practitioner on leave / unavailability warning */}
           {isPractitionerOnLeave && !error && (
             <div className="bg-amber-50 border border-amber-200 rounded-md p-3 flex items-start gap-2">
               <CalendarOff className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" />
               <span className="text-sm text-amber-800">
-                The doctor is not available on {appointment_date}. Please select a different date.
+                {leaveBannerMessage ||
+                  `The doctor is not available on ${appointment_date}. Please select a different date.`}
               </span>
             </div>
           )}

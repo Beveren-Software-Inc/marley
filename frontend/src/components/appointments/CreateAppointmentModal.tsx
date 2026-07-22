@@ -10,10 +10,12 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   createAppointment,
+  checkPractitionerAvailability,
   fetchAppointmentCostCenterOptions,
   getAvailabilityData,
   type SlotDetail,
   type AvailabilitySlotInfo,
+  type PractitionerAvailabilityResponse,
 } from '../../services/appointments'
 import {
   fetchAppointmentPractitioners,
@@ -25,7 +27,7 @@ import {
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { localDateInputValue } from '../../utils/formatDate'
-import { X } from 'lucide-react'
+import { CalendarOff, X } from 'lucide-react'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
@@ -169,6 +171,33 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
   const [customTime, setCustomTime] = useState('')
   const [customDurationMinutes, setCustomDurationMinutes] = useState('')
   const [appointmentTypeDuration, setAppointmentTypeDuration] = useState<number | null>(null)
+  const [practitionerAvailability, setPractitionerAvailability] =
+    useState<PractitionerAvailabilityResponse | null>(null)
+  const [availabilityChecking, setAvailabilityChecking] = useState(false)
+
+  const isPractitionerUnavailable = practitionerAvailability?.available === false
+
+  const unavailableWarningMessage = (() => {
+    if (!isPractitionerUnavailable || !practitionerAvailability) return null
+    const details = practitionerAvailability.leave_details
+    const isUnavail = practitionerAvailability.reason === 'unavailable'
+    const from = details?.from_date
+    const to = details?.to_date
+    const range =
+      from && to
+        ? from === to
+          ? ` on ${from}`
+          : ` from ${from} to ${to}`
+        : formData.appointment_date
+          ? ` on ${formData.appointment_date}`
+          : ''
+    if (isUnavail) {
+      const remarks = details?.remarks ? ` (${details.remarks})` : ''
+      return `This doctor is marked unavailable${range}${remarks}. You cannot book an appointment for this date.`
+    }
+    const leaveType = details?.leave_type ? ` (${details.leave_type})` : ''
+    return `This doctor is on leave${leaveType}${range}. You cannot book an appointment for this date.`
+  })()
 
   const [costCenter, setCostCenter] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
@@ -251,6 +280,15 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       return
     }
 
+    if (isPractitionerUnavailable) {
+      setError(
+        unavailableWarningMessage ||
+          `Cannot create appointment: doctor is not available on ${formData.appointment_date}.`
+      )
+      toast.error('Doctor is not available on the selected date.')
+      return
+    }
+
     let appointmentTime: string | undefined
     let durationMinutes: number | undefined
 
@@ -313,9 +351,21 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       onClose()
     } catch (err) {
       const raw = err instanceof Error ? err.message : 'Failed to create appointment'
-      const errorMessage = /overlap|OverlapError/i.test(raw)
+      let errorMessage = /overlap|OverlapError/i.test(raw)
         ? 'This slot is no longer available. Please select another slot.'
         : raw
+      if (/leave|unavailable|not available|holiday/i.test(raw)) {
+        errorMessage = raw
+        setPractitionerAvailability({
+          available: false,
+          reason: /unavailable/i.test(raw) ? 'unavailable' : 'leave',
+          leave_details: {
+            leave_type: /unavailable/i.test(raw) ? 'Practitioner Unavailability' : 'Leave',
+            from_date: formData.appointment_date,
+            to_date: formData.appointment_date,
+          },
+        })
+      }
       setError(errorMessage)
       toast.error(errorMessage)
     } finally {
@@ -422,12 +472,41 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     }
   }, [])
 
-  // Auto-load slots when practitioner and date are set
+  // Check leave / Practitioner Unavailability when doctor + date are set
   useEffect(() => {
     if (!formData.practitioner || !formData.appointment_date) {
-      setSlotDetails(null)
-      setSelectedSlot(null)
-      setSlotsError(null)
+      setPractitionerAvailability(null)
+      setAvailabilityChecking(false)
+      return
+    }
+    let cancelled = false
+    setAvailabilityChecking(true)
+    setPractitionerAvailability(null)
+    checkPractitionerAvailability(formData.practitioner, formData.appointment_date)
+      .then((res) => {
+        if (!cancelled) setPractitionerAvailability(res)
+      })
+      .finally(() => {
+        if (!cancelled) setAvailabilityChecking(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [formData.practitioner, formData.appointment_date])
+
+  // Auto-load slots when practitioner and date are set (skip when doctor unavailable)
+  useEffect(() => {
+    if (!formData.practitioner || !formData.appointment_date || isPractitionerUnavailable) {
+      if (isPractitionerUnavailable) {
+        setSlotDetails(null)
+        setSelectedSlot(null)
+        setSlotsError(null)
+        setSlotsLoading(false)
+      } else if (!formData.practitioner || !formData.appointment_date) {
+        setSlotDetails(null)
+        setSelectedSlot(null)
+        setSlotsError(null)
+      }
       return
     }
     let cancelled = false
@@ -448,7 +527,19 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       })
       .catch((err) => {
         if (!cancelled) {
-          setSlotsError(err instanceof Error ? err.message : 'Could not load schedule slots.')
+          const msg = err instanceof Error ? err.message : 'Could not load schedule slots.'
+          setSlotsError(msg)
+          if (/leave|unavailable|not available|holiday/i.test(msg)) {
+            setPractitionerAvailability({
+              available: false,
+              reason: /unavailable/i.test(msg) ? 'unavailable' : 'leave',
+              leave_details: {
+                leave_type: /unavailable/i.test(msg) ? 'Practitioner Unavailability' : 'Leave',
+                from_date: formData.appointment_date,
+                to_date: formData.appointment_date,
+              },
+            })
+          }
         }
       })
       .finally(() => {
@@ -457,7 +548,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     return () => {
       cancelled = true
     }
-  }, [formData.practitioner, formData.appointment_date])
+  }, [formData.practitioner, formData.appointment_date, isPractitionerUnavailable])
 
   // Load initial patient if provided
   useEffect(() => {
@@ -576,6 +667,8 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     setSlotDetails(null)
     setSelectedSlot(null)
     setSlotsError(null)
+    setPractitionerAvailability(null)
+    setError(null)
   }
 
   return (
@@ -843,13 +936,32 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
                 setSlotDetails(null)
                 setSelectedSlot(null)
                 setSlotsError(null)
+                setPractitionerAvailability(null)
+                setError(null)
               }}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"
               required
             />
           </div>
 
-          {formData.practitioner && (
+          {formData.practitioner && formData.appointment_date && availabilityChecking && (
+            <p className="text-sm text-slate-500">Checking doctor availability…</p>
+          )}
+
+          {isPractitionerUnavailable && unavailableWarningMessage && (
+            <div className="bg-amber-50 border border-amber-300 rounded-md p-3 flex items-start gap-2">
+              <CalendarOff className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-amber-900">Cannot book this date</p>
+                <p className="text-sm text-amber-800 mt-0.5">{unavailableWarningMessage}</p>
+                <p className="text-xs text-amber-700 mt-1">
+                  Select another date, or wait until the doctor is available again.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {formData.practitioner && !isPractitionerUnavailable && (
             <div>
               <div className="flex items-center justify-between gap-2 mb-2">
                 <label className="block text-sm font-medium text-slate-700">Appointment time</label>
@@ -1017,7 +1129,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
+            <button
+              type="submit"
+              disabled={loading || isPractitionerUnavailable || availabilityChecking}
+              className={CM_BTN_PRIMARY}
+            >
               {loading ? 'Creating...' : 'Create Appointment'}
             </button>
           </CreateModalFooter>

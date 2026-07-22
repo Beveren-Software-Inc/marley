@@ -85,3 +85,21 @@ export function isMainNursingNoteEditable(modified?: string | null): boolean {
   if (Number.isNaN(modifiedAt)) return true
   return Date.now() - modifiedAt < NURSING_NOTE_EDIT_WINDOW_MS
 }
+
+export const CLINICAL_NOTE_EDIT_LOCKED_MESSAGE =
+  'This clinical note can no longer be edited. Notes are locked 24 hours after creation.'
+
+/**
+ * True when a clinical/therapy note may still be edited.
+ * When `enforce24h` is false (Healthcare Settings unchecked), always editable.
+ */
+export function isClinicalNoteEditableWithin24h(
+  creation?: string | null,
+  enforce24h: boolean = true
+): boolean {
+  if (!enforce24h) return true
+  if (!creation) return true
+  const createdAt = new Date(creation).getTime()
+  if (Number.isNaN(createdAt)) return true
+  return Date.now() - createdAt < NURSING_NOTE_EDIT_WINDOW_MS
+}
