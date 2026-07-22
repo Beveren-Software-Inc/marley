@@ -11,6 +11,8 @@ import { toast } from '../../hooks/useToast'
 interface DoctypeListPanelProps {
   doctype: string
   columns: ColumnSpec[]
+  /** Set when `doctype` is a child table — parent DOCTYPE name, required by the list API. */
+  parentDoctype?: string
   /** Extra fields to fetch but not display (used by render callbacks). */
   extraFields?: string[]
   filters?: Record<string, any>
@@ -35,6 +37,7 @@ const STATUS_TONE: Record<string, string> = {
 export const DoctypeListPanel = ({
   doctype,
   columns,
+  parentDoctype,
   extraFields = [],
   filters = {},
   createFields,
@@ -53,20 +56,20 @@ export const DoctypeListPanel = ({
   const [localRefresh, setLocalRefresh] = useState(0)
 
   const fieldNames = Array.from(
-    new Set(['name', ...columns.map((c) => c.fieldname), ...extraFields])
+    new Set(['name', ...columns.filter((c) => !c.virtual).map((c) => c.fieldname), ...extraFields])
   )
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      setRows(await fetchDoctypeRows(doctype, fieldNames, filters, limit, orderBy))
+      setRows(await fetchDoctypeRows(doctype, fieldNames, filters, limit, orderBy, parentDoctype))
     } catch {
       setRows([])
     } finally {
       setLoading(false)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [doctype, JSON.stringify(filters), limit, orderBy])
+  }, [doctype, JSON.stringify(filters), limit, orderBy, parentDoctype])
 
   useEffect(() => {
     load()

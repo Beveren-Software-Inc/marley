@@ -4010,5 +4010,16 @@
   "translatable": 0,
   "unique": 0,
   "width": null
+ },
+ {
+  "doctype": "Custom Field",
+  "name": "Sales Invoice-promotion",
+  "dt": "Sales Invoice",
+  "fieldname": "promotion",
+  "fieldtype": "Link",
+  "label": "Promotion",
+  "options": "Promotion",
+  "insert_after": "cost_center",
+  "modified": "2026-07-22 16:00:00.000000"
  }
 ]

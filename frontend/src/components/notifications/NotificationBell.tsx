@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { fetchNotifications, markAllNotificationsRead, type Notification } from '../../services/notifications'
 import { formatDate } from '../../utils/formatDate'
+import { useAuth } from '../../providers/AuthProvider'
 
 type NotificationBellProps = {
   placement?: 'header' | 'sidebar'
@@ -12,6 +13,7 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const { isAuthenticated } = useAuth()
 
   // Fetch notifications
   const loadNotifications = async () => {
@@ -28,12 +30,14 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
   }
 
   useEffect(() => {
+    // Guests get a 403 from the notifications API — don't poll until logged in.
+    if (!isAuthenticated) return
     loadNotifications()
-    
+
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [isAuthenticated])
 
   // Close dropdown when clicking outside
   useEffect(() => {

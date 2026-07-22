@@ -37,6 +37,7 @@ fixtures = [
                 (
                     "Contact-custom_mobile_owner",
                     "Contact-custom_whatsapp",
+                    "Sales Invoice-promotion",
                     
                     #Sales invoice
                     "Sales Invoice-custom_base_reference_name",

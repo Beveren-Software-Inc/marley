@@ -5,6 +5,7 @@ import { fetchActiveCareEpisodeStatus, type ActiveCareEpisodeStatus } from '../s
 import { fetchDefaultCompanyCurrency } from '../services/common'
 import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
 import { setEditingLockState } from '../services/editingLockStore'
+import { useAuth } from './AuthProvider'
 import {
   getActiveCareBlockReason,
   isActiveCareEpisodeClosedForCreate,
@@ -136,6 +137,7 @@ const writeStorage = (key: string, value: string | undefined) => {
 }
 
 export const CareContextProvider = ({ children }: { children: ReactNode }) => {
+  const { isAuthenticated } = useAuth()
   const [mode, setModeState] = useState<CareMode>(() => readStoredCareMode())
 
   const setMode = (next: CareMode | null) => {
@@ -269,6 +271,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   }, [])
 
   useEffect(() => {
+    // All of these APIs 403 for guests — wait for login (rerun on auth change).
+    if (!isAuthenticated) return
     const loadUserContext = async () => {
       try {
         await refreshUserCostCenter()
@@ -317,13 +321,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       window.removeEventListener('focus', refreshEditingLock)
     }
-  }, [refreshUserCostCenter])
+  }, [refreshUserCostCenter, isAuthenticated])
 
   useEffect(() => {
     setEditingLockState(lockEditingData, editingLockMessage)
   }, [lockEditingData, editingLockMessage])
 
   useEffect(() => {
+    if (!isAuthenticated) return
     let cancelled = false
     fetchDefaultCompanyCurrency()
       .then((msg) => {
@@ -335,7 +340,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAuthenticated])
 
   const setActiveVisit = (v: string | undefined) => {
     const val = v || undefined

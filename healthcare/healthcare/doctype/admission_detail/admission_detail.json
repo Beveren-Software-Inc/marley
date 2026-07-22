@@ -47,7 +47,6 @@
   "observation_level_tab",
   "observation_level_details",
   "ip_medical_report_tab",
-  "ip_medical_report",
   "sleeping_pattern_tab",
   "sleeping_pattern"
  ],
@@ -248,12 +247,6 @@
    "fieldname": "ip_medical_report_tab",
    "fieldtype": "Tab Break",
    "label": "IP Medical Report"
-  },
-  {
-   "fieldname": "ip_medical_report",
-   "fieldtype": "Table",
-   "label": "IP Medical Report",
-   "options": "IP Medical Report"
   },
   {
    "fieldname": "other_details_section",

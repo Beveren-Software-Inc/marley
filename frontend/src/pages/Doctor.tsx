@@ -1168,6 +1168,7 @@ export const DoctorPage = () => {
                 {
                   fieldname: 'print',
                   label: 'Print',
+                  virtual: true,
                   render: (r) => (
                     <a
                       className="text-primary underline"
@@ -1392,16 +1393,16 @@ export const DoctorPage = () => {
               the one above, so it collapses to a single list here. */}
           <div className="mt-6">
             <DashboardCard title="IOP Session Notes">
+              {/* IOP Day Session is a child table of IOP Day — list it with parent
+                  context (read-only: sessions are created via the scheduling flow,
+                  a standalone child row would be an orphan). */}
               <DoctypeListPanel
                 doctype="IOP Day Session"
+                parentDoctype="IOP Day"
                 columns={[
-                  { fieldname: 'name', label: 'Session' },
+                  { fieldname: 'parent', label: 'IOP Day' },
                   { fieldname: 'session_type', label: 'Healthcare Service' },
                   { fieldname: 'notes', label: 'Notes' },
-                ]}
-                createFields={[
-                  { fieldname: 'session_type', label: 'Healthcare Service', fieldtype: 'Link', options: 'Healthcare Service Unit' },
-                  { fieldname: 'notes', label: 'Notes', fieldtype: 'Small Text' },
                 ]}
                 emptyMessage="No IOP session notes recorded."
               />
