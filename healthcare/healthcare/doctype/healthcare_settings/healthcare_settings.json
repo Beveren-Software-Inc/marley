@@ -37,6 +37,7 @@
   "verify_insurance_eligibility_on_admission",
   "require_lab_request_on_visit_completion",
   "record_billing_in_patient_history",
+  "require_patient_on_pharmacy_sale",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -779,11 +780,17 @@
    "fieldname": "record_billing_in_patient_history",
    "fieldtype": "Check",
    "label": "record_billing_in_patient_history"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_patient_on_pharmacy_sale",
+   "fieldtype": "Check",
+   "label": "require_Patient_on_pharmacy_sale"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 12:46:33.819114",
+ "modified": "2026-07-22 15:20:57.788310",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
