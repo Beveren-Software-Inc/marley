@@ -151,9 +151,13 @@ export const PatientSearch = ({
     }
   }, [selectedPatient, isDoctor])
 
-  /** Doctors must record warnings/allergies when the patient has an active IP admission. */
-  const enforceDoctorWarnings =
-    isDoctor && Boolean(selectedPatient) && patientHasActiveAdmission !== false
+  /**
+   * DOC-010: a doctor must review patient safety alerts before ANY consultation,
+   * outpatient as well as inpatient. This previously carried
+   * `&& patientHasActiveAdmission !== false`, which silently switched the
+   * safety banner off for every OP consultation - the majority of encounters.
+   */
+  const enforceDoctorWarnings = isDoctor && Boolean(selectedPatient)
 
   const tryDismissAlerts = () => {
     if (!alertsCanDismiss) {

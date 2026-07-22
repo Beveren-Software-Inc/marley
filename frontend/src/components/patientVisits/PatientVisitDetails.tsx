@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState, type ElementType } from 'react'
 import {
+  ChevronDown,
   ClipboardList,
   FileText,
   FlaskConical,
@@ -193,6 +194,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('details')
+  const [expandedLabRequests, setExpandedLabRequests] = useState<Record<string, boolean>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
 
@@ -488,31 +490,98 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                     Service Requests
                   </h3>
                   <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
-                    {serviceRequests.map((sr) => (
-                      <li key={sr.name} className="px-4 py-3">
-                        <div className="flex flex-wrap items-start justify-between gap-2">
-                          <div>
-                            <p className="font-semibold text-slate-900">
-                              {sr.template_name || sr.template_dn || sr.name}
-                            </p>
-                            <p className="mt-0.5 text-xs text-slate-500">
-                              {[sr.template_dt, sr.name].filter(Boolean).join(' · ')}
-                            </p>
+                    {serviceRequests.map((sr) => {
+                      const labGroups =
+                        sr.template_dt === 'Lab Test Template' ? sr.lab_request_groups || [] : []
+                      const canExpand = labGroups.length > 0
+                      const expanded = !!expandedLabRequests[sr.name]
+                      const childCount = labGroups.reduce(
+                        (total, group) => total + group.children.length,
+                        0
+                      )
+                      return (
+                        <li key={sr.name} className="px-4 py-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div className="min-w-0 flex-1">
+                              <p className="font-semibold text-slate-900">
+                                {sr.template_name || sr.template_dn || sr.name}
+                              </p>
+                              <p className="mt-0.5 text-xs text-slate-500">
+                                {[sr.template_dt, sr.name].filter(Boolean).join(' · ')}
+                              </p>
+                            </div>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              {sr.status || '—'}
+                            </span>
                           </div>
-                          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                            {sr.status || '—'}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {[
-                            sr.order_date ? formatDate(sr.order_date) : null,
-                            sr.practitioner_name || sr.practitioner,
-                          ]
-                            .filter(Boolean)
-                            .join(' · ')}
-                        </p>
-                      </li>
-                    ))}
+                          <div className="mt-1 flex flex-wrap items-center justify-between gap-2">
+                            <p className="text-xs text-slate-500">
+                              {[
+                                sr.order_date ? formatDate(sr.order_date) : null,
+                                sr.practitioner_name || sr.practitioner,
+                              ]
+                                .filter(Boolean)
+                                .join(' · ')}
+                            </p>
+                            {canExpand ? (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedLabRequests((prev) => ({
+                                    ...prev,
+                                    [sr.name]: !prev[sr.name],
+                                  }))
+                                }
+                                className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                aria-expanded={expanded}
+                              >
+                                {expanded ? 'Hide' : 'Show'} {childCount} tests
+                                <ChevronDown
+                                  className={`h-3.5 w-3.5 transition-transform ${
+                                    expanded ? 'rotate-180' : ''
+                                  }`}
+                                />
+                              </button>
+                            ) : null}
+                          </div>
+
+                          {canExpand && expanded ? (
+                            <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
+                              {labGroups.map((group) => (
+                                <div
+                                  key={group.template}
+                                  className="overflow-hidden rounded-lg border border-emerald-100 bg-emerald-50/40"
+                                >
+                                  <div className="flex items-center justify-between gap-2 px-3 py-2">
+                                    <span className="text-xs font-semibold text-emerald-900">
+                                      {group.label}
+                                    </span>
+                                    <span className="text-[11px] font-medium text-emerald-700">
+                                      {group.children.length} tests
+                                    </span>
+                                  </div>
+                                  <ul className="divide-y divide-emerald-100 border-t border-emerald-100 bg-white">
+                                    {group.children.map((child) => (
+                                      <li
+                                        key={child.template}
+                                        className="flex items-center justify-between gap-2 px-3 py-2 text-xs"
+                                      >
+                                        <span className="font-medium text-slate-800">
+                                          {child.label}
+                                        </span>
+                                        <span className="shrink-0 text-slate-400">
+                                          {child.template}
+                                        </span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </div>
               ) : null}

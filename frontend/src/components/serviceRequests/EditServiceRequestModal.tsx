@@ -130,6 +130,7 @@ export const EditServiceRequestModal = ({
   const [patientCategory, setPatientCategory] = useState('')
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
+  const [generalLabDiscount, setGeneralLabDiscount] = useState(0)
   const [basketPricing, setBasketPricing] = useState<MultiLabRequestPricing>({ lines: [], subtotal: 0 })
 
   const hasMultiLabItems = labBasket.length > 0
@@ -232,6 +233,7 @@ export const EditServiceRequestModal = ({
         const parsedLabItems = parseLabRequestItems(doc.lab_request_items)
         setLabBasket(parsedLabItems)
         setLineDiscounts(extractLineDiscountsFromBasket(parsedLabItems))
+        setGeneralLabDiscount(Number(doc.general_discount_amount || 0))
 
         // Load patient category for pricing highlight
         const patientId = (doc.patient as string) || ''
@@ -451,13 +453,17 @@ export const EditServiceRequestModal = ({
 
   useEffect(() => {
     if (!hasMultiLabItems) return
+    const lineDiscountAmount = basketPricing.discount_amount || 0
+    const lineGrandTotal = basketPricing.grand_total ?? basketPricing.subtotal
     setFormData((prev) => ({
       ...prev,
       cost: basketPricing.subtotal,
-      discount_amount: basketPricing.discount_amount || 0,
-      grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
+      discount_value: 'Amount',
+      discount: 0,
+      discount_amount: lineDiscountAmount + generalLabDiscount,
+      grand_total: lineGrandTotal - generalLabDiscount,
     }))
-  }, [hasMultiLabItems, basketPricing])
+  }, [hasMultiLabItems, basketPricing, generalLabDiscount])
 
   /* ────────────── SUBMIT ────────────── */
 
@@ -484,6 +490,14 @@ export const EditServiceRequestModal = ({
       !isOtherService
     ) {
       setError('Enter an amount for this item/service (no price configured).')
+      setActiveTab('billing_pricing')
+      return
+    }
+    if (
+      hasMultiLabItems &&
+      (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount < 0
+    ) {
+      setError('General discount cannot be greater than the total after per-test discounts.')
       setActiveTab('billing_pricing')
       return
     }
@@ -532,9 +546,12 @@ export const EditServiceRequestModal = ({
       if (hasMultiLabItems) {
         payload.lab_request_items = basketWithDiscounts
         payload.cost = basketPricing.subtotal
-        payload.discount_amount = basketPricing.discount_amount || 0
-        payload.grand_total = basketPricing.grand_total ?? basketPricing.subtotal
+        payload.general_discount_amount = generalLabDiscount
+        payload.discount_amount = (basketPricing.discount_amount || 0) + generalLabDiscount
+        payload.grand_total =
+          (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount
         payload.discount = 0
+        payload.discount_value = 'Amount'
       }
       
       await updateServiceRequest(serviceRequestName, payload)
@@ -1031,21 +1048,62 @@ export const EditServiceRequestModal = ({
                 {hasMultiLabItems && basketPricing.lines.length > 0 ? (
                   <div className="border border-blue-200 rounded-lg p-4 bg-blue-50">
                     <label className="block text-sm font-semibold text-slate-900 mb-1">
-                      Per-test discounts
+                      Lab test discounts
                     </label>
                     <p className="text-xs text-slate-500 mb-4">
-                      Set a fixed discount amount on each lab test separately (negative values add a surcharge).
+                      Set individual test discounts below, then optionally apply one general
+                      discount to the whole request.
                     </p>
+                    <div className="mb-4 rounded-xl border border-blue-200 bg-white p-3">
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        General discount amount
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={generalLabDiscount === 0 ? '' : generalLabDiscount}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            setGeneralLabDiscount(0)
+                            return
+                          }
+                          const value = Number(raw)
+                          if (!Number.isNaN(value)) setGeneralLabDiscount(value)
+                        }}
+                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm tabular-nums focus:border-transparent focus:ring-2 focus:ring-primary"
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Applied once to the request total—not once per test.
+                      </p>
+                    </div>
                     <LabTestLineDiscountTable
                       lines={basketPricing.lines}
                       lineDiscounts={lineDiscounts}
                       onChange={handleLineDiscountChange}
                     />
-                    <div className="mt-4 bg-white rounded-md border border-slate-200 p-3 flex items-center justify-between">
-                      <span className="text-sm font-semibold text-slate-900">Grand Total</span>
-                      <span className="text-lg font-bold text-primary">
-                        {(basketPricing.grand_total ?? basketPricing.subtotal).toFixed(2)}
-                      </span>
+                    <div className="mt-4 space-y-2 rounded-md border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600">List total</span>
+                        <span className="font-medium tabular-nums">{basketPricing.subtotal.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600">Per-test discounts</span>
+                        <span className="font-medium tabular-nums">
+                          −{(basketPricing.discount_amount || 0).toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-slate-600">General discount</span>
+                        <span className="font-medium tabular-nums">−{generalLabDiscount.toFixed(2)}</span>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-slate-200 pt-2">
+                        <span className="text-sm font-semibold text-slate-900">Grand Total</span>
+                        <span className="text-lg font-bold tabular-nums text-primary">
+                          {((basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount).toFixed(2)}
+                        </span>
+                      </div>
                     </div>
                   </div>
                 ) : selectedPrice !== null && (

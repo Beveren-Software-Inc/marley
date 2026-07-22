@@ -75,7 +75,7 @@ export const ItemSearch = ({ onSearch, warehouse }: ItemSearchProps) => {
                 handleSubmit()
               }
             }}
-            placeholder="Search item or batch..."
+            placeholder="SEARCH ITEM OR BATCH"
             className="w-full rounded-md border border-primary/40 px-2 md:px-3 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"
           />
           {query && (

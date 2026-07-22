@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Calendar, ClipboardList, Layers, Stethoscope, User, Wallet } from 'lucide-react'
+import { Calendar, ChevronDown, ClipboardList, Layers, Stethoscope, User, Wallet } from 'lucide-react'
 import { fetchPatients, searchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchCostCenters,
@@ -108,6 +108,8 @@ export const CreateServiceRequestModal = ({
 
   const [templateTypes, setTemplateTypes] = useState<LinkFieldOption[]>([])
   const [templates, setTemplates] = useState<LinkFieldOption[]>([])
+  const [labTemplateLabels, setLabTemplateLabels] = useState<Record<string, string>>({})
+  const [expandedLabGroups, setExpandedLabGroups] = useState<Record<string, boolean>>({})
   const [templateSearchQuery, setTemplateSearchQuery] = useState('')
   const [templateDropdownOpen, setTemplateDropdownOpen] = useState(false)
   const [labTemplateFilter, setLabTemplateFilter] = useState<LabTemplateGroupFilter>('all')
@@ -135,11 +137,11 @@ export const CreateServiceRequestModal = ({
   const [insuranceDiscountPct, setInsuranceDiscountPct] = useState(0)
   const [manualCost, setManualCost] = useState(0)
   const [lineDiscounts, setLineDiscounts] = useState<Record<string, LabLineDiscount>>({})
+  const [generalLabDiscount, setGeneralLabDiscount] = useState(0)
 
   /** Multi-test lab basket (lab request flow only) */
   const [labBasket, setLabBasket] = useState<LabRequestItem[]>([])
   const [pendingTemplateDn, setPendingTemplateDn] = useState('')
-  const [pendingTemplateLabel, setPendingTemplateLabel] = useState('')
   const [basketPricing, setBasketPricing] = useState<MultiLabRequestPricing>({ lines: [], subtotal: 0 })
 
   const [form, setForm] = useState({
@@ -199,7 +201,7 @@ export const CreateServiceRequestModal = ({
 
   const orderDiscountAmount = discountPct
   const estimatedTotalAfterDiscount = useLabBasket
-    ? (basketPricing.grand_total ?? basketPricing.subtotal)
+    ? (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount
     : listSubtotalBeforeDiscount - orderDiscountAmount
 
   const basketWithDiscounts = useMemo(
@@ -219,16 +221,8 @@ export const CreateServiceRequestModal = ({
     }))
   }
 
-  const basketLineLabel = (item: LabRequestItem) => {
-    if (item.kind === 'single') {
-      const row = templates.find((t) => t.name === item.template)
-      return row?.label || item.template
-    }
-    const row = templates.find((t) => t.name === item.parent)
-    const parentLabel = row?.label || pendingTemplateLabel || item.parent
-    const n = item.children.length
-    return n ? `${parentLabel} (${n} tests)` : parentLabel
-  }
+  const labTemplateLabel = (template: string) =>
+    labTemplateLabels[template] || templates.find((row) => row.name === template)?.label || template
 
   const addPendingToBasket = () => {
     if (!pendingTemplateDn) return
@@ -245,7 +239,6 @@ export const CreateServiceRequestModal = ({
       setLabBasket((prev) => [...prev, { kind: 'single', template: pendingTemplateDn }])
     }
     setPendingTemplateDn('')
-    setPendingTemplateLabel('')
     setTemplateSearchQuery('')
     setForm((prev) => ({ ...prev, template_dn: '' }))
     setPricingRows([])
@@ -468,6 +461,15 @@ export const CreateServiceRequestModal = ({
         setPricingRows(rows)
         setGroupRows(groups)
         if (groups.length > 0) {
+          setLabTemplateLabels((prev) => {
+            const next = { ...prev }
+            for (const group of groups) {
+              next[group.template_dn] = group.template_label || group.template_dn
+            }
+            return next
+          })
+        }
+        if (groups.length > 0) {
           setSelectedGroupTemplates(groups.map((row) => row.template_dn))
         } else {
           setSelectedGroupTemplates([])
@@ -519,6 +521,12 @@ export const CreateServiceRequestModal = ({
     if (useLabBasket) {
       if (labBasket.length === 0) {
         setError('Add at least one lab test or group to the request.')
+        return
+      }
+      if (
+        (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount < 0
+      ) {
+        setError('General discount cannot be greater than the total after per-test discounts.')
         return
       }
     } else if (!form.template_dn) {
@@ -574,8 +582,10 @@ export const CreateServiceRequestModal = ({
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,
           cost: basketPricing.subtotal,
-          discount_amount: basketPricing.discount_amount || 0,
-          grand_total: basketPricing.grand_total ?? basketPricing.subtotal,
+          general_discount_amount: generalLabDiscount,
+          discount_amount: (basketPricing.discount_amount || 0) + generalLabDiscount,
+          grand_total:
+            (basketPricing.grand_total ?? basketPricing.subtotal) - generalLabDiscount,
         })
       } else {
         const listAmount = listSubtotalBeforeDiscount
@@ -835,9 +845,14 @@ export const CreateServiceRequestModal = ({
                                 type="button"
                                 className="flex w-full items-center justify-between gap-2 border-b border-slate-50 px-3 py-2.5 text-left text-sm last:border-0 hover:bg-emerald-50/80"
                                 onMouseDown={() => {
+                                  if (form.template_dt === 'Lab Test Template') {
+                                    setLabTemplateLabels((prev) => ({
+                                      ...prev,
+                                      [item.name]: item.label || item.name,
+                                    }))
+                                  }
                                   if (useLabBasket) {
                                     setPendingTemplateDn(item.name)
-                                    setPendingTemplateLabel(item.label || item.name)
                                     setTemplateSearchQuery(item.label || item.name)
                                   } else {
                                     setForm((prev) => ({ ...prev, template_dn: item.name }))
@@ -846,7 +861,16 @@ export const CreateServiceRequestModal = ({
                                   setTemplateDropdownOpen(false)
                                 }}
                               >
-                                <span className="font-medium text-slate-900">{item.label || item.name}</span>
+                                <span className="min-w-0">
+                                  <span className="block truncate font-medium text-slate-900">
+                                    {item.label || item.name}
+                                  </span>
+                                  {form.template_dt === 'Lab Test Template' && (
+                                    <span className="mt-0.5 block truncate text-xs text-slate-500">
+                                      ID: {item.name}
+                                    </span>
+                                  )}
+                                </span>
                                 {form.template_dt === 'Lab Test Template' && (
                                   <span
                                     className={`shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold uppercase ${
@@ -888,21 +912,68 @@ export const CreateServiceRequestModal = ({
                   Tests on this request ({labBasket.length})
                 </div>
                 <ul className="space-y-2">
-                  {labBasket.map((item, index) => (
-                    <li
-                      key={`${item.kind}-${item.kind === 'single' ? item.template : item.parent}-${index}`}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/90 bg-white px-3 py-2.5"
-                    >
-                      <span className="text-sm font-medium text-slate-900">{basketLineLabel(item)}</span>
-                      <button
-                        type="button"
-                        onClick={() => setLabBasket((prev) => prev.filter((_, i) => i !== index))}
-                        className="shrink-0 text-xs font-semibold text-red-600 hover:text-red-800"
+                  {labBasket.map((item, index) => {
+                    const template = item.kind === 'single' ? item.template : item.parent
+                    const itemKey = `${item.kind}-${template}-${index}`
+                    const isExpanded = item.kind === 'group' && !!expandedLabGroups[itemKey]
+                    return (
+                      <li
+                        key={itemKey}
+                        className="rounded-xl border border-slate-200/90 bg-white px-3 py-2.5"
                       >
-                        Remove
-                      </button>
-                    </li>
-                  ))}
+                        <div className="flex items-center justify-between gap-3">
+                          <button
+                            type="button"
+                            disabled={item.kind !== 'group'}
+                            onClick={() => {
+                              if (item.kind !== 'group') return
+                              setExpandedLabGroups((prev) => ({ ...prev, [itemKey]: !prev[itemKey] }))
+                            }}
+                            className={`flex min-w-0 flex-1 items-center gap-2 text-left ${
+                              item.kind === 'group' ? 'cursor-pointer' : 'cursor-default'
+                            }`}
+                            aria-expanded={item.kind === 'group' ? isExpanded : undefined}
+                          >
+                            {item.kind === 'group' && (
+                              <ChevronDown
+                                className={`h-4 w-4 shrink-0 text-violet-600 transition-transform ${
+                                  isExpanded ? 'rotate-180' : ''
+                                }`}
+                              />
+                            )}
+                            <span className="min-w-0">
+                              <span className="block truncate text-sm font-medium text-slate-900">
+                                {labTemplateLabel(template)}
+                                {item.kind === 'group' ? ` (${item.children.length} tests)` : ''}
+                              </span>
+                              <span className="mt-0.5 block truncate text-xs text-slate-500">
+                                ID: {template}
+                              </span>
+                            </span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setLabBasket((prev) => prev.filter((_, i) => i !== index))}
+                            className="shrink-0 text-xs font-semibold text-red-600 hover:text-red-800"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        {item.kind === 'group' && isExpanded && (
+                          <ul className="mt-2 space-y-1.5 border-t border-slate-100 pt-2 pl-6">
+                            {item.children.map((child) => (
+                              <li key={child} className="rounded-lg bg-violet-50/60 px-3 py-2">
+                                <span className="block text-sm font-medium text-slate-800">
+                                  {labTemplateLabel(child)}
+                                </span>
+                                <span className="mt-0.5 block text-xs text-slate-500">ID: {child}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </li>
+                    )
+                  })}
                 </ul>
               </div>
             )}
@@ -1070,7 +1141,7 @@ export const CreateServiceRequestModal = ({
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
                   {useLabBasket
-                    ? 'Set a discount amount per lab test (negative values add a surcharge). Reception finalises billing.'
+                    ? 'Set individual test discounts, then optionally apply one general discount to the whole request.'
                     : 'Reference amount before discount (reception finalises billing). Enter a discount amount if applicable — negative values are allowed.'}
                 </p>
                 {priceMissing ? (
@@ -1115,11 +1186,37 @@ export const CreateServiceRequestModal = ({
                   </div>
                 ) : null}
                 {useLabBasket && basketPricing.lines.length > 0 ? (
-                  <LabTestLineDiscountTable
-                    lines={basketPricing.lines}
-                    lineDiscounts={lineDiscounts}
-                    onChange={handleLineDiscountChange}
-                  />
+                  <div className="space-y-3">
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-3">
+                      <label className="mb-1 block text-xs font-semibold text-slate-700">
+                        General discount amount
+                      </label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        value={generalLabDiscount === 0 ? '' : generalLabDiscount}
+                        onChange={(e) => {
+                          const raw = e.target.value
+                          if (raw === '') {
+                            setGeneralLabDiscount(0)
+                            return
+                          }
+                          const value = Number(raw)
+                          if (!Number.isNaN(value)) setGeneralLabDiscount(value)
+                        }}
+                        className={inputClass}
+                        placeholder="0"
+                      />
+                      <p className="mt-1 text-[11px] text-slate-500">
+                        Applied once to the request total—not once per test.
+                      </p>
+                    </div>
+                    <LabTestLineDiscountTable
+                      lines={basketPricing.lines}
+                      lineDiscounts={lineDiscounts}
+                      onChange={handleLineDiscountChange}
+                    />
+                  </div>
                 ) : !useLabBasket ? (
                   <div className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     <div className="flex flex-col gap-1">
@@ -1149,11 +1246,14 @@ export const CreateServiceRequestModal = ({
                     {formatMoney(Math.abs(orderDiscountAmount))}
                   </p>
                 )}
-                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 && (
+                {useLabBasket &&
+                  ((basketPricing.discount_amount || 0) !== 0 || generalLabDiscount !== 0) && (
                   <p className="mt-3 text-xs text-slate-500">
                     Total discount:{' '}
-                    {(basketPricing.discount_amount || 0) > 0 ? '−' : '+'}
-                    {formatMoney(Math.abs(basketPricing.discount_amount || 0))}
+                    {(basketPricing.discount_amount || 0) + generalLabDiscount > 0 ? '−' : '+'}
+                    {formatMoney(
+                      Math.abs((basketPricing.discount_amount || 0) + generalLabDiscount)
+                    )}
                   </p>
                 )}
               </div>
@@ -1166,8 +1266,11 @@ export const CreateServiceRequestModal = ({
                   <Wallet className="h-4 w-4 text-white/90" />
                   Estimated patient total
                 </span>
-                {useLabBasket && (basketPricing.discount_amount || 0) !== 0 ? (
-                  <span className="text-xs text-emerald-100/90">Per-test discounts applied</span>
+                {useLabBasket &&
+                ((basketPricing.discount_amount || 0) !== 0 || generalLabDiscount !== 0) ? (
+                  <span className="text-xs text-emerald-100/90">
+                    Per-test and general discounts applied
+                  </span>
                 ) : !useLabBasket && orderDiscountAmount !== 0 ? (
                   <span className="text-xs text-emerald-100/90">
                     {orderDiscountAmount > 0 ? 'Discount' : 'Surcharge'} applied

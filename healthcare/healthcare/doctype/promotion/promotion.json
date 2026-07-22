@@ -1,0 +1,177 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:promotion_name",
+ "creation": "2026-07-20 10:07:00.998690",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "promotion_name",
+  "promotion_code",
+  "is_active",
+  "cb_promo_head",
+  "applies_to",
+  "valid_from",
+  "valid_upto",
+  "sec_promo_discount",
+  "discount_type",
+  "discount_value",
+  "cb_promo_discount",
+  "patient_category",
+  "item_group",
+  "cost_center",
+  "sec_promo_desc",
+  "description"
+ ],
+ "fields": [
+  {
+   "fieldname": "promotion_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Promotion Name",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "fieldname": "promotion_code",
+   "fieldtype": "Data",
+   "in_standard_filter": 1,
+   "label": "Promotion Code"
+  },
+  {
+   "default": "1",
+   "fieldname": "is_active",
+   "fieldtype": "Check",
+   "in_standard_filter": 1,
+   "label": "Active"
+  },
+  {
+   "fieldname": "cb_promo_head",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Both",
+   "fieldname": "applies_to",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Applies To",
+   "options": "Both\nOP\nIP"
+  },
+  {
+   "fieldname": "valid_from",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Valid From",
+   "reqd": 1
+  },
+  {
+   "fieldname": "valid_upto",
+   "fieldtype": "Date",
+   "label": "Valid Upto"
+  },
+  {
+   "fieldname": "sec_promo_discount",
+   "fieldtype": "Section Break",
+   "label": "Discount"
+  },
+  {
+   "default": "Percentage",
+   "fieldname": "discount_type",
+   "fieldtype": "Select",
+   "label": "Discount Type",
+   "options": "Percentage\nAmount"
+  },
+  {
+   "fieldname": "discount_value",
+   "fieldtype": "Float",
+   "label": "Discount Value"
+  },
+  {
+   "fieldname": "cb_promo_discount",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient_category",
+   "fieldtype": "Link",
+   "label": "Limited to Patient Category",
+   "options": "Patient Category"
+  },
+  {
+   "fieldname": "item_group",
+   "fieldtype": "Link",
+   "label": "Limited to Item Group",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Limited to Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "sec_promo_desc",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-20 10:07:00.998690",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Promotion",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "search_fields": "promotion_code,applies_to",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "promotion_name",
+ "track_changes": 1
+}

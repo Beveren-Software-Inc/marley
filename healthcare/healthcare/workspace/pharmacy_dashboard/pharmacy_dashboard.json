@@ -1,7 +1,7 @@
 {
  "app": "healthcare",
  "charts": [],
- "content": "[]",
+ "content": "[{\"id\": \"pharm_head\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h4'><b>Pharmacy Dashboard</b></span>\", \"col\": 12}}, {\"id\": \"nc_Expiring\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Expiring Batches (30 days)\", \"col\": 4}}, {\"id\": \"nc_Expired\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Expired Batches\", \"col\": 4}}, {\"id\": \"nc_ActiveD\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Active Dispensing Lots\", \"col\": 4}}, {\"id\": \"nc_Refills\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Refills Due\", \"col\": 4}}, {\"id\": \"nc_OpenMat\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Open Material Requests\", \"col\": 4}}, {\"id\": \"pharm_sc\", \"type\": \"header\", \"data\": {\"text\": \"<span class='h5'>Quick Actions</span>\", \"col\": 12}}, {\"id\": \"pharm_shortcut\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Item\", \"col\": 3}}]",
  "creation": "2026-01-29 00:00:00",
  "custom_blocks": [],
  "docstatus": 0,
@@ -32,19 +32,153 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Medicine Refill Schedule",
+   "link_count": 0,
+   "link_to": "Medicine Refill Schedule",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Dispensing Lot",
+   "link_count": 0,
+   "link_to": "Dispensing Lot",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Item",
+   "link_count": 0,
+   "link_to": "Item",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Material Request",
+   "link_count": 0,
+   "link_to": "Material Request",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Purchase Receipt",
+   "link_count": 0,
+   "link_to": "Purchase Receipt",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Stock Entry",
+   "link_count": 0,
+   "link_to": "Stock Entry",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Controlled Drug Register",
+   "link_count": 0,
+   "link_to": "Controlled Drug Register",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-01-29 14:08:49.025211",
+ "modified": "2026-07-20 13:27:57.724360",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Pharmacy Dashboard",
- "number_cards": [],
+ "number_cards": [
+  {
+   "label": "Expiring Batches (30 days)",
+   "number_card_name": "Expiring Batches (30 days)"
+  },
+  {
+   "label": "Expired Batches",
+   "number_card_name": "Expired Batches"
+  },
+  {
+   "label": "Active Dispensing Lots",
+   "number_card_name": "Active Dispensing Lots"
+  },
+  {
+   "label": "Refills Due",
+   "number_card_name": "Refills Due"
+  },
+  {
+   "label": "Open Material Requests",
+   "number_card_name": "Open Material Requests"
+  }
+ ],
  "owner": "Administrator",
  "public": 1,
  "quick_lists": [],
  "roles": [],
  "sequence_id": 0.0,
- "shortcuts": [],
+ "shortcuts": [
+  {
+   "doc_view": "",
+   "label": "Material Request",
+   "link_to": "Material Request",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Purchase Receipt",
+   "link_to": "Purchase Receipt",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Stock Entry",
+   "link_to": "Stock Entry",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Stock Reconciliation",
+   "link_to": "Stock Reconciliation",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Item",
+   "link_to": "Item",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Batch",
+   "link_to": "Batch",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "Medicine Refill Schedule",
+   "link_to": "Medicine Refill Schedule",
+   "type": "DocType"
+  }
+ ],
  "title": "Pharmacy Dashboard",
  "type": "Workspace"
 }

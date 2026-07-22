@@ -5,10 +5,12 @@ import { ItemSearch } from '../components/pharmacy/ItemSearch'
 import {
   getBatchesExpiringInDays,
   getLowStockItems,
+  searchItemOrBatch,
   fetchPharmacyWarehouseContext,
   setPharmacyWarehousePreference,
   type BatchRow,
   type LowStockRow,
+  type ItemBatchSearchRow,
   type PharmacyWarehouseOption,
 } from '../services/pharmacy'
 import { Plus } from 'lucide-react'
@@ -50,6 +52,8 @@ function PharmacyStockPage() {
   const [lowStockThreshold, setLowStockThreshold] = useState(DEFAULT_LOW_STOCK_THRESHOLD)
 
   const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<ItemBatchSearchRow[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
   const [showMaterialRequestModal, setShowMaterialRequestModal] = useState(false)
 
   useEffect(() => {
@@ -99,6 +103,30 @@ function PharmacyStockPage() {
     return () => { cancelled = true }
   }, [expiryDays, lowStockThreshold, selectedWarehouse, warehouseReady])
 
+  // When a search is active, list the actual stock matching the query (any item/batch),
+  // not just a filter over the expiry / low-stock alert tables.
+  useEffect(() => {
+    const q = searchQuery.trim()
+    if (!q) {
+      setSearchResults([])
+      setSearchLoading(false)
+      return
+    }
+    let cancelled = false
+    setSearchLoading(true)
+    searchItemOrBatch(q, 100, selectedWarehouse || undefined)
+      .then((rows) => {
+        if (!cancelled) setSearchResults(rows)
+      })
+      .catch(() => {
+        if (!cancelled) setSearchResults([])
+      })
+      .finally(() => {
+        if (!cancelled) setSearchLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [searchQuery, selectedWarehouse])
+
   const handleWarehouseChange = async (warehouse: string) => {
     setSelectedWarehouse(warehouse)
     if (!warehouse) return
@@ -138,11 +166,11 @@ function PharmacyStockPage() {
             <select
               value={selectedWarehouse}
               onChange={(e) => handleWarehouseChange(e.target.value)}
-              className="rounded-md border border-white/30 bg-white/10 text-white text-xs px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-white/50"
+              className="w-full rounded-md border border-slate-300 bg-white text-slate-800 text-xs px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary/40"
               title={openPosProfile ? `Open POS: ${openPosProfile}` : undefined}
             >
               {warehouseOptions.map((opt) => (
-                <option key={opt.warehouse} value={opt.warehouse} className="text-slate-900">
+                <option key={opt.warehouse} value={opt.warehouse}>
                   {opt.warehouse}
                 </option>
               ))}
@@ -186,18 +214,21 @@ function PharmacyStockPage() {
         </div>
       )}
 
-      {selectedWarehouse && (
-        <div className="px-3 md:px-4 py-2 text-xs text-slate-600 bg-slate-50 border-b border-slate-200">
-          Showing stock for <span className="font-medium text-slate-800">{selectedWarehouse}</span>
-          {openPosProfile ? <> · Open POS: {openPosProfile}</> : null}
-        </div>
-      )}
-
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {error && (
           <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-800 text-sm">
             {error}
           </div>
+        )}
+
+        {searchQuery.trim() && (
+          <StockCard
+            title={`Search results for "${searchQuery.trim()}"`}
+            count={searchResults.length}
+            emptyMessage={searchLoading ? 'Searching…' : 'No item or batch matches your search.'}
+          >
+            <SearchResultsTable rows={searchResults} />
+          </StockCard>
         )}
 
         {loading ? (
@@ -261,7 +292,7 @@ function PharmacyStockPage() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <div className="space-y-4">
           <OutpatientVisitsCard />
           <InpatientAdmissionsCard />
         </div>
@@ -353,6 +384,43 @@ function ExpiryTable({ rows }: { rows: BatchRow[] }) {
                 {b.batch_qty != null ? `${b.batch_qty} ${b.stock_uom || ''}` : '—'}
               </td>
               <td className="py-1.5 pl-4 text-slate-600">{b.expiry_date || '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+function SearchResultsTable({ rows }: { rows: ItemBatchSearchRow[] }) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm border-collapse table-fixed">
+        <thead>
+          <tr className="text-left text-slate-600 border-b border-slate-200">
+            <th className="py-2 pr-2 font-medium w-[32%]">Item</th>
+            <th className="py-2 pr-2 font-medium w-[22%]">Batch</th>
+            <th className="py-2 pr-4 font-medium text-right w-[16%]">Stock Qty</th>
+            <th className="py-2 pl-4 font-medium w-[15%]">Expiry</th>
+            <th className="py-2 pl-4 font-medium w-[15%]">Warehouse</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr key={`${r.item_code}-${r.batch || ''}-${i}`} className="border-b border-slate-100">
+              <td className="py-1.5 pr-2 truncate" title={r.item_name || r.item_code}>
+                {r.item_name || r.item_code}
+              </td>
+              <td className="py-1.5 pr-2 truncate" title={r.batch || ''}>
+                {r.batch || '—'}
+              </td>
+              <td className="py-1.5 pr-4 text-right whitespace-nowrap">
+                {r.stock_quantity != null ? `${r.stock_quantity} ${r.stock_uom || ''}`.trim() : '—'}
+              </td>
+              <td className="py-1.5 pl-4 text-slate-600">{r.expiry_date || '—'}</td>
+              <td className="py-1.5 pl-4 text-slate-600 truncate" title={r.warehouse || ''}>
+                {r.warehouse || '—'}
+              </td>
             </tr>
           ))}
         </tbody>

@@ -101,7 +101,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         className={
           isSidebar
             ? 'h-9 w-full rounded-md bg-white/10 animate-pulse'
-            : 'h-9 w-56 rounded-lg bg-white/10 animate-pulse'
+            : 'h-9 w-56 rounded-lg bg-slate-200 animate-pulse'
         }
         aria-hidden
       />
@@ -145,12 +145,12 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         type="button"
         onClick={() => setOpen(!open)}
         disabled={saving}
-        className="flex w-full items-center gap-2 rounded-lg border border-white/25 bg-white/10 px-3 py-2 text-sm text-white hover:bg-white/20 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 disabled:opacity-60"
+        className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
         aria-label="Choose branch"
         title={selected ? `Branch: ${activeLabel}` : undefined}
       >
-        <Building2 className="h-4 w-4 shrink-0 opacity-90" />
-        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-white/70'}`}>{saving ? 'Saving…' : activeLabel}</span>
+        <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
+        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400'}`}>{saving ? 'Saving…' : activeLabel}</span>
         <ChevronDown className={`h-4 w-4 shrink-0 opacity-90 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (

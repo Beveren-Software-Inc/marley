@@ -18,8 +18,15 @@ interface PatientStatus {
 const getPatientStatus = (p: any): PatientStatus => {
   const isNoShow = p.appointment_status === 'No Show'
   const isAdmitted = p.inpatient_status === 'Admitted'
-  
-  if (isAdmitted) {
+  /**
+   * WF-068: the green "Medication Ongoing" state must apply to BOTH IP and OP
+   * patients. It previously keyed off inpatient_status === 'Admitted' alone, so
+   * an outpatient on an active prescription never showed green.
+   */
+  const hasActiveMedication =
+    Boolean(p.has_active_medication) || Boolean(p.active_medication_count)
+
+  if (isAdmitted || hasActiveMedication) {
     const hasMissedAppointment = isNoShow
     return {
       color: 'green',
@@ -27,7 +34,7 @@ const getPatientStatus = (p: any): PatientStatus => {
       hasMissedAppointment
     }
   }
-  
+
   if (isNoShow) {
     return {
       color: 'red',
