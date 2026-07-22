@@ -33,12 +33,9 @@
   "do_not_bill_inpatient_encounters",
   "require_discount_approval",
   "auto_apply_patient_price_list",
-  "require_patient_address",
-  "record_clinical_extras_in_history",
   "enforce_admission_mandatory_fields",
   "verify_insurance_eligibility_on_admission",
   "require_lab_request_on_visit_completion",
-  "record_billing_in_patient_history",
   "require_patient_on_pharmacy_sale",
   "require_prescription_for_controlled_items",
   "record_pharmacy_sale_as_visit",
@@ -784,18 +781,6 @@
   },
   {
    "default": "0",
-   "fieldname": "require_patient_address",
-   "fieldtype": "Check",
-   "label": "require_patient_address"
-  },
-  {
-   "default": "0",
-   "fieldname": "record_clinical_extras_in_history",
-   "fieldtype": "Check",
-   "label": "record_clinical_extras_in_history"
-  },
-  {
-   "default": "0",
    "fieldname": "enforce_admission_mandatory_fields",
    "fieldtype": "Check",
    "label": "enforce_admission_mendatory_fields"
@@ -814,12 +799,6 @@
   },
   {
    "default": "0",
-   "fieldname": "record_billing_in_patient_history",
-   "fieldtype": "Check",
-   "label": "record_billing_in_patient_history"
-  },
-  {
-   "default": "0",
    "fieldname": "require_patient_on_pharmacy_sale",
    "fieldtype": "Check",
    "label": "require_Patient_on_pharmacy_sale"
@@ -835,6 +814,8 @@
    "fieldname": "record_pharmacy_sale_as_visit",
    "fieldtype": "Check",
    "label": "record_pharmacy_sale_as_visit"
+  },
+  {
    "fieldname": "sb_serene_automations",
    "fieldtype": "Section Break",
    "label": "Automations & Patient History"
