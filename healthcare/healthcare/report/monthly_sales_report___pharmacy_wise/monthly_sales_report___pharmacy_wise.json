@@ -1,0 +1,44 @@
+{
+ "add_total_row": 1,
+ "add_translate_data": 0,
+ "columns": [],
+ "creation": "2026-07-22 13:15:31.187983",
+ "disable_prepared_report_automation": 0,
+ "disabled": 0,
+ "docstatus": 0,
+ "doctype": "Report",
+ "filters": [],
+ "idx": 0,
+ "is_standard": "Yes",
+ "letter_head": null,
+ "modified": "2026-07-22 13:15:47.644750",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Monthly Sales Report - Pharmacy Wise",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "ref_doctype": "Sales Invoice",
+ "report_name": "Monthly Sales Report - Pharmacy Wise",
+ "report_type": "Script Report",
+	"roles": [
+  {
+   "role": "Accounts Manager"
+  },
+  {
+   "role": "Accounts User"
+  },
+  {
+   "role": "Stock Manager"
+  },
+  {
+   "role": "Stock User"
+  },
+  {
+   "role": "Healthcare Administrator"
+  },
+  {
+   "role": "Employee Self Service"
+  }
+ ],
+ "timeout": 0
+}

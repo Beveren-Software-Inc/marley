@@ -1,7 +1,14 @@
 frappe.ui.form.on('Patient', {
 	refresh: function (frm) {
+		const abha_fields = ['abha_number', 'abha_address'].filter(
+			(fieldname) => frm.fields_dict[fieldname]
+		);
+		if (!abha_fields.length) {
+			return;
+		}
+
 		if (frappe.boot.sysdefaults.country == 'India') {
-			unhide_field(['abha_number', 'abha_address']);
+			unhide_field(abha_fields);
 			if (!frm.doc.abha_address && !frm.doc.abha_number) {
 				frm.add_custom_button(__('Verify ABHA'), function () {
 					search_by_abha_address(frm)
@@ -18,7 +25,7 @@ frappe.ui.form.on('Patient', {
 				}, 'ABDM');
 			}
 		} else {
-			hide_field(['abha_number', 'abha_address']);
+			hide_field(abha_fields);
 		}
 	}
 });

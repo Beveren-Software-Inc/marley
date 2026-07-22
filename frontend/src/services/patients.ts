@@ -620,6 +620,24 @@ interface PatientDocument {
   attachment?: string
 }
 
+export interface PatientInsuranceCoverageRow {
+  name?: string
+  health_insurance?: string
+  insurance_register?: string
+  insurance_type?: string
+  insurance_company_no?: string
+  insurance_policy_no?: string
+  ref_no?: string
+  insurance_valid_till?: string | null
+  insurance_expiry_date?: string | null
+  insurance_work_place?: string
+  insurance_isdn_no?: string
+  insurance_deduction_amount?: string | number | null
+  insurance_special_note?: string
+  employee_code?: string
+  is_active?: number
+}
+
 export interface PatientDoc {
   name: string
   patient_name?: string
@@ -663,6 +681,7 @@ export interface PatientDoc {
   patient_document?: PatientDocument[]
   cpr_photo?: string | null
   cpr_photo_back?: string | null
+  patient_insurance_coverages?: PatientInsuranceCoverageRow[]
 }
 
 /** Address doc (for edit form). */
@@ -783,6 +802,7 @@ export interface UpdatePatientData {
   patient_document?: PatientDocument[]
   cpr_photo?: string | null
   cpr_photo_back?: string | null
+  patient_insurance_coverages?: PatientInsuranceCoverageRow[]
 }
 
 /** Extract user-facing message from Frappe error response (REST / method). */

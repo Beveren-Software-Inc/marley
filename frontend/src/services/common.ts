@@ -1519,6 +1519,8 @@ export interface InvoiceNeedingClaimRow {
   insurance_provider?: string | null
   patient_category?: string | null
   health_insurance?: string | null
+  claimed_amount?: number
+  remaining_claimable?: number
 }
 
 export interface InvoicesNeedingClaimFilters {
@@ -1541,8 +1543,15 @@ export async function fetchInvoicesNeedingInsuranceClaim(
   if (filters.date_to) params.append('date_to', filters.date_to)
   if (filters.health_insurance) params.append('health_insurance', filters.health_insurance)
   const url = `/api/method/healthcare.api.common.get_invoices_needing_insurance_claim?${params.toString()}`
-  const response = await fetch(url)
+  const response = await fetch(url, { credentials: 'include' })
   const resData = await response.json()
+  if (resData?.exc || resData?.exception) {
+    const msg =
+      (typeof resData.message === 'string' && resData.message) ||
+      (typeof resData.exception === 'string' && resData.exception) ||
+      'Failed to load invoices needing claim'
+    throw new Error(String(msg).split('\n')[0])
+  }
   if (resData?.message && Array.isArray(resData.message)) {
     return resData.message as InvoiceNeedingClaimRow[]
   }
@@ -1556,6 +1565,7 @@ export interface InsuranceClaimDetail {
   patient_name: string
   patient_category: string
   health_insurance: string
+  patient_insurance_coverage?: string | null
   insurance_payor: string
   claim_date: string | null
   status: string
@@ -1595,6 +1605,7 @@ export interface SaveInsuranceClaimPayload {
   claim_date?: string | null
   status?: string
   health_insurance?: string | null
+  patient_insurance_coverage?: string | null
   insurance_payor?: string | null
   sales_invoice?: string | null
   reference_doctype?: string | null

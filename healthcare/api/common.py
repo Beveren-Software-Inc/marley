@@ -6,6 +6,7 @@ import re
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 @frappe.whitelist()
@@ -2626,6 +2627,25 @@ def _claimed_sales_invoices(exclude_claim=None):
 	)
 
 
+def _get_claimed_invoice_totals(exclude_claim=None):
+	"""Map sales_invoice -> total claimed across non-cancelled claims."""
+	filters = {"sales_invoice": ["is", "set"], "docstatus": ["!=", 2]}
+	if exclude_claim:
+		filters["name"] = ["!=", exclude_claim]
+	rows = frappe.get_all(
+		"Insurance Claim",
+		filters=filters,
+		fields=["sales_invoice", "total_claimed"],
+		limit_page_length=0,
+	)
+	totals = {}
+	for row in rows:
+		if not row.sales_invoice:
+			continue
+		totals[row.sales_invoice] = flt(totals.get(row.sales_invoice)) + flt(row.total_claimed)
+	return totals
+
+
 def _is_insurance_patient(patient):
 	if not patient:
 		return False
@@ -2784,8 +2804,8 @@ def _get_invoices_needing_insurance_claim_rows(
 	date_to=None,
 	health_insurance=None,
 ):
-	"""Draft or unpaid/partly-paid invoices for insured patients with active register, no claim yet."""
-	claimed = _claimed_sales_invoices()
+	"""Draft or unpaid/partly-paid invoices for insured patients with remaining claimable amount."""
+	claimed_totals = _get_claimed_invoice_totals()
 	limit = int(limit)
 
 	if patient and not _patient_eligible_for_insurance_claim(patient):
@@ -2835,7 +2855,17 @@ def _get_invoices_needing_insurance_claim_rows(
 		filters={
 			**base,
 			"docstatus": 1,
-			"status": ["in", ["Unpaid", "Partly Paid"]],
+			"status": [
+				"in",
+				[
+					"Unpaid",
+					"Partly Paid",
+					"Overdue",
+					"Unpaid and Discounted",
+					"Partly Paid and Discounted",
+					"Overdue and Discounted",
+				],
+			],
 		},
 		fields=fields,
 		order_by="posting_date desc, creation desc",
@@ -2883,8 +2913,6 @@ def _get_invoices_needing_insurance_claim_rows(
 
 	result = []
 	for r in rows:
-		if r.name in claimed:
-			continue
 		if r.patient not in eligible:
 			continue
 		pm = patient_meta.get(r.patient)
@@ -2904,6 +2932,11 @@ def _get_invoices_needing_insurance_claim_rows(
 		r["insurance_provider"] = reg.insurance_provider if reg else None
 		r["health_insurance"] = effective_hi or ""
 		r["patient_category"] = (getattr(pm, "category", None) or "") if pm else ""
+		r["claimed_amount"] = flt(claimed_totals.get(r.name))
+		base_claimable = flt(r.outstanding_amount) if r.docstatus == 1 else flt(r.grand_total)
+		r["remaining_claimable"] = max(base_claimable - flt(r["claimed_amount"]), 0)
+		if r["remaining_claimable"] <= 0:
+			continue
 		if r.docstatus == 0:
 			r["status"] = r.status or "Draft"
 			if not r.outstanding_amount:
@@ -2974,6 +3007,7 @@ def get_insurance_claim_detail(claim_name):
 		"patient_name": doc.patient_name,
 		"patient_category": patient_category or "",
 		"health_insurance": doc.health_insurance,
+		"patient_insurance_coverage": doc.patient_insurance_coverage,
 		"insurance_payor": doc.insurance_payor,
 		"claim_date": str(doc.claim_date) if doc.claim_date else None,
 		"status": doc.status,
@@ -2993,6 +3027,7 @@ def _apply_insurance_claim_payload(doc, data):
 	"""Set header fields on an Insurance Claim from portal payload."""
 	doc.patient = data.get("patient")
 	doc.health_insurance = data.get("health_insurance") or None
+	doc.patient_insurance_coverage = data.get("patient_insurance_coverage") or None
 	doc.insurance_payor = data.get("insurance_payor") or None
 	doc.claim_date = data.get("claim_date") or None
 	doc.status = data.get("status") or "Draft"
@@ -3020,6 +3055,13 @@ def _append_claim_items(doc, claim_items):
 		})
 
 
+def _claim_payload_total(claim_items):
+	total = 0
+	for ci in claim_items or []:
+		total += flt(ci.get("covered_amount") or ci.get("gross_amount") or 0)
+	return total
+
+
 @frappe.whitelist()
 def save_insurance_claim(data):
 	"""Create or update a draft Insurance Claim; optionally submit."""
@@ -3033,13 +3075,44 @@ def save_insurance_claim(data):
 	submit = cint(data.get("submit"))
 	claim_name = (data.get("name") or "").strip()
 	sales_invoice = data.get("sales_invoice")
+	health_insurance = data.get("health_insurance")
+	claim_items = data.get("claim_items") or []
 
 	if sales_invoice:
-		claimed = _claimed_sales_invoices(exclude_claim=claim_name or None)
-		if sales_invoice in claimed:
+		existing_claims = frappe.get_all(
+			"Insurance Claim",
+			filters={
+				"sales_invoice": sales_invoice,
+				"docstatus": ["!=", 2],
+				"name": ["!=", claim_name or ""],
+			},
+			fields=["name", "health_insurance", "total_claimed"],
+			limit_page_length=0,
+		)
+		if health_insurance and any(c.health_insurance == health_insurance for c in existing_claims):
 			frappe.throw(
-				_("Sales Invoice {0} is already linked to an Insurance Claim").format(sales_invoice)
+				_("Sales Invoice {0} already has a claim for insurance {1}").format(
+					sales_invoice, health_insurance
+				)
 			)
+		invoice = frappe.db.get_value(
+			"Sales Invoice",
+			sales_invoice,
+			["docstatus", "grand_total", "outstanding_amount"],
+			as_dict=True,
+		)
+		if invoice:
+			base_claimable = (
+				flt(invoice.outstanding_amount) if cint(invoice.docstatus) == 1 else flt(invoice.grand_total)
+			)
+			existing_total = sum(flt(c.total_claimed) for c in existing_claims)
+			requested_total = _claim_payload_total(claim_items)
+			if existing_total + requested_total > base_claimable + 0.001:
+				frappe.throw(
+					_(
+						"Claim amount exceeds the remaining claimable amount for Sales Invoice {0}. Remaining: {1}"
+					).format(sales_invoice, frappe.format_value(base_claimable - existing_total, {"fieldtype": "Currency"}))
+				)
 
 	if claim_name:
 		doc = frappe.get_doc("Insurance Claim", claim_name)
@@ -3053,7 +3126,7 @@ def save_insurance_claim(data):
 		doc.status = "Draft"
 	if submit and doc.status == "Draft":
 		doc.status = "Submitted"
-	_append_claim_items(doc, data.get("claim_items"))
+	_append_claim_items(doc, claim_items)
 
 	if not claim_name:
 		# New claim: auto-generate a legacy-style trans_no and make sure an
@@ -4787,52 +4860,109 @@ def create_and_submit_insurance_claim(data):
 
 
 @frappe.whitelist()
-def update_insurance_claim(claim_name, status=None, total_approved=None, total_rejected=None,
-	authorization_no=None, remark=None):
+def update_insurance_claim(
+	claim_name,
+	status=None,
+	total_approved=None,
+	total_rejected=None,
+	authorization_no=None,
+	remark=None,
+	mode_of_payment=None,
+	reference_no=None,
+	reference_date=None,
+):
 	"""Update editable fields on a submitted Insurance Claim.
 
-	Status is auto-derived from approved vs claimed amounts unless the caller
-	explicitly passes 'Rejected':
+	When Amount Approved increases, a Payment Entry is created against the
+	linked Sales Invoice (requires Mode of Payment). Status is then derived:
 	  - total_approved >= total_claimed  → Paid
 	  - 0 < total_approved < total_claimed → Partially Paid
-	  - total_approved == 0  → Submitted (no payment yet)
+	  - total_approved == 0  → Submitted
 	"""
 	if not claim_name:
 		frappe.throw(_("Claim name is required"))
 	assert_editing_allowed()
 
-	updates = {}
+	if not frappe.db.exists("Insurance Claim", claim_name):
+		frappe.throw(_("Insurance Claim {0} not found").format(claim_name))
+
+	claim = frappe.get_doc("Insurance Claim", claim_name)
+	pe_name = None
+	derived_status = None
 
 	approved = float(total_approved) if total_approved is not None else None
 	rejected = float(total_rejected) if total_rejected is not None else None
 
-	if approved is not None:
-		updates["total_approved"] = approved
-	if rejected is not None:
-		updates["total_rejected"] = rejected
-	if authorization_no is not None:
-		updates["authorization_no"] = authorization_no
-	if remark is not None:
-		updates["remark"] = remark
-
-	# Derive status from amounts when approved amount is provided
-	if approved is not None and status != "Rejected":
-		total_claimed = frappe.db.get_value("Insurance Claim", claim_name, "total_claimed") or 0
-		total_claimed = float(total_claimed)
-		if total_claimed > 0 and approved >= total_claimed:
-			updates["status"] = "Paid"
-		elif approved > 0:
-			updates["status"] = "Partially Paid"
-		else:
-			updates["status"] = "Submitted"
-	elif status is not None:
-		updates["status"] = status
-
-	if updates:
-		frappe.db.set_value("Insurance Claim", claim_name, updates)
+	if status == "Rejected":
+		claim.status = "Rejected"
+		if rejected is not None:
+			claim.total_rejected = rejected
+		elif approved is not None:
+			# If rejecting with an approved=0 style payload, keep rejected amount if given.
+			pass
+		if authorization_no is not None:
+			claim.authorization_no = authorization_no
+		if remark is not None:
+			claim.remark = remark
+		claim.save(ignore_permissions=True)
 		frappe.db.commit()
+		return {"name": claim_name, "derived_status": "Rejected", "payment_entry": None}
 
-	return {"name": claim_name, "derived_status": updates.get("status")}
+	if approved is not None:
+		current_approved = flt(claim.total_approved)
+		delta = flt(approved) - current_approved
+
+		if delta > 0:
+			if not claim.sales_invoice:
+				frappe.throw(
+					_("Cannot record payment for claim {0}: no Sales Invoice is linked").format(
+						claim_name
+					)
+				)
+			if not mode_of_payment:
+				frappe.throw(
+					_("Mode of Payment is required when recording an insurance payment")
+				)
+
+			from healthcare.healthcare.api.insurance_claim import update_insurance_claim_payment
+
+			result = update_insurance_claim_payment(
+				name=claim_name,
+				paid_amount=approved,
+				mode_of_payment=mode_of_payment,
+				reference_no=reference_no,
+				reference_date=reference_date,
+			)
+			pe_name = result.get("payment_entry")
+			derived_status = result.get("status")
+			claim.reload()
+		else:
+			claim.total_approved = approved
+			total_claimed = flt(claim.total_claimed)
+			if total_claimed > 0 and approved >= total_claimed:
+				claim.status = "Paid"
+			elif approved > 0:
+				claim.status = "Partially Paid"
+			else:
+				claim.status = "Submitted"
+			derived_status = claim.status
+
+	if rejected is not None:
+		claim.total_rejected = rejected
+	if authorization_no is not None:
+		claim.authorization_no = authorization_no
+	if remark is not None:
+		claim.remark = remark
+
+	claim.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"name": claim_name,
+		"derived_status": derived_status or claim.status,
+		"payment_entry": pe_name,
+		"total_approved": flt(claim.total_approved),
+	}
 
 
 @frappe.whitelist()
@@ -4866,7 +4996,15 @@ def get_patient_unpaid_invoices(patient):
 		order_by="posting_date desc, creation desc",
 		limit=100,
 	)
-	return rows
+	claimed_totals = _get_claimed_invoice_totals()
+	result = []
+	for row in rows:
+		row["claimed_amount"] = flt(claimed_totals.get(row.name))
+		row["remaining_claimable"] = max(flt(row.outstanding_amount) - flt(row["claimed_amount"]), 0)
+		if row["remaining_claimable"] <= 0:
+			continue
+		result.append(row)
+	return result
 
 
 @frappe.whitelist()

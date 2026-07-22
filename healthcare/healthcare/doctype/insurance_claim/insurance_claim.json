@@ -12,6 +12,7 @@
   "patient",
   "patient_name",
   "health_insurance",
+  "patient_insurance_coverage",
   "column_break_sgjh",
   "insurance_payor",
   "claim_date",
@@ -84,6 +85,12 @@
    "fieldtype": "Link",
    "label": "Health Insurance",
    "options": "Health Insurance"
+  },
+  {
+   "fieldname": "patient_insurance_coverage",
+   "fieldtype": "Link",
+   "label": "Patient Insurance Coverage",
+   "options": "Patient Insurance Cover"
   },
   {
    "fieldname": "insurance_payor",
@@ -205,6 +212,7 @@
    "options": "Insurance Claim"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "authorization_no",
    "fieldtype": "Data",
    "label": "Authorization No"
@@ -388,7 +396,7 @@
    "link_fieldname": "custom_insurance_claim"
   }
  ],
- "modified": "2026-07-09 00:08:16.178859",
+ "modified": "2026-07-22 13:08:58.192035",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Claim",

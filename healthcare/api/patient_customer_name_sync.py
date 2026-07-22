@@ -83,6 +83,11 @@ def _other_patient_using_customer(customer_id: str, patient: str) -> str | None:
 	return None
 
 
+def _display_customer_name(row: dict, target_id: str) -> str:
+	"""Customer Name = Patient Name (fallback to File No / ID)."""
+	return (row.get("patient_name") or target_id or "").strip()
+
+
 def _sync_one_patient_customer(row: dict) -> str:
 	"""Return: renamed | merged | updated_name | skipped_ok | skipped_no_customer | skipped_no_id | skipped_conflict | error"""
 	customer = (row.get("customer") or "").strip()
@@ -97,20 +102,21 @@ def _sync_one_patient_customer(row: dict) -> str:
 	current_id = customer
 	current_name = (frappe.db.get_value("Customer", current_id, "customer_name") or "").strip()
 	file_no = (row.get("file_no") or target_id or "").strip()
+	display_name = _display_customer_name(row, target_id)
 
 	if current_id == target_id:
-		if current_name == target_id:
+		if current_name == display_name:
 			_set_customer_file_no_field(target_id, file_no)
 			return "skipped_ok"
 		frappe.db.set_value(
 			"Customer",
 			target_id,
 			"customer_name",
-			target_id,
+			display_name,
 			update_modified=False,
 		)
 		_set_customer_file_no_field(target_id, file_no)
-		_backfill_transaction_display_names(target_id, target_id)
+		_backfill_transaction_display_names(target_id, display_name)
 		return "updated_name"
 
 	target_exists = frappe.db.exists("Customer", target_id)
@@ -134,13 +140,13 @@ def _sync_one_patient_customer(row: dict) -> str:
 			"Customer",
 			target_id,
 			"customer_name",
-			target_id,
+			display_name,
 			update_modified=False,
 		)
 		_set_customer_file_no_field(target_id, file_no)
 		if frappe.db.get_value("Patient", patient, "customer") != target_id:
 			frappe.db.set_value("Patient", patient, "customer", target_id, update_modified=False)
-		_backfill_transaction_display_names(target_id, target_id)
+		_backfill_transaction_display_names(target_id, display_name)
 		return "merged"
 
 	try:
@@ -158,14 +164,14 @@ def _sync_one_patient_customer(row: dict) -> str:
 		"Customer",
 		target_id,
 		"customer_name",
-		target_id,
+		display_name,
 		update_modified=False,
 	)
 	_set_customer_file_no_field(target_id, file_no)
 	if frappe.db.get_value("Patient", patient, "customer") != target_id:
 		frappe.db.set_value("Patient", patient, "customer", target_id, update_modified=False)
 
-	_backfill_transaction_display_names(target_id, target_id)
+	_backfill_transaction_display_names(target_id, display_name)
 	return "renamed"
 
 
@@ -177,6 +183,7 @@ def preview_patient_customer_name_sync() -> dict:
 		"""
 		SELECT
 			p.name,
+			p.patient_name,
 			p.file_no,
 			p.id_number,
 			p.customer,
@@ -204,8 +211,9 @@ def preview_patient_customer_name_sync() -> dict:
 
 		current_id = (row.get("customer_id") or "").strip()
 		current_name = (row.get("current_customer_name") or "").strip()
+		display_name = _display_customer_name(row, target_id)
 		id_ok = current_id == target_id
-		name_ok = current_name == target_id
+		name_ok = current_name == display_name
 
 		if id_ok and name_ok:
 			continue
@@ -278,6 +286,7 @@ def start_patient_customer_name_sync() -> dict:
 			"Customer ID sync started. "
 			"Each linked Customer will be renamed to the Patient File No "
 			"(merge with an existing Customer of that ID when safe). "
+			"Customer Name is set to the Patient Name. "
 			"Sales Invoices, Orders, Payment Entries, and other links follow the new ID."
 		),
 	}
@@ -287,7 +296,7 @@ def process_patient_customer_name_sync_batch(offset: int = 0) -> None:
 	try:
 		rows = frappe.db.sql(
 			"""
-			SELECT name, file_no, id_number, customer
+			SELECT name, patient_name, file_no, id_number, customer
 			FROM `tabPatient`
 			ORDER BY name
 			LIMIT %s OFFSET %s

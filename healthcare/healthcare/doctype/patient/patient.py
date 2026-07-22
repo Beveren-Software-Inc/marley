@@ -36,6 +36,7 @@ class Patient(Document):
 		# self.set_full_name()
 		self.flags.is_new_doc = self.is_new()
 		self.flags.existing_customer = self.is_new() and bool(self.customer)
+		self._sync_primary_insurance_from_coverages()
 
 		if not getattr(self.flags, "from_legacy_import", False):
 			from healthcare.healthcare.doctype.patient.patient_duplicate import throw_if_duplicate_patient
@@ -76,11 +77,17 @@ class Patient(Document):
 					{"doctype": "Patient", "name": ["!=", self.name], "customer": self.customer}
 				):
 					self.update_patient_based_on_existing_customer()
-				else:
-					self.update_linked_customer()
+				elif self._should_sync_linked_customer():
+					# Run after commit so Patient row locks are released before
+					# Customer/global_search work (avoids lock wait timeouts).
+					frappe.db.after_commit.add(
+						lambda name=self.name: _sync_linked_customer_after_commit(name)
+					)
 
 			else:
-				create_customer(self)
+				frappe.db.after_commit.add(
+					lambda name=self.name: _ensure_patient_customer_after_commit(name)
+				)
 
 		# self.set_contact()  # add or update contact
 
@@ -107,6 +114,70 @@ class Patient(Document):
 			updates["status"] = "Active"
 		if updates:
 			frappe.db.set_value("Insurance Patient Register", reg, updates)
+
+	def _sync_primary_insurance_from_coverages(self):
+		"""Keep main insurance fields and child table in sync.
+
+		- If child rows exist: copy the primary/active row onto the main fields.
+		- If main fields are filled but child table is empty: create one child row
+		  from the main fields (do not wipe values entered on the parent form).
+		- Only clear insurance when Is Insurance is off and no child/main data remains.
+		"""
+		rows = [
+			row
+			for row in (self.get("patient_insurance_coverage") or [])
+			if row.get("health_insurance")
+			or row.get("insurance_register")
+			or row.get("insurance_policy_no")
+		]
+		active_rows = [row for row in rows if cint(row.get("is_active"))]
+		primary = (active_rows or rows or [None])[0]
+
+		if not primary:
+			# User filled parent insurance fields without adding a child row yet.
+			if cint(self.is_insurance) or self.get("insurance") or self.get("insurance_register"):
+				self.append(
+					"patient_insurance_coverage",
+					{
+						"health_insurance": self.get("insurance") or None,
+						"insurance_register": self.get("insurance_register") or None,
+						"insurance_type": self.get("insurance_type") or None,
+						"insurance_company_no": self.get("insurance_company_no") or None,
+						"insurance_policy_no": self.get("insurance_policy_no") or None,
+						"ref_no": self.get("ref_no") or None,
+						"insurance_valid_till": self.get("insurance_valid_till") or None,
+						"insurance_expiry_date": self.get("insurance_expiry_date") or None,
+						"insurance_work_place": self.get("insurance_work_place") or None,
+						"insurance_isdn_no": self.get("insurance_isdn_no") or None,
+						"insurance_deduction_amount": self.get("insurance_deduction_amount") or None,
+						"insurance_special_note": self.get("insurance_special_note") or None,
+						"employee_code": self.get("employee_code") or None,
+						"is_active": 1,
+					},
+				)
+				self.is_insurance = 1
+				return
+
+			# No insurance data at all — leave fields alone unless explicitly unchecked.
+			if not cint(self.is_insurance):
+				return
+			self.is_insurance = 0
+			return
+
+		self.is_insurance = 1
+		self.insurance = primary.get("health_insurance") or None
+		self.insurance_type = primary.get("insurance_type") or None
+		self.insurance_company_no = primary.get("insurance_company_no") or None
+		self.insurance_policy_no = primary.get("insurance_policy_no") or None
+		self.ref_no = primary.get("ref_no") or None
+		self.insurance_register = primary.get("insurance_register") or None
+		self.insurance_valid_till = primary.get("insurance_valid_till") or None
+		self.insurance_expiry_date = primary.get("insurance_expiry_date") or None
+		self.insurance_work_place = primary.get("insurance_work_place") or None
+		self.insurance_isdn_no = primary.get("insurance_isdn_no") or None
+		self.insurance_deduction_amount = primary.get("insurance_deduction_amount") or None
+		self.insurance_special_note = primary.get("insurance_special_note") or None
+		self.employee_code = primary.get("employee_code") or None
 
 	def load_dashboard_info(self):
 		if self.customer:
@@ -330,7 +401,26 @@ class Patient(Document):
 				"age_in_days": diff,
 			}
 
+	def _should_sync_linked_customer(self) -> bool:
+		"""Only push Patient → Customer when relevant fields actually changed."""
+		if self.flags.get("is_new_doc"):
+			return True
+		watch = (
+			"patient_name",
+			"customer_group",
+			"category",
+			"territory",
+			"default_price_list",
+			"default_currency",
+			"language",
+			"image",
+		)
+		return any(self.has_value_changed(field) for field in watch)
+
 	def update_linked_customer(self):
+		if not self.customer or not frappe.db.exists("Customer", self.customer):
+			return
+
 		customer = frappe.get_doc("Customer", self.customer)
 		cg = self.customer_group
 		if cg and not _is_group_customer_group(cg):
@@ -346,7 +436,11 @@ class Patient(Document):
 		customer.default_currency = self.default_currency
 		customer.language = self.language
 		customer.image = self.image
-		customer.ignore_mandatory = True
+		if frappe.db.has_column("Customer", "custom_patient_file_no"):
+			file_no = cstr(self.get("file_no") or self.name or "").strip()
+			if file_no:
+				customer.custom_patient_file_no = file_no
+		customer.flags.ignore_mandatory = True
 		customer.save(ignore_permissions=True)
 
 		frappe.msgprint(_("Customer {0} updated").format(customer.name), alert=True)
@@ -454,28 +548,107 @@ def resolve_patient_customer_group(category=None, customer_group=None):
 	return "Patient"
 
 
+def _ensure_patient_customer_after_commit(patient_name: str) -> None:
+	"""Create Customer after Patient transaction has committed."""
+	try:
+		if not patient_name or not frappe.db.exists("Patient", patient_name):
+			return
+		patient = frappe.get_doc("Patient", patient_name)
+		if patient.customer:
+			return
+		create_customer(patient)
+	except Exception:
+		frappe.log_error(
+			message=frappe.get_traceback(),
+			title=f"Create Customer for Patient {patient_name} failed",
+		)
+
+
+def _sync_linked_customer_after_commit(patient_name: str) -> None:
+	"""Sync Customer details after Patient transaction has committed."""
+	try:
+		if not patient_name or not frappe.db.exists("Patient", patient_name):
+			return
+		patient = frappe.get_doc("Patient", patient_name)
+		if not patient.customer:
+			create_customer(patient)
+			return
+		patient.update_linked_customer()
+	except Exception:
+		frappe.log_error(
+			message=frappe.get_traceback(),
+			title=f"Sync Customer for Patient {patient_name} failed",
+		)
+
+
 def create_customer(doc):
+	"""Create/link Customer for a Patient.
+
+	Customer ID (document name) = Patient File No
+	Customer Name = Patient Name
+	"""
+	if doc.get("customer") and frappe.db.exists("Customer", doc.customer):
+		return
+
 	customer_group = resolve_patient_customer_group(doc.category, doc.customer_group)
+	file_no = cstr(doc.get("file_no") or doc.name or "").strip()
+	display_name = cstr(doc.patient_name or file_no).strip()
+	if not file_no:
+		frappe.throw(_("Patient File No is required to create Customer"))
 
-	# Create Customer
-	customer = frappe.get_doc({
-		"doctype": "Customer",
-		"customer_name": doc.patient_name,
-		"customer_group": customer_group,
-		"territory": doc.territory or frappe.db.get_single_value("Selling Settings", "territory"),
-		"customer_type": "Individual",
-		"default_currency": doc.default_currency,
-		"default_price_list": doc.default_price_list,
-		"language": doc.language,
-		"image": doc.image,
-	}).insert(ignore_permissions=True, ignore_mandatory=True)
+	# Reuse an existing Customer with this File No when it is not linked to another patient.
+	if frappe.db.exists("Customer", file_no):
+		other = frappe.db.get_value("Patient", {"customer": file_no}, "name")
+		if other and other != doc.name:
+			frappe.throw(
+				_("Customer {0} is already linked to Patient {1}").format(
+					frappe.bold(file_no), frappe.bold(other)
+				)
+			)
+		customer = frappe.get_doc("Customer", file_no)
+		customer.customer_name = display_name
+		customer.customer_group = customer_group
+		if doc.territory:
+			customer.territory = doc.territory
+		if doc.default_currency:
+			customer.default_currency = doc.default_currency
+		if doc.default_price_list:
+			customer.default_price_list = doc.default_price_list
+		if doc.language:
+			customer.language = doc.language
+		if doc.image:
+			customer.image = doc.image
+		if frappe.db.has_column("Customer", "custom_patient_file_no"):
+			customer.custom_patient_file_no = file_no
+		customer.flags.ignore_mandatory = True
+		customer.save(ignore_permissions=True)
+	else:
+		customer_payload = {
+			"doctype": "Customer",
+			"customer_name": display_name,
+			"customer_group": customer_group,
+			"territory": doc.territory or frappe.db.get_single_value("Selling Settings", "territory"),
+			"customer_type": "Individual",
+			"default_currency": doc.default_currency,
+			"default_price_list": doc.default_price_list,
+			"language": doc.language,
+			"image": doc.image,
+		}
+		if frappe.db.has_column("Customer", "custom_patient_file_no"):
+			customer_payload["custom_patient_file_no"] = file_no
 
-	# Link back to Patient
+		customer = frappe.get_doc(customer_payload)
+		# Force Customer ID = Patient File No (bypass Customer naming series).
+		customer.name = file_no
+		customer.flags.name_set = True
+		customer.insert(ignore_permissions=True, ignore_mandatory=True)
+
 	frappe.db.set_value("Patient", doc.name, "customer", customer.name)
+	doc.customer = customer.name
 
 	frappe.msgprint(
 		_("Customer {0} created and linked to Patient").format(customer.name),
-		alert=True
+		alert=True,
 	)
 
 def make_invoice(patient, company):
