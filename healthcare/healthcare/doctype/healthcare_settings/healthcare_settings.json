@@ -29,6 +29,8 @@
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
   "do_not_bill_inpatient_encounters",
+  "require_discount_approval",
+  "auto_apply_patient_price_list",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -723,11 +725,23 @@
    "fieldname": "apply_multiplier_on_insurance",
    "fieldtype": "Check",
    "label": "Apply Multiplier on Insurance"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_discount_approval",
+   "fieldtype": "Check",
+   "label": "Require Discount Approval"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_apply_patient_price_list",
+   "fieldtype": "Check",
+   "label": "auto_apply_patient_price_list"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-16 02:19:49.350882",
+ "modified": "2026-07-21 23:05:07.296996",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

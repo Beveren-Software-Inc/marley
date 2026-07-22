@@ -600,12 +600,14 @@
    "fieldtype": "Column Break"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reference_document_type",
    "fieldtype": "Link",
    "label": "Reference Document Type",
    "options": "DocType"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "reference_document_name",
    "fieldtype": "Dynamic Link",
    "label": "Reference Document Name",
@@ -724,7 +726,7 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-07-01 15:51:14.457112",
+ "modified": "2026-07-21 23:56:23.994584",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Service Request",
