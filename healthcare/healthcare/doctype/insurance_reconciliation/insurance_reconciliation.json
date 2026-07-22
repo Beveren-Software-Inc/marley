@@ -27,8 +27,8 @@
   {
    "fieldname": "insurance_payor",
    "fieldtype": "Link",
-   "label": "Insurance Payor",
-   "options": "Insurance Payor",
+   "label": "Insurance Company",
+   "options": "Insurance Company",
    "reqd": 1
   },
   {

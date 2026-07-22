@@ -69,15 +69,15 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
 
   {
-    groupTitle: 'Clinical Documentation',
+    groupTitle: 'Documentation',
     screens: [
       { id: 'dpn', title: 'Patient Progress Note' },
-      { id: 'dos', title: 'Doctors Order' },
-      { id: 'dx', title: 'Diagnoses' },
+      { id: 'dos', title: 'Doctors Orders' },
+      { id: 'dx', title: 'Diagnoses Detail' },
       { id: 'psy-n', title: 'Psychology Notes' },
-      { id: 'psy-o', title: 'Psychology Order' },
-      { id: 'nut', title: 'Nutritionist Notes' },
-      { id: 'ther', title: 'Therapist Notes' },
+      { id: 'psy-o', title: 'Psychology Orders' },
+      { id: 'nut', title: 'Nutrition Notes' },
+      { id: 'ther', title: 'Occupational Therapy Notes' },
       { id: 'nurse', title: 'Nursing Notes' },
     ],
   },
@@ -90,10 +90,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
     screens: [{ id: 'd-long-acting-meds', title: 'Long Acting Medicines' }],
   },
   {
-    groupTitle: '',
-    screens: [{ id: 'lab-req', title: 'Lab Requests' }],
-  },
-  {
+    // 'lab-req' tab removed — Lab Requests now lives inside the Laboratory screen.
     groupTitle: '',
     screens: [{ id: 'lab', title: 'Laboratory' }],
   },
@@ -118,11 +115,12 @@ export const doctorScreenGroups: ScreenGroup[] = [
     screens: [{ id: 'fall', title: 'Morse Fall Scale' }],
   },
   {
-    groupTitle: 'Certificates & Reports',
-    screens: [
-      { id: 'd-sick-leave', title: 'Sick Leave' },
-      { id: 'd-ip-medical-report', title: 'IP Medical Report' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'd-sick-leave', title: 'Sick Leave' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-ip-medical-report', title: 'IP Medical Report' }],
   },
   {
     // These have working handlers in Doctor.tsx but had been dropped from the
@@ -134,26 +132,28 @@ export const doctorScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    groupTitle: 'Scheduling & Services',
-    screens: [
-      { id: 'd-other-services', title: 'Other Services' },
-      { id: 'd-followups', title: 'Follow Ups' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'd-other-services', title: 'Other Services' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-followups', title: 'Follow Ups' }],
   },
   {
     groupTitle: '',
     screens: [{ id: 'd-discharge-procedure', title: 'Discharge Procedure' }],
   },
   {
-    groupTitle: 'Risk & Quality',
-    screens: [
-      { id: 'd-overdue-actions', title: 'Overdue Clinical Actions' },
-      { id: 'd-risk-register', title: 'Risk Register' },
-    ],
+    groupTitle: '',
+    screens: [{ id: 'd-overdue-actions', title: 'Overdue Clinical Actions' }],
   },
   {
-    groupTitle: 'Billing (read-only)',
-    screens: [{ id: 'd-ledger', title: 'Ledger & Invoices' }],
+    groupTitle: '',
+    screens: [{ id: 'd-risk-register', title: 'Risk Register' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-ledger', title: 'Patient Invoice' }],
   },
 ]
 
