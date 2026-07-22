@@ -35,6 +35,8 @@
   "record_clinical_extras_in_history",
   "enforce_admission_mandatory_fields",
   "verify_insurance_eligibility_on_admission",
+  "require_lab_request_on_visit_completion",
+  "record_billing_in_patient_history",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -765,11 +767,23 @@
    "fieldname": "verify_insurance_eligibility_on_admission",
    "fieldtype": "Check",
    "label": "verify_insurance_eligibility_on_admission"
+  },
+  {
+   "default": "0",
+   "fieldname": "require_lab_request_on_visit_completion",
+   "fieldtype": "Check",
+   "label": "require_lab_request_on_visit_completion"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_billing_in_patient_history",
+   "fieldtype": "Check",
+   "label": "record_billing_in_patient_history"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 12:38:32.949551",
+ "modified": "2026-07-22 12:46:33.819114",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
