@@ -781,8 +781,15 @@ def get_payment_entries(
     if mode_of_payment:
         conditions.append("pe.mode_of_payment = %(mode_of_payment)s")
         params["mode_of_payment"] = mode_of_payment
+    has_payment_owner = frappe.get_meta("Payment Entry").has_field("custom_payment_owner")
+    credited_expr = (
+        "IFNULL(NULLIF(pe.custom_payment_owner, ''), pe.owner)"
+        if has_payment_owner
+        else "pe.owner"
+    )
+
     if cashier:
-        conditions.append("pe.owner = %(cashier)s")
+        conditions.append(f"{credited_expr} = %(cashier)s")
         params["cashier"] = cashier
 
     patient_customer = None
@@ -844,14 +851,14 @@ def get_payment_entries(
             pe.reference_no,
             pe.cost_center,
             pe.remarks,
-            pe.owner AS cashier,
-            MAX(IFNULL(NULLIF(u.full_name, ''), pe.owner)) AS cashier_name,
+            {credited_expr} AS cashier,
+            MAX(IFNULL(NULLIF(u.full_name, ''), {credited_expr})) AS cashier_name,
             GROUP_CONCAT(DISTINCT per.reference_name ORDER BY per.reference_name SEPARATOR ', ') AS invoice_name,
             MAX(si.custom_reference_type) AS invoice_reference_type,
             MAX(si.custom_reference_name) AS invoice_reference_name
         FROM `tabPayment Entry` pe
         LEFT JOIN `tabUser` u
-            ON u.name = pe.owner
+            ON u.name = {credited_expr}
         LEFT JOIN `tabPayment Entry Reference` per
             ON per.parent = pe.name
            AND per.reference_doctype = 'Sales Invoice'

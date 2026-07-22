@@ -18,7 +18,7 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { toast } from '../../hooks/useToast'
 import { getInvoicesByReference } from '../../services/serviceOrders'
-import { fetchAppointmentPractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import { fetchAppointmentPractitioners, fetchBranchOptions, fetchUsers, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
@@ -28,6 +28,7 @@ import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { isDoctorRole } from '../../config/permissions'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
+import { ReceptionistOwnerCell } from '../ui/ReceptionistOwnerCell'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -145,9 +146,12 @@ export const PatientVisitList = ({
   // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
   const [filterBranch, setFilterBranch] = useState('')
   const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  const [receptionistFilter, setReceptionistFilter] = useState('')
+  const [receptionists, setReceptionists] = useState<LinkFieldOption[]>([])
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
+    fetchUsers(undefined, 'Receptionist').then((opts) => { if (!cancelled) setReceptionists(opts) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
 
@@ -255,6 +259,7 @@ export const PatientVisitList = ({
         pageSize,
         (page - 1) * pageSize,
         filterBranch || undefined,
+        receptionistFilter || undefined,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
@@ -269,12 +274,12 @@ export const PatientVisitList = ({
   useEffect(() => {
     if (!practitionerDefaultReady) return
     fetchVisits()
-  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, visitTypeFilter, filterBranch, practitionerDefaultReady])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, refreshKey, effectiveVisitFilter, page, pageSize, visitType, visitTypeFilter, filterBranch, receptionistFilter, practitionerDefaultReady])
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, visitTypeFilter, filterBranch])
+  }, [selectedStatus, practitionerFilter, dateFrom, dateTo, effectivePatient, externalSearchQuery, effectiveVisitFilter, visitType, visitTypeFilter, filterBranch, receptionistFilter])
 
   // Close action row dropdown on outside click (ignore portaled menu and trigger button)
   useEffect(() => {
@@ -356,10 +361,11 @@ export const PatientVisitList = ({
     setSelectedStatus('')
     setFilterBranch(userCostCenter || '')
     setVisitTypeFilter('')
+    setReceptionistFilter('')
   }
 
   const hasActiveFilters = Boolean(
-    selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch || visitTypeFilter,
+    selectedStatus || practitionerFilter || dateFrom || dateTo || filterBranch || visitTypeFilter || receptionistFilter,
   )
   const statuses = ['Open', 'Ordered', 'Completed', 'Cancelled']
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
@@ -368,7 +374,7 @@ export const PatientVisitList = ({
     ? 17
     : cardCompactLayout
     ? 3
-    : 8 +
+    : 9 +
       (patient ? 0 : 1) +
       (showAppointmentAmount ? 1 : 0) -
       (hideLabPharmacyAmounts ? 2 : 0)
@@ -501,6 +507,7 @@ export const PatientVisitList = ({
       ...(!hideLabPharmacyAmounts ? ['Lab Amount', 'Pharmacy Amount'] : []),
       'Service Amount',
       'Status',
+      'Receptionist',
     ]
     const rows = visits.map((v) => [
       v.value,
@@ -513,6 +520,7 @@ export const PatientVisitList = ({
         : []),
       String(v.service_amount ?? 0),
       v.status || '',
+      v.user_name || v.user || '',
     ])
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -536,13 +544,14 @@ export const PatientVisitList = ({
         const billingTds = hideLabPharmacyAmounts
           ? `<td>${formatAmount(v.service_amount)}</td>`
           : `<td>${formatAmount(v.lab_amount)}</td><td>${formatAmount(v.pharmacy_amount)}</td><td>${formatAmount(v.service_amount)}</td>`
-        return `<tr><td>${v.value}</td><td>${v.patient_name || ''}</td><td>${v.practitioner_name || ''}</td><td>${v.encounter_date || ''}</td>${apptTd}${billingTds}<td>${v.status || ''}</td></tr>`
+        const receptionist = v.user_name || v.user || ''
+        return `<tr><td>${v.value}</td><td>${v.patient_name || ''}</td><td>${v.practitioner_name || ''}</td><td>${v.encounter_date || ''}</td>${apptTd}${billingTds}<td>${v.status || ''}</td><td>${receptionist}</td></tr>`
       })
       .join('')
     const billingTh = hideLabPharmacyAmounts
       ? '<th>Service</th>'
       : '<th>Lab</th><th>Pharmacy</th><th>Service</th>'
-    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Doctor</th><th>Encounter Date</th>${apptTh}${billingTh}<th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    win.document.write(`<html><head><title>Patient Visit Listing</title></head><body><h3>Patient Visit Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Visit No</th><th>Patient</th><th>Doctor</th><th>Encounter Date</th>${apptTh}${billingTh}<th>Status</th><th>Receptionist</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
   }
@@ -699,6 +708,22 @@ export const PatientVisitList = ({
           </div>
         )}
 
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Receptionist</label>
+          <select
+            value={receptionistFilter}
+            onChange={(e) => setReceptionistFilter(e.target.value)}
+            className={inputClass}
+          >
+            <option value="">Select All</option>
+            {receptionists.map((user) => (
+              <option key={user.name} value={user.name}>
+                {user.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
         <div className="flex items-end">
           <ClearFiltersButton onClick={handleClearFilters} disabled={!hasActiveFilters} />
         </div>
@@ -740,7 +765,7 @@ export const PatientVisitList = ({
               <tr>
                 {detailedColumns ? (
                   <>
-                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'User', 'Actions'].map((h) => (
+                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'Receptionist', 'Actions'].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
                         {h}
                       </th>
@@ -779,6 +804,7 @@ export const PatientVisitList = ({
                     )}
                     <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Service Amount</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Receptionist</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide w-[100px]">Actions</th>
                   </>
                 )}
@@ -814,7 +840,23 @@ export const PatientVisitList = ({
                     <td className="px-3 py-2.5 whitespace-nowrap"><StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} /></td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.user || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                      <ReceptionistOwnerCell
+                        doctype="Patient Visit"
+                        docName={visit.value}
+                        userId={visit.user}
+                        userLabel={visit.user_name || visit.user}
+                        onChanged={(userId, fullName) => {
+                          setVisits((prev) =>
+                            prev.map((row) =>
+                              row.value === visit.value
+                                ? { ...row, user: userId, user_name: fullName }
+                                : row
+                            )
+                          )
+                        }}
+                      />
+                    </td>
                     {renderVisitActionsCell(visit, true)}
                   </tr>
                 ))
@@ -875,6 +917,23 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3 text-sm text-slate-700 text-right">{formatAmount(visit.service_amount)}</td>
                   <td className="px-4 py-3">
                     <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700" onClick={(e) => e.stopPropagation()}>
+                    <ReceptionistOwnerCell
+                      doctype="Patient Visit"
+                      docName={visit.value}
+                      userId={visit.user}
+                      userLabel={visit.user_name || visit.user}
+                      onChanged={(userId, fullName) => {
+                        setVisits((prev) =>
+                          prev.map((row) =>
+                            row.value === visit.value
+                              ? { ...row, user: userId, user_name: fullName }
+                              : row
+                          )
+                        )
+                      }}
+                    />
                   </td>
                   {renderVisitActionsCell(visit)}
                 </tr>

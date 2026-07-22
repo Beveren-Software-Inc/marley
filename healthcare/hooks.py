@@ -119,6 +119,9 @@ fixtures = [
                    "Sales Order-custom_is_pharmacy_give_out",
                    "Item Group-custom_required_by_nhra",
                    "Customer-custom_patient_file_no",
+                   
+                   #Payment entry
+                   "Payment Entry-custom_payment_owner",
 
                 ),
             ]

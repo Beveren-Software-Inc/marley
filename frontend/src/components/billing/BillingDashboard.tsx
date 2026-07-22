@@ -30,6 +30,7 @@ import {
 import { fetchModeOfPayments, fetchUsers, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useReceptionistShift } from '../../providers/ReceptionistShiftProvider'
+import { ReceptionistOwnerCell } from '../ui/ReceptionistOwnerCell'
 import { 
   Receipt, 
   CreditCard, 
@@ -1121,7 +1122,23 @@ const handleMakePayment = async (
                     <td className={`px-3 py-2 text-right font-medium ${isDraft ? 'text-slate-500' : isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
                       {isDraft ? '—' : formatCurrency(signedAmount)}
                     </td>
-                    <td className="px-3 py-2">{p.cashier_name || p.cashier || '—'}</td>
+                    <td className="px-3 py-2">
+                      <ReceptionistOwnerCell
+                        doctype="Payment Entry"
+                        docName={p.name}
+                        userId={p.cashier}
+                        userLabel={p.cashier_name || p.cashier}
+                        onChanged={(userId, fullName) => {
+                          setPayments((prev) =>
+                            prev.map((row) =>
+                              row.name === p.name
+                                ? { ...row, cashier: userId, cashier_name: fullName }
+                                : row
+                            )
+                          )
+                        }}
+                      />
+                    </td>
                     <td className="px-3 py-2">{p.invoice_name || '—'}</td>
                     <td className="px-3 py-2 text-center">
                       {!isDraft ? (

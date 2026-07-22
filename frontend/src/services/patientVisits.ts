@@ -61,6 +61,7 @@ export interface PatientVisitListRow {
   file_no?: string
   cpr_no?: string
   user?: string
+  user_name?: string
   discount?: number
   total_due?: number
   balance?: number
@@ -85,7 +86,8 @@ export async function fetchPatientVisitsFull(
   visitType?: string,
   limit?: number,
   offset?: number,
-  costCenter?: string
+  costCenter?: string,
+  visitOwner?: string
 ): Promise<PatientVisitsPaginatedResponse> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
@@ -96,6 +98,7 @@ export async function fetchPatientVisitsFull(
   if (status) params.append('status', status)
   if (visitType) params.append('visit_type', visitType)
   if (costCenter) params.append('cost_center', costCenter)
+  if (visitOwner) params.append('visit_owner', visitOwner)
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
   try {
@@ -127,6 +130,7 @@ export async function fetchPatientVisitsFull(
         file_no: m.file_no ?? '',
         cpr_no: m.cpr_no ?? '',
         user: m.user ?? '',
+        user_name: m.user_name ?? m.user ?? '',
         discount: Number(m.discount ?? 0),
         total_due: Number(m.total_due ?? 0),
         balance: Number(m.balance ?? 0),

@@ -40,6 +40,7 @@ class PatientAppointment(Document):
 		# pass
 		#Uncomment later
 		self.resolve_medical_department()
+		self.validate_practitioner_leave_or_unavailability()
 		self.validate_overlaps()
 		self.validate_based_on_appointments_for()
 		self.validate_service_unit()
@@ -49,6 +50,21 @@ class PatientAppointment(Document):
 		self.set_title()
 		self.update_event()
 		self.set_postition_in_queue()
+
+	def validate_practitioner_leave_or_unavailability(self):
+		"""Block booking / reschedule when doctor is on leave or marked unavailable."""
+		if not self.practitioner or not self.appointment_date:
+			return
+		if self.status == "Cancelled":
+			return
+		# Only enforce on new bookings or when practitioner/date changes (status updates still OK)
+		if not self.is_new():
+			before = self.get_doc_before_save()
+			if before and before.practitioner == self.practitioner and getdate(
+				before.appointment_date
+			) == getdate(self.appointment_date):
+				return
+		assert_practitioner_available_on_date(self.practitioner, self.appointment_date)
 
 	def on_update(self):
 		if (
@@ -724,7 +740,83 @@ def get_availability_data(date, practitioner, appointment):
 	return {"slot_details": slot_details, "fee_validity": fee_validity}
 
 
+def assert_practitioner_available_on_date(practitioner, date):
+	"""
+	Throw if the practitioner has active Practitioner Unavailability or approved leave
+	covering `date`. Used by appointment validate and availability checks.
+	"""
+	if not practitioner or not date:
+		return
+
+	date = getdate(date)
+	display_name = (
+		frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+		or practitioner
+	)
+
+	unavail_name = frappe.db.exists(
+		"Practitioner Unavailability",
+		{
+			"doctor_id": practitioner,
+			"start_date": ("<=", date),
+			"end_date": (">=", date),
+			"is_cancel": 0,
+		},
+	)
+	if unavail_name:
+		row = frappe.db.get_value(
+			"Practitioner Unavailability",
+			unavail_name,
+			["start_date", "end_date", "any_remarks"],
+			as_dict=True,
+		) or {}
+		msg = _("{0} is unavailable from {1} to {2}").format(
+			display_name,
+			format_date(row.get("start_date") or date),
+			format_date(row.get("end_date") or date),
+		)
+		remarks = (row.get("any_remarks") or "").strip()
+		if remarks:
+			msg = f"{msg}. {remarks}"
+		frappe.throw(msg, title=_("Not Available"))
+
+	employee = frappe.db.get_value("Healthcare Practitioner", practitioner, "employee")
+	if not employee:
+		user_id = frappe.db.get_value("Healthcare Practitioner", practitioner, "user_id")
+		if user_id:
+			employee = frappe.db.get_value("Employee", {"user_id": user_id}, "name")
+
+	if employee and "hrms" in frappe.get_installed_apps():
+		leave_record = frappe.db.sql(
+			"""select half_day, leave_type, from_date, to_date from `tabLeave Application`
+			where employee = %s and %s between from_date and to_date
+			and (docstatus = 1 or status in ('Approved', 'Open'))
+			and ifnull(status, '') not in ('Rejected', 'Cancelled')""",
+			(employee, date),
+			as_dict=True,
+		)
+		if leave_record:
+			row = leave_record[0]
+			if row.half_day:
+				frappe.throw(
+					_("{0} is on a Half day Leave on {1}").format(display_name, format_date(date)),
+					title=_("Not Available"),
+				)
+			frappe.throw(
+				_("{0} is on Leave on {1} ({2} to {3})").format(
+					display_name,
+					format_date(date),
+					format_date(row.from_date),
+					format_date(row.to_date),
+				),
+				title=_("Not Available"),
+			)
+
+
 def check_employee_wise_availability(date, practitioner_doc):
+	# Reception holds (Practitioner Unavailability) + HR leave
+	assert_practitioner_available_on_date(practitioner_doc.name, date)
+
 	employee = None
 	if practitioner_doc.employee:
 		employee = practitioner_doc.employee
@@ -735,26 +827,6 @@ def check_employee_wise_availability(date, practitioner_doc):
 		# check holiday
 		if is_holiday(employee, date):
 			frappe.throw(_("{0} is a holiday".format(date)), title=_("Not Available"))
-
-		# check leave status
-		if "hrms" in frappe.get_installed_apps():
-			leave_record = frappe.db.sql(
-				"""select half_day from `tabLeave Application`
-				where employee = %s and %s between from_date and to_date
-				and docstatus = 1""",
-				(employee, date),
-				as_dict=True,
-			)
-			if leave_record:
-				if leave_record[0].half_day:
-					frappe.throw(
-						_("{0} is on a Half day Leave on {1}").format(practitioner_doc.name, date),
-						title=_("Not Available"),
-					)
-				else:
-					frappe.throw(
-						_("{0} is on Leave on {1}").format(practitioner_doc.name, date), title=_("Not Available")
-					)
 
 
 def get_available_slots(practitioner_doc, date):
