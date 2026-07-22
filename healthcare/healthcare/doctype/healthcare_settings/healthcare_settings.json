@@ -39,6 +39,7 @@
   "record_billing_in_patient_history",
   "require_patient_on_pharmacy_sale",
   "require_prescription_for_controlled_items",
+  "record_pharmacy_sale_as_visit",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -793,11 +794,17 @@
    "fieldname": "require_prescription_for_controlled_items",
    "fieldtype": "Check",
    "label": "require_prescription_for_controlled_items"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_pharmacy_sale_as_visit",
+   "fieldtype": "Check",
+   "label": "record_pharmacy_sale_as_visit"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-22 15:35:56.525261",
+ "modified": "2026-07-22 15:46:35.886679",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
