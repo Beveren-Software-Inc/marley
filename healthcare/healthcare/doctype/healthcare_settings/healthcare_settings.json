@@ -8,6 +8,8 @@
   "op_ip_settings",
   "sb_op_settings",
   "patient_name_by",
+  "require_patient_address",
+  "enforce_patient_address_on_existing",
   "link_customer_to_patient",
   "default_code_system",
   "validate_nursing_checklists",
@@ -118,7 +120,25 @@
   "doctors_commission",
   "doctor_commission_salary_component",
   "pricing_tab",
-  "patient_category_pricing"
+  "patient_category_pricing",
+  "sb_serene_automations",
+  "record_billing_in_patient_history",
+  "record_cancellations_in_history",
+  "record_clinical_extras_in_history",
+  "record_follow_up_in_patient_history",
+  "apply_age_based_dose_limits",
+  "send_missing_lab_request_reminder",
+  "whatsapp_appointment_reminder_template",
+  "cb_serene_automations",
+  "remind_upcoming_nurse_tasks",
+  "nurse_task_reminder_lead_minutes",
+  "escalate_overdue_nurse_tasks",
+  "nurse_task_overdue_grace_minutes",
+  "nurse_task_escalation_role",
+  "discount_approval_threshold_percent",
+  "auto_free_visit_after_discharge",
+  "free_visit_days_after_discharge",
+  "iop_charge_item"
  ],
  "fields": [
   {
@@ -340,6 +360,21 @@
    "fieldtype": "Select",
    "label": "Patient Name By",
    "options": "Patient Name\nNaming Series\nAuto Name"
+  },
+  {
+   "default": "0",
+   "description": "Block saving a Patient that has no address details",
+   "fieldname": "require_patient_address",
+   "fieldtype": "Check",
+   "label": "Require Patient Address"
+  },
+  {
+   "default": "0",
+   "depends_on": "require_patient_address",
+   "description": "Also enforce the address requirement when editing existing patients",
+   "fieldname": "enforce_patient_address_on_existing",
+   "fieldtype": "Check",
+   "label": "Enforce Patient Address on Existing Patients"
   },
   {
    "default": "0",
@@ -800,6 +835,113 @@
    "fieldname": "record_pharmacy_sale_as_visit",
    "fieldtype": "Check",
    "label": "record_pharmacy_sale_as_visit"
+   "fieldname": "sb_serene_automations",
+   "fieldtype": "Section Break",
+   "label": "Automations & Patient History"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_billing_in_patient_history",
+   "fieldtype": "Check",
+   "label": "Record Billing in Patient History"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_cancellations_in_history",
+   "fieldtype": "Check",
+   "label": "Record Cancellations in Patient History"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_clinical_extras_in_history",
+   "fieldtype": "Check",
+   "label": "Record Clinical Extras in Patient History"
+  },
+  {
+   "default": "0",
+   "fieldname": "record_follow_up_in_patient_history",
+   "fieldtype": "Check",
+   "label": "Record Follow Up in Patient History"
+  },
+  {
+   "default": "0",
+   "fieldname": "apply_age_based_dose_limits",
+   "fieldtype": "Check",
+   "label": "Apply Age Based Dose Limits"
+  },
+  {
+   "default": "0",
+   "fieldname": "send_missing_lab_request_reminder",
+   "fieldtype": "Check",
+   "label": "Send Missing Lab Request Reminder"
+  },
+  {
+   "fieldname": "whatsapp_appointment_reminder_template",
+   "fieldtype": "Data",
+   "label": "WhatsApp Appointment Reminder Template",
+   "description": "Name of the WhatsApp message template used for appointment reminders"
+  },
+  {
+   "fieldname": "cb_serene_automations",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "remind_upcoming_nurse_tasks",
+   "fieldtype": "Check",
+   "label": "Remind Upcoming Nurse Tasks"
+  },
+  {
+   "default": "0",
+   "fieldname": "nurse_task_reminder_lead_minutes",
+   "fieldtype": "Int",
+   "label": "Nurse Task Reminder Lead (Minutes)",
+   "depends_on": "remind_upcoming_nurse_tasks"
+  },
+  {
+   "default": "0",
+   "fieldname": "escalate_overdue_nurse_tasks",
+   "fieldtype": "Check",
+   "label": "Escalate Overdue Nurse Tasks"
+  },
+  {
+   "default": "0",
+   "fieldname": "nurse_task_overdue_grace_minutes",
+   "fieldtype": "Int",
+   "label": "Nurse Task Overdue Grace (Minutes)",
+   "depends_on": "escalate_overdue_nurse_tasks"
+  },
+  {
+   "fieldname": "nurse_task_escalation_role",
+   "fieldtype": "Link",
+   "options": "Role",
+   "label": "Nurse Task Escalation Role",
+   "depends_on": "escalate_overdue_nurse_tasks"
+  },
+  {
+   "default": "0",
+   "fieldname": "discount_approval_threshold_percent",
+   "fieldtype": "Percent",
+   "label": "Discount Approval Threshold (%)"
+  },
+  {
+   "default": "0",
+   "fieldname": "auto_free_visit_after_discharge",
+   "fieldtype": "Check",
+   "label": "Auto Free Visit After Discharge"
+  },
+  {
+   "default": "0",
+   "fieldname": "free_visit_days_after_discharge",
+   "fieldtype": "Int",
+   "label": "Free Visit Days After Discharge",
+   "depends_on": "auto_free_visit_after_discharge"
+  },
+  {
+   "fieldname": "iop_charge_item",
+   "fieldtype": "Data",
+   "label": "IOP Charge Item",
+   "description": "Template/item name used as the fallback IOP enrollment charge"
   }
  ],
  "issingle": 1,

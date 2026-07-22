@@ -106,7 +106,8 @@
   "charges",
   "invoice_created",
   "uploaded_documents_tab",
-  "documents"
+  "documents",
+  "promotion"
  ],
  "fields": [
   {
@@ -721,6 +722,12 @@
    "fieldname": "inv_num",
    "fieldtype": "Data",
    "label": "INV Num"
+  },
+  {
+   "fieldname": "promotion",
+   "fieldtype": "Link",
+   "label": "Promotion",
+   "options": "Promotion"
   }
  ],
  "is_submittable": 1,

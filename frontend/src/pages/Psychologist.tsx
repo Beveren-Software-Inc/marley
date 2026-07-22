@@ -10,10 +10,13 @@ import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
 import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
+import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
 import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
+import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
+import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import type { ComponentType } from 'react'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
@@ -72,6 +75,9 @@ export const PsychologistPage = () => {
 
   const [showPsychNoteModal, setShowPsychNoteModal] = useState(false)
   const [showPsychOrderModal, setShowPsychOrderModal] = useState(false)
+  const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
+  const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
+  const [medicalHistoryRefreshKey, setMedicalHistoryRefreshKey] = useState(0)
 
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [showAssessmentCreate, setShowAssessmentCreate] = useState(false)
@@ -244,6 +250,73 @@ export const PsychologistPage = () => {
     )
   }
 
+  // ── Doctors Orders (read-only, mirrors nurse Documentation) ─────────────────
+  if (screen === 'p-doctor-order') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <DoctorOrderList
+              patient={selectedPatient}
+              admission={activeAdmission || undefined}
+              key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // ── Nutrition Notes (mirrors nurse Documentation) ───────────────────────────
+  if (screen === 'p-nut') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <DashboardCard title="Nutrition Notes" noHeightLimit>
+            <ClinicalNotesList
+              patient={selectedPatient}
+              clinicalNoteType="Nutritionist Note"
+              key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
+              onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
+            />
+          </DashboardCard>
+        </div>
+        {showNutritionNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowNutritionNoteModal(false)}
+            onSuccess={() => { setClinicalNotesRefreshKey(p => p + 1); setShowNutritionNoteModal(false) }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Nutritionist Note"
+            title="Add Nutritionist Note"
+          />
+        )}
+      </div>
+    )
+  }
+
+  // ── Nursing Notes (read-only, mirrors nurse Documentation) ──────────────────
+  if (screen === 'p-nurse-notes') {
+    return (
+      <div className="flex flex-col">
+        {header}
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <MainNursingNoteList
+              patient={selectedPatient}
+              admission={activeAdmission || undefined}
+              key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
   // ── Diagnoses (read-only for psychologist) ──────────────────────────────────
   if (screen === 'p-dx') {
     return (
@@ -270,20 +343,37 @@ export const PsychologistPage = () => {
     )
   }
 
-  // ── Medical History / Allergies (read-only) ───────────────────────────────────
+  // ── Past Medical History (mirrors the doctor's screen) ───────────────────────
   if (screen === 'p-mh') {
     return (
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard title="Medical History / Allergies" noHeightLimit filterable={false}>
+          <DashboardCard
+            title="Past Medical History"
+            onAdd={() => guardClinicalCreate(() => setShowCreateMedicalHistoryModal(true))}
+            addButtonTitle="Add Past Medical History"
+            noHeightLimit
+            filterable={false}
+          >
             {selectedPatient ? (
-              <MedicalHistoryView patient={selectedPatient} />
+              <MedicalHistoryView patient={selectedPatient} refreshKey={medicalHistoryRefreshKey} />
             ) : (
               <div className="py-16 text-center text-slate-400">Select a patient to view medical history.</div>
             )}
           </DashboardCard>
         </div>
+        {showCreateMedicalHistoryModal && selectedPatient && (
+          <CreatePatientMedicalHistoryModal
+            patient={selectedPatient}
+            defaultAdmission={activeAdmission || undefined}
+            onClose={() => setShowCreateMedicalHistoryModal(false)}
+            onCreated={() => {
+              setMedicalHistoryRefreshKey((prev) => prev + 1)
+              setShowCreateMedicalHistoryModal(false)
+            }}
+          />
+        )}
       </div>
     )
   }

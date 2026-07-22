@@ -160,7 +160,8 @@
   "patient_visitors",
   "signature_tab",
   "signature",
-  "e_signatures"
+  "e_signatures",
+  "promotion"
  ],
  "fields": [
   {
@@ -1035,6 +1036,12 @@
    "fieldtype": "Link",
    "label": "Resident Doctor 2",
    "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "promotion",
+   "fieldtype": "Link",
+   "label": "Promotion",
+   "options": "Promotion"
   }
  ],
  "index_web_pages_for_search": 1,

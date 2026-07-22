@@ -13,7 +13,21 @@
   "column_break_tfot",
   "visit_no",
   "reference_no",
-  "consultation_doctor_name"
+  "consultation_doctor_name",
+  "patient",
+  "patient_name",
+  "inpatient_admission",
+  "admission_date",
+  "discharge_date",
+  "practitioner",
+  "sb_report_body",
+  "reason_for_admission",
+  "diagnosis",
+  "clinical_course",
+  "treatment_given",
+  "condition_on_discharge",
+  "recommendations",
+  "report_status"
  ],
  "fields": [
   {
@@ -68,21 +82,128 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Consultation Doctor Name"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient",
+   "in_list_view": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "fetch_from": "patient.patient_name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fieldname": "admission_date",
+   "fieldtype": "Date",
+   "label": "Admission Date"
+  },
+  {
+   "fieldname": "discharge_date",
+   "fieldtype": "Date",
+   "label": "Discharge Date"
+  },
+  {
+   "fieldname": "practitioner",
+   "fieldtype": "Link",
+   "label": "Consultant",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "sb_report_body",
+   "fieldtype": "Section Break",
+   "label": "Report"
+  },
+  {
+   "fieldname": "reason_for_admission",
+   "fieldtype": "Small Text",
+   "label": "Reason for Admission"
+  },
+  {
+   "fieldname": "diagnosis",
+   "fieldtype": "Small Text",
+   "label": "Diagnosis"
+  },
+  {
+   "fieldname": "clinical_course",
+   "fieldtype": "Small Text",
+   "label": "Clinical Course"
+  },
+  {
+   "fieldname": "treatment_given",
+   "fieldtype": "Small Text",
+   "label": "Treatment Given"
+  },
+  {
+   "fieldname": "condition_on_discharge",
+   "fieldtype": "Small Text",
+   "label": "Condition on Discharge"
+  },
+  {
+   "fieldname": "recommendations",
+   "fieldtype": "Small Text",
+   "label": "Recommendations"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "report_status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Draft\nIssued\nCancelled",
+   "in_list_view": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
- "istable": 1,
+ "istable": 0,
  "links": [],
  "modified": "2025-12-01 11:49:44.673156",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "IP Medical Report",
  "owner": "Administrator",
- "permissions": [],
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  }
+ ],
  "row_format": "Dynamic",
  "rows_threshold_for_grid_search": 20,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "autoname": "format:IPMR-{YYYY}-{#####}",
+ "naming_rule": "Expression"
 }

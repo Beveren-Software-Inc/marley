@@ -649,7 +649,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Doctors Order" 
+            title="Doctors Orders"
             onAdd={() => guardClinicalCreate(() => setShowDoctorOrderModal(true))}
             addButtonTitle="Add Doctors Order"
           >
@@ -719,11 +719,26 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Laboratory" 
+          <DashboardCard
+            title="Lab Request"
+            onAdd={() => guardClinicalCreate(() => setShowServiceRequestModal(true))}
+            addButtonTitle="Add Lab Request"
+            fixedHeight
+          >
+            <ServiceRequestList
+              patient={selectedPatient}
+              refreshKey={serviceRequestRefreshKey}
+              template_dt="Lab Test Template"
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+
+          <div className="mt-4">
+          <DashboardCard
+            title="Tests & Results"
             onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
             addButtonTitle="Add Lab Test"
-            noHeightLimit
+            fixedHeight
           >
             <LabTestList
               patient={selectedPatient}
@@ -735,6 +750,7 @@ export const DoctorPage = () => {
               onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
+          </div>
 
           {/* DOC-018 - update diagnosis while reviewing lab results, without
               navigating away to the separate Diagnoses screen. */}
@@ -746,6 +762,18 @@ export const DoctorPage = () => {
             </div>
           )}
         </div>
+        {showServiceRequestModal && (
+          <CreateServiceRequestModal
+            onClose={() => setShowServiceRequestModal(false)}
+            onSuccess={() => {
+              setServiceRequestRefreshKey((prev) => prev + 1)
+              setShowServiceRequestModal(false)
+              toast.success('Lab request created successfully')
+            }}
+            initialPatient={selectedPatient}
+            labTestTemplateOnly
+          />
+        )}
       </div>
     )
   }
@@ -792,7 +820,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Psychologist Orders" 
+            title="Psychology Orders" 
             onAdd={() => guardClinicalCreate(() => setShowDiagnosisModal(true))}
             addButtonTitle="Add Psychologist Order"
           >
@@ -826,7 +854,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Therapist Note" 
+            title="Occupational Therapy Notes"
             onAdd={() => guardClinicalCreate(() => setShowTherapistNoteModal(true))}
             addButtonTitle="Add Therapist Note"
           >
@@ -1125,7 +1153,7 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Ledger & Invoices (read-only)">
+          <DashboardCard title="Patient Invoice">
             <DoctypeListPanel
               doctype="Sales Invoice"
               filters={selectedPatient ? { patient: selectedPatient, docstatus: 1 } : { docstatus: 1 }}
@@ -1140,6 +1168,7 @@ export const DoctorPage = () => {
                 {
                   fieldname: 'print',
                   label: 'Print',
+                  virtual: true,
                   render: (r) => (
                     <a
                       className="text-primary underline"
@@ -1364,16 +1393,16 @@ export const DoctorPage = () => {
               the one above, so it collapses to a single list here. */}
           <div className="mt-6">
             <DashboardCard title="IOP Session Notes">
+              {/* IOP Day Session is a child table of IOP Day — list it with parent
+                  context (read-only: sessions are created via the scheduling flow,
+                  a standalone child row would be an orphan). */}
               <DoctypeListPanel
                 doctype="IOP Day Session"
+                parentDoctype="IOP Day"
                 columns={[
-                  { fieldname: 'name', label: 'Session' },
+                  { fieldname: 'parent', label: 'IOP Day' },
                   { fieldname: 'session_type', label: 'Healthcare Service' },
                   { fieldname: 'notes', label: 'Notes' },
-                ]}
-                createFields={[
-                  { fieldname: 'session_type', label: 'Healthcare Service', fieldtype: 'Link', options: 'Healthcare Service Unit' },
-                  { fieldname: 'notes', label: 'Notes', fieldtype: 'Small Text' },
                 ]}
                 emptyMessage="No IOP session notes recorded."
               />
@@ -1554,7 +1583,7 @@ export const DoctorPage = () => {
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard 
-            title="Nutritionist Notes" 
+            title="Nutrition Notes" 
             onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
             addButtonTitle="Add Nutritionist Note"
           >

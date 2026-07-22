@@ -37,6 +37,9 @@ export interface ColumnSpec {
   width?: string
   /** Cells may return plain text or JSX (links, badges). */
   render?: (row: Record<string, any>) => import('react').ReactNode
+  /** Display-only column (e.g. action links) — not a doc field, so it must not
+   *  be requested from the list API (a non-existent fieldname 417s the call). */
+  virtual?: boolean
 }
 
 export async function fetchDoctypeRows(
@@ -44,12 +47,15 @@ export async function fetchDoctypeRows(
   fields: string[],
   filters: Record<string, any> = {},
   limit = 100,
-  orderBy = 'modified desc'
+  orderBy = 'modified desc',
+  /** Parent DOCTYPE name — required by the API when listing a child table. */
+  parentDoctype?: string
 ): Promise<Record<string, any>[]> {
   const params = new URLSearchParams()
   params.set('fields', JSON.stringify(fields))
   params.set('limit_page_length', String(limit))
   params.set('order_by', orderBy)
+  if (parentDoctype) params.set('parent', parentDoctype)
 
   const active = Object.entries(filters).filter(
     ([, v]) => v !== undefined && v !== null && v !== ''

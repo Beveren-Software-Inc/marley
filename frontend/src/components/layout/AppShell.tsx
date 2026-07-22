@@ -39,7 +39,7 @@ const nurseScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    groupTitle: 'Patient Care & Medication',
+    groupTitle: 'Patient Medication',
     screens: [
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Medicines' },
@@ -48,8 +48,8 @@ const nurseScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    // Mirrors the doctor's Clinical Documentation (+ TPR); warnings live on the dashboard.
-    groupTitle: 'Clinical Documentation',
+    // Mirrors the doctor's Documentation group (+ TPR); warnings live on the dashboard.
+    groupTitle: 'Documentation',
     screens: [
       { id: 'n-doctor-order', title: 'Doctors Order' },
       { id: 'n-psy-notes',   title: 'Psychology Notes' },
@@ -197,36 +197,20 @@ const insuranceScreens = [
   // { id: 'i-claims',   title: 'Claims' },
 ]
 
+// First 11 screens (ECT/anesthesia forms) removed from the sidebar — they are
+// already reachable as cards on the Anesthesiologist dashboard.
 const anesthesiologistScreens = [
-  { id: 'a-anesthesia-consent', title: 'ECT Anesthesia Consent' },
-  { id: 'a-pre-anesthesia',     title: 'Pre Anesthesia Assessment' },
-  { id: 'a-anesthesia-record',  title: 'Anesthesia Record' },
-  { id: 'a-recovery-room',      title: 'Recovery Room Record' },
-  { id: 'a-alderete',           title: 'Modified Alderete Score' },
-  { id: 'a-timeout',            title: 'Time Out Procedure' },
-  { id: 'a-pre-ect',            title: 'Pre-ECT Checklist' },
-  { id: 'a-suicidal',           title: 'Suicidal Patient Assessment' },
-  { id: 'a-ect-admission',      title: 'ECT Admission' },
-  { id: 'a-ect-procedure',      title: 'ECT Procedure' },
-  { id: 'a-ect-details',        title: 'ECT Details' },
   { id: 'a-physical',           title: 'Physical Examination' },
   { id: 'a-patient-history',    title: 'Patient History' },
 ]
 
 const psychologyScreens = [
-  { id: 'p-notes',           title: 'Psychologist Notes' },
-  { id: 'p-orders',          title: 'Psychologist Orders' },
   { id: 'p-dx',              title: 'Diagnoses' },
-  { id: 'p-warn',            title: 'Warning Messages' },
-  { id: 'p-mh',              title: 'Medical History / Allergies' },
+  { id: 'p-warn',            title: 'Warnings & Messages' },
+  { id: 'p-mh',              title: 'Past Medical History' },
   { id: 'p-patient-history', title: 'Patient History' },
   { id: 'p-physical',        title: 'Physical Examination' },
 ].sort((a, b) => a.title.localeCompare(b.title))
-
-const therapyScreens = [
-  { id: 't-notes',   title: 'Therapy Notes' },
-  { id: 't-session', title: 'Session Scheduler' },
-]
 
 const nutritionistScreens = [
   { id: 'nut-notes', title: 'Nutritionist Notes' },
@@ -238,19 +222,50 @@ const psychologistScreenGroups: ScreenGroup[] = [
     screens: psychologyScreens,
   },
   {
+    // Mirrors the doctor's Documentation group.
+    groupTitle: 'Documentation',
+    screens: [
+      { id: 'p-doctor-order', title: 'Doctors Orders' },
+      { id: 'p-notes',        title: 'Psychology Notes' },
+      { id: 'p-orders',       title: 'Psychology Orders' },
+      { id: 'p-nut',          title: 'Nutrition Notes' },
+      { id: 't-notes',        title: 'Occupational Therapy Notes' },
+      { id: 'p-nurse-notes',  title: 'Nursing Notes' },
+    ],
+  },
+  {
     groupTitle: 'Scales & Assessments',
     screens: [{ id: 'fall', title: 'Morse Fall Scale' }, ...assessmentScreens],
   },
   {
-    groupTitle: 'Therapy',
-    screens: therapyScreens,
+    groupTitle: '',
+    screens: [{ id: 't-session', title: 'Session Scheduler' }],
   },
 ]
 
 const therapyScreenGroups: ScreenGroup[] = [
   {
-    groupTitle: 'Occupational Therapist',
-    screens: therapyScreens,
+    groupTitle: '',
+    screens: [{ id: 't-notes', title: 'Therapy Notes' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 't-session', title: 'Session Scheduler' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 't-appointments', title: 'Appointments' }],
+  },
+  {
+    // Mirrors the doctor's Documentation group.
+    groupTitle: 'Documentation',
+    screens: [
+      { id: 'th-doctor-order', title: 'Doctors Orders' },
+      { id: 'th-psy-notes',    title: 'Psychology Notes' },
+      { id: 'th-psy-order',    title: 'Psychology Orders' },
+      { id: 'th-nut',          title: 'Nutrition Notes' },
+      { id: 'th-nurse-notes',  title: 'Nursing Notes' },
+    ],
   },
 ]
 

@@ -25,14 +25,18 @@ from frappe import _
 ADDRESS_FIELDS = ("address", "flat_num", "bldg_num", "road_num", "block_num", "city", "country")
 
 
+def _setting(fieldname: str) -> bool:
+	# .get() tolerates a schema that predates these fields — a missing toggle
+	# must mean "off", never a ValidationError that blocks every Patient save.
+	return bool(frappe.get_cached_doc("Healthcare Settings").get(fieldname))
+
+
 def require_patient_address() -> bool:
-	return bool(frappe.db.get_single_value("Healthcare Settings", "require_patient_address"))
+	return _setting("require_patient_address")
 
 
 def enforce_on_existing_records() -> bool:
-	return bool(
-		frappe.db.get_single_value("Healthcare Settings", "enforce_patient_address_on_existing")
-	)
+	return _setting("enforce_patient_address_on_existing")
 
 
 def _has_address(doc) -> bool:

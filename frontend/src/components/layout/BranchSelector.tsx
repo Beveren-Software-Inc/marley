@@ -6,6 +6,7 @@ import {
   setUserCostCenterPermission,
 } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { useAuth } from '../../providers/AuthProvider'
 import { toast } from '../../hooks/useToast'
 
 type BranchSelectorProps = {
@@ -17,6 +18,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   const [branches, setBranches] = useState<{ name: string; label: string }[]>([])
   const [selected, setSelected] = useState('')
   const [loading, setLoading] = useState(true)
+  const { isAuthenticated } = useAuth()
   const [saving, setSaving] = useState(false)
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -31,6 +33,8 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   }, [])
 
   useEffect(() => {
+    // These APIs 403 for guests — wait for login before loading branches.
+    if (!isAuthenticated) return
     let cancelled = false
     const load = async () => {
       setLoading(true)
@@ -52,7 +56,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [isAuthenticated])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {

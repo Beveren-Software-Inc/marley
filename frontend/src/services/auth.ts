@@ -372,8 +372,10 @@ class HealthcareAuth {
       this.sessionId = storedSid
     }
 
-    // Try to fetch CSRF token if not already available
-    if (!(window as any).csrf_token) {
+    // Try to fetch CSRF token if not already available. Skip for guests (no
+    // stored session) — the endpoint just 403s pre-login, and apiClient fetches
+    // the token lazily after authentication anyway.
+    if (storedSid && !(window as any).csrf_token) {
       try {
         await this.fetchCSRFToken()
       } catch (error) {
