@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { ExternalLink, X } from 'lucide-react'
 import { fetchInsuranceClaims, rejectInsuranceClaim, fetchHealthcareInsurance, fetchPatientCategories, type InsuranceClaimRow, type LinkFieldOption } from '../../services/common'
+import { fetchModeOfPayments } from '../../services/paymentEntry'
 import { apiRequest } from '../../services/apiClient'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -67,16 +68,32 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
   const [isRejected, setIsRejected] = useState(row.status === 'Rejected')
   const [authNo, setAuthNo] = useState(row.authorization_no || '')
   const [remark, setRemark] = useState(row.remark || '')
+  const [modeOfPayment, setModeOfPayment] = useState('')
+  const [referenceNo, setReferenceNo] = useState('')
+  const [referenceDate, setReferenceDate] = useState('')
+  const [paymentModes, setPaymentModes] = useState<string[]>([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   const approved = parseFloat(totalApproved) || 0
+  const previousApproved = Number(row.total_approved || 0)
+  const paymentDelta = Math.max(0, approved - previousApproved)
+  const needsPayment = !isRejected && paymentDelta > 0
   const previewStatus = deriveStatus(approved, row.total_claimed || 0, isRejected)
+
+  useEffect(() => {
+    fetchModeOfPayments()
+      .then(setPaymentModes)
+      .catch(() => setPaymentModes([]))
+  }, [])
 
   const handleSave = async () => {
     setSaving(true)
     setError(null)
     try {
+      if (needsPayment && !modeOfPayment.trim()) {
+        throw new Error('Mode of Payment is required when recording an insurance payment')
+      }
       const params = new URLSearchParams({
         claim_name: row.name,
         ...(isRejected ? { status: 'Rejected' } : {}),
@@ -85,7 +102,12 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
         authorization_no: authNo,
         remark,
       })
-      const data = await apiRequest<{ derived_status?: string }>(
+      if (needsPayment) {
+        params.set('mode_of_payment', modeOfPayment.trim())
+        if (referenceNo.trim()) params.set('reference_no', referenceNo.trim())
+        if (referenceDate) params.set('reference_date', referenceDate)
+      }
+      const data = await apiRequest<{ derived_status?: string; payment_entry?: string }>(
         `/api/method/healthcare.api.common.update_insurance_claim?${params.toString()}`,
         { method: 'POST' },
       )
@@ -112,7 +134,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4"
       onClick={e => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>
@@ -125,7 +147,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
         </div>
 
         {/* Body */}
-        <div className="px-5 py-4 space-y-4">
+        <div className="px-5 py-4 space-y-4 overflow-y-auto">
           {/* Claim summary */}
           <div className="rounded-lg bg-slate-50 border border-slate-200 p-3 grid grid-cols-2 gap-2 text-center text-xs">
             <div>
@@ -170,6 +192,63 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
             </div>
           </div>
 
+          {!isRejected && (
+            <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Mode of Payment{needsPayment ? <span className="text-red-500"> *</span> : null}
+                </label>
+                {paymentModes.length > 0 ? (
+                  <select
+                    value={modeOfPayment}
+                    onChange={e => setModeOfPayment(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  >
+                    <option value="">Select mode…</option>
+                    {paymentModes.map(mode => (
+                      <option key={mode} value={mode}>{mode}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="text"
+                    value={modeOfPayment}
+                    onChange={e => setModeOfPayment(e.target.value)}
+                    placeholder="e.g. Cash, Bank Transfer"
+                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                  />
+                )}
+              </div>
+              {needsPayment && (
+                <p className="text-xs text-blue-800">
+                  Payment of <strong>{fmt(paymentDelta, currency)}</strong> will create a Payment Entry
+                  against invoice <strong>{row.sales_invoice || '—'}</strong> and update its outstanding.
+                </p>
+              )}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Reference No</label>
+                  <input
+                    type="text"
+                    value={referenceNo}
+                    onChange={e => setReferenceNo(e.target.value)}
+                    placeholder="Cheque / txn ref"
+                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Reference Date</label>
+                  <input
+                    type="date"
+                    value={referenceDate}
+                    onChange={e => setReferenceDate(e.target.value)}
+                    className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Reject toggle */}
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input
@@ -210,7 +289,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
           </button>
           <button type="button" onClick={handleSave} disabled={saving}
             className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
-            {saving ? 'Saving…' : 'Save Changes'}
+            {saving ? 'Saving…' : needsPayment ? 'Record Payment' : 'Save Changes'}
           </button>
         </div>
       </div>

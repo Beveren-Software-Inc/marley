@@ -212,6 +212,7 @@
    "options": "Insurance Claim"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "authorization_no",
    "fieldtype": "Data",
    "label": "Authorization No"
@@ -395,7 +396,7 @@
    "link_fieldname": "custom_insurance_claim"
   }
  ],
- "modified": "2026-07-09 00:08:16.178859",
+ "modified": "2026-07-22 13:08:58.192035",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Insurance Claim",

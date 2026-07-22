@@ -114,77 +114,86 @@ def update_insurance_claim_payment(
 	reference_no: str | None = None,
 	reference_date: str | None = None,
 ) -> dict:
-    """
-    Update Insurance Claim payment information and create a Payment Entry.
+	"""
+	Update Insurance Claim payment information and create a Payment Entry.
 
-    - `paid_amount` is the NEW total paid amount for the claim.
-    - We compute the delta from the existing `total_amount_paid` and
-      create a Payment Entry only for the difference (if positive).
-    - Status rules:
-        - if total_paid >= total_claimed -> Paid
-        - elif total_paid > 0          -> Partially Paid
-    """
-    if not name:
-        frappe.throw(_("Insurance Claim name is required"))
-    if not mode_of_payment:
-        frappe.throw(_("Mode of Payment is required"))
+	- `paid_amount` is the NEW total approved/paid amount for the claim.
+	- We compute the delta from the existing `total_approved` and
+	  create a Payment Entry only for the difference (if positive).
+	- Status rules:
+		- if total_paid >= total_claimed -> Paid
+		- elif total_paid > 0          -> Partially Paid
+	"""
+	if not name:
+		frappe.throw(_("Insurance Claim name is required"))
+	if not mode_of_payment:
+		frappe.throw(_("Mode of Payment is required"))
 
-    claim = frappe.get_doc("Insurance Claim", name)
-    inv_name = claim.sales_invoice
-    if not inv_name:
-        frappe.throw(_("Insurance Claim {0} is not linked to a Sales Invoice").format(claim.name))
+	claim = frappe.get_doc("Insurance Claim", name)
+	inv_name = claim.sales_invoice
+	if not inv_name:
+		frappe.throw(_("Insurance Claim {0} is not linked to a Sales Invoice").format(claim.name))
 
-    new_total_paid = flt(paid_amount)
-    if new_total_paid < 0:
-        frappe.throw(_("Paid amount cannot be negative"))
+	new_total_paid = flt(paid_amount)
+	if new_total_paid < 0:
+		frappe.throw(_("Paid amount cannot be negative"))
 
-    current_paid = flt(claim.total_approved or 0)
-    delta = new_total_paid - current_paid
+	current_paid = flt(claim.total_approved or 0)
+	delta = new_total_paid - current_paid
 
-    if _mode_of_payment_needs_bank_reference(mode_of_payment):
-        if not (reference_no or "").strip() or not reference_date:
-            frappe.throw(_("Reference No and Reference Date are required for bank/cheque payments"))
+	if _mode_of_payment_needs_bank_reference(mode_of_payment):
+		if not (reference_no or "").strip() or not reference_date:
+			frappe.throw(_("Reference No and Reference Date are required for bank/cheque payments"))
 
-    pe_name = None
-    if delta > 0:
-        # Create Payment Entry for the delta
-        from healthcare.api.payment_entry import create_payment_entry
+	pe_name = None
+	if delta > 0:
+		from healthcare.api.payment_entry import create_payment_entry
 
-        pe_payload = {
-            "reference_doctype": "Sales Invoice",
-            "reference_name": inv_name,
-            "paid_amount": delta,
-            "mode_of_payment": mode_of_payment,
-            "patient": claim.patient,
-            "custom_insurance_claim": claim.name,
-            "remarks": _("Insurance Claim {0} payment update").format(claim.name),
-        }
-        if reference_no:
-            pe_payload["reference_no"] = reference_no.strip()
-        if reference_date:
-            pe_payload["reference_date"] = reference_date
+		pe_payload = {
+			"reference_doctype": "Sales Invoice",
+			"reference_name": inv_name,
+			"paid_amount": delta,
+			"mode_of_payment": mode_of_payment,
+			"patient": claim.patient,
+			"custom_insurance_claim": claim.name,
+			"remarks": _("Insurance Claim {0} payment update").format(claim.name),
+		}
+		if claim.health_insurance:
+			pe_payload["custom_insurance_company"] = claim.health_insurance
+		if reference_no:
+			pe_payload["reference_no"] = reference_no.strip()
+		if reference_date:
+			pe_payload["reference_date"] = reference_date
 
-        pe_info = create_payment_entry(pe_payload)
-        pe_name = pe_info.get("name")
+		pe_info = create_payment_entry(pe_payload)
+		pe_name = pe_info.get("name")
+	elif delta < 0:
+		frappe.throw(
+			_("Reducing approved amount is not supported from payment update. Current approved: {0}").format(
+				current_paid
+			)
+		)
 
-    # Update totals and status on claim
-    claim.total_approved = new_total_paid + current_paid
+	# Absolute new total (do not add delta again).
+	claim.total_approved = new_total_paid
 
-    total_claimed = flt(claim.total_claimed or 0)
-    if total_claimed and claim.total_approved >= total_claimed:
-        claim.status = "Paid"
-    elif claim.total_approved > 0:
-        claim.status = "Partially Paid"
+	total_claimed = flt(claim.total_claimed or 0)
+	if total_claimed and claim.total_approved >= total_claimed:
+		claim.status = "Paid"
+	elif claim.total_approved > 0:
+		claim.status = "Partially Paid"
+	else:
+		claim.status = "Submitted"
 
-    claim.save(ignore_permissions=True)
-    frappe.db.commit()
+	claim.save(ignore_permissions=True)
+	frappe.db.commit()
 
-    return {
-        "insurance_claim": claim.name,
-        "payment_entry": pe_name,
-        "total_approved": new_total_paid,
-        "status": claim.status,
-    }
+	return {
+		"insurance_claim": claim.name,
+		"payment_entry": pe_name,
+		"total_approved": flt(claim.total_approved),
+		"status": claim.status,
+	}
 
 
 # ─── Trans No generation ───────────────────────────────────────────────────────

@@ -361,6 +361,8 @@ def create_payment_entry(data: dict) -> dict:
         data.get("appointment"),
     )
     pe.custom_insurance_claim = data.get("custom_insurance_claim")  # Optional link to Insurance Claim
+    if data.get("custom_insurance_company") and pe.meta.has_field("custom_insurance_company"):
+        pe.custom_insurance_company = data.get("custom_insurance_company")
 
     reference_no, reference_date = _default_transaction_reference(reference_name, data)
     pe.reference_no = reference_no
