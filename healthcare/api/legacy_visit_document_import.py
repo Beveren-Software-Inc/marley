@@ -1,12 +1,14 @@
 # Copyright (c) 2026, Healthcare contributors
-"""Bulk-import legacy visit / patient documentation PDFs into Legacy Visit Document.
+"""Bulk-import legacy visit / patient documentation PDFs and images into Legacy Visit Document.
 
-Filename pattern (example): ``DOC_4762_ZF7BEVVCW44W9930.pdf``
+Filename pattern (example): ``DOC_4762_ZF7BEVVCW44W9930.pdf`` or ``DOC_2617_75Y0F0YII37Z.jpg``
 - ``4762`` — Legacy Visit id (stored on ``legacy_visit``)
 - ``ZF7BEVVCW44W9930`` — Document Code (stored on ``document_name``)
 
-Best-effort PDF read (PyMuPDF / pypdf when available):
-- ``date_created`` from PDF metadata / title
+Allowed extensions: ``.pdf``, ``.jpg``, ``.jpeg``, ``.png``, ``.gif``, ``.webp``, ``.bmp``, ``.tif``, ``.tiff``.
+
+Best-effort read (PyMuPDF / pypdf / RapidOCR when available):
+- ``date_created`` from PDF metadata / image EXIF / title / OCR
 - ``legacy_patient_file_no`` and Patient link from readable ID / CPR / file-no text
 - ``document_type`` from content keywords (National ID, CPR ID, Discharge, …)
   with a configurable default (created if missing)
@@ -48,10 +50,12 @@ SEED_DOCUMENT_TYPES = (
 )
 
 PDF_EXTENSIONS = frozenset({".pdf"})
+IMAGE_EXTENSIONS = frozenset({".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp", ".tif", ".tiff"})
+ALLOWED_EXTENSIONS = PDF_EXTENSIONS | IMAGE_EXTENSIONS
 OCR_MAX_PAGES = 2
 OCR_RENDER_SCALE = 2.0
 
-# DOC_4762_ZF7BEVVCW44W9930.pdf  (also allows DOC-4762-…)
+# DOC_4762_ZF7BEVVCW44W9930.pdf  (also allows DOC-4762-… and .jpg/.png)
 _FILENAME_RE = re.compile(
 	r"^DOC[_\-](\d+)[_\-]([A-Za-z0-9]+)",
 	re.IGNORECASE,
@@ -108,15 +112,27 @@ def _basename(path: str) -> str:
 	return (path or "").replace("\\", "/").split("/")[-1].strip()
 
 
-def _is_pdf_filename(filename: str) -> bool:
+def _file_extension(filename: str) -> str:
 	basename = _basename(filename).lower()
 	if "." not in basename:
-		return False
-	return any(basename.endswith(ext) for ext in PDF_EXTENSIONS)
+		return ""
+	return "." + basename.rsplit(".", 1)[-1]
+
+
+def _is_allowed_document_filename(filename: str) -> bool:
+	return _file_extension(filename) in ALLOWED_EXTENSIONS
+
+
+def _is_pdf_filename(filename: str) -> bool:
+	return _file_extension(filename) in PDF_EXTENSIONS
+
+
+def _is_image_filename(filename: str) -> bool:
+	return _file_extension(filename) in IMAGE_EXTENSIONS
 
 
 def parse_legacy_visit_document_filename(filename: str) -> dict | None:
-	"""Parse ``DOC_{legacy_visit}_{document_code}`` from a filename."""
+	"""Parse ``DOC_{legacy_visit}_{document_code}`` from a filename (.pdf or image)."""
 	basename = _basename(filename)
 	if not basename:
 		return None
@@ -363,12 +379,36 @@ def _get_ocr_engine():
 		return None
 
 
-def _ocr_pdf_text(path: str, max_pages: int = OCR_MAX_PAGES) -> str:
-	"""Render scanned PDF pages and OCR them. Returns concatenated text."""
+def _ocr_image_path(engine, image_path: str) -> str:
+	"""Run RapidOCR on a single image file; return newline-joined text."""
+	try:
+		ocr_result, _elapse = engine(image_path)
+	except Exception:
+		return ""
+	if not ocr_result:
+		return ""
+	parts = []
+	for row in ocr_result:
+		if len(row) >= 2 and row[1]:
+			parts.append(str(row[1]))
+	return "\n".join(parts)
+
+
+def _ocr_document_text(path: str, max_pages: int = OCR_MAX_PAGES) -> str:
+	"""OCR a scanned PDF (rendered pages) or a standalone image. Returns text."""
 	engine = _get_ocr_engine()
 	if not engine:
 		return ""
 
+	ext = _file_extension(path)
+	if ext in IMAGE_EXTENSIONS:
+		try:
+			return _ocr_image_path(engine, path)
+		except Exception:
+			frappe.log_error(title=f"OCR failed for image: {_basename(path)}")
+			return ""
+
+	# PDF path
 	try:
 		import fitz
 		import tempfile
@@ -382,24 +422,43 @@ def _ocr_pdf_text(path: str, max_pages: int = OCR_MAX_PAGES) -> str:
 					tmp_path = tmp.name
 				try:
 					pix.save(tmp_path)
-					ocr_result, _elapse = engine(tmp_path)
+					page_text = _ocr_image_path(engine, tmp_path)
+					if page_text:
+						parts.append(page_text)
 				finally:
 					try:
 						os.unlink(tmp_path)
 					except OSError:
 						pass
-				if not ocr_result:
-					continue
-				for row in ocr_result:
-					# row: [box, text, score]
-					if len(row) >= 2 and row[1]:
-						parts.append(str(row[1]))
 		finally:
 			doc.close()
 		return "\n".join(parts)
 	except Exception:
 		frappe.log_error(title=f"OCR failed for PDF: {_basename(path)}")
 		return ""
+
+
+def _exif_date_from_image(path: str) -> date | None:
+	"""Best-effort DateTimeOriginal / DateTime from image EXIF."""
+	try:
+		from PIL import Image, ExifTags
+
+		with Image.open(path) as img:
+			exif = img.getexif()
+			if not exif:
+				return None
+			tag_map = {ExifTags.TAGS.get(k, k): v for k, v in exif.items()}
+			for key in ("DateTimeOriginal", "DateTimeDigitized", "DateTime"):
+				raw = tag_map.get(key)
+				if not raw:
+					continue
+				# EXIF format: 2026:07:16 18:39:31
+				m = re.match(r"(\d{4}):(\d{2}):(\d{2})", str(raw))
+				if m:
+					return _parse_ymd(m.group(1), m.group(2), m.group(3))
+	except Exception:
+		return None
+	return None
 
 
 def _resolve_file_disk_path(file_url: str) -> str | None:
@@ -432,9 +491,9 @@ def _resolve_file_disk_path(file_url: str) -> str | None:
 
 
 def extract_pdf_fields(file_url: str | None = None, disk_path: str | None = None) -> dict:
-	"""Best-effort extract date, patient identifier, and document type hints from a PDF.
+	"""Best-effort extract date, patient identifier, and document type from PDF or image.
 
-	Embedded text is preferred. Image-only scans fall back to RapidOCR when installed.
+	Embedded PDF text is preferred. Image files and image-only PDF scans use RapidOCR.
 	"""
 	result = {
 		"date_created": None,
@@ -455,53 +514,60 @@ def extract_pdf_fields(file_url: str | None = None, disk_path: str | None = None
 	creation_date = None
 	mod_date = None
 	text_parts: list[str] = []
+	is_image = _is_image_filename(path)
 
-	try:
-		import fitz  # PyMuPDF
-
-		doc = fitz.open(path)
+	if is_image:
+		creation_date = _exif_date_from_image(path)
+	else:
 		try:
-			meta = doc.metadata or {}
-			title = meta.get("title") or ""
-			creation_date = _parse_pdf_meta_date(meta.get("creationDate"))
-			mod_date = _parse_pdf_meta_date(meta.get("modDate"))
-			# Cap pages read for large scanned packs
-			for page in list(doc)[:8]:
-				page_text = page.get_text("text") or ""
-				if page_text.strip():
-					text_parts.append(page_text)
-		finally:
-			doc.close()
-	except Exception:
-		try:
-			from pypdf import PdfReader
+			import fitz  # PyMuPDF
 
-			reader = PdfReader(path)
-			meta = getattr(reader, "metadata", None) or {}
+			doc = fitz.open(path)
+			try:
+				meta = doc.metadata or {}
+				title = meta.get("title") or ""
+				creation_date = _parse_pdf_meta_date(meta.get("creationDate"))
+				mod_date = _parse_pdf_meta_date(meta.get("modDate"))
+				# Cap pages read for large scanned packs
+				for page in list(doc)[:8]:
+					page_text = page.get_text("text") or ""
+					if page_text.strip():
+						text_parts.append(page_text)
+			finally:
+				doc.close()
+		except Exception:
+			try:
+				from pypdf import PdfReader
 
-			def _meta_get(key: str) -> str:
-				if hasattr(meta, "get"):
-					return str(meta.get(key) or meta.get(f"/{key}") or "")
-				return str(getattr(meta, key, "") or "")
+				reader = PdfReader(path)
+				meta = getattr(reader, "metadata", None) or {}
 
-			title = _meta_get("title") or _meta_get("Title")
-			creation_date = _parse_pdf_meta_date(_meta_get("creation_date") or _meta_get("CreationDate"))
-			mod_date = _parse_pdf_meta_date(_meta_get("modification_date") or _meta_get("ModDate"))
-			for page in list(reader.pages)[:8]:
-				try:
-					page_text = page.extract_text() or ""
-				except Exception:
-					page_text = ""
-				if page_text.strip():
-					text_parts.append(page_text)
-		except Exception as exc:
-			result["extraction_notes"] = f"extract_failed:{exc}"
-			return result
+				def _meta_get(key: str) -> str:
+					if hasattr(meta, "get"):
+						return str(meta.get(key) or meta.get(f"/{key}") or "")
+					return str(getattr(meta, key, "") or "")
+
+				title = _meta_get("title") or _meta_get("Title")
+				creation_date = _parse_pdf_meta_date(
+					_meta_get("creation_date") or _meta_get("CreationDate")
+				)
+				mod_date = _parse_pdf_meta_date(
+					_meta_get("modification_date") or _meta_get("ModDate")
+				)
+				for page in list(reader.pages)[:8]:
+					try:
+						page_text = page.extract_text() or ""
+					except Exception:
+						page_text = ""
+					if page_text.strip():
+						text_parts.append(page_text)
+			except Exception as exc:
+				# Still attempt OCR below for unknown/corrupt PDFs
+				result["extraction_notes"] = f"extract_partial:{exc}"
 
 	text = "\n".join(text_parts)
-	ocr_text = ""
 	if not text.strip():
-		ocr_text = _ocr_pdf_text(path)
+		ocr_text = _ocr_document_text(path)
 		if ocr_text.strip():
 			text = ocr_text
 			result["ocr_used"] = True
@@ -531,13 +597,17 @@ def extract_pdf_fields(file_url: str | None = None, disk_path: str | None = None
 		if nat_name:
 			result["patient_name_hint"] = " ".join(nat_name.group(1).split())
 
-	if not result["extraction_notes"]:
+	if not result["extraction_notes"] or result["extraction_notes"].startswith("extract_partial"):
 		if result["ocr_used"]:
-			result["extraction_notes"] = "ocr_ok" if result["legacy_patient_file_no"] else "ocr_partial"
+			result["extraction_notes"] = (
+				"ocr_ok" if result["legacy_patient_file_no"] else "ocr_partial"
+			)
 		elif result["text_available"]:
 			result["extraction_notes"] = "text_ok"
 		elif result["date_created"]:
 			result["extraction_notes"] = "metadata_only"
+		elif is_image:
+			result["extraction_notes"] = "image_no_ocr"
 		else:
 			result["extraction_notes"] = "scanned_no_text"
 
@@ -594,7 +664,7 @@ def preview_legacy_visit_document_filenames(filenames=None, default_document_typ
 		name = _basename(str(raw or ""))
 		if not name:
 			continue
-		if not _is_pdf_filename(name):
+		if not _is_allowed_document_filename(name):
 			invalid += 1
 			if len(sample_invalid) < 10:
 				sample_invalid.append(name)
@@ -823,7 +893,7 @@ def analyze_legacy_visit_documents(filenames=None) -> dict:
 		name = _basename(str(raw or ""))
 		if not name:
 			continue
-		if not _is_pdf_filename(name):
+		if not _is_allowed_document_filename(name):
 			invalid += 1
 			continue
 		parsed = parse_legacy_visit_document_filename(name)

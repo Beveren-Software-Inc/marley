@@ -4259,48 +4259,70 @@ function format_bytes(bytes) {
 	return `${size >= 10 || unitIndex === 0 ? size.toFixed(0) : size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-function upload_patient_cpr_file(file) {
-	return new Promise((resolve, reject) => {
-		const form = new FormData();
-		form.append('file', file);
-		form.append('is_private', '0');
-		form.append('folder', 'Home/Attachments');
+function upload_patient_cpr_file(file, retries = 3) {
+	const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+	const is_transient_upload_error = (err) => {
+		const msg = (err instanceof Error ? err.message : String(err || '')).toLowerCase();
+		return (
+			msg.includes('failed to fetch') ||
+			msg.includes('networkerror') ||
+			msg.includes('network request failed') ||
+			msg.includes('load failed') ||
+			msg.includes('the network connection was lost')
+		);
+	};
 
-		fetch('/api/method/upload_file', {
-			method: 'POST',
-			headers: {
-				'X-Frappe-CSRF-Token': frappe.csrf_token,
-				Accept: 'application/json',
-			},
-			body: form,
-			credentials: 'include',
-		})
-			.then(async (response) => {
-				const data = await response.json().catch(() => ({}));
-				if (!response.ok || data.exc) {
-					let reason = '';
-					try {
-						const msgs = JSON.parse(data._server_messages || '[]');
-						const first = JSON.parse(msgs[0] || '{}');
-						reason = first.message || data.message || '';
-					} catch (e) {
-						reason = data.message || '';
-					}
-					reject(new Error(reason || `HTTP ${response.status}`));
-					return;
-				}
-				const doc = data.message;
-				const file_url =
-					(doc && typeof doc === 'object' && doc.file_url) ||
-					(typeof doc === 'string' ? doc : null);
-				if (!file_url) {
-					reject(new Error('No file URL returned'));
-					return;
-				}
-				resolve(file_url);
+	const attempt = (remaining) =>
+		new Promise((resolve, reject) => {
+			const form = new FormData();
+			form.append('file', file);
+			form.append('is_private', '0');
+			form.append('folder', 'Home/Attachments');
+
+			fetch('/api/method/upload_file', {
+				method: 'POST',
+				headers: {
+					'X-Frappe-CSRF-Token': frappe.csrf_token,
+					Accept: 'application/json',
+				},
+				body: form,
+				credentials: 'include',
 			})
-			.catch(reject);
-	});
+				.then(async (response) => {
+					const data = await response.json().catch(() => ({}));
+					if (!response.ok || data.exc) {
+						let reason = '';
+						try {
+							const msgs = JSON.parse(data._server_messages || '[]');
+							const first = JSON.parse(msgs[0] || '{}');
+							reason = first.message || data.message || '';
+						} catch (e) {
+							reason = data.message || '';
+						}
+						reject(new Error(reason || `HTTP ${response.status}`));
+						return;
+					}
+					const doc = data.message;
+					const file_url =
+						(doc && typeof doc === 'object' && doc.file_url) ||
+						(typeof doc === 'string' ? doc : null);
+					if (!file_url) {
+						reject(new Error('No file URL returned'));
+						return;
+					}
+					resolve(file_url);
+				})
+				.catch(reject);
+		}).catch(async (err) => {
+			if (remaining > 0 && is_transient_upload_error(err)) {
+				const attempt_no = retries - remaining + 1;
+				await sleep(500 * attempt_no);
+				return attempt(remaining - 1);
+			}
+			throw err;
+		});
+
+	return attempt(retries);
 }
 
 function start_patient_cpr_photo_import(dialog, replace_existing) {
@@ -4619,9 +4641,9 @@ function open_legacy_visit_document_folder_upload() {
 				fieldname: 'help',
 				options:
 					'<p class="text-muted small">'
-					+ __('Select a folder or multiple PDF files. Filenames must match '
-						+ '<code>DOC_{LegacyVisit}_{Code}.pdf</code>, e.g. '
-						+ '<code>DOC_4762_ZF7BEVVCW44W9930.pdf</code>. '
+					+ __('Select a folder or multiple PDF/image files. Filenames must match '
+						+ '<code>DOC_{LegacyVisit}_{Code}.pdf</code> (or <code>.jpg</code> / <code>.png</code>), e.g. '
+						+ '<code>DOC_4762_ZF7BEVVCW44W9930.pdf</code> or <code>DOC_2617_75Y0F0YII37Z.jpg</code>. '
 						+ 'Creates <strong>Legacy Visit Document</strong> rows. '
 						+ 'Legacy Visit is taken from the filename. Date / patient file no / document type '
 						+ 'are extracted from the PDF when readable. Scanned image-only PDFs are OCR’d '
@@ -4717,7 +4739,7 @@ function pick_legacy_visit_document_files(dialog, use_folder) {
 	const input = document.createElement('input');
 	input.type = 'file';
 	input.multiple = true;
-	input.accept = 'application/pdf,.pdf';
+	input.accept = 'application/pdf,.pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff';
 	if (use_folder) {
 		input.setAttribute('webkitdirectory', '');
 		input.setAttribute('directory', '');
@@ -4735,6 +4757,11 @@ function pick_legacy_visit_document_files(dialog, use_folder) {
 function is_legacy_visit_document_filename(name) {
 	const stem = (name || '').replace(/\.[^.]+$/, '');
 	return /^DOC[_\-]\d+[_\-][A-Z0-9]+/i.test(stem);
+}
+
+function is_legacy_visit_document_file(name) {
+	return is_legacy_visit_document_filename(name)
+		&& /\.(pdf|jpe?g|png|gif|webp|bmp|tiff?)$/i.test(name || '');
 }
 
 function preview_and_upload_legacy_visit_document_files(dialog, files) {
@@ -4766,7 +4793,7 @@ function preview_and_upload_legacy_visit_document_files(dialog, files) {
 			dialog.fields_dict.preview_html.$wrapper.html(
 				'<div class="small">'
 					+ '<p><strong>' + __('Files selected') + ':</strong> ' + files.length + '</p>'
-					+ '<p><strong>' + __('Valid DOC_ PDFs') + ':</strong> ' + (counts.valid_documents || 0) + '</p>'
+					+ '<p><strong>' + __('Valid DOC_ files') + ':</strong> ' + (counts.valid_documents || 0) + '</p>'
 					+ '<p><strong>' + __('Invalid / skipped filenames') + ':</strong> ' + (counts.invalid_filenames || 0) + '</p>'
 					+ '<p><strong>' + __('Unique legacy visits') + ':</strong> ' + (counts.unique_legacy_visits || 0) + '</p>'
 					+ '<p><strong>' + __('Default Document Type') + ':</strong> '
@@ -4781,7 +4808,10 @@ function preview_and_upload_legacy_visit_document_files(dialog, files) {
 			if (!counts.valid_documents) {
 				frappe.msgprint({
 					title: __('No visit documents found'),
-					message: __('No filenames matched the expected pattern (e.g. DOC_4762_ZF7BEVVCW44W9930.pdf).'),
+					message: __(
+						'No filenames matched the expected pattern '
+							+ '(e.g. DOC_4762_ZF7BEVVCW44W9930.pdf or DOC_2617_75Y0F0YII37Z.jpg).'
+					),
 					indicator: 'orange',
 				});
 				return;
@@ -4795,13 +4825,13 @@ function preview_and_upload_legacy_visit_document_files(dialog, files) {
 function upload_legacy_visit_document_files_sequential(dialog, files) {
 	const valid_files = files.filter((file) => {
 		const name = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
-		return is_legacy_visit_document_filename(name) && /\.pdf$/i.test(name);
+		return is_legacy_visit_document_file(name);
 	});
 
 	if (!valid_files.length) {
 		frappe.msgprint({
-			title: __('No visit document PDFs'),
-			message: __('No PDF files matched the DOC_{visit}_{code} naming pattern.'),
+			title: __('No visit documents'),
+			message: __('No PDF/image files matched the DOC_{visit}_{code} naming pattern.'),
 			indicator: 'orange',
 		});
 		return;
@@ -4925,7 +4955,7 @@ function open_legacy_visit_document_analysis() {
 				fieldname: 'help',
 				options:
 					'<p class="text-muted small">'
-					+ __('Select the same DOC_ PDF folder/files used for Direct Upload. '
+					+ __('Select the same DOC_ PDF/image folder/files used for Direct Upload. '
 						+ 'Analysis checks which documents already have a Legacy Visit Document row.')
 					+ '</p>',
 			},
@@ -4956,7 +4986,7 @@ function open_legacy_visit_document_analysis() {
 				const input = document.createElement('input');
 				input.type = 'file';
 				input.multiple = true;
-				input.accept = 'application/pdf,.pdf';
+				input.accept = 'application/pdf,.pdf,image/*,.jpg,.jpeg,.png,.gif,.webp,.bmp,.tif,.tiff';
 				input.setAttribute('webkitdirectory', '');
 				input.setAttribute('directory', '');
 				input.onchange = () => {
