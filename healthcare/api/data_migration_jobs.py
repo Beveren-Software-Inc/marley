@@ -8006,7 +8006,7 @@ def process_patient_legacy_signature_import_batch(offset: int = 0) -> None:
 def start_legacy_visit_document_import_migration(
 	items=None, replace_existing=1, default_document_type=None
 ) -> dict:
-	"""Import DOC_{visit}_{code}.pdf files into Legacy Visit Document."""
+	"""Import DOC_{visit}_{code}.pdf/.jpg/… files into Legacy Visit Document."""
 	_require_admin()
 	from healthcare.api.legacy_visit_document_import import cache_import_items
 
@@ -8043,7 +8043,7 @@ def start_legacy_visit_document_import_migration(
 	return {
 		"ok": True,
 		"message": _(
-			"Legacy visit document import started ({0} PDFs, {1} unique legacy visits)."
+			"Legacy visit document import started ({0} files, {1} unique legacy visits)."
 		).format(
 			summary.get("valid_documents") or 0,
 			summary.get("unique_legacy_visits") or 0,
