@@ -12,6 +12,7 @@ import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisLi
 import { DischargeList } from '../components/discharges/DischargeList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { PackageDetailsList } from '../components/packageDetails/PackageDetailsList'
+import { LegacyVisitDocumentsList } from '../components/legacyVisitDocuments/LegacyVisitDocumentsList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { ObservationList } from '../components/observations/ObservationList'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
@@ -27,7 +28,8 @@ import {
   FileText,
   Receipt,
   AlertCircle,
-  DollarSign
+  DollarSign,
+  ChevronDown,
 } from 'lucide-react'
 import { useFormatMoney } from '../hooks/useFormatMoney'
 import { usePatientHistoryListingOpener } from '../utils/patientHistoryListingNavigation'
@@ -42,6 +44,7 @@ export const PatientHistoryPage = () => {
   const [summary, setSummary] = useState<PatientHistorySummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'general' | 'admission'>('general')
+  const [legacyDocsExpanded, setLegacyDocsExpanded] = useState(false)
 
   const canViewClinical = useMemo(() => {
     const roles = user?.roles?.length
@@ -49,6 +52,10 @@ export const PatientHistoryPage = () => {
       : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
     return canViewClinicalPatientHistory(roles)
   }, [user])
+
+  useEffect(() => {
+    setLegacyDocsExpanded(false)
+  }, [selectedPatient])
 
   useEffect(() => {
     if (!canViewClinical && activeTab === 'admission') {
@@ -152,6 +159,33 @@ export const PatientHistoryPage = () => {
           <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
             <h2 className="font-semibold text-slate-900 mb-3">Patient Demographics</h2>
             <PatientSummaryCard patient={selectedPatient} />
+          </section>
+
+          {/* Legacy Documents — collapsible, directly under demographics */}
+          <section className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setLegacyDocsExpanded((open) => !open)}
+              aria-expanded={legacyDocsExpanded}
+              className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left hover:bg-slate-50 transition"
+            >
+              <div>
+                <h2 className="font-semibold text-slate-900">Legacy Documents</h2>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Scanned / imported patient documentation (CPR, National ID, medical reports, …)
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${
+                  legacyDocsExpanded ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {legacyDocsExpanded ? (
+              <div className="border-t border-slate-200 px-4 py-3">
+                <LegacyVisitDocumentsList patient={selectedPatient} layout="table" />
+              </div>
+            ) : null}
           </section>
 
           {/* Summary cards - show both visits AND admissions always */}

@@ -1,0 +1,173 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-07-24 13:47:17.428241",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "transaction_no",
+  "document_name",
+  "file_name",
+  "document_type",
+  "column_break_zntp",
+  "document",
+  "upload_remarks",
+  "date_created",
+  "section_break_yrgi",
+  "patient",
+  "patient_name",
+  "legacy_patient_file_no",
+  "section_break_tzff",
+  "legacy_visit",
+  "patient_visit"
+ ],
+ "fields": [
+  {
+   "fieldname": "transaction_no",
+   "fieldtype": "Data",
+   "label": "Transaction No"
+  },
+  {
+   "fieldname": "document_name",
+   "fieldtype": "Data",
+   "label": "Document Code"
+  },
+  {
+   "fieldname": "file_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "File Name"
+  },
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Document Type",
+   "options": "Document Type"
+  },
+  {
+   "fieldname": "column_break_zntp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "document",
+   "fieldtype": "Attach",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Document"
+  },
+  {
+   "fieldname": "upload_remarks",
+   "fieldtype": "Small Text",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Upload Remarks"
+  },
+  {
+   "fieldname": "section_break_yrgi",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient ",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_tzff",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "legacy_visit",
+   "fieldtype": "Data",
+   "label": "Legacy Visit"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "date_created",
+   "fieldtype": "Date",
+   "label": "Date Created"
+  },
+  {
+   "fieldname": "legacy_patient_file_no",
+   "fieldtype": "Data",
+   "label": "Legacy patient file no"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-07-24 13:51:17.577805",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Legacy Visit Document",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 0,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse"
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Reception"
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

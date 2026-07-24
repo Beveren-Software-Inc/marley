@@ -1121,6 +1121,10 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_patient_legacy_signature_folder_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Legacy Visit Documents — Local Folder'), () => {
+			open_legacy_visit_document_folder_upload();
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Patient Allergies — PATIENT_INFO_01'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Patient Allergies (PATIENT_INFO_01)'),
@@ -2661,6 +2665,10 @@ frappe.ui.form.on('Healthcare Settings', {
 
 		frm.add_custom_button(__('Analyze: Legacy Signatures'), () => {
 			open_patient_legacy_signature_analysis();
+		}, __('Migration Analysis'));
+
+		frm.add_custom_button(__('Analyze: Legacy Visit Documents'), () => {
+			open_legacy_visit_document_analysis();
 		}, __('Migration Analysis'));
 
 		frm.add_custom_button(__('Analyze: Legacy Sales Master'), () => {
@@ -4599,6 +4607,402 @@ function start_patient_legacy_signature_import(dialog, replace_existing) {
 	});
 }
 
+// ── Legacy Visit Documents (Patient Documentation PDFs) ──────────────────────
+
+function open_legacy_visit_document_folder_upload() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Import Legacy Visit Documents'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select a folder or multiple PDF files. Filenames must match '
+						+ '<code>DOC_{LegacyVisit}_{Code}.pdf</code>, e.g. '
+						+ '<code>DOC_4762_ZF7BEVVCW44W9930.pdf</code>. '
+						+ 'Creates <strong>Legacy Visit Document</strong> rows. '
+						+ 'Legacy Visit is taken from the filename. Date / patient file no / document type '
+						+ 'are extracted from the PDF when readable. Scanned image-only PDFs are OCR’d '
+						+ '(e.g. Arabic medical reports — رقم الملف). '
+						+ 'Patient Visit link is left blank for a later backfill.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'Link',
+				fieldname: 'default_document_type',
+				label: __('Default Document Type (fallback)'),
+				options: 'Document Type',
+				default: 'Patient Documentation',
+				description: __(
+					'Used when the PDF does not clearly indicate a type (National ID, CPR ID, Discharge, etc.). '
+						+ 'You can create new Document Types from the link field.'
+				),
+			},
+			{
+				fieldtype: 'Check',
+				fieldname: 'replace_existing',
+				label: __('Replace existing matching Legacy Visit Document rows'),
+				default: 1,
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'preview_html',
+				options: '<p class="text-muted">' + __('No files selected yet.') + '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'progress_html',
+				options: '',
+			},
+		],
+		primary_action_label: __('Import'),
+		primary_action() {
+			if (!dialog._lvd_upload_items || !dialog._lvd_upload_items.length) {
+				frappe.msgprint({
+					title: __('No files'),
+					message: __('Select a folder or files first.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			const replace_existing = dialog.get_value('replace_existing') ? 1 : 0;
+			const default_document_type =
+				dialog.get_value('default_document_type') || 'Patient Documentation';
+			frappe.confirm(
+				__(
+					'Import {0} visit document PDF(s) into Legacy Visit Document?\n\n'
+						+ 'Valid documents: {1}\n'
+						+ 'Unique legacy visits: {2}\n'
+						+ 'Invalid / skipped: {3}\n'
+						+ 'Default Document Type: {4}\n\nContinue?',
+					[
+						dialog._lvd_upload_items.length,
+						dialog._lvd_preview_counts?.valid_documents || 0,
+						dialog._lvd_preview_counts?.unique_legacy_visits || 0,
+						dialog._lvd_preview_counts?.invalid_filenames || 0,
+						default_document_type,
+					]
+				),
+				() => start_legacy_visit_document_import(dialog, replace_existing, default_document_type)
+			);
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => pick_legacy_visit_document_files(dialog, true))
+	);
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Files'))
+			.on('click', () => pick_legacy_visit_document_files(dialog, false))
+	);
+
+	dialog.show();
+	dialog.get_primary_btn().prop('disabled', true);
+
+	// Seed common Document Types so the Link picker has useful options
+	frappe.call({
+		method: 'healthcare.api.legacy_visit_document_import.seed_document_types',
+		callback() {
+			dialog.set_value('default_document_type', 'Patient Documentation');
+		},
+	});
+}
+
+function pick_legacy_visit_document_files(dialog, use_folder) {
+	const input = document.createElement('input');
+	input.type = 'file';
+	input.multiple = true;
+	input.accept = 'application/pdf,.pdf';
+	if (use_folder) {
+		input.setAttribute('webkitdirectory', '');
+		input.setAttribute('directory', '');
+	}
+	input.onchange = () => {
+		const files = Array.from(input.files || []);
+		if (!files.length) {
+			return;
+		}
+		preview_and_upload_legacy_visit_document_files(dialog, files);
+	};
+	input.click();
+}
+
+function is_legacy_visit_document_filename(name) {
+	const stem = (name || '').replace(/\.[^.]+$/, '');
+	return /^DOC[_\-]\d+[_\-][A-Z0-9]+/i.test(stem);
+}
+
+function preview_and_upload_legacy_visit_document_files(dialog, files) {
+	const filenames = files.map((file) => {
+		const path = file.webkitRelativePath || file.name || '';
+		return path.replace(/\\/g, '/').split('/').pop();
+	});
+	const default_document_type =
+		dialog.get_value('default_document_type') || 'Patient Documentation';
+
+	dialog.fields_dict.preview_html.$wrapper.html(
+		'<p class="text-muted">' + __('Checking filenames…') + '</p>'
+	);
+	dialog.fields_dict.progress_html.$wrapper.html('');
+	dialog.get_primary_btn().prop('disabled', true);
+	dialog._lvd_upload_items = null;
+	dialog._lvd_preview_counts = null;
+
+	frappe.call({
+		method: 'healthcare.api.legacy_visit_document_import.preview_legacy_visit_document_filenames',
+		args: { filenames, default_document_type },
+		freeze: true,
+		freeze_message: __('Analyzing filenames…'),
+		callback(r) {
+			const counts = r.message || {};
+			dialog._lvd_preview_counts = counts;
+			const sampleVisits = (counts.sample_legacy_visits || []).join(', ') || __('(none)');
+			const sampleInvalid = (counts.sample_invalid_filenames || []).join(', ') || __('(none)');
+			dialog.fields_dict.preview_html.$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Files selected') + ':</strong> ' + files.length + '</p>'
+					+ '<p><strong>' + __('Valid DOC_ PDFs') + ':</strong> ' + (counts.valid_documents || 0) + '</p>'
+					+ '<p><strong>' + __('Invalid / skipped filenames') + ':</strong> ' + (counts.invalid_filenames || 0) + '</p>'
+					+ '<p><strong>' + __('Unique legacy visits') + ':</strong> ' + (counts.unique_legacy_visits || 0) + '</p>'
+					+ '<p><strong>' + __('Default Document Type') + ':</strong> '
+					+ frappe.utils.escape_html(counts.default_document_type || default_document_type) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample legacy visits') + ':</strong> '
+					+ frappe.utils.escape_html(sampleVisits) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample invalid') + ':</strong> '
+					+ frappe.utils.escape_html(sampleInvalid) + '</p>'
+					+ '</div>'
+			);
+
+			if (!counts.valid_documents) {
+				frappe.msgprint({
+					title: __('No visit documents found'),
+					message: __('No filenames matched the expected pattern (e.g. DOC_4762_ZF7BEVVCW44W9930.pdf).'),
+					indicator: 'orange',
+				});
+				return;
+			}
+
+			upload_legacy_visit_document_files_sequential(dialog, files);
+		},
+	});
+}
+
+function upload_legacy_visit_document_files_sequential(dialog, files) {
+	const valid_files = files.filter((file) => {
+		const name = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+		return is_legacy_visit_document_filename(name) && /\.pdf$/i.test(name);
+	});
+
+	if (!valid_files.length) {
+		frappe.msgprint({
+			title: __('No visit document PDFs'),
+			message: __('No PDF files matched the DOC_{visit}_{code} naming pattern.'),
+			indicator: 'orange',
+		});
+		return;
+	}
+
+	const items = [];
+	const failed = [];
+	let index = 0;
+
+	const render_progress = () => {
+		const pct = Math.round((index / valid_files.length) * 100);
+		dialog.fields_dict.progress_html.$wrapper.html(
+			'<p class="small text-muted">'
+				+ __('Uploading {0} of {1} ({2}%)…', [index, valid_files.length, pct])
+				+ '</p>'
+		);
+	};
+
+	const render_upload_summary = () => {
+		dialog._lvd_upload_items = items;
+		const failed_list = failed
+			.map((entry) => {
+				const sizeInfo = entry.before ? ` (${frappe.utils.escape_html(entry.before)})` : '';
+				const reason = entry.reason
+					? ` - ${frappe.utils.escape_html(entry.reason)}`
+					: '';
+				return `${frappe.utils.escape_html(entry.filename)}${sizeInfo}${reason}`;
+			})
+			.join('<br>');
+		let html = '';
+		if (failed.length) {
+			html += '<p class="text-orange small"><strong>'
+				+ __('{0} of {1} uploaded. {2} failed — those will not be imported unless you retry.', [
+					items.length,
+					valid_files.length,
+					failed.length,
+				])
+				+ '</strong></p>';
+			html += '<p class="small text-muted"><strong>' + __('Failed files') + ':</strong><br>' + failed_list + '</p>';
+		} else {
+			html += '<p class="text-success small">'
+				+ __('All {0} file(s) uploaded. Click Import to create Legacy Visit Document records.', [items.length])
+				+ '</p>';
+		}
+		dialog.fields_dict.progress_html.$wrapper.html(html);
+		dialog.get_primary_btn().prop('disabled', !items.length);
+	};
+
+	const upload_next = () => {
+		if (index >= valid_files.length) {
+			render_upload_summary();
+			return;
+		}
+
+		const file = valid_files[index];
+		const filename = (file.webkitRelativePath || file.name || '').replace(/\\/g, '/').split('/').pop();
+		render_progress();
+
+		upload_patient_cpr_file(file)
+			.then((file_url) => {
+				items.push({ file_url, filename });
+			})
+			.catch((err) => {
+				const reason = err instanceof Error ? err.message : String(err || '');
+				failed.push({
+					filename,
+					before: format_bytes(file.size),
+					reason,
+				});
+				frappe.show_alert({
+					message: __('Failed to upload {0}', [filename]),
+					indicator: 'red',
+				}, 5);
+				console.error('Legacy visit document upload failed:', {
+					filename,
+					reason,
+					sizeBytes: file.size,
+					size: format_bytes(file.size),
+				});
+			})
+			.finally(() => {
+				index += 1;
+				upload_next();
+			});
+	};
+
+	render_progress();
+	upload_next();
+}
+
+function start_legacy_visit_document_import(dialog, replace_existing, default_document_type) {
+	frappe.call({
+		method: 'healthcare.api.data_migration_jobs.start_legacy_visit_document_import_migration',
+		args: {
+			items: dialog._lvd_upload_items,
+			replace_existing,
+			default_document_type: default_document_type || 'Patient Documentation',
+		},
+		freeze: true,
+		freeze_message: __('Starting background import…'),
+		callback(r) {
+			if (r.message?.ok) {
+				dialog.hide();
+				frappe.show_alert({
+					message: r.message.message || __('Legacy visit document import started'),
+					indicator: 'green',
+				});
+				poll_migration_status('legacy_visit_document_import');
+			}
+		},
+	});
+}
+
+function open_legacy_visit_document_analysis() {
+	const dialog = new frappe.ui.Dialog({
+		title: __('Analyze Legacy Visit Documents'),
+		size: 'large',
+		fields: [
+			{
+				fieldtype: 'HTML',
+				fieldname: 'help',
+				options:
+					'<p class="text-muted small">'
+					+ __('Select the same DOC_ PDF folder/files used for Direct Upload. '
+						+ 'Analysis checks which documents already have a Legacy Visit Document row.')
+					+ '</p>',
+			},
+			{
+				fieldtype: 'HTML',
+				fieldname: 'result_html',
+				options: '<p class="text-muted">' + __('No analysis run yet.') + '</p>',
+			},
+		],
+		primary_action_label: __('Analyze Selected'),
+		primary_action() {
+			if (!dialog._lvd_analyze_filenames || !dialog._lvd_analyze_filenames.length) {
+				frappe.msgprint({
+					title: __('No files'),
+					message: __('Select a folder or files first.'),
+					indicator: 'orange',
+				});
+				return;
+			}
+			run_legacy_visit_document_analysis(dialog, dialog._lvd_analyze_filenames);
+		},
+	});
+
+	dialog.$wrapper.find('.modal-footer').prepend(
+		$('<button type="button" class="btn btn-default btn-sm mr-2">')
+			.text(__('Select Folder'))
+			.on('click', () => {
+				const input = document.createElement('input');
+				input.type = 'file';
+				input.multiple = true;
+				input.accept = 'application/pdf,.pdf';
+				input.setAttribute('webkitdirectory', '');
+				input.setAttribute('directory', '');
+				input.onchange = () => {
+					dialog._lvd_analyze_filenames = Array.from(input.files || []).map((file) => {
+						const path = file.webkitRelativePath || file.name || '';
+						return path.replace(/\\/g, '/').split('/').pop();
+					});
+					dialog.fields_dict.result_html.$wrapper.html(
+						'<p class="small">'
+							+ __('Selected {0} file(s). Click Analyze Selected.', [
+								dialog._lvd_analyze_filenames.length,
+							])
+							+ '</p>'
+					);
+				};
+				input.click();
+			})
+	);
+
+	dialog.show();
+}
+
+function run_legacy_visit_document_analysis(dialog, filenames) {
+	frappe.call({
+		method: 'healthcare.api.legacy_visit_document_import.analyze_legacy_visit_documents',
+		args: { filenames },
+		freeze: true,
+		freeze_message: __('Analyzing…'),
+		callback(r) {
+			const counts = r.message || {};
+			const samplesMissing = (counts.samples?.not_uploaded || []).join('<br>') || __('(none)');
+			dialog.fields_dict.result_html.$wrapper.html(
+				'<div class="small">'
+					+ '<p><strong>' + __('Folder filenames') + ':</strong> ' + (counts.folder_filenames || 0) + '</p>'
+					+ '<p><strong>' + __('Valid DOC_ labels') + ':</strong> ' + (counts.folder_valid || 0) + '</p>'
+					+ '<p><strong>' + __('Already uploaded') + ':</strong> ' + (counts.uploaded_ok || 0) + '</p>'
+					+ '<p><strong>' + __('Not uploaded') + ':</strong> ' + (counts.not_uploaded || 0) + '</p>'
+					+ '<p><strong>' + __('Invalid') + ':</strong> ' + (counts.folder_invalid || 0) + '</p>'
+					+ '<p class="text-muted"><strong>' + __('Sample missing') + ':</strong><br>'
+					+ samplesMissing + '</p>'
+					+ '</div>'
+			);
+		},
+	});
+}
+
 function open_direct_excel_upload({
 	dialog_title,
 	preview_method,
@@ -6213,6 +6617,18 @@ function poll_migration_status(jobKey) {
 								s.uploaded_patient || 0,
 								s.skip_invalid || 0,
 								s.skip_no_patient || 0,
+								s.skip_existing || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'legacy_visit_document_import') {
+						msg = __(
+							'{0} finished: {1} created, {2} updated, {3} invalid, {4} skipped (existing), {5} errors.',
+							[
+								jobKey,
+								s.created || 0,
+								s.updated || 0,
+								s.skip_invalid || 0,
 								s.skip_existing || 0,
 								errN,
 							]

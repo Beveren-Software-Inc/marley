@@ -7999,6 +7999,104 @@ def process_patient_legacy_signature_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── Legacy Visit Document (Patient Documentation) folder import ───────────────
+
+
+@frappe.whitelist()
+def start_legacy_visit_document_import_migration(
+	items=None, replace_existing=1, default_document_type=None
+) -> dict:
+	"""Import DOC_{visit}_{code}.pdf files into Legacy Visit Document."""
+	_require_admin()
+	from healthcare.api.legacy_visit_document_import import cache_import_items
+
+	if isinstance(items, str):
+		import json
+
+		items = json.loads(items) if items.strip() else []
+	if not isinstance(items, list) or not items:
+		frappe.throw(_("No uploaded documents to import."))
+
+	job = "legacy_visit_document_import"
+	_acquire_lock(job)
+	summary = cache_import_items(
+		items,
+		replace_existing=cint(replace_existing),
+		default_document_type=default_document_type,
+	)
+	total_items = summary.get("valid_documents") or 0
+	_set_progress(
+		job,
+		0,
+		total_items=total_items,
+		valid_documents=summary.get("valid_documents"),
+		unique_legacy_visits=summary.get("unique_legacy_visits"),
+		default_document_type=summary.get("default_document_type"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_legacy_visit_document_import_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_legacy_visit_document_import",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Legacy visit document import started ({0} PDFs, {1} unique legacy visits)."
+		).format(
+			summary.get("valid_documents") or 0,
+			summary.get("unique_legacy_visits") or 0,
+		),
+	}
+
+
+def process_legacy_visit_document_import_batch(offset: int = 0) -> None:
+	from healthcare.api.legacy_visit_document_import import (
+		run_legacy_visit_document_import_batch,
+	)
+
+	job = "legacy_visit_document_import"
+	try:
+		result = run_legacy_visit_document_import_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			created=cint(prev.get("created", 0)) + cint(result.get("created", 0)),
+			updated=cint(prev.get("updated", 0)) + cint(result.get("updated", 0)),
+			skip_invalid=cint(prev.get("skip_invalid", 0)) + cint(result.get("skip_invalid", 0)),
+			skip_existing=cint(prev.get("skip_existing", 0)) + cint(result.get("skip_existing", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_items=prev.get("total_items"),
+			valid_documents=prev.get("valid_documents"),
+			unique_legacy_visits=prev.get("unique_legacy_visits"),
+			default_document_type=prev.get("default_document_type"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_legacy_visit_document_import_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_legacy_visit_document_import_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Legacy visit document import complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 def process_sleeping_pattern_import_batch(offset: int = 0) -> None:
 	from healthcare.api.sleeping_pattern_import import run_sleeping_pattern_import_batch
 
