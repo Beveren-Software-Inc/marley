@@ -360,9 +360,44 @@ def get_patient_doc(patient=None):
 
 @frappe.whitelist()
 def get_next_patient_file_no():
-	"""Generate the next file number for a new Patient record."""
-	from healthcare.api.utils.api_utility import get_next_transaction_number
-	return get_next_transaction_number('Patient', fieldname='file_no')
+	"""Next Patient File No from the largest existing *6-digit* file number + 1.
+
+	Longer (e.g. 9-digit) file numbers from bad sequences are ignored so new
+	patients continue the 6-digit series. Result is unique against Patient.file_no
+	and Patient.name.
+	"""
+	import re
+
+	rows = frappe.db.sql(
+		"""
+		SELECT DISTINCT file_no
+		FROM `tabPatient`
+		WHERE IFNULL(file_no, '') != ''
+		""",
+		as_dict=True,
+	)
+
+	max_six = 0
+	for row in rows:
+		raw = (row.get("file_no") or "").strip()
+		if not raw:
+			continue
+		# Pure 6-digit file numbers only (ignore 7+ digit / mixed values).
+		if re.fullmatch(r"\d{6}", raw):
+			max_six = max(max_six, int(raw))
+
+	# No 6-digit series yet — start at 100000 (first 6-digit value).
+	next_num = (max_six + 1) if max_six else 100000
+
+	# Skip collisions with existing file_no or Patient name.
+	while True:
+		candidate = str(next_num)
+		exists = frappe.db.exists("Patient", {"file_no": candidate}) or frappe.db.exists(
+			"Patient", candidate
+		)
+		if not exists:
+			return candidate
+		next_num += 1
 
 @frappe.whitelist()
 def create_patient(data):

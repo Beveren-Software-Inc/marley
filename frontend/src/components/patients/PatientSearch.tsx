@@ -152,12 +152,14 @@ export const PatientSearch = ({
   }, [selectedPatient, isDoctor])
 
   /**
-   * DOC-010: a doctor must review patient safety alerts before ANY consultation,
-   * outpatient as well as inpatient. This previously carried
-   * `&& patientHasActiveAdmission !== false`, which silently switched the
-   * safety banner off for every OP consultation - the majority of encounters.
+   * Doctors must record warnings/allergies before closing alerts only when the
+   * patient has an active inpatient admission. OP / newly created patients can
+   * still see the banner, but closing is not blocked.
+   * While admission status is loading (`null`), keep close blocked so an
+   * admitted patient cannot be dismissed before the check finishes.
    */
-  const enforceDoctorWarnings = isDoctor && Boolean(selectedPatient)
+  const enforceDoctorWarnings =
+    isDoctor && Boolean(selectedPatient) && patientHasActiveAdmission !== false
 
   const tryDismissAlerts = () => {
     if (!alertsCanDismiss) {
@@ -169,7 +171,7 @@ export const PatientSearch = ({
 
   const showPatientAlertsFromUserAction = () => {
     if (!showAlertsBanner) return
-    if (isDoctor && selectedPatient) setAlertsCanDismiss(false)
+    if (enforceDoctorWarnings) setAlertsCanDismiss(false)
     setAlertsBannerDismissed(false)
   }
 
