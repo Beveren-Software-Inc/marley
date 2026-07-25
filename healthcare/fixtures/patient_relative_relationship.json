@@ -65,13 +65,6 @@
  {
   "docstatus": 0,
   "doctype": "Patient Relative Relationship",
-  "modified": "2026-04-21 12:18:44.241292",
-  "name": "Mother",
-  "relationship": "Mother"
- },
- {
-  "docstatus": 0,
-  "doctype": "Patient Relative Relationship",
   "modified": "2026-04-21 12:18:49.008307",
   "name": "Brother",
   "relationship": "Brother"
@@ -110,5 +103,12 @@
   "modified": "2026-04-21 12:19:22.368828",
   "name": "Daughter",
   "relationship": "Daughter"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Patient Relative Relationship",
+  "modified": "2026-04-21 12:18:44.241292",
+  "name": "Mother",
+  "relationship": "Mother"
  }
 ]

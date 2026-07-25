@@ -324,7 +324,12 @@ def save_for_context(parent_doctype: str, parent_name: str, rows) -> dict:
 			frappe.delete_doc("Medical Diagnosis Entry", name, force=True, ignore_permissions=True)
 
 	frappe.db.commit()
-	return {"ok": True, "saved": len(kept)}
+	return {
+		"ok": True,
+		"success": True,
+		"saved": len(kept),
+		"message": _("Saved {0} diagnosis(es)").format(len(kept)),
+	}
 
 
 def append_for_context(parent_doctype: str, parent_name: str, rows) -> dict:

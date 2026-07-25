@@ -3531,9 +3531,17 @@ def get_uoms(search=None):
 
 
 @frappe.whitelist()
-def get_standard_uoms(search=None):
-	"""Fetch standard UOM records (Item UOM) for medication and inventory use."""
+def get_standard_uoms(search=None, medical_only=None):
+	"""Fetch standard UOM records (Item UOM) for medication and inventory use.
+
+	When ``medical_only`` is set, only UOMs with ``custom_is_medical`` checked are returned
+	(used by prescription UOM pickers).
+	"""
 	filters = []
+	if frappe.utils.cint(medical_only):
+		# Prefer the custom field when present; fall back gracefully if not migrated yet.
+		if frappe.db.has_column("UOM", "custom_is_medical"):
+			filters.append(["custom_is_medical", "=", 1])
 	if search:
 		filters.append(["name", "like", f"%{search}%"])
 	uoms = frappe.get_all(

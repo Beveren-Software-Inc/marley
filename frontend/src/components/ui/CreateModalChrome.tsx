@@ -13,9 +13,10 @@ function useEscapeToClose(onClose: () => void) {
   }, [onClose])
 }
 
-/** Backdrop — centered create / edit dialogs; scrollable on small screens */
+/** Backdrop — centered create / edit dialogs; scrollable on small screens.
+ * z-[80] sits above DetailSlideOver (z-[70]) so portaled create dialogs open on top. */
 export const CREATE_MODAL_OVERLAY =
-  'fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-primary/15 p-3 sm:items-center sm:p-4 backdrop-blur-[2px]'
+  'fixed inset-0 z-[80] flex items-start justify-center overflow-y-auto bg-primary/15 p-3 sm:items-center sm:p-4 backdrop-blur-[2px]'
 
 /** Tall tabbed create dialogs — capped height with internal scroll + pinned footer */
 export const CREATE_MODAL_TABBED_SHELL =
@@ -27,7 +28,7 @@ export const CREATE_MODAL_TABBED_BODY =
 
 /** Nested modal (e.g. confirm on top of create) */
 export const CREATE_MODAL_OVERLAY_STACK =
-  'fixed inset-0 z-[60] flex items-center justify-center bg-primary/15 p-4 backdrop-blur-[2px]'
+  'fixed inset-0 z-[90] flex items-center justify-center bg-primary/15 p-4 backdrop-blur-[2px]'
 
 /** Backdrop — detail slide-over from the right (padding on all sides so panel is not flush-left). */
 export const DETAIL_PANEL_OVERLAY =

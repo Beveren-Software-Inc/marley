@@ -303,12 +303,12 @@ const EditMedicationEntryModal = ({
 
   useEffect(() => {
     fetchDosageForms().then(setDosageFormOptions).catch(() => setDosageFormOptions([]))
-    fetchStandardUoms().then(setUomOptions).catch(() => setUomOptions([]))
+    fetchStandardUoms(undefined, { medicalOnly: true }).then(setUomOptions).catch(() => setUomOptions([]))
   }, [])
 
   const searchUoms = async (q: string) => {
     setUomLoading(true)
-    try { setUomOptions(await fetchStandardUoms(q || undefined)) }
+    try { setUomOptions(await fetchStandardUoms(q || undefined, { medicalOnly: true })) }
     catch { setUomOptions([]) } finally { setUomLoading(false) }
   }
 
@@ -487,7 +487,7 @@ const EditMedicationEntryModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
-              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="e.g. 45mg or 1-0-1"
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} disabled={disabled} placeholder="45mg"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
               {checkingDose ? (
                 <p className="mt-1 text-xs text-slate-500">Checking dose limit…</p>
@@ -775,12 +775,12 @@ export const AddMedicationEntryModal = ({
 
   useEffect(() => {
     fetchDosageForms().then(setAddDosageForms).catch(() => setAddDosageForms([]))
-    fetchStandardUoms().then(setAddUomOptions).catch(() => setAddUomOptions([]))
+    fetchStandardUoms(undefined, { medicalOnly: true }).then(setAddUomOptions).catch(() => setAddUomOptions([]))
   }, [])
 
   const addSearchUoms = async (q: string) => {
     setAddUomLoading(true)
-    try { setAddUomOptions(await fetchStandardUoms(q || undefined)) }
+    try { setAddUomOptions(await fetchStandardUoms(q || undefined, { medicalOnly: true })) }
     catch { setAddUomOptions([]) } finally { setAddUomLoading(false) }
   }
 
@@ -980,7 +980,7 @@ export const AddMedicationEntryModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage *</label>
-              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="e.g. 45mg or 1-0-1"
+              <input value={form.dosage} onChange={(e) => updateField('dosage', e.target.value)} placeholder="45mg"
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
               {checkingDose ? (
                 <p className="mt-1 text-xs text-slate-500">Checking dose limit…</p>

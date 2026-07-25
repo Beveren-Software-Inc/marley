@@ -78,9 +78,13 @@ export async function fetchUoms(search?: string): Promise<LinkFieldOption[]> {
   } catch { return [] }
 }
 
-export async function fetchStandardUoms(search?: string): Promise<LinkFieldOption[]> {
+export async function fetchStandardUoms(
+  search?: string,
+  options?: { medicalOnly?: boolean }
+): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
+  if (options?.medicalOnly) params.append('medical_only', '1')
   const url = `/api/method/healthcare.api.common.get_standard_uoms${params.toString() ? `?${params.toString()}` : ''}`
   try {
     const response = await fetch(url, { credentials: 'include' })

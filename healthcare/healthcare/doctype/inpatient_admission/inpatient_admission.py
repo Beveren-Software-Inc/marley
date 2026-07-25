@@ -4,14 +4,13 @@
 
 
 import json
-import re
 
 import frappe
 from frappe import _
 from frappe.desk.reportview import get_match_cond
 from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
-from frappe.utils import cint, get_datetime, get_link_to_form, getdate, now_datetime, today
+from frappe.utils import cint, cstr, get_datetime, get_link_to_form, getdate, now_datetime, today
 
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
@@ -128,39 +127,10 @@ class InpatientAdmission(Document):
 				frappe.db.set_value("Patient", self.patient, "file_no", file_number)
 	
 	def get_next_file_number(self):
-		"""Get the next sequential file number by checking the last number used"""
-		# Get all patients with file_no values
-		all_file_nos = frappe.db.get_all(
-			"Patient",
-			filters={"file_no": ["is", "set"]},
-			fields=["file_no"],
-			pluck="file_no"
-		)
-		
-		if not all_file_nos:
-			# No file numbers exist, start from 1
-			return "1"
-		
-		# Extract numeric values from file_no
-		max_number = 0
-		for file_no in all_file_nos:
-			if file_no:
-				# Extract all numeric parts from the file_no
-				numbers = re.findall(r'\d+', str(file_no))
-				if numbers:
-					# Get the last number found (in case there are multiple)
-					# or the largest number if multiple numbers exist
-					for num_str in numbers:
-						try:
-							num = int(num_str)
-							if num > max_number:
-								max_number = num
-						except ValueError:
-							continue
-		
-		# Increment by 1
-		next_number = max_number + 1
-		return str(next_number)
+		"""Delegate to shared 6-digit Patient File No generator."""
+		from healthcare.api.patient import get_next_patient_file_no
+
+		return get_next_patient_file_no()
 
 	def validate_dates(self):
 		if (getdate(self.expected_discharge) < getdate(self.scheduled_date)) or (
@@ -404,27 +374,42 @@ def set_ip_child_records(inpatient_record, inpatient_record_child, encounter_chi
 			table.set(df.fieldname, item.get(df.fieldname))
 
 
+def _resolve_bed_no_name(bed_name):
+	"""Resolve a Bed No document name from Link value or bed_no field."""
+	bed_name = cstr(bed_name).strip()
+	if not bed_name:
+		return None
+	if frappe.db.exists("Bed No", bed_name):
+		return bed_name
+	# Fallback: UI / imports sometimes pass the bed_no field instead of the doc name
+	matched = frappe.db.get_value("Bed No", {"bed_no": bed_name}, "name")
+	return matched or None
+
+
 def vacate_hospital_bed(bed_name):
 	"""Set Bed No occupancy to Vacant (kept name for existing callers)."""
-	if bed_name and frappe.db.exists("Bed No", bed_name):
-		frappe.db.set_value("Bed No", bed_name, "occupancy_status", "Vacant")
+	resolved = _resolve_bed_no_name(bed_name)
+	if resolved:
+		frappe.db.set_value("Bed No", resolved, "occupancy_status", "Vacant")
 
 
 def occupy_hospital_bed(bed_name):
 	"""Set Bed No occupancy to Occupied (kept name for existing callers)."""
-	if bed_name and frappe.db.exists("Bed No", bed_name):
-		frappe.db.set_value("Bed No", bed_name, "occupancy_status", "Occupied")
+	resolved = _resolve_bed_no_name(bed_name)
+	if resolved:
+		frappe.db.set_value("Bed No", resolved, "occupancy_status", "Occupied")
 
 
 def validate_hospital_bed_for_admission(bed_name):
 	"""Validate Bed No is vacant before admission (kept name for existing callers)."""
+	resolved = _resolve_bed_no_name(bed_name)
 	if not bed_name:
 		return
-	row = frappe.db.get_value("Bed No", bed_name, ["occupancy_status"], as_dict=True)
-	if not row:
+	if not resolved:
 		frappe.throw(_("Bed No {0} does not exist").format(bed_name))
-	if row.occupancy_status == "Occupied":
-		frappe.throw(_("Bed No {0} is already occupied.").format(bed_name))
+	row = frappe.db.get_value("Bed No", resolved, ["occupancy_status"], as_dict=True)
+	if row and row.occupancy_status == "Occupied":
+		frappe.throw(_("Bed No {0} is already occupied.").format(resolved))
 
 
 def check_out_inpatient(inpatient_record):
@@ -595,6 +580,9 @@ def admit_patient(inpatient_record, service_unit, check_in, expected_discharge=N
 	validate_nursing_tasks(inpatient_record)
 
 	if getattr(inpatient_record, "bed_no", None):
+		resolved_bed = _resolve_bed_no_name(inpatient_record.bed_no)
+		if resolved_bed:
+			inpatient_record.bed_no = resolved_bed
 		validate_hospital_bed_for_admission(inpatient_record.bed_no)
 
 	service_units = _collect_admission_service_units(inpatient_record, legacy_service_unit=service_unit)

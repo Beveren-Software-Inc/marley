@@ -14,8 +14,12 @@ import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/lab
 // API response is grouped InpatientPrescription[] with nested medications[]. We cast at the call
 // site so the expand/collapse UI works correctly against the real runtime shape.
 import { fetchInpatientPrescriptions, type InpatientPrescription, type InpatientPrescriptionRow } from '../../services/prescriptions'
+import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
-import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown, PenLine } from 'lucide-react'
+import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
+import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
+import { CreateClinicalNoteModal } from '../clinicalNotes/CreateClinicalNoteModal'
+import { Stethoscope, FlaskConical, Pill, FileText, Info, Plus, ChevronDown, PenLine, NotebookPen } from 'lucide-react'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import {
   displayMedicationDosage,
@@ -37,7 +41,7 @@ const STATUS_COLORS: Record<string, string> = {
   'Cancelled': 'danger',
 } as const
 
-type TabType = 'details' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'signatures'
+type TabType = 'details' | 'diagnosis' | 'lab_tests' | 'medicine_given' | 'prescriptions' | 'progress_notes' | 'signatures'
 
 interface InpatientAdmissionDetailsProps {
   admissionName: string
@@ -163,11 +167,13 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
   // State uses InpatientPrescription[] (grouped, with medications[]) — the shape the API actually
   // returns at runtime, even though the TS return type of fetchInpatientPrescriptions says otherwise.
   const [prescriptions, setPrescriptions] = useState<InpatientPrescription[]>([])
+  const [progressNotes, setProgressNotes] = useState<ClinicalNote[]>([])
 
   const [loadingDiagnoses, setLoadingDiagnoses] = useState(false)
   const [loadingMedicine, setLoadingMedicine] = useState(false)
   const [loadingLabTests, setLoadingLabTests] = useState(false)
   const [loadingPrescriptions, setLoadingPrescriptions] = useState(false)
+  const [loadingProgressNotes, setLoadingProgressNotes] = useState(false)
 
   const abortControllerRef = useRef<AbortController | null>(null)
 
@@ -225,6 +231,28 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
     }
   }, [admissionName])
 
+  const loadProgressNotes = useCallback(async () => {
+    try {
+      setLoadingProgressNotes(true)
+      const data = await fetchClinicalNotes(
+        50,
+        0,
+        undefined,
+        undefined,
+        'Doctor Progress Note',
+        undefined,
+        undefined,
+        undefined,
+        admissionName,
+      )
+      setProgressNotes(data)
+    } catch (err) {
+      console.error('Failed to load progress notes:', err)
+    } finally {
+      setLoadingProgressNotes(false)
+    }
+  }, [admissionName])
+
   useEffect(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort()
@@ -240,6 +268,8 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
         await loadLabTests()
       } else if (activeTab === 'prescriptions') {
         await loadPrescriptions()
+      } else if (activeTab === 'progress_notes') {
+        await loadProgressNotes()
       }
     }
 
@@ -250,7 +280,15 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
         abortControllerRef.current.abort()
       }
     }
-  }, [activeTab, admissionName, loadDiagnoses, loadMedicineGiven, loadLabTests, loadPrescriptions])
+  }, [
+    activeTab,
+    admissionName,
+    loadDiagnoses,
+    loadMedicineGiven,
+    loadLabTests,
+    loadPrescriptions,
+    loadProgressNotes,
+  ])
 
   return {
     diagnoses,
@@ -258,11 +296,16 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
     missedMedicine,
     labTests,
     prescriptions,
+    progressNotes,
     loadingDiagnoses,
     loadingMedicine,
     loadingLabTests,
     loadingPrescriptions,
+    loadingProgressNotes,
     refetchDiagnoses: loadDiagnoses,
+    refetchLabTests: loadLabTests,
+    refetchPrescriptions: loadPrescriptions,
+    refetchProgressNotes: loadProgressNotes,
   }
 }
 
@@ -657,10 +700,32 @@ const DiagnosesTab = ({
 }
 
 // FIX 2: Parameter type updated from LabTestRow to LabTest
-const LabTestsTab = ({ labTests, loading }: { labTests: LabTest[]; loading: boolean }) => {
+const LabTestsTab = ({
+  labTests,
+  loading,
+  canEdit,
+  onCreate,
+}: {
+  labTests: LabTest[]
+  loading: boolean
+  canEdit: boolean
+  onCreate: () => void
+}) => {
   return (
     <div>
-      <h3 className="text-md font-semibold text-slate-800 mb-4">Lab Tests</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-md font-semibold text-slate-800">Lab Tests</h3>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onCreate}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Lab Request
+          </button>
+        )}
+      </div>
       {loading ? (
         <LoadingSpinner message="Loading lab tests..." />
       ) : labTests.length === 0 ? (
@@ -844,9 +909,13 @@ const MedicineGivenTab = ({
 const PrescriptionsTab = ({
   prescriptions,
   loading,
+  canEdit,
+  onCreate,
 }: {
   prescriptions: InpatientPrescription[]
   loading: boolean
+  canEdit: boolean
+  onCreate: () => void
 }) => {
   const [expandedPrescriptions, setExpandedPrescriptions] = useState<Record<string, boolean>>({})
 
@@ -855,7 +924,19 @@ const PrescriptionsTab = ({
 
   return (
     <div>
-      <h3 className="text-md font-semibold text-slate-800 mb-4">Active Prescriptions</h3>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-md font-semibold text-slate-800">Active Prescriptions</h3>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onCreate}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Create Prescription
+          </button>
+        )}
+      </div>
       {loading ? (
         <LoadingSpinner message="Loading prescriptions..." />
       ) : prescriptions.length === 0 ? (
@@ -976,6 +1057,72 @@ const PrescriptionsTab = ({
   )
 }
 
+const stripHtml = (html: string): string => {
+  if (!html) return ''
+  const tmp = document.createElement('div')
+  tmp.innerHTML = html
+  return tmp.textContent || tmp.innerText || ''
+}
+
+const ProgressNotesTab = ({
+  notes,
+  loading,
+  canEdit,
+  onCreate,
+}: {
+  notes: ClinicalNote[]
+  loading: boolean
+  canEdit: boolean
+  onCreate: () => void
+}) => {
+  return (
+    <div>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-md font-semibold text-slate-800">Patient Progress Notes</h3>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={onCreate}
+            className="flex items-center gap-1 px-3 py-1.5 text-sm text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors"
+          >
+            <Plus className="w-4 h-4" />
+            Add Progress Note
+          </button>
+        )}
+      </div>
+      {loading ? (
+        <LoadingSpinner message="Loading progress notes..." />
+      ) : notes.length === 0 ? (
+        <EmptyState icon={NotebookPen} message="NO PATIENT PROGRESS NOTES YET" />
+      ) : (
+        <div className="space-y-3">
+          {notes.map((note) => {
+            const preview = stripHtml(note.note || '').trim()
+            return (
+              <div key={note.name} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <div className="min-w-0">
+                    <span className="text-sm font-semibold text-primary">{note.name}</span>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      {note.practitioner_name || note.practitioner || note.username || note.user || '—'}
+                    </div>
+                  </div>
+                  <span className="text-xs text-slate-400 shrink-0">
+                    <SafeDate date={note.posting_date} format="datetime" />
+                  </span>
+                </div>
+                <p className="text-sm text-slate-600 whitespace-pre-wrap line-clamp-6">
+                  {preview || '—'}
+                </p>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function resolveAdmissionSignatureRows(record: InpatientRecord): PatientDocumentRow[] {
   const rows = record.e_signatures || record.patient_documents || []
   return rows.filter((row) => row?.document || row?.file_name || row?.document_type)
@@ -1054,6 +1201,9 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [error, setError] = useState<Error | null>(null)
   const [activeTab, setActiveTab] = useState<TabType>('details')
   const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+  const [showLabRequestModal, setShowLabRequestModal] = useState(false)
+  const [showProgressNoteModal, setShowProgressNoteModal] = useState(false)
 
   // Action modal state
   const [showPackages, setShowPackages] = useState(false)
@@ -1067,11 +1217,16 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     missedMedicine,
     labTests,
     prescriptions,
+    progressNotes,
     loadingDiagnoses,
     loadingMedicine,
     loadingLabTests,
     loadingPrescriptions,
+    loadingProgressNotes,
     refetchDiagnoses,
+    refetchLabTests,
+    refetchPrescriptions,
+    refetchProgressNotes,
   } = useTabData(admissionName, activeTab)
 
   const loadRecord = useCallback(async () => {
@@ -1125,6 +1280,24 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     onUpdate?.()
   }
 
+  const handlePrescriptionSuccess = () => {
+    setShowPrescriptionModal(false)
+    refetchPrescriptions()
+    onUpdate?.()
+  }
+
+  const handleLabRequestSuccess = () => {
+    setShowLabRequestModal(false)
+    refetchLabTests()
+    onUpdate?.()
+  }
+
+  const handleProgressNoteSuccess = () => {
+    setShowProgressNoteModal(false)
+    refetchProgressNotes()
+    onUpdate?.()
+  }
+
   const signatureCount =
     (record?.signature ? 1 : 0) +
     (record?.e_signatures || record?.patient_documents || []).filter(
@@ -1137,6 +1310,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     { id: 'lab_tests' as TabType, label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'medicine_given' as TabType, label: 'Medicine Given', icon: Pill, count: medicineGiven.length + missedMedicine.length },
     { id: 'prescriptions' as TabType, label: 'Prescriptions', icon: FileText, count: prescriptions.length },
+    { id: 'progress_notes' as TabType, label: 'Progress Notes', icon: NotebookPen, count: progressNotes.length },
     { id: 'signatures' as TabType, label: 'Signatures', icon: PenLine, count: signatureCount },
   ]
 
@@ -1233,11 +1407,33 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
               onManage={() => setShowDiagnosisModal(true)}
             />
           )}
-          {activeTab === 'lab_tests' && <LabTestsTab labTests={labTests} loading={loadingLabTests} />}
+          {activeTab === 'lab_tests' && (
+            <LabTestsTab
+              labTests={labTests}
+              loading={loadingLabTests}
+              canEdit={canEdit}
+              onCreate={() => setShowLabRequestModal(true)}
+            />
+          )}
           {activeTab === 'medicine_given' && (
             <MedicineGivenTab medicineGiven={medicineGiven} missedMedicine={missedMedicine} loading={loadingMedicine} />
           )}
-          {activeTab === 'prescriptions' && <PrescriptionsTab prescriptions={prescriptions} loading={loadingPrescriptions} />}
+          {activeTab === 'prescriptions' && (
+            <PrescriptionsTab
+              prescriptions={prescriptions}
+              loading={loadingPrescriptions}
+              canEdit={canEdit}
+              onCreate={() => setShowPrescriptionModal(true)}
+            />
+          )}
+          {activeTab === 'progress_notes' && (
+            <ProgressNotesTab
+              notes={progressNotes}
+              loading={loadingProgressNotes}
+              canEdit={canEdit}
+              onCreate={() => setShowProgressNoteModal(true)}
+            />
+          )}
           {activeTab === 'signatures' && <SignaturesTab record={record} />}
         </div>
       </div>
@@ -1280,6 +1476,40 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
           patientName={record.patient_name}
           onClose={() => setShowDiagnosisModal(false)}
           onSuccess={handleDiagnosisSuccess}
+        />
+      )}
+
+      {showPrescriptionModal && (
+        <CreatePrescriptionModal
+          onClose={() => setShowPrescriptionModal(false)}
+          onSuccess={handlePrescriptionSuccess}
+          initialPatient={record.patient}
+          initialCareContext="Inpatient Admission"
+          initialInpatientRecord={record.name}
+          initialPractitioner={record.primary_practitioner || undefined}
+        />
+      )}
+
+      {showLabRequestModal && (
+        <CreateServiceRequestModal
+          onClose={() => setShowLabRequestModal(false)}
+          onSuccess={handleLabRequestSuccess}
+          initialPatient={record.patient}
+          labTestTemplateOnly
+          forcedMode="IP"
+          initialInpatientRecord={record.name}
+        />
+      )}
+
+      {showProgressNoteModal && (
+        <CreateClinicalNoteModal
+          onClose={() => setShowProgressNoteModal(false)}
+          onSuccess={handleProgressNoteSuccess}
+          initialPatient={record.patient}
+          defaultClinicalNoteType="Doctor Progress Note"
+          title="Add Patient Progress Note"
+          defaultAdmission={record.name}
+          forcedMode="IP"
         />
       )}
     </>

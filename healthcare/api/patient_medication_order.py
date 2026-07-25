@@ -444,16 +444,34 @@ def create_patient_medication_order(
 		visit = frappe.db.get_value(
 			'Patient Visit',
 			patient_encounter,
-			['patient_name', 'patient_age', 'practitioner', 'encounter_date'],
+			['patient_name', 'patient_age', 'practitioner', 'encounter_date', 'cost_center'],
 			as_dict=True,
 		)
 		if visit:
 			doc.patient_name = visit.get('patient_name')
 			doc.patient_age = visit.get('patient_age')
+			if visit.get('cost_center'):
+				doc.cost_center = visit.get('cost_center')
 			if not practitioner and visit.get('practitioner'):
 				doc.practitioner = visit.practitioner
 			if not doc.start_date and visit.get('encounter_date'):
 				doc.start_date = visit.encounter_date
+		# Fallback if visit has no branch yet (same resolver used by clinical notes / visits)
+		if not doc.get('cost_center'):
+			try:
+				from healthcare.api.sales_order_cost_center import resolve_cost_center_for_clinical_doc
+
+				resolved = resolve_cost_center_for_clinical_doc(
+					{
+						'patient_encounter': patient_encounter,
+						'patient_visit': patient_encounter,
+						'cost_center': None,
+					}
+				)
+				if resolved:
+					doc.cost_center = resolved
+			except Exception:
+				pass
 	elif care_context == 'Inpatient Admission':
 		if not inpatient_record:
 			frappe.throw(_("Inpatient Admission is required when Care Context is Inpatient Admission"))

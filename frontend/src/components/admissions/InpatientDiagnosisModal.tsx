@@ -172,17 +172,25 @@ export const InpatientDiagnosisModal = ({
   }
 
   const updateDiagnosis = (index: number, field: keyof DiagnosisData, value: any) => {
-    const newDiagnoses = [...diagnoses]
-    newDiagnoses[index] = { ...newDiagnoses[index], [field]: value }
-    
-    if (field === 'practitioner' && value) {
-      const practitioner = practitionerOptions.find(p => p.name === value)
-      if (practitioner) {
-        newDiagnoses[index].practitioner_name = practitioner.label
+    setDiagnoses((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const selectPractitioner = (index: number, pract: LinkFieldOption) => {
+    setDiagnoses((prev) => {
+      const next = [...prev]
+      next[index] = {
+        ...next[index],
+        practitioner: pract.name,
+        practitioner_name: pract.label || pract.name,
       }
-    }
-    
-    setDiagnoses(newDiagnoses)
+      return next
+    })
+    setPractitionerQuery((prev) => ({ ...prev, [index]: pract.label || pract.name }))
+    setPractitionerOpen((prev) => ({ ...prev, [index]: false }))
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -223,9 +231,16 @@ export const InpatientDiagnosisModal = ({
       }))
       
       const result = await updateInpatientDiagnoses(parentName, diagnosesWithTransNum)
-      
-      if (result.success) {
-        toast.success(result.message)
+
+      // Backend returns { ok: true, saved: N }; accept either ok or success.
+      if (result?.ok || result?.success) {
+        const saved = result.diagnoses_updated ?? result.saved
+        toast.success(
+          result.message
+            || (typeof saved === 'number'
+              ? `Saved ${saved} diagnosis${saved === 1 ? '' : 'es'}`
+              : 'Diagnoses saved successfully')
+        )
         onSuccess()
         onClose()
       } else {
@@ -378,13 +393,32 @@ export const InpatientDiagnosisModal = ({
                       <div className="relative">
                         <input
                           type="text"
-                          value={diagnosis.practitioner ? (practitionerOptions.find(p => p.name === diagnosis.practitioner)?.label || diagnosis.practitioner) : (practitionerQuery[index] || '')}
+                          value={
+                            diagnosis.practitioner
+                              ? (
+                                  practitionerOptions.find((p) => p.name === diagnosis.practitioner)?.label
+                                  || diagnosis.practitioner_name
+                                  || diagnosis.practitioner
+                                )
+                              : (practitionerQuery[index] || '')
+                          }
                           onChange={(e) => {
                             setPractitionerQuery(prev => ({ ...prev, [index]: e.target.value }))
                             setPractitionerOpen(prev => ({ ...prev, [index]: true }))
-                            updateDiagnosis(index, 'practitioner', '')
+                            setDiagnoses((prev) => {
+                              const next = [...prev]
+                              next[index] = {
+                                ...next[index],
+                                practitioner: '',
+                                practitioner_name: '',
+                              }
+                              return next
+                            })
                           }}
-                          onFocus={() => setPractitionerOpen(prev => ({ ...prev, [index]: true }))}
+                          onFocus={() => {
+                            setPractitionerOpen(prev => ({ ...prev, [index]: true }))
+                            void searchPractitioners(practitionerQuery[index] || '')
+                          }}
                           placeholder="Search doctor..."
                           className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                           required
@@ -397,12 +431,7 @@ export const InpatientDiagnosisModal = ({
                                   key={pract.name}
                                   type="button"
                                   className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                                  onClick={() => {
-                                    updateDiagnosis(index, 'practitioner', pract.name)
-                                    updateDiagnosis(index, 'practitioner_name', pract.label || pract.name)
-                                    setPractitionerQuery(prev => ({ ...prev, [index]: pract.label }))
-                                    setPractitionerOpen(prev => ({ ...prev, [index]: false }))
-                                  }}
+                                  onClick={() => selectPractitioner(index, pract)}
                                 >
                                   <div>
                                     <div className="font-medium">{pract.label}</div>

@@ -104,7 +104,7 @@ export const PatientVisitList = ({
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
 }: PatientVisitListProps = {}) => {
-  const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole } = useCareContext()
+  const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole, applyOpCareContext } = useCareContext()
   const formatMoney = useFormatMoney()
   const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
@@ -379,10 +379,20 @@ export const PatientVisitList = ({
       (showAppointmentAmount ? 1 : 0) -
       (hideLabPharmacyAmounts ? 2 : 0)
 
-  const openVisitRow = (visit: PatientVisitListRow) => {
-    setDetailVisit(visit.value)
+  /** Put the visit into the navbar OP search bar (does not open the detail panel). */
+  const activateVisitInNavbar = (visit: PatientVisitListRow) => {
+    applyOpCareContext({
+      patient: visit.patient || undefined,
+      visit: visit.value,
+      visitLabel: visit.value,
+    })
     onVisitSelect?.(visit.value)
     onVisitActivate?.(visit)
+  }
+
+  /** Open the right-side visit detail slide-over. */
+  const openVisitDetail = (visit: PatientVisitListRow) => {
+    setDetailVisit(visit.value)
   }
 
   const visitMetaOptions = { patient }
@@ -819,16 +829,28 @@ export const PatientVisitList = ({
                 </tr>
               ) : detailedColumns ? (
                 visits.map((visit) => (
-                  <tr key={visit.value} className={dashboardCardRowHoverClass} onClick={() => openVisitRow(visit)}>
-                    <td className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap">{visit.value}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.encounter_date ? formatDate(visit.encounter_date) : '-'}</td>
+                  <tr key={visit.value} className={dashboardCardRowHoverClass}>
+                    <td
+                      className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap cursor-pointer hover:underline"
+                      onClick={() => activateVisitInNavbar(visit)}
+                      title="Select visit in OP search"
+                    >
+                      {visit.value}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap cursor-pointer hover:underline hover:text-primary"
+                      onClick={() => openVisitDetail(visit)}
+                      title="Open visit details"
+                    >
+                      {visit.encounter_date ? formatDate(visit.encounter_date) : '-'}
+                    </td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.file_no || '-'}</td>
                     <td
                       className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
                       onClick={(e) => { if (visit.patient) { e.stopPropagation(); onPatientFromVisit?.(visit.patient) } }}
                     >
-                      <span className={visit.patient ? 'text-primary hover:underline' : ''}>{visit.patient_name || '-'}</span>
+                      <span className={visit.patient ? 'text-primary hover:underline cursor-pointer' : ''}>{visit.patient_name || '-'}</span>
                     </td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.cpr_no || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.service_amount)}</td>
@@ -865,16 +887,27 @@ export const PatientVisitList = ({
                   <tr
                     key={visit.value}
                     className={dashboardCardRowHoverClass}
-                    onClick={() => openVisitRow(visit)}
                   >
                     <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
-                      <span className="inline-flex items-start text-primary font-medium break-words">
+                      <button
+                        type="button"
+                        className="inline-flex items-start text-primary font-medium break-words hover:underline text-left"
+                        onClick={() => activateVisitInNavbar(visit)}
+                        title="Select visit in OP search"
+                      >
                         {visit.value}
                         <CardRowMetaHint fields={patientVisitCardMetaFields(visit, visitMetaOptions)} />
-                      </span>
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
-                      {formatDashboardDate(visit.encounter_date)}
+                      <button
+                        type="button"
+                        className="hover:underline hover:text-primary text-left"
+                        onClick={() => openVisitDetail(visit)}
+                        title="Open visit details"
+                      >
+                        {formatDashboardDate(visit.encounter_date)}
+                      </button>
                     </td>
                     <td className="px-3 py-2.5 align-top">
                       <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
@@ -885,7 +918,8 @@ export const PatientVisitList = ({
                 <tr key={visit.value} className="hover:bg-slate-50 transition-colors">
                   <td
                     className="px-4 py-3 text-sm font-medium text-primary hover:underline cursor-pointer"
-                    onClick={() => openVisitRow(visit)}
+                    onClick={() => activateVisitInNavbar(visit)}
+                    title="Select visit in OP search"
                   >
                     {visit.value}
                   </td>
@@ -898,7 +932,11 @@ export const PatientVisitList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 cursor-pointer hover:underline hover:text-primary"
+                    onClick={() => openVisitDetail(visit)}
+                    title="Open visit details"
+                  >
                     {visit.encounter_date
                       ? new Date(visit.encounter_date).toLocaleDateString('en-GB')
                       : '-'}
