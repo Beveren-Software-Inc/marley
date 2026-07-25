@@ -287,7 +287,7 @@ const ServiceUnitSelect = ({
         <div className="absolute z-20 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
           {serviceUnits.length === 0 ? (
             <div className="px-3 py-3 text-xs text-slate-400 text-center">
-              {query ? 'No rooms match your search' : 'No vacant rooms for this room type'}
+              {query ? 'No rooms match your search' : 'No vacant rooms found'}
             </div>
           ) : (
             serviceUnits.map((unit) => {
@@ -315,12 +315,20 @@ const ServiceUnitSelect = ({
                       {isSelected && <Check className="w-2.5 h-2.5 text-white" />}
                     </span>
                     <div className="min-w-0">
-                      <div className="font-medium truncate">{unit.healthcare_service_unit_name}</div>
-                      <div className="text-xs text-slate-500">
-                        {unit.occupancy_status}
-                        {unit.service_unit_type ? ` • ${unit.service_unit_type}` : ''}
-                        {unit.room_multiplier != null ? ` × ${unit.room_multiplier}` : ''}
+                      <div className="font-medium truncate">
+                        {unit.healthcare_service_unit_name || unit.name}
                       </div>
+                      {unit.service_unit_type ? (
+                        <div className="text-xs text-slate-500 truncate">
+                          {unit.service_unit_type}
+                          {unit.occupancy_status ? ` · ${unit.occupancy_status}` : ''}
+                          {unit.room_multiplier != null ? ` · ×${unit.room_multiplier}` : ''}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-slate-400 truncate">
+                          {unit.occupancy_status || 'No room type'}
+                        </div>
+                      )}
                     </div>
                   </div>
                   {isSelected && (
@@ -500,16 +508,56 @@ export const AdmissionFormModal = ({
   const [caseManagementTemplates, setCaseManagementTemplates] = useState<
     Array<{ name: string; service_name?: string; item_code?: string; rate: number }>
   >([])
-  const [caseManagementTemplate, setCaseManagementTemplate] = useState('')
-  const [caseManagementAmount, setCaseManagementAmount] = useState<number | null>(null)
+  const [caseManagementServices, setCaseManagementServices] = useState<
+    Array<{ template: string; amount: number; label: string; code: string }>
+  >([])
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
   const serviceDropdownRef = useRef<HTMLDivElement>(null)
   const [combineAdmissionAndCaseManagement, setCombineAdmissionAndCaseManagement] = useState(0)
 
-  const selectedCaseManagementService = useMemo(
-    () => caseManagementTemplates.find((t) => t.name === caseManagementTemplate) || null,
-    [caseManagementTemplates, caseManagementTemplate]
+  const caseManagementTotal = useMemo(
+    () => caseManagementServices.reduce((sum, s) => sum + (Number(s.amount) || 0), 0),
+    [caseManagementServices]
   )
+
+  const availableCaseManagementTemplates = useMemo(
+    () =>
+      caseManagementTemplates.filter(
+        (t) => !caseManagementServices.some((s) => s.template === t.name)
+      ),
+    [caseManagementTemplates, caseManagementServices]
+  )
+
+  const addCaseManagementService = (t: {
+    name: string
+    service_name?: string
+    item_code?: string
+    rate: number
+  }) => {
+    setCaseManagementServices((prev) => {
+      if (prev.some((s) => s.template === t.name)) return prev
+      return [
+        ...prev,
+        {
+          template: t.name,
+          amount: Number(t.rate) || 0,
+          label: t.service_name || t.name,
+          code: t.item_code || t.name,
+        },
+      ]
+    })
+    setServiceDropdownOpen(false)
+  }
+
+  const removeCaseManagementService = (template: string) => {
+    setCaseManagementServices((prev) => prev.filter((s) => s.template !== template))
+  }
+
+  const updateCaseManagementServiceAmount = (template: string, amount: number) => {
+    setCaseManagementServices((prev) =>
+      prev.map((s) => (s.template === template ? { ...s, amount } : s))
+    )
+  }
 
   useEffect(() => {
     if (!serviceDropdownOpen) return
@@ -596,16 +644,16 @@ export const AdmissionFormModal = ({
     calculatePrice()
   }, [days, selectedPackage.name, selectedPackage.package_rate, activeRoomType, activeRoomMultiplier, selectedServiceUnits])
 
-  // ── Service unit search (filtered by selected room type) ──────────────────
+  // ── Service unit search (any room type; cost center optional on room) ─────
 
   useEffect(() => {
     if (!serviceUnitOpen) return
     const search = async () => {
       try {
-        const serviceUnitType =
-          selectedRoomType?.name || record?.admission_service_unit_type || undefined
+        // Do not filter by room type — user can pick any vacant room.
+        // Backend still includes rooms with blank cost center for any branch.
         const results = await fetchServiceUnits(
-          serviceUnitType,
+          undefined,
           'Vacant',
           serviceUnitQuery || undefined,
           undefined,
@@ -619,7 +667,7 @@ export const AdmissionFormModal = ({
     }
     const timeoutId = setTimeout(() => { search() }, serviceUnitQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(timeoutId)
-  }, [serviceUnitQuery, serviceUnitOpen, record?.admission_service_unit_type, selectedRoomType?.name])
+  }, [serviceUnitQuery, serviceUnitOpen, record?.cost_center])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -631,42 +679,11 @@ export const AdmissionFormModal = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // When room type changes, drop rooms that no longer match and preload vacancies
+  // Room type only drives pricing multiplier — never clears or filters selected rooms.
   useEffect(() => {
     if (!selectedRoomType?.name) return
-
-    const normalizeType = (name?: string | null) => {
-      const parts = (name || '').trim().toLowerCase().replace(/\s+/g, ' ').split(' ')
-      if (parts.length) {
-        const w = parts[parts.length - 1]
-        if (w.length > 3 && w.endsWith('s') && !w.endsWith('ss')) {
-          parts[parts.length - 1] = w.slice(0, -1)
-        }
-      }
-      return parts.join(' ')
-    }
-    const selectedKey = normalizeType(selectedRoomType.name)
-
-    setSelectedServiceUnits((prev) => {
-      const kept = prev.filter(
-        (su) => normalizeType(su.service_unit_type) === selectedKey
-      )
-      if (kept.length !== prev.length) {
-        setFormData((current) => ({
-          ...current,
-          serviceUnit: kept.some((su) => su.name === current.serviceUnit)
-            ? current.serviceUnit
-            : (kept[0]?.name ?? ''),
-        }))
-      }
-      return kept
-    })
     setServiceUnitQuery('')
-    setBedNumbers([])
-    fetchServiceUnits(selectedRoomType.name, 'Vacant', undefined, undefined, record?.cost_center || undefined)
-      .then(setServiceUnits)
-      .catch(() => setServiceUnits([]))
-  }, [selectedRoomType?.name, record?.cost_center])
+  }, [selectedRoomType?.name])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -761,7 +778,7 @@ export const AdmissionFormModal = ({
 
         const [unitsData, roomTypeOptions] = await Promise.all([
           fetchServiceUnits(
-            selectedRoomType?.name || recordData?.admission_service_unit_type || undefined,
+            undefined,
             'Vacant',
             undefined,
             undefined,
@@ -915,8 +932,8 @@ export const AdmissionFormModal = ({
       setError(new Error('Please calculate price first by entering number of days'))
       return
     }
-    if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
-      setError(new Error('Select an Admission Assessment Fee service template on the Admission Assessment Fee tab'))
+    if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
+      setError(new Error('Select at least one Admission Assessment Fee service on the Admission Assessment Fee tab'))
       setActiveTab('case_management')
       return
     }
@@ -936,8 +953,12 @@ export const AdmissionFormModal = ({
         quotationSu,
         formData.ipCaseManagement === 1 && combineAdmissionAndCaseManagement
           ? {
-              template: caseManagementTemplate,
-              amount: caseManagementAmount,
+              services: caseManagementServices.map((s) => ({
+                template: s.template,
+                amount: s.amount,
+              })),
+              template: caseManagementServices[0]?.template,
+              amount: caseManagementTotal,
             }
           : undefined
       )
@@ -965,8 +986,8 @@ export const AdmissionFormModal = ({
       return
     }
 
-    if (formData.ipCaseManagement === 1 && !caseManagementTemplate) {
-      setError(new Error('Select an Admission Assessment Fee service template'))
+    if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
+      setError(new Error('Select at least one Admission Assessment Fee service'))
       setActiveTab('case_management')
       return
     }
@@ -1010,11 +1031,14 @@ export const AdmissionFormModal = ({
         selectedPackage.package_rate,
         selectedPackage.name === '__custom__' ? 0 : 1,
         selectedBedNo?.name ?? null,
-        null,
+        selectedBedNo?.name ?? null,
         wantCm ? 1 : 0,
         wantCm ? 1 : 0,
-        wantCm ? caseManagementTemplate : null,
-        wantCm ? caseManagementAmount : null,
+        wantCm ? caseManagementServices[0]?.template ?? null : null,
+        wantCm ? caseManagementTotal : null,
+        wantCm
+          ? caseManagementServices.map((s) => ({ template: s.template, amount: s.amount }))
+          : null,
       )
 
       onComplete()
@@ -1176,7 +1200,7 @@ export const AdmissionFormModal = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div ref={roomTypePickerRef} className="relative">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Room Type <span className="text-slate-400 font-normal">(optional)</span>
+                      Room Type <span className="text-slate-400 font-normal">(optional — for pricing)</span>
                     </label>
                     <input
                       type="text"
@@ -1401,92 +1425,123 @@ export const AdmissionFormModal = ({
                     const enabled = v === 'Yes'
                     setFormData((prev) => ({ ...prev, ipCaseManagement: enabled ? 1 : 0 }))
                     if (!enabled) {
-                      setCaseManagementTemplate('')
-                      setCaseManagementAmount(null)
+                      setCaseManagementServices([])
                     }
                   }}
                 />
 
                 {formData.ipCaseManagement === 1 && (
                   <>
-                    <div ref={serviceDropdownRef} className="relative">
+                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Service <span className="text-red-500">*</span>
+                        Services <span className="text-red-500">*</span>
                       </label>
-                      <button
-                        type="button"
-                        onClick={() => setServiceDropdownOpen((o) => !o)}
-                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      >
-                        {selectedCaseManagementService ? (
-                          <span className="block min-w-0">
-                            <span className="block font-medium text-slate-900 truncate">
-                              {selectedCaseManagementService.item_code ||
-                                selectedCaseManagementService.name}
-                            </span>
-                            {(selectedCaseManagementService.service_name ||
-                              selectedCaseManagementService.name) && (
-                              <span className="block text-xs text-slate-500 truncate">
-                                {selectedCaseManagementService.service_name ||
-                                  selectedCaseManagementService.name}
-                                {selectedCaseManagementService.rate != null
-                                  ? ` · ${Number(selectedCaseManagementService.rate).toLocaleString()} BHD`
-                                  : ''}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400">Select service…</span>
-                        )}
-                      </button>
-                      {serviceDropdownOpen && (
-                        <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
-                          {caseManagementTemplates.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-amber-700">
-                              No templates found. Mark a Healthcare Service Template with “Is Case Management”.
+                      {caseManagementServices.length > 0 && (
+                        <div className="mb-2 space-y-2">
+                          {caseManagementServices.map((s) => (
+                            <div
+                              key={s.template}
+                              className="flex items-start justify-between gap-3 rounded-md border border-slate-200 bg-white px-3 py-2"
+                            >
+                              <div className="min-w-0 flex-1">
+                                <div className="text-sm font-medium text-slate-900 truncate">{s.code}</div>
+                                <div className="text-xs text-slate-500 truncate">{s.label}</div>
+                                <div className="mt-2 flex items-center gap-2">
+                                  <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500 shrink-0">
+                                    Amount
+                                  </label>
+                                  <div className="relative flex-1 max-w-[10rem]">
+                                    <input
+                                      type="number"
+                                      min="0"
+                                      step="0.001"
+                                      value={Number.isFinite(s.amount) ? s.amount : ''}
+                                      onChange={(e) => {
+                                        const raw = e.target.value
+                                        updateCaseManagementServiceAmount(
+                                          s.template,
+                                          raw === '' ? 0 : Math.max(0, parseFloat(raw) || 0)
+                                        )
+                                      }}
+                                      className="w-full rounded-md border border-slate-300 px-2 py-1.5 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                                    />
+                                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
+                                      BHD
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeCaseManagementService(s.template)}
+                                className="shrink-0 rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                                title="Remove service"
+                              >
+                                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
                             </div>
-                          ) : (
-                            caseManagementTemplates.map((t) => {
-                              const code = t.item_code || t.name
-                              const label = t.service_name || t.name
-                              const selected = caseManagementTemplate === t.name
-                              return (
-                                <button
-                                  key={t.name}
-                                  type="button"
-                                  onClick={() => {
-                                    setCaseManagementTemplate(t.name)
-                                    setCaseManagementAmount(Number(t.rate) || 0)
-                                    setServiceDropdownOpen(false)
-                                  }}
-                                  className={`w-full px-3 py-2 text-left hover:bg-emerald-50 ${
-                                    selected ? 'bg-emerald-50/80' : ''
-                                  }`}
-                                >
-                                  <span className="block text-sm font-medium text-slate-900 truncate">
-                                    {code}
-                                  </span>
-                                  <span className="block text-xs text-slate-500 truncate">
-                                    {label}
-                                    {t.rate != null
-                                      ? ` · ${Number(t.rate).toLocaleString()} BHD`
-                                      : ''}
-                                  </span>
-                                </button>
-                              )
-                            })
-                          )}
+                          ))}
                         </div>
                       )}
+
+                      <div ref={serviceDropdownRef} className="relative">
+                        <button
+                          type="button"
+                          onClick={() => setServiceDropdownOpen((o) => !o)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-left text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          <span className="text-slate-500">
+                            {caseManagementServices.length > 0
+                              ? 'Add another service…'
+                              : 'Select service…'}
+                          </span>
+                        </button>
+                        {serviceDropdownOpen && (
+                          <div className="absolute z-30 mt-1 max-h-56 w-full overflow-y-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                            {availableCaseManagementTemplates.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-amber-700">
+                                {caseManagementTemplates.length === 0
+                                  ? 'No templates found. Mark a Healthcare Service Template with “Is Case Management”.'
+                                  : 'All available services are already selected.'}
+                              </div>
+                            ) : (
+                              availableCaseManagementTemplates.map((t) => {
+                                const code = t.item_code || t.name
+                                const label = t.service_name || t.name
+                                return (
+                                  <button
+                                    key={t.name}
+                                    type="button"
+                                    onClick={() => addCaseManagementService(t)}
+                                    className="w-full px-3 py-2 text-left hover:bg-emerald-50"
+                                  >
+                                    <span className="block text-sm font-medium text-slate-900 truncate">
+                                      {code}
+                                    </span>
+                                    <span className="block text-xs text-slate-500 truncate">
+                                      {label}
+                                      {t.rate != null
+                                        ? ` · ${Number(t.rate).toLocaleString()} BHD`
+                                        : ''}
+                                    </span>
+                                  </button>
+                                )
+                              })
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Amount (IP)
+                        Total Amount (IP)
                       </label>
                       <div className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-                        {caseManagementAmount != null
-                          ? `${Number(caseManagementAmount).toLocaleString()} BHD`
+                        {caseManagementServices.length > 0
+                          ? `${Number(caseManagementTotal).toLocaleString()} BHD`
                           : '—'}
                       </div>
                     </div>

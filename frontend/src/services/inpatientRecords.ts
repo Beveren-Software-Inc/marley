@@ -567,6 +567,7 @@ export async function createAdmissionQuotation(
   caseManagement?: {
     template?: string | null
     amount?: number | null
+    services?: Array<{ template: string; amount?: number | null }>
   }
 ): Promise<{
   success: boolean
@@ -596,6 +597,9 @@ export async function createAdmissionQuotation(
         service_unit: serviceUnit || null,
         case_management_template: caseManagement?.template || null,
         case_management_amount: caseManagement?.amount ?? null,
+        case_management_services: caseManagement?.services?.length
+          ? caseManagement.services
+          : null,
       })
     }
   )
@@ -692,6 +696,7 @@ export async function admitPatient(
   ipCaseManagementFee?: 0 | 1,
   caseManagementTemplate?: string | null,
   caseManagementFee?: number | null,
+  caseManagementServices?: Array<{ template: string; amount?: number | null }> | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -726,6 +731,9 @@ export async function admitPatient(
         ip_case_management_fee: ipCaseManagementFee ?? 0,
         case_management_template: caseManagementTemplate || null,
         case_management_fee: caseManagementFee ?? null,
+        case_management_services: caseManagementServices?.length
+          ? caseManagementServices
+          : null,
       })
     }
   )

@@ -701,11 +701,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
 
     if (!isEditMode && observationForm.addObservation === 'Yes') {
-      if (!observationForm.observation_level) {
-        setError('Observation level is required when adding an observation')
-        setActiveCreateTab('observation')
-        return
-      }
       if (!observationForm.chargesStartToday) {
         setError('Please select Yes or No for whether charges start today')
         setActiveCreateTab('observation')
@@ -716,16 +711,9 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         setError('Observation start date is required')
         return
       }
-      // #24: role-based mandatory fields. Doctors must record Notes (Room optional for them);
-      // reception / management must assign a Room (Notes optional for them).
-      if (isDoctorRole(userRole)) {
-        if (!observationForm.note?.trim()) {
-          setError('Notes are required.')
-          setActiveCreateTab('observation')
-          return
-        }
-      } else if (!observationForm.room) {
-        setError('Room / service unit is required.')
+      // Doctors must record Notes when adding an observation; room/level remain optional.
+      if (isDoctorRole(userRole) && !observationForm.note?.trim()) {
+        setError('Notes are required.')
         setActiveCreateTab('observation')
         return
       }
@@ -877,7 +865,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               company: formData.company,
               practitioner: observationForm.practitioner || formData.consultant_doctor || undefined,
               department: observationForm.department || formData.medical_department || undefined,
-              observation_level: observationForm.observation_level,
+              observation_level: observationForm.observation_level || undefined,
               designated_security_personel: observationForm.designated_security_personel || undefined,
               note: observationForm.note || undefined,
               amount: observationForm.amount || undefined,
@@ -1528,7 +1516,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
-                        Observation Level <span className="text-red-500">*</span>
+                        Observation Level
                       </label>
                       <div className="relative">
                         <input
@@ -1569,7 +1557,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
-                        Room / Service Unit <span className="text-red-500">*</span>
+                        Room / Service Unit
                       </label>
                       <div className="relative">
                         <input

@@ -622,6 +622,8 @@ interface CreateClinicalNoteModalProps {
   title?: string
   defaultAdmission?: string
   defaultVisit?: string
+  /** Override care context (e.g. create from an IP admission details panel). */
+  forcedMode?: 'OP' | 'IP'
 }
 
 export const CreateClinicalNoteModal = ({
@@ -633,10 +635,20 @@ export const CreateClinicalNoteModal = ({
   title = 'Create Clinical Note',
   defaultAdmission,
   defaultVisit,
+  forcedMode,
 }: CreateClinicalNoteModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter, costCenterCompany, isIOPVisit: contextIsIOPVisit } = useCareContext()
-  
+  const {
+    mode: contextMode,
+    activeVisit,
+    activeAdmission,
+    selectedPatient: contextPatient,
+    userCostCenter,
+    costCenterCompany,
+    isIOPVisit: contextIsIOPVisit,
+  } = useCareContext()
+  const mode = forcedMode || contextMode
+
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
   const [formVisitIsIOP, setFormVisitIsIOP] = useState(false)
@@ -646,7 +658,9 @@ export const CreateClinicalNoteModal = ({
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 16),
     note: '',
-    admission_no: (isIPMode && activeAdmission) ? activeAdmission : (defaultAdmission || ''),
+    admission_no:
+      defaultAdmission ||
+      (isIPMode && activeAdmission ? activeAdmission : ''),
     patient_visit: (mode === 'OP' && activeVisit) ? activeVisit : (defaultVisit || ''),
   })
 

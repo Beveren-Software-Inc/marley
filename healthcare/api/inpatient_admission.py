@@ -8,7 +8,7 @@ import re
 from frappe import _
 from datetime import timedelta
 
-from frappe.utils import cint, flt, format_timedelta, get_datetime, getdate
+from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate
 from healthcare.api.patient_visit import create_invoice
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
@@ -686,12 +686,16 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 		filters["occupancy_status"] = occupancy_status
 	if room_category:
 		filters["room_category"] = room_category
-	if cost_center:
-		filters["cost_center"] = cost_center
+	# Rooms with no cost center are available for any branch/cost center.
+	# Exact cost_center match is applied in SQL below when needed.
 
 	type_names = _matching_type_names(service_unit_type) if service_unit_type else []
 
-	if search:
+	def _cost_center_clause(alias: str = "") -> str:
+		col = f"{alias}.cost_center" if alias else "cost_center"
+		return f"(IFNULL({col}, '') = '' OR {col} = %(cost_center)s)"
+
+	if search or cost_center:
 		query = """
 			SELECT
 				name,
@@ -704,10 +708,14 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 			FROM `tabHealthcare Service Unit`
 			WHERE
 				inpatient_occupancy = 1
+		"""
+		params: dict = {}
+		if search:
+			query += """
 				AND (healthcare_service_unit_name LIKE %(search)s
 				OR name LIKE %(search)s)
-		"""
-		params = {"search": f"%{search}%"}
+			"""
+			params["search"] = f"%{search}%"
 
 		if occupancy_status:
 			query += " AND occupancy_status = %(occupancy_status)s"
@@ -716,7 +724,7 @@ def get_service_units(service_unit_type=None, occupancy_status=None, search=None
 			query += " AND room_category = %(room_category)s"
 			params["room_category"] = room_category
 		if cost_center:
-			query += " AND cost_center = %(cost_center)s"
+			query += f" AND {_cost_center_clause()}"
 			params["cost_center"] = cost_center
 		if type_names:
 			query += " AND service_unit_type IN %(type_names)s"
@@ -834,11 +842,18 @@ def get_bed_numbers(
 			return []
 
 	if cost_center:
-		su_with_cc = frappe.get_all(
-			"Healthcare Service Unit",
-			filters={"cost_center": cost_center},
-			pluck="name",
-		)
+		# Include rooms for this cost center plus rooms with no cost center set.
+		su_with_cc = [
+			row[0]
+			for row in frappe.db.sql(
+				"""
+				SELECT name
+				FROM `tabHealthcare Service Unit`
+				WHERE IFNULL(cost_center, '') = '' OR cost_center = %s
+				""",
+				(cost_center,),
+			)
+		]
 		if not su_with_cc:
 			return []
 		if allowed_su is not None:
@@ -2609,6 +2624,116 @@ def _validate_case_management_template(template_name):
 		frappe.throw(_("Healthcare Service Template {0} is disabled").format(template_name))
 
 
+def _parse_case_management_services(case_management_services=None, template=None, amount=None):
+	"""Normalize case management into a list of {template, amount}.
+
+	Accepts a JSON list (or list of dicts/strings) and/or a legacy single template.
+	"""
+	services = []
+	raw = case_management_services
+	if isinstance(raw, str):
+		raw = raw.strip()
+		if raw:
+			try:
+				raw = frappe.parse_json(raw)
+			except Exception:
+				raw = [raw]
+		else:
+			raw = None
+
+	if isinstance(raw, list):
+		for entry in raw:
+			if isinstance(entry, dict):
+				tpl = (entry.get("template") or entry.get("name") or entry.get("case_management_template") or "").strip()
+				amt = entry.get("amount")
+				if entry.get("rate") is not None and amt is None:
+					amt = entry.get("rate")
+			else:
+				tpl = cstr(entry).strip()
+				amt = None
+			if not tpl:
+				continue
+			services.append({"template": tpl, "amount": amt})
+
+	legacy = (template or "").strip()
+	if legacy and not any(s["template"] == legacy for s in services):
+		services.append({"template": legacy, "amount": amount})
+
+	# Deduplicate by template (keep first)
+	seen = set()
+	out = []
+	for row in services:
+		tpl = row["template"]
+		if tpl in seen:
+			continue
+		seen.add(tpl)
+		_validate_case_management_template(tpl)
+		resolved_amount = (
+			flt(row["amount"])
+			if row.get("amount") is not None
+			else _get_case_management_ip_rate(tpl)
+		)
+		out.append({"template": tpl, "amount": resolved_amount})
+	return out
+
+
+def _append_case_management_quotation_line(quotation, template_name, amount, package=None, admission=None):
+	"""Add one IP Case Management line to a quotation."""
+	_validate_case_management_template(template_name)
+	line_amount = flt(amount) if amount is not None else _get_case_management_ip_rate(template_name)
+	if line_amount <= 0:
+		frappe.throw(_("Case Management amount must be greater than 0 for {0}").format(template_name))
+
+	tpl = frappe.db.get_value(
+		"Healthcare Service Template",
+		template_name,
+		["service_name", "item_code"],
+		as_dict=True,
+	) or {}
+	cm_item_code = (tpl.get("item_code") or "").strip() or template_name
+	cm_item_name = tpl.get("service_name") or template_name
+
+	if not frappe.db.exists("Item", cm_item_code):
+		item_group = (
+			frappe.db.get_value("Item Group", {"name": "Services"})
+			or frappe.db.get_value("Item Group", {"name": "All Item Groups"})
+			or frappe.db.get_value("Item Group", {}, "name")
+		)
+		uom = (
+			frappe.db.exists("UOM", "Unit")
+			or frappe.db.get_single_value("Stock Settings", "stock_uom")
+			or "Unit"
+		)
+		frappe.get_doc(
+			{
+				"doctype": "Item",
+				"item_code": cm_item_code,
+				"item_name": cm_item_name,
+				"item_group": item_group or "All Item Groups",
+				"description": f"Case Management: {cm_item_name}",
+				"is_sales_item": 1,
+				"is_service_item": 1,
+				"is_purchase_item": 0,
+				"is_stock_item": 0,
+				"stock_uom": uom,
+				"disabled": 0,
+			}
+		).insert(ignore_permissions=True, ignore_mandatory=True)
+
+	cm_row = quotation.append("items", {})
+	cm_row.item_code = cm_item_code
+	cm_row.item_name = cm_item_name
+	cm_row.description = f"IP Case Management: {cm_item_name}"
+	cm_row.qty = 1
+	cm_row.rate = line_amount
+	cm_row.amount = line_amount
+	if package and getattr(package, "cost_center", None):
+		cm_row.cost_center = package.cost_center
+	elif admission and admission.get("cost_center"):
+		cm_row.cost_center = admission.cost_center
+	return line_amount
+
+
 def _create_case_management_service_request(admission, template_name, amount=None):
 	"""Create Service Request for IP Case Management; optionally bill via Sales Order."""
 	from healthcare.api.service_request import confirm_session_payment, create_service_request
@@ -2640,9 +2765,24 @@ def _create_case_management_service_request(admission, template_name, amount=Non
 			"cost_center": cost_center,
 			"cost": rate,
 			"grand_total": rate,
+			"override_rate": 1,
 			"status": "draft-Request Status",
 		}
 	)
+
+	# Ensure edited assessment fee survives any template/insurance pricing on insert.
+	sr_name = (sr or {}).get("name")
+	if sr_name:
+		frappe.db.set_value(
+			"Service Request",
+			sr_name,
+			{
+				"cost": rate,
+				"grand_total": rate,
+				"discount_amount": 0,
+			},
+			update_modified=False,
+		)
 
 	sales_order = None
 	# Separate billing: SR → Sales Order immediately. Combined billing goes on quotation.
@@ -2654,6 +2794,7 @@ def _create_case_management_service_request(admission, template_name, amount=Non
 		"service_request": sr.get("name"),
 		"sales_order": sales_order,
 		"amount": rate,
+		"template": template_name,
 	}
 
 
@@ -2711,6 +2852,7 @@ def admit_patient(
 	ip_case_management_fee=None,
 	case_management_template=None,
 	case_management_fee=None,
+	case_management_services=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -2738,17 +2880,19 @@ def admit_patient(
 	want_case_mgmt = cint(ip_case_management) if ip_case_management is not None else cint(
 		record.get("ip_case_management")
 	)
-	case_management_template = (case_management_template or "").strip() or None
+	cm_services = []
 	cm_amount = None
+	case_management_template = (case_management_template or "").strip() or None
 	if want_case_mgmt:
-		if not case_management_template:
-			frappe.throw(_("Select a Case Management service template"))
-		_validate_case_management_template(case_management_template)
-		cm_amount = (
-			flt(case_management_fee)
-			if case_management_fee is not None
-			else _get_case_management_ip_rate(case_management_template)
+		cm_services = _parse_case_management_services(
+			case_management_services,
+			template=case_management_template,
+			amount=case_management_fee,
 		)
+		if not cm_services:
+			frappe.throw(_("Select at least one Admission Assessment Fee service"))
+		case_management_template = cm_services[0]["template"]
+		cm_amount = sum(flt(s["amount"]) for s in cm_services)
 
 	if ip_case_management is not None and record.meta.has_field("ip_case_management"):
 		record.ip_case_management = want_case_mgmt
@@ -2783,7 +2927,12 @@ def admit_patient(
 		record.bed_no = selected_bed
 
 	# Perform admit (sets status, occupancy, bed no, service units)
-	record.admit(service_unit, check_in, expected_discharge)
+	record.admit(
+		service_unit,
+		check_in,
+		expected_discharge,
+		hospital_bed=selected_bed,
+	)
 
 	admitted_service_units = []
 	if service_unit:
@@ -2856,15 +3005,26 @@ def admit_patient(
 
 	record.save(ignore_permissions=True)
 
-	case_mgmt_billing = None
-	if want_case_mgmt and case_management_template:
+	# Re-assert bed occupancy after post-admit saves (documents / relatives).
+	if getattr(record, "bed_no", None):
+		from healthcare.healthcare.doctype.inpatient_admission.inpatient_admission import (
+			occupy_hospital_bed,
+		)
+
+		occupy_hospital_bed(record.bed_no)
+
+	case_mgmt_billings = []
+	if want_case_mgmt and cm_services:
 		# Reload so SR sees saved case-management fields / cost center
 		record.reload()
-		case_mgmt_billing = _create_case_management_service_request(
-			record,
-			case_management_template,
-			amount=cm_amount,
-		)
+		for cm in cm_services:
+			case_mgmt_billings.append(
+				_create_case_management_service_request(
+					record,
+					cm["template"],
+					amount=cm["amount"],
+				)
+			)
 
 	frappe.db.commit()
 
@@ -2874,10 +3034,11 @@ def admit_patient(
 		"name": record.name,
 		"combine_admission_fee_and_case_management": _combine_admission_and_case_management(),
 	}
-	if case_mgmt_billing:
-		result["case_management_service_request"] = case_mgmt_billing.get("service_request")
-		result["case_management_sales_order"] = case_mgmt_billing.get("sales_order")
-		result["case_management_amount"] = case_mgmt_billing.get("amount")
+	if case_mgmt_billings:
+		result["case_management_services"] = case_mgmt_billings
+		result["case_management_service_request"] = case_mgmt_billings[0].get("service_request")
+		result["case_management_sales_order"] = case_mgmt_billings[0].get("sales_order")
+		result["case_management_amount"] = sum(flt(b.get("amount")) for b in case_mgmt_billings)
 	return result
 
 
@@ -2891,13 +3052,13 @@ def create_admission_quotation(
 	service_unit=None,
 	case_management_template=None,
 	case_management_amount=None,
+	case_management_services=None,
 ):
 	"""Create a Draft Quotation for admission with package.
 
 	When Healthcare Settings ``combine_admission_fee_and_case_management`` is enabled
-	and a case management template is provided, IP Case Management is added as a
-	second line on the same quotation. When disabled, case management is ignored here
-	(it is billed via Service Request → Sales Order on admit).
+	and case management service(s) are provided, each is added as a quotation line.
+	When disabled, case management is ignored here (billed via Service Request on admit).
 	"""
 	
 	if not admission_name:
@@ -3001,66 +3162,23 @@ def create_admission_quotation(
 	if not is_custom and package.cost_center:
 		item_row.cost_center = package.cost_center
 
-	# Optional Case Management line on the same quotation
-	cm_template = (case_management_template or "").strip() or None
-	cm_line_amount = None
-	if _combine_admission_and_case_management() and cm_template:
-		_validate_case_management_template(cm_template)
-		cm_line_amount = (
-			flt(case_management_amount)
-			if case_management_amount is not None
-			else _get_case_management_ip_rate(cm_template)
+	# Optional Case Management line(s) on the same quotation
+	cm_total = 0
+	cm_services = []
+	if _combine_admission_and_case_management():
+		cm_services = _parse_case_management_services(
+			case_management_services,
+			template=case_management_template,
+			amount=case_management_amount,
 		)
-		if cm_line_amount <= 0:
-			frappe.throw(_("Case Management amount must be greater than 0"))
-
-		tpl = frappe.db.get_value(
-			"Healthcare Service Template",
-			cm_template,
-			["service_name", "item_code"],
-			as_dict=True,
-		) or {}
-		cm_item_code = (tpl.get("item_code") or "").strip() or cm_template
-		cm_item_name = tpl.get("service_name") or cm_template
-
-		if not frappe.db.exists("Item", cm_item_code):
-			item_group = (
-				frappe.db.get_value("Item Group", {"name": "Services"})
-				or frappe.db.get_value("Item Group", {"name": "All Item Groups"})
-				or frappe.db.get_value("Item Group", {}, "name")
+		for cm in cm_services:
+			cm_total += _append_case_management_quotation_line(
+				quotation,
+				cm["template"],
+				cm["amount"],
+				package=package if not is_custom else None,
+				admission=admission,
 			)
-			uom = (
-				frappe.db.exists("UOM", "Unit")
-				or frappe.db.get_single_value("Stock Settings", "stock_uom")
-				or "Unit"
-			)
-			frappe.get_doc(
-				{
-					"doctype": "Item",
-					"item_code": cm_item_code,
-					"item_name": cm_item_name,
-					"item_group": item_group or "All Item Groups",
-					"description": f"Case Management: {cm_item_name}",
-					"is_sales_item": 1,
-					"is_service_item": 1,
-					"is_purchase_item": 0,
-					"is_stock_item": 0,
-					"stock_uom": uom,
-					"disabled": 0,
-				}
-			).insert(ignore_permissions=True, ignore_mandatory=True)
-
-		cm_row = quotation.append("items", {})
-		cm_row.item_code = cm_item_code
-		cm_row.item_name = cm_item_name
-		cm_row.description = f"IP Case Management: {cm_item_name}"
-		cm_row.qty = 1
-		cm_row.rate = cm_line_amount
-		cm_row.amount = cm_line_amount
-		if not is_custom and package and package.cost_center:
-			cm_row.cost_center = package.cost_center
-		elif admission.get("cost_center"):
-			cm_row.cost_center = admission.cost_center
 	
 	# Link to admission if field exists
 	if hasattr(quotation, 'inpatient_admission'):
@@ -3081,7 +3199,8 @@ def create_admission_quotation(
 		'success': True,
 		'quotation_name': quotation.name,
 		'combine_admission_fee_and_case_management': _combine_admission_and_case_management(),
-		'case_management_included': bool(cm_line_amount),
+		'case_management_included': bool(cm_total),
+		'case_management_count': len(cm_services),
 		'message': _('Quotation {0} created successfully (Draft)').format(quotation.name)
 	}
 

@@ -60,6 +60,10 @@ interface CreateServiceRequestModalProps {
    * searchable templates, and optional group/single filter (`is_group` on Lab Test Template).
    */
   labTestTemplateOnly?: boolean
+  /** Override care context mode (e.g. create lab request from an IP admission panel). */
+  forcedMode?: 'OP' | 'IP'
+  /** Prefill / lock inpatient admission when creating from an admission context. */
+  initialInpatientRecord?: string
 }
 
 interface PricingRow {
@@ -98,8 +102,11 @@ export const CreateServiceRequestModal = ({
   initialTemplate,
   defaultTemplateType,
   labTestTemplateOnly = false,
+  forcedMode,
+  initialInpatientRecord,
 }: CreateServiceRequestModalProps) => {
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode: contextMode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const mode = forcedMode || contextMode
   const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
   const formatMoney = useFormatMoney()
 
@@ -150,7 +157,8 @@ export const CreateServiceRequestModal = ({
     template_dn: '',
     practitioner: '',
     patient_visit: mode === 'OP' ? activeVisit || '' : '',
-    inpatient_record: mode === 'IP' ? activeAdmission || '' : '',
+    inpatient_record:
+      mode === 'IP' ? (initialInpatientRecord || activeAdmission || '') : '',
     cost_center: '',
     order_date: new Date().toISOString().slice(0, 10),
     order_time: new Date().toTimeString().slice(0, 5),
@@ -390,6 +398,12 @@ export const CreateServiceRequestModal = ({
   useEffect(() => {
     if (mode !== 'IP' || !form.patient || admissions.length === 0) return
     setForm((prev) => {
+      if (
+        initialInpatientRecord &&
+        admissions.some((a) => a.name === initialInpatientRecord)
+      ) {
+        return { ...prev, inpatient_record: initialInpatientRecord }
+      }
       if (activeAdmission && admissions.some((a) => a.name === activeAdmission))
         return { ...prev, inpatient_record: activeAdmission }
       const first = admissions[0]?.name
@@ -397,7 +411,7 @@ export const CreateServiceRequestModal = ({
       const currentOk = prev.inpatient_record && admissions.some((a) => a.name === prev.inpatient_record)
       return currentOk ? prev : { ...prev, inpatient_record: first }
     })
-  }, [mode, form.patient, activeAdmission, admissions])
+  }, [mode, form.patient, activeAdmission, admissions, initialInpatientRecord])
 
   useEffect(() => {
     const patientVisit = mode === 'OP' ? form.patient_visit : undefined

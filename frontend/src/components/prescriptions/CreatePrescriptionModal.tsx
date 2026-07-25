@@ -556,7 +556,7 @@ export const CreatePrescriptionModal = ({
   const searchUoms = async (query: string) => {
     setLoadingUom(true)
     try {
-      const allUoms = await fetchStandardUoms(query || undefined)
+      const allUoms = await fetchStandardUoms(query || undefined, { medicalOnly: true })
       setUomOptions(allUoms)
     } catch (error) {
       console.error('Failed to search UOMs:', error)
@@ -570,7 +570,7 @@ export const CreatePrescriptionModal = ({
   useEffect(() => {
     fetchPrescriptionFrequencies().then(setFrequencyOptions).catch(() => setFrequencyOptions([]))
     fetchRouteOfAdministrationList().then(setRouteOptions).catch(() => setRouteOptions([]))
-    fetchStandardUoms().then(setUomOptions).catch(() => setUomOptions([]))
+    fetchStandardUoms(undefined, { medicalOnly: true }).then(setUomOptions).catch(() => setUomOptions([]))
   }, [])
 
   useEffect(() => {
@@ -1467,7 +1467,7 @@ export const CreatePrescriptionModal = ({
                                 type="text"
                                 value={row.dosage}
                                 onChange={(e) => updateMedicationRow(index, 'dosage', e.target.value)}
-                                placeholder="e.g. 45mg or 1-0-1"
+                                placeholder="45mg"
                                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
                               {checkingDoseRows[index] ? (

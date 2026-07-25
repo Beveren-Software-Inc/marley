@@ -113,10 +113,12 @@ export interface DiagnosisData {
 }
 
 export interface UpdateDiagnosesResponse {
-  success: boolean
-  message: string
-  admission: string
-  diagnoses_updated: number
+  success?: boolean
+  ok?: boolean
+  message?: string
+  admission?: string
+  diagnoses_updated?: number
+  saved?: number
 }
 
 export interface AddDiagnosesResponse {
