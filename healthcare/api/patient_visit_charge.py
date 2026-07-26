@@ -198,6 +198,22 @@ def get_patient_visit_charge_lines(visit_type: str | None = None, patient: str |
 	return resolve_visit_charge_lines(visit_type, patient=patient)
 
 
+def _visit_fee_sales_order_filters(visit_name: str, *, docstatus: list | int | None = None) -> dict:
+	"""Visit registration fee SOs only (not lab/service SOs that also reference the visit).
+
+	Visit fee SOs stamp custom_base_reference = Patient Visit.
+	Lab SOs stamp custom_base_reference = Service Request / Lab Test, while still
+	setting custom_reference_* to the Patient Visit.
+	"""
+	filters: dict = {
+		"custom_base_reference": "Patient Visit",
+		"custom_base_reference_name": visit_name,
+	}
+	if docstatus is not None:
+		filters["docstatus"] = docstatus
+	return filters
+
+
 def _visit_charge_sales_order_names(
 	visit_name: str,
 	*,
@@ -208,14 +224,12 @@ def _visit_charge_sales_order_names(
 	if not item_code or not visit_name:
 		return []
 
-	filters: dict = {
-		"custom_reference_type": "Patient Visit",
-		"custom_reference_name": visit_name,
-	}
-	if docstatus is not None:
-		filters["docstatus"] = docstatus
-
-	candidates = frappe.get_all("Sales Order", filters=filters, pluck="name", order_by="creation desc")
+	candidates = frappe.get_all(
+		"Sales Order",
+		filters=_visit_fee_sales_order_filters(visit_name, docstatus=docstatus),
+		pluck="name",
+		order_by="creation desc",
+	)
 	matched: list[str] = []
 	for so_name in candidates:
 		if frappe.db.exists("Sales Order Item", {"parent": so_name, "item_code": item_code}):
@@ -639,14 +653,87 @@ def _existing_visit_charge_sales_orders(
 	*,
 	docstatus: list | int | None = None,
 ) -> list[str]:
-	filters: dict = {
-		"custom_reference_type": "Patient Visit",
-		"custom_reference_name": visit_name,
-	}
-	if docstatus is not None:
-		filters["docstatus"] = docstatus
-	return frappe.get_all("Sales Order", filters=filters, pluck="name", order_by="creation desc")
+	return frappe.get_all(
+		"Sales Order",
+		filters=_visit_fee_sales_order_filters(visit_name, docstatus=docstatus),
+		pluck="name",
+		order_by="creation desc",
+	)
 
+
+def patient_visit_type_is_lab_visit(visit_type: str | None) -> bool:
+	"""True when Patient Visit Type.lab_visit is set."""
+	visit_type = (visit_type or "").strip()
+	if not visit_type or not frappe.db.exists("Patient Visit Type", visit_type):
+		return False
+	return bool(cint(frappe.db.get_value("Patient Visit Type", visit_type, "lab_visit") or 0))
+
+
+def remove_lab_visit_registration_charge(visit_name: str | None) -> dict:
+	"""For Lab Visit types: cancel and delete the visit registration Sales Order.
+
+	Called when a lab Sales Order is created for the same visit so the patient is
+	not charged both the visit fee and the lab tests.
+	Invoiced visit fees are left untouched (cannot safely remove).
+	"""
+	visit_name = (visit_name or "").strip()
+	if not visit_name or not frappe.db.exists("Patient Visit", visit_name):
+		return {"removed": False, "reason": "visit_not_found"}
+
+	visit_type = frappe.db.get_value("Patient Visit", visit_name, "visit_type")
+	if not patient_visit_type_is_lab_visit(visit_type):
+		return {"removed": False, "reason": "not_lab_visit"}
+
+	# Include cancelled leftovers so a prior cancel-only run can still hard-delete.
+	existing = _existing_visit_charge_sales_orders(visit_name, docstatus=None)
+	if not existing:
+		return {"removed": False, "reason": "no_visit_fee_so", "visit_type": visit_type}
+
+	removed: list[str] = []
+	skipped_invoiced: list[str] = []
+	errors: list[str] = []
+
+	for so_name in existing:
+		if not frappe.db.exists("Sales Order", so_name):
+			continue
+		if _sales_order_is_invoiced(so_name):
+			skipped_invoiced.append(so_name)
+			continue
+		try:
+			so = frappe.get_doc("Sales Order", so_name)
+			so.flags.ignore_permissions = True
+			if so.docstatus == 1:
+				so.cancel()
+			# Draft (0) or Cancelled (2): delete completely.
+			frappe.delete_doc("Sales Order", so_name, ignore_permissions=True, force=True)
+			removed.append(so_name)
+		except Exception as exc:
+			errors.append(f"{so_name}: {exc}")
+			frappe.log_error(
+				title=f"Failed to cancel/delete lab-visit fee SO {so_name}",
+				message=frappe.get_traceback(),
+			)
+
+	# Clear visit price fields once the registration fee is gone (not if only invoiced leftovers).
+	if removed and not skipped_invoiced:
+		frappe.db.set_value(
+			"Patient Visit",
+			visit_name,
+			{
+				"visit_price": 0,
+				"discount_percentage": 0,
+				"discount_amount": 0,
+			},
+			update_modified=False,
+		)
+
+	return {
+		"removed": bool(removed),
+		"sales_orders": removed,
+		"skipped_invoiced": skipped_invoiced,
+		"errors": errors,
+		"visit_type": visit_type,
+	}
 
 def create_iop_enrollment_visit_charge_sales_order(
 	visit_name: str,
