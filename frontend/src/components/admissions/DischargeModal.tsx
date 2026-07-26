@@ -54,6 +54,8 @@ import { fetchObservationLevelDetails, fetchLatestObservationForAdmission } from
 import { fetchMedicineGiven } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { frappeErrorMessage } from '../../utils/frappeErrorMessage'
+import { SetupServicesEditor } from '../patientVisits/SetupServicesEditor'
+import { normalizeSetupServices } from '../../services/dailyPatientVisitSetup'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
   canEditMainDischargeChecklist,
@@ -110,6 +112,8 @@ interface DischargePatientFormProps {
     /** Practitioner who scheduled discharge — default for Discharge Doctor */
     discharge_practitioner?: string
     primary_practitioner?: string
+    /** Branch / Cost Center for daily visit setup fallback */
+    cost_center?: string
   }
   onClose: () => void
   onSuccess: () => void
@@ -123,11 +127,15 @@ interface DailyPatientVisitSetup {
   from_date: string
   to_date: string
   time: string
+  /** Healthcare Service Template (legacy first line). */
   session?: string
+  services?: Array<{ session: string; amount: number }>
   is_active: boolean
   amount: number
   admission: string      // Add this field
   discharge?: string
+  /** Cost Center / branch */
+  branch?: string
 }
 
 const RELATION_OPTIONS = [
@@ -526,17 +534,25 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
 const DailyVisitSetupForm = ({ 
   patient, 
   admission,
+  branch,
   onSave, 
   initialData,
   onCancel
 }: { 
   patient: string;
   admission: string;
+  /** Top nav / admission cost center */
+  branch?: string;
   onSave: (data: DailyPatientVisitSetup) => void;
   initialData?: DailyPatientVisitSetup;
   onCancel?: () => void;
 }) => {
   // Ensure admission is always set from props, not overwritten by initialData
+  const initialServices = normalizeSetupServices(initialData || {})
+  const resolvedBranch =
+    (initialData?.branch || '').trim() ||
+    (branch || '').trim() ||
+    ''
   const [formData, setFormData] = useState<DailyPatientVisitSetup>({
     patient: patient,
     patient_name: '',
@@ -545,9 +561,11 @@ const DailyVisitSetupForm = ({
     from_date: initialData?.from_date || '',
     to_date: initialData?.to_date || '',
     time: initialData?.time || '',
-    session: initialData?.session || '',
+    session: initialServices[0]?.session || initialData?.session || '',
+    services: initialServices,
     is_active: initialData?.is_active ?? true,
-    amount: initialData?.amount || 0,
+    amount: initialServices.reduce((sum, line) => sum + (Number(line.amount) || 0), 0) || initialData?.amount || 0,
+    branch: resolvedBranch,
   })
 
   // Add a useEffect to ensure admission is always synced from props
@@ -556,42 +574,41 @@ const DailyVisitSetupForm = ({
       ...prev,
       admission: admission,  // Always use the current admission prop
       patient: patient,
+      branch: (prev.branch || '').trim() || (branch || '').trim() || prev.branch,
     }))
-  }, [admission, patient])
-
-  const [sessions, setSessions] = useState<LinkFieldOption[]>([])
-  const [sessionOpen, setSessionOpen] = useState(false)
-  const [sessionQuery, setSessionQuery] = useState('')
-
-  useEffect(() => {
-    const loadSessions = async () => {
-      try {
-        const response = await fetch('/api/method/frappe.client.get_list', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            doctype: 'Therapy Session',
-            fields: ['name', 'name'],
-            limit: 100
-          })
-        })
-        const data = await response.json()
-        if (data.message) {
-          setSessions(data.message.map((s: any) => ({ name: s.name, label: s.name || s.name })))
-        }
-      } catch (err) {
-        console.error('Failed to load sessions:', err)
-      }
-    }
-    loadSessions()
-  }, [])
+  }, [admission, patient, branch])
 
   const handleSave = () => {
+    if (!(formData.from_date || '').trim()) {
+      toast.error('From Date is required.')
+      return
+    }
+    if (!(formData.to_date || '').trim()) {
+      toast.error('End Date is required.')
+      return
+    }
+    if (!(formData.time || '').trim()) {
+      toast.error('Time is required.')
+      return
+    }
+    const services = normalizeSetupServices(formData).filter((line) => line.session || line.amount)
+    if (!services.length) {
+      toast.error('Add at least one Healthcare Service Template.')
+      return
+    }
+    const branchValue =
+      (formData.branch || '').trim() ||
+      (branch || '').trim() ||
+      ''
     // Ensure admission is included in the data being saved
     const saveData = {
       ...formData,
       admission: admission,  // Explicitly set admission from props
       patient: patient,
+      branch: branchValue || undefined,
+      services,
+      session: services[0]?.session || '',
+      amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
     }
     onSave(saveData)
   }
@@ -610,7 +627,7 @@ const DailyVisitSetupForm = ({
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">To Date *</label>
+          <label className="block text-sm font-medium text-slate-700 mb-1">End Date *</label>
           <input
             type="date"
             value={formData.to_date}
@@ -629,51 +646,6 @@ const DailyVisitSetupForm = ({
             required
           />
         </div>
-        <div className="relative dropdown-container">
-          <label className="block text-sm font-medium text-slate-700 mb-1">Therapy Session</label>
-          <input
-            type="text"
-            value={sessionOpen ? sessionQuery : (sessions.find(s => s.name === formData.session)?.label || formData.session || '')}
-            onChange={(e) => {
-              setFormData({ ...formData, session: '' })
-              setSessionQuery(e.target.value)
-              setSessionOpen(true)
-            }}
-            onFocus={() => setSessionOpen(true)}
-            placeholder="Select therapy session..."
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-          {sessionOpen && sessions.length > 0 && (
-            <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-              {sessions
-                .filter(s => !sessionQuery || s.label.toLowerCase().includes(sessionQuery.toLowerCase()))
-                .map(session => (
-                  <button
-                    key={session.name}
-                    type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-blue-50"
-                    onClick={() => {
-                      setFormData({ ...formData, session: session.name })
-                      setSessionQuery(session.label)
-                      setSessionOpen(false)
-                    }}
-                  >
-                    {session.label}
-                  </button>
-                ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Amount (per visit)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={formData.amount}
-            onChange={(e) => setFormData({ ...formData, amount: parseFloat(e.target.value) || 0 })}
-            className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-          />
-        </div>
         <div className="flex items-end">
           <label className="flex items-center gap-2">
             <input
@@ -685,6 +657,23 @@ const DailyVisitSetupForm = ({
             <span className="text-sm font-medium text-slate-700">Activate Daily Visits</span>
           </label>
         </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-2">
+          Therapy Session / Service <span className="text-slate-400 font-normal">(Healthcare Service Template)</span>
+        </label>
+        <SetupServicesEditor
+          services={formData.services || [{ session: '', amount: 0 }]}
+          onChange={(services) =>
+            setFormData({
+              ...formData,
+              services,
+              session: services[0]?.session || '',
+              amount: services.reduce((sum, line) => sum + (Number(line.amount) || 0), 0),
+            })
+          }
+        />
       </div>
 
       {/* Show read-only fields for admission and discharge info */}
@@ -919,7 +908,7 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const sectionTabsScrollRef = useRef<HTMLDivElement>(null)
   const [sectionScroll, setSectionScroll] = useState({ left: false, right: false })
 
-  const { userRole, user: currentUser } = useCareContext()
+  const { userRole, user: currentUser, userCostCenter } = useCareContext()
   const formatMedicineMoney = useFormatMoney()
   const roleVisibleTabIds = useMemo(() => getVisibleDischargeTabIds(userRole), [userRole])
   const canEditMainChecklist = useMemo(() => canEditMainDischargeChecklist(userRole), [userRole])
@@ -1465,35 +1454,44 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
 }
 
   // ─── Load Daily Visit Setup ────────────────────────────────────────────────
- // ─── Load Daily Visit Setup ────────────────────────────────────────────────
-const loadDailyVisitSetup = async () => {
-  if (!admission?.patient) return
-  setDailyVisitLoading(true)
-  try {
-    // Specify all the fields you want to retrieve
-    const response = await fetch(
-      `/api/method/frappe.client.get_list?doctype=Daily%20Patient%20Visit%20Setup&filters={"patient":"${admission.patient}","admission":"${admission.name}"}&fields=["name","patient","patient_name","admission","discharge","from_date","to_date","time","session","is_active","amount"]&limit=1&order_by=creation%20desc`
-    )
-    const data = await response.json()
-    console.log('Daily Visit Setup response:', data)
-    if (data.message && data.message.length > 0) {
-      setDailyVisitSetup(data.message[0])
-      setDailyVisitSaved(true)
-    } else {
-      setDailyVisitSaved(false)
-      setDailyVisitSetup(null)
+  const loadDailyVisitSetup = async () => {
+    if (!admission?.name) return
+    setDailyVisitLoading(true)
+    try {
+      const response = await fetch(
+        `/api/method/healthcare.api.daily_patient_visit.get_daily_patient_visit_setup_for_admission?admission=${encodeURIComponent(admission.name)}`
+      )
+      const data = await response.json()
+      if (data?.exc) {
+        throw new Error(frappeErrorMessage(data, 'Failed to load daily visit setup'))
+      }
+      if (data.message?.name) {
+        setDailyVisitSetup(data.message)
+        setDailyVisitSaved(true)
+        setShowDailyVisitForm(false)
+      } else {
+        setDailyVisitSaved(false)
+        setDailyVisitSetup(null)
+      }
+    } catch (err) {
+      console.error('Failed to load daily visit setup:', err)
+    } finally {
+      setDailyVisitLoading(false)
     }
-  } catch (err) {
-    console.error('Failed to load daily visit setup:', err)
-  } finally {
-    setDailyVisitLoading(false)
   }
-}
   // ─── Save Daily Visit Setup ────────────────────────────────────────────────
   const saveDailyVisitSetup = async (setupData: DailyPatientVisitSetup) => {
     try {
       const csrf = (window as any).csrf_token
       let response
+      const payload = {
+        ...setupData,
+        branch:
+          (setupData.branch || '').trim() ||
+          (userCostCenter || '').trim() ||
+          (admission.cost_center || '').trim() ||
+          undefined,
+      }
       
       if (dailyVisitSetup?.name) {
         response = await fetch('/api/method/healthcare.api.daily_patient_visit.update_daily_patient_visit_setup', {
@@ -1504,7 +1502,7 @@ const loadDailyVisitSetup = async () => {
             'Accept': 'application/json',
             ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
           },
-          body: JSON.stringify({ name: dailyVisitSetup.name, data: setupData })
+          body: JSON.stringify({ name: dailyVisitSetup.name, data: payload })
         })
       } else {
         response = await fetch('/api/method/healthcare.api.daily_patient_visit.create_daily_patient_visit_setup', {
@@ -1515,7 +1513,7 @@ const loadDailyVisitSetup = async () => {
             'Accept': 'application/json',
             ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
           },
-          body: JSON.stringify({ data: setupData })
+          body: JSON.stringify({ data: payload })
         })
       }
       
@@ -1532,6 +1530,10 @@ const loadDailyVisitSetup = async () => {
           ? 'Daily visit setup updated successfully'
           : 'Daily visit setup created successfully')
       toast.success(successMessage)
+      const saved = resData?.message
+      if (saved?.name) {
+        setDailyVisitSetup(saved)
+      }
       setDailyVisitSaved(true)
       setShowDailyVisitForm(false)
       await loadDailyVisitSetup()
@@ -4682,6 +4684,11 @@ const loadDailyVisitSetup = async () => {
       <DailyVisitSetupForm
         patient={admission.patient}
         admission={admission.name}
+        branch={
+          (userCostCenter || '').trim() ||
+          (admission.cost_center || '').trim() ||
+          undefined
+        }
         initialData={dailyVisitSetup || undefined}
         onSave={saveDailyVisitSetup}
         onCancel={() => setShowDailyVisitForm(false)}
@@ -4697,7 +4704,7 @@ const loadDailyVisitSetup = async () => {
                       <li>The system scheduler runs daily at 12:01 AM</li>
                       <li>For each active setup where current date is between From Date and To Date, a Patient Visit is automatically created</li>
                       <li>Once the To Date is passed, the setup is automatically deactivated (is_active set to false)</li>
-                      <li>Each visit will be created with the specified time and therapy session</li>
+                      <li>Each visit will be created with the specified time and Healthcare Service Template(s)</li>
                       <li>The specified amount will be applied to each created visit</li>
                     </ul>
                   </div>
