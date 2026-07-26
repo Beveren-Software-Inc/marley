@@ -126,6 +126,7 @@ export interface LabTest {
     block_save?: boolean
   }>
   calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
+  by_nurse?: number | boolean
   /** Oracle LAB 00-03 legacy header import */
   is_legacy_import?: number | boolean
   /** Oracle LAB 00-04 child rows (attached on list + detail APIs) */

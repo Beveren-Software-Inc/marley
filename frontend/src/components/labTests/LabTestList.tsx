@@ -2422,13 +2422,14 @@ export const LabTestList = ({
   const { selectedPatient: contextPatient, userRole, guardClinicalEdit } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const resultsReadOnly = doctorLabDefaults
-  const canEditResults = canEditLabTestResults(userRole)
+  const nurseLabContext = Boolean(byNurse)
+  const canEditResults = canEditLabTestResults(userRole, { nurseLabContext })
   const canEditResultRow = useCallback(
     (labTest: LabTest) =>
       !isLegacyHistoryLabRow(labTest) &&
       !resultsReadOnly &&
-      canEditLabTestResultForRow(labTest, userRole),
-    [resultsReadOnly, userRole]
+      canEditLabTestResultForRow(labTest, userRole, { nurseLabContext }),
+    [resultsReadOnly, userRole, nurseLabContext]
   )
 
   // Pagination state

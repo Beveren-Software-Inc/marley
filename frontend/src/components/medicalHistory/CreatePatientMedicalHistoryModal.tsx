@@ -21,6 +21,7 @@ import {
   preparePastMedicalHistoryForSave,
   type PastMedicalHistoryFormFields,
 } from './pastMedicalHistoryUtils'
+import { CLOSED_PATIENT_VISIT_STATUSES } from '../../utils/careEpisode'
 
 interface CreatePatientMedicalHistoryModalProps {
   patient: string
@@ -37,7 +38,12 @@ export const CreatePatientMedicalHistoryModal = ({
   onClose,
   onCreated,
 }: CreatePatientMedicalHistoryModalProps) => {
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const {
+    mode,
+    activeVisit,
+    activeAdmission,
+    blockClinicalRecordsOnCompletedVisit,
+  } = useCareContext()
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
 
@@ -57,7 +63,7 @@ export const CreatePatientMedicalHistoryModal = ({
     return ''
   })
   const [selectedVisitLabel, setSelectedVisitLabel] = useState<string>('')
-  // PMH can only be added for an Open/Ordered visit; completed/cancelled = view-only.
+  // Only enforced when Healthcare Settings → Block Clinical Records on Completed OP Visits is on.
   const WRITABLE_VISIT_STATUSES = ['Open', 'Ordered']
   const [visitBlockedStatus, setVisitBlockedStatus] = useState<string>('')
 
@@ -73,15 +79,21 @@ export const CreatePatientMedicalHistoryModal = ({
     if (isOPMode && patient) {
       fetchPatientVisits(patient, undefined)
         .then((visits) => {
-          const writable = visits.filter((v) => WRITABLE_VISIT_STATUSES.includes(v.status || ''))
+          const writable = blockClinicalRecordsOnCompletedVisit
+            ? visits.filter((v) => WRITABLE_VISIT_STATUSES.includes(v.status || ''))
+            : visits.filter((v) => (v.status || '') !== 'Cancelled')
           setVisitOptions(writable)
           if (activeVisit) {
             const active = visits.find((v) => v.name === activeVisit)
-            if (active && !WRITABLE_VISIT_STATUSES.includes(active.status || '')) {
-              // Current visit is Completed/Cancelled — history is view-only, block adding.
+            if (
+              active &&
+              blockClinicalRecordsOnCompletedVisit &&
+              CLOSED_PATIENT_VISIT_STATUSES.has(active.status || '')
+            ) {
               setVisitBlockedStatus(active.status || 'not open')
               setSelectedVisit('')
             } else if (active) {
+              setSelectedVisit(active.name)
               setSelectedVisitLabel(active.label)
               setVisitBlockedStatus('')
             }
@@ -89,7 +101,7 @@ export const CreatePatientMedicalHistoryModal = ({
         })
         .catch(() => setVisitOptions([]))
     }
-  }, [patient, isOPMode, activeVisit])
+  }, [patient, isOPMode, activeVisit, blockClinicalRecordsOnCompletedVisit])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,7 +114,7 @@ export const CreatePatientMedicalHistoryModal = ({
 
     if (isOPMode && visitBlockedStatus) {
       setError(
-        `This visit is ${visitBlockedStatus}. Past medical history can only be added for an Open or Ordered visit — it is view-only.`,
+        `This visit is ${visitBlockedStatus}. Past medical history can only be added for an Open or Ordered visit while “Block Clinical Records on Completed OP Visits” is enabled.`,
       )
       return
     }
@@ -239,9 +251,10 @@ export const CreatePatientMedicalHistoryModal = ({
                 {visitBlockedStatus ? (
                   <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                     This visit is <strong>{visitBlockedStatus}</strong>. Past medical history can only be added for an{' '}
-                    <strong>Open</strong> or <strong>Ordered</strong> visit — this one is view-only.
+                    <strong>Open</strong> or <strong>Ordered</strong> visit while{' '}
+                    <strong>Block Clinical Records on Completed OP Visits</strong> is enabled.
                   </div>
-                ) : activeVisit ? (
+                ) : activeVisit && selectedVisit === activeVisit ? (
                   <>
                     <input
                       type="text"
@@ -272,7 +285,9 @@ export const CreatePatientMedicalHistoryModal = ({
                     </select>
                     {visitOptions.length === 0 && (
                       <p className="text-xs text-amber-600 mt-1">
-                        No Open or Ordered visit available — past medical history can only be added for an active visit.
+                        {blockClinicalRecordsOnCompletedVisit
+                          ? 'No Open or Ordered visit available — past medical history can only be added for an active visit while blocking is enabled.'
+                          : 'No patient visit available for this patient.'}
                       </p>
                     )}
                   </>

@@ -24,12 +24,29 @@ export const LAB_RESULT_EDIT_ROLES = [
   'Administrator',
 ] as const
 
-export function canEditLabTestResults(roles: string[] | undefined): boolean {
+export type LabResultEditOptions = {
+  /** Nurse Laboratory screens (by_nurse templates only). */
+  nurseLabContext?: boolean
+}
+
+export function canEditLabTestResults(
+  roles: string[] | undefined,
+  opts?: LabResultEditOptions
+): boolean {
   if (!roles?.length) return false
   const normalized = roles.map((r) => r.trim().toLowerCase())
-  return LAB_RESULT_EDIT_ROLES.some((allowed) =>
-    normalized.some((r) => r === allowed.toLowerCase())
-  )
+  if (
+    LAB_RESULT_EDIT_ROLES.some((allowed) =>
+      normalized.some((r) => r === allowed.toLowerCase())
+    )
+  ) {
+    return true
+  }
+  // Nurses may save results on nurse lab lists (sample collection + result entry).
+  if (opts?.nurseLabContext && normalized.some((r) => r.includes('nurse') || r.includes('nursing'))) {
+    return true
+  }
+  return false
 }
 
 /** Whether a grouped lab request was explicitly finished (Finish Group). */
@@ -49,6 +66,26 @@ type LabTestRowPerm = {
   status?: string
   is_group_lab_test?: number
   service_request_status?: string
+  by_nurse?: number | boolean
+  template?: string
+}
+
+function _mayEditLabResults(
+  labTest: LabTestRowPerm,
+  roles: string[] | undefined,
+  opts?: LabResultEditOptions
+): boolean {
+  if (canEditLabTestResults(roles)) return true
+  if (opts?.nurseLabContext && canEditLabTestResults(roles, { nurseLabContext: true })) return true
+  if (
+    roles?.some((r) => {
+      const n = r.trim().toLowerCase()
+      return n.includes('nurse') || n.includes('nursing')
+    }) && Boolean(labTest.by_nurse)
+  ) {
+    return true
+  }
+  return false
 }
 
 /** Whether this lab test row allows inline / batch result editing.
@@ -58,7 +95,8 @@ type LabTestRowPerm = {
  * only admins/CEO may amend. Use labResultLockReason() to explain a lock in the UI. */
 export function canEditLabTestResultForRow(
   labTest: LabTestRowPerm,
-  roles: string[] | undefined
+  roles: string[] | undefined,
+  opts?: LabResultEditOptions
 ): boolean {
   const status = (labTest.status || '').trim()
   if (status === 'Rejected' || status === 'Cancelled') return false
@@ -70,7 +108,7 @@ export function canEditLabTestResultForRow(
     return isAdmin(roles ?? []) || isCEO(roles)
   }
 
-  if (!canEditLabTestResults(roles)) return false
+  if (!_mayEditLabResults(labTest, roles, opts)) return false
   if (labTest.docstatus === 0) return true
   // Submitted but not yet final: lab result editors may still correct.
   return labTest.docstatus === 1
@@ -80,9 +118,10 @@ export function canEditLabTestResultForRow(
  * Lets the UI explain a disabled result field instead of silently hiding it (F014). */
 export function labResultLockReason(
   labTest: LabTestRowPerm,
-  roles: string[] | undefined
+  roles: string[] | undefined,
+  opts?: LabResultEditOptions
 ): string | null {
-  if (canEditLabTestResultForRow(labTest, roles)) return null
+  if (canEditLabTestResultForRow(labTest, roles, opts)) return null
   const status = (labTest.status || '').trim()
   if (status === 'Rejected' || status === 'Cancelled') {
     return `This result is ${status.toLowerCase()} and cannot be edited.`
@@ -92,7 +131,7 @@ export function labResultLockReason(
   if (isFinal) {
     return 'This result is finalised — only an administrator can amend it.'
   }
-  if (!canEditLabTestResults(roles)) {
+  if (!_mayEditLabResults(labTest, roles, opts)) {
     return 'You do not have permission to edit lab results.'
   }
   return 'This result cannot be edited at its current status.'

@@ -13,9 +13,10 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
   const [isOpen, setIsOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const userKey = user?.name || user?.email || ''
 
-  // Fetch notifications
+  // Fetch notifications for the logged-in user only
   const loadNotifications = async () => {
     try {
       setLoading(true)
@@ -24,6 +25,8 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
       setUnreadCount(data.unread_count)
     } catch (error) {
       console.error('Failed to fetch notifications:', error)
+      setNotifications([])
+      setUnreadCount(0)
     } finally {
       setLoading(false)
     }
@@ -31,13 +34,17 @@ export const NotificationBell = ({ placement = 'header' }: NotificationBellProps
 
   useEffect(() => {
     // Guests get a 403 from the notifications API — don't poll until logged in.
-    if (!isAuthenticated) return
+    if (!isAuthenticated || !userKey) {
+      setNotifications([])
+      setUnreadCount(0)
+      return
+    }
     loadNotifications()
 
     // Refresh notifications every 30 seconds
     const interval = setInterval(loadNotifications, 30000)
     return () => clearInterval(interval)
-  }, [isAuthenticated])
+  }, [isAuthenticated, userKey])
 
   // Close dropdown when clicking outside
   useEffect(() => {

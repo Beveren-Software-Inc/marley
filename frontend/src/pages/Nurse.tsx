@@ -1,11 +1,12 @@
-import { useState, useEffect, useLayoutEffect } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { isNurseScreenBlocked } from '../config/costCenterCareScope'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
-import { LabTestList } from '../components/labTests/LabTestList'
+import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
+import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { ObservationList } from '../components/observations/ObservationList'
@@ -135,6 +136,24 @@ export const NursePage = () => {
     const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
+  const [pendingLabResultCount, setPendingLabResultCount] = useState(0)
+  const [labBatchSaving, setLabBatchSaving] = useState(false)
+  const labBatchSaveRef = useRef<LabTestListBatchSaveRef | null>(null)
+  const nurseLabBatchListProps = {
+    onPendingCountChange: setPendingLabResultCount,
+    onBatchSavingChange: setLabBatchSaving,
+    batchSaveRef: labBatchSaveRef,
+  }
+  const nurseLabSaveHeader = (
+    <LabTestResultsSaveHeader
+      pendingCount={pendingLabResultCount}
+      batchSaving={labBatchSaving}
+      nurseLabContext
+      onSave={async () => {
+        await labBatchSaveRef.current?.savePendingChanges()
+      }}
+    />
+  )
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
@@ -597,13 +616,14 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Lab Reports Status">
+          <DashboardCard title="Lab Reports Status" headerExtra={nurseLabSaveHeader}>
             <LabTestList
               patient={selectedPatient}
               defaultStatus="Requested"
               byNurse={true}
               key={labTestRefreshKey}
               onPatientClick={handlePatientSelect}
+              {...nurseLabBatchListProps}
             />
           </DashboardCard>
         </div>
@@ -674,7 +694,7 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Laboratory">
+          <DashboardCard title="Laboratory" headerExtra={nurseLabSaveHeader}>
             <LabTestList
               patient={selectedPatient}
               defaultStatus={focusLabTest ? '' : 'Requested'}
@@ -683,6 +703,7 @@ export const NursePage = () => {
               focusOpenSampleCollection
               key={`${labTestRefreshKey}-${focusLabTest || ''}`}
               onPatientClick={handlePatientSelect}
+              {...nurseLabBatchListProps}
             />
           </DashboardCard>
         </div>
@@ -1691,16 +1712,19 @@ export const NursePage = () => {
           addButtonTitle="Add Lab Test Report"
           listingScreen="n-lab"
           headerExtra={
-            selectedPatient ? (
-              <button
-                type="button"
-                onClick={() => setShowLabTrends(true)}
-                className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
-                title="Lab results over time — dates in columns, tests in rows"
-              >
-                📈 Lab Trends
-              </button>
-            ) : undefined
+            <div className="flex items-center gap-2">
+              {nurseLabSaveHeader}
+              {selectedPatient ? (
+                <button
+                  type="button"
+                  onClick={() => setShowLabTrends(true)}
+                  className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+                  title="Lab results over time — dates in columns, tests in rows"
+                >
+                  📈 Lab Trends
+                </button>
+              ) : null}
+            </div>
           }
         >
           <LabTestList
@@ -1709,6 +1733,7 @@ export const NursePage = () => {
             byNurse={true}
             key={labTestRefreshKey}
             onPatientClick={handlePatientSelect}
+            {...nurseLabBatchListProps}
           />
         </DashboardCard>
 

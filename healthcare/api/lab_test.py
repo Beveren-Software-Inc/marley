@@ -77,8 +77,23 @@ def _plain_sample_details(value: str | None) -> str | None:
 	return text or None
 
 
+def _is_nurse_user(roles=None) -> bool:
+	roles = roles if roles is not None else set(frappe.get_roles(frappe.session.user))
+	return any("nurse" in (r or "").lower() or "nursing" in (r or "").lower() for r in roles)
+
+
+def _lab_test_template_is_by_nurse(template: str | None) -> bool:
+	if not template:
+		return False
+	return bool(cint(frappe.db.get_value("Lab Test Template", template, "by_nurse") or 0))
+
+
 def _ensure_lab_result_edit_permission(doc=None):
-	"""Laboratory User, LabTest Approver, or administrators may enter/adjust results."""
+	"""Laboratory User / LabTest Approver / admins may enter results.
+
+	Nurses may also enter results when the Lab Test Template has by_nurse set
+	(nurse-collected / nurse-performed tests).
+	"""
 	if doc and _is_group_lab_finished(doc) and _is_ceo_user():
 		return
 
@@ -86,10 +101,13 @@ def _ensure_lab_result_edit_permission(doc=None):
 	if roles & LAB_RESULT_EDIT_ROLES:
 		return
 
+	if doc is not None and _is_nurse_user(roles) and _lab_test_template_is_by_nurse(getattr(doc, "template", None)):
+		return
+
 	frappe.throw(
 		_(
-			"Only users with Laboratory User, LabTest Approver, System Manager, "
-			"Healthcare Administrator, or Administrator role may enter or adjust Lab Test results."
+			"Only Laboratory User, LabTest Approver, or administrators may enter Lab Test results. "
+			"Nurses may enter results only for nurse lab tests (template By Nurse)."
 		),
 		frappe.PermissionError,
 	)
@@ -544,6 +562,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 		lab_test["male_max_range"] = None
 		lab_test["min_range"] = None
 		lab_test["max_range"] = None
+		lab_test["by_nurse"] = 0
 
 		if lab_test.template:
 			if lab_test.template not in template_cache:
@@ -555,6 +574,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 			lab_test["male_max_range"] = template_doc.get("male_max_range")
 			lab_test["min_range"] = template_doc.get("min_range")
 			lab_test["max_range"] = template_doc.get("max_range")
+			lab_test["by_nurse"] = cint(template_doc.get("by_nurse") or 0)
 
 		if lab_test.patient:
 			if lab_test.patient not in patient_file_no_cache:

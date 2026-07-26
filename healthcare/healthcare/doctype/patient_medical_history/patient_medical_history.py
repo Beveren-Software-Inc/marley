@@ -6,6 +6,7 @@ from frappe.model.document import Document
 from frappe.utils import cint, now_datetime
 
 from healthcare.api.warning_message import insert_medical_warning_message
+from healthcare.healthcare.care_episode_guard import assert_patient_visit_open_for_create
 
 
 class PatientMedicalHistory(Document):
@@ -15,9 +16,12 @@ class PatientMedicalHistory(Document):
 		self._validate_visit_writable()
 
 	def _validate_visit_writable(self):
-		"""Past medical history can only be written for an Open or Ordered visit.
-		Completed / cancelled visits are view-only. A pure Active/Inactive status
-		change is still allowed (curation, not writing history)."""
+		"""Respect Healthcare Settings → Block Clinical Records on Completed OP Visits.
+
+		When that setting is on, past medical history cannot be written against a
+		completed/cancelled visit. When it is off, Completed visits are allowed.
+		A pure Active/Inactive status change is still allowed (curation, not writing history).
+		"""
 		if not self.get("patient_visit"):
 			return
 		# On update, allow if only the Active/Inactive status (not clinical content) changed.
@@ -35,14 +39,7 @@ class PatientMedicalHistory(Document):
 				)
 				if not content_changed:
 					return
-		status = frappe.db.get_value("Patient Visit", self.patient_visit, "status")
-		if status and status not in ("Open", "Ordered"):
-			frappe.throw(
-				frappe._(
-					"Past medical history can only be added for an Open or Ordered visit. "
-					"Visit {0} is {1} — it is view-only."
-				).format(self.patient_visit, status)
-			)
+		assert_patient_visit_open_for_create(self.patient_visit)
 
 	def after_insert(self):
 		self._sync_allergy_warning()
