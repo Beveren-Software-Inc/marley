@@ -60,13 +60,22 @@ def _validate_daily_patient_visit_setup_payload(data: dict, *, for_update: bool 
 	if not for_update and not from_date:
 		frappe.throw(_("Start Date is required for Daily Auto Visit setup."))
 	to_date = data.get("to_date")
+	# Discharge daily visit setup requires an end date
+	if not for_update and data.get("admission") and not to_date:
+		frappe.throw(_("End Date is required for Daily Auto Visit setup from discharge."))
 	if from_date and to_date:
 		if getdate(to_date) < getdate(from_date):
 			frappe.throw(_("End Date cannot be before Start Date."))
 
 	branch = (data.get("branch") or data.get("cost_center") or "").strip()
+	if not branch:
+		admission = (data.get("admission") or "").strip()
+		if admission and frappe.db.exists("Inpatient Admission", admission):
+			branch = (cost_center_from_visit_or_admission("Inpatient Admission", admission) or "").strip()
+			if branch:
+				data["branch"] = branch
 	if not for_update and not branch:
-		frappe.throw(_("Branch is required. Select a branch from the top navigation bar."))
+		frappe.throw(_("Branch is required. Select a branch from the top navigation bar, or link an admission with a branch."))
 
 	practioner = data.get("practioner") or data.get("practitioner") or data.get("doctor")
 	if practioner and not frappe.db.exists("Healthcare Practitioner", practioner):
@@ -75,6 +84,9 @@ def _validate_daily_patient_visit_setup_payload(data: dict, *, for_update: bool 
 	admission = (data.get("admission") or "").strip()
 	if admission and not frappe.db.exists("Inpatient Admission", admission):
 		frappe.throw(_("Admission {0} was not found.").format(admission))
+
+	if not for_update and admission:
+		_assert_no_duplicate_admission_setup(admission)
 
 	if not for_update or "services" in data or "session" in data or "amount" in data:
 		valid_lines = []
@@ -178,6 +190,10 @@ def create_daily_patient_visit_setup(data):
             )
 
         branch = (data.get('branch') or data.get('cost_center') or '').strip() or None
+        if not branch and data.get('admission'):
+            branch = cost_center_from_visit_or_admission(
+                "Inpatient Admission", data.get("admission")
+            )
         doc = frappe.get_doc({
             'doctype': 'Daily Patient Visit Setup',
             'patient': data.get('patient'),
@@ -296,21 +312,65 @@ def _serialize_daily_patient_visit_setup(doc):
     return data
 
 
+def _assert_no_duplicate_admission_setup(admission: str, exclude_name: str | None = None):
+	"""One Daily Patient Visit Setup per Inpatient Admission (discharge reference)."""
+	admission = (admission or "").strip()
+	if not admission:
+		return
+	filters = {"admission": admission}
+	if exclude_name:
+		filters["name"] = ["!=", exclude_name]
+	existing = frappe.db.get_value(
+		"Daily Patient Visit Setup",
+		filters,
+		["name", "patient_name"],
+		as_dict=True,
+	)
+	if existing:
+		frappe.throw(
+			_(
+				"A Daily Auto Visit setup already exists for this admission ({0}). "
+				"Open and edit that setup instead of creating another."
+			).format(existing.name),
+			title=_("Already Configured"),
+		)
+
+
+@frappe.whitelist()
+def get_daily_patient_visit_setup_for_admission(admission):
+	"""Return the Daily Patient Visit Setup linked to an admission, if any."""
+	admission = (admission or "").strip()
+	if not admission:
+		return None
+	name = frappe.db.get_value(
+		"Daily Patient Visit Setup",
+		{"admission": admission},
+		"name",
+		order_by="creation desc",
+	)
+	if not name:
+		return None
+	return _serialize_daily_patient_visit_setup(frappe.get_doc("Daily Patient Visit Setup", name))
+
+
 @frappe.whitelist()
 def get_daily_patient_visit_setup(name):
-    """Get one Daily Patient Visit Setup for detail panel / edit."""
-    if not name:
-        frappe.throw(_('Setup name is required'))
-    doc = frappe.get_doc('Daily Patient Visit Setup', name)
-    return _serialize_daily_patient_visit_setup(doc)
+	"""Get one Daily Patient Visit Setup for detail panel / edit."""
+	if not name:
+		frappe.throw(_("Setup name is required"))
+	doc = frappe.get_doc("Daily Patient Visit Setup", name)
+	return _serialize_daily_patient_visit_setup(doc)
 
 
 @frappe.whitelist()
-def get_daily_patient_visit_setups(patient=None, active_only=0, branch=None, limit=100):
+def get_daily_patient_visit_setups(patient=None, active_only=0, branch=None, admission=None, limit=100):
     """List Daily Patient Visit Setup rows for UI."""
     filters = {}
     if patient:
         filters["patient"] = patient
+    admission = (admission or "").strip()
+    if admission:
+        filters["admission"] = admission
     if str(active_only).lower() in ("1", "true", "yes"):
         filters["is_active"] = 1
     branch = (branch or "").strip()

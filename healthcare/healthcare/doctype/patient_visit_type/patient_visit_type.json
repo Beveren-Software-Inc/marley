@@ -9,6 +9,7 @@
   "visit_type",
   "is_default",
   "no_charges",
+  "lab_visit",
   "services_section",
   "service_charge",
   "services"
@@ -24,18 +25,18 @@
   },
   {
    "default": "0",
+   "description": "Used automatically when a visit is created without choosing a visit type.",
    "fieldname": "is_default",
    "fieldtype": "Check",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Default Visit Type",
-   "description": "Used automatically when a visit is created without choosing a visit type."
+   "label": "Default Visit Type"
   },
   {
+   "description": "Deprecated: use the Services table below. Kept as a fallback for older visit types.",
    "fieldname": "service_charge",
    "fieldtype": "Link",
    "label": "Service Charge (Legacy Single)",
-   "description": "Deprecated: use the Services table below. Kept as a fallback for older visit types.",
    "options": "Healthcare Service Template"
   },
   {
@@ -45,24 +46,30 @@
    "label": "No Charges"
   },
   {
+   "depends_on": "eval:!doc.no_charges",
    "fieldname": "services_section",
    "fieldtype": "Section Break",
-   "label": "Services",
-   "depends_on": "eval:!doc.no_charges"
+   "label": "Services"
   },
   {
+   "description": "Services charged for this visit type. All services are added to the visit charge; the doctor can discount or remove them on the visit screen.",
    "fieldname": "services",
    "fieldtype": "Table",
    "label": "Services",
-   "description": "Services charged for this visit type. All services are added to the visit charge; the doctor can discount or remove them on the visit screen.",
    "options": "Patient Visit Type Service"
+  },
+  {
+   "default": "0",
+   "fieldname": "lab_visit",
+   "fieldtype": "Check",
+   "label": "Lab Visit"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-01 15:14:48.861320",
- "modified_by": "Administrator",
+ "modified": "2026-07-26 22:07:15.032460",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Patient Visit Type",
  "naming_rule": "By fieldname",

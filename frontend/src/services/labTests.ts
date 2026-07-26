@@ -126,6 +126,7 @@ export interface LabTest {
     block_save?: boolean
   }>
   calculated_updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>
+  by_nurse?: number | boolean
   /** Oracle LAB 00-03 legacy header import */
   is_legacy_import?: number | boolean
   /** Oracle LAB 00-04 child rows (attached on list + detail APIs) */
@@ -313,11 +314,13 @@ export async function requestLabConsumables(
   return mrName
 }
 
-/** One editable row of Normal Test Result (compound lab test). */
+/** One editable row of Normal Test Result (compound / is_multiple lab test). */
 export interface NormalTestResultRow {
   lab_test_name?: string
   lab_test_event?: string
   result_value?: string
+  /** Vitamin D-style band: Deficiency / Insufficiency / Sufficiency / Toxicity */
+  result_status?: string
   lab_test_uom?: string
   normal_range?: string
   lab_test_comment?: string
@@ -330,11 +333,18 @@ export interface NormalTestResultRow {
   underline?: boolean
   require_result_value?: boolean
   allow_blank?: boolean
+  /** Frontend-only: show status select for this unit (from template multiple_result_type). */
+  uses_status_bands?: boolean
+  male_min_range?: number | string | null
+  male_max_range?: number | string | null
+  female_min_range?: number | string | null
+  female_max_range?: number | string | null
 }
 
 /** Details fetched from a Lab Test Template for the result-entry UI. */
 export interface LabTestTemplateDetails {
   lab_test_template_type?: string
+  is_multiple?: number | boolean
   min_range?: number | null
   max_range?: number | null
   female_min_range?: number | null
@@ -357,6 +367,21 @@ export interface LabTestTemplateDetails {
     result_type?: string
     result_mul_value?: string
   }>
+  /** is_multiple: one result row per unit / reference set */
+  multiple_result_type?: Array<{
+    test_unit?: string
+    uom?: string
+    male_min_range?: number | string | null
+    male_max_range?: number | string | null
+    female_min_range?: number | string | null
+    female_max_range?: number | string | null
+    status?: string
+    /** When set, use Deficiency/Insufficiency bands; else High/Low from ranges */
+    use_status?: number | boolean
+    uses_status_bands?: boolean
+    normal_range?: string
+  }>
+  status_options?: string[]
 }
 
 /** One row in the Observation Sample Collection child table. */

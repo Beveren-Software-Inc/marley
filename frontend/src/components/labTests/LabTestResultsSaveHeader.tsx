@@ -5,15 +5,18 @@ export type LabTestResultsSaveHeaderProps = {
   pendingCount: number
   batchSaving: boolean
   onSave: () => void | Promise<void>
+  /** Nurse Laboratory screens — allow nurses to save by_nurse test results. */
+  nurseLabContext?: boolean
 }
 
 export function LabTestResultsSaveHeader({
   pendingCount,
   batchSaving,
   onSave,
+  nurseLabContext = false,
 }: LabTestResultsSaveHeaderProps) {
   const { userRole } = useCareContext()
-  const canEdit = canEditLabTestResults(userRole)
+  const canEdit = canEditLabTestResults(userRole, { nurseLabContext })
 
   if (!canEdit) return null
 

@@ -1938,8 +1938,9 @@ const parseNormalRange = (raw?: string | null): { min: number | null; max: numbe
 
 /**
  * Effective (min,max) reference range for a result-entry row (LAB-07):
- * the row's own normal_range (compound panels) first, then the template's
- * gender-appropriate range, then the template's generic range.
+ * the row's own normal_range (compound panels) first, then gendered ranges
+ * stored on the is_multiple row, then the template's gender-appropriate range,
+ * then the template's generic range.
  */
 const effectiveRowRange = (
   row: NormalTestResultRow,
@@ -1947,13 +1948,124 @@ const effectiveRowRange = (
   sex?: string,
 ): { min: number | null; max: number | null } => {
   const rowRange = parseNormalRange((row as { normal_range?: string | null }).normal_range)
-  if (rowRange.min != null || rowRange.max != null) return rowRange
+  // Prefer explicit numeric min/max on is_multiple rows over a multi-line status legend in normal_range.
   const s = (sex || '').toLowerCase()
+  const toNum = (v: unknown): number | null => {
+    if (v == null || v === '') return null
+    const n = typeof v === 'number' ? v : parseFloat(String(v))
+    return Number.isFinite(n) ? n : null
+  }
+  if (s === 'female') {
+    const fMin = toNum(row.female_min_range)
+    const fMax = toNum(row.female_max_range)
+    if (fMin != null || fMax != null) return { min: fMin, max: fMax }
+  }
+  if (s === 'male') {
+    const mMin = toNum(row.male_min_range)
+    const mMax = toNum(row.male_max_range)
+    if (mMin != null || mMax != null) return { min: mMin, max: mMax }
+  }
+  // Fall back: either gender's numeric range on the row
+  {
+    const mMin = toNum(row.male_min_range)
+    const mMax = toNum(row.male_max_range)
+    const fMin = toNum(row.female_min_range)
+    const fMax = toNum(row.female_max_range)
+    if (mMin != null || mMax != null) return { min: mMin, max: mMax }
+    if (fMin != null || fMax != null) return { min: fMin, max: fMax }
+  }
+  if (rowRange.min != null || rowRange.max != null) return rowRange
   if (s === 'female' && (details.female_min_range != null || details.female_max_range != null))
     return { min: details.female_min_range ?? null, max: details.female_max_range ?? null }
   if (s === 'male' && (details.male_min_range != null || details.male_max_range != null))
     return { min: details.male_min_range ?? null, max: details.male_max_range ?? null }
   return { min: details.min_range ?? null, max: details.max_range ?? null }
+}
+
+/** Map "Deficiency  <10" → "Deficiency" (Lab Test.result_flag Select values). */
+const normalizeMultipleStatusMark = (statusText: string): string => {
+  const raw = (statusText || '').trim()
+  if (!raw) return ''
+  const allowed = new Set([
+    'High', 'Low', 'Normal', 'Critically High', 'Critically Low',
+    'Deficiency', 'Insuficiency', 'Sufficiency', 'Toxicity',
+  ])
+  if (allowed.has(raw)) return raw
+  const label = (raw.split(/[\s<>0-9]/)[0] || raw.split(/\s+/)[0] || '').trim()
+  const key = label.toLowerCase()
+  if (key.startsWith('deficien')) return 'Deficiency'
+  if (key.startsWith('insufficien') || key.startsWith('insuficien')) return 'Insuficiency'
+  if (key.startsWith('sufficien')) return 'Sufficiency'
+  if (key.startsWith('toxicit')) return 'Toxicity'
+  return ''
+}
+
+const suggestMultipleResultStatus = (value: string, options: string[]): string => {
+  const val = parseFloat(value)
+  if (!Number.isFinite(val) || !options.length) return ''
+  // Match thresholds from option placeholders (e.g. "Deficiency  <10"),
+  // but return only the short mark for result_flag / Status display.
+  let matched = ''
+  for (const opt of options) {
+    const lt = opt.match(/<\s*([\d.]+)/)
+    if (lt && val < parseFloat(lt[1])) {
+      matched = opt
+      break
+    }
+  }
+  if (!matched) {
+    for (const opt of options) {
+      const range = opt.match(/([\d.]+)\s*[-–—]\s*([\d.]+)/)
+      if (range) {
+        const lo = parseFloat(range[1])
+        const hi = parseFloat(range[2])
+        if (val >= lo && val <= hi) {
+          matched = opt
+          break
+        }
+      }
+    }
+  }
+  if (!matched) {
+    for (const opt of options) {
+      const gt = opt.match(/>\s*([\d.]+)/)
+      if (gt && val > parseFloat(gt[1])) {
+        matched = opt
+        break
+      }
+    }
+  }
+  return normalizeMultipleStatusMark(matched)
+}
+
+const highLowMarkFromRange = (
+  value: string,
+  min: number | null,
+  max: number | null,
+): string => {
+  const val = parseFloat(value)
+  if (!Number.isFinite(val) || (min == null && max == null)) return ''
+  if (min != null && val < min) return 'Low'
+  if (max != null && val > max) return 'High'
+  return 'Normal'
+}
+
+const multipleStatusMarkClass = (status: string): string => {
+  const s = status.toLowerCase()
+  if (
+    s.includes('deficien') ||
+    s.includes('toxicity') ||
+    s === 'high' ||
+    s === 'critically high' ||
+    s === 'low' ||
+    s === 'critically low' ||
+    s === 'abnormal'
+  ) {
+    return 'border-red-300 bg-red-50 text-red-800'
+  }
+  if (s.includes('insufficien') || s.includes('insuficien')) return 'border-amber-300 bg-amber-50 text-amber-900'
+  if (s.includes('sufficien') || s === 'normal') return 'border-green-300 bg-green-50 text-green-800'
+  return 'border-slate-300 bg-white text-slate-800'
 }
 
 // ─── Filter Bar ─────────────────────────────────────────────────────────────
@@ -2310,13 +2422,14 @@ export const LabTestList = ({
   const { selectedPatient: contextPatient, userRole, guardClinicalEdit } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const resultsReadOnly = doctorLabDefaults
-  const canEditResults = canEditLabTestResults(userRole)
+  const nurseLabContext = Boolean(byNurse)
+  const canEditResults = canEditLabTestResults(userRole, { nurseLabContext })
   const canEditResultRow = useCallback(
     (labTest: LabTest) =>
       !isLegacyHistoryLabRow(labTest) &&
       !resultsReadOnly &&
-      canEditLabTestResultForRow(labTest, userRole),
-    [resultsReadOnly, userRole]
+      canEditLabTestResultForRow(labTest, userRole, { nurseLabContext }),
+    [resultsReadOnly, userRole, nurseLabContext]
   )
 
   // Pagination state
@@ -2812,6 +2925,58 @@ export const LabTestList = ({
               lab_test_uom: t.lab_test_uom || '', normal_range: t.normal_range || '',
               result_value: '', lab_test_comment: '', template: doc.template || '',
             })))
+          } else if (existingItems.length > 0 && d.is_multiple && (d.multiple_result_type || []).length > 0) {
+            // Re-attach per-unit range metadata; Deficiency bands only when use_status=1
+            const byUnit = new Map(
+              (d.multiple_result_type || []).map((t) => [(t.test_unit || t.uom || '').trim(), t])
+            )
+            const statusOptions = d.status_options || []
+            setNormalTestItems(
+              existingItems.map((row) => {
+                const key = (row.lab_test_event || row.lab_test_name || '').trim()
+                const t = byUnit.get(key)
+                const useStatus = Boolean(t?.use_status ?? t?.uses_status_bands)
+                const sex = (doc as LabTest).patient_sex || (doc as LabTest).gender
+                const enriched: NormalTestResultRow = {
+                  ...row,
+                  uses_status_bands: useStatus,
+                  male_min_range: t?.male_min_range ?? row.male_min_range,
+                  male_max_range: t?.male_max_range ?? row.male_max_range,
+                  female_min_range: t?.female_min_range ?? row.female_min_range,
+                  female_max_range: t?.female_max_range ?? row.female_max_range,
+                  normal_range: row.normal_range || t?.normal_range || '',
+                }
+                if (row.result_value) {
+                  if (useStatus && statusOptions.length) {
+                    enriched.result_status = suggestMultipleResultStatus(String(row.result_value), statusOptions)
+                  } else {
+                    const { min, max } = effectiveRowRange(enriched, d, sex)
+                    enriched.result_status = highLowMarkFromRange(String(row.result_value), min, max)
+                  }
+                }
+                return enriched
+              })
+            )
+          } else if (existingItems.length === 0 && d.is_multiple && (d.multiple_result_type || []).length > 0) {
+            setNormalTestItems((d.multiple_result_type || []).map((t) => {
+              const unit = (t.test_unit || t.uom || '').trim()
+              const useStatus = Boolean(t.use_status ?? t.uses_status_bands)
+              return {
+                lab_test_event: unit,
+                lab_test_name: unit,
+                lab_test_uom: (t.uom || t.test_unit || '').trim(),
+                normal_range: t.normal_range || '',
+                result_value: '',
+                result_status: '',
+                lab_test_comment: '',
+                template: doc.template || '',
+                uses_status_bands: useStatus,
+                male_min_range: t.male_min_range,
+                male_max_range: t.male_max_range,
+                female_min_range: t.female_min_range,
+                female_max_range: t.female_max_range,
+              }
+            }))
           }
         }).catch(() => setTemplateDetails({}))
       } else { setTemplateDetails({}) }
@@ -4019,15 +4184,22 @@ export const LabTestList = ({
                   </div>
                   {normalTestItems.length > 0 && (
                     <div>
-                      <label className="block text-sm font-semibold text-slate-800 mb-2">Test Results</label>
+                      <label className="block text-sm font-semibold text-slate-800 mb-2">
+                        {templateDetails.is_multiple ? 'Multiple Unit Results' : 'Test Results'}
+                      </label>
                       <div className="rounded-lg border border-slate-200 overflow-hidden">
                         <table className="w-full text-sm">
                           <thead className="bg-slate-50 border-b border-slate-200">
                             <tr>
-                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Test / Event</th>
+                              <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">
+                                {templateDetails.is_multiple ? 'Unit' : 'Test / Event'}
+                              </th>
                               <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Min</th>
                               <th className="px-3 py-2.5 text-center text-xs font-semibold text-slate-600 w-24">Max</th>
                               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-36">Result</th>
+                              {templateDetails.is_multiple ? (
+                                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 w-48">Status</th>
+                              ) : null}
                               <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600">Comment</th>
                             </tr>
                           </thead>
@@ -4038,7 +4210,10 @@ export const LabTestList = ({
                               // else the patient's gendered range, else the template range.
                               const { min, max } = effectiveRowRange(row, templateDetails, activeLabTest?.patient_sex || activeLabTest?.gender)
                               const hasResult = row.result_value !== '' && row.result_value != null && !isNaN(result)
-                              const outOfRange = hasResult && ((min != null && result < min) || (max != null && result > max))
+                              const outOfRange = hasResult && !row.uses_status_bands && ((min != null && result < min) || (max != null && result > max))
+                              const statusOptions = templateDetails.status_options || []
+                              const isMultiple = Boolean(templateDetails.is_multiple)
+                              const statusMark = isMultiple ? (row.result_status || '') : ''
                               return (
                                 <tr key={idx} className={outOfRange ? 'bg-red-50' : 'hover:bg-slate-50/50'}>
                                   <td className="px-3 py-3">
@@ -4049,11 +4224,47 @@ export const LabTestList = ({
                                   <td className="px-3 py-3 text-center"><span className={`text-sm font-medium ${max != null ? 'text-slate-700' : 'text-slate-300'}`}>{max != null ? max : '—'}</span></td>
                                   <td className="px-3 py-3">
                                     <input type="number" step="any" value={row.result_value ?? ''}
-                                      onChange={(e) => { const v = e.target.value; setNormalTestItems((prev) => { const next = [...prev]; next[idx] = { ...next[idx], result_value: v }; return next }) }}
+                                      onChange={(e) => {
+                                        const v = e.target.value
+                                        setNormalTestItems((prev) => {
+                                          const next = [...prev]
+                                          const updated: NormalTestResultRow = { ...next[idx], result_value: v }
+                                          if (isMultiple) {
+                                            if (updated.uses_status_bands && statusOptions.length) {
+                                              // nmol/L-style: Deficiency / Insufficiency / …
+                                              updated.result_status = suggestMultipleResultStatus(v, statusOptions)
+                                            } else {
+                                              // Other units: High / Low / Normal from min/max
+                                              const range = effectiveRowRange(
+                                                updated,
+                                                templateDetails,
+                                                activeLabTest?.patient_sex || activeLabTest?.gender,
+                                              )
+                                              updated.result_status = highLowMarkFromRange(v, range.min, range.max)
+                                            }
+                                          }
+                                          next[idx] = updated
+                                          return next
+                                        })
+                                      }}
                                       className={`w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${outOfRange ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-slate-300'}`}
                                       placeholder="0.00" />
                                     {outOfRange && <div className="text-[10px] text-red-600 mt-0.5 font-medium">⚠ Out of range</div>}
                                   </td>
+                                  {isMultiple ? (
+                                    <td className="px-3 py-3">
+                                      {statusMark ? (
+                                        <span
+                                          className={`inline-flex max-w-full rounded-md border px-2 py-1 text-xs font-semibold ${multipleStatusMarkClass(statusMark)}`}
+                                          title={row.uses_status_bands ? 'Status band mark' : 'High / Low from range'}
+                                        >
+                                          {statusMark}
+                                        </span>
+                                      ) : (
+                                        <span className="text-slate-300 text-sm">—</span>
+                                      )}
+                                    </td>
+                                  ) : null}
                                   <td className="px-3 py-3">
                                     <input type="text" value={row.lab_test_comment || ''}
                                       onChange={(e) => { const v = e.target.value; setNormalTestItems((prev) => { const next = [...prev]; next[idx] = { ...next[idx], lab_test_comment: v }; return next }) }}
@@ -4067,10 +4278,12 @@ export const LabTestList = ({
                       </div>
                     </div>
                   )}
+                  {!(templateDetails.is_multiple && normalTestItems.length > 0) && (
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Result</label>
                     <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[80px]" value={customResult} onChange={(e) => setCustomResult(e.target.value)} placeholder="Enter descriptive or custom result..." />
                   </div>
+                  )}
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">General Comments</label>
                     <textarea className="w-full border border-slate-300 rounded-md p-2 text-sm min-h-[70px]" value={labComment} onChange={(e) => setLabComment(e.target.value)} placeholder="Overall test comments..." />

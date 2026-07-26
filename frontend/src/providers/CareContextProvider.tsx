@@ -100,6 +100,10 @@ interface CareContextValue {
   isActiveCareEpisodeClosed: boolean
   /** User-facing message when {@link isActiveCareEpisodeClosed} is true. */
   activeCareBlockReason?: string
+  /** Healthcare Settings: Block Clinical Records on Completed OP Visits. */
+  blockClinicalRecordsOnCompletedVisit: boolean
+  /** Healthcare Settings: Block Clinical Records on Discharged IP. */
+  blockClinicalRecordsOnDischargedIp: boolean
   /**
    * Wrap clinical create handlers (labs, Rx, notes, etc.).
    * Shows a toast when the active visit/admission is closed.
@@ -178,12 +182,6 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     let cancelled = false
-    if (!activeVisit && !activeAdmission) {
-      setActiveVisitStatus(undefined)
-      setActiveAdmissionStatus(undefined)
-      setCareEpisodeStatus(null)
-      return
-    }
     fetchActiveCareEpisodeStatus(activeVisit, activeAdmission)
       .then((msg) => {
         if (cancelled) return
@@ -193,6 +191,13 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       })
       .catch(() => {
         if (cancelled) return
+        if (!activeVisit && !activeAdmission) {
+          setActiveVisitStatus(undefined)
+          setActiveAdmissionStatus(undefined)
+          // Keep last-known settings flags if a prior fetch succeeded; otherwise leave null
+          // so defaults stay conservative until a successful load.
+          return
+        }
         setActiveVisitStatus(undefined)
         setActiveAdmissionStatus(undefined)
         setCareEpisodeStatus(null)
@@ -456,6 +461,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeAdmissionStatus,
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
+      blockClinicalRecordsOnCompletedVisit: blockCompletedVisit,
+      blockClinicalRecordsOnDischargedIp: blockDischargedIp,
       guardClinicalCreate,
       guardClinicalEdit,
       lockEditingData,
@@ -482,6 +489,8 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeAdmissionStatus,
       isActiveCareEpisodeClosed,
       activeCareBlockReason,
+      blockCompletedVisit,
+      blockDischargedIp,
       guardClinicalCreate,
       guardClinicalEdit,
       lockEditingData,

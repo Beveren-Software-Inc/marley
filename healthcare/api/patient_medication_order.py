@@ -260,11 +260,37 @@ def get_medication_orders(
 	return orders
 
 
+_PRESCRIPTION_TYPE_ALIASES = {
+	"Regular -Med (Active)": "Regular - Med (Active)",
+	"Regular -Med(Active)": "Regular - Med (Active)",
+	"Regular - Med(Active)": "Regular - Med (Active)",
+	"Regular -Psy (Active)": "Regular - Psy (Active)",
+	"Regular -Psy(Active)": "Regular - Psy (Active)",
+	"Regular - Psy(Active)": "Regular - Psy (Active)",
+	"Regular -Med (Inactive)": "Regular - Med (Inactive)",
+	"Regular -Med(Inactive)": "Regular - Med (Inactive)",
+	"Regular - Med(Inactive)": "Regular - Med (Inactive)",
+	"Regular -Psy (Inactive)": "Regular - Psy (Inactive)",
+	"Regular -Psy(Inactive)": "Regular - Psy (Inactive)",
+	"Regular - Psy(Inactive)": "Regular - Psy (Inactive)",
+}
+
+
+def _normalize_prescription_type(value):
+	"""Map spacing typos to Inpatient Medication Order Entry Select options."""
+	type_value = cstr(value or "").strip()
+	if not type_value:
+		return type_value
+	return _PRESCRIPTION_TYPE_ALIASES.get(type_value, type_value)
+
+
 def _normalize_long_acting_medication_row(row):
 	"""Copy long acting frequency into patient_frequency and ensure Prescription Frequency exists."""
 	if not isinstance(row, dict):
 		return row
 	row = dict(row)
+	if "medication_type" in row:
+		row["medication_type"] = _normalize_prescription_type(row.get("medication_type"))
 	is_long = (
 		row.get("is_long_acting_medicine")
 		or row.get("is_long_acting")

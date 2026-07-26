@@ -1,11 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { createPortal } from 'react-dom'
+import { FileDown, FileText } from 'lucide-react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { VitalSignsDetailPanel } from './VitalSignsDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { toast } from '../../hooks/useToast'
 
 interface VitalSignsListProps {
   patient?: string
@@ -41,6 +44,22 @@ const FilterToggleButton = ({
   </button>
 )
 
+function formatVsDateTime(vs: VitalSign): string {
+  const date = vs.signs_date ? new Date(vs.signs_date).toLocaleDateString('en-GB') : ''
+  const time = vs.signs_time || ''
+  return [date, time].filter(Boolean).join(' ') || '-'
+}
+
+function formatBp(vs: VitalSign): string {
+  if (vs.bp) return String(vs.bp)
+  if (vs.bp_systolic && vs.bp_diastolic) return `${vs.bp_systolic}/${vs.bp_diastolic}`
+  return '-'
+}
+
+function csvEscape(value: unknown): string {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`
+}
+
 export const VitalSignsList = ({
   patient,
   refreshKey,
@@ -49,6 +68,7 @@ export const VitalSignsList = ({
   addButtonTitle = 'Add Vital Signs',
 }: VitalSignsListProps) => {
   const cardFilters = useCardFilters()
+  const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
@@ -73,7 +93,7 @@ export const VitalSignsList = ({
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchVitalSigns(50, 0, patient, {
+      const response = await fetchVitalSigns(200, 0, patient, {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         practitioner: practitionerFilter || undefined,
@@ -131,12 +151,164 @@ export const VitalSignsList = ({
     setDetailSubtitle(parts.length ? parts.join(' · ') : undefined)
   }
 
+  const exportExcel = () => {
+    if (!vitalSigns.length) {
+      toast.info('No vital signs to export.')
+      return
+    }
+    const includePatient = !patient
+    const headers = [
+      'Date & Time',
+      ...(includePatient ? ['Patient'] : []),
+      'Temperature',
+      'Pulse',
+      'BP',
+      'Respiratory Rate',
+      'SPO2',
+      'Weight',
+      'BMI',
+      'Notes',
+      'Record',
+    ]
+    const rows = vitalSigns.map((vs) => [
+      formatVsDateTime(vs),
+      ...(includePatient ? [vs.patient_name || vs.patient || ''] : []),
+      vs.temperature ?? '',
+      vs.pulse ?? '',
+      formatBp(vs),
+      vs.respiratory_rate ?? '',
+      vs.spo2 ?? '',
+      vs.weight ?? '',
+      vs.bmi ?? '',
+      vs.vital_signs_note ?? '',
+      vs.trans_no || vs.name,
+    ])
+    const csv = [headers, ...rows].map((r) => r.map(csvEscape).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const patientPart = (patient || 'all').replace(/[^\w.-]+/g, '_')
+    a.download = `vital-signs-${patientPart}-${dateFrom || 'all'}-${dateTo || 'all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const exportPdf = () => {
+    if (!vitalSigns.length) {
+      toast.info('No vital signs to print.')
+      return
+    }
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) {
+      toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+      return
+    }
+    const includePatient = !patient
+    const titlePatient = patient
+      ? vitalSigns[0]?.patient_name || patient
+      : 'All patients'
+    const filterNote = [
+      dateFrom ? `From ${dateFrom}` : '',
+      dateTo ? `To ${dateTo}` : '',
+    ]
+      .filter(Boolean)
+      .join(' · ')
+    const rows = vitalSigns
+      .map((vs) => {
+        const patientTd = includePatient
+          ? `<td>${vs.patient_name || vs.patient || ''}</td>`
+          : ''
+        return `<tr>
+          <td>${formatVsDateTime(vs)}</td>
+          ${patientTd}
+          <td>${vs.temperature ?? ''}</td>
+          <td>${vs.pulse ?? ''}</td>
+          <td>${formatBp(vs)}</td>
+          <td>${vs.respiratory_rate ?? ''}</td>
+          <td>${vs.spo2 ?? ''}</td>
+          <td>${vs.weight ?? ''}</td>
+          <td>${vs.bmi ?? ''}</td>
+          <td>${vs.trans_no || vs.name}</td>
+        </tr>`
+      })
+      .join('')
+    const patientTh = includePatient ? '<th>Patient</th>' : ''
+    win.document.write(`<!DOCTYPE html>
+<html>
+<head>
+  <title>Vital Signs</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 24px; color: #0f172a; }
+    h2 { margin: 0 0 4px; font-size: 18px; }
+    .meta { color: #64748b; font-size: 12px; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+    th { background: #f8fafc; }
+  </style>
+</head>
+<body>
+  <h2>Vital Signs</h2>
+  <div class="meta">${titlePatient}${filterNote ? ` · ${filterNote}` : ''} · ${vitalSigns.length} record(s)</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Date &amp; Time</th>
+        ${patientTh}
+        <th>Temp</th>
+        <th>Pulse</th>
+        <th>BP</th>
+        <th>RR</th>
+        <th>SPO2</th>
+        <th>Weight</th>
+        <th>BMI</th>
+        <th>Record</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <script>window.onload = function () { window.print(); }<\/script>
+</body>
+</html>`)
+    win.document.close()
+  }
+
+  const exportButtons = (
+    <>
+      <button
+        type="button"
+        onClick={exportPdf}
+        disabled={loading || !vitalSigns.length}
+        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Download PDF"
+      >
+        <FileText className="w-3.5 h-3.5" />
+        PDF
+      </button>
+      <button
+        type="button"
+        onClick={exportExcel}
+        disabled={loading || !vitalSigns.length}
+        className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+        title="Download Excel (CSV)"
+      >
+        <FileDown className="w-3.5 h-3.5" />
+        Excel
+      </button>
+    </>
+  )
+
   return (
     <>
+      {inDashboardCard && headerSlot
+        ? createPortal(exportButtons, headerSlot)
+        : null}
+
       {!inDashboardCard && (
         <div className="flex items-center justify-between gap-2 mb-3">
           <h2 className="text-xl font-semibold text-slate-900">Vital Signs</h2>
           <div className="flex items-center gap-2 shrink-0">
+            {exportButtons}
             <FilterToggleButton
               active={Boolean(showFilters)}
               onClick={() => setShowFiltersInternal((prev) => !prev)}

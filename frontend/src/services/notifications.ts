@@ -17,17 +17,24 @@ export interface NotificationsResponse {
 export async function fetchNotifications(unreadOnly: boolean = false): Promise<NotificationsResponse> {
   const params = new URLSearchParams()
   if (unreadOnly) params.append('unread_only', '1')
-  
+
   const url = `/api/method/healthcare.api.notifications.get_user_notifications${params.toString() ? `?${params.toString()}` : ''}`
-  
-  const response = await fetch(url)
+
+  const response = await fetch(url, {
+    method: 'GET',
+    credentials: 'include',
+    headers: { Accept: 'application/json' },
+  })
   const resData = await response.json()
+
+  if (response.status === 403 || response.status === 401 || resData?.exc_type === 'AuthenticationError') {
+    return { notifications: [], unread_count: 0 }
+  }
 
   if (resData?.message) {
     return resData.message as NotificationsResponse
-  } else {
-    throw new Error('Invalid response format')
   }
+  throw new Error('Invalid response format')
 }
 
 export async function markNotificationRead(notificationId: string): Promise<void> {

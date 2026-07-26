@@ -761,19 +761,19 @@ def create_medication_type():
 		},
 		{
 			"doctype": "Inpatient Medication Order Entry",
-			"medication_type": "Regular - Psy(Active)",
+			"medication_type": "Regular - Psy (Active)",
 		},
 		{
 			"doctype": "Inpatient Medication Order Entry",
-			"medication_type": "Regular -Med(Active)",
+			"medication_type": "Regular - Med (Active)",
 		},
 		{
 			"doctype": "Inpatient Medication Order Entry",
-			"medication_type": "Regular - Psy(Inactive)",
+			"medication_type": "Regular - Psy (Inactive)",
 		},
-  {
+		{
 			"doctype": "Inpatient Medication Order Entry",
-			"medication_type": "Regular - Med(Inactive)",
+			"medication_type": "Regular - Med (Inactive)",
 		},
   {
 			"doctype": "Inpatient Medication Order Entry",

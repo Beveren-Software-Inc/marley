@@ -1348,6 +1348,18 @@ def confirm_payment(service_request_name):
 			)
 			# We don't throw here — SO was already created, don't block the flow
 
+		# Lab Visit types already charged a registration SO; remove it so the patient
+		# is not billed twice when this lab Sales Order is created for the same visit.
+		try:
+			from healthcare.api.patient_visit_charge import remove_lab_visit_registration_charge
+
+			remove_lab_visit_registration_charge(patient_visit_name)
+		except Exception:
+			frappe.log_error(
+				title="Failed to remove lab-visit registration charge",
+				message=frappe.get_traceback(),
+			)
+
 	frappe.db.commit()
 
 	return {

@@ -233,23 +233,18 @@
   </thead>
   <tbody>
     {% for item in doc.normal_test_items %}
-    {% set sample_uom = frappe.db.get_value("Lab Test Sample", doc.sample_instances[0].sample, "sample_uom") if doc.sample_instances and doc.sample_instances[0].sample else "" %}
     <tr class="{{ 'even-row' if loop.index is even else '' }}">
-      <td>{{ item.lab_test_name }}</td>
-      <td align="center" class="result-val {% if item.result_status in ['Low','High','Critical'] %}result-abnormal{% endif %}">
+      <td>{{ item.lab_test_event or item.lab_test_name }}</td>
+      <td align="center" class="result-val {% if item.result_status and item.result_status not in ['Normal'] and ('Deficien' in (item.result_status or '') or 'Insufficien' in (item.result_status or '') or 'Toxicity' in (item.result_status or '') or item.result_status in ['Low','High','Critical','Abnormal']) %}result-abnormal{% endif %}">
         {{ item.result_value }}
       </td>
-      <td align="center">
-        {% if doc.sample_instances %}
-            {{ frappe.db.get_value("Lab Test Sample", doc.sample_instances[0].sample, "sample_uom") if doc.sample_instances and doc.sample_instances[0].sample else (item.lab_test_uom or "") }}</td>
-        {% else %}
-            {{ '' }}
-        {% endif %}
+      <td align="center">{{ item.lab_test_uom or "" }}</td>
       <td align="center">
         {% if item.result_status == "Normal" %}<span class="flag-normal">Normal</span>
         {% elif item.result_status == "Low" %}<span class="flag-low">Low</span>
         {% elif item.result_status == "High" %}<span class="flag-high">High</span>
         {% elif item.result_status == "Critical" %}<span class="flag-critical">Critical</span>
+        {% elif item.result_status %}<span class="flag-normal">{{ item.result_status }}</span>
         {% else %}<span style="color:#999">&#8212;</span>{% endif %}
       </td>
       <td align="center">{{ item.normal_range or "" }}</td>

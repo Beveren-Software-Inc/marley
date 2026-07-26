@@ -539,16 +539,20 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {labTest.normal_test_items.map((item: { lab_test_name?: string; result_value?: string; lab_test_uom?: string; normal_range?: string; abnormal?: boolean }, i: number) => (
+                {labTest.normal_test_items.map((item: { lab_test_name?: string; lab_test_event?: string; result_value?: string; result_status?: string; lab_test_uom?: string; normal_range?: string; abnormal?: boolean }, i: number) => (
                   <tr key={i} className={item.abnormal ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                    <td className="px-3 py-2 text-slate-800">{item.lab_test_name}</td>
+                    <td className="px-3 py-2 text-slate-800">{item.lab_test_event || item.lab_test_name}</td>
                     <td className={`px-3 py-2 font-medium ${item.abnormal ? 'text-red-700' : 'text-slate-800'}`}>
                       {item.result_value}
                     </td>
                     <td className="px-3 py-2 text-slate-600">{item.lab_test_uom || '—'}</td>
-                    <td className="px-3 py-2 text-slate-600">{item.normal_range || '—'}</td>
+                    <td className="px-3 py-2 text-slate-600 whitespace-pre-line">{item.normal_range || '—'}</td>
                     <td className="px-3 py-2">
-                      {item.abnormal ? (
+                      {item.result_status ? (
+                        <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                          {item.result_status}
+                        </span>
+                      ) : item.abnormal ? (
                         <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
                           Abnormal
                         </span>

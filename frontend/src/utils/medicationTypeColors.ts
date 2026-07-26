@@ -1,12 +1,12 @@
 /** Medication type color coding (matches prescription UI). */
 
 import type { CSSProperties } from 'react'
+import { normalizePrescriptionType } from './prescriptionType'
 
 export const MEDICATION_TYPES = [
   { key: 'STAT', label: 'STAT', color: '#fe80c0' },
   { key: 'PRN', label: 'PRN', color: '#fefebf' },
   { key: 'Regular - Psy (Active)', label: 'Reg Psy Active', color: '#00ff02' },
-  { key: 'Regular -Med (Active)', label: 'Reg Med Active', color: '#4080e1' },
   { key: 'Regular - Med (Active)', label: 'Reg Med Active', color: '#4080e1' },
   { key: 'Regular - Psy (Inactive)', label: 'Reg Psy Inactive', color: '#94a3b8' },
   { key: 'Regular - Med (Inactive)', label: 'Reg Med Inactive', color: '#94a3b8' },
@@ -17,7 +17,8 @@ export const MEDICATION_TYPES = [
 export const isHexColor = (color: string) => color.startsWith('#')
 
 export function getMedicationTypeColor(medicationType?: string | null): string {
-  const typeDef = MEDICATION_TYPES.find((t) => t.key === medicationType)
+  const normalized = normalizePrescriptionType(medicationType)
+  const typeDef = MEDICATION_TYPES.find((t) => t.key === normalized)
   return typeDef?.color ?? '#94a3b8'
 }
 

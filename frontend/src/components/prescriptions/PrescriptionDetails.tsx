@@ -20,6 +20,7 @@ import {
   displayPrescriptionPractitioner,
   isLegacyMedicationOrderRow,
 } from '../../utils/medicationOrderDisplayUtils'
+import { normalizePrescriptionType } from '../../utils/prescriptionType'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -27,7 +28,7 @@ const MED_TYPES = [
   { key: 'STAT',                       label: 'STAT',            icon: '⚡', color: '#fe80c0' },
   { key: 'PRN',                        label: 'PRN',             icon: '🔔', color: '#fefebf' },
   { key: 'Regular - Psy (Active)',     label: 'Reg Psy Active',  icon: '🧠', color: '#00ff02' },
-  { key: 'Regular -Med (Active)',      label: 'Reg Med Active',  icon: '💉', color: '#4080e1' },
+  { key: 'Regular - Med (Active)',     label: 'Reg Med Active',  icon: '💉', color: '#4080e1' },
   { key: 'Regular - Psy (Inactive)',   label: 'Reg Psy Inactive',icon: '🧠', color: 'slate'   },
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive',icon: '💉', color: 'slate'   },
   { key: 'Long Acting Medicine',       label: 'Long Acting',     icon: '⏳', color: 'teal'    },
@@ -384,8 +385,14 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   )
 
   const orders = prescription.medication_orders || []
-  const countFor = (key: string) => key === 'All' ? orders.length : orders.filter((o: any) => o.medication_type === key).length
-  const filteredOrders = activeType === 'All' ? orders : orders.filter((o: any) => o.medication_type === activeType)
+  const countFor = (key: string) =>
+    key === 'All'
+      ? orders.length
+      : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === key).length
+  const filteredOrders =
+    activeType === 'All'
+      ? orders
+      : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === activeType)
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
   const completionPct = (prescription.total_orders ?? 0) > 0
     ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)

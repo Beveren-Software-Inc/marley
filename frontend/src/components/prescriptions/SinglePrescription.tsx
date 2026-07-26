@@ -15,6 +15,7 @@ import {
   flagsFromPrescriptionType,
   isLongActingPrescriptionType,
   normalizeMedicationOrderForSave,
+  normalizePrescriptionType,
 } from '../../utils/prescriptionType'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown } from 'lucide-react'
@@ -167,7 +168,7 @@ const MED_TYPES = [
   { key: 'STAT',                       label: 'STAT',             icon: '⚡', color: '#fe80c0' },
   { key: 'PRN',                        label: 'PRN',              icon: '🔔', color: '#fefebf' },
   { key: 'Regular - Psy (Active)',     label: 'Reg Psy Active',   icon: '🧠', color: '#00ff02' },
-  { key: 'Regular -Med (Active)',      label: 'Reg Med Active',   icon: '💉', color: '#4080e1' },
+  { key: 'Regular - Med (Active)',     label: 'Reg Med Active',   icon: '💉', color: '#4080e1' },
   { key: 'Regular - Psy (Inactive)',   label: 'Reg Psy Inactive', icon: '🧠', color: 'slate'   },
   { key: 'Regular - Med (Inactive)',   label: 'Reg Med Inactive', icon: '💉', color: 'slate'   },
   { key: 'Long Acting Medicine',       label: 'Long Acting',      icon: '⏳', color: 'teal'    },
@@ -200,7 +201,7 @@ const hexRowStyle = (hex: string): React.CSSProperties => ({
 })
 
 const getTypeColor = (medicationType: string): string =>
-  MED_TYPES.find(t => t.key === medicationType)?.color ?? 'slate'
+  MED_TYPES.find(t => t.key === normalizePrescriptionType(medicationType))?.color ?? 'slate'
 
 // ─── Primitives ───────────────────────────────────────────────────────────────
 const SmallBadge = ({ children, cls }: { children: React.ReactNode; cls: string }) => (
@@ -1774,14 +1775,14 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const countFor = (key: string) => {
     if (key === 'All') return orders.length
     if (key === '__stopped__') return orders.filter((o: any) => String(o.reason_stopped || '').trim()).length
-    return orders.filter((o: any) => o.medication_type === key).length
+    return orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === key).length
   }
   const filteredOrders =
     activeType === 'All'
       ? orders
       : activeType === '__stopped__'
         ? orders.filter((o: any) => String(o.reason_stopped || '').trim())
-        : orders.filter((o: any) => o.medication_type === activeType)
+        : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === activeType)
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
   const completionPct = (prescription.total_orders ?? 0) > 0
     ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)

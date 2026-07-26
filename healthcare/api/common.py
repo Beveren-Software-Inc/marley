@@ -2515,6 +2515,8 @@ def get_insurance_patient_registers(search=None):
 @frappe.whitelist()
 def get_lab_test_template_detail(name):
 	"""Fetch a single Lab Test Template with all display fields and full child table rows."""
+	from frappe.utils import cint
+
 	doc = frappe.get_doc("Lab Test Template", name)
 
 	def rows(child_list, fields):
@@ -2529,6 +2531,7 @@ def get_lab_test_template_detail(name):
 		"department": doc.department,
 		"lab_test_template_type": doc.lab_test_template_type,
 		"is_group": doc.is_group,
+		"is_multiple": cint(getattr(doc, "is_multiple", 0)),
 		"is_billable": doc.is_billable,
 		"disabled": doc.disabled,
 		"nursing_checklist_template": doc.nursing_checklist_template,
@@ -2555,6 +2558,10 @@ def get_lab_test_template_detail(name):
 		"normal_test_templates": rows(doc.get("normal_test_templates"), [
 			"lab_test_event", "lab_test_uom", "normal_range",
 			"secondary_uom", "conversion_factor",
+		]),
+		"multiple_result_type": rows(doc.get("multiple_result_type"), [
+			"test_unit", "uom", "male_min_range", "male_max_range",
+			"female_min_range", "female_max_range", "status", "use_status",
 		]),
 		"descriptive_test_templates": rows(doc.get("descriptive_test_templates"), [
 			"particulars",
