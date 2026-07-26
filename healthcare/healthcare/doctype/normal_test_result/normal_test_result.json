@@ -11,6 +11,7 @@
   "lab_test_name",
   "lab_test_event",
   "result_value",
+  "result_status",
   "lab_test_uom",
   "secondary_uom_result",
   "secondary_uom",
@@ -49,6 +50,13 @@
    "ignore_xss_filter": 1,
    "in_list_view": 1,
    "label": "Result Value"
+  },
+  {
+   "description": "For is_multiple templates (e.g. Vitamin D): Deficiency / Insufficiency / Sufficiency / Toxicity",
+   "fieldname": "result_status",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Result Status"
   },
   {
    "depends_on": "eval:doc.require_result_value",

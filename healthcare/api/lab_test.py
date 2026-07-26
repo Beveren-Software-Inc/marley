@@ -123,6 +123,9 @@ def get_lab_test_template_details(template):
 
 	Also returns normal_test_templates rows so the frontend can pre-populate
 	an empty result entry table even before any results have been saved.
+
+	When ``is_multiple`` is set, also returns ``multiple_result_type`` rows
+	(one result line per unit / reference band).
 	"""
 	if not template or not frappe.db.exists('Lab Test Template', template):
 		return {}
@@ -137,8 +140,35 @@ def get_lab_test_template_details(template):
 			'normal_range': getattr(r, 'normal_range', '') or '',
 		})
 
+	multiple_rows = []
+	status_options = _multiple_result_status_options()
+	for r in (doc.get('multiple_result_type') or []):
+		male_min = getattr(r, 'male_min_range', None)
+		male_max = getattr(r, 'male_max_range', None)
+		female_min = getattr(r, 'female_min_range', None)
+		female_max = getattr(r, 'female_max_range', None)
+		use_status = cint(getattr(r, 'use_status', 0))
+		test_unit = (getattr(r, 'test_unit', None) or getattr(r, 'uom', None) or '').strip()
+		uom = (getattr(r, 'uom', None) or test_unit or '').strip()
+		multiple_rows.append({
+			'test_unit': test_unit,
+			'uom': uom,
+			'male_min_range': male_min,
+			'male_max_range': male_max,
+			'female_min_range': female_min,
+			'female_max_range': female_max,
+			'status': getattr(r, 'status', None) or '',
+			'use_status': use_status,
+			'uses_status_bands': bool(use_status),
+			'normal_range': _format_multiple_result_normal_range(
+				male_min, male_max, female_min, female_max,
+				status_options if use_status else None,
+			),
+		})
+
 	return {
 		'lab_test_template_type': doc.lab_test_template_type,
+		'is_multiple': cint(doc.get('is_multiple')),
 		'min_range': doc.get('min_range'),
 		'max_range': doc.get('max_range'),
 		# Gendered ranges so result-entry validation can use the patient-appropriate range.
@@ -151,8 +181,139 @@ def get_lab_test_template_details(template):
 		'lab_test_uom': doc.get('lab_test_uom') or '',
 		'normal_range': doc.get('lab_test_normal_range') or '',
 		'normal_test_templates': compound_rows,
+		'multiple_result_type': multiple_rows,
+		'status_options': status_options,
 		'cost_center': doc.get('cost_center')
 	}
+
+
+def _multiple_result_status_options():
+	"""Status select options from Multiple Results doctype (Vitamin D-style bands)."""
+	try:
+		meta = frappe.get_meta('Multiple Results')
+		field = meta.get_field('status')
+		if field and field.options:
+			return [o for o in (field.options or '').split('\n') if o and o.strip()]
+	except Exception:
+		pass
+	return [
+		'Deficiency  <10',
+		'Insufficiency 10 - 30',
+		'Sufficiency  30 – 100',
+		'Toxicity  >100',
+	]
+
+
+def _is_numeric_range_value(val):
+	if val is None or val == '':
+		return False
+	try:
+		float(val)
+		return True
+	except (TypeError, ValueError):
+		return False
+
+
+def _format_multiple_result_normal_range(male_min, male_max, female_min, female_max, status_options=None):
+	parts = []
+	if _is_numeric_range_value(male_min) or _is_numeric_range_value(male_max):
+		parts.append(f"M: {male_min or '—'} – {male_max or '—'}")
+	if _is_numeric_range_value(female_min) or _is_numeric_range_value(female_max):
+		parts.append(f"F: {female_min or '—'} – {female_max or '—'}")
+	if parts:
+		return '; '.join(parts)
+	if status_options:
+		return '\n'.join(status_options)
+	return ''
+
+
+# Allowed Lab Test.result_flag values (must match lab_test.json Select options).
+RESULT_FLAG_VALUES = frozenset(
+	(
+		"",
+		"High",
+		"Low",
+		"Normal",
+		"Critically High",
+		"Critically Low",
+		"Deficiency",
+		"Insuficiency",  # spelling matches Lab Test.result_flag options
+		"Sufficiency",
+		"Toxicity",
+	)
+)
+
+
+def _normalize_result_flag_mark(status_text):
+	"""Collapse option labels like 'Deficiency  <10' to Select values (Deficiency, …)."""
+	import re
+
+	raw = (status_text or "").strip()
+	if not raw:
+		return ""
+	if raw in RESULT_FLAG_VALUES:
+		return raw
+	# First word / label before threshold digits
+	label = re.split(r"\s*[<>0-9]", raw, maxsplit=1)[0].strip() or raw.split()[0]
+	key = label.lower()
+	if key.startswith("deficien"):
+		return "Deficiency"
+	if key.startswith("insufficien") or key.startswith("insuficien"):
+		return "Insuficiency"
+	if key.startswith("sufficien"):
+		return "Sufficiency"
+	if key.startswith("toxicit"):
+		return "Toxicity"
+	# High/Low family already exact
+	for allowed in (
+		"Critically High",
+		"Critically Low",
+		"High",
+		"Low",
+		"Normal",
+	):
+		if key == allowed.lower():
+			return allowed
+	return ""
+
+
+def _suggest_multiple_result_status(result_value, status_options=None):
+	"""Map numeric result → short mark (Deficiency / Insuficiency / Sufficiency / Toxicity).
+
+	Thresholds are read from Multiple Results status option placeholders
+	(e.g. 'Deficiency  <10'); the returned value is only the mark name.
+	"""
+	import re
+
+	try:
+		val = float(result_value)
+	except (TypeError, ValueError):
+		return ""
+	options = status_options or _multiple_result_status_options()
+	matched = ""
+	for opt in options:
+		m = re.search(r"<\s*([\d.]+)", opt)
+		if m and val < float(m.group(1)):
+			matched = opt
+			break
+	if not matched:
+		for opt in options:
+			m = re.search(r"([\d.]+)\s*[-–—]\s*([\d.]+)", opt)
+			if m and float(m.group(1)) <= val <= float(m.group(2)):
+				matched = opt
+				break
+	if not matched:
+		for opt in options:
+			m = re.search(r">\s*([\d.]+)", opt)
+			if m and val > float(m.group(1)):
+				matched = opt
+				break
+	return _normalize_result_flag_mark(matched)
+
+
+def _result_flag_from_multiple_status(status_text):
+	"""Normalize to Lab Test.result_flag Select options."""
+	return _normalize_result_flag_mark(status_text)
 
 
 # @frappe.whitelist()
@@ -979,12 +1140,12 @@ def _matrix_cell_eval_from_template_info(result_value, patient_gender, tpl_info,
 
 def _matrix_cell_from_result_flag(result_flag: str):
 	flag_text = (result_flag or "").strip()
-	if not flag_text or flag_text == "Normal":
+	if not flag_text or flag_text == "Normal" or flag_text == "Sufficiency":
 		return {"flag": "normal", "direction": None}
 	direction = None
-	if flag_text in ("High", "Critically High"):
+	if flag_text in ("High", "Critically High", "Toxicity"):
 		direction = "high"
-	elif flag_text in ("Low", "Critically Low"):
+	elif flag_text in ("Low", "Critically Low", "Deficiency", "Insuficiency"):
 		direction = "low"
 	return {"flag": "abnormal", "direction": direction}
 
@@ -1444,6 +1605,7 @@ def get_lab_test(name):
 			'lab_test_name': getattr(r, 'lab_test_name', None) or '',
 			'lab_test_event': getattr(r, 'lab_test_event', None) or '',
 			'result_value': getattr(r, 'result_value', None) or '',
+			'result_status': getattr(r, 'result_status', None) or '',
 			'lab_test_uom': getattr(r, 'lab_test_uom', None) or '',
 			'normal_range': getattr(r, 'normal_range', None) or '',
 			'lab_test_comment': getattr(r, 'lab_test_comment', None) or '',
@@ -1621,6 +1783,7 @@ def _lab_test_results_snapshot(doc) -> dict:
 		key = (getattr(row, "lab_test_event", None) or getattr(row, "lab_test_name", None) or "").strip()
 		normal[key] = {
 			"result_value": (getattr(row, "result_value", None) or "").strip(),
+			"result_status": (getattr(row, "result_status", None) or "").strip(),
 			"lab_test_comment": (getattr(row, "lab_test_comment", None) or "").strip(),
 		}
 	return {
@@ -1801,18 +1964,26 @@ def save_and_submit_lab_test(
                 row = existing[event_key]
                 if item.get('result_value') is not None:
                     row.result_value = item['result_value']
+                if item.get('result_status') is not None:
+                    row.result_status = item['result_status']
                 if item.get('lab_test_comment') is not None:
                     row.lab_test_comment = item['lab_test_comment']
+                if item.get('lab_test_uom') is not None:
+                    row.lab_test_uom = item['lab_test_uom']
+                if item.get('normal_range') is not None:
+                    row.normal_range = item['normal_range']
             else:
-                # New row (shouldn't happen normally but handle gracefully)
+                # New row (compound / is_multiple expansion on first save)
                 doc.append('normal_test_items', {
                     'lab_test_name': item.get('lab_test_name') or event_key,
                     'lab_test_event': event_key,
                     'result_value': item.get('result_value') or '',
+                    'result_status': item.get('result_status') or '',
                     'lab_test_uom': item.get('lab_test_uom') or '',
                     'normal_range': item.get('normal_range') or '',
                     'lab_test_comment': item.get('lab_test_comment') or '',
                     'template': item.get('template') or '',
+                    'require_result_value': 1,
                 })
 
     rule_feedback = {"warnings": [], "errors": [], "calculated_updates": []}
@@ -1828,6 +1999,8 @@ def save_and_submit_lab_test(
     
     # Get ranges from template if available
     female_min = female_max = male_min = male_max = template_min = template_max = None
+    is_multiple_template = False
+    multiple_rows_by_unit = {}
     if doc.template:
         template_doc = frappe.get_doc("Lab Test Template", doc.template)
         female_min = template_doc.get("female_min_range")
@@ -1836,34 +2009,102 @@ def save_and_submit_lab_test(
         male_max = template_doc.get("male_max_range")
         template_min = template_doc.get("min_range")
         template_max = template_doc.get("max_range")
-    
+        is_multiple_template = cint(template_doc.get("is_multiple"))
+        if is_multiple_template:
+            for mr in (template_doc.get("multiple_result_type") or []):
+                key = (getattr(mr, "test_unit", None) or getattr(mr, "uom", None) or "").strip()
+                if key:
+                    multiple_rows_by_unit[key] = mr
+
     # Determine which result value to use for flag calculation
     result_to_evaluate = custom_result
-    
-    # If no custom_result, try to get from normal_test_items
-    if not result_to_evaluate and normal_test_items:
-        for item in (normal_test_items or []):
-            if item.get('result_value'):
-                result_to_evaluate = item.get('result_value')
-                break
-    
-    # If still no result, check doc's normal_test_items
-    if not result_to_evaluate and doc.normal_test_items:
+
+    # is_multiple: Deficiency/Insufficiency marks only when Multiple Results.use_status=1
+    # (e.g. nmol/L). Other units use High/Low from their min/max ranges.
+    if is_multiple_template and doc.normal_test_items:
+        status_options = _multiple_result_status_options()
+        flags = []
         for item in doc.normal_test_items:
-            if item.result_value:
-                result_to_evaluate = item.result_value
-                break
-    
-    # Calculate and set result flag
-    if result_to_evaluate:
-        doc.result_flag = _calculate_result_flag(
-            result_to_evaluate, patient_gender,
-            female_min, female_max,
-            male_min, male_max,
-            template_min, template_max
-        )
+            event_key = (getattr(item, "lab_test_event", None) or getattr(item, "lab_test_name", None) or "").strip()
+            mr = multiple_rows_by_unit.get(event_key)
+            use_status = cint(getattr(mr, "use_status", 0)) if mr else 0
+
+            if use_status and getattr(item, "result_value", None):
+                suggested = _suggest_multiple_result_status(item.result_value, status_options)
+                item.result_status = suggested or ""
+                if suggested:
+                    flags.append(suggested)
+                continue
+
+            # Non-status units: High / Low / Normal from gendered min/max
+            if mr and getattr(item, "result_value", None):
+                hl_flag = _calculate_result_flag(
+                    item.result_value,
+                    patient_gender,
+                    getattr(mr, "female_min_range", None),
+                    getattr(mr, "female_max_range", None),
+                    getattr(mr, "male_min_range", None),
+                    getattr(mr, "male_max_range", None),
+                    None,
+                    None,
+                )
+                item.result_status = hl_flag or ""
+                if hl_flag:
+                    flags.append(hl_flag)
+                continue
+
+            item.result_status = ""
+
+        # Prefer Deficiency-family short marks for overall result_flag when present
+        status_marks = [
+            f for f in flags
+            if f in ("Deficiency", "Insuficiency", "Sufficiency", "Toxicity")
+        ]
+        if status_marks:
+            doc.result_flag = status_marks[0]
+        else:
+            priority = {
+                "Critically High": 5,
+                "Critically Low": 5,
+                "High": 4,
+                "Low": 4,
+                "Abnormal": 3,
+                "Normal": 1,
+                "": 0,
+            }
+            best = ""
+            best_p = -1
+            for f in flags:
+                p = priority.get(f or "", 2)
+                if p > best_p:
+                    best_p = p
+                    best = f
+            doc.result_flag = best or ""
     else:
-        doc.result_flag = ""
+        # If no custom_result, try to get from normal_test_items
+        if not result_to_evaluate and normal_test_items:
+            for item in (normal_test_items or []):
+                if item.get('result_value'):
+                    result_to_evaluate = item.get('result_value')
+                    break
+
+        # If still no result, check doc's normal_test_items
+        if not result_to_evaluate and doc.normal_test_items:
+            for item in doc.normal_test_items:
+                if item.result_value:
+                    result_to_evaluate = item.result_value
+                    break
+
+        # Calculate and set result flag
+        if result_to_evaluate:
+            doc.result_flag = _calculate_result_flag(
+                result_to_evaluate, patient_gender,
+                female_min, female_max,
+                male_min, male_max,
+                template_min, template_max
+            )
+        else:
+            doc.result_flag = ""
     # ========== END RESULT FLAG CALCULATION ==========
 
     # Pricing updates

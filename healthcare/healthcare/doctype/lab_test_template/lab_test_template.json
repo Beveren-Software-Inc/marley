@@ -68,6 +68,9 @@
   "column_break_mppx",
   "female_min_range",
   "female_max_range",
+  "section_break_fiwl",
+  "is_multiple",
+  "multiple_result_type",
   "section_break_compound",
   "normal_test_templates",
   "section_break_special",
@@ -637,6 +640,23 @@
    "fieldname": "outsource",
    "fieldtype": "Check",
    "label": "Outsource"
+  },
+  {
+   "fieldname": "section_break_fiwl",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_multiple",
+   "fieldtype": "Check",
+   "label": "Is Multiple"
+  },
+  {
+   "depends_on": "eval:doc.is_multiple",
+   "fieldname": "multiple_result_type",
+   "fieldtype": "Table",
+   "label": "Multiple Result Type",
+   "options": "Multiple Results"
   }
  ],
  "grid_page_length": 50,
@@ -647,7 +667,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-06-29 17:45:30.847888",
+ "modified": "2026-07-26 13:20:44.168712",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

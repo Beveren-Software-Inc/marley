@@ -702,25 +702,25 @@
    "label": "Date"
   },
   {
+   "default": "0",
+   "description": "Create this lab test automatically every day until the Repeat Until date (performed by nurses).",
    "fieldname": "repeat_daily",
    "fieldtype": "Check",
-   "label": "Repeat Daily",
-   "default": "0",
-   "description": "Create this lab test automatically every day until the Repeat Until date (performed by nurses)."
+   "label": "Repeat Daily"
   },
   {
+   "depends_on": "eval:doc.repeat_daily",
    "fieldname": "repeat_until",
    "fieldtype": "Date",
-   "label": "Repeat Until",
-   "depends_on": "eval:doc.repeat_daily"
+   "label": "Repeat Until"
   },
   {
    "fieldname": "repeated_from",
    "fieldtype": "Link",
-   "options": "Lab Test",
+   "hidden": 1,
    "label": "Repeated From",
-   "read_only": 1,
-   "hidden": 1
+   "options": "Lab Test",
+   "read_only": 1
   },
   {
    "allow_in_quick_entry": 1,
@@ -1274,7 +1274,7 @@
    "fieldname": "result_flag",
    "fieldtype": "Select",
    "label": "Result Flag",
-   "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low",
+   "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low\nDeficiency\nInsuficiency\nSufficiency\nToxicity",
    "read_only": 1
   }
  ],
@@ -1285,7 +1285,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-06-16 16:52:04.401618",
+ "modified": "2026-07-26 13:57:44.705866",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
