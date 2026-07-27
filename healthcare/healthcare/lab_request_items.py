@@ -61,6 +61,58 @@ def parse_lab_request_items(doc) -> list[dict[str, Any]]:
 	return [{"kind": "single", "template": template_dn}]
 
 
+def _lab_test_template_labels(names: list[str]) -> dict[str, str]:
+	"""Map Lab Test Template name → lab_test_name (fallback to name)."""
+	unique = [n for n in { (n or "").strip() for n in names } if n]
+	if not unique:
+		return {}
+	rows = frappe.get_all(
+		"Lab Test Template",
+		filters={"name": ["in", unique]},
+		fields=["name", "lab_test_name"],
+		ignore_permissions=True,
+	)
+	out = {row.name: (row.lab_test_name or row.name) for row in rows}
+	for name in unique:
+		out.setdefault(name, name)
+	return out
+
+
+def enrich_lab_request_items_for_display(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+	"""Attach human-readable lab_test_name labels for UI (detail slider / edit).
+
+	Adds ``template_label`` / ``parent_label`` and ``child_labels`` map without
+	changing the stored template ids used for billing.
+	"""
+	if not items:
+		return []
+
+	ids: list[str] = []
+	for item in items:
+		kind = (item.get("kind") or "").strip().lower()
+		if kind == "single":
+			ids.append((item.get("template") or "").strip())
+		elif kind == "group":
+			ids.append((item.get("parent") or "").strip())
+			for child in item.get("children") or []:
+				ids.append(str(child).strip())
+
+	labels = _lab_test_template_labels(ids)
+	enriched: list[dict[str, Any]] = []
+	for item in items:
+		row = dict(item)
+		kind = (row.get("kind") or "").strip().lower()
+		if kind == "single":
+			tpl = (row.get("template") or "").strip()
+			row["template_label"] = labels.get(tpl) or tpl
+		elif kind == "group":
+			parent = (row.get("parent") or "").strip()
+			row["parent_label"] = labels.get(parent) or parent
+			children = [str(c).strip() for c in (row.get("children") or []) if c]
+			row["child_labels"] = {c: labels.get(c) or c for c in children}
+		enriched.append(row)
+	return enriched
+
 def expand_lab_test_specs(
 	items: list[dict[str, Any]],
 	patient: str,

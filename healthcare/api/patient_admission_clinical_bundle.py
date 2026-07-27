@@ -345,7 +345,9 @@ def _history_form_for_admission(admission_name: str) -> dict | None:
 				"order_no": cint(child.order_no),
 			}
 		)
-	rows.sort(key=lambda r: (r["order_no"], r["attribute"]))
+	rows.sort(
+		key=lambda r: (r["order_no"] if r["order_no"] > 0 else 10**9, r["attribute"])
+	)
 	return {
 		"name": doc.name,
 		"template": doc.template,

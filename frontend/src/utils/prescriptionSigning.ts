@@ -1,21 +1,28 @@
 import type { Prescription } from '../services/prescriptions'
 
-export function prescriptionNeedsSignature(prescription?: Pick<Prescription, 'new_system' | 'doctors_signature' | 'status'> | null): boolean {
+type PrescriptionSigningFields = Pick<
+  Prescription,
+  'new_system' | 'doctors_signature' | 'status'
+>
+
+export function prescriptionNeedsSignature(
+  prescription?: PrescriptionSigningFields | null,
+): boolean {
   if (!prescription?.new_system) return false
-  if (prescription.status === 'Unsigned') return true
   if (prescription.doctors_signature?.trim()) return false
+  if (prescription.status === 'Unsigned') return true
   return !prescription.status
 }
 
 export function prescriptionIsSigned(
-  prescription?: Pick<Prescription, 'new_system' | 'doctors_signature' | 'status'> | null,
+  prescription?: PrescriptionSigningFields | null,
 ): boolean {
   if (!prescription?.new_system) return true
   return prescriptionAllowsMedicineGiving(prescription)
 }
 
 export function prescriptionAllowsMedicineGiving(
-  prescription?: Pick<Prescription, 'new_system' | 'doctors_signature' | 'status'> | null,
+  prescription?: PrescriptionSigningFields | null,
 ): boolean {
   if (!prescription) return false
   if (!prescription.new_system) return true

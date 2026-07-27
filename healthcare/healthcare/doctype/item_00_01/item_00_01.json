@@ -12,6 +12,8 @@
   "dept_num",
   "dept_num_old",
   "brand_num",
+  "item",
+  "item_name",
   "column_break_wisf",
   "brand_num_old",
   "item_group_num",
@@ -311,12 +313,28 @@
   {
    "fieldname": "column_break_wdpn",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "item",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item",
+   "options": "Item"
+  },
+  {
+   "fetch_from": "item.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Item Name"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-17 01:38:28.361062",
+ "modified": "2026-07-27 17:44:03.908514",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "ITEM_00_01",
