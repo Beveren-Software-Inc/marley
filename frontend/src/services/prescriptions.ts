@@ -1,3 +1,5 @@
+import { flagsFromPrescriptionType } from '../utils/prescriptionType'
+
 export interface Prescription {
   name: string
   patient: string
@@ -402,6 +404,74 @@ export interface MedicationOrderEntry {
   reason_stopped?: string
   stopped_date?: string
   stop_by?: string
+}
+
+export async function resolveMedicationsForDuplicate(
+  medicationOrders: MedicationOrderRow[]
+): Promise<MedicationOrderRow[]> {
+  if (!medicationOrders?.length) return []
+  const { apiRequest } = await import('./apiClient')
+  const message = await apiRequest<MedicationOrderRow[]>(
+    '/api/method/healthcare.api.patient_medication_order.resolve_medications_for_duplicate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ medication_orders: medicationOrders }),
+    }
+  )
+  return Array.isArray(message) ? message : medicationOrders
+}
+
+/** Map a list/detail medication line into CreatePrescriptionModal initial rows. */
+export function mapOrderToDuplicateMedication(order: any): MedicationOrderRow {
+  const medicationType =
+    order.medication_type === 'Contraindicated' ? '' : (order.medication_type || '')
+  // Legacy lines often store the written dose in instructions rather than dosage.
+  const dosage =
+    (order.dosage || '').trim() ||
+    (order.display_dosage || '').trim() ||
+    (order.instructions || '').trim() ||
+    (order.strength || '').trim() ||
+    ''
+  const frequency =
+    (order.patient_frequency || '').trim() ||
+    (order.written_frequency || '').trim() ||
+    (order.frequency || '').trim() ||
+    ''
+
+  const flags = flagsFromPrescriptionType(medicationType)
+
+  return {
+    drug: order.drug || '',
+    drug_name: order.drug_name || order.medication || order.old_medicine_name || order.drug || '',
+    dosage,
+    uom: order.uom || 'UNIT',
+    no_of_days: order.no_of_days || order.period || 1,
+    dosage_form: order.dosage_form || '',
+    // If dosage was taken from instructions, keep instructions too (doctor can edit).
+    instructions: order.instructions || '',
+    date: new Date().toISOString().split('T')[0],
+    end_date: order.end_date || '',
+    time: order.time || '',
+    patient_frequency: frequency,
+    is_pink: Boolean(order.is_pink),
+    reference_no: order.reference_no || '',
+    ...flags,
+    is_prn: Boolean(order.is_prn) || flags.is_prn,
+    is_long_acting:
+      Boolean(order.is_long_acting_medicine || order.is_long_acting) || flags.is_long_acting,
+    long_acting_frequency:
+      order.long_acting_frequency ||
+      (Boolean(order.is_long_acting_medicine || order.is_long_acting)
+        ? order.patient_frequency || order.written_frequency || 'Weekly'
+        : 'Weekly'),
+    route_of_administration: order.route_of_administration || '',
+    medication_type: medicationType,
+    // Keep legacy codes so the duplicate resolve API can map ITEM_00_01 → Item.
+    old_medicine_code: order.old_medicine_code || '',
+    old_medicine_name: order.old_medicine_name || '',
+    medicine_no: order.medicine_no || '',
+    medication: order.medication || '',
+  }
 }
 
 export async function createPrescription(

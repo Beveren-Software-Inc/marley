@@ -50,6 +50,14 @@ function rowHasContent(row: PatientHistoryDetailRow) {
   return Boolean(row.description || row.field_1 || row.attrib_note_2)
 }
 
+/** Match History Detail table: numbered rows in order; order_no 0 / blank last. */
+function compareHistoryDetailOrder(a: PatientHistoryDetailRow, b: PatientHistoryDetailRow) {
+  const ao = a.order_no > 0 ? a.order_no : Number.MAX_SAFE_INTEGER
+  const bo = b.order_no > 0 ? b.order_no : Number.MAX_SAFE_INTEGER
+  if (ao !== bo) return ao - bo
+  return a.attribute.localeCompare(b.attribute)
+}
+
 interface PatientHistoryDetailPanelProps {
   name: string
   onClose: () => void
@@ -71,10 +79,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
         const rows = Array.isArray(data.history_detail)
           ? (data.history_detail as Record<string, unknown>[]).map(mapDetailRow)
           : []
-        rows.sort((a, b) => {
-          if (a.order_no !== b.order_no) return a.order_no - b.order_no
-          return a.attribute.localeCompare(b.attribute)
-        })
+        rows.sort(compareHistoryDetailOrder)
         setDetail({
           name: String(data.name ?? name),
           patient: data.patient ? String(data.patient) : undefined,

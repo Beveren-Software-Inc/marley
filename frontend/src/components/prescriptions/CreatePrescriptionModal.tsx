@@ -29,6 +29,7 @@ import {
 import {
   createPrescription,
   updatePrescription,
+  resolveMedicationsForDuplicate,
   type CreatePrescriptionData,
   type MedicationOrderRow,
   type Prescription,
@@ -37,6 +38,7 @@ import {
   previewPrescriptionDoseValidation,
   type PrescriptionDoseValidationPreview,
 } from '../../services/prescriptions'
+import { isLegacyMedicationOrderRow } from '../../utils/medicationOrderDisplayUtils'
 import { createVisitAndPrescriptionOnDischarge } from '../../services/medicineGiven'
 import { bulkCreateNurseTasks, type CreateNurseTaskData } from '../../services/nurseTask'
 import { toast } from '../../hooks/useToast'
@@ -369,6 +371,7 @@ export const CreatePrescriptionModal = ({
 
   const [doctorsSignature, setDoctorsSignature] = useState<string | null>(null)
   const [signatureUploading, setSignatureUploading] = useState(false)
+  const [attachmentUploading, setAttachmentUploading] = useState(false)
   const [medicationStock, setMedicationStock] = useState<Record<number, PrescriptionDrugStockCheck>>({})
   const [medicationDoseWarnings, setMedicationDoseWarnings] = useState<
     Record<number, PrescriptionDoseValidationPreview>
@@ -378,6 +381,15 @@ export const CreatePrescriptionModal = ({
   const [doseLimitConfirmIssues, setDoseLimitConfirmIssues] = useState<PrescriptionDoseLimitIssue[]>([])
 
   const isEditing = editMode
+
+  // Only re-check max dose when drug or dosage changes — not frequency, route, etc.
+  const doseValidationKey = useMemo(
+    () =>
+      medications
+        .map((row) => `${(row.drug || '').trim()}\u0001${(row.dosage || '').trim()}`)
+        .join('\u0002'),
+    [medications],
+  )
 
   useEffect(() => {
     let cancelled = false
@@ -447,8 +459,9 @@ export const CreatePrescriptionModal = ({
       cancelled = true
       timers.forEach((t) => window.clearTimeout(t))
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only drug/dosage (via doseValidationKey), not other med fields
   }, [
-    medications,
+    doseValidationKey,
     selectedPatient?.name,
     formData.care_context,
     formData.patient_encounter,
@@ -751,13 +764,68 @@ export const CreatePrescriptionModal = ({
   }, [initialPatient, selectedPatient])
 
   useEffect(() => {
-    if (initialMedications && initialMedications.length > 0) {
-      setMedications(initialMedications)
+    if (!initialMedications || initialMedications.length === 0) return
+
+    let cancelled = false
+    const applyRows = (rows: MedicationOrderRow[]) => {
+      if (cancelled) return
+      setMedications(rows)
       const queries: Record<number, string> = {}
-      initialMedications.forEach((med, idx) => {
+      const nextFreq: Record<number, string> = {}
+      const nextRoute: Record<number, string> = {}
+      const nextUom: Record<number, string> = {}
+      const nextLongActing: Record<number, string> = {}
+      rows.forEach((med, idx) => {
         queries[idx] = med.drug_name || med.drug
+        if (med.patient_frequency) nextFreq[idx] = med.patient_frequency
+        if (med.route_of_administration) nextRoute[idx] = med.route_of_administration
+        if (med.uom) nextUom[idx] = med.uom
+        if (med.long_acting_frequency) nextLongActing[idx] = String(med.long_acting_frequency)
       })
       setDrugQueries(queries)
+      setFrequencyQueries(nextFreq)
+      setRouteQueries(nextRoute)
+      setUomQueries(nextUom)
+      setLongActingFrequencyQueries(nextLongActing)
+    }
+
+    // Duplicate of legacy Rx: map ITEM_00_01 → current Item when possible.
+    const needsLegacyResolve = initialMedications.some(
+      (med) =>
+        isLegacyMedicationOrderRow(med) ||
+        Boolean(med.old_medicine_code || med.medicine_no) ||
+        !med.drug,
+    )
+    if (!needsLegacyResolve) {
+      applyRows(initialMedications)
+      return () => {
+        cancelled = true
+      }
+    }
+
+    applyRows(initialMedications)
+    resolveMedicationsForDuplicate(initialMedications)
+      .then((resolved) => {
+        // Merge only mapped drug fields so dosage/frequency/etc. from the
+        // original duplicate payload are never dropped by the resolve API.
+        const merged = initialMedications.map((orig, i) => {
+          const r = resolved[i]
+          if (!r) return orig
+          return {
+            ...orig,
+            drug: r.drug || orig.drug,
+            drug_name: r.drug_name || orig.drug_name,
+            old_medicine_code: r.old_medicine_code || orig.old_medicine_code,
+          }
+        })
+        applyRows(merged)
+      })
+      .catch(() => {
+        /* keep original rows; doctor can still pick Item manually */
+      })
+
+    return () => {
+      cancelled = true
     }
   }, [initialMedications])
 
@@ -883,6 +951,8 @@ export const CreatePrescriptionModal = ({
     .filter((m) => m.drug && m.dosage && m.date)
     .map((m) => ({ ...m, ...flagsFromPrescriptionType(m.medication_type) }))
 
+  const isSignedEvidence = Boolean(doctorsSignature)
+
   const handleDoctorSignatureSave = async (file: File) => {
     setSignatureUploading(true)
     try {
@@ -894,6 +964,25 @@ export const CreatePrescriptionModal = ({
       toast.error(err instanceof Error ? err.message : 'Signature upload failed')
     } finally {
       setSignatureUploading(false)
+    }
+  }
+
+  /** Upload alternative to drawing — same doctors_signature Attach field. */
+  const handleSignatureAttachment = async (file: File | null) => {
+    if (!file) {
+      setDoctorsSignature(null)
+      return
+    }
+    setAttachmentUploading(true)
+    try {
+      const fileUrl = await uploadPatientFile(file)
+      if (!fileUrl) throw new Error('No URL returned from upload')
+      setDoctorsSignature(fileUrl)
+      toast.success('Signature attachment saved')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Attachment upload failed')
+    } finally {
+      setAttachmentUploading(false)
     }
   }
 
@@ -966,7 +1055,7 @@ export const CreatePrescriptionModal = ({
           doctorsSignature || undefined,
           transferOrderEntryNames,
         )
-        const signedNote = doctorsSignature ? ' (signed)' : ''
+        const signedNote = isSignedEvidence ? ' (signed)' : ''
         toast.success(
           `Created visit ${result.patient_visit} and prescription ${result.patient_medication_order}${signedNote}`,
         )
@@ -991,7 +1080,7 @@ export const CreatePrescriptionModal = ({
 
         await updatePrescription(payload)
         toast.success(
-          doctorsSignature ? 'Prescription updated and signed' : 'Prescription updated successfully',
+          isSignedEvidence ? 'Prescription updated and signed' : 'Prescription updated successfully',
         )
       } else {
         const payload: CreatePrescriptionData = {
@@ -1035,7 +1124,7 @@ export const CreatePrescriptionModal = ({
             return [task]
           })
 
-          const createdMsg = doctorsSignature
+          const createdMsg = isSignedEvidence
             ? 'Prescription created (signed)'
             : 'Prescription created (unsigned — sign before giving medicine)'
           if (tasksToCreate.length > 0) {
@@ -1052,7 +1141,7 @@ export const CreatePrescriptionModal = ({
             toast.success(createdMsg)
           }
         } else {
-          toast.success(doctorsSignature ? 'Prescription created (signed)' : 'Prescription created (unsigned — sign before giving medicine)')
+          toast.success(isSignedEvidence ? 'Prescription created (signed)' : 'Prescription created (unsigned — sign before giving medicine)')
         }
       }
 
@@ -1109,9 +1198,9 @@ export const CreatePrescriptionModal = ({
               }`}
             >
               {tab === 'medications'
-                ? `Medications (${validMedications.length})`
+                ? `Medications (${medications.length})`
                 : tab === 'signature'
-                  ? doctorsSignature
+                  ? isSignedEvidence
                     ? 'Signature ✓'
                     : 'Signature'
                   : 'Details'}
@@ -1785,9 +1874,9 @@ export const CreatePrescriptionModal = ({
             {activeTab === 'signature' && (
               <div className="space-y-4 max-w-lg">
                 <p className="text-sm text-slate-600">
-                  Capture the prescribing clinician&apos;s digital signature. When you save with a
-                  signature, the prescription status is set to <strong>Signed</strong>. Without a
-                  signature it stays <strong>Unsigned</strong> until signed later.
+                  Draw a signature or upload a file into the same signature field. Either marks the
+                  prescription as <strong>Signed</strong>. Without either it stays{' '}
+                  <strong>Unsigned</strong> until signed later.
                 </p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                   <div className="flex items-center gap-1.5 mb-3">
@@ -1798,15 +1887,55 @@ export const CreatePrescriptionModal = ({
                     onSave={handleDoctorSignatureSave}
                     onClear={() => setDoctorsSignature(null)}
                     existingUrl={attachFileDisplayUrl(doctorsSignature)}
-                    uploading={signatureUploading}
+                    uploading={signatureUploading || attachmentUploading}
                   />
                   {signatureUploading && (
                     <p className="text-xs text-slate-500 text-center mt-2">Uploading signature…</p>
                   )}
                   <p className="text-xs text-slate-400 leading-relaxed mt-3">
-                    Draw your signature, then tap <strong>Save signature</strong>. The image is stored on
-                    the Patient Medication Order.
+                    Draw your signature, then tap <strong>Save signature</strong>. Stored on Doctors
+                    Signature.
                   </p>
+                </div>
+
+                <div className="rounded-lg border border-slate-200 bg-white p-4">
+                  <span className="text-xs font-medium text-slate-600">Or upload signature file</span>
+                  <p className="text-xs text-slate-500 mt-1 mb-3">
+                    Alternative to drawing — uploads into the same Doctors Signature field.
+                  </p>
+                  {doctorsSignature ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <a
+                        href={attachFileDisplayUrl(doctorsSignature)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-primary hover:underline truncate max-w-[16rem]"
+                      >
+                        {doctorsSignature.split('/').pop() || 'View signature'}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => setDoctorsSignature(null)}
+                        className="text-xs text-slate-500 hover:text-red-600"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <input
+                      type="file"
+                      disabled={attachmentUploading || signatureUploading}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] || null
+                        void handleSignatureAttachment(file)
+                        e.target.value = ''
+                      }}
+                      className="block w-full text-sm text-slate-600 file:mr-3 file:rounded-md file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200"
+                    />
+                  )}
+                  {attachmentUploading && (
+                    <p className="text-xs text-slate-500 mt-2">Uploading into signature…</p>
+                  )}
                 </div>
               </div>
             )}

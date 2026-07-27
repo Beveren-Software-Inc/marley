@@ -193,31 +193,49 @@ def get_medication_orders(
 				'route_of_administration', 'patient_frequency', 'date', 'end_date',
 				'instructions', 'medication_status', 'is_prn', 'medication_type',
 				'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
-				'written_frequency', 'old_medicine_code',
+				'written_frequency', 'old_medicine_code', 'old_medicine_name',
+				'no_of_days', 'time', 'is_pink', 'reference_no',
+				'is_long_acting_medicine',
 			],
 			order_by='parent, idx',
 			limit_page_length=0,
 		)
 
 		# Oldest legacy rows only carry an Oracle medicine code — resolve names
-		# through the ITEM_00_01 legacy medicine master in one batched query.
+		# (and current Item when mapped on ITEM_00_01.item) in one batched query.
 		def _legacy_code(e):
 			raw = (e.get('old_medicine_code') or e.get('medicine_no') or '').strip()
 			return raw.lstrip('0') or raw if raw else ''
 
-		unresolved_codes = {
-			_legacy_code(e)
-			for e in entries
-			if not (e.get('drug_name') or e.get('medication')) and _legacy_code(e)
-		}
+		legacy_codes = {_legacy_code(e) for e in entries if _legacy_code(e)}
 		legacy_master = {}
-		if unresolved_codes and frappe.db.exists('DocType', 'ITEM_00_01'):
+		if legacy_codes and frappe.db.exists('DocType', 'ITEM_00_01'):
 			for m in frappe.get_all(
 				'ITEM_00_01',
-				filters={'name': ['in', list(unresolved_codes)]},
-				fields=['name', 'item_nam', 'item_strenght', 'item_unit_of_strength', 'item_regis_num'],
+				filters={'name': ['in', list(legacy_codes)]},
+				fields=[
+					'name', 'item_nam', 'item_strenght', 'item_unit_of_strength',
+					'item_regis_num', 'item', 'item_name',
+				],
 			):
 				legacy_master[m['name']] = m
+
+		mapped_item_codes = {
+			(m.get('item') or '').strip()
+			for m in legacy_master.values()
+			if (m.get('item') or '').strip()
+		}
+		mapped_item_names = {}
+		if mapped_item_codes:
+			mapped_item_names = {
+				r.name: r.item_name
+				for r in frappe.get_all(
+					'Item',
+					filters={'name': ['in', list(mapped_item_codes)]},
+					fields=['name', 'item_name'],
+					limit_page_length=0,
+				)
+			}
 
 		for e in entries:
 			# Legacy (Oracle-imported) rows store the medicine in `medication` /
@@ -225,13 +243,32 @@ def get_medication_orders(
 			# shows the same values as the detail view.
 			if not e.get('drug_name') and e.get('medication'):
 				e['drug_name'] = e['medication']
-			if not e.get('drug_name'):
-				m = legacy_master.get(_legacy_code(e))
-				if m:
+			m = legacy_master.get(_legacy_code(e))
+			if m:
+				mapped_item = (m.get('item') or '').strip()
+				# Prefer the linked current Item so Duplicate can open with a real drug.
+				if mapped_item and mapped_item in mapped_item_names:
+					drug = (e.get('drug') or '').strip()
+					legacy_aliases = {
+						(e.get('medicine_no') or '').strip(),
+						(e.get('old_medicine_code') or '').strip(),
+						str(m.get('item_regis_num') or '').strip(),
+						m['name'],
+					}
+					if not drug or drug in legacy_aliases:
+						e['drug'] = mapped_item
+						e['drug_name'] = (
+							(m.get('item_name') or '').strip()
+							or mapped_item_names.get(mapped_item)
+							or e.get('drug_name')
+						)
+				if not e.get('drug_name'):
 					strength = ' '.join(
 						str(x) for x in (m.get('item_strenght'), m.get('item_unit_of_strength')) if x
 					)
-					e['drug_name'] = f"{m['item_nam']} {strength}".strip() if m.get('item_nam') else e.get('drug_name')
+					e['drug_name'] = (
+						f"{m['item_nam']} {strength}".strip() if m.get('item_nam') else e.get('drug_name')
+					)
 					if not e.get('drug') and m.get('item_regis_num'):
 						e['drug'] = m['item_regis_num']
 			if not e.get('drug') and e.get('medicine_no'):
@@ -383,6 +420,44 @@ def _normalize_legacy_medicine_display_codes(doc):
 		if resolved:
 			row.old_medicine_code = resolved
 			row.medicine_no = resolved
+
+
+def _apply_current_item_from_legacy_mapping(doc):
+	"""When ITEM_00_01.item is set, expose the current Item on legacy child rows.
+
+	Does not overwrite an already-valid Item link. Used by detail fetch and
+	duplicate so doctors can keep the mapped current medication.
+	"""
+	if not doc:
+		return
+	from healthcare.api.patient_medication_order_import import apply_current_item_mapping_to_medication_rows
+
+	rows = list(doc.get("medication_orders") or [])
+	if not rows:
+		return
+	mapped = apply_current_item_mapping_to_medication_rows(rows)
+	for row, payload in zip(rows, mapped):
+		if payload.get("drug"):
+			row.drug = payload["drug"]
+		if payload.get("drug_name"):
+			row.drug_name = payload["drug_name"]
+		if payload.get("old_medicine_code") and not getattr(row, "old_medicine_code", None):
+			row.old_medicine_code = payload["old_medicine_code"]
+
+
+@frappe.whitelist()
+def resolve_medications_for_duplicate(medication_orders=None):
+	"""Map legacy medicine codes to current Items for prescription Duplicate.
+
+	Accepts the child-row payload used by Create Prescription and returns the
+	same rows with ``drug`` / ``drug_name`` filled from ITEM_00_01.item when
+	available.
+	"""
+	from healthcare.api.patient_medication_order_import import apply_current_item_mapping_to_medication_rows
+
+	if isinstance(medication_orders, str):
+		medication_orders = frappe.parse_json(medication_orders)
+	return apply_current_item_mapping_to_medication_rows(medication_orders or [])
 
 
 def _apply_legacy_ip_admission_medicine_fallbacks(doc):
@@ -732,6 +807,7 @@ def get_medication_order_by_id(name):
 		) or doc.practitioner
 	_apply_legacy_ip_admission_medicine_fallbacks(doc)
 	_normalize_legacy_medicine_display_codes(doc)
+	_apply_current_item_from_legacy_mapping(doc)
 
 	if getattr(doc, "reference_doctype", None) == "Sales Order" and getattr(doc, "reference_document_name", None):
 		doc.invoice = _invoice_for_sales_order(doc.reference_document_name)
@@ -739,7 +815,9 @@ def get_medication_order_by_id(name):
 	for row in doc.get("medication_orders") or []:
 		uom = (getattr(row, "uom", None) or "").strip() or None
 		if not flt(getattr(row, "rate", 0)) and getattr(row, "drug", None):
-			row.rate = get_item_rate_for_uom(row.drug, uom)
+			# Only price real Items (legacy numeric codes are not Item links).
+			if frappe.db.exists("Item", row.drug):
+				row.rate = get_item_rate_for_uom(row.drug, uom)
 		qty = flt(getattr(row, "quantity", 0))
 		if not flt(getattr(row, "amount", 0)):
 			row.amount = qty * flt(getattr(row, "rate", 0))
@@ -1106,6 +1184,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
         ) or doc.practitioner
     _apply_legacy_ip_admission_medicine_fallbacks(doc)
     _normalize_legacy_medicine_display_codes(doc)
+    _apply_current_item_from_legacy_mapping(doc)
 
     return doc
 
@@ -1423,10 +1502,12 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
                 parent_start_date=doc.start_date,
                 parent_end_date=doc.end_date,
             )
+            drug = item.drug
+            drug_name = frappe.get_cached_value("Item", item.drug, "item_name") if item.drug and frappe.db.exists("Item", item.drug) else (item.drug_name or "")
             medications.append({
                 "name": item.name,
-                "drug": item.drug,
-                "drug_name": frappe.get_cached_value("Item", item.drug, "item_name") if item.drug else "",
+                "drug": drug,
+                "drug_name": drug_name,
                 "medication": getattr(item, "medication", None),
                 "old_medicine_code": getattr(item, "old_medicine_code", None),
                 "old_medicine_name": getattr(item, "old_medicine_name", None),
@@ -1445,6 +1526,9 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
                 "display_dosage": display["display_dosage"],
                 "is_legacy": display["is_legacy"],
             })
+
+        from healthcare.api.patient_medication_order_import import apply_current_item_mapping_to_medication_rows
+        medications = apply_current_item_mapping_to_medication_rows(medications)
         
         result.append({
             "name": pres.name,

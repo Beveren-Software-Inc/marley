@@ -999,11 +999,37 @@ def get_service_request(name):
 		# Always expose normalized lines to the edit form. This also gives legacy
 		# single/group requests per-test discount controls even when they predate
 		# the lab_request_items JSON field.
-		from healthcare.healthcare.lab_request_items import parse_lab_request_items
+		from healthcare.healthcare.lab_request_items import (
+			enrich_lab_request_items_for_display,
+			lab_request_items_summary,
+			parse_lab_request_items,
+		)
 
 		request_items = parse_lab_request_items(doc)
-		data["lab_request_items"] = request_items
+		data["lab_request_items"] = enrich_lab_request_items_for_display(request_items)
 		data["general_discount_amount"] = _get_general_lab_discount(doc, request_items)
+		data["template_name"] = (
+			lab_request_items_summary(request_items)
+			or frappe.db.get_value("Lab Test Template", doc.template_dn, "lab_test_name")
+			or doc.template_dn
+		)
+	elif doc.template_dn:
+		_template_name_field = {
+			"Clinical Procedure Template": "procedure_name",
+			"Observation Template": "observation",
+			"Therapy Type": "therapy_type",
+			"Healthcare Activity": "activity_type",
+			"Healthcare Service Template": "service_name",
+			"Consultation Service Template": "template_name",
+		}
+		name_field = _template_name_field.get(doc.template_dt or "")
+		if name_field and frappe.db.exists(doc.template_dt, doc.template_dn):
+			data["template_name"] = (
+				frappe.db.get_value(doc.template_dt, doc.template_dn, name_field)
+				or doc.template_dn
+			)
+		else:
+			data["template_name"] = doc.template_dn
 	return data
 
 

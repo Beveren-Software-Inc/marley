@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchPrescriptions, fetchPrescription, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, type MedicationOrderRow, createPrescriptionSalesOrder } from '../../services/prescriptions'
+import { fetchPrescriptions, fetchPrescription, type Prescription, type PrescriptionFilters, type MedicationOrderEntry, mapOrderToDuplicateMedication, createPrescriptionSalesOrder } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { StatusPill } from '../ui/StatusPill'
@@ -720,7 +720,15 @@ export const PrescriptionList = ({
                         type="button"
                         onClick={() => {
                           setOpenActionRow(null)
-                          setDuplicateTarget(row)
+                          void (async () => {
+                            try {
+                              // List rows can be thin — load full order so dosage/frequency copy across.
+                              const full = await fetchPrescription(row.name)
+                              setDuplicateTarget(full || row)
+                            } catch {
+                              setDuplicateTarget(row)
+                            }
+                          })()
                         }}
                         className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                       >
@@ -842,25 +850,7 @@ export const PrescriptionList = ({
           initialCareContext={careContext}
           initialPatientEncounter={activeVisit}
           initialInpatientRecord={activeAdmission}
-          initialMedications={(duplicateTarget.medication_orders || []).map((order: any): MedicationOrderRow => ({
-            drug: order.drug || '',
-            drug_name: order.drug_name || order.drug || '',
-            dosage: order.dosage || '',
-            uom: order.uom || '',
-            no_of_days: order.no_of_days || 1,
-            dosage_form: order.dosage_form || '',
-            instructions: order.instructions || '',
-            date: new Date().toISOString().split('T')[0],
-            end_date: order.end_date || '',
-            time: order.time || '',
-            patient_frequency: order.patient_frequency || '',
-            is_pink: Boolean(order.is_pink),
-            reference_no: order.reference_no || '',
-            is_long_acting: Boolean(order.is_long_acting_medicine || order.is_long_acting),
-            long_acting_frequency: order.long_acting_frequency || 'Weekly',
-            route_of_administration: order.route_of_administration || '',
-            medication_type: order.medication_type || '',
-          }))}
+          initialMedications={(duplicateTarget.medication_orders || []).map(mapOrderToDuplicateMedication)}
           initialPractitioner={duplicateTarget.practitioner}
         />
       )}

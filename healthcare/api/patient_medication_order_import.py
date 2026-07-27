@@ -343,6 +343,157 @@ def _resolve_item_00_01_name(code_value: Any) -> str | None:
 	return None
 
 
+def resolve_current_item_from_legacy(code_value: Any) -> dict[str, str] | None:
+	"""Map a legacy ITEM_00_01 code to the linked current Item (when set).
+
+	Returns ``{"item", "item_name", "legacy_code"}`` or None when unmapped.
+	"""
+	legacy_code = _resolve_item_00_01_name(code_value)
+	if not legacy_code or not frappe.db.exists("DocType", "ITEM_00_01"):
+		return None
+	row = frappe.db.get_value(
+		"ITEM_00_01",
+		legacy_code,
+		["item", "item_name", "item_nam"],
+		as_dict=True,
+	)
+	if not row:
+		return None
+	item = (row.get("item") or "").strip()
+	if not item or not frappe.db.exists("Item", item):
+		return None
+	item_name = (
+		(row.get("item_name") or "").strip()
+		or frappe.db.get_value("Item", item, "item_name")
+		or (row.get("item_nam") or "").strip()
+		or item
+	)
+	return {"item": item, "item_name": item_name, "legacy_code": legacy_code}
+
+
+def apply_current_item_mapping_to_medication_rows(rows: list[Any] | None) -> list[dict]:
+	"""Ensure medication rows use the current Item when a legacy code is mapped.
+
+	Used when duplicating older prescriptions so doctors get a real Item link
+	(``drug``) instead of an Oracle medicine number.
+	"""
+	if not rows:
+		return []
+
+	parsed: list[dict] = []
+	for row in rows:
+		if isinstance(row, dict):
+			parsed.append(dict(row))
+		elif hasattr(row, "as_dict"):
+			parsed.append(row.as_dict())
+		else:
+			parsed.append(dict(row or {}))
+
+	candidate_codes: set[str] = set()
+	drug_candidates: set[str] = set()
+	for row in parsed:
+		drug = str(row.get("drug") or "").strip()
+		if drug:
+			drug_candidates.add(drug)
+		for key in ("old_medicine_code", "medicine_no", "drug"):
+			raw = str(row.get(key) or "").strip()
+			if raw:
+				candidate_codes.add(raw)
+				stripped = raw.lstrip("0") or raw
+				if stripped != raw:
+					candidate_codes.add(stripped)
+
+	valid_items: set[str] = set()
+	if drug_candidates:
+		valid_items = {
+			r.name
+			for r in frappe.get_all(
+				"Item",
+				filters={"name": ["in", list(drug_candidates)]},
+				fields=["name"],
+				limit_page_length=0,
+			)
+		}
+
+	legacy_to_item: dict[str, dict[str, str]] = {}
+	if candidate_codes and frappe.db.exists("DocType", "ITEM_00_01"):
+		# Resolve possible zero-padded variants to ITEM_00_01 names first.
+		resolved_names: set[str] = set()
+		code_alias: dict[str, str] = {}
+		for code in candidate_codes:
+			resolved = _resolve_item_00_01_name(code)
+			if resolved:
+				resolved_names.add(resolved)
+				code_alias[code] = resolved
+
+		if resolved_names:
+			for m in frappe.get_all(
+				"ITEM_00_01",
+				filters={"name": ["in", list(resolved_names)]},
+				fields=["name", "item", "item_name", "item_nam"],
+				limit_page_length=0,
+			):
+				item = (m.get("item") or "").strip()
+				if not item:
+					continue
+				item_name = (
+					(m.get("item_name") or "").strip()
+					or (m.get("item_nam") or "").strip()
+					or item
+				)
+				payload = {"item": item, "item_name": item_name, "legacy_code": m["name"]}
+				legacy_to_item[m["name"]] = payload
+
+			# Prefer Item.item_name and drop broken links
+			mapped_item_codes = list({p["item"] for p in legacy_to_item.values()})
+			if mapped_item_codes:
+				item_names = {
+					r.name: r.item_name
+					for r in frappe.get_all(
+						"Item",
+						filters={"name": ["in", mapped_item_codes]},
+						fields=["name", "item_name"],
+						limit_page_length=0,
+					)
+				}
+				valid_mapped = set(item_names)
+				for key, payload in list(legacy_to_item.items()):
+					if payload["item"] not in valid_mapped:
+						legacy_to_item.pop(key, None)
+						continue
+					payload["item_name"] = item_names.get(payload["item"]) or payload["item_name"]
+
+			# Allow lookup by original candidate codes (incl. zero-padded)
+			for original, resolved in code_alias.items():
+				if resolved in legacy_to_item:
+					legacy_to_item[original] = legacy_to_item[resolved]
+
+	for row in parsed:
+		drug = str(row.get("drug") or "").strip()
+		if drug and drug in valid_items:
+			if not str(row.get("drug_name") or "").strip():
+				row["drug_name"] = frappe.db.get_value("Item", drug, "item_name") or drug
+			continue
+
+		mapped = None
+		for key in ("old_medicine_code", "medicine_no", "drug"):
+			raw = str(row.get(key) or "").strip()
+			if not raw:
+				continue
+			mapped = legacy_to_item.get(raw) or legacy_to_item.get(raw.lstrip("0") or raw)
+			if mapped:
+				break
+		if not mapped:
+			continue
+
+		row["drug"] = mapped["item"]
+		row["drug_name"] = mapped["item_name"]
+		if not str(row.get("old_medicine_code") or "").strip():
+			row["old_medicine_code"] = mapped["legacy_code"]
+
+	return parsed
+
+
 def _normalize_oracle_medicine_num(value: Any) -> str | None:
 	"""Strip Oracle zero-padding from medicine numbers when ITEM_00_01 link is missing."""
 	code_str = _clean_oracle_num(value)

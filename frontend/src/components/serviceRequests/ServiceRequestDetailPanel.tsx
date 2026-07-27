@@ -54,7 +54,7 @@ function formatStatusLabel(status?: string) {
   return part.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
 }
 
-type LabLine = { label: string; kind?: string; discountNote?: string }
+type LabLine = { label: string; id?: string; kind?: string; discountNote?: string }
 
 function formatDiscountNote(row: Record<string, unknown> | undefined): string | undefined {
   if (!row) return undefined
@@ -64,6 +64,16 @@ function formatDiscountNote(row: Record<string, unknown> | undefined): string | 
   if (discType === 'Amount' && disc > 0) return `Discount: fixed ${disc}`
   if (discType === 'Percentage' && discRate > 0) return `Discount: ${discRate}%`
   return undefined
+}
+
+/** Prefer lab test name; keep id when different so both are clear. */
+function formatTemplateDisplay(id: string, name?: string): { label: string; id?: string } {
+  const cleanId = (id || '').trim()
+  const cleanName = (name || '').trim()
+  if (cleanName && cleanId && cleanName !== cleanId) {
+    return { label: cleanName, id: cleanId }
+  }
+  return { label: cleanName || cleanId || 'Lab test' }
 }
 
 function parseLabLines(raw: unknown): LabLine[] {
@@ -86,24 +96,32 @@ function parseLabLines(raw: unknown): LabLine[] {
     }
     const row = item as Record<string, unknown>
     if (row.kind === 'group') {
-      const parent = String(row.parent || 'Lab group')
+      const parentId = String(row.parent || '')
+      const parentName = String(row.parent_label || '')
       const children = Array.isArray(row.children) ? (row.children as string[]) : []
+      const childLabels = (row.child_labels || {}) as Record<string, string>
       const childDiscounts = (row.child_discounts || {}) as Record<string, Record<string, unknown>>
       if (!children.length) {
-        lines.push({ label: parent, kind: 'group' })
+        const display = formatTemplateDisplay(parentId, parentName || parentId)
+        lines.push({ ...display, kind: 'group' })
         continue
       }
       for (const child of children) {
+        const childId = String(child)
+        const display = formatTemplateDisplay(childId, childLabels[childId] || childId)
         lines.push({
-          label: child,
+          ...display,
           kind: 'group-child',
-          discountNote: formatDiscountNote(childDiscounts[child]),
+          discountNote: formatDiscountNote(childDiscounts[childId]),
         })
       }
       continue
     }
+    const templateId = String(row.template || row.template_dn || '')
+    const templateName = String(row.template_label || row.template_name || '')
+    const display = formatTemplateDisplay(templateId, templateName || templateId)
     lines.push({
-      label: String(row.template || row.template_dn || 'Lab test'),
+      ...display,
       kind: 'single',
       discountNote: formatDiscountNote(row),
     })
@@ -199,6 +217,11 @@ export function ServiceRequestDetailPanel({
     (doc?.template_name as string) ||
     (doc?.template_dn as string) ||
     '—'
+  const templateId = (doc?.template_dn as string) || ''
+  const templateDisplay =
+    templateId && templateLabel && templateLabel !== templateId
+      ? `${templateLabel} (${templateId})`
+      : templateLabel
   const isLabRequest = doc?.template_dt === 'Lab Test Template'
   const clinicianLabel = serviceRequestDetailClinicianLabel(
     doc?.template_dt as string | undefined,
@@ -274,7 +297,7 @@ export function ServiceRequestDetailPanel({
             <InfoTile
               icon={<FlaskConical className="h-4 w-4" />}
               label="Template"
-              value={templateLabel}
+              value={templateDisplay}
               className="sm:col-span-2"
             />
             {displayTotal != null && (
@@ -305,9 +328,14 @@ export function ServiceRequestDetailPanel({
                     key={i}
                     className="flex flex-col gap-0.5 rounded-md border border-slate-100 bg-slate-50/80 px-3 py-2 text-sm text-slate-800 sm:flex-row sm:items-center sm:justify-between"
                   >
-                    <span className="flex items-center gap-2">
-                      <span className="text-emerald-600/70">•</span>
-                      {line.label}
+                    <span className="flex min-w-0 items-start gap-2">
+                      <span className="mt-0.5 text-emerald-600/70">•</span>
+                      <span className="min-w-0">
+                        <span className="font-medium text-slate-900">{line.label}</span>
+                        {line.id ? (
+                          <span className="mt-0.5 block text-xs text-slate-500">{line.id}</span>
+                        ) : null}
+                      </span>
                     </span>
                     {line.discountNote ? (
                       <span className="text-xs font-medium text-emerald-700 sm:pl-4">{line.discountNote}</span>

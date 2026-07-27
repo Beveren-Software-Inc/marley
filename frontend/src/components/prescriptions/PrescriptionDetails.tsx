@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction, type MedicationOrderRow } from '../../services/prescriptions'
+import { fetchPrescription, setMedicationEntryStatus, type Prescription, type MedicationAction, mapOrderToDuplicateMedication } from '../../services/prescriptions'
 import { useAuth } from '../../providers/AuthProvider'
 import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -748,25 +748,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           initialCareContext={prescription.care_context as 'Patient Visit' | 'Inpatient Admission' | undefined}
           initialPatientEncounter={prescription.patient_encounter}
           initialInpatientRecord={prescription.inpatient_record}
-          initialMedications={orders.map((order: any): MedicationOrderRow => ({
-            drug: order.drug || '',
-            drug_name: order.drug_name || order.drug || '',
-            dosage: order.dosage || '',
-            uom: order.uom || '',
-            no_of_days: order.no_of_days || 1,
-            dosage_form: order.dosage_form || '',
-            instructions: order.instructions || '',
-            date: new Date().toISOString().split('T')[0],
-            end_date: order.end_date || '',
-            time: order.time || '',
-            patient_frequency: order.patient_frequency || '',
-            is_pink: order.is_pink || false,
-            reference_no: order.reference_no || '',
-            is_long_acting: order.is_long_acting_medicine || false,
-            long_acting_frequency: order.long_acting_frequency || 'Weekly',
-            route_of_administration: order.route_of_administration || '',
-            medication_type: order.medication_type || '',
-          }))}
+          initialMedications={orders.map(mapOrderToDuplicateMedication)}
           initialPractitioner={prescription.practitioner}
         />
       )}
