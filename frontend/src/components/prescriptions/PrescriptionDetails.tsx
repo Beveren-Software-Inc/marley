@@ -161,7 +161,11 @@ const MedicationRow = ({
   order: any
   parentStartDate?: string
   parentEndDate?: string
-  prescriptionPractitioner: { healthcare_practitioner_name?: string; practitioner?: string; user_name?: string }
+  prescriptionPractitioner: {
+    healthcare_practitioner_name?: string
+    healthcare_practitioner?: string
+    user_name?: string
+  }
   canManage?: boolean
   onAction?: (entry: string, drug: string, action: MedicationAction) => void
 }) => {
@@ -510,8 +514,18 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
         <div>
           <SectionTitle title="Prescribing Details" />
           <div className="space-y-1">
-            <Field label="Doctor Name"    value={prescription.healthcare_practitioner_name || prescription.practitioner || prescription.user_name} />
-            <Field label="Practitioner ID" value={prescription.practitioner} />
+            <Field
+              label="Doctor Name"
+              value={
+                prescription.healthcare_practitioner
+                  ? prescription.healthcare_practitioner_name || prescription.healthcare_practitioner
+                  : prescription.user_name
+              }
+            />
+            <Field
+              label="Practitioner ID"
+              value={prescription.healthcare_practitioner || undefined}
+            />
             <Field label="Company"         value={prescription.company} />
           </div>
         </div>
@@ -590,7 +604,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                         parentEndDate={prescription.end_date}
                         prescriptionPractitioner={{
                           healthcare_practitioner_name: prescription.healthcare_practitioner_name,
-                          practitioner: prescription.practitioner,
+                          healthcare_practitioner: prescription.healthcare_practitioner,
                           user_name: prescription.user_name,
                         }}
                         canManage={canManageMeds}

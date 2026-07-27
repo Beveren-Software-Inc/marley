@@ -26,8 +26,10 @@ export type MedicationOrderLike = {
 }
 
 export type PrescriptionPractitionerLike = {
+  /** Resolved name of Patient Medication Order.healthcare_practitioner */
   healthcare_practitioner_name?: string | null
-  practitioner?: string | null
+  /** Healthcare Practitioner link on Patient Medication Order */
+  healthcare_practitioner?: string | null
   user_name?: string | null
 }
 
@@ -119,26 +121,18 @@ export function displayMedicationRoute(order: MedicationOrderLike): string {
   return text(order.route_of_administration) || text(order.old_route) || '-'
 }
 
-/** Practitioner on parent PMO; legacy lines fall back to row/parent username. */
+/**
+ * Practitioner column: healthcare_practitioner name if set, else user_name.
+ */
 export function displayPrescriptionPractitioner(
   prescription: PrescriptionPractitionerLike,
   order?: MedicationOrderLike | null
 ): string {
-  if (order && isLegacyMedicationOrderRow(order)) {
-    return (
-      text(order.username) ||
-      text(prescription.user_name) ||
-      text(prescription.healthcare_practitioner_name) ||
-      text(prescription.practitioner) ||
-      '-'
-    )
+  const hp = text(prescription.healthcare_practitioner)
+  if (hp) {
+    return text(prescription.healthcare_practitioner_name) || hp
   }
-  return (
-    text(prescription.healthcare_practitioner_name) ||
-    text(prescription.practitioner) ||
-    text(prescription.user_name) ||
-    '-'
-  )
+  return text(prescription.user_name) || text(order?.username) || '-'
 }
 
 export function displayMedicationInstructions(order: MedicationOrderLike): string {

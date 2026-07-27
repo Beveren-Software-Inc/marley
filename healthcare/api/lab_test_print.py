@@ -126,12 +126,18 @@ def _patient_meta(doc):
 	if not user_name:
 		user_name = frappe.db.get_value("User", doc.get("owner"), "full_name") or doc.get("owner") or ""
 	sex_age = " / ".join([p for p in [doc.get("patient_sex") or "", doc.get("patient_age") or ""] if p])
+	referred_doctor = doc.get("practitioner_name") or doc.get("practitioner") or ""
+	if not referred_doctor and doc.get("doc_no"):
+		from healthcare.api.lab_test import _resolve_practitioner_from_doc_no
+
+		_, pract_name = _resolve_practitioner_from_doc_no(doc.get("doc_no"))
+		referred_doctor = pract_name or str(doc.get("doc_no") or "").strip()
 	return {
 		"patient_name": doc.get("patient_name") or patient or "",
 		"file_no": file_no,
 		"id_number": id_number,
 		"sex_age": sex_age,
-		"referred_doctor": doc.get("practitioner_name") or doc.get("practitioner") or "",
+		"referred_doctor": referred_doctor,
 		"request_no": doc.name,
 		"date": formatdate(doc.get("result_date") or doc.get("submitted_date") or doc.get("creation")),
 		"visit_no": doc.get("patient_visit") or "",

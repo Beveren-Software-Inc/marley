@@ -606,7 +606,7 @@
    "fetch_from": "practitioner.practitioner_name",
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
-   "label": "Requesting Practitioner",
+   "label": "Requesting Practitioner Name",
    "read_only": 1
   },
   {
@@ -1285,7 +1285,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-07-26 13:57:44.705866",
+ "modified": "2026-07-28 01:28:27.211127",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
