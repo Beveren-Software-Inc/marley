@@ -462,6 +462,7 @@ _LAB_TEST_LIST_FIELDS = [
 	"patient_name",
 	"practitioner",
 	"practitioner_name",
+	"doc_no",
 	"lab_test_name",
 	"template",
 	"status",
@@ -488,6 +489,69 @@ _LAB_TEST_LIST_FIELDS = [
 	"is_legacy_import",
 	"date",
 ]
+
+
+def _normalize_legacy_doc_no(value) -> str:
+	"""Normalize Oracle DOC_NUM stored on Lab Test.doc_no."""
+	if value is None or value == "":
+		return ""
+	if isinstance(value, float) and value == int(value):
+		return str(int(value))
+	if isinstance(value, int):
+		return str(value)
+	return str(value).strip()
+
+
+def _resolve_practitioner_from_doc_no(doc_no, cache=None):
+	"""Resolve Healthcare Practitioner id + display name from legacy doc_no (DOC_NUM / doctors_id).
+
+	Returns (practitioner_id_or_None, practitioner_name_or_None).
+	"""
+	code = _normalize_legacy_doc_no(doc_no)
+	if not code:
+		return None, None
+	if cache is not None and code in cache:
+		return cache[code]
+
+	practitioner = None
+	if frappe.db.exists("Healthcare Practitioner", code):
+		practitioner = code
+	else:
+		practitioner = frappe.db.get_value("Healthcare Practitioner", {"doctors_id": code}, "name")
+
+	practitioner_name = None
+	if practitioner:
+		practitioner_name = (
+			frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+			or practitioner
+		)
+
+	result = (practitioner, practitioner_name)
+	if cache is not None:
+		cache[code] = result
+	return result
+
+
+def _apply_doc_no_practitioner_fallback(lab_test, cache=None):
+	"""If requesting practitioner is missing, fill from legacy doc_no (Oracle DOC_NUM)."""
+	has_name = bool((lab_test.get("practitioner_name") or "").strip())
+	has_practitioner = bool((lab_test.get("practitioner") or "").strip())
+	if has_name and has_practitioner:
+		return lab_test
+
+	doc_no = lab_test.get("doc_no")
+	if not _normalize_legacy_doc_no(doc_no):
+		return lab_test
+
+	practitioner, practitioner_name = _resolve_practitioner_from_doc_no(doc_no, cache)
+	if practitioner and not has_practitioner:
+		lab_test["practitioner"] = practitioner
+	if practitioner_name and not has_name:
+		lab_test["practitioner_name"] = practitioner_name
+	elif not has_name and not has_practitioner:
+		# Still surface the doctor code rather than leaving the UI blank.
+		lab_test["practitioner_name"] = _normalize_legacy_doc_no(doc_no)
+	return lab_test
 
 _LAB_TEST_LINE_LIST_FIELDS = [
 	"parent",
@@ -555,6 +619,7 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 
 	patient_file_no_cache = {}
 	group_name_cache: dict[str, str] = {}
+	doc_no_practitioner_cache: dict[str, tuple] = {}
 	for lab_test in lab_tests:
 		lab_test["female_min_range"] = None
 		lab_test["female_max_range"] = None
@@ -593,6 +658,8 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 				frappe.db.get_value("Healthcare Practitioner", lab_test.practitioner, "practitioner_name")
 				or lab_test.practitioner
 			)
+		# Legacy imports store Oracle DOC_NUM on doc_no without setting practitioner.
+		_apply_doc_no_practitioner_fallback(lab_test, doc_no_practitioner_cache)
 		if lab_test.get("lab_technician") and not (lab_test.get("lab_technician_name") or "").strip():
 			lab_test["lab_technician_name"] = (
 				frappe.db.get_value("Healthcare Practitioner", lab_test.lab_technician, "practitioner_name")
@@ -1554,6 +1621,7 @@ def get_lab_test(name):
 		'patient_name': lab_test.patient_name,
 		'practitioner': lab_test.practitioner,
 		'practitioner_name': getattr(lab_test, 'practitioner_name', None),
+		'doc_no': getattr(lab_test, 'doc_no', None),
 		'lab_test_name': lab_test.lab_test_name,
 		'template': lab_test.template,
 		'status': lab_test.status,
@@ -1634,6 +1702,12 @@ def get_lab_test(name):
 		for r in normal_items
 	]
 	out['is_legacy_import'] = cint(getattr(lab_test, 'is_legacy_import', 0))
+	if out.get('practitioner') and not (out.get('practitioner_name') or '').strip():
+		out['practitioner_name'] = (
+			frappe.db.get_value('Healthcare Practitioner', out['practitioner'], 'practitioner_name')
+			or out['practitioner']
+		)
+	_apply_doc_no_practitioner_fallback(out)
 	line_rows = getattr(lab_test, 'lab_test_lines', None) or []
 	out['lab_test_lines'] = [
 		{
@@ -2924,28 +2998,46 @@ from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 @frappe.whitelist()
 def get_lab_tests_by_inpatient_record(inpatient_record: str):
-    """
-    Get all lab tests for a specific inpatient admission
-    """
-    if not inpatient_record:
-        frappe.throw(_("Inpatient record is required"))
-    
-    lab_tests = frappe.get_all(
-        "Lab Test",
-        filters={
-            "inpatient_record": inpatient_record,
-            "docstatus": ("!=", 2)  # Not cancelled
-        },
-        fields=[
-            "name", "patient", "patient_name", "lab_test_name", "template",
-            "status", "date", "result_date", "submitted_date", "approved_date",
-            "practitioner", "practitioner_name", "department", "invoiced",
-            "amount", "grand_total", "results", "descriptive_result", "lab_test_comment"
-        ],
-        order_by="date desc"
-    )
-    
-    return lab_tests
+	"""
+	Get all lab tests for a specific inpatient admission
+	"""
+	if not inpatient_record:
+		frappe.throw(_("Inpatient record is required"))
+
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters={
+			"inpatient_record": inpatient_record,
+			"docstatus": ("!=", 2),  # Not cancelled
+		},
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"lab_test_name",
+			"template",
+			"status",
+			"date",
+			"result_date",
+			"submitted_date",
+			"approved_date",
+			"practitioner",
+			"practitioner_name",
+			"doc_no",
+			"department",
+			"invoiced",
+			"amount",
+			"grand_total",
+			"results",
+			"descriptive_result",
+			"lab_test_comment",
+		],
+		order_by="date desc",
+	)
+	doc_no_cache: dict[str, tuple] = {}
+	for lab_test in lab_tests:
+		_apply_doc_no_practitioner_fallback(lab_test, doc_no_cache)
+	return lab_tests
 
 
 @frappe.whitelist()
@@ -2954,7 +3046,7 @@ def get_lab_tests_by_patient_visit(patient_visit: str):
 	if not patient_visit:
 		frappe.throw(_("Patient Visit is required"))
 
-	return frappe.get_all(
+	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters={
 			"patient_visit": patient_visit,
@@ -2973,6 +3065,7 @@ def get_lab_tests_by_patient_visit(patient_visit: str):
 			"approved_date",
 			"practitioner",
 			"practitioner_name",
+			"doc_no",
 			"department",
 			"invoiced",
 			"amount",
@@ -2984,66 +3077,73 @@ def get_lab_tests_by_patient_visit(patient_visit: str):
 		],
 		order_by="date desc",
 	)
+	doc_no_cache: dict[str, tuple] = {}
+	for lab_test in lab_tests:
+		_apply_doc_no_practitioner_fallback(lab_test, doc_no_cache)
+	return lab_tests
 
 
 @frappe.whitelist()
 def get_lab_test_by_id(name: str):
-    """
-    Get a single lab test by ID with all details
-    """
-    if not name:
-        frappe.throw(_("Lab test name is required"))
-    
-    doc = frappe.get_doc("Lab Test", name)
-    
-    # Get normal test items
-    normal_items = []
-    for item in doc.normal_test_items:
-        normal_items.append({
-            "lab_test_name": item.lab_test_name,
-            "lab_test_event": item.lab_test_event,
-            "result_value": item.result_value,
-            "min_range": item.min_range,
-            "max_range": item.max_range,
-            "result_date": item.result_date,
-            "in_range": item.in_range,
-            "allow_edit": item.allow_edit
-        })
-    
-    # Get sensitivity test items
-    sensitivity_items = []
-    for item in doc.sensitivity_test_items:
-        sensitivity_items.append({
-            "antibiotic": item.antibiotic,
-            "sensitivity": item.sensitivity,
-            "antibiotic_sensitivity": item.antibiotic_sensitivity
-        })
-    
-    return {
-        "name": doc.name,
-        "patient": doc.patient,
-        "patient_name": doc.patient_name,
-        "lab_test_name": doc.lab_test_name,
-        "template": doc.template,
-        "status": doc.status,
-        "date": doc.date,
-        "result_date": doc.result_date,
-        "submitted_date": doc.submitted_date,
-        "approved_date": doc.approved_date,
-        "practitioner": doc.practitioner,
-        "practitioner_name": doc.practitioner_name,
-        "department": doc.department,
-        "inpatient_record": doc.inpatient_record,
-        "service_unit": doc.service_unit,
-        "invoiced": doc.invoiced,
-        "amount": doc.amount,
-        "grand_total": doc.grand_total,
-        "results": doc.results,
-        "descriptive_result": doc.descriptive_result,
-        "lab_test_comment": doc.lab_test_comment,
-        "normal_test_items": normal_items,
-        "sensitivity_test_items": sensitivity_items
-    }
+	"""
+	Get a single lab test by ID with all details
+	"""
+	if not name:
+		frappe.throw(_("Lab test name is required"))
+
+	doc = frappe.get_doc("Lab Test", name)
+
+	# Get normal test items
+	normal_items = []
+	for item in doc.normal_test_items:
+		normal_items.append({
+			"lab_test_name": item.lab_test_name,
+			"lab_test_event": item.lab_test_event,
+			"result_value": item.result_value,
+			"min_range": item.min_range,
+			"max_range": item.max_range,
+			"result_date": item.result_date,
+			"in_range": item.in_range,
+			"allow_edit": item.allow_edit
+		})
+
+	# Get sensitivity test items
+	sensitivity_items = []
+	for item in doc.sensitivity_test_items:
+		sensitivity_items.append({
+			"antibiotic": item.antibiotic,
+			"sensitivity": item.sensitivity,
+			"antibiotic_sensitivity": item.antibiotic_sensitivity
+		})
+
+	out = {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name,
+		"lab_test_name": doc.lab_test_name,
+		"template": doc.template,
+		"status": doc.status,
+		"date": doc.date,
+		"result_date": doc.result_date,
+		"submitted_date": doc.submitted_date,
+		"approved_date": doc.approved_date,
+		"practitioner": doc.practitioner,
+		"practitioner_name": doc.practitioner_name,
+		"doc_no": getattr(doc, "doc_no", None),
+		"department": doc.department,
+		"inpatient_record": doc.inpatient_record,
+		"service_unit": doc.service_unit,
+		"invoiced": doc.invoiced,
+		"amount": doc.amount,
+		"grand_total": doc.grand_total,
+		"results": doc.results,
+		"descriptive_result": doc.descriptive_result,
+		"lab_test_comment": doc.lab_test_comment,
+		"normal_test_items": normal_items,
+		"sensitivity_test_items": sensitivity_items
+	}
+	_apply_doc_no_practitioner_fallback(out)
+	return out
 
 
 @frappe.whitelist(allow_guest=False)

@@ -35,6 +35,8 @@ export interface LabTest {
   gender?: string
   practitioner?: string
   practitioner_name?: string
+  /** Legacy Oracle DOC_NUM (doctor id) — used as practitioner fallback when practitioner is missing */
+  doc_no?: string
   lab_test_name?: string
   template?: string
   status?: string

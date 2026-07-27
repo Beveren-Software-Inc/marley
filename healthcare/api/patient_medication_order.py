@@ -54,6 +54,27 @@ def _ensure_pmo_write_permission(doc_or_name) -> None:
 	frappe.throw(_("Not permitted"), frappe.PermissionError)
 
 
+def _apply_pmo_practitioner_display(doc_or_row) -> None:
+	"""Resolve display name from healthcare_practitioner; leave empty when that link is blank."""
+	get = doc_or_row.get if hasattr(doc_or_row, "get") else lambda k, d=None: getattr(doc_or_row, k, d)
+
+	def set_val(key, value):
+		if isinstance(doc_or_row, dict):
+			doc_or_row[key] = value
+		else:
+			setattr(doc_or_row, key, value)
+
+	hp = cstr(get("healthcare_practitioner") or "").strip()
+	if hp:
+		set_val(
+			"healthcare_practitioner_name",
+			frappe.db.get_value("Healthcare Practitioner", hp, "practitioner_name") or hp,
+		)
+	else:
+		# Do not use practitioner / fetch_from name — UI falls back to user_name.
+		set_val("healthcare_practitioner_name", None)
+
+
 @frappe.whitelist()
 def get_medication_orders(
 	limit=50,
@@ -85,7 +106,8 @@ def get_medication_orders(
 
 	fields = [
 		'name', 'patient', 'patient_name', 'care_context', 'patient_encounter',
-		'inpatient_record', 'practitioner', 'user_name', 'posting_date', 'start_date', 'end_date',
+		'inpatient_record', 'practitioner', 'healthcare_practitioner', 'user_name',
+		'posting_date', 'start_date', 'end_date',
 		'status', 'total_orders', 'completed_orders', 'company',
 		'reference_doctype', 'reference_document_name', 'cost_center',
 		'new_system', 'doctors_signature', 'owner', 'creation',
@@ -282,12 +304,7 @@ def get_medication_orders(
 
 	fullname_cache = {}
 	for o in orders:
-		if o.get('practitioner'):
-			o['healthcare_practitioner_name'] = frappe.db.get_value(
-				'Healthcare Practitioner', o['practitioner'], 'practitioner_name'
-			) or o['practitioner']
-		else:
-			o['healthcare_practitioner_name'] = None
+		_apply_pmo_practitioner_display(o)
 		owner = o.get('owner')
 		if owner and owner not in fullname_cache:
 			fullname_cache[owner] = frappe.utils.get_fullname(owner)
@@ -799,12 +816,7 @@ def get_medication_order_by_id(name):
 	_ensure_pmo_read_permission(doc)
 
 	# Optional: enrich practitioner name (same as your list function)
-	if doc.practitioner:
-		doc.healthcare_practitioner_name = frappe.db.get_value(
-			"Healthcare Practitioner",
-			doc.practitioner,
-			"practitioner_name"
-		) or doc.practitioner
+	_apply_pmo_practitioner_display(doc)
 	_apply_legacy_ip_admission_medicine_fallbacks(doc)
 	_normalize_legacy_medicine_display_codes(doc)
 	_apply_current_item_from_legacy_mapping(doc)
@@ -1176,12 +1188,7 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
     _ensure_pmo_read_permission(doc)
 
     # Enrich with practitioner name
-    if doc.practitioner:
-        doc.healthcare_practitioner_name = frappe.db.get_value(
-            "Healthcare Practitioner",
-            doc.practitioner,
-            "practitioner_name"
-        ) or doc.practitioner
+    _apply_pmo_practitioner_display(doc)
     _apply_legacy_ip_admission_medicine_fallbacks(doc)
     _normalize_legacy_medicine_display_codes(doc)
     _apply_current_item_from_legacy_mapping(doc)

@@ -1216,7 +1216,11 @@ const MedicationRow = ({
 }: {
   order: any
   prescriptionName: string
-  prescriptionPractitioner: { healthcare_practitioner_name?: string; practitioner?: string; user_name?: string }
+  prescriptionPractitioner: {
+    healthcare_practitioner_name?: string
+    healthcare_practitioner?: string
+    user_name?: string
+  }
   onUpdated: () => void | Promise<void>
   onEdit: () => void
   readOnly?: boolean
@@ -1898,7 +1902,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
                     prescriptionName={prescription.name}
                     prescriptionPractitioner={{
                       healthcare_practitioner_name: prescription.healthcare_practitioner_name,
-                      practitioner: prescription.practitioner,
+                      healthcare_practitioner: prescription.healthcare_practitioner,
                       user_name: prescription.user_name,
                     }}
                     onUpdated={load}
