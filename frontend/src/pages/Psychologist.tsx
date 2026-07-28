@@ -11,12 +11,13 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExaminationList'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreatePatientMedicalHistoryModal } from '../components/medicalHistory/CreatePatientMedicalHistoryModal'
-import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import type { ComponentType } from 'react'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
@@ -335,9 +336,19 @@ export const PsychologistPage = () => {
       <div className="flex flex-col">
         {header}
         <div className="p-4">
-          <DashboardCard title="Warnings & Messages" noHeightLimit>
-            <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+          <div className="grid gap-4 md:grid-cols-2">
+            <DashboardCard title="Warnings & Messages" noHeightLimit>
+              <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
+            <DashboardCard title="Sticky Notes" noHeightLimit>
+              <WarningMessagesList
+                patient={selectedPatient}
+                specialPhoneScope="special_only"
+                title="Sticky Notes"
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+          </div>
         </div>
       </div>
     )
@@ -446,63 +457,67 @@ export const PsychologistPage = () => {
     <div className="flex flex-col">
       {header}
       <div className="p-4 space-y-4">
-        {selectedPatient && <PatientSummaryCard patient={selectedPatient} />}
+        <DashboardCard
+          title="Psychologist Notes"
+          listingScreen="p-notes"
+          onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
+          addButtonTitle="Add Psychologist Note"
+          fixedHeight
+        >
+          <ClinicalNotesList
+            patient={selectedPatient}
+            clinicalNoteType="Psychologist Note"
+            key={clinicalNotesRefreshKey}
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <DashboardCard
-            title="Psychologist Notes"
-            listingScreen="p-notes"
-            onAdd={() => guardClinicalCreate(() => setShowPsychNoteModal(true))}
-            addButtonTitle="Add Psychologist Note"
-            fixedHeight
-          >
-            <ClinicalNotesList
-              patient={selectedPatient}
-              clinicalNoteType="Psychologist Note"
-              key={clinicalNotesRefreshKey}
-              onPatientClick={handlePatientSelect}
-            />
+        <DashboardCard
+          title="Psychologist Orders"
+          listingScreen="p-orders"
+          onAdd={() => guardClinicalCreate(() => setShowPsychOrderModal(true))}
+          addButtonTitle="Add Psychologist Order"
+          fixedHeight
+        >
+          <ClinicalNotesList
+            patient={selectedPatient}
+            clinicalNoteType="Psychologist Order"
+            key={`order-${clinicalNotesRefreshKey}`}
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+
+        <DashboardCard title="Patient Visits" fixedHeight>
+          <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+        </DashboardCard>
+
+        <DashboardCard title="Inpatient" fixedHeight>
+          <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
+        </DashboardCard>
+
+        <DashboardCard title="Warnings & Messages" listingScreen="p-warn" fixedHeight>
+          <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
+        </DashboardCard>
+
+        {showRestricted && (
+          <DashboardCard title="Patient History" listingScreen="p-patient-history" fixedHeight>
+            <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
+        )}
 
-          <DashboardCard
-            title="Psychologist Orders"
-            listingScreen="p-orders"
-            onAdd={() => guardClinicalCreate(() => setShowPsychOrderModal(true))}
-            addButtonTitle="Add Psychologist Order"
-            fixedHeight
-          >
-            <ClinicalNotesList
-              patient={selectedPatient}
-              clinicalNoteType="Psychologist Order"
-              key={`order-${clinicalNotesRefreshKey}`}
-              onPatientClick={handlePatientSelect}
-            />
+        {showRestricted && (
+          <DashboardCard title="Physical Examination" listingScreen="p-physical" fixedHeight filterable={false}>
+            <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
+        )}
 
-          <DashboardCard title="Warnings & Messages" listingScreen="p-warn" fixedHeight>
-            <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
-
-          {showRestricted && (
-            <DashboardCard title="Patient History" listingScreen="p-patient-history" fixedHeight>
-              <PatientHistoryList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-            </DashboardCard>
+        <DashboardCard title="Medical History / Allergies" listingScreen="p-mh" fixedHeight filterable={false}>
+          {selectedPatient ? (
+            <MedicalHistoryView patient={selectedPatient} />
+          ) : (
+            <p className="py-4 text-center text-sm text-slate-400">Select a patient</p>
           )}
-
-          {showRestricted && (
-            <DashboardCard title="Physical Examination" listingScreen="p-physical" fixedHeight filterable={false}>
-              <PhysicalExaminationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
-            </DashboardCard>
-          )}
-
-          <DashboardCard title="Medical History / Allergies" listingScreen="p-mh" fixedHeight filterable={false}>
-            {selectedPatient ? (
-              <MedicalHistoryView patient={selectedPatient} />
-            ) : (
-              <p className="py-4 text-center text-sm text-slate-400">Select a patient</p>
-            )}
-          </DashboardCard>
-        </div>
+        </DashboardCard>
       </div>
 
       {showPsychNoteModal && (

@@ -33,6 +33,8 @@ interface TherapySessionPanelProps {
   onPatientClick?: (patient: string | undefined) => void
   initialTab?: SessionTab
   showAppointments?: boolean
+  /** When true, fill parent DashboardCard and scroll inside it instead of growing past it. */
+  embedded?: boolean
 }
 
 export function TherapySessionPanel({
@@ -43,6 +45,7 @@ export function TherapySessionPanel({
   onPatientClick,
   initialTab = 'session-schedule',
   showAppointments = true,
+  embedded = false,
 }: TherapySessionPanelProps) {
   const { guardClinicalCreate, activeVisit } = useCareContext()
   const [activeTab, setActiveTab] = useState<SessionTab>(initialTab)
@@ -53,9 +56,9 @@ export function TherapySessionPanel({
   const activeCard = cards.find((card) => card.id === activeTab) ?? cards[0]
 
   return (
-    <div className="space-y-4">
+    <div className={embedded ? 'flex min-h-0 flex-1 flex-col overflow-hidden' : 'space-y-4'}>
       {cards.length > 1 && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-w-2xl">
+        <div className={`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 max-w-2xl ${embedded ? 'mb-3 shrink-0' : ''}`}>
           {cards.map((card) => {
             const Icon = card.icon
             const isActive = activeTab === card.id
@@ -83,8 +86,14 @@ export function TherapySessionPanel({
       )}
 
       <CardFilterContext.Provider value={showFilters}>
-        <section className="bg-white border border-slate-200 rounded-lg shadow-sm">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+        <section
+          className={
+            embedded
+              ? 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm'
+              : 'rounded-lg border border-slate-200 bg-white shadow-sm'
+          }
+        >
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-4 py-2.5">
             <h2 className="text-sm font-semibold text-slate-800">{activeCard.title}</h2>
             <div className="flex items-center gap-2">
               <button
@@ -118,7 +127,14 @@ export function TherapySessionPanel({
             </div>
           </div>
 
-          <div className="overflow-x-auto overflow-y-auto max-h-[480px] p-3" style={{ scrollbarWidth: 'thin' }}>
+          <div
+            className={
+              embedded
+                ? 'flex min-h-0 flex-1 flex-col overflow-hidden p-3'
+                : 'max-h-[480px] overflow-x-auto overflow-y-auto p-3'
+            }
+            style={embedded ? undefined : { scrollbarWidth: 'thin' }}
+          >
             {activeTab === 'session-schedule' ? (
               <SessionScheduleList
                 embedded

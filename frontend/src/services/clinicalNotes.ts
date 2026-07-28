@@ -50,6 +50,25 @@ export interface PendingDoctorProgressEncounter {
   encounter_date?: string
 }
 
+export interface ClinicalNoteListResponse {
+  data: ClinicalNote[]
+  total_count: number
+}
+
+function normalizeClinicalNoteList(message: unknown): ClinicalNoteListResponse {
+  if (Array.isArray(message)) {
+    return { data: message as ClinicalNote[], total_count: message.length }
+  }
+  if (message && typeof message === 'object' && Array.isArray((message as { data?: unknown }).data)) {
+    const payload = message as { data: ClinicalNote[]; total_count?: number }
+    return {
+      data: payload.data,
+      total_count: Number(payload.total_count ?? payload.data.length),
+    }
+  }
+  return { data: [], total_count: 0 }
+}
+
 export async function fetchClinicalNotes(
   limit: number = 50,
   offset: number = 0,
@@ -64,7 +83,7 @@ export async function fetchClinicalNotes(
   practitioner?: string,
   postingDateFrom?: string,
   postingDateTo?: string,
-): Promise<ClinicalNote[]> {
+): Promise<ClinicalNoteListResponse> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
@@ -89,10 +108,7 @@ export async function fetchClinicalNotes(
       throw new Error(resData.message || 'Failed to fetch clinical notes')
     }
     
-    if (resData?.message && Array.isArray(resData.message)) {
-      return resData.message as ClinicalNote[]
-    }
-    return []
+    return normalizeClinicalNoteList(resData?.message)
   } catch (error) {
     console.error('Error fetching clinical notes:', error)
     throw error

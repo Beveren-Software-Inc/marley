@@ -217,11 +217,22 @@ def get_clinical_notes(**kwargs):
 			'Healthcare Practitioner', {'user_id': frappe.session.user}, 'name'
 		)
 		if not practitioner:
-			return []
+			return {'data': [], 'total_count': 0}
 		kwargs = dict(kwargs)
 		kwargs['practitioner'] = practitioner
 
 	filter_list, or_filters = _clinical_note_list_filters(kwargs)
+	ignore_permissions = portal_reader and not has_read
+
+	total_count = len(
+		frappe.get_all(
+			'Clinical Note',
+			filters=filter_list,
+			or_filters=or_filters,
+			pluck='name',
+			ignore_permissions=ignore_permissions,
+		)
+	)
 
 	clinical_notes = frappe.get_all(
 		'Clinical Note',
@@ -248,12 +259,15 @@ def get_clinical_notes(**kwargs):
 		limit=int(limit),
 		limit_start=int(offset),
 		order_by='posting_date desc',
-		ignore_permissions=portal_reader and not has_read,
+		ignore_permissions=ignore_permissions,
 	)
 	for note in clinical_notes:
 		_enrich_clinical_note_row(note)
 
-	return clinical_notes
+	return {
+		'data': clinical_notes,
+		'total_count': int(total_count or 0),
+	}
 
 
 @frappe.whitelist()

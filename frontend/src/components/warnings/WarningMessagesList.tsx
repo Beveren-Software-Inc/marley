@@ -1,12 +1,17 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { MoreHorizontal } from 'lucide-react'
 import { useWarningMessages } from '../../hooks/useWarningMessages'
 import type { NoPatientWarningScope, WarningMessage, WarningMessageListQuery } from '../../services/warningMessages'
+import { markStickyNoteVerified } from '../../services/warningMessages'
 import { WarningMessageDetailPanel } from './WarningMessageDetailPanel'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 // Format a datetime as "dd/mm/yyyy" + "HH:mm" (24h, no seconds)
 const formatPostingDateTime = (val?: string | null): { date: string; time: string } => {
@@ -30,10 +35,14 @@ const stripHtml = (html: string | undefined): string => {
   return text.trim().replace(/\s+/g, ' ') || '-'
 }
 
+const getWarningPreviewText = (warning: WarningMessage): string =>
+  stripHtml(warning.warning || warning.reported_information)
+
 interface WarningMessagesListProps {
   patient?: string
   /** When there is no patient filter: show only organisation notices, or all warnings (default). */
   noPatientScope?: NoPatientWarningScope
+  specialPhoneScope?: 'standard' | 'special_only' | 'all'
   onPatientClick?: (patient: string) => void
   title?: string
   onAdd?: () => void
@@ -43,6 +52,7 @@ interface WarningMessagesListProps {
 export const WarningMessagesList = ({
   patient,
   noPatientScope = 'all',
+  specialPhoneScope = 'standard',
   onPatientClick,
   title = 'Warnings & Allergies',
   onAdd,
@@ -57,9 +67,12 @@ export const WarningMessagesList = ({
   const [toDate, setToDate] = useState('')
   const [typeFilter, setTypeFilter] = useState<'Medical' | 'Organisation' | ''>('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [includeSpecialPhoneWarnings, setIncludeSpecialPhoneWarnings] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
 
   const listQuery: WarningMessageListQuery | undefined = useMemo(() => {
     if (noPatientScope === 'organisation') {
@@ -68,6 +81,8 @@ export const WarningMessagesList = ({
         practitioner: practitionerFilter || undefined,
         fromDate: fromDate || undefined,
         toDate: toDate || undefined,
+        includeSpecialPhoneWarnings,
+        specialPhoneScope,
       }
     }
     return {
@@ -75,11 +90,25 @@ export const WarningMessagesList = ({
       practitioner: practitionerFilter || undefined,
       fromDate: fromDate || undefined,
       toDate: toDate || undefined,
+      includeSpecialPhoneWarnings,
+      specialPhoneScope,
     }
-  }, [noPatientScope, typeFilter, practitionerFilter, fromDate, toDate])
+  }, [noPatientScope, typeFilter, practitionerFilter, fromDate, toDate, includeSpecialPhoneWarnings, specialPhoneScope])
 
-  const { warnings, loading, error, refetch } = useWarningMessages(patient, noPatientScope, listQuery)
+  useEffect(() => {
+    setPage(1)
+  }, [patient, noPatientScope, typeFilter, practitionerFilter, fromDate, toDate, includeSpecialPhoneWarnings, specialPhoneScope])
+
+  const { warnings, totalCount, loading, error, refetch } = useWarningMessages(
+    patient,
+    noPatientScope,
+    listQuery,
+    page,
+    pageSize,
+  )
   const [detailWarning, setDetailWarning] = useState<WarningMessage | null>(null)
+  const [actionMenuOpenFor, setActionMenuOpenFor] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -91,8 +120,22 @@ export const WarningMessagesList = ({
     return () => clearTimeout(t)
   }, [practitionerOpen, practitionerQuery])
 
+  useEffect(() => {
+    const handleWarningUpdated = () => {
+      refetch()
+    }
+    window.addEventListener('warning-message-updated', handleWarningUpdated)
+    return () => window.removeEventListener('warning-message-updated', handleWarningUpdated)
+  }, [refetch])
+
+  const allowIncludeSpecialToggle = specialPhoneScope !== 'special_only'
+
   const hasActiveFilters = Boolean(
-    practitionerFilter || fromDate || toDate || (noPatientScope !== 'organisation' && typeFilter),
+    practitionerFilter ||
+      fromDate ||
+      toDate ||
+      (allowIncludeSpecialToggle && includeSpecialPhoneWarnings) ||
+      (noPatientScope !== 'organisation' && typeFilter),
   )
 
   const clearFilters = () => {
@@ -101,13 +144,16 @@ export const WarningMessagesList = ({
     setTypeFilter('')
     setPractitionerFilter('')
     setPractitionerQuery('')
+    if (allowIncludeSpecialToggle) setIncludeSpecialPhoneWarnings(false)
   }
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
 
-  // No list until a patient is in scope — prompt to use the global patient search.
-  if (!patient) {
+  const allowGlobalStickyNotes = specialPhoneScope === 'special_only'
+
+  // Regular warnings stay patient-scoped. Sticky notes can be viewed globally.
+  if (!patient && !allowGlobalStickyNotes) {
     return (
       <div className="flex flex-1 items-center justify-center p-10 text-center">
         <p className="text-sm font-semibold uppercase tracking-wide text-slate-400">
@@ -179,7 +225,7 @@ export const WarningMessagesList = ({
 
       {showFilters && (
         <div className="card-filter-bar flex flex-wrap items-end gap-3 px-3 py-2 border-b border-slate-100 bg-slate-50/80">
-          {noPatientScope !== 'organisation' && (
+          {noPatientScope !== 'organisation' && specialPhoneScope !== 'special_only' && (
             <div className="flex flex-col gap-1 min-w-[140px]">
               <label className="text-xs font-medium text-slate-500">Type</label>
               <select
@@ -248,6 +294,17 @@ export const WarningMessagesList = ({
               </ul>
             )}
           </div>
+          {allowIncludeSpecialToggle ? (
+            <label className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={includeSpecialPhoneWarnings}
+                onChange={(e) => setIncludeSpecialPhoneWarnings(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              Show special phone warnings
+            </label>
+          ) : null}
           {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
         </div>
       )}
@@ -269,12 +326,13 @@ export const WarningMessagesList = ({
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Doctor Name</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Medical Role</th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Type</th>
-                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-full">Warnings &amp; Messages</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase w-full">Message</th>
+                <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-px">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {warnings.map((warning) => {
-                const text = stripHtml(warning.warning)
+                const text = getWarningPreviewText(warning)
                 const posted = formatPostingDateTime(warning.posting_date)
                 return (
                   <tr
@@ -290,7 +348,78 @@ export const WarningMessagesList = ({
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.medical_role || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">{warning.type_of_warning || 'Medical'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-800 align-top">
+                      {warning.is_special_phone_warning ? (
+                        <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                          <span className="inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800">
+                            Sticky Note
+                          </span>
+                          <span
+                            className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                              (warning.verification_status || '').toLowerCase() === 'verified'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {(warning.verification_status || 'Unverified').toUpperCase()}
+                          </span>
+                        </div>
+                      ) : null}
                       <div className="line-clamp-3 font-medium" title={text}>{text}</div>
+                    </td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap w-px align-top">
+                      <div className="inline-flex items-center gap-1">
+                        <div className="relative" ref={actionMenuOpenFor === warning.name ? actionMenuRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setActionMenuOpenFor((prev) => (prev === warning.name ? null : warning.name))
+                          }}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          aria-label="Open actions"
+                        >
+                          <MoreHorizontal className="h-4 w-4" aria-hidden />
+                        </button>
+                          <PortalActionsMenu
+                            open={actionMenuOpenFor === warning.name}
+                            onClose={() => setActionMenuOpenFor(null)}
+                            triggerRef={actionMenuRef}
+                            minWidth={160}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailWarning(warning)
+                                setActionMenuOpenFor(null)
+                              }}
+                              className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Open
+                            </button>
+                            {warning.is_special_phone_warning &&
+                            (warning.verification_status || '').toLowerCase() !== 'verified' ? (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await markStickyNoteVerified(warning.name)
+                                  setActionMenuOpenFor(null)
+                                  await refetch()
+                                }}
+                                className="block w-full px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                Mark Verified
+                              </button>
+                            ) : null}
+                          </PortalActionsMenu>
+                        </div>
+                        <PrintFormatDropdown
+                          doctype="Warning Message"
+                          docName={warning.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex items-center justify-center w-8 h-8 rounded-md border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      </div>
                     </td>
                   </tr>
                 )
@@ -299,6 +428,15 @@ export const WarningMessagesList = ({
           </table>
         ) : null}
       </div>
+
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+      />
 
       {detailWarning ? (
         <WarningMessageDetailPanel

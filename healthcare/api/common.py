@@ -1171,10 +1171,11 @@ def get_service_request_template_types():
 
 
 @frappe.whitelist()
-def get_service_request_templates(template_dt, search=None, department=None, is_group=None):
+def get_service_request_templates(template_dt, search=None, department=None, is_group=None, by_nurse=None):
 	"""Get list of templates based on template_dt (Order Template Type).
 
 	For Lab Test Template only, pass is_group=0 or is_group=1 to filter non-group vs group templates.
+	Pass by_nurse=1 to limit to Lab Test Template.by_nurse templates (nurse ordering).
 	"""
 	if not template_dt:
 		return []
@@ -1211,6 +1212,12 @@ def get_service_request_templates(template_dt, search=None, department=None, is_
 				filters['is_group'] = ig
 		except (TypeError, ValueError):
 			pass
+
+	if template_dt == 'Lab Test Template' and by_nurse is not None and str(by_nurse).strip() != '':
+		if isinstance(by_nurse, str):
+			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
+		if by_nurse:
+			filters['by_nurse'] = 1
 	
 	if department:
 		if template_dt == 'Lab Test Template':

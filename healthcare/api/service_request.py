@@ -22,6 +22,45 @@ LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 	"Administrator",
 }
 
+
+def _collect_lab_template_names_for_permission(
+	template_dn=None, lab_request_items=None, selected_group_templates=None
+):
+	"""Gather all Lab Test Template names involved in a create/update payload."""
+	names = set()
+	if template_dn:
+		names.add(str(template_dn).strip())
+	for item in lab_request_items or []:
+		if not isinstance(item, dict):
+			continue
+		kind = (item.get("kind") or "").strip().lower()
+		if kind == "single":
+			t = (item.get("template") or "").strip()
+			if t:
+				names.add(t)
+		elif kind == "group":
+			parent = (item.get("parent") or "").strip()
+			if parent:
+				names.add(parent)
+			for child in item.get("children") or []:
+				c = str(child).strip()
+				if c:
+					names.add(c)
+		else:
+			for key in ("template", "parent", "group_template"):
+				v = (item.get(key) or "").strip()
+				if v:
+					names.add(v)
+			for child in item.get("children") or item.get("templates") or []:
+				c = str(child).strip()
+				if c:
+					names.add(c)
+	for t in selected_group_templates or []:
+		if t:
+			names.add(str(t).strip())
+	return {n for n in names if n}
+
+
 def _get_template_base_rate(template_dt: str, template_dn: str, patient_care_type: str | None = None) -> float:
     """Resolve base rate from template document safely.
 
@@ -185,12 +224,34 @@ def _build_pricing_rows_for_template(
 	return rows
 
 
-def _ensure_lab_service_request_create_permission(template_dt):
+def _ensure_lab_service_request_create_permission(template_dt, template_names=None):
 	if template_dt != "Lab Test Template":
 		return
 
 	user_roles = set(frappe.get_roles(frappe.session.user))
 	if user_roles.intersection(LAB_SERVICE_REQUEST_ALLOWED_ROLES):
+		return
+
+	if "Nurse" in user_roles:
+		names = list(template_names or [])
+		if not names:
+			frappe.throw(_("Lab test template is required."), frappe.ValidationError)
+		non_nurse = []
+		for name in names:
+			if not frappe.db.exists("Lab Test Template", name):
+				frappe.throw(
+					_("Lab Test Template {0} not found").format(name),
+					frappe.ValidationError,
+				)
+			if not cint(frappe.db.get_value("Lab Test Template", name, "by_nurse")):
+				non_nurse.append(name)
+		if non_nurse:
+			frappe.throw(
+				_(
+					"Nurses can only create Lab Service Requests for By Nurse templates. Not allowed: {0}"
+				).format(", ".join(non_nurse)),
+				frappe.PermissionError,
+			)
 		return
 
 	frappe.throw(
@@ -839,7 +900,6 @@ def create_service_request(data):
 
 	if not data.get('template_dn'):
 		frappe.throw(_("Template is required"))
-	_ensure_lab_service_request_create_permission(data.get("template_dt"))
 
 	# Require either Patient Visit (OP) or Inpatient Admission for clinical context
 	if not data.get('patient_visit') and not data.get('inpatient_record'):
@@ -884,6 +944,15 @@ def create_service_request(data):
 			]
 		else:
 			lab_request_items = [{"kind": "single", "template": data["template_dn"]}]
+
+	_ensure_lab_service_request_create_permission(
+		data.get("template_dt"),
+		_collect_lab_template_names_for_permission(
+			data.get("template_dn"),
+			lab_request_items,
+			selected_group_templates,
+		),
+	)
 
 	service_request = frappe.get_doc({
 		'doctype': 'Service Request',

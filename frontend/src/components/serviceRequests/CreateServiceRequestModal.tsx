@@ -60,6 +60,8 @@ interface CreateServiceRequestModalProps {
    * searchable templates, and optional group/single filter (`is_group` on Lab Test Template).
    */
   labTestTemplateOnly?: boolean
+  /** When creating Lab Requests as a nurse: only show By Nurse templates. */
+  nurseLabTemplatesOnly?: boolean
   /** Override care context mode (e.g. create lab request from an IP admission panel). */
   forcedMode?: 'OP' | 'IP'
   /** Prefill / lock inpatient admission when creating from an admission context. */
@@ -102,6 +104,7 @@ export const CreateServiceRequestModal = ({
   initialTemplate,
   defaultTemplateType,
   labTestTemplateOnly = false,
+  nurseLabTemplatesOnly = false,
   forcedMode,
   initialInpatientRecord,
 }: CreateServiceRequestModalProps) => {
@@ -324,7 +327,8 @@ export const CreateServiceRequestModal = ({
         form.template_dt,
         templateSearchQuery.trim() || undefined,
         undefined,
-        isGroupParam
+        isGroupParam,
+        nurseLabTemplatesOnly || undefined,
       )
         .then((rows) => {
           setTemplates(rows)
@@ -343,7 +347,7 @@ export const CreateServiceRequestModal = ({
     const delay = templateSearchQuery.trim() ? 280 : 0
     const t = setTimeout(run, delay)
     return () => clearTimeout(t)
-  }, [form.template_dt, templateSearchQuery, labTemplateFilter, initialTemplate, templateTypes])
+  }, [form.template_dt, templateSearchQuery, labTemplateFilter, initialTemplate, templateTypes, nurseLabTemplatesOnly])
 
   useEffect(() => {
     if (!form.patient) return

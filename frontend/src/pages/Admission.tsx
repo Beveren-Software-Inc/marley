@@ -124,6 +124,16 @@ export const AdmissionPage = () => {
             </section>
 
             <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+              <div className="font-semibold mb-4">Sticky Notes</div>
+              <WarningMessagesList
+                patient={admissionPatient}
+                specialPhoneScope="special_only"
+                title="Sticky Notes"
+                onPatientClick={handlePatientFromAdmission}
+              />
+            </section>
+
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
               <div className="font-semibold mb-4">Lab Test Reports</div>
               <LabTestList patient={admissionPatient} onPatientClick={handlePatientFromAdmission} />
             </section>

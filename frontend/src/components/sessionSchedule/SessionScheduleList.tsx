@@ -12,6 +12,7 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 
 interface SessionScheduleListProps {
@@ -69,20 +70,24 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
 
   const loadSchedules = async () => {
     try {
       setLoading(true)
       setError(null)
       const response = await fetchSessionSchedules(
-        50,
-        0,
+        pageSize,
+        (page - 1) * pageSize,
         patient,
         admissionNumber,
         roleGroup,
         filterPractitioner || undefined
       )
-      setSchedules(response)
+      setSchedules(response.data)
+      setTotalCount(response.total_count)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch session schedules'))
       toast.error('Failed to load session schedules')
@@ -93,7 +98,11 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   useEffect(() => {
     loadSchedules()
-  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup, filterPractitioner])
+  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup, filterPractitioner, page, pageSize])
+
+  useEffect(() => {
+    setPage(1)
+  }, [patient, admissionNumber, roleGroup, filterPractitioner, filterStatus, filterDateFrom, filterDateTo])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -226,13 +235,17 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     filterPractitioner ||
     ''
 
-  if (loading) {
-    return <div className="flex items-center justify-center p-8 text-slate-600">Loading session schedules...</div>
+  if (loading && schedules.length === 0) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-8 text-slate-600">
+        Loading session schedules...
+      </div>
+    )
   }
 
   if (error) {
     return (
-      <div className="flex flex-col items-center justify-center p-8">
+      <div className="flex flex-1 flex-col items-center justify-center p-8">
         <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
           <h3 className="text-red-800 font-semibold mb-2">Error Loading Session Schedules</h3>
           <p className="text-red-700 text-sm">{error.message}</p>
@@ -242,9 +255,9 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   }
 
   return (
-    <>
+    <div className="flex flex-col flex-1 min-h-0 h-full">
       {!isInsideCard && !embedded && (
-        <div className="flex items-center justify-between gap-2 mb-3">
+        <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
           <h2 className="text-xl font-semibold text-slate-900">Session Schedules</h2>
           <button
             type="button"
@@ -260,7 +273,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
       )}
 
       {showFilters && (
-        <div className="card-filter-bar mb-3 space-y-2">
+        <div className="card-filter-bar mb-3 space-y-2 flex-shrink-0">
           <div className="flex flex-wrap items-end gap-2">
             <div className="flex flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">From Date</label>
@@ -331,18 +344,18 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
             {hasActiveFilters ? <ClearFiltersButton onClick={clearFilters} /> : null}
           </div>
           <p className="text-xs text-slate-500">
-            Showing {filtered.length} of {schedules.length} session schedule{schedules.length !== 1 ? 's' : ''}
+            Showing {filtered.length} of {totalCount} session schedule{totalCount !== 1 ? 's' : ''}
             {hasActiveFilters && ' (filtered)'}
           </p>
         </div>
       )}
 
       {filtered.length === 0 ? (
-        <div className="flex items-center justify-center p-8 text-slate-500">
+        <div className="flex flex-1 items-center justify-center p-8 text-slate-500">
           {schedules.length === 0 ? 'NO SESSION SCHEDULES FOUND' : 'NO SESSION SCHEDULES MATCH THE CURRENT FILTERS'}
         </div>
       ) : (
-        <div className="min-w-full overflow-x-auto">
+        <div className="flex-1 min-h-0 min-w-full overflow-auto">
           <table className="w-full min-w-[1100px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
@@ -483,6 +496,14 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
           </table>
         </div>
       )}
-    </>
+      <PaginationControls
+        page={page}
+        pageSize={pageSize}
+        totalCount={totalCount}
+        loading={loading}
+        onPageChange={setPage}
+        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+      />
+    </div>
   )
 }

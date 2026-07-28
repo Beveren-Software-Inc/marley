@@ -245,7 +245,7 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
         undefined,
         admissionName,
       )
-      setProgressNotes(data)
+      setProgressNotes(data.data)
     } catch (err) {
       console.error('Failed to load progress notes:', err)
     } finally {
