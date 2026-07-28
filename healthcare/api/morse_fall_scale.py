@@ -98,6 +98,7 @@ def get_morse_fall_scale_list(patient=None, practitioner=None, from_date=None, t
 			"cost_center",
 			"total_points",
 			"date",
+			"creation",
 			"modified",
 		],
 		order_by="modified desc",
@@ -170,6 +171,74 @@ def create_morse_fall_scale(data):
 		"practitioner": doc.practitioner,
 		"practitioner_name": doc.practitioner_name,
 		"total_points": doc.total_points,
+		"creation": doc.creation,
+		"modified": doc.modified,
+		"morse_fall_scale_detail": doc.morse_fall_scale_detail,
+	}
+
+
+_MORSE_FALL_SCALE_UPDATE_FIELDS = (
+	"admission_no",
+	"patient_no",
+	"orderer_number",
+	"company",
+	"date",
+	"written_admission",
+	"cost_center",
+	"practitioner",
+)
+
+
+@frappe.whitelist()
+def update_morse_fall_scale(data):
+	"""Update an existing Morse Fall Scale (24h window when setting enabled)."""
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
+	if isinstance(data, str):
+		data = json.loads(data)
+	data = data or {}
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Morse Fall Scale name is required"))
+	if not frappe.db.exists("Morse Fall Scale", name):
+		frappe.throw(_("Morse Fall Scale {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled("Morse Fall Scale", name, "unedit_within_24hour")
+
+	doc = frappe.get_doc("Morse Fall Scale", name)
+	for field in _MORSE_FALL_SCALE_UPDATE_FIELDS:
+		if field not in data:
+			continue
+		setattr(doc, field, data.get(field))
+
+	if "practitioner" in data:
+		practitioner = data.get("practitioner")
+		doc.practitioner_name = (
+			frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+			if practitioner
+			else None
+		)
+
+	if "morse_fall_scale_detail" in data and isinstance(data.get("morse_fall_scale_detail"), list):
+		doc.set("morse_fall_scale_detail", [])
+		for row in data.get("morse_fall_scale_detail"):
+			if isinstance(row, dict):
+				doc.append("morse_fall_scale_detail", row)
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+
+	return {
+		"name": doc.name,
+		"admission_no": doc.admission_no,
+		"patient_no": doc.patient_no,
+		"orderer_number": doc.orderer_number,
+		"company": doc.company,
+		"cost_center": doc.cost_center,
+		"practitioner": doc.practitioner,
+		"practitioner_name": doc.practitioner_name,
+		"total_points": doc.total_points,
+		"creation": doc.creation,
 		"modified": doc.modified,
 		"morse_fall_scale_detail": doc.morse_fall_scale_detail,
 	}

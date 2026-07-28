@@ -829,12 +829,16 @@ import {
 import { ChevronDown, ChevronUp, Trash2, ClipboardList } from 'lucide-react'
 import {
   createPatientAssessment,
+  updatePatientAssessment,
   fetchAssessmentTemplates,
   fetchDefaultPatientAssessmentTemplate,
+  fetchPatientAssessment,
   fetchTemplateParameters,
   fetchAssessmentParameters,
   type AssessmentSheetRow,
   type AssessmentTemplateOption,
+  type PatientAssessmentDoc,
+  type PatientAssessmentRow,
 } from '../../services/patientAssessment'
 import {
   fetchPatientVisits,
@@ -851,6 +855,7 @@ interface CreatePatientAssessmentModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
+  editRow?: PatientAssessmentRow
 }
 
 type TabId = 'details' | 'sheet' | 'more'
@@ -928,8 +933,10 @@ export const CreatePatientAssessmentModal = ({
   onClose,
   onSuccess,
   patient,
+  editRow,
 }: CreatePatientAssessmentModalProps) => {
   // Get context from CareContextProvider
+  const isEditMode = Boolean(editRow)
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
@@ -941,20 +948,23 @@ export const CreatePatientAssessmentModal = ({
   const [error, setError] = useState<string | null>(null)
 
   // ── Core fields ──────────────────────────────────────────────────────────────
-  const [patientId, setPatientId] = useState(patient || contextPatient || '')
-  const [patientName, setPatientName] = useState('')
+  const [patientId, setPatientId] = useState(editRow?.patient || patient || contextPatient || '')
+  const [patientName, setPatientName] = useState(editRow?.patient_name || '')
   // Reference type is now determined by global mode
   const referenceType = isIPMode ? 'Inpatient Admission' : isOPMode ? 'Patient Visit' : ''
   const [encounterId, setEncounterId] = useState(() => {
+    if (editRow?.encounter) return editRow.encounter
     if (isIPMode && activeAdmission) return activeAdmission
     if (isOPMode && activeVisit) return activeVisit
     return ''
   })
-  const [assessmentDatetime, setAssessmentDatetime] = useState(nowLocal())
-  const [assessmentDescription, setAssessmentDescription] = useState('')
-  const [familyHistory, setFamilyHistory] = useState('')
-  const [companyId, setCompanyId] = useState('')
-  const [therapySession, setTherapySession] = useState('')
+  const [assessmentDatetime, setAssessmentDatetime] = useState(
+    editRow?.assessment_datetime?.replace(' ', 'T').slice(0, 19) || nowLocal()
+  )
+  const [assessmentDescription, setAssessmentDescription] = useState(editRow?.assessment_description || '')
+  const [familyHistory, setFamilyHistory] = useState(editRow?.family_history || '')
+  const [companyId, setCompanyId] = useState(editRow?.company || '')
+  const [therapySession, setTherapySession] = useState(editRow?.therapy_session || '')
 
   // ── Assessment sheet ─────────────────────────────────────────────────────────
   const [sheetRows, setSheetRows] = useState<AssessmentSheetRow[]>([])
@@ -978,7 +988,9 @@ export const CreatePatientAssessmentModal = ({
   const [templateQuery, setTemplateQuery] = useState('')
   const [templateOpen, setTemplateOpen] = useState(false)
   const [templateOptions, setTemplateOptions] = useState<AssessmentTemplateOption[]>([])
-  const [selectedTemplate, setSelectedTemplate] = useState<AssessmentTemplateOption | null>(null)
+  const [selectedTemplate, setSelectedTemplate] = useState<AssessmentTemplateOption | null>(
+    editRow?.assessment_template ? { name: editRow.assessment_template, label: editRow.assessment_template } : null
+  )
 
   const [encounterQuery, setEncounterQuery] = useState('')
   const [encounterOpen, setEncounterOpen] = useState(false)
@@ -988,12 +1000,18 @@ export const CreatePatientAssessmentModal = ({
   const [practQuery, setPractQuery] = useState('')
   const [practOpen, setPractOpen] = useState(false)
   const [practOptions, setPractOptions] = useState<LinkFieldOption[]>([])
-  const [selectedPract, setSelectedPract] = useState<LinkFieldOption | null>(null)
+  const [selectedPract, setSelectedPract] = useState<LinkFieldOption | null>(
+    editRow?.healthcare_practitioner
+      ? { name: editRow.healthcare_practitioner, label: editRow.practitioner_name || editRow.healthcare_practitioner }
+      : null
+  )
 
   const [companyQuery, setCompanyQuery] = useState('')
   const [companyOpen, setCompanyOpen] = useState(false)
   const [companyOptions, setCompanyOptions] = useState<LinkFieldOption[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<LinkFieldOption | null>(null)
+  const [selectedCompany, setSelectedCompany] = useState<LinkFieldOption | null>(
+    editRow?.company ? { name: editRow.company, label: editRow.company } : null
+  )
 
   // ── Load all assessment parameters once ───────────────────────────────────────
   useEffect(() => {
@@ -1004,12 +1022,72 @@ export const CreatePatientAssessmentModal = ({
 
   // ── Patient label on mount ────────────────────────────────────────────────────
   useEffect(() => {
+    if (editRow) {
+      if (editRow.assessment_template) {
+        setTemplateQuery(editRow.assessment_template)
+      }
+      if (editRow.healthcare_practitioner) {
+        setPractQuery(editRow.practitioner_name || editRow.healthcare_practitioner)
+      }
+      if (editRow.company) {
+        setCompanyQuery(editRow.company)
+      }
+    }
     const patientToLoad = patient || contextPatient
     if (!patientToLoad) return
     fetchPatients(1, 0, patientToLoad).then((res) => {
       if (res.length > 0) { setPatientQuery(res[0].patient_name); setPatientName(res[0].patient_name) }
     }).catch(() => {})
   }, [patient, contextPatient])
+
+  useEffect(() => {
+    if (!editRow) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const doc: PatientAssessmentDoc = await fetchPatientAssessment(editRow.name)
+        if (cancelled) return
+        if (doc.assessment_template) {
+          const template = { name: doc.assessment_template, label: doc.assessment_template }
+          setSelectedTemplate(template)
+          setTemplateQuery(template.label)
+        }
+        if (doc.healthcare_practitioner) {
+          const pract = {
+            name: doc.healthcare_practitioner,
+            label: doc.practitioner_name || doc.healthcare_practitioner,
+          }
+          setSelectedPract(pract)
+          setPractQuery(pract.label)
+        }
+        if (doc.company) {
+          setCompanyId(doc.company)
+          setSelectedCompany({ name: doc.company, label: doc.company })
+          setCompanyQuery(doc.company)
+        }
+        setAssessmentDescription(doc.assessment_description || '')
+        setFamilyHistory(doc.family_history || '')
+        setTherapySession(doc.therapy_session || '')
+        if (Array.isArray(doc.assessment_sheet)) {
+          const rows = doc.assessment_sheet.map((row) => ({
+            parameter: row.parameter || row.parameter_label || '',
+            score: Number(row.score || 0),
+            time: row.time || '',
+            comments: row.comments || '',
+            yes: Boolean(row.yes),
+          }))
+          setSheetRows(rows)
+          setParamQuery(Object.fromEntries(rows.map((r, i) => [i, r.parameter])))
+          setExpandedRows(new Set(rows.map((_, i) => i)))
+        }
+      } catch {
+        // Keep row-level defaults if the fuller document fetch fails.
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [editRow])
 
   // ── Auto-load encounter label if context exists ──────────────────────────────
   useEffect(() => {
@@ -1064,6 +1142,7 @@ export const CreatePatientAssessmentModal = ({
 
   // ── Default assessment template on open ─────────────────────────────────────
   useEffect(() => {
+    if (editRow) return
     if (defaultTemplateLoaded.current) return
     defaultTemplateLoaded.current = true
     let cancelled = false
@@ -1228,7 +1307,7 @@ export const CreatePatientAssessmentModal = ({
     }
     setSaving(true); setError(null)
     try {
-      const result = await createPatientAssessment({
+      const payload = {
         patient: patientId,
         patient_name: patientName || undefined,
         assessment_template: selectedTemplate?.name || undefined,
@@ -1241,14 +1320,17 @@ export const CreatePatientAssessmentModal = ({
         assessment_description: assessmentDescription || undefined,
         family_history: familyHistory || undefined,
         assessment_sheet: sheetRows.filter((r) => r.parameter.trim()),
-      })
+      }
+      const result = editRow
+        ? await updatePatientAssessment({ name: editRow.name, ...payload })
+        : await createPatientAssessment(payload)
       if (result.success) {
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create assessment')
+        setError(result.message || `Failed to ${editRow ? 'update' : 'create'} assessment`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create assessment')
+      setError(e instanceof Error ? e.message : `Failed to ${editRow ? 'update' : 'create'} assessment`)
     } finally {
       setSaving(false)
     }
@@ -1267,7 +1349,7 @@ export const CreatePatientAssessmentModal = ({
         {/* ── Header ───────────────────────────────────────────────────────── */}
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 px-5 py-4 sm:px-6 flex flex-shrink-0 items-center justify-between">
           <div>
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Patient Assessment</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">{isEditMode ? 'Edit Patient Assessment' : 'New Patient Assessment'}</h2>
             <p className="text-xs text-slate-500 mt-0.5">
               {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
               {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
@@ -1654,7 +1736,7 @@ export const CreatePatientAssessmentModal = ({
               </button>
               <button type="submit" disabled={saving || (!isIPMode && !isOPMode) || (isIPMode && !encounterId) || (isOPMode && !encounterId)}
                 className={CM_BTN_PRIMARY}>
-                {saving ? 'Creating…' : 'Create Assessment'}
+                {saving ? 'Saving…' : isEditMode ? 'Update Assessment' : 'Create Assessment'}
               </button>
             </div>
           </div>

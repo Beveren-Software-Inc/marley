@@ -13,6 +13,8 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { EnvironmentalChecklistDetailPanel } from './EnvironmentalChecklistDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { DAILY_ROUTINE_EDIT_LOCKED_MESSAGE, isEditableWithin24hFromCreation } from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
 
 interface EnvironmentalChecklistListProps {
   patient?: string
@@ -22,6 +24,7 @@ interface EnvironmentalChecklistListProps {
   defaultVisit?: string
   createModalOpen?: boolean
   onCreateModalOpenChange?: (open: boolean) => void
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -57,13 +60,14 @@ export const EnvironmentalChecklistList = ({
   defaultVisit,
   createModalOpen,
   onCreateModalOpenChange,
+  allowEditWithin24h = false,
 }: EnvironmentalChecklistListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
-  const { guardClinicalCreate, guardClinicalEdit } = useCareContext()
+  const { guardClinicalCreate, guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const [rows, setRows] = useState<EnvironmentalChecklistRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -152,6 +156,13 @@ export const EnvironmentalChecklistList = ({
   }
 
   const handleEdit = (name: string) => {
+    const row = rows.find((item) => item.name === name)
+    if (!row) return
+    if (allowEditWithin24h && !isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      setOpenActionRow(null)
+      return
+    }
     setOpenActionRow(null)
     setDetailRow(null)
     guardClinicalEdit(() => setEditChecklist(name))
@@ -338,13 +349,29 @@ export const EnvironmentalChecklistList = ({
                           >
                             View
                           </button>
-                          <button
-                            type="button"
-                            onClick={() => handleEdit(row.name)}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-                          >
-                            Edit
-                          </button>
+                          {allowEditWithin24h ? (
+                            isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour) ? (
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(row.name)}
+                                className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                Edit
+                              </button>
+                            ) : (
+                              <div className="px-3 py-2 text-xs text-slate-500" title={DAILY_ROUTINE_EDIT_LOCKED_MESSAGE}>
+                                {uneditWithin24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                              </div>
+                            )
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(row.name)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                          )}
                         </PortalActionsMenu>
                       </div>
                       <PrintFormatDropdown

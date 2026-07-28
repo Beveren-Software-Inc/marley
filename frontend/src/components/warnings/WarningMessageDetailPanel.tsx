@@ -11,7 +11,7 @@ import {
   User,
   Users,
 } from 'lucide-react'
-import { fetchWarningMessage, type WarningMessage } from '../../services/warningMessages'
+import { fetchWarningMessage, markStickyNoteVerified, type WarningMessage } from '../../services/warningMessages'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
@@ -39,6 +39,10 @@ function formatDateTime(value?: string): string {
   } catch {
     return value
   }
+}
+
+function getPrimaryWarningBody(source?: WarningMessageDoc | WarningMessage | null): string {
+  return source?.warning || source?.reported_information || ''
 }
 
 function InfoTile({
@@ -102,6 +106,27 @@ function mapWarningMessageDoc(data: Record<string, unknown>): WarningMessageDoc 
     warning_message_class: data.warning_message_class ? String(data.warning_message_class) : undefined,
     creation: data.creation ? String(data.creation) : undefined,
     modified: data.modified ? String(data.modified) : undefined,
+    is_special_phone_warning: Number(data.is_special_phone_warning || 0),
+    show_in_standard_warning_popup: Number(data.show_in_standard_warning_popup || 0),
+    source_type: data.source_type ? String(data.source_type) : undefined,
+    caller_name: data.caller_name ? String(data.caller_name) : undefined,
+    caller_phone: data.caller_phone ? String(data.caller_phone) : undefined,
+    relationship_to_patient: data.relationship_to_patient ? String(data.relationship_to_patient) : undefined,
+    received_at: data.received_at ? String(data.received_at) : undefined,
+    received_by_user: data.received_by_user ? String(data.received_by_user) : undefined,
+    received_by_practitioner: data.received_by_practitioner ? String(data.received_by_practitioner) : undefined,
+    verified_on: data.verified_on ? String(data.verified_on) : undefined,
+    verified_by_user: data.verified_by_user ? String(data.verified_by_user) : undefined,
+    verified_by_practitioner: data.verified_by_practitioner ? String(data.verified_by_practitioner) : undefined,
+    verified_by_practitioner_name: data.verified_by_practitioner_name ? String(data.verified_by_practitioner_name) : undefined,
+    verification_status: data.verification_status ? String(data.verification_status) : undefined,
+    verification_method: data.verification_method ? String(data.verification_method) : undefined,
+    clinical_urgency: data.clinical_urgency ? String(data.clinical_urgency) : undefined,
+    requires_follow_up: Number(data.requires_follow_up || 0),
+    follow_up_status: data.follow_up_status ? String(data.follow_up_status) : undefined,
+    reported_information: data.reported_information ? String(data.reported_information) : undefined,
+    doctor_review_note: data.doctor_review_note ? String(data.doctor_review_note) : undefined,
+    next_action: data.next_action ? String(data.next_action) : undefined,
   }
 }
 
@@ -114,6 +139,7 @@ export function WarningMessageDetailPanel({
   const [doc, setDoc] = useState<WarningMessageDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -139,6 +165,7 @@ export function WarningMessageDetailPanel({
   const source = doc ?? preview
   const warningType = source?.type_of_warning || 'Medical'
   const isOrganisation = warningType === 'Organisation'
+  const isSpecialPhoneWarning = Boolean(source?.is_special_phone_warning)
 
   const headerSubtitle = useMemo(() => {
     if (!source) return name
@@ -150,29 +177,60 @@ export function WarningMessageDetailPanel({
     return parts.length ? parts.join(' · ') : name
   }, [source, name, isOrganisation])
 
-  const warningBody = doc?.warning ?? preview?.warning
+  const warningBody = getPrimaryWarningBody(doc) || getPrimaryWarningBody(preview)
   const highRiskText = doc?.high_risk_text
 
   const referenceLabel =
     source?.reference_doc && source?.reference_name
       ? `${source.reference_doc} · ${source.reference_name}`
       : source?.reference_name || source?.reference_doc || '—'
+  const canMarkVerified =
+    isSpecialPhoneWarning && (source?.verification_status || '').toLowerCase() !== 'verified'
 
   return (
     <DetailSlideOver
-      title={isOrganisation ? 'Organisation Warning' : 'Warning & Allergy'}
+      title={
+        isSpecialPhoneWarning
+          ? 'Special Phone Warning'
+          : isOrganisation
+            ? 'Organisation Warning'
+            : 'Warning & Allergy'
+      }
       subtitle={headerSubtitle}
       icon={<AlertTriangle className="h-5 w-5 text-amber-600" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
       headerActions={
-        <PrintFormatDropdown
-          doctype="Warning Message"
-          docName={name}
-          noLetterhead={0}
-          triggerPrint={1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
-        />
+        <div className="flex items-center gap-2">
+          {canMarkVerified ? (
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  setVerifying(true)
+                  const updated = await markStickyNoteVerified(name)
+                  setDoc((prev) => ({ ...(prev || {}), ...updated, name }))
+                  window.dispatchEvent(new CustomEvent('warning-message-updated'))
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : 'Failed to verify sticky note')
+                } finally {
+                  setVerifying(false)
+                }
+              }}
+              className="inline-flex h-9 items-center justify-center rounded-lg border border-emerald-300 bg-emerald-600 px-3 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={verifying}
+            >
+              {verifying ? 'Verifying...' : 'Mark Verified'}
+            </button>
+          ) : null}
+          <PrintFormatDropdown
+            doctype="Warning Message"
+            docName={name}
+            noLetterhead={0}
+            triggerPrint={1}
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
+          />
+        </div>
       }
     >
       {loading && !warningBody ? (
@@ -201,18 +259,71 @@ export function WarningMessageDetailPanel({
           <section className="rounded-xl border border-amber-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-amber-100/80 sm:px-5 sm:py-5">
             <div className="mb-3 flex items-center gap-2 border-b border-amber-100 pb-3">
               <FileText className="h-5 w-5 text-amber-600" strokeWidth={2} />
-              <h3 className="text-sm font-bold uppercase tracking-wide text-amber-950">Warning</h3>
+              <h3 className="text-sm font-bold uppercase tracking-wide text-amber-950">
+                {isSpecialPhoneWarning ? 'Sticky Note' : 'Warning'}
+              </h3>
             </div>
             <div className="min-h-[8rem] rounded-lg bg-slate-50/80 px-4 py-4 ring-1 ring-slate-100">
               {loading && warningBody ? (
                 <p className="mb-3 text-xs text-slate-400">Refreshing full record…</p>
               ) : null}
               <RichTextContent
-                value={warningBody || ''}
+                value={warningBody}
                 className="text-[15px] leading-relaxed text-slate-800"
               />
             </div>
           </section>
+
+          {isSpecialPhoneWarning ? (
+            <section className={MODAL_SECTION_CLASS}>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>
+                <AlertTriangle className="h-4 w-4 text-amber-600" strokeWidth={2} />
+                Phone Warning Details
+              </h3>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <InfoTile icon={<User className="h-4 w-4" strokeWidth={2} />} label="Source Type" value={displayValue(doc?.source_type || preview?.source_type)} />
+                <InfoTile icon={<User className="h-4 w-4" strokeWidth={2} />} label="Caller Name" value={displayValue(doc?.caller_name || preview?.caller_name)} />
+                <InfoTile icon={<User className="h-4 w-4" strokeWidth={2} />} label="Caller Phone" value={displayValue(doc?.caller_phone || preview?.caller_phone)} />
+                <InfoTile icon={<Users className="h-4 w-4" strokeWidth={2} />} label="Relationship" value={displayValue(doc?.relationship_to_patient || preview?.relationship_to_patient)} />
+                <InfoTile icon={<Calendar className="h-4 w-4" strokeWidth={2} />} label="Received At" value={formatDateTime(doc?.received_at || preview?.received_at)} />
+                <InfoTile icon={<User className="h-4 w-4" strokeWidth={2} />} label="Received By User" value={displayValue(doc?.received_by_user || preview?.received_by_user)} />
+                <InfoTile icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />} label="Received By Practitioner" value={displayValue(doc?.received_by_practitioner || preview?.received_by_practitioner)} />
+                <InfoTile icon={<ClipboardList className="h-4 w-4" strokeWidth={2} />} label="Verification Status" value={displayValue(doc?.verification_status || preview?.verification_status)} />
+                <InfoTile icon={<Calendar className="h-4 w-4" strokeWidth={2} />} label="Verified On" value={formatDateTime(doc?.verified_on || preview?.verified_on)} />
+                <InfoTile icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />} label="Verified By Doctor" value={displayValue(doc?.verified_by_practitioner_name || doc?.verified_by_practitioner || preview?.verified_by_practitioner_name || preview?.verified_by_practitioner)} />
+                <InfoTile icon={<ClipboardList className="h-4 w-4" strokeWidth={2} />} label="Clinical Urgency" value={displayValue(doc?.clinical_urgency || preview?.clinical_urgency)} />
+                <InfoTile icon={<ClipboardList className="h-4 w-4" strokeWidth={2} />} label="Follow Up Status" value={displayValue(doc?.follow_up_status || preview?.follow_up_status)} />
+                <InfoTile icon={<ClipboardList className="h-4 w-4" strokeWidth={2} />} label="Requires Follow Up" value={(doc?.requires_follow_up || preview?.requires_follow_up) ? 'Yes' : 'No'} />
+                <InfoTile icon={<AlertTriangle className="h-4 w-4" strokeWidth={2} />} label="Shown In Standard Popup" value={(doc?.show_in_standard_warning_popup || preview?.show_in_standard_warning_popup) ? 'Yes' : 'No'} />
+              </div>
+              <div className="mt-4 space-y-3">
+                {doc?.reported_information || preview?.reported_information ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Reported Information</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{doc?.reported_information || preview?.reported_information}</p>
+                  </div>
+                ) : null}
+                {doc?.verification_method || preview?.verification_method ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Verification Method</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{doc?.verification_method || preview?.verification_method}</p>
+                  </div>
+                ) : null}
+                {doc?.doctor_review_note || preview?.doctor_review_note ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Doctor Review Note</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{doc?.doctor_review_note || preview?.doctor_review_note}</p>
+                  </div>
+                ) : null}
+                {doc?.next_action || preview?.next_action ? (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Next Action</p>
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{doc?.next_action || preview?.next_action}</p>
+                  </div>
+                ) : null}
+              </div>
+            </section>
+          ) : null}
 
           <section className={MODAL_SECTION_CLASS}>
             <h3 className={MODAL_SECTION_TITLE_CLASS}>

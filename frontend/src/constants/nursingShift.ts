@@ -103,3 +103,13 @@ export function isClinicalNoteEditableWithin24h(
   if (Number.isNaN(createdAt)) return true
   return Date.now() - createdAt < NURSING_NOTE_EDIT_WINDOW_MS
 }
+
+/** Alias for daily-routine / vital-sign 24h edit windows (same creation-based rule). */
+export const isEditableWithin24hFromCreation = isClinicalNoteEditableWithin24h
+
+export const DAILY_ROUTINE_EDIT_LOCKED_MESSAGE =
+  'This record can no longer be edited. Edits are locked 24 hours after creation.'
+
+export const VITAL_SIGN_EDIT_LOCKED_MESSAGE =
+  'This vital sign can no longer be edited. Records are locked 24 hours after creation.'
+

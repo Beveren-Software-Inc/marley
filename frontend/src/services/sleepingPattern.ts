@@ -18,6 +18,7 @@ export interface SleepingPattern {
   evening_to?: string | null
   night_from?: string | null
   night_to?: string | null
+  creation?: string | null
   modified?: string | null
 }
 

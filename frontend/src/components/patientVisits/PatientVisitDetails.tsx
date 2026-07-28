@@ -152,7 +152,7 @@ function useVisitTabData(visitNo: string) {
   const loadNotes = useCallback(async () => {
     setLoadingNotes(true)
     try {
-      setNotes(await fetchClinicalNotes(100, 0, undefined, undefined, undefined, undefined, 'Patient Visit', visitNo))
+      setNotes((await fetchClinicalNotes(100, 0, undefined, undefined, undefined, undefined, 'Patient Visit', visitNo)).data)
     } catch {
       setNotes([])
     } finally {

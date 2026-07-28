@@ -17,6 +17,8 @@ export interface PatientAssessmentRow {
   family_history?: string | null
   scale_min?: number | null
   scale_max?: number | null
+  company?: string | null
+  therapy_session?: string | null
 }
 
 export interface PatientAssessmentSheetLine {
@@ -34,9 +36,10 @@ export type PatientAssessmentDoc = PatientAssessmentRow & {
 
 export interface AssessmentSheetRow {
   parameter: string
-  score: number
+  score?: number
   time?: string
   comments?: string
+  yes?: boolean
 }
 
 export interface TemplateParameters {
@@ -59,6 +62,8 @@ export interface CreatePatientAssessmentInput {
   family_history?: string
   assessment_sheet?: AssessmentSheetRow[]
 }
+
+export type UpdatePatientAssessmentInput = Partial<CreatePatientAssessmentInput> & { name: string }
 
 export interface AssessmentTemplateOption {
   name: string
@@ -129,6 +134,25 @@ export async function createPatientAssessment(
 ): Promise<{ success: boolean; name?: string; message?: string }> {
   const res = await fetch(
     '/api/method/healthcare.api.common.create_patient_assessment',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Frappe-CSRF-Token': (window as any).csrf_token || '',
+      },
+      body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+export async function updatePatientAssessment(
+  input: UpdatePatientAssessmentInput
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const res = await fetch(
+    '/api/method/healthcare.api.common.update_patient_assessment',
     {
       method: 'POST',
       headers: {

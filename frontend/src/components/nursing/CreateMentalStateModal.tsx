@@ -8,7 +8,7 @@ import {
   CreateModalFooter,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { createMentalState } from '../../services/mentalState'
+import { createMentalState, updateMentalState, type MentalStateRow } from '../../services/mentalState'
 import { fetchInpatientAdmissions, fetchBranches, syncCostCenterFromCareEpisode, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -17,6 +17,7 @@ interface CreateMentalStateModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
+  editRow?: MentalStateRow
 }
 
 type Tab = 'details' | 'behaviour' | 'orientation' | 'sleep'
@@ -51,86 +52,88 @@ const Sub = ({ label }: { label: string }) => (
   <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wide mt-4 mb-2">{label}</h4>
 )
 
-export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMentalStateModalProps) => {
+export const CreateMentalStateModal = ({ onClose, onSuccess, patient, editRow }: CreateMentalStateModalProps) => {
   const { mode, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const isIPMode = mode === 'IP'
+  const isEditMode = Boolean(editRow)
 
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Header fields
-  const [patientId, setPatientId] = useState(patient || contextPatient || '')
-  const [patientName, setPatientName] = useState('')
+  const [patientId, setPatientId] = useState(editRow?.file_no || patient || contextPatient || '')
+  const [patientName, setPatientName] = useState(editRow?.patient_name || '')
   const [admissionNo, setAdmissionNo] = useState(() => {
+    if (editRow?.admission_no) return editRow.admission_no
     if (isIPMode && activeAdmission) return activeAdmission
     return ''
   })
-  const [branch, setBranch] = useState('')
-  const [transShift, setTransShift] = useState('')
-  const [normalAt, setNormalAt] = useState('')
+  const [branch, setBranch] = useState(editRow?.branch || '')
+  const [transShift, setTransShift] = useState(editRow?.trans_shift != null ? String(editRow.trans_shift) : '')
+  const [normalAt, setNormalAt] = useState(editRow?.normal_at || '')
 
   // Behaviour checks
-  const [cooperative, setCooperative] = useState<0|1>(0)
-  const [aggressive, setAggressive] = useState<0|1>(0)
-  const [paranoid, setParanoid] = useState<0|1>(0)
-  const [demanding, setDemanding] = useState<0|1>(0)
-  const [preoccupied, setPreoccupied] = useState<0|1>(0)
-  const [defence, setDefence] = useState<0|1>(0)
-  const [impulsive, setImpulsive] = useState<0|1>(0)
-  const [sedative, setSedative] = useState<0|1>(0)
-  const [dellusion, setDellusion] = useState<0|1>(0)
+  const [cooperative, setCooperative] = useState<0|1>(editRow?.cooperative ?? 0)
+  const [aggressive, setAggressive] = useState<0|1>(editRow?.aggressive ?? 0)
+  const [paranoid, setParanoid] = useState<0|1>(editRow?.paranoid ?? 0)
+  const [demanding, setDemanding] = useState<0|1>(editRow?.demanding ?? 0)
+  const [preoccupied, setPreoccupied] = useState<0|1>(editRow?.preoccupied ?? 0)
+  const [defence, setDefence] = useState<0|1>(editRow?.defence ?? 0)
+  const [impulsive, setImpulsive] = useState<0|1>(editRow?.impulsive ?? 0)
+  const [sedative, setSedative] = useState<0|1>(editRow?.sedative ?? 0)
+  const [dellusion, setDellusion] = useState<0|1>(editRow?.dellusion ?? 0)
   // Speech checks
-  const [normalS, setNormalS] = useState<0|1>(0)
-  const [rapid, setRapid] = useState<0|1>(0)
-  const [slow, setSlow] = useState<0|1>(0)
-  const [poorSp, setPoorSp] = useState<0|1>(0)
-  const [slurred, setSlurred] = useState<0|1>(0)
-  const [coherent, setCoherent] = useState<0|1>(0)
-  const [incoherent, setIncoherent] = useState<0|1>(0)
-  const [talkative, setTalkative] = useState<0|1>(0)
+  const [normalS, setNormalS] = useState<0|1>(editRow?.normal_s ?? 0)
+  const [rapid, setRapid] = useState<0|1>(editRow?.rapid ?? 0)
+  const [slow, setSlow] = useState<0|1>(editRow?.slow ?? 0)
+  const [poorSp, setPoorSp] = useState<0|1>(editRow?.poor_sp ?? 0)
+  const [slurred, setSlurred] = useState<0|1>(editRow?.slurred ?? 0)
+  const [coherent, setCoherent] = useState<0|1>(editRow?.coherent ?? 0)
+  const [incoherent, setIncoherent] = useState<0|1>(editRow?.incoherent ?? 0)
+  const [talkative, setTalkative] = useState<0|1>(editRow?.talkative ?? 0)
   // Mood / Affect
-  const [anxious, setAnxious] = useState<0|1>(0)
-  const [angry, setAngry] = useState<0|1>(0)
-  const [depressed, setDepressed] = useState<0|1>(0)
-  const [elated, setElated] = useState<0|1>(0)
-  const [euthymic, setEuthymic] = useState<0|1>(0)
-  const [irritable, setIrritable] = useState<0|1>(0)
+  const [anxious, setAnxious] = useState<0|1>(editRow?.anxious ?? 0)
+  const [angry, setAngry] = useState<0|1>(editRow?.angry ?? 0)
+  const [depressed, setDepressed] = useState<0|1>(editRow?.depressed ?? 0)
+  const [elated, setElated] = useState<0|1>(editRow?.elated ?? 0)
+  const [euthymic, setEuthymic] = useState<0|1>(editRow?.euthymic ?? 0)
+  const [irritable, setIrritable] = useState<0|1>(editRow?.irritable ?? 0)
   // Motor
-  const [twitches, setTwitches] = useState<0|1>(0)
-  const [hyperactive, setHyperactive] = useState<0|1>(0)
-  const [stereotypes, setStereotypes] = useState<0|1>(0)
-  const [restless, setRestless] = useState<0|1>(0)
-  const [gait, setGait] = useState<0|1>(0)
-  const [tics, setTics] = useState<0|1>(0)
-  const [agitated, setAgitated] = useState<0|1>(0)
-  const [abnormal, setAbnormal] = useState<0|1>(0)
-  const [hallucinatoryBehaviour, setHallucinatoryBehaviour] = useState<0|1>(0)
-  const [normalMotor, setNormalMotor] = useState<0|1>(0)
+  const [twitches, setTwitches] = useState<0|1>(editRow?.twitches ?? 0)
+  const [hyperactive, setHyperactive] = useState<0|1>(editRow?.hyperactive ?? 0)
+  const [stereotypes, setStereotypes] = useState<0|1>(editRow?.stereotypes ?? 0)
+  const [restless, setRestless] = useState<0|1>(editRow?.restless ?? 0)
+  const [gait, setGait] = useState<0|1>(editRow?.gait ?? 0)
+  const [tics, setTics] = useState<0|1>(editRow?.tics ?? 0)
+  const [agitated, setAgitated] = useState<0|1>(editRow?.agitated ?? 0)
+  const [abnormal, setAbnormal] = useState<0|1>(editRow?.abnormal ?? 0)
+  const [hallucinatoryBehaviour, setHallucinatoryBehaviour] = useState<0|1>(editRow?.hallucinatory_behaviour ?? 0)
+  const [normalMotor, setNormalMotor] = useState<0|1>(editRow?.normal ?? 0)
 
   // Orientation & Appetite
-  const [place, setPlace] = useState<0|1>(0)
-  const [time, setTime] = useState<0|1>(0)
-  const [person, setPerson] = useState<0|1>(0)
-  const [normalAp, setNormalAp] = useState<0|1>(0)
-  const [increased, setIncreased] = useState<0|1>(0)
-  const [poorAp, setPoorAp] = useState<0|1>(0)
+  const [place, setPlace] = useState<0|1>(editRow?.place ?? 0)
+  const [time, setTime] = useState<0|1>(editRow?.time ?? 0)
+  const [person, setPerson] = useState<0|1>(editRow?.person ?? 0)
+  const [normalAp, setNormalAp] = useState<0|1>(editRow?.normal_ap ?? 0)
+  const [increased, setIncreased] = useState<0|1>(editRow?.increased ?? 0)
+  const [poorAp, setPoorAp] = useState<0|1>(editRow?.poor_ap ?? 0)
 
   // Sleep & Consciousness
-  const [sleepDuration, setSleepDuration] = useState('')
-  const [normalSleep, setNormalSleep] = useState<0|1>(0)
-  const [disturbed, setDisturbed] = useState<0|1>(0)
-  const [intermittent, setIntermittent] = useState<0|1>(0)
-  const [excessive, setExcessive] = useState<0|1>(0)
-  const [aLittle, setALittle] = useState<0|1>(0)
-  const [conscious, setConscious] = useState<0|1>(0)
-  const [alert, setAlert] = useState<0|1>(0)
-  const [disturbedCon, setDisturbedCon] = useState<0|1>(0)
+  const [sleepDuration, setSleepDuration] = useState(editRow?.sleep_duration != null ? String(editRow.sleep_duration) : '')
+  const [normalSleep, setNormalSleep] = useState<0|1>(editRow?.normal_sleep ?? 0)
+  const [disturbed, setDisturbed] = useState<0|1>(editRow?.disturbed ?? 0)
+  const [intermittent, setIntermittent] = useState<0|1>(editRow?.intermittent ?? 0)
+  const [excessive, setExcessive] = useState<0|1>(editRow?.excessive ?? 0)
+  const [aLittle, setALittle] = useState<0|1>(editRow?.a_little ?? 0)
+  const [conscious, setConscious] = useState<0|1>(editRow?.conscious ?? 0)
+  const [alert, setAlert] = useState<0|1>(editRow?.alert ?? 0)
+  const [disturbedCon, setDisturbedCon] = useState<0|1>(editRow?.disturbed_con ?? 0)
 
   // Psychotic Symptoms
-  const [delusion, setDelusion] = useState<0|1>(0)
-  const [perception, setPerception] = useState<0|1>(0)
-  const [remark, setRemark] = useState('')
+  const [delusion, setDelusion] = useState<0|1>(editRow?.delusion ?? 0)
+  const [perception, setPerception] = useState<0|1>(editRow?.perception ?? 0)
+  const [remark, setRemark] = useState(editRow?.remark || '')
 
   const hasAnySymptomChecked = useMemo(
     () =>
@@ -177,6 +180,9 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
   const [selectedBranch, setSelectedBranch] = useState<LinkFieldOption | null>(null)
 
   useEffect(() => {
+    if (editRow?.patient_name) {
+      setPatientQuery(editRow.patient_name)
+    }
     const patientToLoad = patient || contextPatient
     if (patientToLoad) {
       setPatientId(patientToLoad)
@@ -189,7 +195,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         })
         .catch(() => {})
     }
-  }, [patient, contextPatient])
+  }, [patient, contextPatient, editRow])
 
   useEffect(() => {
     if (isIPMode && activeAdmission) {
@@ -283,7 +289,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
     setSaving(true)
     setError(null)
     try {
-      const result = await createMentalState({
+      const payload = {
         file_no: patientId,
         patient_name: patientName || undefined,
         admission_no: admissionNo,
@@ -304,14 +310,17 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         conscious, alert, disturbed_con: disturbedCon,
         delusion, perception,
         remark: showRemark && remark.trim() ? remark.trim() : undefined,
-      })
+      }
+      const result = editRow
+        ? await updateMentalState({ name: editRow.name, ...payload })
+        : await createMentalState(payload)
       if (result.success) {
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create mental state record')
+        setError(result.message || `Failed to ${editRow ? 'update' : 'create'} mental state record`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create record')
+      setError(e instanceof Error ? e.message : `Failed to ${editRow ? 'update' : 'create'} record`)
     } finally {
       setSaving(false)
     }
@@ -330,7 +339,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
         {/* Header */}
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 p-4 sm:px-5 flex-shrink-0">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Mental State</h2>
+            <h2 className="text-lg font-semibold tracking-tight text-emerald-950">{isEditMode ? 'Edit Mental State' : 'New Mental State'}</h2>
             <button type="button" onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -656,7 +665,7 @@ export const CreateMentalStateModal = ({ onClose, onSuccess, patient }: CreateMe
               Cancel
             </button>
             <button type="submit" disabled={saving} className={CM_BTN_PRIMARY}>
-              {saving ? 'Saving…' : 'Save Record'}
+              {saving ? 'Saving…' : isEditMode ? 'Update Record' : 'Save Record'}
             </button>
           </CreateModalFooter>
         </form>

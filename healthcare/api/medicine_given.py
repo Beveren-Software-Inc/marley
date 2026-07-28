@@ -518,6 +518,7 @@ def _validate_medicine_given_batch_lot(
 	dispensing_lot: str | None = None,
 	warehouse: str | None = None,
 ) -> None:
+	"""Validate provided batch / lot values. Missing values are allowed (auto-resolve may fill them)."""
 	requires_dispensing_lot = _item_requires_dispensing_lot(item_code)
 	has_batch, has_serial = _item_tracking_flags(item_code)
 	if not requires_dispensing_lot and not has_batch and not has_serial:
@@ -529,19 +530,6 @@ def _validate_medicine_given_batch_lot(
 	dispensing_lot = (dispensing_lot or "").strip() or None
 
 	if requires_dispensing_lot:
-		if has_batch:
-			batches = []
-			if warehouse:
-				from healthcare.api.nursing_inventory import get_item_batches
-
-				batches = get_item_batches(item_code, warehouse) or []
-			if batches and not batch_no:
-				frappe.throw(_("Please select a batch for this medicine."))
-
-		available = _get_dispensing_lots_for_item(item_code, warehouse, batch_no)
-		if available and not dispensing_lot:
-			frappe.throw(_("Please select a dispensing lot for this medicine."))
-
 		if dispensing_lot:
 			if not frappe.db.exists("Dispensing Lot", dispensing_lot):
 				frappe.throw(_("Dispensing Lot {0} does not exist").format(dispensing_lot))
@@ -554,14 +542,13 @@ def _validate_medicine_given_batch_lot(
 					allowed_batches = set(_resolve_batch_no_for_dispensing_lot_filter(batch_no, item_code))
 					if lot_batch not in allowed_batches:
 						frappe.throw(_("Dispensing Lot {0} does not belong to batch {1}").format(dispensing_lot, batch_no))
+		if batch_no:
+			if not frappe.db.exists("Batch", batch_no):
+				frappe.throw(_("Batch {0} does not exist").format(batch_no))
+			batch_item = frappe.db.get_value("Batch", batch_no, "item")
+			if batch_item and batch_item != item_code:
+				frappe.throw(_("Batch {0} does not belong to item {1}").format(batch_no, item_code))
 		return
-
-	if has_batch:
-		from healthcare.api.nursing_inventory import get_item_batches
-
-		batches = get_item_batches(item_code, warehouse) if warehouse else []
-		if batches and not batch_no:
-			frappe.throw(_("Please select a batch for this medicine."))
 
 	if batch_no:
 		if not frappe.db.exists("Batch", batch_no):
@@ -570,7 +557,8 @@ def _validate_medicine_given_batch_lot(
 		if batch_item and batch_item != item_code:
 			frappe.throw(_("Batch {0} does not belong to item {1}").format(batch_no, item_code))
 
-	if has_serial and warehouse:
+	# Lot / serial integrity is checked only when a value is provided.
+	if has_serial and warehouse and lot_no:
 		from healthcare.api.nursing_inventory import get_batch_details_with_serials, get_item_serials
 
 		available_lots = []
@@ -580,8 +568,37 @@ def _validate_medicine_given_batch_lot(
 		else:
 			available_lots = get_item_serials(item_code, warehouse) or []
 
-		if available_lots and not lot_no:
-			frappe.throw(_("Please select a lot number for this medicine."))
+		if available_lots and lot_no not in available_lots:
+			frappe.throw(_("Lot {0} is not available for this medicine at the warehouse.").format(lot_no))
+
+
+def _resolve_and_validate_medicine_given_batch_lot(
+	item_code: str,
+	admission: str,
+	batch_no: str | None = None,
+	lot_no: str | None = None,
+	dispensing_lot: str | None = None,
+	warehouse: str | None = None,
+) -> tuple[str | None, str | None, str | None]:
+	"""FIFO-fill missing batch / lot, then validate any provided or resolved values."""
+	warehouse = _resolve_stock_warehouse(admission, warehouse)
+	resolved_batch, resolved_lot, resolved_dispensing = auto_resolve_medicine_given_batch_lot(
+		item_code,
+		admission,
+		batch_no=batch_no,
+		lot_no=lot_no,
+		dispensing_lot=dispensing_lot,
+		warehouse=warehouse,
+	)
+	_validate_medicine_given_batch_lot(
+		item_code,
+		admission,
+		resolved_batch,
+		resolved_lot,
+		resolved_dispensing,
+		warehouse=warehouse,
+	)
+	return resolved_batch, resolved_lot, resolved_dispensing
 
 
 def _apply_medicine_given_batch_lot(
@@ -1068,7 +1085,13 @@ def create_medicine_given(
 			frappe.throw(_("Enter a valid dose (numeric value only, e.g. 50 or 50mg)."))
 		_set_medicine_given_dose(row, dose_text)
 
-		_validate_medicine_given_batch_lot(drug_code, admission, batch_no, lot_no, dispensing_lot)
+		batch_no, lot_no, dispensing_lot = _resolve_and_validate_medicine_given_batch_lot(
+			drug_code,
+			admission,
+			batch_no=batch_no,
+			lot_no=lot_no,
+			dispensing_lot=dispensing_lot,
+		)
 
 		row.medicine_code = drug_code
 		if hasattr(row, "medicine_name"):
@@ -1435,13 +1458,16 @@ def update_medicine_given(
 	row_date = date or row.date or nowdate()
 	row_time = _normalize_row_time(time if time is not None else row.time)
 
-	_validate_medicine_given_batch_lot(
+	_batch_no, _lot_no, _dispensing_lot = _resolve_and_validate_medicine_given_batch_lot(
 		drug_code,
 		admission,
-		batch_no if batch_no is not None else row.batch_no,
-		lot_no if lot_no is not None else row.lot_no,
-		dispensing_lot if dispensing_lot is not None else row.dispensing_lot,
+		batch_no=batch_no if batch_no is not None else row.batch_no,
+		lot_no=lot_no if lot_no is not None else row.lot_no,
+		dispensing_lot=dispensing_lot if dispensing_lot is not None else row.dispensing_lot,
 	)
+	batch_no = _batch_no
+	lot_no = _lot_no
+	dispensing_lot = _dispensing_lot
 
 	prescription_frequency = None
 	medication_order = row.medication_order or row.patient_medication_order
@@ -1531,12 +1557,7 @@ def update_medicine_given(
 		row.unit = (unit or "").strip() or None
 	if dose_notes is not None:
 		row.dose_notes = dose_notes
-	_apply_medicine_given_batch_lot(
-		row,
-		batch_no if batch_no is not None else row.batch_no,
-		lot_no if lot_no is not None else row.lot_no,
-		dispensing_lot if dispensing_lot is not None else row.dispensing_lot,
-	)
+	_apply_medicine_given_batch_lot(row, batch_no, lot_no, dispensing_lot)
 
 	admission_detail.save(ignore_permissions=True)
 

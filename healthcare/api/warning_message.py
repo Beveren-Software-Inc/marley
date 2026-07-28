@@ -4,6 +4,7 @@
 
 import frappe
 from frappe import _
+from frappe.utils import cint, now_datetime
 
 # Portal users list/read warnings via whitelisted APIs; REST /api/resource enforces DocPerm.
 WARNING_MESSAGE_PORTAL_READ_ROLES = frozenset(
@@ -22,6 +23,10 @@ WARNING_MESSAGE_PORTAL_READ_ROLES = frozenset(
 		"Laboratory User",
 	}
 )
+
+
+def _warning_message_has_column(fieldname: str) -> bool:
+	return bool(frappe.db.has_column("Warning Message", fieldname))
 
 
 def _user_can_read_warning_message_portal() -> bool:
@@ -55,7 +60,72 @@ def _enrich_warning_message_row(warning) -> dict:
 	if not row.get("type_of_warning"):
 		row["type_of_warning"] = "Medical"
 
+	row["is_special_phone_warning"] = cint(row.get("is_special_phone_warning") or 0)
+	row["show_in_standard_warning_popup"] = cint(row.get("show_in_standard_warning_popup") or 0)
+	if row.get("is_special_phone_warning") and not (row.get("warning") or "").strip():
+		row["warning"] = row.get("reported_information") or ""
+	if row.get("verified_by_practitioner"):
+		row["verified_by_practitioner_name"] = (
+			frappe.db.get_value(
+				"Healthcare Practitioner", row["verified_by_practitioner"], "practitioner_name"
+			)
+			or row["verified_by_practitioner"]
+		)
+
 	return row
+
+
+def _get_warning_message_fields(*, for_list: bool = False) -> list[str]:
+	fields = [
+		"name",
+		"patient",
+		"posting_date",
+		"practitioner",
+		"warning",
+		"reported_information",
+		"reference_doc",
+		"reference_name",
+		"medical_role",
+		"type_of_warning",
+		"is_special_phone_warning",
+		"show_in_standard_warning_popup",
+		"verification_status",
+	]
+	if not for_list:
+		fields.extend(
+			[
+				"gender",
+				"blood_group",
+				"trans_id",
+				"high_risk_text",
+				"clinical_note_type",
+				"cost_center",
+				"warning_message_type",
+				"warning_message_class",
+				"creation",
+				"modified",
+				"source_type",
+				"caller_name",
+				"caller_phone",
+				"relationship_to_patient",
+				"received_at",
+				"received_by_user",
+				"received_by_practitioner",
+				"verification_status",
+				"verification_method",
+				"clinical_urgency",
+				"requires_follow_up",
+				"follow_up_status",
+				"doctor_review_note",
+				"next_action",
+			]
+		)
+
+	for optional_field in ("verified_by_user", "verified_by_practitioner", "verified_on"):
+		if _warning_message_has_column(optional_field):
+			fields.append(optional_field)
+
+	return fields
 
 
 def allocate_warning_trans_id() -> str:
@@ -110,6 +180,7 @@ def insert_medical_warning_message(
 	practitioner: str | None = None,
 	posting_date=None,
 	medical_role: str | None = None,
+	extra_fields: dict | None = None,
 ):
 	"""Insert a Medical Warning Message with mandatory ``trans_id`` set."""
 	if not patient:
@@ -129,6 +200,7 @@ def insert_medical_warning_message(
 			"medical_role": medical_role,
 			"reference_doc": reference_doc,
 			"reference_name": reference_name,
+			**(extra_fields or {}),
 		}
 	)
 	doc.insert(ignore_permissions=True)
@@ -146,6 +218,8 @@ def get_warning_messages(
 	practitioner=None,
 	posting_date_from=None,
 	posting_date_to=None,
+	include_special_phone_warnings=False,
+	special_phone_scope=None,
 ):
 	"""Get list of Warning Messages.
 
@@ -160,6 +234,7 @@ def get_warning_messages(
 	has_read = frappe.has_permission("Warning Message", "read")
 
 	filters = {}
+	or_filters = None
 
 	if patient:
 		filters['patient'] = patient
@@ -171,6 +246,16 @@ def get_warning_messages(
 
 	if practitioner:
 		filters['practitioner'] = practitioner
+
+	scope = (special_phone_scope or "").strip().lower()
+
+	if scope == "special_only":
+		filters["is_special_phone_warning"] = 1
+	elif not cint(include_special_phone_warnings):
+		or_filters = [
+			["Warning Message", "is_special_phone_warning", "=", 0],
+			["Warning Message", "show_in_standard_warning_popup", "=", 1],
+		]
 
 	if posting_date_from and posting_date_to:
 		filters['posting_date'] = ['between', [posting_date_from, posting_date_to]]
@@ -187,24 +272,28 @@ def get_warning_messages(
 	warnings = frappe.get_all(
 		'Warning Message',
 		filters=filters,
-		fields=[
-			'name',
-			'patient',
-			'posting_date',
-			'practitioner',
-			'warning',
-			'reference_doc',
-			'reference_name',
-			'medical_role',
-			'type_of_warning',
-		],
+		or_filters=or_filters,
+		fields=_get_warning_message_fields(for_list=True),
 		limit=limit,
 		limit_start=offset,
 		order_by='posting_date desc',
 		ignore_permissions=portal_reader and not has_read,
 	)
 
-	return [_enrich_warning_message_row(warning) for warning in warnings]
+	total_count = len(
+		frappe.get_all(
+			'Warning Message',
+			filters=filters,
+			or_filters=or_filters,
+			pluck='name',
+			ignore_permissions=portal_reader and not has_read,
+		)
+	)
+
+	return {
+		'data': [_enrich_warning_message_row(warning) for warning in warnings],
+		'total_count': int(total_count or 0),
+	}
 
 
 @frappe.whitelist()
@@ -217,16 +306,22 @@ def get_warning_message(name=None):
 	if not frappe.db.exists("Warning Message", name):
 		frappe.throw(_("Warning Message {0} not found").format(name))
 
-	doc = frappe.get_doc("Warning Message", name)
-
-	if not frappe.has_permission("Warning Message", "read", doc=doc):
+	if not frappe.has_permission("Warning Message", "read"):
 		if not _user_can_read_warning_message_portal():
 			frappe.throw(
 				_("Not permitted to read Warning Message"),
 				frappe.PermissionError,
 			)
-
-	return _enrich_warning_message_row(doc)
+	row = frappe.db.get_value(
+		"Warning Message",
+		name,
+		_get_warning_message_fields(for_list=False),
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(_("Warning Message {0} not found").format(name))
+	row["name"] = name
+	return _enrich_warning_message_row(row)
 
 
 @frappe.whitelist()
@@ -238,6 +333,35 @@ def create_warning_message(data):
 
 	practitioner = _resolve_practitioner(data)
 	medical_role = _resolve_medical_role(data, practitioner)
+	is_special_phone_warning = cint(data.get('is_special_phone_warning') or 0)
+	show_in_standard_warning_popup = cint(data.get('show_in_standard_warning_popup') or 0)
+
+	if is_special_phone_warning and not data.get('patient'):
+		frappe.throw(_("Patient is required for special phone warnings"))
+
+	effective_warning = (data.get('warning') or '').strip()
+	if is_special_phone_warning and not effective_warning:
+		effective_warning = (data.get('reported_information') or '').strip()
+
+	extra_fields = {
+		'is_special_phone_warning': is_special_phone_warning,
+		'show_in_standard_warning_popup': show_in_standard_warning_popup,
+		'caller_name': data.get('caller_name'),
+		'caller_phone': data.get('caller_phone'),
+		'relationship_to_patient': data.get('relationship_to_patient'),
+		'source_type': data.get('source_type'),
+		'verification_status': data.get('verification_status') or 'Unverified',
+		'verification_method': data.get('verification_method'),
+		'clinical_urgency': data.get('clinical_urgency') or 'Low',
+		'requires_follow_up': cint(data.get('requires_follow_up') or 0),
+		'follow_up_status': data.get('follow_up_status') or 'Open',
+		'received_by_user': data.get('received_by_user') or frappe.session.user,
+		'received_by_practitioner': data.get('received_by_practitioner') or practitioner,
+		'received_at': data.get('received_at') or data.get('posting_date') or frappe.utils.now(),
+		'reported_information': data.get('reported_information'),
+		'doctor_review_note': data.get('doctor_review_note'),
+		'next_action': data.get('next_action'),
+	}
 	
 	wtype = (data.get('type_of_warning') or 'Medical').strip()
 	if wtype not in ('Medical', 'Organisation'):
@@ -249,10 +373,11 @@ def create_warning_message(data):
 	if wtype == 'Medical':
 		warning = insert_medical_warning_message(
 			data.get('patient'),
-			data.get('warning', ''),
+			effective_warning,
 			practitioner=practitioner,
 			posting_date=data.get('posting_date'),
 			medical_role=medical_role,
+			extra_fields=extra_fields,
 		)
 	else:
 		warning = frappe.get_doc(
@@ -261,10 +386,11 @@ def create_warning_message(data):
 				'trans_id': allocate_warning_trans_id(),
 				'type_of_warning': wtype,
 				'patient': data.get('patient') or None,
-				'warning': data.get('warning', ''),
+				'warning': effective_warning,
 				'practitioner': practitioner,
 				'posting_date': data.get('posting_date') or frappe.utils.now(),
 				'medical_role': medical_role,
+				**extra_fields,
 			}
 		)
 		warning.insert(ignore_permissions=True)
@@ -283,4 +409,42 @@ def create_warning_message(data):
 		'practitioner_name': warning.practitioner_name if warning.practitioner else None,
 		'warning': warning.warning
 	}
+
+
+@frappe.whitelist()
+def mark_sticky_note_verified(name: str):
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Warning Message name is required"))
+
+	row = frappe.db.get_value(
+		"Warning Message",
+		name,
+		["is_special_phone_warning", "verification_method"],
+		as_dict=True,
+	)
+	if not row:
+		frappe.throw(_("Warning Message {0} not found").format(name))
+	if not row.is_special_phone_warning:
+		frappe.throw(_("Only sticky notes can be marked as verified"))
+
+	from healthcare.utils import get_current_user_practitioner
+
+	practitioner = get_current_user_practitioner()
+	verified_by_label = practitioner or frappe.session.user
+
+	update_values = {"verification_status": "Verified"}
+	if _warning_message_has_column("verified_by_user"):
+		update_values["verified_by_user"] = frappe.session.user
+	if practitioner and _warning_message_has_column("verified_by_practitioner"):
+		update_values["verified_by_practitioner"] = practitioner
+	if _warning_message_has_column("verified_on"):
+		update_values["verified_on"] = now_datetime()
+	else:
+		update_values["verification_method"] = (
+			f"{(row.verification_method or '').strip()}\nVerified by {verified_by_label} on {now_datetime()}"
+		).strip()
+
+	frappe.db.set_value("Warning Message", name, update_values, update_modified=True)
+	return get_warning_message(name)
 

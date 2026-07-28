@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 import {
   fetchAssessmentTemplates,
   fetchDefaultPatientAssessmentTemplate,
@@ -12,6 +13,11 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PatientAssessmentDetailPanel } from './PatientAssessmentDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { DAILY_ROUTINE_EDIT_LOCKED_MESSAGE, isEditableWithin24hFromCreation } from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
+import { CreatePatientAssessmentModal } from './CreatePatientAssessmentModal'
 
 interface PatientAssessmentListProps {
   patient?: string
@@ -21,6 +27,7 @@ interface PatientAssessmentListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -76,7 +83,9 @@ export const PatientAssessmentList = ({
   title = 'Patient Assessment',
   onAdd,
   addButtonTitle = 'New Patient Assessment',
+  allowEditWithin24h = false,
 }: PatientAssessmentListProps) => {
+  const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -86,6 +95,9 @@ export const PatientAssessmentList = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<PatientAssessmentRow | null>(null)
+  const [editRow, setEditRow] = useState<PatientAssessmentRow | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
   const [templateFilter, setTemplateFilter] = useState('')
   const [defaultTemplateName, setDefaultTemplateName] = useState('')
@@ -123,6 +135,19 @@ export const PatientAssessmentList = ({
     return () => {
       cancelled = true
     }
+  }, [])
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const load = useCallback(async () => {
@@ -216,6 +241,19 @@ export const PatientAssessmentList = ({
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
+
+  const canEditRow = (row: PatientAssessmentRow) =>
+    allowEditWithin24h &&
+    (typeof row.docstatus === 'number' ? row.docstatus === 0 : true) &&
+    isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)
+
+  const openEdit = (row: PatientAssessmentRow) => {
+    if (!canEditRow(row)) {
+      toast.error(row.docstatus === 1 ? 'Submitted assessments cannot be edited here.' : DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    guardClinicalEdit(() => setEditRow(row))
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -414,6 +452,42 @@ export const PatientAssessmentList = ({
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div className="flex items-center gap-2">
+                      {allowEditWithin24h ? (
+                        <div className="relative inline-block" ref={openActionRow === r.name ? actionMenuRef : undefined}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionRow((prev) => (prev === r.name ? null : r.name))}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                            aria-label="Actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === r.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={actionMenuRef}
+                            minWidth={180}
+                          >
+                            {canEditRow(r) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  openEdit(r)
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                Edit
+                              </button>
+                            ) : (
+                              <div className="px-3 py-2 text-xs text-slate-500" title={DAILY_ROUTINE_EDIT_LOCKED_MESSAGE}>
+                                {r.docstatus === 1 ? 'Edit locked (submitted)' : uneditWithin24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                              </div>
+                            )}
+                          </PortalActionsMenu>
+                        </div>
+                      ) : null}
                       <PrintFormatDropdown
                         doctype="Patient Assessment"
                         docName={r.name}
@@ -436,6 +510,18 @@ export const PatientAssessmentList = ({
           preview={detailRow}
           onClose={() => setDetailRow(null)}
           onPatientClick={onPatientClick}
+        />
+      ) : null}
+
+      {editRow ? (
+        <CreatePatientAssessmentModal
+          patient={patient}
+          editRow={editRow}
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
+            void load()
+          }}
         />
       ) : null}
     </div>

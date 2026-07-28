@@ -52,7 +52,9 @@ def get_vital_signs(limit=50, offset=0, patient=None, date_from=None, date_to=No
 			'inpatient_record',
 			'admission_no',
 			'appointment',
-			'encounter'
+			'encounter',
+			'creation',
+			'modified',
 		],
 		limit=limit,
 		limit_start=offset,
@@ -67,6 +69,18 @@ def get_vital_signs(limit=50, offset=0, patient=None, date_from=None, date_to=No
 				vs['patient_name'] = patient_name
 
 	return vital_signs
+
+
+@frappe.whitelist()
+def get_vital_sign(name: str | None = None):
+	"""Return one Vital Signs document for portal detail/edit."""
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Vital Signs name is required"))
+	if not frappe.db.exists("Vital Signs", name):
+		frappe.throw(_("Vital Signs {0} not found").format(name))
+	doc = frappe.get_doc("Vital Signs", name)
+	return doc.as_dict()
 
 
 @frappe.whitelist()
@@ -137,9 +151,67 @@ def create_vital_sign(data):
 		'height': doc.height,
 		'weight': doc.weight,
 		'bmi': doc.bmi,
+		'creation': doc.creation,
 	}
 
 
+_VITAL_SIGN_UPDATE_FIELDS = (
+	"signs_date",
+	"signs_time",
+	"temperature",
+	"pulse",
+	"respiratory_rate",
+	"bp_systolic",
+	"bp_diastolic",
+	"spo2",
+	"height",
+	"weight",
+	"vital_signs_note",
+	"nutrition_note",
+	"remarks",
+)
 
 
+@frappe.whitelist()
+def update_vital_sign(data):
+	"""Update an existing Vital Signs record (24h window when setting enabled)."""
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
 
+	if isinstance(data, str):
+		import json
+
+		data = json.loads(data)
+	data = data or {}
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Vital Signs name is required"))
+	if not frappe.db.exists("Vital Signs", name):
+		frappe.throw(_("Vital Signs {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled(
+		"Vital Signs",
+		name,
+		"vital_sign_uneditable_in_24_hour",
+		locked_message=_(
+			"This vital sign can no longer be edited. Records are locked 24 hours after creation."
+		),
+	)
+
+	doc = frappe.get_doc("Vital Signs", name)
+	for field in _VITAL_SIGN_UPDATE_FIELDS:
+		if field not in data:
+			continue
+		value = data.get(field)
+		if field == "signs_time" and isinstance(value, str) and len(value) == 5:
+			value = f"{value}:00"
+		setattr(doc, field, value)
+
+	doc.save(ignore_permissions=True)
+	return {
+		"name": doc.name,
+		"trans_no": doc.trans_no,
+		"patient": doc.patient,
+		"signs_date": doc.signs_date,
+		"signs_time": doc.signs_time,
+		"creation": doc.creation,
+	}

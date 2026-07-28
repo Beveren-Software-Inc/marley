@@ -1151,13 +1151,16 @@ export async function fetchServiceRequestTemplates(
   search?: string,
   department?: string,
   /** Lab Test Template only: filter by `is_group` on Lab Test Template (0 or 1). Omit for all. */
-  isGroup?: 0 | 1
+  isGroup?: 0 | 1,
+  /** Lab Test Template only: limit to By Nurse templates. */
+  byNurse?: boolean,
 ): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   params.append('template_dt', templateDt)
   if (search) params.append('search', search)
   if (department) params.append('department', department)
   if (isGroup === 0 || isGroup === 1) params.append('is_group', String(isGroup))
+  if (byNurse) params.append('by_nurse', '1')
   const url = `/api/method/healthcare.api.common.get_service_request_templates?${params.toString()}`
 
   const response = await fetch(url, { credentials: 'include' })

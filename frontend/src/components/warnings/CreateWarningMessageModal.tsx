@@ -28,9 +28,19 @@ interface CreateWarningMessageModalProps {
   onClose: () => void
   onSuccess?: () => void
   initialPatient?: string
+  defaultSpecialPhoneWarning?: boolean
+  title?: string
+  submitLabel?: string
 }
 
-export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }: CreateWarningMessageModalProps) => {
+export const CreateWarningMessageModal = ({
+  onClose,
+  onSuccess,
+  initialPatient,
+  defaultSpecialPhoneWarning = false,
+  title = 'Create Warning Message',
+  submitLabel = 'Create Warning Message',
+}: CreateWarningMessageModalProps) => {
   const [formData, setFormData] = useState({
     type_of_warning: 'Medical' as 'Medical' | 'Organisation',
     patient: initialPatient || '',
@@ -38,6 +48,20 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     practitioner: '',
     posting_date: new Date().toISOString().slice(0, 10),
     posting_time: new Date().toTimeString().slice(0, 5),
+    is_special_phone_warning: defaultSpecialPhoneWarning,
+    show_in_standard_warning_popup: false,
+    source_type: 'Unknown Caller',
+    caller_name: '',
+    caller_phone: '',
+    relationship_to_patient: '',
+    verification_status: 'Unverified',
+    verification_method: '',
+    clinical_urgency: 'Low',
+    requires_follow_up: true,
+    follow_up_status: 'Open',
+    reported_information: '',
+    doctor_review_note: '',
+    next_action: '',
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -56,17 +80,22 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.practitioner) {
+    if (!formData.is_special_phone_warning && !formData.practitioner) {
       setError('Please select a doctor')
       return
     }
-    if (formData.type_of_warning === 'Medical' && !formData.patient) {
-      setError('Patient is required for medical warnings')
+    if ((formData.type_of_warning === 'Medical' || formData.is_special_phone_warning) && !formData.patient) {
+      setError('Patient is required for this warning')
       return
     }
 
-    if (!formData.warning.trim()) {
+    if (!formData.is_special_phone_warning && !formData.warning.trim()) {
       setError('Warning message is required')
+      return
+    }
+
+    if (formData.is_special_phone_warning && !formData.reported_information.trim()) {
+      setError('Reported information is required for a special phone warning')
       return
     }
 
@@ -77,11 +106,39 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
       await createWarningMessage({
         type_of_warning: formData.type_of_warning,
         patient: formData.type_of_warning === 'Organisation' ? (formData.patient || undefined) : formData.patient,
-        warning: formData.warning,
-        practitioner: formData.practitioner || undefined,
+        warning: formData.is_special_phone_warning
+          ? formData.warning || formData.reported_information
+          : formData.warning,
+        practitioner: formData.is_special_phone_warning ? (formData.practitioner || undefined) : formData.practitioner || undefined,
         posting_date: formData.posting_date
           ? `${formData.posting_date} ${formData.posting_time || '00:00'}:00`
           : undefined,
+        is_special_phone_warning: formData.is_special_phone_warning ? 1 : 0,
+        show_in_standard_warning_popup: formData.show_in_standard_warning_popup ? 1 : 0,
+        source_type: formData.is_special_phone_warning ? formData.source_type : undefined,
+        caller_name: formData.is_special_phone_warning ? formData.caller_name || undefined : undefined,
+        caller_phone: formData.is_special_phone_warning ? formData.caller_phone || undefined : undefined,
+        relationship_to_patient: formData.is_special_phone_warning
+          ? formData.relationship_to_patient || undefined
+          : undefined,
+        verification_status: formData.is_special_phone_warning ? formData.verification_status : undefined,
+        verification_method: formData.is_special_phone_warning
+          ? formData.verification_method || undefined
+          : undefined,
+        clinical_urgency: formData.is_special_phone_warning ? formData.clinical_urgency : undefined,
+        requires_follow_up: formData.is_special_phone_warning ? (formData.requires_follow_up ? 1 : 0) : undefined,
+        follow_up_status: formData.is_special_phone_warning ? formData.follow_up_status : undefined,
+        reported_information: formData.is_special_phone_warning
+          ? formData.reported_information || undefined
+          : undefined,
+        doctor_review_note: formData.is_special_phone_warning
+          ? formData.doctor_review_note || undefined
+          : undefined,
+        next_action: formData.is_special_phone_warning ? formData.next_action || undefined : undefined,
+        received_at: formData.is_special_phone_warning && formData.posting_date
+          ? `${formData.posting_date} ${formData.posting_time || '00:00'}:00`
+          : undefined,
+        received_by_practitioner: formData.is_special_phone_warning ? formData.practitioner || undefined : undefined,
       })
 
       toast.success('Warning message created successfully')
@@ -96,7 +153,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
     }
   }
 
-  const handleChange = (field: string, value: string) => {
+  const handleChange = (field: string, value: string | boolean) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 
@@ -208,7 +265,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-y-auto')}>
-        <CreateModalHeader title="Create Warning Message" onClose={onClose} />
+        <CreateModalHeader title={title} onClose={onClose} />
 
         <form
           onSubmit={handleSubmit}
@@ -228,7 +285,13 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               onChange={(e) => {
                 const v = e.target.value as 'Medical' | 'Organisation'
                 if (v === 'Organisation') {
-                  setFormData((prev) => ({ ...prev, type_of_warning: v, patient: '' }))
+                  setFormData((prev) => ({
+                    ...prev,
+                    type_of_warning: v,
+                    patient: '',
+                    is_special_phone_warning: false,
+                    show_in_standard_warning_popup: false,
+                  }))
                   setPatientQuery('')
                 } else {
                   setFormData((prev) => ({
@@ -251,6 +314,177 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               <option value="Organisation">Organisation (facility-wide notice)</option>
             </select>
           </div>
+
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-700 uppercase">
+              <input
+                type="checkbox"
+                checked={formData.is_special_phone_warning}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    is_special_phone_warning: e.target.checked,
+                    type_of_warning: e.target.checked ? 'Medical' : prev.type_of_warning,
+                    show_in_standard_warning_popup: e.target.checked
+                      ? prev.show_in_standard_warning_popup
+                      : false,
+                  }))
+                }
+                className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+              />
+              Special phone warning
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              Use this for inbound phone-call information that should stay hidden from normal warning popups unless explicitly allowed.
+            </p>
+          </div>
+
+          {formData.is_special_phone_warning && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50/70 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Source Type</label>
+                  <select
+                    value={formData.source_type}
+                    onChange={(e) => handleChange('source_type', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Patient">Patient</option>
+                    <option value="Relative">Relative</option>
+                    <option value="Caregiver">Caregiver</option>
+                    <option value="Unknown Caller">Unknown Caller</option>
+                    <option value="External Provider">External Provider</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div className="flex items-center">
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 uppercase">
+                    <input
+                      type="checkbox"
+                      checked={formData.show_in_standard_warning_popup}
+                      onChange={(e) => handleChange('show_in_standard_warning_popup', e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    />
+                    Show in standard warning popup
+                  </label>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Caller Name</label>
+                  <input
+                    type="text"
+                    value={formData.caller_name}
+                    onChange={(e) => handleChange('caller_name', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Caller Phone</label>
+                  <input
+                    type="text"
+                    value={formData.caller_phone}
+                    onChange={(e) => handleChange('caller_phone', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Relationship To Patient</label>
+                  <input
+                    type="text"
+                    value={formData.relationship_to_patient}
+                    onChange={(e) => handleChange('relationship_to_patient', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Verification Status</label>
+                  <select
+                    value={formData.verification_status}
+                    onChange={(e) => handleChange('verification_status', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Unverified">Unverified</option>
+                    <option value="Partially Verified">Partially Verified</option>
+                    <option value="Verified">Verified</option>
+                    <option value="Rejected">Rejected</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Clinical Urgency</label>
+                  <select
+                    value={formData.clinical_urgency}
+                    onChange={(e) => handleChange('clinical_urgency', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Low">Low</option>
+                    <option value="Medium">Medium</option>
+                    <option value="High">High</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Follow Up Status</label>
+                  <select
+                    value={formData.follow_up_status}
+                    onChange={(e) => handleChange('follow_up_status', e.target.value)}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  >
+                    <option value="Open">Open</option>
+                    <option value="Reviewed">Reviewed</option>
+                    <option value="Closed">Closed</option>
+                  </select>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="flex items-center gap-2 text-sm font-medium text-slate-700 uppercase">
+                    <input
+                      type="checkbox"
+                      checked={formData.requires_follow_up}
+                      onChange={(e) => handleChange('requires_follow_up', e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                    />
+                    Requires follow up
+                  </label>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+                    Reported Information <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={formData.reported_information}
+                    onChange={(e) => handleChange('reported_information', e.target.value)}
+                    rows={3}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="Record exactly what the caller reported..."
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Verification Method</label>
+                  <textarea
+                    value={formData.verification_method}
+                    onChange={(e) => handleChange('verification_method', e.target.value)}
+                    rows={2}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Doctor Review Note</label>
+                  <textarea
+                    value={formData.doctor_review_note}
+                    onChange={(e) => handleChange('doctor_review_note', e.target.value)}
+                    rows={2}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Next Action</label>
+                  <textarea
+                    value={formData.next_action}
+                    onChange={(e) => handleChange('next_action', e.target.value)}
+                    rows={2}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
 
           <div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -308,7 +542,13 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Doctor <span className="text-red-500">*</span></label>
+                <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
+                  Doctor
+                  {!formData.is_special_phone_warning && <span className="text-red-500"> *</span>}
+                  {formData.is_special_phone_warning && (
+                    <span className="text-slate-400 font-normal"> (optional)</span>
+                  )}
+                </label>
                 <div className="relative flex items-center">
                   <input
                     type="text"
@@ -361,15 +601,23 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
-                  Warning Message <span className="text-red-500">*</span>
+                  Warning Message
+                  {!formData.is_special_phone_warning && <span className="text-red-500"> *</span>}
+                  {formData.is_special_phone_warning && (
+                    <span className="text-slate-400 font-normal"> (optional)</span>
+                  )}
                 </label>
                 <textarea
                   value={formData.warning}
                   onChange={(e) => handleChange('warning', e.target.value)}
                   rows={4}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  placeholder="Enter warning message..."
-                  required
+                  placeholder={
+                    formData.is_special_phone_warning
+                      ? 'Optional summary title for the sticky note...'
+                      : 'Enter warning message...'
+                  }
+                  required={!formData.is_special_phone_warning}
                 />
               </div>
 
@@ -405,7 +653,7 @@ export const CreateWarningMessageModal = ({ onClose, onSuccess, initialPatient }
               Cancel
             </button>
             <button type="submit" disabled={loading} className={CM_BTN_PRIMARY}>
-              {loading ? 'Creating...' : 'Create Warning Message'}
+              {loading ? 'Creating...' : submitLabel}
             </button>
           </CreateModalFooter>
         </form>

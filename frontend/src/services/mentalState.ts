@@ -81,6 +81,7 @@ export interface MentalStateRow {
 export type MentalStateDoc = MentalStateRow
 
 export type CreateMentalStateInput = Omit<MentalStateRow, 'name' | 'creation'>
+export type UpdateMentalStateInput = Partial<CreateMentalStateInput> & { name: string }
 
 export type NursingListFilters = {
   dateFrom?: string
@@ -130,6 +131,27 @@ export async function createMentalState(
     (window as unknown as Record<string, string>).csrf_token || ''
   const res = await fetch(
     '/api/method/healthcare.api.common.create_mental_state',
+    {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Frappe-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ data: JSON.stringify(input) }),
+    }
+  )
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+export async function updateMentalState(
+  input: UpdateMentalStateInput
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const csrfToken =
+    (window as unknown as Record<string, string>).csrf_token || ''
+  const res = await fetch(
+    '/api/method/healthcare.api.common.update_mental_state',
     {
       method: 'POST',
       headers: {

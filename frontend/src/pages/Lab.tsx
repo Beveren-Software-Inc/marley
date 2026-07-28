@@ -1271,6 +1271,16 @@ export const LabPage = () => {
           />
         </DashboardCard>
 
+        <DashboardCard fixedHeight title="Sticky Notes" listingScreen="sticky-notes">
+          <WarningMessagesList
+            patient={selectedPatient || undefined}
+            noPatientScope="all"
+            specialPhoneScope="special_only"
+            title="Sticky Notes"
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+
       </div>
 
       {showLabTestModal && (

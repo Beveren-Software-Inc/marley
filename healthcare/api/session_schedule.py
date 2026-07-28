@@ -474,9 +474,22 @@ def get_session_schedules(
 			for row in schedules
 			if not row.get("doctor") or row.get("doctor") in allowed_doctors
 		]
+		total_count = len(schedules)
 		schedules = schedules[offset : offset + limit]
+	else:
+		total_count = len(
+			frappe.get_list(
+				"Session Schedule",
+				filters=filters,
+				or_filters=or_filters,
+				pluck="name",
+			)
+		)
 
-	return _attach_sales_orders(schedules)
+	return {
+		"data": _attach_sales_orders(schedules),
+		"total_count": int(total_count or 0),
+	}
 
 
 @frappe.whitelist()

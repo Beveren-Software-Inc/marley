@@ -45,6 +45,8 @@ import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/
 import { isDataOfficer } from '../config/permissions'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PractitionerUnavailabilityList } from '../components/practitionerUnavailability/PractitionerUnavailabilityList'
+import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
+import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 
 type View =
   | 'default'
@@ -76,6 +78,7 @@ type View =
   | 'billing-internal-employee'
   | 'daily-auto-visit'
   | 'practitioner-unavailability'
+  | 'sticky-notes'
 
 export const ReceptionistPage = () => {
 
@@ -107,6 +110,8 @@ export const ReceptionistPage = () => {
   const [currentView, setCurrentView] = useState<View>('default')
   const [showAppointmentModal, setShowAppointmentModal] = useState(false)
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
+  const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
+  const [stickyNoteRefreshKey, setStickyNoteRefreshKey] = useState(0)
   const [showPatientVisitModal, setShowPatientVisitModal] = useState(false)
   const [patientVisitRefreshKey, setPatientVisitRefreshKey] = useState(0)
   const [showCreateServiceRequest, setShowCreateServiceRequest] = useState(false)
@@ -245,6 +250,8 @@ export const ReceptionistPage = () => {
       setCurrentView('iop')
     } else if (screen === 'r-appointments-freeze') {
       setCurrentView('appointments-freeze')
+    } else if (screen === 'r-sticky-notes') {
+      setCurrentView('sticky-notes')
     } else if (screen === 'r-practitioner-unavailability') {
       setCurrentView('practitioner-unavailability')
     } else if (screen === 'r-service-requests') {
@@ -818,6 +825,25 @@ export const ReceptionistPage = () => {
           </div>
         )}
 
+        {currentView === 'sticky-notes' && (
+          <div className="p-4">
+            <DashboardCard
+              title="Sticky Notes"
+              onAdd={() => guardClinicalCreate(() => setShowStickyNoteModal(true))}
+              addButtonTitle="Add Sticky Note"
+              noHeightLimit
+            >
+              <WarningMessagesList
+                patient={selectedPatient || undefined}
+                specialPhoneScope="special_only"
+                key={`reception-sticky-${stickyNoteRefreshKey}`}
+                title="Sticky Notes"
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+          </div>
+        )}
+
         {currentView === 'service-requests' && (
           <div className="p-4">
             <div className="mb-4 flex items-center justify-between gap-4 flex-wrap">
@@ -1140,6 +1166,19 @@ export const ReceptionistPage = () => {
             setShowBulkScheduleModal(false)
             setPatientVisitRefreshKey(prev => prev + 1)
           }}
+        />
+      )}
+      {showStickyNoteModal && (
+        <CreateWarningMessageModal
+          onClose={() => setShowStickyNoteModal(false)}
+          onSuccess={() => {
+            setStickyNoteRefreshKey((k) => k + 1)
+            setShowStickyNoteModal(false)
+          }}
+          initialPatient={selectedPatient || undefined}
+          defaultSpecialPhoneWarning
+          title="Create Sticky Note"
+          submitLabel="Create Sticky Note"
         />
       )}
     </div>

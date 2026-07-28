@@ -1,58 +1,41 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
-import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 
 /** Nutritionist role hub — surfaces the "Nutritionist Note" clinical notes that also
- * appear in the doctor/nurse workspaces. Modelled on the Occupational Therapist page. */
+ * appear in the doctor/nurse workspaces. */
 export const NutritionistPage = () => {
   const {
-    selectedPatient: globalPatient,
-    setSelectedPatient: setGlobalPatient,
+    selectedPatient,
+    setSelectedPatient,
     guardClinicalCreate,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
-  const patientFromUrl = searchParams.get('patient') || ''
-
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(
-    () => patientFromUrl || globalPatient || undefined
-  )
   const [notesRefreshKey, setNotesRefreshKey] = useState(0)
   const [showNoteModal, setShowNoteModal] = useState(false)
 
-  useEffect(() => {
-    const patientParam = searchParams.get('patient')
-    if (patientParam && patientParam !== selectedPatient) {
-      setSelectedPatient(patientParam)
-    }
-  }, [searchParams, selectedPatient])
-
-  useEffect(() => {
-    const patient = selectedPatient || globalPatient
-    if (!patient) return
-    if (searchParams.get('patient')) return
-    const next = new URLSearchParams(searchParams)
-    next.set('patient', patient)
-    setSearchParams(next, { replace: true })
-  }, [screen, selectedPatient, globalPatient, searchParams, setSearchParams])
-
+  // Single source of truth: CareContext. No local/URL sync effects (those caused blink loops).
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
-    setGlobalPatient(patient)
     const next = new URLSearchParams(searchParams)
     if (patient) next.set('patient', patient)
     else next.delete('patient')
     setSearchParams(next, { replace: true })
   }
 
-  const headerPatient = selectedPatient || globalPatient || ''
   const header = (
-    <PatientCareHeader selectedPatient={headerPatient} onPatientSelect={handlePatientSelect} patients={[]} />
+    <PatientCareHeader
+      selectedPatient={selectedPatient || ''}
+      onPatientSelect={handlePatientSelect}
+      patients={[]}
+    />
   )
 
   const notesCard = (opts?: { listingScreen?: string; fixedHeight?: boolean }) => (
@@ -85,7 +68,6 @@ export const NutritionistPage = () => {
     />
   )
 
-  // Full-screen Nutritionist Notes view (sidebar link / card expand)
   if (screen === 'nut-notes') {
     return (
       <div className="flex flex-col">
@@ -96,13 +78,18 @@ export const NutritionistPage = () => {
     )
   }
 
-  // Default landing
   return (
     <div className="flex flex-col">
       {header}
       <div className="p-4 space-y-4">
-        {selectedPatient && <PatientSummaryCard patient={selectedPatient} />}
-        {notesCard()}
+        {notesCard({ fixedHeight: true })}
+        <DashboardCard title="Patient Visits" fixedHeight>
+          <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+        </DashboardCard>
+
+        <DashboardCard title="Inpatient" fixedHeight>
+          <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
+        </DashboardCard>
       </div>
       {createModal}
     </div>

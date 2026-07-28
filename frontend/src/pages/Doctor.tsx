@@ -141,6 +141,7 @@ export const DoctorPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const syncingPatientSelectionRef = useRef(false)
   const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [showLabTrends, setShowLabTrends] = useState(false)
@@ -1554,13 +1555,28 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Warnings & Messages"
-            onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
-            addButtonTitle="Add Warning Message"
-          >
-            <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
-          </DashboardCard>
+          <div className="grid gap-4 md:grid-cols-2">
+            <DashboardCard 
+              title="Warnings & Messages"
+              onAdd={() => guardClinicalCreate(() => setShowWarningModal(true))}
+              addButtonTitle="Add Warning Message"
+            >
+              <WarningMessagesList patient={selectedPatient} key={warningRefreshKey} onPatientClick={handlePatientSelect} />
+            </DashboardCard>
+            <DashboardCard
+              title="Sticky Notes"
+              onAdd={() => guardClinicalCreate(() => setShowStickyNoteModal(true))}
+              addButtonTitle="Add Sticky Note"
+            >
+              <WarningMessagesList
+                patient={selectedPatient}
+                key={`sticky-${warningRefreshKey}`}
+                specialPhoneScope="special_only"
+                title="Sticky Notes"
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+          </div>
         </div>
         {showWarningModal && (
           <CreateWarningMessageModal
@@ -1570,6 +1586,55 @@ export const DoctorPage = () => {
               setShowWarningModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+        {showStickyNoteModal && (
+          <CreateWarningMessageModal
+            onClose={() => setShowStickyNoteModal(false)}
+            onSuccess={() => {
+              setWarningRefreshKey(prev => prev + 1)
+              setShowStickyNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultSpecialPhoneWarning
+            title="Create Sticky Note"
+            submitLabel="Create Sticky Note"
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'sticky-notes') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard
+            title="Sticky Notes"
+            onAdd={() => guardClinicalCreate(() => setShowStickyNoteModal(true))}
+            addButtonTitle="Add Sticky Note"
+          >
+            <WarningMessagesList
+              patient={selectedPatient}
+              key={`sticky-${warningRefreshKey}`}
+              specialPhoneScope="special_only"
+              title="Sticky Notes"
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        </div>
+        {showStickyNoteModal && (
+          <CreateWarningMessageModal
+            onClose={() => setShowStickyNoteModal(false)}
+            onSuccess={() => {
+              setWarningRefreshKey(prev => prev + 1)
+              setShowStickyNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultSpecialPhoneWarning
+            title="Create Sticky Note"
+            submitLabel="Create Sticky Note"
           />
         )}
       </div>
@@ -2251,6 +2316,20 @@ export const DoctorPage = () => {
           setShowWarningModal(false)
         }}
         initialPatient={selectedPatient}
+      />
+    )}
+
+    {showStickyNoteModal && (
+      <CreateWarningMessageModal
+        onClose={() => setShowStickyNoteModal(false)}
+        onSuccess={() => {
+          setWarningRefreshKey(prev => prev + 1)
+          setShowStickyNoteModal(false)
+        }}
+        initialPatient={selectedPatient}
+        defaultSpecialPhoneWarning
+        title="Create Sticky Note"
+        submitLabel="Create Sticky Note"
       />
     )}
 

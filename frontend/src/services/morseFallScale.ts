@@ -17,7 +17,9 @@ export interface MorseFallScale {
   practitioner_name?: string
   cost_center?: string
   date?: string
+  creation?: string
   total_points?: number
+  docstatus?: number
   modified?: string
   morse_fall_scale_detail?: MorseFallScaleDetailRow[]
 }
@@ -62,6 +64,18 @@ export async function createMorseFallScale(
 ): Promise<MorseFallScale> {
   return apiRequest<MorseFallScale>(
     '/api/method/healthcare.api.morse_fall_scale.create_morse_fall_scale',
+    {
+      method: 'POST',
+      body: JSON.stringify({ data }),
+    }
+  )
+}
+
+export async function updateMorseFallScale(
+  data: Partial<Omit<MorseFallScale, 'total_points' | 'modified'>> & { name: string }
+): Promise<MorseFallScale> {
+  return apiRequest<MorseFallScale>(
+    '/api/method/healthcare.api.morse_fall_scale.update_morse_fall_scale',
     {
       method: 'POST',
       body: JSON.stringify({ data }),

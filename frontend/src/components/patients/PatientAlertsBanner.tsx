@@ -48,7 +48,13 @@ export const PatientAlertsBanner = ({
       : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
     return canViewClinicalPatientHistory(roles)
   }, [user])
-  const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(patient)
+  const { warnings, loading: warningsLoading, refetch: refetchWarnings } = useWarningMessages(
+    patient,
+    'all',
+    undefined,
+    1,
+    50,
+  )
   const [medicalHistory, setMedicalHistory] = useState<PatientMedicalHistory | null>(null)
   const [medicalLoading, setMedicalLoading] = useState(false)
   const [allergyRegistry, setAllergyRegistry] = useState<PatientAllergies | null>(null)

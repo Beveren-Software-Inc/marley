@@ -153,7 +153,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'd-ledger', title: 'Patient Invoice' }],
+    screens: [
+      { id: 'd-ledger', title: 'Patient Invoice' },
+      { id: 'sticky-notes', title: 'Sticky Notes' },
+    ],
   },
 ]
 

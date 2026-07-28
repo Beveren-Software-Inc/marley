@@ -46,7 +46,7 @@ export async function fetchSessionSchedules(
   admissionNumber?: string,
   roleGroup?: string,
   practitioner?: string
-): Promise<SessionSchedule[]> {
+): Promise<{ data: SessionSchedule[]; total_count: number }> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
   params.append('offset', offset.toString())
@@ -59,12 +59,18 @@ export async function fetchSessionSchedules(
     `/api/method/healthcare.api.session_schedule.get_session_schedules?${params.toString()}`
   )
   const resData = await response.json()
+  const message = resData?.message
 
-  if (resData?.message && Array.isArray(resData.message)) {
-    return resData.message as SessionSchedule[]
-  } else {
-    return []
+  if (Array.isArray(message)) {
+    return { data: message as SessionSchedule[], total_count: message.length }
   }
+  if (message && typeof message === 'object' && Array.isArray(message.data)) {
+    return {
+      data: message.data as SessionSchedule[],
+      total_count: Number(message.total_count ?? message.data.length),
+    }
+  }
+  return { data: [], total_count: 0 }
 }
 
 export async function createSessionSchedule(data: CreateSessionScheduleData): Promise<SessionSchedule> {

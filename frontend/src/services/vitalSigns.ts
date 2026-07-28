@@ -23,6 +23,7 @@ export interface VitalSign {
   patient_visit?: string
   appointment?: string
   encounter?: string
+  creation?: string
 }
 
 export interface CreateVitalSignData {
@@ -48,6 +49,8 @@ export interface CreateVitalSignData {
   company?: string
   branch?: string
 }
+
+export type UpdateVitalSignData = CreateVitalSignData & { name: string }
 
 export interface VitalSignListFilters {
   dateFrom?: string
@@ -81,36 +84,42 @@ export async function fetchVitalSigns(
   }
 }
 
-export async function createVitalSign(data: CreateVitalSignData): Promise<VitalSign> {
+async function postVitalSign(
+  method: string,
+  data: CreateVitalSignData | UpdateVitalSignData,
+): Promise<VitalSign> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
 
-  const response = await fetch('/api/method/healthcare.api.vital_signs.create_vital_sign', {
+  const response = await fetch(`/api/method/healthcare.api.vital_signs.${method}`, {
     method: 'POST',
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {})
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
     },
-    body: JSON.stringify({ data })
+    body: JSON.stringify({ data }),
   })
 
   const resData = await response.json()
 
-  if (!response.ok) {
-    const errorMessage = resData?.message?.message || resData?.message || 'Failed to create vital sign'
-    throw new Error(errorMessage)
+  if (!response.ok || resData?.exc) {
+    const errorMessage =
+      resData?.message?.message || resData?.message || `Failed to ${method.replace(/_/g, ' ')}`
+    throw new Error(typeof errorMessage === 'string' ? errorMessage : JSON.stringify(errorMessage))
   }
 
   if (resData?.message) {
     return resData.message as VitalSign
-  } else {
-    throw new Error('Invalid response format')
   }
+  throw new Error('Invalid response format')
 }
 
+export async function createVitalSign(data: CreateVitalSignData): Promise<VitalSign> {
+  return postVitalSign('create_vital_sign', data)
+}
 
-
-
-
+export async function updateVitalSign(data: UpdateVitalSignData): Promise<VitalSign> {
+  return postVitalSign('update_vital_sign', data)
+}

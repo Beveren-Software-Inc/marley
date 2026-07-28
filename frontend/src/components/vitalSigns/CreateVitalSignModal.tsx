@@ -451,7 +451,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { Activity } from 'lucide-react'
-import { createVitalSign } from '../../services/vitalSigns'
+import { createVitalSign, updateVitalSign, type VitalSign } from '../../services/vitalSigns'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
@@ -462,14 +462,17 @@ interface CreateVitalSignModalProps {
   onClose: () => void
   onSuccess?: () => void
   initialPatient?: string
+  editRow?: VitalSign
 }
 
 export const CreateVitalSignModal = ({
   onClose,
   onSuccess,
   initialPatient,
+  editRow,
 }: CreateVitalSignModalProps) => {
   // Get context from CareContextProvider
+  const isEditMode = Boolean(editRow)
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
@@ -477,20 +480,22 @@ export const CreateVitalSignModal = ({
   const isOPMode = mode === 'OP'
   
   const [formData, setFormData] = useState({
-    patient: initialPatient || contextPatient || '',
-    signs_datetime: new Date().toISOString().slice(0, 16),
-    temperature: '',
-    pulse: '',
-    respiratory_rate: '',
-    bp_systolic: '',
-    bp_diastolic: '',
-    spo2: '',
-    height: '',
-    weight: '',
-    vital_signs_note: '',
-    remarks: '',
-    admission_no: (isIPMode && activeAdmission) ? activeAdmission : '',
-    patient_visit: (isOPMode && activeVisit) ? activeVisit : '',
+    patient: editRow?.patient || initialPatient || contextPatient || '',
+    signs_datetime: editRow?.signs_date
+      ? `${editRow.signs_date}T${(editRow.signs_time || '00:00:00').slice(0, 5)}`
+      : new Date().toISOString().slice(0, 16),
+    temperature: editRow?.temperature || '',
+    pulse: editRow?.pulse || '',
+    respiratory_rate: editRow?.respiratory_rate || '',
+    bp_systolic: editRow?.bp_systolic || '',
+    bp_diastolic: editRow?.bp_diastolic || '',
+    spo2: editRow?.spo2 != null ? String(editRow.spo2) : '',
+    height: editRow?.height || '',
+    weight: editRow?.weight || '',
+    vital_signs_note: editRow?.vital_signs_note || '',
+    remarks: editRow?.remarks || '',
+    admission_no: editRow?.admission_no || ((isIPMode && activeAdmission) ? activeAdmission : ''),
+    patient_visit: editRow?.patient_visit || ((isOPMode && activeVisit) ? activeVisit : ''),
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -567,13 +572,17 @@ export const CreateVitalSignModal = ({
         payload.patient_visit = formData.patient_visit
       }
 
-      await createVitalSign(payload)
+      if (editRow) {
+        await updateVitalSign({ ...payload, name: editRow.name })
+      } else {
+        await createVitalSign(payload)
+      }
 
-      toast.success('Vital Signs record created successfully')
+      toast.success(`Vital Signs record ${editRow ? 'updated' : 'created'} successfully`)
       onSuccess?.()
       onClose()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create vital signs'
+      const msg = err instanceof Error ? err.message : `Failed to ${editRow ? 'update' : 'create'} vital signs`
       setError(msg)
       toast.error(msg)
     } finally {
@@ -728,7 +737,7 @@ export const CreateVitalSignModal = ({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('max-w-2xl w-full max-h-[90vh] overflow-hidden')}>
         <CreateModalHeader
-          title="Create Vital Signs"
+          title={isEditMode ? 'Edit Vital Signs' : 'Create Vital Signs'}
           icon={<Activity className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           subtitle={
             <>
@@ -1071,7 +1080,7 @@ export const CreateVitalSignModal = ({
               disabled={loading || (!isIPMode && !isOPMode) || (isIPMode && !formData.admission_no) || (isOPMode && !formData.patient_visit)}
               className={CM_BTN_PRIMARY}
             >
-              {loading ? 'Saving…' : 'Save'}
+              {loading ? 'Saving…' : isEditMode ? 'Update' : 'Save'}
             </button>
           </CreateModalFooter>
         </form>

@@ -1,59 +1,42 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
-import { PatientSummaryCard } from '../components/patients/PatientSummaryCard'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { TherapyNotesPanel } from '../components/therapy/TherapyNotesPanel'
 import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
+import { AdmissionList } from '../components/admissions/AdmissionList'
+import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 
 export const TherapyPage = () => {
   const {
-    selectedPatient: globalPatient,
-    setSelectedPatient: setGlobalPatient,
+    selectedPatient,
+    setSelectedPatient,
     activeAdmission,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
-  const patientFromUrl = searchParams.get('patient') || ''
-
-  const [selectedPatient, setSelectedPatient] = useState<string | undefined>(
-    () => patientFromUrl || globalPatient || undefined
-  )
   const [notesRefreshKey, setNotesRefreshKey] = useState(0)
   const [sessionRefreshKey, setSessionRefreshKey] = useState(0)
 
-  useEffect(() => {
-    const patientParam = searchParams.get('patient')
-    if (patientParam && patientParam !== selectedPatient) {
-      setSelectedPatient(patientParam)
-    }
-  }, [searchParams, selectedPatient])
-
-  useEffect(() => {
-    const patient = selectedPatient || globalPatient
-    if (!patient) return
-    if (searchParams.get('patient')) return
-    const next = new URLSearchParams(searchParams)
-    next.set('patient', patient)
-    setSearchParams(next, { replace: true })
-  }, [screen, selectedPatient, globalPatient, searchParams, setSearchParams])
-
+  // Single source of truth: CareContext. No local/URL sync effects (those caused blink loops).
   const handlePatientSelect = (patient: string | undefined) => {
     setSelectedPatient(patient)
-    setGlobalPatient(patient)
     const next = new URLSearchParams(searchParams)
     if (patient) next.set('patient', patient)
     else next.delete('patient')
     setSearchParams(next, { replace: true })
   }
 
-  const headerPatient = selectedPatient || globalPatient || ''
   const header = (
-    <PatientCareHeader selectedPatient={headerPatient} onPatientSelect={handlePatientSelect} patients={[]} />
+    <PatientCareHeader
+      selectedPatient={selectedPatient || ''}
+      onPatientSelect={handlePatientSelect}
+      patients={[]}
+    />
   )
 
   if (screen === 't-notes') {
@@ -169,29 +152,34 @@ export const TherapyPage = () => {
     <div className="flex flex-col">
       {header}
       <div className="p-4 space-y-4">
-        {selectedPatient && <PatientSummaryCard patient={selectedPatient} />}
+        <TherapyNotesPanel
+          patient={selectedPatient}
+          refreshKey={notesRefreshKey}
+          onRefresh={() => setNotesRefreshKey((k) => k + 1)}
+          onPatientClick={handlePatientSelect}
+          listingScreen="t-notes"
+          fixedHeight
+        />
 
-        <div className="grid gap-4 md:grid-cols-2">
-          <TherapyNotesPanel
+        <DashboardCard title="Session Scheduler" listingScreen="t-session" fixedHeight>
+          <TherapySessionPanel
             patient={selectedPatient}
-            refreshKey={notesRefreshKey}
-            onRefresh={() => setNotesRefreshKey((k) => k + 1)}
+            admissionNumber={activeAdmission || undefined}
+            refreshKey={sessionRefreshKey}
+            onRefresh={() => setSessionRefreshKey((k) => k + 1)}
             onPatientClick={handlePatientSelect}
-            listingScreen="t-notes"
-            fixedHeight
+            showAppointments={false}
+            embedded
           />
+        </DashboardCard>
 
-          <DashboardCard title="Session Scheduler" listingScreen="t-session" fixedHeight>
-            <TherapySessionPanel
-              patient={selectedPatient}
-              admissionNumber={activeAdmission || undefined}
-              refreshKey={sessionRefreshKey}
-              onRefresh={() => setSessionRefreshKey((k) => k + 1)}
-              onPatientClick={handlePatientSelect}
-              showAppointments={false}
-            />
-          </DashboardCard>
-        </div>
+        <DashboardCard title="Patient Visits" fixedHeight>
+          <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+        </DashboardCard>
+
+        <DashboardCard title="Inpatient" fixedHeight>
+          <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
+        </DashboardCard>
       </div>
     </div>
   )

@@ -11,7 +11,6 @@ import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
-import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
@@ -130,10 +129,10 @@ export const NursePage = () => {
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
-  const [showObservationModal, setShowObservationModal] = useState(false)
-    const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
+  const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [pendingLabResultCount, setPendingLabResultCount] = useState(0)
@@ -154,14 +153,15 @@ export const NursePage = () => {
       }}
     />
   )
-  const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [draftAdmissionNo, setDraftAdmissionNo] = useState<string | null>(null)
   const [clinicalNotesRefreshKey, setClinicalNotesRefreshKey] = useState(0)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showServiceRequestModal, setShowServiceRequestModal] = useState(false)
+  const [showLabRequestModal, setShowLabRequestModal] = useState(false)
   const [serviceRequestRefreshKey, setServiceRequestRefreshKey] = useState(0)
+  const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
   const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
   const [prescriptionRefreshKey] = useState(0)
@@ -341,7 +341,9 @@ export const NursePage = () => {
   }
 
   useEffect(() => {
-    if (screen !== NURSE_DISCHARGE_SCREEN_ID || !selectedPatient) {
+    const onDischargeLandingOrScreen =
+      screen === null || screen === NURSE_DISCHARGE_SCREEN_ID
+    if (!onDischargeLandingOrScreen || !selectedPatient) {
       setDischargeHasDraft(false)
       setDraftAdmissionNo(null)
       return
@@ -361,6 +363,38 @@ export const NursePage = () => {
         setDraftAdmissionNo(null)
       })
   }, [screen, selectedPatient, dischargeRefreshKey])
+
+  const handleOpenDischarge = async () => {
+    if (!selectedPatient) {
+      toast.error('Please select a patient first')
+      return
+    }
+
+    try {
+      const admission = await getPatientActiveAdmission(selectedPatient)
+      if (!admission) {
+        toast.error('No active admission found for this patient')
+        return
+      }
+
+      const hasDraft = await hasAnyDischargeDraft(admission.name)
+      setDischargeHasDraft(hasDraft)
+      setDraftAdmissionNo(admission.name)
+
+      navigateToDischarge(
+        {
+          name: admission.name,
+          patient: admission.patient,
+          patient_name: admission.patient_name,
+        },
+        navigate,
+        `/nurse?${searchParams.toString()}`
+      )
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
+      toast.error(errorMessage)
+    }
+  }
 
   const handleDischargeSuccess = () => {
     toast.success('Discharge completed successfully')
@@ -477,16 +511,31 @@ export const NursePage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
-            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-              <WarningMessagesList
-                patient={selectedPatient}
-                key={warningRefreshKey}
-                onPatientClick={handlePatientSelect}
-                onAdd={() => setShowWarningModal(true)}
-              />
-            </div>
-          </section>
+          <div className="grid gap-4 md:grid-cols-2">
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <WarningMessagesList
+                  patient={selectedPatient}
+                  key={warningRefreshKey}
+                  onPatientClick={handlePatientSelect}
+                  onAdd={() => setShowWarningModal(true)}
+                />
+              </div>
+            </section>
+            <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col max-h-[400px]">
+              <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                <WarningMessagesList
+                  patient={selectedPatient}
+                  key={`sticky-${warningRefreshKey}`}
+                  specialPhoneScope="special_only"
+                  title="Sticky Notes"
+                  addButtonTitle="Add Sticky Note"
+                  onPatientClick={handlePatientSelect}
+                  onAdd={() => setShowStickyNoteModal(true)}
+                />
+              </div>
+            </section>
+          </div>
         </div>
         {showWarningModal && (
           <CreateWarningMessageModal
@@ -496,6 +545,19 @@ export const NursePage = () => {
               setShowWarningModal(false)
             }}
             initialPatient={selectedPatient}
+          />
+        )}
+        {showStickyNoteModal && (
+          <CreateWarningMessageModal
+            onClose={() => setShowStickyNoteModal(false)}
+            onSuccess={() => {
+              setWarningRefreshKey(prev => prev + 1)
+              setShowStickyNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultSpecialPhoneWarning
+            title="Create Sticky Note"
+            submitLabel="Create Sticky Note"
           />
         )}
       </div>
@@ -687,26 +749,89 @@ export const NursePage = () => {
       )
     }
 
-  // Laboratory – same listing as doctor Laboratory
+  // Laboratory – reports (by nurse) + lab requests (by nurse templates)
   if (screen === 'n-lab') {
     const focusLabTest = searchParams.get('lab_test') || undefined
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Laboratory" headerExtra={nurseLabSaveHeader}>
-            <LabTestList
-              patient={selectedPatient}
-              defaultStatus={focusLabTest ? '' : 'Requested'}
-              byNurse={true}
-              focusLabTest={focusLabTest}
-              focusOpenSampleCollection
-              key={`${labTestRefreshKey}-${focusLabTest || ''}`}
-              onPatientClick={handlePatientSelect}
-              {...nurseLabBatchListProps}
-            />
+          <DashboardCard
+            title={labCardTab === 'reports' ? 'Laboratory' : 'Lab Requests'}
+            onAdd={() =>
+              guardClinicalCreate(() =>
+                labCardTab === 'reports' ? setShowLabTestModal(true) : setShowLabRequestModal(true)
+              )
+            }
+            addButtonTitle={labCardTab === 'reports' ? 'Add Lab Test Report' : 'Add Lab Request'}
+            headerExtra={
+              <div className="flex items-center gap-1.5">
+                <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs font-semibold">
+                  {([
+                    ['reports', 'REPORTS'],
+                    ['requests', 'REQUESTS'],
+                  ] as const).map(([id, label]) => (
+                    <button
+                      key={id}
+                      type="button"
+                      onClick={() => setLabCardTab(id)}
+                      className={`rounded px-2 py-0.5 transition-colors ${
+                        labCardTab === id ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {labCardTab === 'reports' ? nurseLabSaveHeader : null}
+              </div>
+            }
+          >
+            {labCardTab === 'reports' ? (
+              <LabTestList
+                patient={selectedPatient}
+                defaultStatus={focusLabTest ? '' : 'Requested'}
+                byNurse={true}
+                focusLabTest={focusLabTest}
+                focusOpenSampleCollection
+                key={`${labTestRefreshKey}-${focusLabTest || ''}`}
+                onPatientClick={handlePatientSelect}
+                {...nurseLabBatchListProps}
+              />
+            ) : (
+              <ServiceRequestList
+                patient={selectedPatient}
+                refreshKey={serviceRequestRefreshKey}
+                template_dt="Lab Test Template"
+                onPatientClick={handlePatientSelect}
+              />
+            )}
           </DashboardCard>
         </div>
+        {showLabTestModal && (
+          <CreateLabTestModal
+            onClose={() => setShowLabTestModal(false)}
+            onSuccess={() => {
+              setLabTestRefreshKey((prev) => prev + 1)
+              setShowLabTestModal(false)
+            }}
+            initialPatient={selectedPatient}
+            templatesNurseOnly
+          />
+        )}
+        {showLabRequestModal && (
+          <CreateServiceRequestModal
+            onClose={() => setShowLabRequestModal(false)}
+            onSuccess={() => {
+              setServiceRequestRefreshKey((prev) => prev + 1)
+              setShowLabRequestModal(false)
+              toast.success('Lab request created successfully')
+            }}
+            initialPatient={selectedPatient}
+            labTestTemplateOnly
+            nurseLabTemplatesOnly
+          />
+        )}
       </div>
     )
   }
@@ -879,30 +1004,16 @@ export const NursePage = () => {
     )
   }
 
-  // Show Observation
+  // Show Observation — nurses view only (no create)
   if (screen === 'n-ob') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard
-            title="Observation Level"
-            onAdd={() => setShowObservationModal(true)}
-            addButtonTitle="Add Observation Level"
-          >
-            <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
+          <DashboardCard title="Observation Level">
+            <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
-        {showObservationModal && (
-          <CreateObservationModal
-            onClose={() => setShowObservationModal(false)}
-            onSuccess={() => {
-              setObservationRefreshKey(prev => prev + 1)
-              setShowObservationModal(false)
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
@@ -919,6 +1030,7 @@ export const NursePage = () => {
               refreshKey={vitalSignsRefreshKey}
               onPatientClick={handlePatientSelect}
               onAdd={() => setShowVitalSignModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -947,6 +1059,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               defaultAdmission={activeAdmission || undefined}
               defaultVisit={activeVisit || undefined}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1337,6 +1450,7 @@ export const NursePage = () => {
               onPatientClick={handlePatientSelect}
               defaultAdmission={activeAdmission || undefined}
               onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1355,6 +1469,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={sleepingPatternRefreshKey}
               onAdd={() => setShowSleepingPatternModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1483,38 +1598,6 @@ export const NursePage = () => {
 
   // Show Discharge Form (list of discharges with + button) — hidden in OP mode
   if (screen === NURSE_DISCHARGE_SCREEN_ID && modeForScreens !== 'OP') {
-    const handleOpenDischarge = async () => {
-      if (!selectedPatient) {
-        toast.error('Please select a patient first')
-        return
-      }
-
-      try {
-        const admission = await getPatientActiveAdmission(selectedPatient)
-        if (!admission) {
-          toast.error('No active admission found for this patient')
-          return
-        }
-
-        const hasDraft = await hasAnyDischargeDraft(admission.name)
-        setDischargeHasDraft(hasDraft)
-        setDraftAdmissionNo(admission.name)
-
-        navigateToDischarge(
-          {
-            name: admission.name,
-            patient: admission.patient,
-            patient_name: admission.patient_name,
-          },
-          navigate,
-          `/nurse?${searchParams.toString()}`
-        )
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
-        toast.error(errorMessage)
-      }
-    }
-
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1591,6 +1674,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={mentalStateRefreshKey}
               onAdd={() => setShowMentalStateModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1620,6 +1704,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={groomingRefreshKey}
               onAdd={() => setShowGroomingModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1649,6 +1734,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={patientAssessmentRefreshKey}
               onAdd={() => setShowPatientAssessmentModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1707,34 +1793,85 @@ export const NursePage = () => {
 
         <DashboardCard
           fixedHeight
-          title="Lab Test Report - Pending for Review"
-          onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
-          addButtonTitle="Add Lab Test Report"
+          title="Sticky Notes"
+          onAdd={() => guardClinicalCreate(() => setShowStickyNoteModal(true))}
+          addButtonTitle="Add Sticky Note"
+          listingScreen="n-sticky-notes"
+        >
+          <WarningMessagesList
+            patient={selectedPatient || undefined}
+            noPatientScope="all"
+            specialPhoneScope="special_only"
+            key={`sticky-${warningRefreshKey}`}
+            title="Sticky Notes"
+            onPatientClick={handlePatientSelect}
+          />
+        </DashboardCard>
+
+        <DashboardCard
+          fixedHeight
+          title={labCardTab === 'reports' ? 'Lab Test Report - Pending for Review' : 'Lab Requests'}
+          onAdd={() =>
+            guardClinicalCreate(() =>
+              labCardTab === 'reports' ? setShowLabTestModal(true) : setShowLabRequestModal(true)
+            )
+          }
+          addButtonTitle={labCardTab === 'reports' ? 'Add Lab Test Report' : 'Add Lab Request'}
           listingScreen="n-lab"
           headerExtra={
-            <div className="flex items-center gap-2">
-              {nurseLabSaveHeader}
-              {selectedPatient ? (
-                <button
-                  type="button"
-                  onClick={() => setShowLabTrends(true)}
-                  className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
-                  title="Lab results over time — dates in columns, tests in rows"
-                >
-                  📈 Lab Trends
-                </button>
+            <div className="flex items-center gap-1.5">
+              <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs font-semibold">
+                {([
+                  ['reports', 'REPORTS'],
+                  ['requests', 'REQUESTS'],
+                ] as const).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setLabCardTab(id)}
+                    className={`rounded px-2 py-0.5 transition-colors ${
+                      labCardTab === id ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {labCardTab === 'reports' ? (
+                <div className="flex items-center gap-2">
+                  {nurseLabSaveHeader}
+                  {selectedPatient ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowLabTrends(true)}
+                      className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
+                      title="Lab results over time — dates in columns, tests in rows"
+                    >
+                      📈 Lab Trends
+                    </button>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           }
         >
-          <LabTestList
-            patient={selectedPatient || undefined}
-            defaultStatus="Pending Review"
-            byNurse={true}
-            key={labTestRefreshKey}
-            onPatientClick={handlePatientSelect}
-            {...nurseLabBatchListProps}
-          />
+          {labCardTab === 'reports' ? (
+            <LabTestList
+              patient={selectedPatient || undefined}
+              defaultStatus="Pending Review"
+              byNurse={true}
+              key={labTestRefreshKey}
+              onPatientClick={handlePatientSelect}
+              {...nurseLabBatchListProps}
+            />
+          ) : (
+            <ServiceRequestList
+              patient={selectedPatient || undefined}
+              refreshKey={serviceRequestRefreshKey}
+              template_dt="Lab Test Template"
+              onPatientClick={handlePatientSelect}
+            />
+          )}
         </DashboardCard>
 
         <DashboardCard fixedHeight title="Prescription" listingScreen="rx">
@@ -1744,6 +1881,27 @@ export const NursePage = () => {
             onPatientClick={handlePatientSelect}
           />
         </DashboardCard>
+
+        {modeForScreens !== 'OP' ? (
+          <DashboardCard
+            fixedHeight
+            title="Discharge Form"
+            onAdd={handleOpenDischarge}
+            addButtonTitle={dischargeHasDraft ? 'Continue discharge' : 'Start discharge'}
+            listingScreen={NURSE_DISCHARGE_SCREEN_ID}
+          >
+            {dischargeHasDraft && draftAdmissionNo ? (
+              <div className="mb-2 text-xs text-amber-700">
+                Draft on server — open from the list ⋮ menu or use + to continue
+              </div>
+            ) : null}
+            <DischargeList
+              patient={selectedPatient || undefined}
+              key={dischargeRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        ) : null}
       </div>
 
       {showLabTrends && (
@@ -1785,6 +1943,20 @@ export const NursePage = () => {
         />
       )}
 
+      {showStickyNoteModal && (
+        <CreateWarningMessageModal
+          onClose={() => setShowStickyNoteModal(false)}
+          onSuccess={() => {
+            setWarningRefreshKey(prev => prev + 1)
+            setShowStickyNoteModal(false)
+          }}
+          initialPatient={selectedPatient}
+          defaultSpecialPhoneWarning
+          title="Create Sticky Note"
+          submitLabel="Create Sticky Note"
+        />
+      )}
+
       {showLabTestModal && (
         <CreateLabTestModal
           onClose={() => setShowLabTestModal(false)}
@@ -1794,6 +1966,20 @@ export const NursePage = () => {
           }}
           initialPatient={selectedPatient}
           templatesNurseOnly
+        />
+      )}
+
+      {showLabRequestModal && (
+        <CreateServiceRequestModal
+          onClose={() => setShowLabRequestModal(false)}
+          onSuccess={() => {
+            setServiceRequestRefreshKey((prev) => prev + 1)
+            setShowLabRequestModal(false)
+            toast.success('Lab request created successfully')
+          }}
+          initialPatient={selectedPatient}
+          labTestTemplateOnly
+          nurseLabTemplatesOnly
         />
       )}
 

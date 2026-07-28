@@ -277,6 +277,15 @@ export const PatientHistoryPage = () => {
               <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
             </DashboardCard>
 
+            <DashboardCard fixedHeight title="Sticky Notes">
+              <WarningMessagesList
+                patient={selectedPatient}
+                specialPhoneScope="special_only"
+                title="Sticky Notes"
+                onPatientClick={handlePatientSelect}
+              />
+            </DashboardCard>
+
             {canViewClinical && (
               <DashboardCard fixedHeight title="Diagnosis Detail" {...listingProps('diagnosis')}>
                 <PatientDiagnosisList patient={selectedPatient} />

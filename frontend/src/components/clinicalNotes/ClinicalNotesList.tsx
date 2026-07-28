@@ -16,6 +16,7 @@ import {
 } from '../../constants/nursingShift'
 import { toast } from '../../hooks/useToast'
 import { MoreHorizontal, Pencil } from 'lucide-react'
+import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -102,6 +103,9 @@ export const ClinicalNotesList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const [listRefreshKey, setListRefreshKey] = useState(0)
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [totalCount, setTotalCount] = useState(0)
 
   const cardFilters = useCardFilters()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -197,8 +201,8 @@ export const ClinicalNotesList = ({
         const practitionerForApi = notePractitionerFilter || undefined
         
         const response = await fetchClinicalNotes(
-          50,
-          0,
+          pageSize,
+          (page - 1) * pageSize,
           patient,
           undefined,
           clinicalNoteType,
@@ -212,7 +216,8 @@ export const ClinicalNotesList = ({
           postingDateTo || undefined,
         )
         
-        setClinicalNotes(response)
+        setClinicalNotes(response.data)
+        setTotalCount(response.total_count)
       } catch (err) {
         console.error('Error loading clinical notes:', err)
         setError(err instanceof Error ? err : new Error('Failed to fetch clinical notes'))
@@ -235,6 +240,23 @@ export const ClinicalNotesList = ({
     notePractitionerFilter,
     practitionerInitDone,
     listRefreshKey,
+    page,
+    pageSize,
+  ])
+
+  useEffect(() => {
+    setPage(1)
+  }, [
+    patient,
+    clinicalNoteType,
+    noteType,
+    mode,
+    activeVisit,
+    activeAdmission,
+    mineOnlyRequest,
+    postingDateFrom,
+    postingDateTo,
+    notePractitionerFilter,
   ])
 
   useEffect(() => {
@@ -804,6 +826,14 @@ export const ClinicalNotesList = ({
         notesTable
       )}
         </div>
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
       </div>
 
       {detailName ? (
