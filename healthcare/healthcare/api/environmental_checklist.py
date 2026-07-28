@@ -239,6 +239,8 @@ def update_environmental_checklist(
 	cost_center: str | None = None,
 	practitioner: str | None = None,
 ) -> dict:
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
 	if not checklist_name:
 		frappe.throw(_("Environmental Checklist is required"))
 
@@ -250,6 +252,10 @@ def update_environmental_checklist(
 
 	if details is not None and not isinstance(details, list):
 		frappe.throw(_("Details must be a list"))
+
+	assert_editable_within_24h_if_enabled(
+		"Environmental Checklist", checklist_name, "unedit_within_24hour"
+	)
 
 	doc = frappe.get_doc("Environmental Checklist", checklist_name)
 

@@ -20,7 +20,12 @@ import {
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 import { ChevronDown, Plus, ShieldAlert, Trash2 } from 'lucide-react'
-import { createMorseFallScale, type MorseFallScaleDetailRow } from '../../services/morseFallScale'
+import {
+  createMorseFallScale,
+  updateMorseFallScale,
+  type MorseFallScale,
+  type MorseFallScaleDetailRow,
+} from '../../services/morseFallScale'
 import {
   fetchCompanies,
   fetchHealthcarePractitioners,
@@ -154,6 +159,7 @@ interface CreateMorseFallScaleModalProps {
   patient?: string
   patientName?: string
   defaultAdmission?: string
+  editRow?: MorseFallScale
   onClose: () => void
   onCreated: () => void
 }
@@ -223,20 +229,22 @@ export function CreateMorseFallScaleModal({
   patient,
   patientName,
   defaultAdmission,
+  editRow,
   onClose,
   onCreated,
 }: CreateMorseFallScaleModalProps) {
   const { activeAdmission, userRole } = useCareContext()
-  const lockedAdmission = activeAdmission || defaultAdmission || ''
+  const lockedAdmission = editRow?.admission_no || activeAdmission || defaultAdmission || ''
+  const isEditMode = Boolean(editRow)
 
   const [activeTab, setActiveTab] = useState<TabId>('assessment')
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
   const [companyOptions, setCompanyOptions] = useState<{ name: string; label: string }[]>([])
   const [selectedAdmission, setSelectedAdmission] = useState<string>(lockedAdmission)
-  const [practitioner, setPractitioner] = useState('')
-  const [practitionerLabel, setPractitionerLabel] = useState('')
-  const [ordererNumber, setOrdererNumber] = useState('')
-  const [company, setCompany] = useState('')
+  const [practitioner, setPractitioner] = useState(editRow?.practitioner || '')
+  const [practitionerLabel, setPractitionerLabel] = useState(editRow?.practitioner_name || editRow?.practitioner || '')
+  const [ordererNumber, setOrdererNumber] = useState(editRow?.orderer_number || '')
+  const [company, setCompany] = useState(editRow?.company || '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -246,11 +254,26 @@ export function CreateMorseFallScaleModal({
   )
 
   // Each category selection: index → chosen points (or null if not chosen)
-  const [selections, setSelections] = useState<(number | null)[]>(() =>
-    STANDARD_CATEGORIES.map(() => null)
-  )
+  const [selections, setSelections] = useState<(number | null)[]>(() => {
+    const initial: (number | null)[] = STANDARD_CATEGORIES.map(() => null)
+    if (!editRow?.morse_fall_scale_detail?.length) return initial
+    editRow.morse_fall_scale_detail.forEach((detail) => {
+      const text = detail.text_message || ''
+      STANDARD_CATEGORIES.forEach((cat, idx) => {
+        if (text.startsWith(`${cat.label}:`)) {
+          initial[idx] = detail.points
+        }
+      })
+    })
+    return initial
+  })
   // Extra free-form rows
-  const [extraRows, setExtraRows] = useState<MorseFallScaleDetailRow[]>([])
+  const [extraRows, setExtraRows] = useState<MorseFallScaleDetailRow[]>(
+    () =>
+      editRow?.morse_fall_scale_detail?.filter(
+        (detail) => !STANDARD_CATEGORIES.some((cat) => detail.text_message?.startsWith(`${cat.label}:`))
+      ) || []
+  )
 
   useEffect(() => {
     if (lockedAdmission) setSelectedAdmission(lockedAdmission)
@@ -347,19 +370,24 @@ export function CreateMorseFallScaleModal({
 
     try {
       setSaving(true)
-      await createMorseFallScale({
+      const payload = {
         admission_no: selectedAdmission,
-        patient_no: patient ?? '',
+        patient_no: patient ?? editRow?.patient_no ?? '',
         practitioner,
         orderer_number: ordererNumber || undefined,
         company: company || undefined,
         morse_fall_scale_detail: detailRows,
-      })
-      toast.success('Morse Fall Scale created')
+      }
+      if (editRow) {
+        await updateMorseFallScale({ ...payload, name: editRow.name })
+      } else {
+        await createMorseFallScale(payload)
+      }
+      toast.success(`Morse Fall Scale ${editRow ? 'updated' : 'created'}`)
       onCreated()
       onClose()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create Morse Fall Scale'
+      const msg = err instanceof Error ? err.message : `Failed to ${editRow ? 'update' : 'create'} Morse Fall Scale`
       setError(msg)
       toast.error(msg)
     } finally {
@@ -371,7 +399,7 @@ export function CreateMorseFallScaleModal({
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={`${createModalShellClass('w-full max-w-2xl max-h-[92vh] overflow-hidden')} [color-scheme:light]`}>
         <CreateModalHeader
-          title="Create Morse Fall Scale"
+          title={isEditMode ? 'Edit Morse Fall Scale' : 'Create Morse Fall Scale'}
           icon={<ShieldAlert className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
           subtitle={patientName || undefined}
           onClose={onClose}
@@ -654,7 +682,7 @@ export function CreateMorseFallScaleModal({
                   disabled={saving || !selectedAdmission || !practitioner}
                   className={CM_BTN_PRIMARY}
                 >
-                  {saving ? 'Saving…' : 'Create'}
+                  {saving ? 'Saving…' : isEditMode ? 'Update' : 'Create'}
                 </button>
               )}
               {activeTab === 'criteria' && (

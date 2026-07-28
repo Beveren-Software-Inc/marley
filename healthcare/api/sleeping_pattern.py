@@ -8,7 +8,10 @@ from frappe.utils import flt, get_datetime, nowdate
 from healthcare.api.common import _owner_filter_for_practitioner, _user_can_read_nursing_portal
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
-from healthcare.healthcare.editing_lock import assert_editing_allowed
+from healthcare.healthcare.editing_lock import (
+	assert_editable_within_24h_if_enabled,
+	assert_editing_allowed,
+)
 
 
 def _hours_between(start, end):
@@ -54,6 +57,7 @@ def _serialize_sleeping_pattern(row) -> dict:
 		"evening_total": evening_total,
 		"night_total": night_total,
 		"total_hours": total_hours if total_hours else None,
+		"creation": row.get("creation"),
 		"modified": row.get("modified"),
 	}
 
@@ -162,6 +166,7 @@ def get_sleeping_patterns(
 			"night_from",
 			"night_to",
 			"owner",
+			"creation",
 			"modified",
 		],
 		order_by="date desc, modified desc",
@@ -208,6 +213,8 @@ def update_sleeping_pattern(**data):
 		frappe.throw(_("Sleeping Pattern is required"))
 	if not frappe.db.exists("Sleeping Pattern", name):
 		frappe.throw(_("Sleeping Pattern {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled("Sleeping Pattern", name, "unedit_within_24hour")
 
 	if not frappe.has_permission("Sleeping Pattern", "write") and not _user_can_read_nursing_portal():
 		frappe.throw(_("Not permitted to update Sleeping Pattern"), frappe.PermissionError)

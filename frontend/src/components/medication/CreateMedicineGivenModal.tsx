@@ -427,18 +427,83 @@ export const CreateMedicineGivenModal = ({
     let cancelled = false
     const load = async () => {
       setLoadingStock(true)
-      resetBatchLot()
+      if (!isEdit) resetBatchLot()
       try {
         const opts = await fetchMedicineGivenStockOptions(admissionName, drugCode)
         if (cancelled) return
         setStockOptions(opts)
 
+        // Edit keeps saved batch/lot; create auto-picks FIFO values (still editable).
+        if (isEdit) {
+          if (opts.requires_dispensing_lot) {
+            const editBatch = (editRow?.batch_no || '').trim()
+            setLoadingDispensingLots(true)
+            try {
+              const dlRows = await fetchMedicineGivenDispensingLots(
+                admissionName,
+                drugCode,
+                editBatch || undefined,
+              )
+              if (!cancelled) setDispensingLots(dlRows)
+            } catch {
+              if (!cancelled) setDispensingLots(opts.dispensing_lots || [])
+            } finally {
+              if (!cancelled) setLoadingDispensingLots(false)
+            }
+          } else if (opts.has_serial_no && !opts.has_batch_no) {
+            setLoadingLots(true)
+            const itemLots = await fetchMedicineGivenItemLots(admissionName, drugCode)
+            if (!cancelled) setLots(itemLots)
+          }
+          return
+        }
+
+        const batches = opts.batches || []
+        let pickedBatch = ''
+        if ((opts.has_batch_no || opts.requires_dispensing_lot) && batches.length > 0) {
+          const first = batches[0]
+          pickedBatch = (first.batch_name || first.batch_id || '').trim()
+          if (pickedBatch) {
+            setBatchNo(pickedBatch)
+            setBatchLabel(first.batch_id || pickedBatch)
+          }
+        }
+
         if (opts.requires_dispensing_lot) {
-          setDispensingLots(opts.dispensing_lots || [])
+          setLoadingDispensingLots(true)
+          try {
+            let dlRows = opts.dispensing_lots || []
+            if (pickedBatch) {
+              dlRows = await fetchMedicineGivenDispensingLots(
+                admissionName,
+                drugCode,
+                pickedBatch,
+              )
+            }
+            if (cancelled) return
+            setDispensingLots(dlRows)
+            if (dlRows.length > 0) {
+              const firstLot = dlRows[0]
+              setDispensingLot(firstLot.name)
+              setLotNo(firstLot.serial_no || firstLot.name)
+            }
+          } catch {
+            if (!cancelled) setDispensingLots([])
+          } finally {
+            if (!cancelled) setLoadingDispensingLots(false)
+          }
         } else if (opts.has_serial_no && !opts.has_batch_no) {
           setLoadingLots(true)
           const itemLots = await fetchMedicineGivenItemLots(admissionName, drugCode)
-          if (!cancelled) setLots(itemLots)
+          if (!cancelled) {
+            setLots(itemLots)
+            if (itemLots.length > 0) setLotNo(itemLots[0])
+          }
+        } else if (pickedBatch && !opts.has_serial_no) {
+          const batch = batches.find(
+            (b) => b.batch_name === pickedBatch || b.batch_id === pickedBatch,
+          )
+          if (batch?.batch_id) setLotNo(batch.batch_id)
         }
       } catch {
         if (!cancelled) setStockOptions(null)
@@ -454,7 +519,7 @@ export const CreateMedicineGivenModal = ({
     return () => {
       cancelled = true
     }
-  }, [selectedOrder, prescriptionOrders, admission?.name, isEdit, editRow?.medicine_code])
+  }, [selectedOrder, prescriptionOrders, admission?.name, isEdit, editRow?.medicine_code, editRow?.batch_no])
 
   useEffect(() => {
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
@@ -506,7 +571,9 @@ export const CreateMedicineGivenModal = ({
     setDispensingLot('')
 
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
-    const drugCode = (selected?.drug || '').trim()
+    const drugCode = (
+      isEdit ? editRow?.medicine_code || '' : selected?.drug || ''
+    ).trim()
     const admissionName = admission?.name
     if (!admissionName || !drugCode) {
       setLots([])
@@ -523,6 +590,11 @@ export const CreateMedicineGivenModal = ({
           batchName || undefined
         )
         setDispensingLots(dlRows)
+        if (dlRows.length > 0) {
+          const firstLot = dlRows[0]
+          setDispensingLot(firstLot.name)
+          setLotNo(firstLot.serial_no || firstLot.name)
+        }
       } catch {
         setDispensingLots([])
       } finally {
@@ -545,7 +617,9 @@ export const CreateMedicineGivenModal = ({
     setLoadingLots(true)
     try {
       const lotRows = await fetchMedicineGivenLots(batchName, admissionName)
-      setLots(lotRows.map((r) => r.lot_no).filter(Boolean))
+      const lotValues = lotRows.map((r) => r.lot_no).filter(Boolean)
+      setLots(lotValues)
+      if (lotValues.length > 0) setLotNo(lotValues[0])
     } catch {
       setLots([])
     } finally {
@@ -625,23 +699,6 @@ export const CreateMedicineGivenModal = ({
       if (proceed) {
         setOverrideChecked(true)
       }
-      return
-    }
-
-    const showBatchPicker = Boolean(stockOptions?.has_batch_no && stockOptions.batches.length > 0)
-    if (showBatchPicker && !batchNo) {
-      toast.error('Please select a batch for this medicine')
-      return
-    }
-    if (stockOptions?.requires_dispensing_lot) {
-      const availableLots =
-        dispensingLots.length > 0 ? dispensingLots : stockOptions.dispensing_lots || []
-      if (availableLots.length > 0 && !dispensingLot) {
-        toast.error('Please select a dispensing lot for this medicine')
-        return
-      }
-    } else if (stockOptions?.has_serial_no && lots.length > 0 && !lotNo) {
-      toast.error('Please select a lot number for this medicine')
       return
     }
 
@@ -948,9 +1005,7 @@ export const CreateMedicineGivenModal = ({
               {(stockOptions?.has_batch_no || stockOptions?.requires_dispensing_lot) && (
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Batch {stockOptions?.requires_dispensing_lot || stockOptions.batches.length > 0 ? (
-                      <span className="text-red-500">*</span>
-                    ) : null}
+                    Batch
                   </label>
                   {loadingStock ? (
                     <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading batches…</div>
@@ -960,7 +1015,7 @@ export const CreateMedicineGivenModal = ({
                       onChange={(e) => handleBatchChange(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     >
-                      <option value="">Select batch…</option>
+                      <option value="">Auto / none</option>
                       {stockOptions.batches.map((b) => (
                         <option key={b.batch_name || b.batch_id} value={b.batch_name || b.batch_id}>
                           {b.batch_id || b.batch_name}
@@ -984,7 +1039,7 @@ export const CreateMedicineGivenModal = ({
               {stockOptions?.requires_dispensing_lot && (
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Dispensing Lot {dispensingLots.length > 0 ? <span className="text-red-500">*</span> : null}
+                    Dispensing Lot
                   </label>
                   {loadingDispensingLots ? (
                     <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading dispensing lots…</div>
@@ -994,7 +1049,7 @@ export const CreateMedicineGivenModal = ({
                       onChange={(e) => handleDispensingLotChange(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     >
-                      <option value="">Select dispensing lot…</option>
+                      <option value="">Auto / none</option>
                       {dispensingLots.map((lot) => (
                         <option key={lot.name} value={lot.name}>
                           {lot.label || lot.serial_no || lot.name}
@@ -1018,7 +1073,7 @@ export const CreateMedicineGivenModal = ({
                 (lots.length > 0 || loadingLots) && (
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Lot No {lots.length > 0 ? <span className="text-red-500">*</span> : null}
+                    Lot No
                   </label>
                   {loadingLots ? (
                     <div className="rounded-lg border border-slate-200 px-3 py-2.5 text-sm text-slate-500">Loading lots…</div>
@@ -1028,7 +1083,7 @@ export const CreateMedicineGivenModal = ({
                       onChange={(e) => setLotNo(e.target.value)}
                       className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                     >
-                      <option value="">Select lot…</option>
+                      <option value="">Auto / none</option>
                       {lots.map((lot) => (
                         <option key={lot} value={lot}>
                           {lot}

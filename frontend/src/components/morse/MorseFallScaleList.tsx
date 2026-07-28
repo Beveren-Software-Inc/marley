@@ -4,6 +4,7 @@ import {
   getCurrentUserPractitionerOption,
   type LinkFieldOption,
 } from '../../services/common'
+import { Pencil } from 'lucide-react'
 import { isDoctorRole } from '../../config/permissions'
 import {
   fetchMorseFallScales,
@@ -18,6 +19,8 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { DAILY_ROUTINE_EDIT_LOCKED_MESSAGE, isEditableWithin24hFromCreation } from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
 
 interface MorseFallScaleListProps {
   patient?: string
@@ -30,6 +33,7 @@ interface MorseFallScaleListProps {
   createModalOpen?: boolean
   onCreateModalOpenChange?: (open: boolean) => void
   onRecordCreated?: () => void
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -84,18 +88,20 @@ export const MorseFallScaleList = ({
   createModalOpen,
   onCreateModalOpenChange,
   onRecordCreated,
+  allowEditWithin24h = false,
 }: MorseFallScaleListProps) => {
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
-  const { guardClinicalCreate, userRole } = useCareContext()
+  const { guardClinicalCreate, guardClinicalEdit, userRole, uneditWithin24Hour } = useCareContext()
   const [rows, setRows] = useState<MorseFallScale[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [internalCreateOpen, setInternalCreateOpen] = useState(false)
   const [detailName, setDetailName] = useState<string | null>(null)
+  const [editRow, setEditRow] = useState<MorseFallScale | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
@@ -206,6 +212,19 @@ export const MorseFallScaleList = ({
   }
 
   const detailRow = detailName ? rows.find((r) => r.name === detailName) : undefined
+  const canEditRow = (row: MorseFallScale) =>
+    allowEditWithin24h &&
+    isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)
+
+  const handleEdit = (row: MorseFallScale) => {
+    if (!canEditRow(row)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      setOpenActionRow(null)
+      return
+    }
+    setOpenActionRow(null)
+    guardClinicalEdit(() => setEditRow(row))
+  }
 
   if (!patient) {
     return (
@@ -437,6 +456,20 @@ export const MorseFallScaleList = ({
                             >
                               View
                             </button>
+                            {canEditRow(row) ? (
+                              <button
+                                type="button"
+                                onClick={() => handleEdit(row)}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                Edit
+                              </button>
+                            ) : allowEditWithin24h ? (
+                              <div className="px-3 py-2 text-xs text-slate-500" title={DAILY_ROUTINE_EDIT_LOCKED_MESSAGE}>
+                                {uneditWithin24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                              </div>
+                            ) : null}
                           </PortalActionsMenu>
                         </div>
                         <PrintFormatDropdown
@@ -472,6 +505,20 @@ export const MorseFallScaleList = ({
           defaultAdmission={defaultAdmission}
           onClose={() => setShowCreateModal(false)}
           onCreated={handleCreateSuccess}
+        />
+      )}
+
+      {editRow && (
+        <CreateMorseFallScaleModal
+          patient={patient}
+          patientName={patientName}
+          defaultAdmission={defaultAdmission}
+          editRow={editRow}
+          onClose={() => setEditRow(null)}
+          onCreated={() => {
+            setEditRow(null)
+            handleCreateSuccess()
+          }}
         />
       )}
     </>

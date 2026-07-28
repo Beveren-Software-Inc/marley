@@ -35,6 +35,12 @@ def get_healthcare_portal_settings():
 		"therapy_note_uneditable_in_24_hour": bool(
 			frappe.db.get_single_value("Healthcare Settings", "therapy_note_uneditable_in_24_hour")
 		),
+		"vital_sign_uneditable_in_24_hour": bool(
+			frappe.db.get_single_value("Healthcare Settings", "vital_sign_uneditable_in_24_hour")
+		),
+		"unedit_within_24hour": bool(
+			frappe.db.get_single_value("Healthcare Settings", "unedit_within_24hour")
+		),
 	}
 
 
@@ -4086,6 +4092,37 @@ def create_grooming_chart(data):
 
 
 @frappe.whitelist()
+def update_grooming_chart(data):
+	"""Update an existing IP Grooming Chart (24h window when Unedit within 24hour is on)."""
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
+	if isinstance(data, str):
+		data = frappe.parse_json(data)
+	data = data or {}
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Grooming Chart name is required"))
+	if not frappe.db.exists("IP Grooming Chart", name):
+		frappe.throw(_("Grooming Chart {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled("IP Grooming Chart", name, "unedit_within_24hour")
+
+	doc = frappe.get_doc("IP Grooming Chart", name)
+	allowed_fields = [
+		"date", "admission_no", "file_no", "patient_name", "cost_center",
+		"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
+		"change_clothes_noon", "shower", "bowel", "bed_wetting",
+		"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+		"weight", "lmp", "fluid_intake", "fluid_output",
+	]
+	for field in allowed_fields:
+		if field in data:
+			setattr(doc, field, data[field])
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": doc.name}
+
+@frappe.whitelist()
 def get_next_ip_grooming_chart_trans_num():
 	"""Preview next trans_num for IP Grooming Chart."""
 	return get_next_transaction_number("IP Grooming Chart", fieldname="trans_num")
@@ -4390,6 +4427,23 @@ def get_mental_state(name=None):
 	return doc.as_dict()
 
 
+_MENTAL_STATE_UPDATE_FIELDS = (
+	"admission_no", "file_no", "patient_name", "branch", "trans_shift",
+	"normal_at",
+	"cooperative", "aggressive", "paranoid", "demanding", "preoccupied",
+	"defence", "impulsive", "sedative", "dellusion",
+	"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
+	"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
+	"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
+	"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour", "normal",
+	"place", "time", "normal_ap", "person",
+	"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
+	"sleep_duration", "normal_sleep", "disturbed", "intermittent",
+	"excessive", "a_little",
+	"conscious", "alert", "disturbed_con", "delusion", "perception", "remark",
+)
+
+
 @frappe.whitelist()
 def create_mental_state(data):
 	"""Create a new Mental State record."""
@@ -4398,22 +4452,7 @@ def create_mental_state(data):
 			data = frappe.parse_json(data)
 
 		doc = frappe.new_doc("Mental State")
-		allowed_fields = [
-			"admission_no", "file_no", "patient_name", "branch", "trans_shift",
-			"normal_at",
-			"cooperative", "aggressive", "paranoid", "demanding", "preoccupied",
-			"defence", "impulsive", "sedative", "dellusion",
-			"normal_s", "rapid", "slow", "poor_sp", "slurred", "coherent",
-			"incoherent", "talkative", "anxious", "angry", "depressed", "elated",
-			"euthymic", "irritable", "twitches", "hyperactive", "stereotypes",
-			"restless", "gait", "tics", "agitated", "abnormal", "hallucinatory_behaviour", "normal",
-			"place", "time", "normal_ap", "person",
-			"increased", "poor_ap", "reported", "non_reported", "normal_b", "reported_type",
-			"sleep_duration", "normal_sleep", "disturbed", "intermittent",
-			"excessive", "a_little",
-			"conscious", "alert", "disturbed_con", "delusion", "perception", "remark"
-		]
-		for field in allowed_fields:
+		for field in _MENTAL_STATE_UPDATE_FIELDS:
 			if field in data:
 				setattr(doc, field, data[field])
 		doc.insert(ignore_permissions=True)
@@ -4422,6 +4461,31 @@ def create_mental_state(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating mental state: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def update_mental_state(data):
+	"""Update an existing Mental State record (24h window when setting enabled)."""
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
+	if isinstance(data, str):
+		data = frappe.parse_json(data)
+	data = data or {}
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Mental State name is required"))
+	if not frappe.db.exists("Mental State", name):
+		frappe.throw(_("Mental State {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled("Mental State", name, "unedit_within_24hour")
+
+	doc = frappe.get_doc("Mental State", name)
+	for field in _MENTAL_STATE_UPDATE_FIELDS:
+		if field in data:
+			setattr(doc, field, data[field])
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": doc.name, "creation": doc.creation}
 
 
 @frappe.whitelist()
@@ -4652,24 +4716,35 @@ def get_patient_assessment(name=None):
 	return _serialize_patient_assessment(doc)
 
 
+_PATIENT_ASSESSMENT_UPDATE_FIELDS = (
+	"patient",
+	"patient_name",
+	"assessment_template",
+	"reference_type",
+	"encounter",
+	"healthcare_practitioner",
+	"assessment_datetime",
+	"assessment_description",
+	"company",
+	"therapy_session",
+	"family_history",
+)
+
+
 @frappe.whitelist()
 def create_patient_assessment(data):
 	"""Create a new Patient Assessment record.
 
 	If assessment_sheet rows are provided in data, they are used directly.
 	Otherwise, if assessment_template is set, the sheet is auto-populated from the template.
+	Portal create saves as draft (no submit).
 	"""
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
 		doc = frappe.new_doc("Patient Assessment")
 		doc.naming_series = "HLC-PA-.YYYY.-"
-		for field in [
-			"patient", "patient_name", "assessment_template",
-			"reference_type", "encounter", "healthcare_practitioner",
-			"assessment_datetime", "assessment_description",
-			"company", "therapy_session", "family_history",
-		]:
+		for field in _PATIENT_ASSESSMENT_UPDATE_FIELDS:
 			if data.get(field):
 				setattr(doc, field, data[field])
 
@@ -4706,6 +4781,60 @@ def create_patient_assessment(data):
 	except Exception as e:
 		frappe.logger().error(f"Error creating patient assessment: {str(e)}")
 		return {"success": False, "message": str(e)}
+
+
+@frappe.whitelist()
+def update_patient_assessment(data):
+	"""Update an existing Patient Assessment draft (24h window when setting enabled).
+
+	Portal create saves as draft; submitted assessments cannot be edited here.
+	"""
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
+	if isinstance(data, str):
+		data = frappe.parse_json(data)
+	data = data or {}
+	name = (data.get("name") or "").strip()
+	if not name:
+		frappe.throw(_("Patient Assessment name is required"))
+	if not frappe.db.exists("Patient Assessment", name):
+		frappe.throw(_("Patient Assessment {0} not found").format(name))
+
+	assert_editable_within_24h_if_enabled("Patient Assessment", name, "unedit_within_24hour")
+
+	doc = frappe.get_doc("Patient Assessment", name)
+	if doc.docstatus == 1:
+		frappe.throw(
+			_("Submitted Patient Assessment cannot be edited. Cancel and amend, or create a new assessment."),
+			title=_("Editing not allowed"),
+		)
+	if doc.docstatus == 2:
+		frappe.throw(_("Cancelled Patient Assessment cannot be edited."))
+
+	for field in _PATIENT_ASSESSMENT_UPDATE_FIELDS:
+		if field in data:
+			setattr(doc, field, data.get(field))
+
+	if "assessment_sheet" in data:
+		sheet_rows = data.get("assessment_sheet") or []
+		doc.set("assessment_sheet", [])
+		for row in sheet_rows:
+			if not isinstance(row, dict):
+				continue
+			doc.append(
+				"assessment_sheet",
+				{
+					"parameter": row.get("parameter"),
+					"score": row.get("score") if row.get("score") is not None else 0,
+					"time": row.get("time") or None,
+					"comments": row.get("comments") or "",
+					"yes": row.get("yes") or 0,
+				},
+			)
+
+	doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"success": True, "name": doc.name, "creation": doc.creation}
 
 
 @frappe.whitelist()

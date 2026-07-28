@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { FileDown, FileText } from 'lucide-react'
+import { FileDown, FileText, MoreHorizontal, Pencil } from 'lucide-react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
@@ -9,6 +9,14 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { VitalSignsDetailPanel } from './VitalSignsDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { toast } from '../../hooks/useToast'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  DAILY_ROUTINE_EDIT_LOCKED_MESSAGE,
+  VITAL_SIGN_EDIT_LOCKED_MESSAGE,
+  isEditableWithin24hFromCreation,
+} from '../../constants/nursingShift'
+import { CreateVitalSignModal } from './CreateVitalSignModal'
 
 interface VitalSignsListProps {
   patient?: string
@@ -16,6 +24,7 @@ interface VitalSignsListProps {
   onPatientClick?: (patient: string) => void
   onAdd?: () => void
   addButtonTitle?: string
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -66,7 +75,9 @@ export const VitalSignsList = ({
   onPatientClick,
   onAdd,
   addButtonTitle = 'Add Vital Signs',
+  allowEditWithin24h = false,
 }: VitalSignsListProps) => {
+  const { guardClinicalEdit, vitalSignUneditableIn24Hour } = useCareContext()
   const cardFilters = useCardFilters()
   const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
@@ -78,6 +89,9 @@ export const VitalSignsList = ({
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailSubtitle, setDetailSubtitle] = useState<string | undefined>()
+  const [editRow, setEditRow] = useState<VitalSign | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -149,6 +163,31 @@ export const VitalSignsList = ({
       : undefined
     const parts = [vs.patient_name || vs.patient, vs.trans_no || vs.name, when].filter(Boolean)
     setDetailSubtitle(parts.length ? parts.join(' · ') : undefined)
+  }
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const canEditRow = (row: VitalSign) =>
+    allowEditWithin24h &&
+    isEditableWithin24hFromCreation(row.creation, vitalSignUneditableIn24Hour)
+
+  const openEdit = (row: VitalSign) => {
+    if (!canEditRow(row)) {
+      toast.error(vitalSignUneditableIn24Hour ? VITAL_SIGN_EDIT_LOCKED_MESSAGE : DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    guardClinicalEdit(() => setEditRow(row))
   }
 
   const exportExcel = () => {
@@ -491,12 +530,61 @@ export const VitalSignsList = ({
                   <td className="px-4 py-3 text-sm text-slate-700">{vs.weight || '-'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700">{vs.bmi || '-'}</td>
                   <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
-                    <PrintFormatDropdown
-                      doctype="Vital Signs"
-                      docName={vs.name}
-                      noLetterhead={0}
-                      triggerPrint={1}
-                    />
+                    {allowEditWithin24h ? (
+                      <div className="flex items-center justify-end gap-1.5">
+                        <div className="relative inline-block" ref={openActionRow === vs.name ? actionMenuRef : undefined}>
+                          <button
+                            type="button"
+                            onClick={() => setOpenActionRow((prev) => (prev === vs.name ? null : vs.name))}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                            aria-label="Actions"
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === vs.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={actionMenuRef}
+                            minWidth={160}
+                          >
+                            {canEditRow(vs) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  openEdit(vs)
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                Edit
+                              </button>
+                            ) : (
+                              <div
+                                className="px-3 py-2 text-xs text-slate-500"
+                                title={VITAL_SIGN_EDIT_LOCKED_MESSAGE}
+                              >
+                                {vitalSignUneditableIn24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                              </div>
+                            )}
+                          </PortalActionsMenu>
+                        </div>
+                        <PrintFormatDropdown
+                          doctype="Vital Signs"
+                          docName={vs.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      </div>
+                    ) : (
+                      <PrintFormatDropdown
+                        doctype="Vital Signs"
+                        docName={vs.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}
@@ -513,6 +601,18 @@ export const VitalSignsList = ({
             setDetailName(null)
             setDetailSubtitle(undefined)
           }}
+        />
+      ) : null}
+
+      {editRow ? (
+        <CreateVitalSignModal
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
+            void loadVitalSigns()
+          }}
+          initialPatient={patient}
+          editRow={editRow}
         />
       ) : null}
     </>

@@ -29,7 +29,6 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Daily Routine Care',
     screens: [
-      { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-assess', title: 'Patient Assessment' },
       { id: 'n-groom',  title: 'Grooming Chart' },
       { id: 'n-sleep',  title: 'Sleeping Pattern' },
@@ -41,6 +40,7 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Medication',
     screens: [
+      { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-med-sheet', title: 'Medication Sheet' },
       { id: 'n-reminder',  title: 'Long Acting Medicines' },
       { id: 'n-given',     title: 'Given Medicines' },

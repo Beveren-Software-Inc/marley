@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { MoreHorizontal, Pencil } from 'lucide-react'
 import { fetchMentalStates, type MentalStateRow } from '../../services/mentalState'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
@@ -6,6 +7,11 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MentalStateDetailPanel } from './MentalStateDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { DAILY_ROUTINE_EDIT_LOCKED_MESSAGE, isEditableWithin24hFromCreation } from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
+import { CreateMentalStateModal } from './CreateMentalStateModal'
 
 interface MentalStateListProps {
   patient?: string
@@ -14,6 +20,7 @@ interface MentalStateListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -49,7 +56,9 @@ export const MentalStateList = ({
   title = 'Mental Status',
   onAdd,
   addButtonTitle = 'New Mental Status',
+  allowEditWithin24h = false,
 }: MentalStateListProps) => {
+  const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -59,6 +68,9 @@ export const MentalStateList = ({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<MentalStateRow | null>(null)
+  const [editRow, setEditRow] = useState<MentalStateRow | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -113,6 +125,19 @@ export const MentalStateList = ({
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest('[data-portal-actions-menu]')) return
+      if (el.closest('button[aria-label="Actions"]')) return
+      if (actionMenuRef.current && !actionMenuRef.current.contains(e.target as Node)) {
+        setOpenActionRow(null)
+      }
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
   const clearFilters = () => {
     setDateFrom('')
     setDateTo('')
@@ -135,6 +160,18 @@ export const MentalStateList = ({
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
+
+  const canEditRow = (row: MentalStateRow) =>
+    allowEditWithin24h &&
+    isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)
+
+  const openEdit = (row: MentalStateRow) => {
+    if (!canEditRow(row)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    guardClinicalEdit(() => setEditRow(row))
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -308,13 +345,59 @@ export const MentalStateList = ({
                       </span>
                     </td>
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      <PrintFormatDropdown
-                        doctype="Mental State"
-                        docName={r.name}
-                        noLetterhead={0}
-                        triggerPrint={1}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                      />
+                      {allowEditWithin24h ? (
+                        <div className="flex items-center justify-end gap-1.5">
+                          <div className="relative inline-block" ref={openActionRow === r.name ? actionMenuRef : undefined}>
+                            <button
+                              type="button"
+                              onClick={() => setOpenActionRow((prev) => (prev === r.name ? null : r.name))}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                              aria-label="Actions"
+                            >
+                              <MoreHorizontal className="h-4 w-4" aria-hidden />
+                            </button>
+                            <PortalActionsMenu
+                              open={openActionRow === r.name}
+                              onClose={() => setOpenActionRow(null)}
+                              triggerRef={actionMenuRef}
+                              minWidth={160}
+                            >
+                              {canEditRow(r) ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOpenActionRow(null)
+                                    openEdit(r)
+                                  }}
+                                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                                >
+                                  <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                  Edit
+                                </button>
+                              ) : (
+                                <div className="px-3 py-2 text-xs text-slate-500" title={DAILY_ROUTINE_EDIT_LOCKED_MESSAGE}>
+                                  {uneditWithin24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                                </div>
+                              )}
+                            </PortalActionsMenu>
+                          </div>
+                          <PrintFormatDropdown
+                            doctype="Mental State"
+                            docName={r.name}
+                            noLetterhead={0}
+                            triggerPrint={1}
+                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                          />
+                        </div>
+                      ) : (
+                        <PrintFormatDropdown
+                          doctype="Mental State"
+                          docName={r.name}
+                          noLetterhead={0}
+                          triggerPrint={1}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                        />
+                      )}
                     </td>
                   </tr>
                 )
@@ -330,6 +413,18 @@ export const MentalStateList = ({
           preview={detailRow}
           onClose={() => setDetailRow(null)}
           onPatientClick={onPatientClick}
+        />
+      ) : null}
+
+      {editRow ? (
+        <CreateMentalStateModal
+          patient={patient}
+          editRow={editRow}
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
+            void load()
+          }}
         />
       ) : null}
     </div>

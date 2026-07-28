@@ -2522,10 +2522,20 @@ def create_lab_test(data):
 	naming_series = frappe.db.get_value('Lab Test', {'naming_series': 'HLC-LAB-.YYYY.-'}, 'naming_series')
 	if not naming_series:
 		naming_series = 'HLC-LAB-.YYYY.-'
+
+	# Lab Test autoname is field:trans_num — must set before insert
+	from healthcare.healthcare.doctype.service_request.service_request import (
+		generate_lab_test_trans_num,
+	)
+
+	trans_num = (data.get("trans_num") or "").strip() or generate_lab_test_trans_num(
+		format_type="prefixed", prefix="LT-", padding=6
+	)
 	
 	# Create the lab test
 	lab_test = frappe.get_doc({
 		'doctype': 'Lab Test',
+		'trans_num': trans_num,
 		'patient': data.get('patient'),
 		'patient_sex': patient_sex,
 		'cost_center': data.get('cost_center'),
@@ -2538,7 +2548,9 @@ def create_lab_test(data):
 		'status': data.get('status') or 'Draft',
 		'repeat_daily': 1 if str(data.get('repeat_daily') or '').lower() in ('1', 'true', 'yes') else 0,
 		'repeat_until': data.get('repeat_until') or None,
-		'naming_series': naming_series
+		'naming_series': naming_series,
+		'inpatient_record': data.get('inpatient_record') or None,
+		'patient_visit': data.get('patient_visit') or None,
 	})
 	
 	lab_test.insert(ignore_permissions=True)
@@ -2571,6 +2583,7 @@ def create_lab_test(data):
 	# Return the created lab test
 	return {
 		'name': lab_test.name,
+		'trans_num': lab_test.trans_num,
 		'patient': lab_test.patient,
 		'patient_name': frappe.db.get_value('Patient', lab_test.patient, 'patient_name') or lab_test.patient,
 		'practitioner': lab_test.practitioner,

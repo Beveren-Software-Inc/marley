@@ -9,6 +9,8 @@ import { SleepingPatternDetailPanel } from './SleepingPatternDetailPanel'
 import { EditSleepingPatternModal } from './EditSleepingPatternModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { DAILY_ROUTINE_EDIT_LOCKED_MESSAGE, isEditableWithin24hFromCreation } from '../../constants/nursingShift'
+import { toast } from '../../hooks/useToast'
 
 interface SleepingPatternListProps {
   patient?: string
@@ -20,6 +22,7 @@ interface SleepingPatternListProps {
   addButtonTitle?: string
   /** When false, hides row edit actions. */
   manageRows?: boolean
+  allowEditWithin24h?: boolean
 }
 
 const FilterToggleButton = ({
@@ -64,8 +67,9 @@ export const SleepingPatternList = ({
   onAdd,
   addButtonTitle = 'New Sleeping Pattern',
   manageRows = true,
+  allowEditWithin24h = false,
 }: SleepingPatternListProps) => {
-  const { guardClinicalEdit } = useCareContext()
+  const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -147,6 +151,10 @@ export const SleepingPatternList = ({
   }
 
   const openEdit = (row: SleepingPattern) => {
+    if (allowEditWithin24h && !isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
     guardClinicalEdit(() => {
       setEditRow(row)
       setDetailRow(null)

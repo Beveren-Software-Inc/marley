@@ -27,6 +27,9 @@ export interface GroomingChartRow {
   creation: string
   modified?: string
   owner?: string
+  patient_visit?: string | null
+  fluid_intake?: number | null
+  fluid_output?: number | null
 }
 
 export type GroomingChartDoc = GroomingChartRow
@@ -101,6 +104,19 @@ export async function createGroomingChart(
   input: CreateGroomingChartInput
 ): Promise<{ success: boolean; name?: string; message?: string }> {
   const res = await fetch('/api/method/healthcare.api.common.create_grooming_chart', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
+    body: JSON.stringify({ data: JSON.stringify(input) }),
+  })
+  const data = await res.json()
+  const msg = data?.message
+  return msg ?? { success: false, message: 'Unknown error' }
+}
+
+export async function updateGroomingChart(
+  input: CreateGroomingChartInput & { name: string }
+): Promise<{ success: boolean; name?: string; message?: string }> {
+  const res = await fetch('/api/method/healthcare.api.common.update_grooming_chart', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Frappe-CSRF-Token': (window as any).csrf_token || '' },
     body: JSON.stringify({ data: JSON.stringify(input) }),

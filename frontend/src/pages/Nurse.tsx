@@ -11,7 +11,6 @@ import { ECTDashboard } from '../components/ect/ECTDashboard'
 import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList'
 import { ObservationList } from '../components/observations/ObservationList'
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
-import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignModal'
 import { DischargeList } from '../components/discharges/DischargeList'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
@@ -133,8 +132,7 @@ export const NursePage = () => {
   const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [showLabTestModal, setShowLabTestModal] = useState(false)
-  const [showObservationModal, setShowObservationModal] = useState(false)
-    const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
+  const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
   const [warningRefreshKey, setWarningRefreshKey] = useState(0)
   const [labTestRefreshKey, setLabTestRefreshKey] = useState(0)
   const [pendingLabResultCount, setPendingLabResultCount] = useState(0)
@@ -155,7 +153,6 @@ export const NursePage = () => {
       }}
     />
   )
-  const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [dischargeRefreshKey, setDischargeRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
   const [draftAdmissionNo, setDraftAdmissionNo] = useState<string | null>(null)
@@ -344,7 +341,9 @@ export const NursePage = () => {
   }
 
   useEffect(() => {
-    if (screen !== NURSE_DISCHARGE_SCREEN_ID || !selectedPatient) {
+    const onDischargeLandingOrScreen =
+      screen === null || screen === NURSE_DISCHARGE_SCREEN_ID
+    if (!onDischargeLandingOrScreen || !selectedPatient) {
       setDischargeHasDraft(false)
       setDraftAdmissionNo(null)
       return
@@ -364,6 +363,38 @@ export const NursePage = () => {
         setDraftAdmissionNo(null)
       })
   }, [screen, selectedPatient, dischargeRefreshKey])
+
+  const handleOpenDischarge = async () => {
+    if (!selectedPatient) {
+      toast.error('Please select a patient first')
+      return
+    }
+
+    try {
+      const admission = await getPatientActiveAdmission(selectedPatient)
+      if (!admission) {
+        toast.error('No active admission found for this patient')
+        return
+      }
+
+      const hasDraft = await hasAnyDischargeDraft(admission.name)
+      setDischargeHasDraft(hasDraft)
+      setDraftAdmissionNo(admission.name)
+
+      navigateToDischarge(
+        {
+          name: admission.name,
+          patient: admission.patient,
+          patient_name: admission.patient_name,
+        },
+        navigate,
+        `/nurse?${searchParams.toString()}`
+      )
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
+      toast.error(errorMessage)
+    }
+  }
 
   const handleDischargeSuccess = () => {
     toast.success('Discharge completed successfully')
@@ -973,30 +1004,16 @@ export const NursePage = () => {
     )
   }
 
-  // Show Observation
+  // Show Observation — nurses view only (no create)
   if (screen === 'n-ob') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard
-            title="Observation Level"
-            onAdd={() => setShowObservationModal(true)}
-            addButtonTitle="Add Observation Level"
-          >
-            <ObservationList patient={selectedPatient} key={observationRefreshKey} onPatientClick={handlePatientSelect} />
+          <DashboardCard title="Observation Level">
+            <ObservationList patient={selectedPatient} onPatientClick={handlePatientSelect} />
           </DashboardCard>
         </div>
-        {showObservationModal && (
-          <CreateObservationModal
-            onClose={() => setShowObservationModal(false)}
-            onSuccess={() => {
-              setObservationRefreshKey(prev => prev + 1)
-              setShowObservationModal(false)
-            }}
-            initialPatient={selectedPatient}
-          />
-        )}
       </div>
     )
   }
@@ -1013,6 +1030,7 @@ export const NursePage = () => {
               refreshKey={vitalSignsRefreshKey}
               onPatientClick={handlePatientSelect}
               onAdd={() => setShowVitalSignModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1041,6 +1059,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               defaultAdmission={activeAdmission || undefined}
               defaultVisit={activeVisit || undefined}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1431,6 +1450,7 @@ export const NursePage = () => {
               onPatientClick={handlePatientSelect}
               defaultAdmission={activeAdmission || undefined}
               onRecordCreated={() => setMorseFallRefreshKey((k) => k + 1)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1449,6 +1469,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={sleepingPatternRefreshKey}
               onAdd={() => setShowSleepingPatternModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1577,38 +1598,6 @@ export const NursePage = () => {
 
   // Show Discharge Form (list of discharges with + button) — hidden in OP mode
   if (screen === NURSE_DISCHARGE_SCREEN_ID && modeForScreens !== 'OP') {
-    const handleOpenDischarge = async () => {
-      if (!selectedPatient) {
-        toast.error('Please select a patient first')
-        return
-      }
-
-      try {
-        const admission = await getPatientActiveAdmission(selectedPatient)
-        if (!admission) {
-          toast.error('No active admission found for this patient')
-          return
-        }
-
-        const hasDraft = await hasAnyDischargeDraft(admission.name)
-        setDischargeHasDraft(hasDraft)
-        setDraftAdmissionNo(admission.name)
-
-        navigateToDischarge(
-          {
-            name: admission.name,
-            patient: admission.patient,
-            patient_name: admission.patient_name,
-          },
-          navigate,
-          `/nurse?${searchParams.toString()}`
-        )
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : 'Failed to fetch admission'
-        toast.error(errorMessage)
-      }
-    }
-
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1685,6 +1674,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={mentalStateRefreshKey}
               onAdd={() => setShowMentalStateModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1714,6 +1704,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={groomingRefreshKey}
               onAdd={() => setShowGroomingModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1743,6 +1734,7 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={patientAssessmentRefreshKey}
               onAdd={() => setShowPatientAssessmentModal(true)}
+              allowEditWithin24h
             />
           </section>
         </div>
@@ -1889,6 +1881,27 @@ export const NursePage = () => {
             onPatientClick={handlePatientSelect}
           />
         </DashboardCard>
+
+        {modeForScreens !== 'OP' ? (
+          <DashboardCard
+            fixedHeight
+            title="Discharge Form"
+            onAdd={handleOpenDischarge}
+            addButtonTitle={dischargeHasDraft ? 'Continue discharge' : 'Start discharge'}
+            listingScreen={NURSE_DISCHARGE_SCREEN_ID}
+          >
+            {dischargeHasDraft && draftAdmissionNo ? (
+              <div className="mb-2 text-xs text-amber-700">
+                Draft on server — open from the list ⋮ menu or use + to continue
+              </div>
+            ) : null}
+            <DischargeList
+              patient={selectedPatient || undefined}
+              key={dischargeRefreshKey}
+              onPatientClick={handlePatientSelect}
+            />
+          </DashboardCard>
+        ) : null}
       </div>
 
       {showLabTrends && (

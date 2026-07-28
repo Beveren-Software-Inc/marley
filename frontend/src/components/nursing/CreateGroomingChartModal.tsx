@@ -12,7 +12,9 @@ import {
 import {
   createGroomingChart,
   getNextIPGroomingChartTransNum,
+  updateGroomingChart,
   type CreateGroomingChartInput,
+  type GroomingChartRow,
 } from '../../services/groomingCharts'
 import { fetchCostCenters, fetchInpatientAdmissions, fetchPatientVisits, syncCostCenterFromCareEpisode, type LinkFieldOption } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -22,6 +24,7 @@ interface CreateGroomingChartModalProps {
   onClose: () => void
   onSuccess: () => void
   patient?: string
+  editRow?: GroomingChartRow
 }
 
 const CheckField = ({
@@ -52,7 +55,7 @@ const CheckField = ({
   </label>
 )
 
-export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: CreateGroomingChartModalProps) => {
+export const CreateGroomingChartModal = ({ onClose, onSuccess, patient, editRow }: CreateGroomingChartModalProps) => {
   // Get context from CareContextProvider
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
 
@@ -60,44 +63,47 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
   
+  const isEditMode = Boolean(editRow)
   const [activeTab, setActiveTab] = useState<'details' | 'hygiene' | 'meals' | 'measurements'>('details')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   // Form values
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0])
-  const [patientId, setPatientId] = useState(patient || contextPatient || '')
+  const [date, setDate] = useState(editRow?.date || new Date().toISOString().split('T')[0])
+  const [patientId, setPatientId] = useState(editRow?.file_no || patient || contextPatient || '')
   const [admissionNo, setAdmissionNo] = useState(() => {
+    if (editRow?.admission_no) return editRow.admission_no
     if (isIPMode && activeAdmission) return activeAdmission
     return ''
   })
   const [patientVisitNo, setPatientVisitNo] = useState(() => {
+    if (editRow?.patient_visit) return editRow.patient_visit
     if (isOPMode && activeVisit) return activeVisit
     return ''
   })
-  const [costCenter, setCostCenter] = useState('')
-  const [patientName, setPatientName] = useState('')
-  const [lmp, setLmp] = useState('')
-  const [weight, setWeight] = useState<string>('')
-  const [fluidIntake, setFluidIntake] = useState<string>('')
-  const [fluidOutput, setFluidOutput] = useState<string>('')
+  const [costCenter, setCostCenter] = useState(editRow?.cost_center || '')
+  const [patientName, setPatientName] = useState(editRow?.patient_name || '')
+  const [lmp, setLmp] = useState(editRow?.lmp || '')
+  const [weight, setWeight] = useState<string>(editRow?.weight != null ? String(editRow.weight) : '')
+  const [fluidIntake, setFluidIntake] = useState<string>(editRow?.fluid_intake != null ? String(editRow.fluid_intake) : '')
+  const [fluidOutput, setFluidOutput] = useState<string>(editRow?.fluid_output != null ? String(editRow.fluid_output) : '')
 
   // Check fields – hygiene
-  const [brushTeethMorning, setBrushTeethMorning] = useState<0 | 1>(0)
-  const [changeClothesMorning, setChangeClothesMorning] = useState<0 | 1>(0)
-  const [brushTeethNoon, setBrushTeethNoon] = useState<0 | 1>(0)
-  const [changeClothesNoon, setChangeClothesNoon] = useState<0 | 1>(0)
-  const [shower, setShower] = useState<0 | 1>(0)
-  const [bowel, setBowel] = useState<0 | 1>(0)
-  const [bedWetting, setBedWetting] = useState<0 | 1>(0)
+  const [brushTeethMorning, setBrushTeethMorning] = useState<0 | 1>(editRow?.brush_teeth_morning ?? 0)
+  const [changeClothesMorning, setChangeClothesMorning] = useState<0 | 1>(editRow?.change_clothes_morning ?? 0)
+  const [brushTeethNoon, setBrushTeethNoon] = useState<0 | 1>(editRow?.brush_teeth_noon ?? 0)
+  const [changeClothesNoon, setChangeClothesNoon] = useState<0 | 1>(editRow?.change_clothes_noon ?? 0)
+  const [shower, setShower] = useState<0 | 1>(editRow?.shower ?? 0)
+  const [bowel, setBowel] = useState<0 | 1>(editRow?.bowel ?? 0)
+  const [bedWetting, setBedWetting] = useState<0 | 1>(editRow?.bed_wetting ?? 0)
 
   // Check fields – meals
-  const [breakfast, setBreakfast] = useState<0 | 1>(0)
-  const [snack1, setSnack1] = useState<0 | 1>(0)
-  const [lunch, setLunch] = useState<0 | 1>(0)
-  const [snack2, setSnack2] = useState<0 | 1>(0)
-  const [dinner, setDinner] = useState<0 | 1>(0)
-  const [snack3, setSnack3] = useState<0 | 1>(0)
+  const [breakfast, setBreakfast] = useState<0 | 1>(editRow?.breakfast ?? 0)
+  const [snack1, setSnack1] = useState<0 | 1>(editRow?.snack_1 ?? 0)
+  const [lunch, setLunch] = useState<0 | 1>(editRow?.lunch ?? 0)
+  const [snack2, setSnack2] = useState<0 | 1>(editRow?.snack_2 ?? 0)
+  const [dinner, setDinner] = useState<0 | 1>(editRow?.dinner ?? 0)
+  const [snack3, setSnack3] = useState<0 | 1>(editRow?.snack_3 ?? 0)
 
   // Patient dropdown
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -280,9 +286,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
     setSaving(true)
     setError(null)
     try {
-      const transNum = await getNextIPGroomingChartTransNum()
       const payload: CreateGroomingChartInput = {
-        trans_num: transNum,
         date,
         file_no: patientId,
         patient_name: patientName || undefined,
@@ -300,14 +304,19 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
         fluid_output: fluidOutput ? parseFloat(fluidOutput) : null,
         lmp: lmp || undefined,
       }
-      const result = await createGroomingChart(payload)
+      if (!editRow) {
+        payload.trans_num = await getNextIPGroomingChartTransNum()
+      }
+      const result = editRow
+        ? await updateGroomingChart({ name: editRow.name, ...payload })
+        : await createGroomingChart(payload)
       if (result.success) {
         onSuccess()
       } else {
-        setError(result.message || 'Failed to create grooming chart')
+        setError(result.message || `Failed to ${editRow ? 'update' : 'create'} grooming chart`)
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to create grooming chart')
+      setError(e instanceof Error ? e.message : `Failed to ${editRow ? 'update' : 'create'} grooming chart`)
     } finally {
       setSaving(false)
     }
@@ -345,7 +354,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
         <div className="relative shrink-0 border-b border-emerald-100/60 bg-gradient-to-r from-emerald-100 via-teal-50 to-sky-100 p-4 sm:px-5 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-semibold tracking-tight text-emerald-950">New Grooming Chart</h2>
+              <h2 className="text-lg font-semibold tracking-tight text-emerald-950">{isEditMode ? 'Edit Grooming Chart' : 'New Grooming Chart'}</h2>
               <p className="text-xs text-slate-500 mt-0.5">
                 {isIPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px] font-medium mr-2">IP Mode Active</span>}
                 {isOPMode && <span className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[10px] font-medium mr-2">OP Mode Active</span>}
@@ -720,7 +729,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient }: Create
               disabled={saving || (!isIPMode && !isOPMode) || (isIPMode && !admissionNo) || (isOPMode && !patientVisitNo)}
               className={CM_BTN_PRIMARY}
             >
-              {saving ? 'Saving…' : 'Save Chart'}
+              {saving ? 'Saving…' : isEditMode ? 'Update Chart' : 'Save Chart'}
             </button>
           </CreateModalFooter>
         </form>
