@@ -878,8 +878,15 @@ def _lab_test_has_results_entered(lab_test):
 	return (lab_test.get("status") or "").strip() in LAB_RESULTS_ENTERED_STATUSES
 
 
-def _filter_pending_pipeline_lab_tests(lab_tests):
-	"""Keep in-pipeline tests; drop completed singles and fully completed groups."""
+def _filter_pending_pipeline_lab_tests(lab_tests, selected_status=None):
+	"""Keep in-pipeline tests; drop completed singles and fully completed groups.
+
+	When a specific status tab is selected on the Lab Request screen, re-apply that
+	status after grouped-request sibling expansion so mixed-status groups do not
+	leak unrelated child rows into the filtered result.
+	"""
+	selected_status = (selected_status or "").strip()
+
 	by_service_request = {}
 	for lt in lab_tests:
 		if cint(lt.get("is_group_lab_test") or 0) == 1 and lt.get("service_request"):
@@ -895,9 +902,18 @@ def _filter_pending_pipeline_lab_tests(lab_tests):
 			seen_service_requests.add(service_request)
 			children = by_service_request.get(service_request, [])
 			if any(not _lab_test_has_results_entered(child) for child in children):
-				filtered.extend(children)
+				if selected_status:
+					filtered.extend(
+						child
+						for child in children
+						if (child.get("status") or "").strip() == selected_status
+					)
+				else:
+					filtered.extend(children)
 			continue
 		if not _lab_test_has_results_entered(lt):
+			if selected_status and (lt.get("status") or "").strip() != selected_status:
+				continue
 			filtered.append(lt)
 	return filtered
 
@@ -990,7 +1006,7 @@ def get_lab_tests(
 			limit=0,
 		)
 		pending_rows = _expand_grouped_lab_test_siblings(pending_rows, filters)
-		pending_rows = _filter_pending_pipeline_lab_tests(pending_rows)
+		pending_rows = _filter_pending_pipeline_lab_tests(pending_rows, status)
 		total_count = len(pending_rows)
 		lab_tests = pending_rows[cint(offset) : cint(offset) + cint(limit)]
 	else:

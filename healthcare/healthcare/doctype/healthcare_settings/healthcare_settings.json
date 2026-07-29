@@ -64,6 +64,7 @@
   "lab_test_approval_required",
   "employee_name_and_designation_in_print",
   "custom_signature_in_print",
+  "lab_item_group",
   "billing_accounts",
   "healthcare_service_items",
   "inpatient_visit_charge_item",
@@ -944,11 +945,17 @@
    "fieldname": "unedit_within_24hour",
    "fieldtype": "Check",
    "label": "Unedit within 24hour"
+  },
+  {
+   "fieldname": "lab_item_group",
+   "fieldtype": "Table MultiSelect",
+   "label": "Lab Item Group",
+   "options": "Lab Groups"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-28 17:22:23.043962",
+ "modified": "2026-07-29 13:25:57.331277",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
