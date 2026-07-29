@@ -115,7 +115,7 @@ def _bind_stock_entry_rate_preserver(stock_entry):
         has_resolved_outgoing_rate = any(
             flt(row.basic_rate) > 0 for row in (self.items or []) if row.s_warehouse
         )
-        if self.purpose == "Material Transfer" and has_resolved_outgoing_rate:
+        if self.purpose in ("Material Transfer", "Material Issue") and has_resolved_outgoing_rate:
             reset_outgoing_rate = False
         return StockEntry.calculate_rate_and_amount(
             self, reset_outgoing_rate, raise_error_if_no_rate
@@ -262,22 +262,83 @@ def _nhra_required_item_group_names():
     return list(groups)
 
 
+def _laboratory_allowed_item_group_names():
+    """Item groups selected in Healthcare Settings.lab_item_group plus descendants.
+
+    Returns:
+        None: no lab item-group restriction configured
+        []: configured but nothing resolves
+        list[str]: allowed item groups
+    """
+    settings = frappe.get_cached_doc("Healthcare Settings")
+    selected = [
+        (row.item_group or "").strip()
+        for row in (settings.get("lab_item_group") or [])
+        if (row.item_group or "").strip()
+    ]
+    if not selected:
+        return None
+
+    groups = set(selected)
+    from frappe.utils.nestedset import get_descendants_of
+
+    for group_name in selected:
+        try:
+            groups.update(get_descendants_of("Item Group", group_name) or [])
+        except Exception:
+            pass
+    return list(groups)
+
+
+def _inventory_allowed_item_group_names(warehouse_context=None):
+    ctx = normalize_mini_warehouse_context(warehouse_context)
+    if ctx == "laboratory":
+        return _laboratory_allowed_item_group_names()
+    if _nursing_inventory_nhra_filter_enabled(ctx):
+        return _nhra_required_item_group_names()
+    return None
+
+
+def _inventory_context_label(warehouse_context=None):
+    return (
+        _("laboratory inventory")
+        if normalize_mini_warehouse_context(warehouse_context) == "laboratory"
+        else _("nursing inventory")
+    )
+
+
+def _item_is_allowed_for_inventory_context(item_code, warehouse_context=None, cache=None):
+    if not item_code:
+        return False
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is None:
+        return True
+    cache = cache if cache is not None else {}
+    if item_code not in cache:
+        item_group = frappe.db.get_value("Item", item_code, "item_group")
+        cache[item_code] = bool(item_group and item_group in set(allowed_groups))
+    return cache[item_code]
+
+
 def _assert_nhra_item_for_nursing_inventory(item_code, warehouse_context=None):
-    if not _nursing_inventory_nhra_filter_enabled(warehouse_context):
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is None:
         return
-    if not _item_is_nhra_required(item_code):
+    if not _item_is_allowed_for_inventory_context(item_code, warehouse_context):
         frappe.throw(
-            _("Item {0} is not in an NHRA-required item group and cannot be used in nursing inventory.").format(
+            _("Item {0} is not allowed in {1}.").format(
                 item_code
+                , _inventory_context_label(warehouse_context)
             )
         )
 
 
 def _filter_rows_by_nhra_item(rows, item_code_field="item_code", warehouse_context=None):
-    if not _nursing_inventory_nhra_filter_enabled(warehouse_context) or not _item_group_has_nhra_field():
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is None:
         return rows
     cache = {}
-    return [row for row in rows if _item_is_nhra_required(row.get(item_code_field), cache)]
+    return [row for row in rows if _item_is_allowed_for_inventory_context(row.get(item_code_field), warehouse_context, cache)]
 
 
 def inherit_mini_warehouse_flags_on_stock_entry(doc, method=None):
@@ -341,11 +402,9 @@ def get_stock_ledger(cost_center, warehouse_context=None):
     if not warehouse:
         return []
 
-    nhra_groups = None
-    if _nursing_inventory_nhra_filter_enabled(warehouse_context):
-        nhra_groups = _nhra_required_item_group_names()
-        if nhra_groups is not None and not nhra_groups:
-            return []
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is not None and not allowed_groups:
+        return []
 
     # Prefer Bin.actual_qty — same balance ERPNext Stock Balance / Item stock UI use.
     # SUM(SLE) without is_cancelled=0 can diverge and show wrong (often negative) qty.
@@ -364,10 +423,10 @@ def get_stock_ledger(cost_center, warehouse_context=None):
           AND IFNULL(b.actual_qty, 0) != 0
     """
     params = [warehouse]
-    if nhra_groups is not None:
-        placeholders = ", ".join(["%s"] * len(nhra_groups))
+    if allowed_groups is not None:
+        placeholders = ", ".join(["%s"] * len(allowed_groups))
         sql += f" AND i.item_group IN ({placeholders})"
-        params.extend(nhra_groups)
+        params.extend(allowed_groups)
     sql += """
         ORDER BY i.item_name
     """
@@ -606,13 +665,11 @@ def get_inventory_items(search=None, warehouse_context=None):
     filters = {"disabled": 0, "item_group": ["is", "set"]}
     fields = ["item_code as code", "item_name as name", "stock_uom as uom", "valuation_rate as price", "item_group"]
 
-    nhra_groups = None
-    if _nursing_inventory_nhra_filter_enabled(warehouse_context):
-        nhra_groups = _nhra_required_item_group_names()
-        if nhra_groups is not None and not nhra_groups:
-            return []
-        if nhra_groups is not None:
-            filters["item_group"] = ["in", nhra_groups]
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is not None and not allowed_groups:
+        return []
+    if allowed_groups is not None:
+        filters["item_group"] = ["in", allowed_groups]
 
     if search:
         filters["item_code"] = ["like", f"%{search}%"]
@@ -622,8 +679,8 @@ def get_inventory_items(search=None, warehouse_context=None):
     # If no results by item_code, try by item_name
     if search and len(items) == 0:
         name_filters = {"disabled": 0, "item_name": ["like", f"%{search}%"], "item_group": ["is", "set"]}
-        if nhra_groups is not None:
-            name_filters["item_group"] = ["in", nhra_groups]
+        if allowed_groups is not None:
+            name_filters["item_group"] = ["in", allowed_groups]
         items = frappe.get_all("Item", filters=name_filters, fields=fields, limit=50)
 
     for item in items:
@@ -657,16 +714,16 @@ def get_item_groups(search=None, warehouse_context=None):
     Returns only leaf item groups (not parent groups).
 
     Nurse mini-warehouse inventory limits groups to the NHRA-required tree.
+    Laboratory mini-warehouse inventory limits groups to Healthcare Settings.lab_item_group
+    when any lab groups are configured there.
     """
     filters = {"is_group": 0}
 
-    nhra_groups = None
-    if _nursing_inventory_nhra_filter_enabled(warehouse_context):
-        nhra_groups = _nhra_required_item_group_names()
-        if nhra_groups is not None and not nhra_groups:
-            return []
-        if nhra_groups is not None:
-            filters["name"] = ["in", nhra_groups]
+    allowed_groups = _inventory_allowed_item_group_names(warehouse_context)
+    if allowed_groups is not None and not allowed_groups:
+        return []
+    if allowed_groups is not None:
+        filters["name"] = ["in", allowed_groups]
 
     if search:
         filters["item_group_name"] = ["like", f"%{search}%"]
@@ -1888,6 +1945,219 @@ def get_stock_transfers(cost_center, warehouse_context=None):
 					break
 
 	frappe.response["message"] = transfers
+
+
+@frappe.whitelist()
+def create_material_issue():
+	"""Issue stock out of the mini warehouse (Stock Entry - Material Issue)."""
+	try:
+		data = frappe.local.form_dict
+		if not data:
+			data = json.loads(frappe.request.data)
+
+		cost_center = data.get("cost_center")
+		if not cost_center:
+			frappe.throw(_("Cost Center is required"))
+
+		user_provided_source = (data.get("from_warehouse") or data.get("warehouse") or "").strip()
+		source_warehouse = _warehouse_for_cost_center(cost_center, data.get("warehouse_context"))
+		if user_provided_source and user_provided_source != source_warehouse:
+			validate_warehouse_change_permission()
+			source_warehouse = user_provided_source
+		if not source_warehouse:
+			frappe.throw(_("No source warehouse found for cost center {0} in Healthcare Settings").format(cost_center))
+
+		company = _company_for_cost_center(cost_center, source_warehouse)
+		if not company:
+			frappe.throw(
+				_("Company could not be resolved for cost center {0}. Set Company on the Cost Center in ERPNext.").format(
+					cost_center
+				)
+			)
+
+		se = frappe.new_doc("Stock Entry")
+		se.stock_entry_type = "Material Issue"
+		se.purpose = "Material Issue"
+		se.company = company
+		se.posting_date = data.get("issue_date", today())
+		if hasattr(se, "from_warehouse"):
+			se.from_warehouse = source_warehouse
+		_apply_mini_warehouse_metadata(
+			se,
+			data.get("warehouse_context"),
+			data.get("notes") or data.get("custom_notes"),
+		)
+		_apply_stock_entry_branch(se, cost_center)
+
+		from healthcare.api.medicine_given import _validate_medicine_given_batch_lot
+
+		se_item_meta = frappe.get_meta("Stock Entry Detail")
+		has_dispensing_field = se_item_meta.has_field("custom_dispensing_lot")
+
+		for item in data.get("items") or []:
+			item_code = (item.get("item_code") or "").strip()
+			qty = flt(item.get("quantity"))
+			if not item_code or qty <= 0:
+				continue
+
+			item_details = frappe.db.get_value(
+				"Item",
+				item_code,
+				["item_name", "stock_uom"],
+				as_dict=True,
+			)
+			if not item_details:
+				frappe.throw(_("Item {0} not found").format(item_code))
+			_assert_nhra_item_for_nursing_inventory(item_code, data.get("warehouse_context"))
+
+			uom = (item.get("uom") or "").strip() or item_details.stock_uom
+			batch_no = (item.get("batch_number") or item.get("batch_no") or "").strip() or None
+			dispensing_lot = (item.get("dispensing_lot") or "").strip() or None
+
+			_validate_medicine_given_batch_lot(
+				item_code,
+				"",
+				batch_no,
+				None,
+				dispensing_lot,
+				warehouse=source_warehouse,
+			)
+
+			row = {
+				"item_code": item_code,
+				"item_name": item.get("item_name") or item_details.item_name,
+				"qty": qty,
+				"uom": uom,
+				"s_warehouse": source_warehouse,
+				"cost_center": cost_center,
+				**_stock_entry_row_serial_batch_fields(item_code, batch_no),
+			}
+			if batch_no and "batch_no" not in row:
+				row["batch_no"] = batch_no
+			if has_dispensing_field and dispensing_lot:
+				row["custom_dispensing_lot"] = dispensing_lot
+			se.append("items", row)
+
+		if not se.items:
+			frappe.throw(_("At least one item is required"))
+
+		_prepare_stock_entry_before_submit(se)
+		_bind_stock_entry_rate_preserver(se)
+		se.insert()
+		se.submit()
+		frappe.db.commit()
+
+		frappe.response["message"] = {"name": se.name}
+		frappe.response["http_status_code"] = 200
+	except Exception as e:
+		frappe.response["message"] = str(e)
+		frappe.response["http_status_code"] = 400
+		frappe.log_error(f"Error creating material issue: {str(e)}")
+
+
+def _stock_issue_entry_names(cost_center, warehouse_context=None, limit=50):
+	"""Stock Entry names for material issues tied to a branch mini warehouse."""
+	source_warehouses = [
+		row["name"]
+		for row in _stock_transfer_source_warehouses(cost_center, warehouse_context)
+		if row.get("name")
+	]
+	default_wh = _warehouse_for_cost_center(cost_center, warehouse_context)
+	if default_wh and default_wh not in source_warehouses:
+		source_warehouses.append(default_wh)
+
+	warehouse_clause = ""
+	params = {"cost_center": cost_center, "limit": cint(limit)}
+	if source_warehouses:
+		warehouse_clause = """
+			OR parent.from_warehouse IN %(warehouses)s
+			OR child.s_warehouse IN %(warehouses)s
+		"""
+		params["warehouses"] = tuple(source_warehouses)
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT parent.name
+		FROM `tabStock Entry` parent
+		LEFT JOIN `tabStock Entry Detail` child ON child.parent = parent.name
+		WHERE parent.docstatus = 1
+			AND parent.purpose = 'Material Issue'
+			AND (
+				parent.cost_center = %(cost_center)s
+				OR child.cost_center = %(cost_center)s
+				{warehouse_clause}
+			)
+		GROUP BY parent.name
+		ORDER BY MAX(parent.creation) DESC
+		LIMIT %(limit)s
+		""",
+		params,
+		as_dict=True,
+	)
+	return [row.name for row in rows]
+
+
+@frappe.whitelist()
+def get_material_issues(cost_center, warehouse_context=None):
+	"""List submitted material issues out of branch or mini warehouses."""
+	if not cost_center:
+		frappe.throw(_("Cost Center is required"))
+
+	names = _stock_issue_entry_names(cost_center, warehouse_context)
+	if not names:
+		frappe.response["message"] = []
+		return
+
+	se_fields = [
+		"name",
+		"posting_date as issue_date",
+		"from_warehouse",
+		"total_outgoing_value as total_amount",
+		"owner as issued_by",
+		"stock_entry_type",
+		"purpose",
+		"cost_center",
+	]
+	if frappe.get_meta("Stock Entry").has_field("custom_notes"):
+		se_fields.append("custom_notes as notes")
+
+	issues = frappe.get_all(
+		"Stock Entry",
+		filters={"name": ["in", names]},
+		fields=se_fields,
+		order_by="creation desc",
+		limit=50,
+	)
+
+	se_item_fields = [
+		"item_code",
+		"item_name",
+		"qty as quantity",
+		"uom",
+		"s_warehouse",
+		"basic_rate as unit_price",
+		"amount as total_price",
+		"batch_no as batch_number",
+	]
+	if frappe.get_meta("Stock Entry Detail").has_field("custom_dispensing_lot"):
+		se_item_fields.append("custom_dispensing_lot as dispensing_lot")
+
+	for issue in issues:
+		issue["items"] = _filter_rows_by_nhra_item(
+			frappe.get_all(
+				"Stock Entry Detail",
+				filters={"parent": issue["name"]},
+				fields=se_item_fields,
+			),
+			warehouse_context=warehouse_context,
+		)
+		if not issue.get("from_warehouse"):
+			for line in issue["items"]:
+				if line.get("s_warehouse"):
+					issue["from_warehouse"] = line["s_warehouse"]
+					break
+
+	frappe.response["message"] = issues
 
 @frappe.whitelist()
 def get_user_cost_centers():

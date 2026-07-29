@@ -6,10 +6,12 @@ import { MaterialRequestTab } from './MaterialRequestTab'
 import { StockReconciliationTab } from './StockReconciliationTab'
 import { MaterialReceiptTab } from './MaterialReceiptTab'
 import { StockTransferTab } from './StockTransferTab'
+import { MaterialIssueTab } from './MaterialIssueTab'
 import { CreateMaterialRequestModal } from './CreateMaterialRequest'
 import { CreateStockReconciliationModal } from './CreateStockReconciliation'
 import { CreateMaterialReceiptModal } from './CreateMaterialReceipt'
 import { CreateStockTransferModal } from './CreateStockTransfer'
+import { CreateMaterialIssueModal } from './CreateMaterialIssue'
 import {
   MiniWarehouseInventoryProvider,
   type WarehouseContext,
@@ -22,6 +24,7 @@ type InventoryTab =
   | 'stock-reconciliation'
   | 'material-receipt'
   | 'stock-transfer'
+  | 'material-issue'
 
 interface CardDef {
   id: InventoryTab
@@ -53,12 +56,14 @@ function NursingInventoryDashboardInner() {
   const [showStockReconciliationModal, setShowStockReconciliationModal] = useState(false)
   const [showMaterialReceiptModal, setShowMaterialReceiptModal] = useState(false)
   const [showStockTransferModal, setShowStockTransferModal] = useState(false)
+  const [showMaterialIssueModal, setShowMaterialIssueModal] = useState(false)
 
   // Refresh keys
   const [materialRequestRefreshKey, setMaterialRequestRefreshKey] = useState(0)
   const [stockReconciliationRefreshKey, setStockReconciliationRefreshKey] = useState(0)
   const [materialReceiptRefreshKey, setMaterialReceiptRefreshKey] = useState(0)
   const [stockTransferRefreshKey, setStockTransferRefreshKey] = useState(0)
+  const [materialIssueRefreshKey, setMaterialIssueRefreshKey] = useState(0)
 
   // Always follow the global navbar branch filter
   const effectiveCostCenter = userCostCenter || ''
@@ -103,6 +108,14 @@ function NursingInventoryDashboardInner() {
       dot: 'bg-rose-500',
       onAdd: () => setShowStockTransferModal(true),
     },
+    {
+      id: 'material-issue',
+      title: 'Material Issue',
+      desc: 'Issue stock out of the mini warehouse',
+      color: 'bg-orange-50 text-orange-700 border-orange-200',
+      dot: 'bg-orange-500',
+      onAdd: () => setShowMaterialIssueModal(true),
+    },
   ]
 
   const activeCard = CARDS.find((c) => c.id === activeTab)!
@@ -143,6 +156,14 @@ function NursingInventoryDashboardInner() {
             costCenter={effectiveCostCenter}
           />
         )
+      case 'material-issue':
+        return (
+          <MaterialIssueTab
+            onSuccess={() => setMaterialIssueRefreshKey((prev) => prev + 1)}
+            refreshKey={materialIssueRefreshKey}
+            costCenter={effectiveCostCenter}
+          />
+        )
       default:
         return null
     }
@@ -171,7 +192,7 @@ function NursingInventoryDashboardInner() {
   return (
     <div className="space-y-4">
       {/* ── Nav cards ── */}
-      <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-5 gap-1.5">
+      <div className="grid grid-cols-3 sm:grid-cols-6 lg:grid-cols-6 gap-1.5">
         {CARDS.map((card) => {
           const isActive = activeTab === card.id
           return (
@@ -270,6 +291,17 @@ function NursingInventoryDashboardInner() {
           onSuccess={() => {
             setStockTransferRefreshKey((prev) => prev + 1)
             setShowStockTransferModal(false)
+          }}
+          costCenter={effectiveCostCenter}
+        />
+      )}
+
+      {showMaterialIssueModal && (
+        <CreateMaterialIssueModal
+          onClose={() => setShowMaterialIssueModal(false)}
+          onSuccess={() => {
+            setMaterialIssueRefreshKey((prev) => prev + 1)
+            setShowMaterialIssueModal(false)
           }}
           costCenter={effectiveCostCenter}
         />

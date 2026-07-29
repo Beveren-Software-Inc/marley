@@ -112,6 +112,25 @@ export interface StockTransfer {
   items: StockTransferItem[]
 }
 
+export interface MaterialIssueItem {
+  item_code: string
+  item_name: string
+  quantity: number
+  uom?: string
+  batch_number?: string
+  dispensing_lot?: string
+}
+
+export interface MaterialIssue {
+  name: string
+  issue_date: string
+  from_warehouse: string
+  total_amount?: number
+  issued_by: string
+  notes?: string
+  items: MaterialIssueItem[]
+}
+
 // Fetch stock ledger for a branch
 export async function fetchStockLedger(
   costCenter: string,
@@ -389,5 +408,34 @@ export async function fetchStockTransfers(
   )
   const data = await response.json()
   if (!response.ok) throw new Error(data.message || 'Failed to fetch stock transfers')
+  return data.message || []
+}
+
+export async function createMaterialIssue(data: {
+  cost_center: string
+  from_warehouse?: string
+  issue_date?: string
+  items: MaterialIssueItem[]
+  notes?: string
+  warehouse_context?: WarehouseContext
+}): Promise<{ name: string }> {
+  return apiRequest('/api/method/healthcare.api.nursing_inventory.create_material_issue', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
+}
+
+export async function fetchMaterialIssues(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<MaterialIssue[]> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_material_issues?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (!response.ok) throw new Error(data.message || 'Failed to fetch material issues')
   return data.message || []
 }
