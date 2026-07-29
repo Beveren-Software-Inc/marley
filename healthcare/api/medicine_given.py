@@ -1662,30 +1662,16 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 	if not pending:
 		return {"stock_entry": None, "items": []}
 
-	# Create a draft Stock Entry (Material Receipt) back to a default warehouse
-	admission_doc = frappe.get_doc("Inpatient Admission", admission)
-	company = admission_doc.company or frappe.defaults.get_user_default("Company")
-	if not company:
-		frappe.throw(_("Company is required to create Stock Entry for reconciliation"))
-
-	# Try company default warehouse, fallback to Stock Settings
-	warehouse = frappe.db.get_value("Company", company, "default_warehouse") or frappe.db.get_single_value(
-		"Stock Settings", "default_warehouse"
-	)
-	if not warehouse:
-		frappe.throw(
-			_(
-				"Default warehouse is not set on Company or Stock Settings. "
-				"Please configure a default warehouse before reconciling medicines."
-			)
-		)
+	# Create a draft Stock Entry (Material Receipt) back to the return warehouse
+	warehouse, company = _get_return_warehouse_for_admission(admission)
+	cost_center = _get_cost_center_for_admission(admission, company)
 
 	stock_entry = frappe.new_doc("Stock Entry")
 	stock_entry.purpose = "Material Receipt"
 	stock_entry.set_stock_entry_type()
 	stock_entry.to_warehouse = warehouse
 	stock_entry.company = company
-	cost_center = frappe.get_cached_value("Company", company, "cost_center")
+	stock_entry.cost_center = cost_center
 
 	items_summary: list[dict] = []
 
@@ -1698,8 +1684,7 @@ def reconcile_discharge_medicines(admission: str) -> dict:
 		item_row.t_warehouse = warehouse
 		item_row.qty = qty
 		item_row.conversion_factor = 1
-		if cost_center:
-			item_row.cost_center = cost_center
+		item_row.cost_center = cost_center
 
 		items_summary.append({"item_code": drug, "qty": qty})
 
@@ -2028,11 +2013,10 @@ def _get_warehouse_for_admission(admission: str):
 	company = admission_doc.company or frappe.defaults.get_user_default("Company")
 	if not company:
 		frappe.throw(_("Company is required to create Stock Entry"))
-	warehouse = frappe.db.get_value("Company", company, "default_warehouse") or frappe.db.get_single_value(
-		"Stock Settings", "default_warehouse"
-	)
+	# Company no longer has default_warehouse in current ERPNext; use Stock Settings.
+	warehouse = frappe.db.get_single_value("Stock Settings", "default_warehouse")
 	if not warehouse:
-		frappe.throw(_("Default warehouse is not set. Please configure before reconciling medicines."))
+		frappe.throw(_("Default warehouse is not set in Stock Settings. Please configure before reconciling medicines."))
 	return warehouse, company
 
 
@@ -2048,6 +2032,21 @@ def _get_return_warehouse_for_admission(admission: str):
 	if not company:
 		frappe.throw(_("Company is required to create Stock Entry"))
 	return warehouse, company
+
+
+def _get_cost_center_for_admission(admission: str, company: str | None = None) -> str:
+	"""Resolve cost center for Stock Entry: admission first, then Company default."""
+	cost_center = frappe.db.get_value("Inpatient Admission", admission, "cost_center")
+	if not cost_center and company:
+		cost_center = frappe.get_cached_value("Company", company, "cost_center")
+	if not cost_center:
+		frappe.throw(
+			_(
+				"Cost Center is required to create Stock Entry. "
+				"Please set Cost Center on the Inpatient Admission or Company default Cost Center."
+			)
+		)
+	return cost_center
 
 
 @frappe.whitelist()
@@ -2159,7 +2158,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 		return {"stock_entry": None, "message": "No medicines with remaining quantity to return."}
 
 	warehouse, company = _get_return_warehouse_for_admission(admission)
-	cost_center = frappe.get_cached_value("Company", company, "cost_center")
+	cost_center = _get_cost_center_for_admission(admission, company)
 
 	# Aggregate by drug (same drug can appear in multiple entries)
 	from collections import defaultdict
@@ -2176,6 +2175,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 	stock_entry.set_stock_entry_type()
 	stock_entry.to_warehouse = warehouse
 	stock_entry.company = company
+	stock_entry.cost_center = cost_center
 
 	items_summary = []
 	for drug, qty in qty_by_drug.items():
@@ -2189,8 +2189,7 @@ def return_stopped_medications_to_store(admission: str, order_entry_names: str |
 		item_row.t_warehouse = warehouse
 		item_row.qty = qty
 		item_row.conversion_factor = 1
-		if cost_center:
-			item_row.cost_center = cost_center
+		item_row.cost_center = cost_center
 		items_summary.append({"item_code": drug, "qty": qty})
 
 	stock_entry.insert(ignore_permissions=True)
