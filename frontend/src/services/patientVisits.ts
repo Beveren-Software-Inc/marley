@@ -182,15 +182,31 @@ export async function fetchPatientVisitTypes(query?: string): Promise<PatientVis
 
 
 export async function cancelVisit(visitName: string, reason: string): Promise<void> {
+  const csrf = await ensureCSRF()
   const response = await fetch(`/api/method/healthcare.api.patient_visit.cancel_patient_visit`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ visit_name: visitName, reason_for_cancel: reason })
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ visit_name: visitName, reason_for_cancel: reason }),
   })
 
-  const resData = await response.json()
+  const resData = await response.json().catch(() => ({} as any))
+  if (!response.ok || resData?.exc || resData?.exception) {
+    const msg =
+      (typeof resData?.message === 'string' && resData.message) ||
+      resData?.exception ||
+      resData?._error_message ||
+      'Failed to cancel visit'
+    throw new Error(String(msg).replace(/<[^>]+>/g, ' ').trim())
+  }
   if (resData?.message !== 'success') {
-    throw new Error(resData?.message || 'Failed to cancel visit')
+    throw new Error(
+      typeof resData?.message === 'string' ? resData.message : 'Failed to cancel visit',
+    )
   }
 }
 

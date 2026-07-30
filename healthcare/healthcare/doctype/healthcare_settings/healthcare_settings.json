@@ -120,6 +120,8 @@
   "section_break_pqbp",
   "doctors_commission",
   "doctor_commission_salary_component",
+  "print_settings_section",
+  "ui_print_formats",
   "pricing_tab",
   "patient_category_pricing",
   "sb_serene_automations",
@@ -951,11 +953,22 @@
    "fieldtype": "Table MultiSelect",
    "label": "Lab Item Group",
    "options": "Lab Groups"
+  },
+  {
+   "fieldname": "ui_print_formats",
+   "fieldtype": "Table MultiSelect",
+   "label": "UI Print Formats",
+   "options": "UI Print Format"
+  },
+  {
+   "fieldname": "print_settings_section",
+   "fieldtype": "Section Break",
+   "label": "Print Settings"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-29 13:25:57.331277",
+ "modified": "2026-07-30 03:44:26.829229",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

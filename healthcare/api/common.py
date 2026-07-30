@@ -99,9 +99,20 @@ def get_current_user_practitioner_option():
 
 @frappe.whitelist()
 def get_print_formats(doctype):
-	"""Return list of print format names for the given doctype (for print dropdown)."""
+	"""Return list of print format names for the given doctype (for print dropdown).
+
+	For Sales Invoice: if Healthcare Settings → UI Print Formats has any rows,
+	only those formats (that apply to Sales Invoice) are returned. If the table
+	is empty, behave as usual and return all enabled formats for the doctype.
+	"""
 	if not doctype:
 		return ["Standard"]
+
+	if doctype == "Sales Invoice":
+		restricted = _ui_print_formats_for_doctype(doctype)
+		if restricted is not None:
+			return restricted
+
 	formats = frappe.get_all(
 		"Print Format",
 		filters={"doc_type": doctype, "disabled": 0},
@@ -115,6 +126,42 @@ def get_print_formats(doctype):
 			result.append(name)
 			seen.add(name)
 	return result
+
+
+def _ui_print_formats_for_doctype(doctype):
+	"""Return configured UI print formats for doctype, or None if unrestricted."""
+	try:
+		settings = frappe.get_cached_doc("Healthcare Settings")
+	except Exception:
+		return None
+
+	configured = []
+	seen = set()
+	for row in settings.get("ui_print_formats") or []:
+		name = (getattr(row, "print_format", None) or "").strip()
+		if not name or name in seen:
+			continue
+		seen.add(name)
+		configured.append(name)
+
+	if not configured:
+		return None
+
+	valid = set(
+		frappe.get_all(
+			"Print Format",
+			filters={"doc_type": doctype, "disabled": 0, "name": ["in", configured]},
+			pluck="name",
+		)
+	)
+	# Allow explicit "Standard" even though it is not a Print Format doc.
+	result = []
+	for name in configured:
+		if name == "Standard" or name in valid:
+			result.append(name)
+
+	# Configured but none apply to this doctype → fall back to unrestricted list.
+	return result if result else None
 
 
 @frappe.whitelist()

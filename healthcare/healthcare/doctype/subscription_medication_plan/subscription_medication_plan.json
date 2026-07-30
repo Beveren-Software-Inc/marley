@@ -18,6 +18,8 @@
   "end_date",
   "next_run_date",
   "status",
+  "whatsapp_section",
+  "whatsapp_template",
   "medications_section",
   "medications",
   "amended_from"
@@ -98,6 +100,18 @@
    "in_standard_filter": 1,
    "label": "Status",
    "options": "Draft\nActive\nPaused\nCompleted"
+  },
+  {
+   "fieldname": "whatsapp_section",
+   "fieldtype": "Section Break",
+   "label": "WhatsApp Notification"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "whatsapp_template",
+   "fieldtype": "Link",
+   "label": "WhatsApp Template",
+   "options": "Digital Whatsapp Template"
   },
   {
    "fieldname": "medications_section",
