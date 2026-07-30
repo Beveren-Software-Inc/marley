@@ -122,6 +122,8 @@
   "doctor_commission_salary_component",
   "print_settings_section",
   "ui_print_formats",
+  "section_break_mmer",
+  "send_whatsap_notification_on_lab_test_creation",
   "pricing_tab",
   "patient_category_pricing",
   "sb_serene_automations",
@@ -964,11 +966,21 @@
    "fieldname": "print_settings_section",
    "fieldtype": "Section Break",
    "label": "Print Settings"
+  },
+  {
+   "fieldname": "section_break_mmer",
+   "fieldtype": "Section Break"
+  },
+  {
+   "default": "0",
+   "fieldname": "send_whatsap_notification_on_lab_test_creation",
+   "fieldtype": "Check",
+   "label": "Send Whatsap Notification on Lab Test Creation"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-07-30 03:44:26.829229",
+ "modified": "2026-07-31 01:33:47.722105",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

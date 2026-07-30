@@ -2888,6 +2888,10 @@ def update_sample_collection_for_lab_sample(
 		_scrub_invalid_observation_sample_rows(sample_doc)
 
 	sample_doc.save(ignore_permissions=True)
+
+	from healthcare.api.lab_request_actions import _sync_lab_test_sample_status
+
+	_sync_lab_test_sample_status(doc)
 	doc.save(ignore_permissions=True)
 
 	return {"sample_collection": sample_doc.name}
@@ -2996,24 +3000,9 @@ def create_sample_collection_for_lab_sample(
 	if sample_details:
 		row.sample_details = sample_details
 
-	# Update Lab Test status based on how many sample instances are linked
-	rows = doc.get("sample_instances") or []
-	total = len(rows)
-	linked = 0
-	for r in rows:
-		if getattr(r, "sample_collection", None):
-			linked += 1
+	from healthcare.api.lab_request_actions import _sync_lab_test_sample_status
 
-	if linked <= 0:
-		# No samples collected yet
-		doc.status = "Awaiting sample collection"
-	elif linked < total:
-		# At least one collected, but not all
-		doc.status = "Sample Collection in Progress"
-	else:
-		# All samples have a Sample Collection
-		doc.status = "Sample Collected"
-
+	_sync_lab_test_sample_status(doc)
 	doc.save(ignore_permissions=True)
 
 	return {"sample_collection": sample_doc.name}
