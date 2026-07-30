@@ -252,12 +252,15 @@ def _resolve_charge_lines_for_so(
 	`charge_lines` (from the UI) is a list of dicts:
 	    {template, item_code, rate?, qty?, discount_type?, discount_rate?, discount?}
 	When rate is explicitly provided by the UI, it overrides the template rate.
-	When no charge lines are supplied the visit type's default service(s) are used.
+	When charge_lines is None (API callers that omit it), visit type defaults are used.
+	When charge_lines is [] (UI unticked / removed every service), return [] — do not
+	fall back to defaults.
 	Insured patients get Inclusive Item price + outpatient discount when rates are auto.
 	"""
 	resolved: list[dict] = []
 
-	if charge_lines:
+	# Explicit list from UI (including empty = no charges). Do not fall back to defaults.
+	if charge_lines is not None:
 		for cl in charge_lines:
 			if not isinstance(cl, dict):
 				continue
@@ -461,20 +464,26 @@ def maybe_create_patient_visit_charge_sales_order(
 	if not cint(charge_visit):
 		return None
 
+	# UI sent an explicit empty services list (all unticked / removed) — do not bill.
+	if isinstance(charge_lines, list) and len(charge_lines) == 0:
+		return None
+
 	if not visit_type and visit_name and frappe.db.exists("Patient Visit", visit_name):
 		visit_type = frappe.db.get_value("Patient Visit", visit_name, "visit_type")
 	if visit_type_no_charges(visit_type):
 		return None
 
 	try:
-		return create_patient_visit_charge_sales_order(
+		result = create_patient_visit_charge_sales_order(
 			visit_name,
 			visit_type=visit_type,
 			cost_center=cost_center,
 			charge_lines=charge_lines,
 			submit=True,
 		)
+		return result
 	except Exception:
+		# Empty resolved lines after filtering invalid templates — treat as skip, not error.
 		frappe.log_error(title=f"Patient visit charge failed: {visit_name}")
 		return {"error": True}
 

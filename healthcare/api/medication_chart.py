@@ -2,7 +2,10 @@ import frappe
 from frappe import _
 from frappe.utils import cint, getdate, nowdate, add_days
 
-from healthcare.api.medicine_given import is_daily_prescription_frequency
+from healthcare.api.medicine_given import (
+	is_daily_prescription_frequency,
+	_date_in_range,
+)
 
 
 SESSION_WINDOWS = [
@@ -27,39 +30,84 @@ def _get_sessions():
 	]
 
 
+def _frequency_schedule_hours(freq_name: str | None) -> list[int]:
+	"""Hours from Prescription Frequency.dosage_strength (chart slots).
+
+	Includes frequencies marked Daily, and any frequency that has schedule times
+	(e.g. BD. / TDS.) even when the Daily checkbox is off.
+	"""
+	freq_name = (freq_name or "").strip()
+	if not freq_name or not frappe.db.exists("Prescription Frequency", freq_name):
+		return []
+
+	times: list[int] = []
+	try:
+		doc = frappe.get_doc("Prescription Frequency", freq_name)
+		for child in getattr(doc, "dosage_strength", []) or []:
+			strength_time = getattr(child, "strength_time", None)
+			if not strength_time:
+				continue
+			try:
+				hour = int(str(strength_time).split(":")[0])
+			except (TypeError, ValueError):
+				continue
+			if hour not in times:
+				times.append(hour)
+	except frappe.DoesNotExistError:
+		return []
+
+	if times:
+		return times
+
+	# Daily with no strength rows still participates (no due slots until times are set).
+	if is_daily_prescription_frequency(freq_name):
+		return []
+	return []
+
+
+def _frequency_on_daily_chart(freq_name: str | None) -> bool:
+	"""Show on daily chart when Daily is checked or dosage_strength times exist."""
+	freq_name = (freq_name or "").strip()
+	if not freq_name:
+		return False
+	if is_daily_prescription_frequency(freq_name):
+		return True
+	return bool(_frequency_schedule_hours(freq_name))
+
+
 @frappe.whitelist()
 def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 	"""Return medications for an admission for a given day, grouped by session.
 
 	Uses:
-	- Patient Medication Order (care_context = Inpatient Admission, inpatient_record = admission, docstatus = 1)
+	- Patient Medication Order (inpatient_record = admission, submitted)
 	- Child table Inpatient Medication Order Entry (medication_orders)
-	- Prescription Frequency marked Daily (dosage_strength times) to derive sessions
+	- Prescription Frequency schedule times (Daily flag and/or dosage_strength) for sessions
 	- Medicine Given rows from Admission Detail to mark administrations
 
-	Non-daily frequencies (Q3W, monthly, etc.) are excluded — those are recorded manually.
+	Frequencies with no schedule times and Daily unchecked (e.g. Q3W) are excluded.
 	"""
 	if not admission:
 		frappe.throw(_("Inpatient Admission is required"))
 
 	selected_date = getdate(date or nowdate())
 
-	# Get all submitted medication orders for this admission
+	# All submitted medication orders for this admission (not only the latest).
 	prescriptions = frappe.get_all(
 		"Patient Medication Order",
 		filters={
 			"inpatient_record": admission,
-			# "docstatus": 1,
+			"docstatus": 1,
+			"status": ["not in", ["Cancelled", "Stopped"]],
 		},
 		fields=["name", "start_date", "end_date"],
-        order_by="creation desc",
-		limit=1,
+		order_by="creation asc",
 	)
 	if not prescriptions:
 		return {"sessions": _get_sessions(), "rows": []}
 
-	pmo_names = [p.name for p in prescriptions]
-	# Fetch medication rows (Inpatient Medication Order Entry)
+	pmo_by_name = {p.name: p for p in prescriptions}
+	pmo_names = list(pmo_by_name.keys())
 	order_rows = frappe.get_all(
 		"Inpatient Medication Order Entry",
 		filters={"parent": ["in", pmo_names]},
@@ -71,29 +119,26 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 			"dosage",
 			"dosage_form",
 			"patient_frequency",
+			"date",
+			"end_date",
+			"medication_status",
+			"stopped",
+			"is_prn",
 		],
+		order_by="parent asc, idx asc",
 	)
 
 	if not order_rows:
 		return {"sessions": _get_sessions(), "rows": []}
 
-	# Map daily frequencies to session hours (dosage_strength on Prescription Frequency).
+	# Map frequencies → session hours from dosage_strength.
 	frequency_times: dict[str, list[int]] = {}
 	for freq_name in {
 		row.get("patient_frequency") for row in order_rows if row.get("patient_frequency")
 	}:
-		if not is_daily_prescription_frequency(freq_name):
+		if not _frequency_on_daily_chart(freq_name):
 			continue
-		times: list[int] = []
-		try:
-			doc = frappe.get_doc("Prescription Frequency", freq_name)
-			for child in getattr(doc, "dosage_strength", []) or []:
-				if getattr(child, "strength_time", None):
-					hour = int(str(child.strength_time).split(":")[0])
-					times.append(hour)
-		except frappe.DoesNotExistError:
-			pass
-		frequency_times[freq_name] = times
+		frequency_times[freq_name] = _frequency_schedule_hours(freq_name)
 
 	# Get admission detail and medicine given rows for that day
 	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
@@ -118,7 +163,6 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		hour = int(str(row.time).split(":")[0])
 		session_id = _time_to_session(hour)
 		key = (med_code, session_id)
-		# If multiple, keep the latest
 		given_index[key] = {
 			"name": row.name,
 			"time": row.time,
@@ -132,19 +176,29 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		drug = entry.get("drug")
 		if not drug:
 			continue
-		freq_name = entry.get("patient_frequency")
-		if not is_daily_prescription_frequency(freq_name):
+		if cint(entry.get("stopped")) or (entry.get("medication_status") or "").strip() == "Discontinued":
 			continue
+		if cint(entry.get("is_prn")):
+			# PRN is as-needed; not on fixed daily session grid.
+			continue
+
+		freq_name = entry.get("patient_frequency")
+		if not _frequency_on_daily_chart(freq_name):
+			continue
+
+		pmo = pmo_by_name.get(entry.parent) or {}
+		if not _date_in_range(
+			selected_date,
+			entry.get("date") or pmo.get("start_date"),
+			entry.get("end_date") or pmo.get("end_date"),
+		):
+			continue
+
 		times = frequency_times.get(freq_name, []) if freq_name else []
 
 		slot_list = []
 		for session_id, _label, _s, _e in SESSION_WINDOWS:
-			# Is this session due? If any frequency time falls in this window
-			due = False
-			for h in times:
-				if _s <= h < _e:
-					due = True
-					break
+			due = any(_s <= h < _e for h in times)
 			given_info = given_index.get((drug, session_id))
 			slot_list.append(
 				{

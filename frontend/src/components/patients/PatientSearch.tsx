@@ -717,7 +717,7 @@ export const PatientSearch = ({
                 }
               }}
               onFocus={() => setPatientOpen(true)}
-              placeholder={selectedPatientName || 'Search Patient by File No. / Name / CPR No.'}
+              placeholder={selectedPatientName || 'Search Patient by File No. / Name / CPR No. / Mobile'}
               title="Search Patient by File No. / Name / CPR No."
               aria-label="Search Patient by File No. / Name / CPR No."
               className="w-full rounded-md border border-primary/40 pl-2 md:pl-3 pr-20 md:pr-24 py-1.5 md:py-2 text-xs md:text-sm text-slate-900 shadow-sm focus:outline-none focus:ring-2 focus:ring-white focus:border-white"

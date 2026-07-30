@@ -30,15 +30,23 @@ def user_can_browse_full_patient_directory() -> bool:
 
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
-	"""Search patients by name, patient ID, file number, or CPR/ID number."""
+	"""Search patients by name, patient ID, file number, CPR/ID number, or mobile."""
 	search = (search or "").strip()
 	if not search:
 		return []
 	
 	# Convert limit to integer (it comes as string from URL params)
 	limit = int(limit) if limit else 20
+
+	mobile_clauses = ["p.mobile LIKE %(search)s"]
+	if frappe.db.has_column("Patient", "phone"):
+		mobile_clauses.append("p.phone LIKE %(search)s")
+	if frappe.db.has_column("Patient", "alter_mobile_no"):
+		mobile_clauses.append("p.alter_mobile_no LIKE %(search)s")
+	if frappe.db.has_column("Patient", "alter_2_mobile_no"):
+		mobile_clauses.append("p.alter_2_mobile_no LIKE %(search)s")
 	
-	patients = frappe.db.sql("""
+	patients = frappe.db.sql(f"""
 		SELECT 
 			p.name,
 			p.patient_name,
@@ -54,6 +62,7 @@ def search_patients(search=None, limit=20):
 			OR p.name LIKE %(search)s
 			OR p.file_no LIKE %(search)s
 			OR p.id_number LIKE %(search)s
+			OR {" OR ".join(mobile_clauses)}
 		ORDER BY p.patient_name
 		LIMIT %(limit)s
 	""", {
