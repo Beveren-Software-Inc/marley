@@ -2365,64 +2365,88 @@ def _validate_delivery_note_batch_stock(dn):
         )
 
 
-def _create_delivery_note_for_sales_order(sales_order_name, patient, posting_date=None, billing_groups=None, warehouse=None):
-    """Create and submit a Delivery Note from a submitted Sales Order to consume stock."""
-    from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
+def _create_delivery_note_for_sales_order(
+	sales_order_name,
+	patient,
+	posting_date=None,
+	billing_groups=None,
+	warehouse=None,
+	cost_center=None,
+):
+	"""Create and submit a Delivery Note from a submitted Sales Order to consume stock."""
+	from erpnext.selling.doctype.sales_order.sales_order import make_delivery_note
 
-    dn = make_delivery_note(sales_order_name)
-    if not dn or not dn.get("items"):
-        frappe.throw(
-            _("Could not create Delivery Note from Sales Order {0}. Ensure the order has deliverable stock items.").format(
-                sales_order_name
-            )
-        )
+	dn = make_delivery_note(sales_order_name)
+	if not dn or not dn.get("items"):
+		frappe.throw(
+			_("Could not create Delivery Note from Sales Order {0}. Ensure the order has deliverable stock items.").format(
+				sales_order_name
+			)
+		)
 
-    # Pharmacy give-out SO may also include non-stock service lines — only deliver medicines.
-    if billing_groups:
-        allowed_codes = {
-            (g.get("medicine_code") or "").strip()
-            for g in billing_groups
-            if (g.get("medicine_code") or "").strip()
-        }
-        if allowed_codes:
-            dn.set(
-                "items",
-                [row for row in (dn.get("items") or []) if (row.item_code or "") in allowed_codes],
-            )
-            if not dn.get("items"):
-                frappe.throw(
-                    _("Could not create Delivery Note from Sales Order {0}. No deliverable medicine lines found.").format(
-                        sales_order_name
-                    )
-                )
+	# Pharmacy give-out SO may also include non-stock service lines — only deliver medicines.
+	if billing_groups:
+		allowed_codes = {
+			(g.get("medicine_code") or "").strip()
+			for g in billing_groups
+			if (g.get("medicine_code") or "").strip()
+		}
+		if allowed_codes:
+			dn.set(
+				"items",
+				[row for row in (dn.get("items") or []) if (row.item_code or "") in allowed_codes],
+			)
+			if not dn.get("items"):
+				frappe.throw(
+					_("Could not create Delivery Note from Sales Order {0}. No deliverable medicine lines found.").format(
+						sales_order_name
+					)
+				)
 
-    if posting_date:
-        dn.posting_date = getdate(posting_date)
-        dn.set_posting_time = 0
+	if posting_date:
+		dn.posting_date = getdate(posting_date)
+		dn.set_posting_time = 0
 
-    dn_meta = frappe.get_meta("Delivery Note")
-    if patient and dn_meta.has_field("patient"):
-        dn.patient = patient
+	dn_meta = frappe.get_meta("Delivery Note")
+	if patient and dn_meta.has_field("patient"):
+		dn.patient = patient
 
-    if warehouse:
-        if hasattr(dn, "set_warehouse"):
-            dn.set_warehouse = warehouse
-        for row in dn.get("items") or []:
-            row.warehouse = warehouse
+	if cost_center and dn_meta.has_field("cost_center"):
+		dn.cost_center = cost_center
 
-    if hasattr(dn, "update_stock"):
-        dn.update_stock = 1
+	# Always pin warehouse so stock is reduced from the nurse mini-warehouse, not a blank/default location.
+	if warehouse:
+		if dn_meta.has_field("set_warehouse"):
+			dn.set_warehouse = warehouse
+		for row in dn.get("items") or []:
+			row.warehouse = warehouse
+			if cost_center and hasattr(row, "cost_center"):
+				row.cost_center = cost_center
 
-    _apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
-    _set_delivery_note_allow_zero_valuation_rate(dn)
-    _validate_delivery_note_dispensing_lots(dn)
-    _validate_delivery_note_batch_stock(dn)
+	missing_wh = [
+		(getattr(row, "item_code", None) or _("Row {0}").format(idx))
+		for idx, row in enumerate(dn.get("items") or [], start=1)
+		if flt(getattr(row, "qty", 0)) > 0
+		and cint(frappe.get_cached_value("Item", row.item_code, "is_stock_item"))
+		and not (getattr(row, "warehouse", None) or "").strip()
+	]
+	if missing_wh:
+		frappe.throw(
+			_("Delivery Note warehouse is required to reduce stock for: {0}").format(
+				", ".join(missing_wh)
+			)
+		)
 
-    dn.insert(ignore_permissions=True)
-    dn.submit()
-    _process_delivery_note_dispensing_lots(dn)
+	_apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
+	_set_delivery_note_allow_zero_valuation_rate(dn)
+	_validate_delivery_note_dispensing_lots(dn)
+	_validate_delivery_note_batch_stock(dn)
 
-    return dn
+	dn.insert(ignore_permissions=True)
+	dn.submit()
+	_process_delivery_note_dispensing_lots(dn)
+
+	return dn
 
 
 def _create_medicine_sales_order_for_admission(admission, consumption_date):
@@ -2547,7 +2571,28 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
     so.insert(ignore_permissions=True)
     so.submit()
 
-    dn = _create_delivery_note_for_sales_order(so.name, patient, consumption_date, billing_groups)
+    try:
+        dn = _create_delivery_note_for_sales_order(
+            so.name,
+            patient,
+            consumption_date,
+            billing_groups,
+            warehouse=warehouse,
+            cost_center=cost_center,
+        )
+    except Exception:
+        # SO.submit() may already have committed; cancel orphan order so billing can be retried cleanly.
+        try:
+            so_doc = frappe.get_doc("Sales Order", so.name)
+            if so_doc.docstatus == 1:
+                so_doc.cancel()
+        except Exception:
+            frappe.log_error(
+                title=f"Failed to cancel SO {so.name} after Delivery Note error",
+                message=frappe.get_traceback(),
+            )
+        raise
+
     linked_count = _link_medicine_given_to_billing(linked_row_names, so.name, dn.name)
 
     return {
@@ -2556,6 +2601,7 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
         "delivery_note": dn.name,
         "delivery_note_status": dn.status,
         "cost_center": cost_center,
+        "warehouse": warehouse,
         "admission": admission,
         "linked_rows": linked_count,
     }
@@ -2563,8 +2609,9 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
 
 @frappe.whitelist()
 def create_daily_medicine_sales_order(admission=None, cost_center=None, consumption_date=None):
-    """Create a draft Sales Order for medicine given on an inpatient admission.
+    """Create and submit a Sales Order + Delivery Note for medicine given on an admission/date.
 
+    The Delivery Note posts stock out of the Nurse Mini Warehouse for the admission cost center.
     Cost center is taken from the linked Inpatient Admission (via Admission Detail),
     not from the current user's permissions.
     """
@@ -2610,9 +2657,12 @@ def create_daily_medicine_sales_order(admission=None, cost_center=None, consumpt
     return {
         "sales_order": first["sales_order"],
         "status": first["status"],
+        "delivery_note": first.get("delivery_note"),
+        "delivery_note_status": first.get("delivery_note_status"),
         "cost_center": cost_center,
         "created_count": len(created),
         "sales_orders": [c["sales_order"] for c in created],
+        "delivery_notes": [c.get("delivery_note") for c in created if c.get("delivery_note")],
     }
 
 

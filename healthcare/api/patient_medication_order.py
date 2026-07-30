@@ -1307,6 +1307,110 @@ def sign_patient_medication_order(name, doctors_signature):
 	return {"name": doc.name, "status": doc.status, "doctors_signature": doc.doctors_signature}
 
 
+@frappe.whitelist()
+def create_subscription_medication_plan(
+	prescription=None,
+	medications=None,
+	frequency=None,
+	start_date=None,
+	end_date=None,
+):
+	"""Create a submitted Subscription Medication Plan from a Patient Medication Order (portal).
+
+	Mirrors Patient Medication Order.create_subscription_plan on the desk form.
+	"""
+	assert_editing_allowed()
+	prescription = (prescription or "").strip()
+	if not prescription:
+		frappe.throw(_("Prescription is required"))
+
+	if isinstance(medications, str):
+		medications = frappe.parse_json(medications) or []
+	if not medications:
+		frappe.throw(_("Please add at least one medication"))
+
+	frequency = (frequency or "Monthly").strip()
+	if frequency not in ("Monthly", "Every 2 Months", "Every 3 Months"):
+		frappe.throw(_("Invalid frequency. Choose Monthly, Every 2 Months, or Every 3 Months."))
+
+	doc = frappe.get_doc("Patient Medication Order", prescription)
+	_ensure_pmo_write_permission(doc)
+
+	if cint(doc.docstatus) != 1:
+		frappe.throw(_("Only submitted prescriptions can create a subscription plan"))
+
+	if not doc.patient:
+		frappe.throw(_("Patient is required on the prescription"))
+
+	allowed_entries = {row.name: row for row in (doc.get("medication_orders") or [])}
+	plan = frappe.new_doc("Subscription Medication Plan")
+	plan.patient = doc.patient
+	plan.practitioner = doc.practitioner or getattr(doc, "healthcare_practitioner", None)
+	plan.company = doc.company
+	plan.frequency = frequency
+	plan.start_date = getdate(start_date or doc.start_date or frappe.utils.today())
+	plan.end_date = getdate(end_date) if end_date else None
+	plan.next_run_date = plan.start_date
+
+	added = 0
+	for raw in medications:
+		row = raw or {}
+		drug = (row.get("drug") or "").strip()
+		if not drug:
+			continue
+		if row.get("is_active") in (0, "0", False, "false"):
+			continue
+
+		entry_name = (row.get("medication_order_entry") or "").strip() or None
+		source = allowed_entries.get(entry_name) if entry_name else None
+
+		child = plan.append("medications")
+		child.medication_order_entry = entry_name if entry_name in allowed_entries else None
+		child.drug = drug
+		child.drug_name = (
+			row.get("drug_name")
+			or (source.drug_name if source else None)
+			or frappe.db.get_value("Item", drug, "item_name")
+			or drug
+		)
+		# Subscription child dosage is Float; PMO dosage may be Link/Data — coerce when possible.
+		dosage_val = row.get("dosage")
+		if dosage_val is None and source is not None:
+			dosage_val = source.dosage
+		try:
+			child.dosage = flt(dosage_val) if dosage_val not in (None, "") else None
+		except Exception:
+			child.dosage = None
+		child.dosage_form = row.get("dosage_form") or (source.dosage_form if source else None)
+		child.instructions = row.get("instructions") or (source.instructions if source else None)
+		child.patient_frequency = row.get("patient_frequency") or (
+			source.patient_frequency if source else None
+		)
+		child.date = row.get("date") or (source.date if source else None) or plan.start_date
+		child.time = row.get("time") or (source.time if source else None)
+		qty = row.get("qty_per_cycle")
+		if qty in (None, ""):
+			qty = (source.quantity if source else None) or 1
+		child.qty_per_cycle = flt(qty) or 1
+		child.is_active = 1
+		added += 1
+
+	if not added:
+		frappe.throw(_("Please include at least one medication with a drug code"))
+
+	plan.insert(ignore_permissions=True)
+	plan.submit()
+
+	return {
+		"name": plan.name,
+		"patient": plan.patient,
+		"frequency": plan.frequency,
+		"start_date": plan.start_date,
+		"next_run_date": plan.next_run_date,
+		"status": plan.status,
+	}
+
+
 # @frappe.whitelist()
 # def get_after_discharge_prescriptions(patient, admission=None):
 #     """

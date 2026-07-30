@@ -17,7 +17,6 @@ import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { toast } from '../../hooks/useToast'
-import { getInvoicesByReference } from '../../services/serviceOrders'
 import { fetchAppointmentPractitioners, fetchBranchOptions, fetchUsers, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
 import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
@@ -335,23 +334,6 @@ export const PatientVisitList = ({
     setOpenActionRow(null)
   }
 
-  const handlePrintInvoice = async (visit: PatientVisitListRow) => {
-    // visit.value is the Patient Visit id, not a Sales Invoice name — resolve the visit's
-    // actual invoice first, otherwise printview opens a non-existent Sales Invoice.
-    try {
-      const invoices = await getInvoicesByReference(visit.value, 'Patient Visit', visit.patient || undefined)
-      if (!invoices.length) {
-        toast.error('No invoice found for this visit')
-        return
-      }
-      const invoiceName = invoices[0].name
-      const url = `/printview?doctype=Sales+Invoice&name=${encodeURIComponent(invoiceName)}&trigger_print=1&format=Standard&no_letterhead=0`
-      window.open(url, '_blank')
-    } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed to open invoice')
-    }
-  }
-
   const handleClearFilters = () => {
     setPractitionerFilter('')
     setPractitionerQuery('')
@@ -429,13 +411,6 @@ export const PatientVisitList = ({
                 Edit Visit
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => { void handlePrintInvoice(visit); setOpenActionRow(null) }}
-              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
-            >
-              Print Invoice
-            </button>
             <button
               type="button"
               onClick={() => handleScheduleAdmission(visit)}

@@ -645,6 +645,55 @@ export async function signPrescription(
   )
 }
 
+export type SubscriptionPlanFrequency = 'Monthly' | 'Every 2 Months' | 'Every 3 Months'
+
+export interface SubscriptionPlanMedicationInput {
+  medication_order_entry?: string
+  drug: string
+  drug_name?: string
+  dosage?: string | number
+  dosage_form?: string
+  instructions?: string
+  patient_frequency?: string
+  date?: string
+  time?: string
+  qty_per_cycle?: number
+  is_active?: number | boolean
+}
+
+export interface CreateSubscriptionPlanResult {
+  name: string
+  patient?: string
+  frequency?: string
+  start_date?: string
+  next_run_date?: string
+  status?: string
+}
+
+/** Create a submitted Subscription Medication Plan from a prescription (desk-equivalent). */
+export async function createSubscriptionMedicationPlan(input: {
+  prescription: string
+  medications: SubscriptionPlanMedicationInput[]
+  frequency: SubscriptionPlanFrequency
+  start_date?: string
+  end_date?: string
+}): Promise<CreateSubscriptionPlanResult> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<CreateSubscriptionPlanResult>(
+    '/api/method/healthcare.api.patient_medication_order.create_subscription_medication_plan',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        prescription: input.prescription,
+        medications: input.medications,
+        frequency: input.frequency,
+        start_date: input.start_date,
+        end_date: input.end_date,
+      }),
+    },
+  )
+}
+
 /** Set stop reason on one prescription line, or clear it (resume). */
 export async function saveMedicationOrderEntryStopReason(
   patientMedicationOrder: string,

@@ -15,6 +15,7 @@ def send_daily_whatsapp_reminders():
 	Sends:
 	- Patient Appointment reminders 1 day before appointment_date
 	- Discharge follow-up reminders 2 days and 1 day before next_appointment_date
+	- Subscription Medication Plan (monthly meds) reminders 1 day before next_run_date
 	"""
 	if not _is_whatsapp_enabled():
 		return
@@ -22,6 +23,85 @@ def send_daily_whatsapp_reminders():
 	send_appointment_whatsapp_reminders(days_before=1)
 	send_discharge_followup_whatsapp_reminders(days_before=2)
 	send_discharge_followup_whatsapp_reminders(days_before=1)
+	send_subscription_medication_whatsapp_reminders(days_before=1)
+
+
+def send_subscription_medication_whatsapp_reminders(days_before: int = 1):
+	"""Remind patients whose monthly medication plan is due soon (next_run_date)."""
+	if not frappe.db.exists("DocType", "Subscription Medication Plan"):
+		return
+
+	target_date = datetime.date.today() + datetime.timedelta(days=days_before)
+	plans = frappe.get_all(
+		"Subscription Medication Plan",
+		filters={
+			"docstatus": 1,
+			"status": "Active",
+			"next_run_date": target_date,
+		},
+		fields=[
+			"name",
+			"patient",
+			"patient_name",
+			"frequency",
+			"next_run_date",
+			"company",
+		],
+		ignore_permissions=True,
+	)
+
+	has_template_field = frappe.get_meta("Subscription Medication Plan").has_field("whatsapp_template")
+	if has_template_field:
+		for plan in plans:
+			plan["whatsapp_template"] = frappe.db.get_value(
+				"Subscription Medication Plan", plan.name, "whatsapp_template"
+			)
+
+	for plan in plans:
+		phone = _resolve_patient_mobile(plan.get("patient") or "")
+		if not phone:
+			continue
+
+		from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+			_normalize_whatsapp_phone,
+		)
+
+		phone = _normalize_whatsapp_phone(phone, company=plan.get("company"))
+		if not phone:
+			continue
+
+		tag = f"subscription-med-reminder-{days_before}d-{target_date}"
+		if _already_sent("Subscription Medication Plan", plan.name, tag):
+			continue
+
+		if plan.get("whatsapp_template"):
+			_send_and_link_chat(
+				phone_number=phone,
+				reference_doctype="Subscription Medication Plan",
+				reference_name=plan.name,
+				bulk_reference=tag,
+				template_name=plan.whatsapp_template,
+			)
+		else:
+			message = _build_subscription_medication_message(plan, days_before)
+			_send_and_link_chat(
+				phone_number=phone,
+				body=message,
+				reference_doctype="Subscription Medication Plan",
+				reference_name=plan.name,
+				bulk_reference=tag,
+			)
+
+
+def _build_subscription_medication_message(plan: dict, days_before: int) -> str:
+	when_text = "tomorrow" if days_before == 1 else f"in {days_before} days"
+	date_text = frappe.format_value(plan.get("next_run_date"), {"fieldtype": "Date"})
+	patient_name = plan.get("patient_name") or plan.get("patient") or "Patient"
+	frequency = (plan.get("frequency") or "Monthly").lower()
+	return (
+		f"Dear {patient_name}, this is a reminder that your {frequency} medication refill "
+		f"is due {when_text} ({date_text}). Please visit the pharmacy to collect your medicines."
+	)
 
 
 def send_appointment_whatsapp_reminders(days_before: int = 1):

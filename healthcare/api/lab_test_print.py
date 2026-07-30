@@ -166,7 +166,20 @@ def _header_html(doc):
 	"""
 
 
-def _section_html(lt, cache):
+def _result_row_html(name, result, uom, flag, range_text) -> str:
+	flag_cls = {"Low": "lr-low", "High": "lr-high", "Normal": "lr-normal"}.get(flag or "", "")
+	return (
+		f"<tr>"
+		f'<td class="lr-tname">{_esc(name)}</td>'
+		f'<td class="lr-c">{_esc(result)}</td>'
+		f'<td class="lr-c">{_esc(uom)}</td>'
+		f'<td class="lr-c {flag_cls}">{_esc(flag)}</td>'
+		f'<td class="lr-c">{_esc(range_text)}</td>'
+		f"</tr>"
+	)
+
+
+def _rows_from_custom_result(lt, cache) -> list[str]:
 	rows = _parse_custom_result(lt.get("custom_result"))
 	sex = lt.get("patient_sex")
 	body_rows = []
@@ -175,19 +188,65 @@ def _section_html(lt, cache):
 		name = tpl.get("lab_test_name") or code
 		uom = tpl.get("lab_test_uom") or ""
 		lo, hi = _range_bounds(tpl, sex)
-		flag = _flag(result, lo, hi)
-		flag_cls = {"Low": "lr-low", "High": "lr-high", "Normal": "lr-normal"}.get(flag, "")
-		body_rows.append(
-			f"<tr>"
-			f'<td class="lr-tname">{_esc(name)}</td>'
-			f'<td class="lr-c">{_esc(result)}</td>'
-			f'<td class="lr-c">{_esc(uom)}</td>'
-			f'<td class="lr-c {flag_cls}">{_esc(flag)}</td>'
-			f'<td class="lr-c">{_esc(_range_text(lo, hi))}</td>'
-			f"</tr>"
+		flag = _flag(result, lo, hi) if (result or "").strip() else ""
+		body_rows.append(_result_row_html(name, result, uom, flag, _range_text(lo, hi)))
+	return body_rows
+
+
+def _rows_from_normal_items(lt, cache) -> list[str]:
+	"""Fallback rows from normal_test_items (even when result_value is blank)."""
+	sex = lt.get("patient_sex")
+	body_rows = []
+	for item in lt.get("normal_test_items") or []:
+		code = (getattr(item, "template", None) or "").strip()
+		result = getattr(item, "result_value", None) or ""
+		name = (
+			getattr(item, "lab_test_name", None)
+			or getattr(item, "lab_test_event", None)
+			or code
 		)
+		uom = getattr(item, "lab_test_uom", None) or ""
+		range_text = getattr(item, "normal_range", None) or ""
+		lo = hi = None
+		if code:
+			tpl = _template_info(code, cache)
+			if not name:
+				name = tpl.get("lab_test_name") or code
+			if not uom:
+				uom = tpl.get("lab_test_uom") or ""
+			lo, hi = _range_bounds(tpl, sex)
+			if not range_text:
+				range_text = _range_text(lo, hi)
+		flag = ""
+		if str(result).strip() and (lo not in (None, "") or hi not in (None, "")):
+			flag = _flag(result, lo, hi)
+		body_rows.append(_result_row_html(name or "—", result, uom, flag, range_text))
+	return body_rows
+
+
+def _rows_from_template(lt, cache) -> list[str]:
+	"""Single placeholder row from the Lab Test template when no result lines exist yet."""
+	code = (lt.get("template") or "").strip()
+	if not code:
+		name = lt.get("lab_test_name") or lt.name
+		return [_result_row_html(name, "", "", "", "")]
+
+	tpl = _template_info(code, cache)
+	name = tpl.get("lab_test_name") or lt.get("lab_test_name") or code
+	uom = tpl.get("lab_test_uom") or ""
+	lo, hi = _range_bounds(tpl, lt.get("patient_sex"))
+	return [_result_row_html(name, "", uom, "", _range_text(lo, hi))]
+
+
+def _section_html(lt, cache):
+	# Prefer parsed custom_result (includes blank result cells if present in HTML).
+	# If none yet, still show the ordered test via normal items or the template itself.
+	body_rows = _rows_from_custom_result(lt, cache)
 	if not body_rows:
-		return ""
+		body_rows = _rows_from_normal_items(lt, cache)
+	if not body_rows:
+		body_rows = _rows_from_template(lt, cache)
+
 	group_name = lt.get("lab_test_name") or lt.get("template") or lt.name
 	return f"""
 	<div class="lr-group">{_esc(group_name)}</div>
@@ -215,8 +274,6 @@ def render_lab_test_result_report(doc):
 	lab_tests = _resolve_group_lab_tests(doc)
 	cache: dict = {}
 	sections = "".join(_section_html(lt, cache) for lt in lab_tests)
-	if not sections:
-		sections = '<div class="lr-empty">No results recorded yet.</div>'
 
 	note = (doc.get("lab_test_comment") or "").strip()
 
@@ -241,7 +298,6 @@ def render_lab_test_result_report(doc):
 		.lr-note {{ border: 1px solid #000; padding: 4px 6px; margin-bottom: 24px; min-height: 20px; }}
 		.lr-sign {{ width: 100%; margin-top: 40px; }}
 		.lr-sign td {{ width: 50%; text-align: center; font-size: 11px; padding-top: 24px; }}
-		.lr-empty {{ padding: 12px; text-align: center; color: #666; }}
 	</style>
 	<div class="lr-report">
 		<div class="lr-title">Laboratory Report</div>

@@ -5,6 +5,7 @@ import { toast } from '../../hooks/useToast'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
+import { CreateSubscriptionPlanModal } from './CreateSubscriptionPlanModal'
 import { AddMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
@@ -303,6 +304,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [showAddMedicationModal, setShowAddMedicationModal] = useState(false)
+  const [showSubscriptionModal, setShowSubscriptionModal] = useState(false)
 
   // Per-drug Hold / Continue / Discontinue (doctor only)
   const { user } = useAuth()
@@ -405,6 +407,11 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
     Boolean(prescription.inpatient_record) || prescription.care_context === 'Inpatient Admission'
   const canAddMedication =
     prescriptionIsSigned(prescription) && isIpPrescription && prescription.status !== 'Completed' && prescription.status !== 'Stopped'
+  const canCreateSubscription =
+    orders.length > 0 &&
+    prescription.status !== 'Cancelled' &&
+    prescription.status !== 'Stopped' &&
+    !prescriptionNeedsSignature(prescription)
 
   return (
     <div className="space-y-5">
@@ -479,6 +486,19 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           onSaved={() => {
             setShowAddMedicationModal(false)
             load()
+            onUpdate?.()
+          }}
+        />
+      )}
+
+      {showSubscriptionModal && (
+        <CreateSubscriptionPlanModal
+          prescriptionName={prescription.name}
+          patientName={prescription.patient_name || prescription.patient}
+          startDate={prescription.start_date}
+          medicationOrders={orders}
+          onClose={() => setShowSubscriptionModal(false)}
+          onCreated={() => {
             onUpdate?.()
           }}
         />
@@ -710,6 +730,16 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
             >
               Add Medication
+            </button>
+          )}
+          {canCreateSubscription && (
+            <button
+              type="button"
+              onClick={() => setShowSubscriptionModal(true)}
+              className="px-4 py-2 text-sm font-medium text-teal-800 bg-teal-50 border border-teal-300 rounded-md hover:bg-teal-100"
+              title="Create a monthly (or multi-month) subscription medication plan from this prescription"
+            >
+              Monthly Subscription
             </button>
           )}
           <button
