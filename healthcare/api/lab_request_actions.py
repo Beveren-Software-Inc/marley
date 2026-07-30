@@ -61,6 +61,8 @@ def _linked_lab_tests(service_request_name: str) -> list[dict]:
 
 
 def _lab_test_has_sample_collected(lab_test_name: str) -> bool:
+	if cint(frappe.db.get_value("Lab Test", lab_test_name, "sample_collected")):
+		return True
 	if frappe.db.exists(
 		"Lab Test Sample Instance",
 		{"parent": lab_test_name, "parenttype": "Lab Test", "sample_collection": ["is", "set"]},
@@ -124,17 +126,42 @@ def _lab_request_action_flags(phase: str, lab_tests: list[dict]) -> dict:
 
 
 def _sync_lab_test_sample_status(lab_test_doc) -> None:
+	"""Align Lab Test status + sample_collected check with linked Sample Collections."""
 	rows = lab_test_doc.get("sample_instances") or []
 	if not rows:
 		lab_test_doc.status = "Awaiting sample collection"
+		if hasattr(lab_test_doc, "sample_collected"):
+			lab_test_doc.sample_collected = 0
 		return
 	linked = sum(1 for row in rows if (getattr(row, "sample_collection", None) or "").strip())
 	if linked <= 0:
 		lab_test_doc.status = "Awaiting sample collection"
+		if hasattr(lab_test_doc, "sample_collected"):
+			lab_test_doc.sample_collected = 0
 	elif linked < len(rows):
 		lab_test_doc.status = "Sample Collection in Progress"
+		if hasattr(lab_test_doc, "sample_collected"):
+			lab_test_doc.sample_collected = 1
+			_ensure_sample_collected_meta(lab_test_doc)
 	else:
 		lab_test_doc.status = "Sample Collected"
+		if hasattr(lab_test_doc, "sample_collected"):
+			lab_test_doc.sample_collected = 1
+			_ensure_sample_collected_meta(lab_test_doc)
+
+
+def _ensure_sample_collected_meta(lab_test_doc) -> None:
+	"""Stamp collected date (and id from first linked Sample Collection) for notifications."""
+	from frappe.utils import nowdate
+
+	if hasattr(lab_test_doc, "sample_collected_date") and not lab_test_doc.get("sample_collected_date"):
+		lab_test_doc.sample_collected_date = nowdate()
+	if hasattr(lab_test_doc, "sample_collected_id") and not (lab_test_doc.get("sample_collected_id") or "").strip():
+		for row in lab_test_doc.get("sample_instances") or []:
+			sc = (getattr(row, "sample_collection", None) or "").strip()
+			if sc:
+				lab_test_doc.sample_collected_id = sc
+				break
 
 
 def _remove_lab_tests_from_visit(visit_name: str | None, lab_test_names: list[str]) -> None:

@@ -43,6 +43,7 @@
   "expected_result_time",
   "printed_on",
   "by_nurse",
+  "sample_collected",
   "outsourced_section",
   "is_outsourced",
   "outsource_lab_name",
@@ -1276,6 +1277,12 @@
    "label": "Result Flag",
    "options": "\nHigh\nLow\nNormal\nCritically High\nCritically Low\nDeficiency\nInsuficiency\nSufficiency\nToxicity",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "sample_collected",
+   "fieldtype": "Check",
+   "label": "Sample Collected"
   }
  ],
  "is_submittable": 1,
@@ -1285,7 +1292,7 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-07-28 01:28:27.211127",
+ "modified": "2026-07-31 02:12:24.741379",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test",
