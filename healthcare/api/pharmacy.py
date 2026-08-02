@@ -532,8 +532,12 @@ def create_material_request(
 	items=None,
 	set_warehouse=None,
 	cost_center=None,
+	is_medical=None,
 ):
-	"""Create a Material Request. items: list of {item_code, qty, warehouse}."""
+	"""Create a Material Request. items: list of {item_code, qty, warehouse}.
+
+	``is_medical`` maps to Material Request.custom_is_medical (1 = Medical, 0 = Consumable).
+	"""
 	if not frappe.db.exists("DocType", "Material Request"):
 		frappe.throw("Material Request doctype not found")
 	company = (company or "").strip()
@@ -550,6 +554,8 @@ def create_material_request(
 		frappe.throw("Company is required")
 	if not items or not isinstance(items, list):
 		frappe.throw("At least one item is required")
+	if is_medical is None or str(is_medical).strip() == "":
+		frappe.throw(_("Please choose whether this is a Medical or Consumable material request."))
 	from frappe.utils import getdate
 	doc = frappe.new_doc("Material Request")
 	doc.company = company
@@ -560,6 +566,8 @@ def create_material_request(
 		doc.set_warehouse = set_warehouse
 	if cost_center and hasattr(doc, "cost_center"):
 		doc.cost_center = cost_center
+	if doc.meta.has_field("custom_is_medical"):
+		doc.custom_is_medical = 1 if cint(is_medical) else 0
 	for row in items:
 		item_code = (row.get("item_code") or "").strip()
 		qty = flt(row.get("qty")) or 0

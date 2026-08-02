@@ -50,6 +50,8 @@ export interface MaterialRequest {
   requested_by: string
   approved_by?: string
   notes?: string
+  /** 1 = Medical, 0 = Consumable → Material Request.custom_is_medical */
+  is_medical?: 0 | 1
 }
 
 export interface StockReconciliation {
@@ -144,6 +146,46 @@ export async function fetchStockLedger(
   )
   const data = await response.json()
   return data.message || []
+}
+
+export interface StockLedgerExportRow {
+  item_code: string
+  item_name: string
+  item_group?: string
+  /** Total qty in units (dispense UOM) when available */
+  qty: number
+  uom?: string
+  pack_qty?: number | null
+  pack_uom?: string
+  unit_qty?: number | null
+  unit_uom?: string
+  units_per_pack?: number | null
+  stock_qty?: number | null
+  stock_uom?: string
+  reorder_level?: number
+  unit_price?: number
+  warehouse?: string
+}
+
+export async function fetchStockLedgerExport(
+  costCenter: string,
+  warehouseContext: WarehouseContext = 'nurse'
+): Promise<{ warehouse: string; rows: StockLedgerExportRow[] }> {
+  const response = await fetch(
+    withWarehouseContext(
+      `/api/method/healthcare.api.nursing_inventory.get_stock_ledger_export?cost_center=${encodeURIComponent(costCenter)}`,
+      warehouseContext
+    )
+  )
+  const data = await response.json()
+  if (data?.exc) {
+    throw new Error(typeof data.exc === 'string' ? data.exc : 'Failed to load stock export')
+  }
+  const message = data?.message || {}
+  return {
+    warehouse: message.warehouse || '',
+    rows: Array.isArray(message.rows) ? message.rows : [],
+  }
 }
 
 // Fetch item groups for filtering

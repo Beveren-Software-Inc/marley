@@ -16,6 +16,12 @@ import {
 } from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-react'
+import {
+  IsMedicalSelect,
+  isMedicalChoiceRequired,
+  isMedicalPayload,
+  type IsMedicalChoice,
+} from '../ui/IsMedicalSelect'
 
 interface MaterialRequestTabProps {
   onSuccess: () => void
@@ -37,6 +43,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   // Form state
   const [items, setItems] = useState<MaterialRequestItem[]>([{ item_code: '', item_name: '', quantity: 1, uom: '', notes: '' }])
   const [notes, setNotes] = useState('')
+  const [isMedical, setIsMedical] = useState<IsMedicalChoice>('')
   const [itemSearch, setItemSearch] = useState<{ [key: number]: string }>({})
   const [itemOptions, setItemOptions] = useState<{ [key: number]: any[] }>({})
   const [itemUomOptions, setItemUomOptions] = useState<{ [key: number]: { name: string; label: string }[] }>({})
@@ -193,6 +200,11 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
       return
     }
 
+    if (!isMedicalChoiceRequired(isMedical)) {
+      toast.error('Please select a category (Medical or Consumable)')
+      return
+    }
+
     setSubmitting(true)
     try {
       await createMaterialRequest({
@@ -202,6 +214,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
         requested_by: user?.name || '',
         notes: notes || undefined,
         warehouse_context: warehouseContext,
+        is_medical: isMedicalPayload(isMedical),
       })
       toast.success('Material request created successfully')
       setShowForm(false)
@@ -218,6 +231,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
   const resetForm = () => {
     setItems([{ item_code: '', item_name: '', quantity: 1, uom: '', notes: '' }])
     setNotes('')
+    setIsMedical('')
     setItemSearch({})
     setItemOptions({})
     setItemUomOptions({})
@@ -314,6 +328,8 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
           </div>
           
           <form onSubmit={handleSubmit} className="space-y-4">
+            <IsMedicalSelect value={isMedical} onChange={setIsMedical} />
+
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <label className="text-sm font-medium text-slate-700">Items</label>
@@ -439,7 +455,7 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
               </button>
               <button
                 type="submit"
-                disabled={submitting}
+                disabled={submitting || !isMedicalChoiceRequired(isMedical)}
                 className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50"
               >
                 <Send className="w-4 h-4" />

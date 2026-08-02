@@ -481,6 +481,7 @@ export function DischargeDetailPanel({
                 stoppedMedications={stoppedMedications}
                 allowEditDischarged
                 patient={doc?.file_no || preview?.file_no || undefined}
+                admission={doc?.admission || preview?.admission || undefined}
                 onDischargedChanged={reloadDoc}
               />
             </div>

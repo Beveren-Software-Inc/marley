@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Pencil, Pill } from 'lucide-react'
+import { Pencil, Pill, Trash2 } from 'lucide-react'
 import {
   getDischargePrescriptionSections,
   getDischargeTransferRows,
+  stopMedicationOnDischarge,
   type DischargePrescriptionMedication,
   type DischargePrescriptionSections,
   type DischargeTransferRow,
 } from '../../services/medicineGiven'
-import { fetchPrescription, type Prescription } from '../../services/prescriptions'
+import {
+  fetchPrescription,
+  saveMedicationOrderEntryStopReason,
+  type MedicationOrderRow,
+  type Prescription,
+} from '../../services/prescriptions'
 import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { toast } from '../../hooks/useToast'
 
@@ -18,6 +24,252 @@ function uniquePrescriptionIds(items: DischargePrescriptionMedication[]): string
     if (id) ids.add(id)
   }
   return [...ids].sort()
+}
+
+function mapTransferRowToMedication(row: DischargeTransferRow): MedicationOrderRow {
+  const start = row.date || new Date().toISOString().split('T')[0]
+  const days = row.no_of_days || 1
+  const dosage =
+    (row.dosage || '').trim() ||
+    (row.instructions || '').trim() ||
+    (row.strength || '').trim() ||
+    ''
+  const frequency =
+    (row.patient_frequency || '').trim() ||
+    (row.written_frequency || '').trim() ||
+    ''
+  return {
+    drug: row.drug || '',
+    drug_name:
+      row.drug_name ||
+      row.medication ||
+      row.old_medicine_name ||
+      row.drug ||
+      '',
+    dosage,
+    no_of_days: days,
+    dosage_form: row.dosage_form || '',
+    instructions: row.instructions || '',
+    date: start,
+    end_date: row.end_date || addDaysToIsoDate(start, days),
+    time: row.time || '08:00:00',
+    patient_frequency: frequency,
+    is_pink: Boolean(row.is_pink),
+    is_prn: false,
+    reference_no: row.reference_no || '',
+    route_of_administration: row.route_of_administration || '',
+    is_long_acting: Boolean(row.is_long_acting_medicine),
+    long_acting_frequency: 'Weekly',
+    medication_type: row.medication_type || '',
+    // Keep legacy codes so CreatePrescriptionModal can resolve ITEM_00_01 → Item.
+    old_medicine_code: row.old_medicine_code || '',
+    old_medicine_name: row.old_medicine_name || '',
+    medicine_no: row.medicine_no || '',
+    medication: row.medication || '',
+  }
+}
+
+function mapStoppedMedToMedication(med: DischargePrescriptionMedication): MedicationOrderRow {
+  const start = (med.start_date || '').toString().slice(0, 10) || new Date().toISOString().split('T')[0]
+  return {
+    drug: med.mapped_drug || med.drug || '',
+    drug_name:
+      med.mapped_drug_name ||
+      med.drug_name ||
+      med.old_medicine_name ||
+      med.medication ||
+      '',
+    dosage: med.dosage && med.dosage !== '—' ? med.dosage : '',
+    dosage_form: '',
+    date: start,
+    time: '08:00:00',
+    patient_frequency: med.frequency || '',
+    reason_stopped: med.reason_stopped || 'Stopped',
+    is_pink: false,
+    is_prn: false,
+    is_long_acting: false,
+    long_acting_frequency: 'Weekly',
+    medication_type: '',
+    reference_no: '',
+    old_medicine_code: med.old_medicine_code || '',
+    old_medicine_name: med.old_medicine_name || '',
+    medicine_no: med.medicine_no || '',
+    medication: med.medication || '',
+  }
+}
+
+function dischargeMedicationTitle(med: DischargePrescriptionMedication): string {
+  const mapped = (med.mapped_drug_name || '').trim()
+  const current = (med.drug_name || '').trim()
+  const legacy = (med.old_medicine_name || med.medication || '').trim()
+  // Backend may already format "New (legacy: Old)"; prefer that when present.
+  if (current && current !== '-' && current.toLowerCase().includes('legacy:')) {
+    return current
+  }
+  if (mapped && legacy && mapped.toLowerCase() !== legacy.toLowerCase()) {
+    return `${mapped} (legacy: ${legacy})`
+  }
+  if (current && current !== '-') return current
+  if (mapped) return mapped
+  if (legacy) return legacy
+  return med.drug || med.old_medicine_code || med.medicine_no || 'Medication'
+}
+
+function EditStoppedReasonModal({
+  drugName,
+  initialReason,
+  onClose,
+  onConfirm,
+}: {
+  drugName?: string
+  initialReason: string
+  onClose: () => void
+  onConfirm: (reason: string) => void | Promise<void>
+}) {
+  const [reason, setReason] = useState(initialReason)
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    const trimmed = reason.trim()
+    if (!trimmed) {
+      toast.error('Stop reason is required')
+      return
+    }
+    setSubmitting(true)
+    try {
+      await Promise.resolve(onConfirm(trimmed))
+      onClose()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-stop-reason-title"
+    >
+      <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 shadow-xl">
+        <h2 id="edit-stop-reason-title" className="mb-2 text-lg font-semibold text-slate-800">
+          Edit stop reason
+        </h2>
+        <p className="mb-3 text-sm text-slate-600">
+          {drugName ? (
+            <>
+              Update why <strong>{drugName}</strong> was stopped.
+            </>
+          ) : (
+            <>Update the reason this medication was stopped.</>
+          )}
+        </p>
+        <div className="space-y-4">
+          <div>
+            <label htmlFor="edit-reason-stopped" className="mb-1 block text-sm font-medium text-slate-700">
+              Reason stopped <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              id="edit-reason-stopped"
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="min-h-[80px] w-full rounded border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              rows={3}
+            />
+          </div>
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded border border-slate-300 px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={submitting}
+              onClick={() => void handleSubmit()}
+              className="rounded bg-primary px-3 py-1.5 text-sm text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {submitting ? 'Saving…' : 'Save'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function useStoppedMedicationActions(
+  admission: string | undefined,
+  onChanged?: () => void | Promise<void>,
+) {
+  const [editTarget, setEditTarget] = useState<DischargePrescriptionMedication | null>(null)
+  const [busyId, setBusyId] = useState<string | null>(null)
+
+  const handleEditReason = useCallback((med: DischargePrescriptionMedication) => {
+    if (!med.name || !med.prescription) {
+      toast.error('Missing prescription line to update')
+      return
+    }
+    setEditTarget(med)
+  }, [])
+
+  const saveEditReason = useCallback(
+    async (reason: string) => {
+      if (!editTarget?.name) return
+      if (admission) {
+        await stopMedicationOnDischarge(admission, editTarget.name, reason)
+      } else if (editTarget.prescription) {
+        await saveMedicationOrderEntryStopReason(editTarget.prescription, editTarget.name, {
+          reasonStopped: reason,
+        })
+      } else {
+        throw new Error('Cannot update stop reason')
+      }
+      toast.success('Stop reason updated')
+      await onChanged?.()
+    },
+    [admission, editTarget, onChanged],
+  )
+
+  const handleRemoveStopped = useCallback(
+    async (med: DischargePrescriptionMedication) => {
+      if (!med.name || !med.prescription) {
+        toast.error('Missing prescription line to remove')
+        return
+      }
+      if (
+        !window.confirm(
+          `Remove ${med.drug_name || med.drug || 'this medicine'} from stopped list? It will return to current medicines.`,
+        )
+      ) {
+        return
+      }
+      setBusyId(med.name)
+      try {
+        await saveMedicationOrderEntryStopReason(med.prescription, med.name, { clear: true })
+        toast.success('Removed from stopped list')
+        await onChanged?.()
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : 'Failed to remove stopped medicine')
+      } finally {
+        setBusyId(null)
+      }
+    },
+    [onChanged],
+  )
+
+  const editModal = editTarget ? (
+    <EditStoppedReasonModal
+      drugName={editTarget.drug_name || editTarget.drug}
+      initialReason={editTarget.reason_stopped || ''}
+      onClose={() => setEditTarget(null)}
+      onConfirm={saveEditReason}
+    />
+  ) : null
+
+  return { handleEditReason, handleRemoveStopped, busyId, editModal }
 }
 
 function useDischargePrescriptionEditor(patient?: string, onChanged?: () => void | Promise<void>) {
@@ -92,6 +344,9 @@ function MedicationList({
   onToggle,
   showReason,
   selectableIds,
+  onEditReason,
+  onRemoveStopped,
+  actionBusyId,
 }: {
   items: DischargePrescriptionMedication[]
   emptyText: string
@@ -101,6 +356,9 @@ function MedicationList({
   showReason?: boolean
   /** When set, only these entry names can be selected (e.g. not yet discharged). */
   selectableIds?: Set<string>
+  onEditReason?: (med: DischargePrescriptionMedication) => void
+  onRemoveStopped?: (med: DischargePrescriptionMedication) => void
+  actionBusyId?: string | null
 }) {
   if (!items.length) {
     return <p className="text-sm text-slate-500 py-2">{emptyText}</p>
@@ -113,6 +371,7 @@ function MedicationList({
         const canSelect =
           entryName !== '' && (!selectableIds || selectableIds.has(entryName))
         const isTransferred = Boolean(med.transferred_to_visit)
+        const busy = Boolean(entryName && actionBusyId === entryName)
         return (
         <li key={med.name || `${med.drug_name}-${index}`} className="flex items-start gap-3 py-2.5 first:pt-0 last:pb-0">
           {selectable && onToggle ? (
@@ -136,13 +395,43 @@ function MedicationList({
           ) : null}
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-medium text-slate-900">{med.drug_name || med.drug || 'Medication'}</p>
+              <p className="text-sm font-medium text-slate-900">{dischargeMedicationTitle(med)}</p>
+              {med.is_legacy || med.old_medicine_name || med.old_medicine_code ? (
+                <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-800 ring-1 ring-amber-200">
+                  Legacy
+                </span>
+              ) : null}
               {isTransferred ? (
                 <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700 ring-1 ring-emerald-200">
                   Discharged for home
                 </span>
               ) : null}
+              {showReason ? (
+                <span className="rounded bg-rose-50 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-700 ring-1 ring-rose-200">
+                  Stopped
+                </span>
+              ) : null}
             </div>
+            {(med.mapped_drug_name || med.old_medicine_name) &&
+            !(med.drug_name || '').toLowerCase().includes('legacy:') ? (
+              <p className="mt-0.5 text-[11px] text-slate-500">
+                {med.mapped_drug_name ? (
+                  <>
+                    Current: <span className="font-medium text-slate-700">{med.mapped_drug_name}</span>
+                    {med.old_medicine_name ? (
+                      <>
+                        {' '}
+                        · Legacy: <span className="font-medium text-slate-700">{med.old_medicine_name}</span>
+                      </>
+                    ) : null}
+                  </>
+                ) : med.old_medicine_name ? (
+                  <>
+                    Legacy name: <span className="font-medium text-slate-700">{med.old_medicine_name}</span>
+                  </>
+                ) : null}
+              </p>
+            ) : null}
             <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-slate-600">
               <span>
                 <span className="font-medium text-slate-500">Dosage:</span> {med.dosage || '—'}
@@ -164,6 +453,34 @@ function MedicationList({
               <p className="mt-0.5 text-[10px] text-slate-400">Prescription: {med.prescription}</p>
             ) : null}
           </div>
+          {(onEditReason || onRemoveStopped) && entryName ? (
+            <div className="flex shrink-0 items-center gap-1">
+              {onEditReason ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onEditReason(med)}
+                  className="inline-flex items-center gap-1 rounded border border-rose-300 bg-white px-2 py-1 text-[11px] font-medium text-rose-700 hover:bg-rose-50 disabled:opacity-50"
+                  title="Edit stop reason"
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </button>
+              ) : null}
+              {onRemoveStopped ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => onRemoveStopped(med)}
+                  className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-700 disabled:opacity-50"
+                  title="Remove from stopped list (clear stop reason)"
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </li>
         )
       })}
@@ -223,6 +540,7 @@ export function DischargePrescriptionCardsReadonly({
   alwaysShow = false,
   allowEditDischarged = false,
   patient,
+  admission,
   onDischargedChanged,
 }: {
   currentMedications?: DischargePrescriptionMedication[]
@@ -231,12 +549,19 @@ export function DischargePrescriptionCardsReadonly({
   alwaysShow?: boolean
   allowEditDischarged?: boolean
   patient?: string
+  admission?: string
   onDischargedChanged?: () => void | Promise<void>
 }) {
   const { openEdit, editLoadingId, editModal } = useDischargePrescriptionEditor(
     patient,
     onDischargedChanged,
   )
+  const {
+    handleEditReason,
+    handleRemoveStopped,
+    busyId: stoppedBusyId,
+    editModal: stoppedEditModal,
+  } = useStoppedMedicationActions(admission, onDischargedChanged)
   const dischargedPrescriptionIds = useMemo(
     () => uniquePrescriptionIds(dischargedMedications),
     [dischargedMedications],
@@ -251,6 +576,7 @@ export function DischargePrescriptionCardsReadonly({
   return (
     <div className="space-y-4">
       {editModal}
+      {stoppedEditModal}
       <PrescriptionCard
         title="Current medicine"
         subtitle="Medicines used during this admission"
@@ -292,6 +618,9 @@ export function DischargePrescriptionCardsReadonly({
           items={stoppedMedications}
           emptyText="NO STOPPED MEDICINES RECORDED."
           showReason
+          onEditReason={handleEditReason}
+          onRemoveStopped={(med) => void handleRemoveStopped(med)}
+          actionBusyId={stoppedBusyId}
         />
       </PrescriptionCard>
     </div>
@@ -358,6 +687,12 @@ export function DischargePrescriptionCardsEditable({
     patient,
     handleAfterPrescriptionEdit,
   )
+  const {
+    handleEditReason,
+    handleRemoveStopped,
+    busyId: stoppedBusyId,
+    editModal: stoppedEditModal,
+  } = useStoppedMedicationActions(admission, handleAfterPrescriptionEdit)
   const dischargedPrescriptionIds = useMemo(
     () => uniquePrescriptionIds(sections.discharged_medications),
     [sections.discharged_medications],
@@ -393,6 +728,15 @@ export function DischargePrescriptionCardsEditable({
     (row) => row.name && selectedCurrent.has(row.name)
   )
   const transferableIds = new Set(transferRows.map((r) => r.name).filter((n): n is string => Boolean(n)))
+  const dischargeInitialMedications = useMemo(
+    () => [
+      ...selectedTransferRows.map(mapTransferRowToMedication),
+      ...sections.stopped_medications.map(mapStoppedMedToMedication),
+    ],
+    // selectedTransferRows identity changes each render; depend on selection + source data
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCurrent, transferRows, sections.stopped_medications],
+  )
 
   if (loading) {
     return <div className="text-sm text-slate-600">Loading prescriptions…</div>
@@ -401,6 +745,7 @@ export function DischargePrescriptionCardsEditable({
   return (
     <div className="space-y-4">
       {editModal}
+      {stoppedEditModal}
       {error ? (
         <div className="bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
           {error}
@@ -477,6 +822,9 @@ export function DischargePrescriptionCardsEditable({
           items={sections.stopped_medications}
           emptyText="NO STOPPED MEDICINES RECORDED."
           showReason
+          onEditReason={handleEditReason}
+          onRemoveStopped={(med) => void handleRemoveStopped(med)}
+          actionBusyId={stoppedBusyId}
         />
       </PrescriptionCard>
 
@@ -486,27 +834,7 @@ export function DischargePrescriptionCardsEditable({
           onSuccess={handleDischargeCreated}
           initialPatient={patient}
           initialCareContext="Patient Visit"
-          initialMedications={selectedTransferRows.map((row) => ({
-            drug: row.drug,
-            drug_name: row.drug_name,
-            dosage: row.dosage || '',
-            no_of_days: row.no_of_days || 1,
-            dosage_form: row.dosage_form || '',
-            instructions: row.instructions || '',
-            date: row.date || new Date().toISOString().split('T')[0],
-            end_date:
-              row.end_date ||
-              addDaysToIsoDate(row.date || new Date().toISOString().split('T')[0], row.no_of_days || 1),
-            time: row.time || '08:00:00',
-            patient_frequency: row.patient_frequency || '',
-            is_pink: Boolean(row.is_pink),
-            is_prn: false,
-            reference_no: row.reference_no || '',
-            route_of_administration: row.route_of_administration || '',
-            is_long_acting: Boolean(row.is_long_acting_medicine),
-            long_acting_frequency: 'Weekly',
-            medication_type: row.medication_type || '',
-          }))}
+          initialMedications={dischargeInitialMedications}
           transferAdmission={admission}
           transferOrderEntryNames={selectedTransferRows.map((row) => row.name)}
         />

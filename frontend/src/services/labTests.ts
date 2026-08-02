@@ -292,13 +292,15 @@ export async function createLabTest(data: CreateLabTestData): Promise<LabTest> {
 export async function requestLabConsumables(
   labTestName: string,
   items: LabConsumableRow[],
-  company?: string
+  company?: string,
+  isMedical?: 0 | 1
 ): Promise<string> {
   const { apiRequest } = await import('./apiClient')
 
   const payload: any = {
     lab_test: labTestName,
     items,
+    is_medical: isMedical,
   }
 
   if (company) {

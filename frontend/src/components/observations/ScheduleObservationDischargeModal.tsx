@@ -37,7 +37,7 @@ export function ScheduleObservationDischargeModal({
       setLoading(true)
       setError(null)
       await scheduleObservationDischarge(observation.name, dcDate)
-      toast.success('Observation discharge scheduled — room released')
+      toast.success('Observation discharge scheduled')
       onSuccess?.()
       onClose()
     } catch (err) {
@@ -54,7 +54,7 @@ export function ScheduleObservationDischargeModal({
       <div className={createModalShellClass('max-w-md w-full')}>
         <CreateModalHeader
           title="Schedule observation discharge"
-          subtitle={`${observation.trans_no || observation.name}${observation.room_name || observation.room ? ` · ${observation.room_name || observation.room}` : ''}`}
+          subtitle={`${observation.trans_no || observation.name}`}
           onClose={onClose}
         />
         <form onSubmit={handleSubmit} className={`${CREATE_MODAL_BODY_GRADIENT} space-y-4 p-6`}>
@@ -65,12 +65,7 @@ export function ScheduleObservationDischargeModal({
           ) : null}
 
           <p className="text-sm text-slate-600">
-            Sets the DC date and marks the observation room as <strong>Vacant</strong>.
-            {observation.room ? (
-              <> Current room: {observation.room_name || observation.room}.</>
-            ) : (
-              <> No room is assigned on this observation.</>
-            )}
+            Sets the observation discharge (DC) date.
           </p>
 
           <div>

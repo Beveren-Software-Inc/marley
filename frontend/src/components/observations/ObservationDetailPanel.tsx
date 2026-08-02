@@ -199,9 +199,6 @@ export function ObservationDetailPanel({
                 <h3 className="mt-1 text-lg font-semibold text-emerald-950">
                   {displayValue(source.observation_level)}
                 </h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Security: {displayValue(source.designated_security_personel)}
-                </p>
               </div>
               {active ? (
                 <span className="inline-flex items-center rounded-full border-2 border-emerald-600 bg-white px-3 py-1 text-xs font-bold uppercase tracking-wide text-emerald-800">
@@ -262,11 +259,6 @@ export function ObservationDetailPanel({
                       ? 'Active — no discharge date'
                       : '—'
                 }
-              />
-              <InfoTile
-                icon={<Building2 className="h-4 w-4" strokeWidth={2} />}
-                label="Room"
-                value={displayValue(source.room_name || source.room)}
               />
               <InfoTile
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}

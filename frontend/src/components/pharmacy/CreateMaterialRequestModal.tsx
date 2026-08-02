@@ -11,6 +11,12 @@ import {
   type ItemBatchSearchRow
 } from '../../services/pharmacy'
 import { X } from 'lucide-react'
+import {
+  IsMedicalSelect,
+  isMedicalChoiceRequired,
+  isMedicalPayload,
+  type IsMedicalChoice,
+} from '../ui/IsMedicalSelect'
 
 const MATERIAL_REQUEST_TYPES = [
   'Purchase',
@@ -184,6 +190,7 @@ export const CreateMaterialRequestModal = ({
   const [loading, setLoading] = useState(false)
   const [optionsLoading, setOptionsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isMedical, setIsMedical] = useState<IsMedicalChoice>('')
 
   useEffect(() => {
     getMaterialRequestOptions()
@@ -239,6 +246,10 @@ export const CreateMaterialRequestModal = ({
       setError('Add at least one item with quantity')
       return
     }
+    if (!isMedicalChoiceRequired(isMedical)) {
+      setError('Please select a category (Medical or Consumable)')
+      return
+    }
     try {
       setLoading(true)
       const res = await createMaterialRequest({
@@ -247,6 +258,7 @@ export const CreateMaterialRequestModal = ({
         schedule_date: scheduleDate || undefined,
         set_warehouse: defaultWarehouse.trim() || undefined,
         cost_center: costCenter.trim() || undefined,
+        is_medical: isMedicalPayload(isMedical),
         items: validItems.map((r) => ({
           item_code: r.item_code.trim(),
           qty: Number(r.qty),
@@ -363,6 +375,8 @@ export const CreateMaterialRequestModal = ({
               />
             </div>
 
+            <IsMedicalSelect value={isMedical} onChange={setIsMedical} />
+
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="block text-sm font-medium text-slate-700">Items</label>
@@ -448,7 +462,7 @@ export const CreateMaterialRequestModal = ({
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={loading || !isMedicalChoiceRequired(isMedical)}
               className="px-4 py-2 rounded bg-primary text-white text-sm font-medium hover:bg-primary/90 disabled:opacity-60"
             >
               {loading ? 'Creating...' : 'Create'}

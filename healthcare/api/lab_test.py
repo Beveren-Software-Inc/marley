@@ -1749,13 +1749,15 @@ def get_lab_test(name):
 
 
 @frappe.whitelist()
-def create_lab_material_request(items, company=None, schedule_date=None, cost_center=None):
+def create_lab_material_request(items, company=None, schedule_date=None, cost_center=None, is_medical=None):
 	"""Create a Material Request for lab consumables.
 
 	`items` is expected to be a JSON list of objects with:
 	- item_code
 	- qty
 	- warehouse (optional)
+
+	``is_medical`` maps to Material Request.custom_is_medical (1 = Medical, 0 = Consumable).
 	"""
 	import json
 
@@ -1765,11 +1767,19 @@ def create_lab_material_request(items, company=None, schedule_date=None, cost_ce
 	if not items:
 		frappe.throw(_("No items provided to create Material Request"))
 
+	if is_medical is None or str(is_medical).strip() == "":
+		frappe.throw(_("Please choose whether this is a Medical or Consumable material request."))
+
 	mr = frappe.new_doc("Material Request")
 	mr.material_request_type = "Material Transfer"
 
 	if company:
 		mr.company = company
+
+	if mr.meta.has_field("custom_is_medical"):
+		mr.custom_is_medical = 1 if cint(is_medical) else 0
+	if mr.meta.has_field("custom_lab_inventory"):
+		mr.custom_lab_inventory = 1
 
 	for row in items:
 		if not row.get("item_code") or not row.get("qty"):
@@ -1793,7 +1803,7 @@ def create_lab_material_request(items, company=None, schedule_date=None, cost_ce
 
 
 @frappe.whitelist()
-def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
+def request_lab_consumables(lab_test, items, company=None, schedule_date=None, is_medical=None):
 	"""Persist requested consumables on a Lab Test and create a Material Request.
 
 	This is intended for use from the frontend React UI.
@@ -1841,6 +1851,7 @@ def request_lab_consumables(lab_test, items, company=None, schedule_date=None):
 		company=company,
 		schedule_date=schedule_date,
 		cost_center=lab_cost_center,
+		is_medical=is_medical,
 	)
 
 	# Link MR back to Lab Test
