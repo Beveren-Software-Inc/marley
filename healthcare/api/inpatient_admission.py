@@ -3086,10 +3086,12 @@ def create_admission_quotation(
 	if not company:
 		frappe.throw(_("Company is required. Please set company in admission or user defaults."))
 	
-	# Get patient customer
+	# Get patient customer (Customer doc name / ID — not patient_name)
 	customer = frappe.db.get_value('Patient', patient, 'customer')
 	if not customer:
 		frappe.throw(_("Patient {0} does not have a linked customer").format(patient))
+	if not frappe.db.exists("Customer", customer):
+		frappe.throw(_("Customer {0} linked on Patient {1} was not found").format(customer, patient))
 	
 	# Get package details
 	is_custom = package_name == '__custom__'
@@ -3136,8 +3138,9 @@ def create_admission_quotation(
 	
 	# ✅ Create Quotation instead of Sales Order
 	quotation = frappe.new_doc("Quotation")
+	quotation.quotation_to = "Customer"
+	quotation.party_name = customer
 	quotation.patient = patient
-	quotation.party_name = frappe.db.get_value('Customer', patient, 'customer_name') or customer
 	quotation.company = company
 	quotation.transaction_date = getdate()
 	quotation.valid_till = getdate()

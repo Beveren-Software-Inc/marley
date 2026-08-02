@@ -84,6 +84,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Medication',
     screens: [
+      { id: 'single-prescription', title: 'Prescription' },
       { id: 'd-daily-med', title: 'Daily Medication Chart' },
       { id: 'd-med-sheet', title: 'Medication Sheet' },
       { id: 'd-long-acting-meds', title: 'Long Acting Medicines' },

@@ -129,6 +129,8 @@ export async function createMaterialRequest(params: {
   schedule_date?: string
   set_warehouse?: string
   cost_center?: string
+  /** 1 = Medical, 0 = Consumable → Material Request.custom_is_medical */
+  is_medical: 0 | 1
   items: { item_code: string; qty: number; warehouse?: string }[]
 }): Promise<{ name: string }> {
   return apiRequest<{ name: string }>(`${BASE}.create_material_request`, {

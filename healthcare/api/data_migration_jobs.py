@@ -3679,6 +3679,8 @@ def process_legacy_lab_import_batch(offset: int = 0) -> None:
 			+ cint(result.get("skip_no_template", 0)),
 			skip_no_header=cint(prev.get("skip_no_header", 0))
 			+ cint(result.get("skip_no_header", 0)),
+			skip_already_imported=cint(prev.get("skip_already_imported", 0))
+			+ cint(result.get("skip_already_imported", 0)),
 			skip_existing_non_legacy=cint(prev.get("skip_existing_non_legacy", 0))
 			+ cint(result.get("skip_existing_non_legacy", 0)),
 			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),

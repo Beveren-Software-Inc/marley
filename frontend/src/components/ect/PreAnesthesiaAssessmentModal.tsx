@@ -952,6 +952,8 @@ import { fetchHealthcarePractitioners, fetchPatientVisits, fetchPatientOptions, 
 import { toast } from '../../hooks/useToast'
 import { ChevronDown, PenLine, Check , FileText } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { localDateInputValue } from '../../utils/formatDate'
 import {
   linkComboboxDropdownClass,
   linkComboboxInputWithClearClass,
@@ -1165,11 +1167,10 @@ const Notes = ({ label = 'Notes', value, onChange }: NotesProps) => (
   </div>
 )
 
-function nowDate() { return new Date().toISOString().slice(0, 10) }
+function nowDate() { return localDateInputValue() }
 function nowTime() { return new Date().toTimeString().slice(0, 5) }
 function nowDatetime() {
-  const d = new Date()
-  return `${d.toISOString().slice(0, 10)} ${d.toTimeString().slice(0, 5)}`
+  return toDatetimeLocalValue().replace('T', ' ')
 }
 
 // ─── Types ────────────────────────────────────────────────────────────────────

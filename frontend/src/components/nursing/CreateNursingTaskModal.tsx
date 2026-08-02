@@ -291,6 +291,7 @@ import { toast } from '../../hooks/useToast'
 import { CreateHealthcareActivityModal } from '../activities/CreateHealthcareActivityModal'
 import { fetchHealthcarePractitioners, fetchInpatientAdmissions, fetchPatientVisits, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface CreateNursingTaskModalProps {
   onClose: () => void
@@ -325,11 +326,7 @@ export const CreateNursingTaskModal = ({ onClose, onSuccess, patient }: CreateNu
   const [nurseQuery, setNurseQuery] = useState('')
   const [nurseOptions, setNurseOptions] = useState<NurseOption[]>([])
   const [nurseOpen, setNurseOpen] = useState(false)
-  const [requestedStart, setRequestedStart] = useState(() => {
-    const now = new Date()
-    const iso = now.toISOString().slice(0, 16) // yyyy-MM-ddTHH:mm
-    return iso
-  })
+  const [requestedStart, setRequestedStart] = useState(() => toDatetimeLocalValue())
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showCreateActivity, setShowCreateActivity] = useState(false)

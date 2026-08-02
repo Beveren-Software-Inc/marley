@@ -66,6 +66,8 @@ interface PrescriptionListProps {
   careContext?: 'Patient Visit' | 'Inpatient Admission'
   /** Default From/To to today and practitioner filter to the logged-in user's practitioner. */
   doctorPrescriptionDefaults?: boolean
+  /** Start in history mode: all prescriptions for the patient (no visit/admission scope). */
+  defaultAllPatientPrescriptions?: boolean
 }
 
 export const PrescriptionList = ({
@@ -74,6 +76,7 @@ export const PrescriptionList = ({
   onPrescriptionSelect,
   careContext: careContextProp,
   doctorPrescriptionDefaults = false,
+  defaultAllPatientPrescriptions = false,
 }: PrescriptionListProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, guardClinicalEdit } = useCareContext()
 
@@ -82,7 +85,9 @@ export const PrescriptionList = ({
   // Use context patient when no patient prop is passed.
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** Show all prescriptions for the patient (ignore active visit/admission scope). */
-  const [showAllPatientPrescriptions, setShowAllPatientPrescriptions] = useState(false)
+  const [showAllPatientPrescriptions, setShowAllPatientPrescriptions] = useState(
+    defaultAllPatientPrescriptions,
+  )
 
   // Precise filter: the specific chosen visit or admission (unless history view is active).
   const effectiveVisitFilter =
@@ -246,9 +251,11 @@ export const PrescriptionList = ({
   }
 
   const handleClearFilters = () => {
-    setShowAllPatientPrescriptions(false)
+    if (!defaultAllPatientPrescriptions) {
+      setShowAllPatientPrescriptions(false)
+    }
     clearUserFilters()
-    if (historyStorageKey) {
+    if (!defaultAllPatientPrescriptions && historyStorageKey) {
       try {
         sessionStorage.removeItem(historyStorageKey)
       } catch {
@@ -259,6 +266,7 @@ export const PrescriptionList = ({
 
   useEffect(() => {
     if (!defaultsReady || !historyStorageKey) return
+    if (defaultAllPatientPrescriptions) return
     try {
       if (sessionStorage.getItem(historyStorageKey) === '1') {
         enterHistoryView(false)
@@ -266,7 +274,7 @@ export const PrescriptionList = ({
     } catch {
       /* ignore */
     }
-  }, [defaultsReady, historyStorageKey])
+  }, [defaultsReady, historyStorageKey, defaultAllPatientPrescriptions])
 
   // Close actions / filter dropdowns when clicking outside
   useEffect(() => {
@@ -409,10 +417,17 @@ export const PrescriptionList = ({
       {showAllPatientPrescriptions && (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-md bg-amber-50 border border-amber-200 text-amber-900 text-xs mb-2">
           <span>Showing all prescriptions for this patient (all visits and admissions)</span>
-          <ClearFiltersButton
-            onClick={handleClearFilters}
-            title="Clear history view and filters"
-          />
+          {!defaultAllPatientPrescriptions ? (
+            <ClearFiltersButton
+              onClick={handleClearFilters}
+              title="Clear history view and filters"
+            />
+          ) : hasActiveFilters && (statusFilter || searchQuery.trim() || practitionerFilter || dateFrom || dateTo) ? (
+            <ClearFiltersButton
+              onClick={handleClearFilters}
+              title="Clear filters"
+            />
+          ) : null}
         </div>
       )}
 

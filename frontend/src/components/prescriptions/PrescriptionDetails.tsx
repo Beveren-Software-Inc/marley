@@ -123,17 +123,16 @@ const TypeFilterCard = ({
   isActive: boolean
   onClick: () => void
 }) => {
-  if (count === 0 && typeDef.key !== 'All') return null
-
   const hex = isHex(typeDef.color)
   const tailwind = !hex ? (TYPE_COLORS[typeDef.color] ?? TYPE_COLORS.slate) : null
+  const isEmpty = count === 0 && typeDef.key !== 'All'
 
   return (
     <button
       onClick={onClick}
       className={`flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg border text-xs font-medium transition-all min-w-[72px] cursor-pointer ${
         hex ? '' : isActive ? tailwind!.active : tailwind!.inactive
-      }`}
+      } ${isEmpty && !isActive ? 'opacity-55' : ''}`}
       style={hex ? hexButtonStyle(typeDef.color, isActive) : undefined}
     >
       <span className="text-base leading-none">{typeDef.icon}</span>
@@ -760,20 +759,6 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               ) : '✓'} Mark Completed
-            </button>
-          )}
-          {prescription.status !== 'Stopped' && prescription.status !== 'Completed' && (
-            <button
-              onClick={() => handleStatusChange('Stopped')}
-              disabled={!!actionLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
-            >
-              {actionLoading === 'Stopped' ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-                </svg>
-              ) : '✗'} Stop Prescription
             </button>
           )}
         </div>

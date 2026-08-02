@@ -1,7 +1,13 @@
 // tabs/StockLedgerTab.tsx
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { fetchStockLedger, fetchItemGroups, type StockLedgerItem } from '../../services/nursingInventory'
+import {
+  fetchStockLedger,
+  fetchStockLedgerExport,
+  fetchItemGroups,
+  type StockLedgerItem,
+  type StockLedgerExportRow,
+} from '../../services/nursingInventory'
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import {
   FilterToggleButton,
@@ -10,7 +16,17 @@ import {
   FilterSelectField,
   matchesTextQuery,
 } from './InventoryListFilters'
-import { Package, AlertTriangle, TrendingUp, TrendingDown, ChevronDown, ChevronUp } from 'lucide-react'
+import {
+  Package,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  FileDown,
+} from 'lucide-react'
+import { toast } from '../../hooks/useToast'
 
 type StockStatusFilter = '' | 'in_stock' | 'low_stock' | 'out_of_stock'
 
@@ -34,6 +50,7 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
   const [stockStatusFilter, setStockStatusFilter] = useState<StockStatusFilter>('')
   const [itemGroups, setItemGroups] = useState<{ name: string; label: string }[]>([])
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
+  const [exporting, setExporting] = useState(false)
   const [summary, setSummary] = useState({
     totalItems: 0,
     lowStockItems: 0,
@@ -127,6 +144,157 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
     return Number.isInteger(n) ? String(n) : n.toLocaleString(undefined, { maximumFractionDigits: 3 })
   }
 
+  const loadExportRows = useCallback(async (): Promise<{
+    warehouse: string
+    rows: StockLedgerExportRow[]
+  }> => {
+    if (!effectiveCostCenter) return { warehouse: '', rows: [] }
+    const data = await fetchStockLedgerExport(effectiveCostCenter, warehouseContext)
+    const allowed = new Set(filteredItems.map((item) => item.item_code))
+    return {
+      warehouse: data.warehouse || ledgerWarehouse,
+      rows: data.rows.filter((row) => allowed.has(row.item_code)),
+    }
+  }, [effectiveCostCenter, warehouseContext, filteredItems, ledgerWarehouse])
+
+  const exportExcel = async () => {
+    if (!filteredItems.length) {
+      toast.error('No stock items to export')
+      return
+    }
+    setExporting(true)
+    try {
+      const { warehouse, rows } = await loadExportRows()
+      if (!rows.length) {
+        toast.error('No stock rows to export')
+        return
+      }
+      const headers = [
+        'Item Code',
+        'Item Name',
+        'Item Group',
+        'Qty (Units)',
+        'Unit UOM',
+        'Pack Qty',
+        'Pack UOM',
+        'Stock Qty',
+        'Stock UOM',
+        'Reorder Level',
+        'Unit Price',
+        'Warehouse',
+      ]
+      const escapeCsv = (value: unknown) => {
+        const text = value == null ? '' : String(value)
+        if (/[",\n]/.test(text)) return `"${text.replace(/"/g, '""')}"`
+        return text
+      }
+      const lines = [
+        headers.join(','),
+        ...rows.map((row) =>
+          [
+            row.item_code,
+            row.item_name,
+            row.item_group || '',
+            row.unit_qty ?? row.qty ?? '',
+            row.unit_uom || row.uom || '',
+            row.pack_qty ?? '',
+            row.pack_uom || '',
+            row.stock_qty ?? '',
+            row.stock_uom || '',
+            row.reorder_level ?? '',
+            row.unit_price ?? '',
+            row.warehouse || warehouse || '',
+          ]
+            .map(escapeCsv)
+            .join(',')
+        ),
+      ]
+      const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `stock-ledger-${warehouse || 'warehouse'}-${new Date().toISOString().slice(0, 10)}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+      toast.success('Excel (CSV) downloaded')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to export Excel')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const exportPdf = async () => {
+    if (!filteredItems.length) {
+      toast.error('No stock items to export')
+      return
+    }
+    setExporting(true)
+    try {
+      const { warehouse, rows } = await loadExportRows()
+      if (!rows.length) {
+        toast.error('No stock rows to export')
+        return
+      }
+      const contextLabel = warehouseContext === 'laboratory' ? 'Laboratory' : 'Nurse'
+      const title = `${contextLabel} mini warehouse stock`
+      const bodyRows = rows
+        .map(
+          (row) => {
+            const unitQty = formatQty(row.unit_qty ?? row.qty) ?? row.unit_qty ?? row.qty ?? ''
+            const unitUom = row.unit_uom || row.uom || ''
+            const packLabel =
+              row.pack_qty != null
+                ? `${formatQty(row.pack_qty) ?? row.pack_qty} ${row.pack_uom || ''}`.trim()
+                : '—'
+            return `<tr>
+            <td>${row.item_code || ''}</td>
+            <td>${row.item_name || ''}</td>
+            <td>${unitQty} ${unitUom}</td>
+            <td>${packLabel}</td>
+            <td>${row.item_group || '—'}</td>
+          </tr>`
+          }
+        )
+        .join('')
+      const html = `<!DOCTYPE html>
+<html><head><title>${title}</title>
+<style>
+  body { font-family: system-ui, sans-serif; font-size: 12px; color: #0f172a; padding: 24px; }
+  h1 { font-size: 18px; margin: 0 0 4px; }
+  p { margin: 0 0 16px; color: #475569; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; font-size: 11px; text-transform: uppercase; letter-spacing: 0.02em; }
+</style></head><body>
+  <h1>${title}</h1>
+  <p>Warehouse: <strong>${warehouse || '—'}</strong> · Generated ${new Date().toLocaleString('en-GB')} · ${rows.length} item(s)</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Item Code</th><th>Item Name</th><th>Qty (Units)</th><th>Packs</th><th>Item Group</th>
+      </tr>
+    </thead>
+    <tbody>${bodyRows}</tbody>
+  </table>
+</body></html>`
+      const win = window.open('', '_blank', 'width=1100,height=800')
+      if (!win) {
+        toast.error('Pop-up blocked — allow pop-ups to download PDF')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+      win.print()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to export PDF')
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const renderStockQty = (item: StockLedgerItem) => {
     const packLabel = formatQty(item.pack_qty)
     const unitLabel = formatQty(item.unit_qty)
@@ -193,14 +361,34 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
   return (
     <div className="space-y-4">
       {ledgerWarehouse ? (
-        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          Showing stock from{' '}
-          {warehouseContext === 'laboratory' ? 'laboratory' : 'nurse'} mini warehouse{' '}
-          <span className="font-semibold text-slate-900">{ledgerWarehouse}</span>
-          <span className="text-slate-500">
-            {' '}
-           
-          </span>
+        <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            Showing stock from{' '}
+            {warehouseContext === 'laboratory' ? 'laboratory' : 'nurse'} mini warehouse{' '}
+            <span className="font-semibold text-slate-900">{ledgerWarehouse}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => void exportPdf()}
+              disabled={loading || exporting || filteredItems.length === 0}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-white bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Download PDF"
+            >
+              <FileText className="w-3.5 h-3.5" />
+              PDF
+            </button>
+            <button
+              type="button"
+              onClick={() => void exportExcel()}
+              disabled={loading || exporting || filteredItems.length === 0}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-white bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+              title="Download Excel (CSV)"
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              Excel
+            </button>
+          </div>
         </div>
       ) : null}
 
@@ -352,12 +540,6 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
                             : '—'}
                         </p>
                       </div>
-                      {item.units_per_pack != null ? (
-                        <div>
-                          <label className="text-xs text-slate-500">Units per pack</label>
-                          <p className="text-slate-900 font-medium">{formatQty(item.units_per_pack)}</p>
-                        </div>
-                      ) : null}
                       <div>
                         <label className="text-xs text-slate-500">Reorder Level</label>
                         <p className="text-slate-900 font-medium">{item.reorder_level}</p>

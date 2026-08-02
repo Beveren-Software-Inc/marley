@@ -612,6 +612,7 @@ import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModa
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CareModeBadges, careModeVisitLabel } from '../ui/CareModeBadges'
 import { fetchActiveCareEpisodeStatus } from '../../services/careEpisode'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface CreateClinicalNoteModalProps {
   onClose: () => void
@@ -656,7 +657,7 @@ export const CreateClinicalNoteModal = ({
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
     practitioner: '',
-    posting_date: new Date().toISOString().slice(0, 16),
+    posting_date: toDatetimeLocalValue(),
     note: '',
     admission_no:
       defaultAdmission ||

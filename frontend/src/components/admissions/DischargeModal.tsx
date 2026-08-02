@@ -1,5 +1,6 @@
 
 import { localDateInputValue, localDatetimeInputValue } from '../../utils/formatDate'
+import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -1082,11 +1083,6 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [observationLevelQuery, setObservationLevelQuery] = useState('')
   const [selectedObservationLevel, setSelectedObservationLevel] = useState<LinkFieldOption | null>(null)
   const [observationLevelLoading, setObservationLevelLoading] = useState(false)
-  const [obsRoomOptions, setObsRoomOptions] = useState<ServiceUnit[]>([])
-  const [obsRoomOpen, setObsRoomOpen] = useState(false)
-  const [obsRoomQuery, setObsRoomQuery] = useState('')
-  const [selectedObsRoom, setSelectedObsRoom] = useState<ServiceUnit | null>(null)
-  const [obsRoomLoading, setObsRoomLoading] = useState(false)
   const [roomChargeRoomOptions, setRoomChargeRoomOptions] = useState<ServiceUnit[]>([])
   const [roomChargeRoomOpen, setRoomChargeRoomOpen] = useState(false)
   const [roomChargeRoomQuery, setRoomChargeRoomQuery] = useState('')
@@ -1184,8 +1180,6 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
     }))
     setSelectedObservationLevel(null)
     setObservationLevelQuery('')
-    setSelectedObsRoom(null)
-    setObsRoomQuery('')
     setSelectedObsDepartment(null)
     setObsDepartmentQuery('')
     setSelectedObsPractitioner(null)
@@ -1587,11 +1581,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           if (obsLevel) {
             setSelectedObservationLevel({ name: obsLevel, label: obsLevel })
             setObservationLevelQuery(obsLevel)
-          }
-          const obsRoom = fdStr('observation_room')
-          if (obsRoom) {
-            setSelectedObsRoom({ name: obsRoom, healthcare_service_unit_name: obsRoom } as ServiceUnit)
-            setObsRoomQuery(obsRoom)
           }
 
           const roomChargeUnit = fdStr('room_charge_service_unit')
@@ -2135,23 +2124,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
   }, [observationLevelQuery, observationLevelOpen])
 
   useEffect(() => {
-    if (!obsRoomOpen || !Number(formData.discharge_to_observation)) return
-    const search = async () => {
-      setObsRoomLoading(true)
-      try {
-        const results = await fetchServiceUnits(obsRoomQuery.trim() || undefined, 'Vacant')
-        setObsRoomOptions(results)
-      } catch {
-        setObsRoomOptions([])
-      } finally {
-        setObsRoomLoading(false)
-      }
-    }
-    const id = setTimeout(search, obsRoomQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(id)
-  }, [obsRoomQuery, obsRoomOpen, formData.discharge_to_observation])
-
-  useEffect(() => {
     if (!roomChargeRoomOpen || !Number(formData.room_charge_today)) return
     const search = async () => {
       setRoomChargeRoomLoading(true)
@@ -2264,7 +2236,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           ? {
               ...row,
               click: checking,
-              date_time: checking ? toFrappeDateTime(new Date().toISOString()) : '',
+              date_time: checking ? fromDatetimeLocalValue() : '',
               user: checking ? loggedInUser || row.user : '',
             }
           : row
@@ -2293,7 +2265,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           ? {
               ...item,
               click: !item.click,
-              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '',
+              date_time: !item.click ? fromDatetimeLocalValue() : '',
               user: !item.click ? loggedInUser || item.user : '',
             }
           : item
@@ -2593,8 +2565,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
       removeExtraChargeOrder('Observation')
       setSelectedObservationLevel(null)
       setObservationLevelQuery('')
-      setSelectedObsRoom(null)
-      setObsRoomQuery('')
       setSelectedObsDepartment(null)
       setObsDepartmentQuery('')
       setSelectedObsPractitioner(null)
@@ -3474,6 +3444,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                     stoppedMedications={prescriptionSections.stopped_medications}
                     allowEditDischarged
                     patient={admission.patient}
+                    admission={admission.name}
                     onDischargedChanged={loadPrescriptionSections}
                   />
                 )}
@@ -4205,59 +4176,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                       </div>
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">
-                        Room / Service Unit
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={
-                            selectedObsRoom
-                              ? selectedObsRoom.healthcare_service_unit_name || selectedObsRoom.name
-                              : obsRoomQuery
-                          }
-                          onChange={(e) => {
-                            setObsRoomQuery(e.target.value)
-                            setObsRoomOpen(true)
-                            setSelectedObsRoom(null)
-                            setFormData((prev) => ({ ...prev, observation_room: '' }))
-                          }}
-                          onFocus={() => setObsRoomOpen(true)}
-                          placeholder="Search vacant rooms..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {obsRoomOpen && (
-                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {obsRoomLoading ? (
-                              <div className="px-3 py-2 text-sm text-slate-500">Loading rooms...</div>
-                            ) : obsRoomOptions.length > 0 ? (
-                              obsRoomOptions.map((unit) => (
-                                <button
-                                  key={unit.name}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedObsRoom(unit)
-                                    setObsRoomQuery(unit.healthcare_service_unit_name || unit.name)
-                                    setFormData((prev) => ({ ...prev, observation_room: unit.name }))
-                                    setObsRoomOpen(false)
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                                >
-                                  {unit.healthcare_service_unit_name || unit.name}
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">
-                        Patient is placed here during observation; room becomes vacant on observation discharge.
-                      </p>
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
                       <input
@@ -4349,21 +4267,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Designated Security Personnel</label>
-                      <input
-                        type="text"
-                        value={formData.observation_designated_security_personel}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            observation_designated_security_personel: e.target.value,
-                          }))
-                        }
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
                     </div>
 
                     <div>

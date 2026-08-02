@@ -1716,6 +1716,12 @@ import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import {
+  IsMedicalSelect,
+  isMedicalChoiceRequired,
+  isMedicalPayload,
+  type IsMedicalChoice,
+} from '../ui/IsMedicalSelect'
+import {
   expandLegacyLabTestsForDisplay,
   isLegacyHistoryLabRow,
   resolveLabTestDocName,
@@ -2122,7 +2128,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse, outsource
             lab_test_code: '',
             department: row.department || '',
             lab_test_template_type: '',
-            is_group: 0,
+            is_group: Number(row.is_group) ? 1 : 0,
             is_billable: 0,
             disabled: 0,
             female_min_range: '',
@@ -2608,6 +2614,7 @@ export const LabTestList = ({
   const [dialogItems, setDialogItems] = useState<LabConsumableRow[]>([])
   const [dialogLoading, setDialogLoading] = useState(false)
   const [dialogError, setDialogError] = useState<string | null>(null)
+  const [dialogIsMedical, setDialogIsMedical] = useState<IsMedicalChoice>('')
   const [itemOptions, setItemOptions] = useState<LinkFieldOption[]>([])
   const [warehouseOptions, setWarehouseOptions] = useState<LinkFieldOption[]>([])
   const [openItemIndex, setOpenItemIndex] = useState<number | null>(null)
@@ -2878,7 +2885,7 @@ export const LabTestList = ({
 
   const openRequestDialog = async (labTest: LabTest) => {
     try {
-      setDialogError(null); setDialogLoading(true); setRequestingFor(labTest.name)
+      setDialogError(null); setDialogLoading(true); setRequestingFor(labTest.name); setDialogIsMedical('')
       if (!itemOptions.length) fetchItems().then(setItemOptions).catch(() => setItemOptions([]))
       if (!warehouseOptions.length) fetchWarehouses(labTest.company || undefined).then(setWarehouseOptions).catch(() => setWarehouseOptions([]))
       const items = await getLabTestConsumables(labTest.name)
@@ -2887,7 +2894,7 @@ export const LabTestList = ({
     finally { setDialogLoading(false) }
   }
 
-  const closeRequestDialog = () => { setRequestingFor(null); setDialogItems([]); setDialogError(null); setDialogLoading(false) }
+  const closeRequestDialog = () => { setRequestingFor(null); setDialogItems([]); setDialogError(null); setDialogLoading(false); setDialogIsMedical('') }
   const updateItem = (index: number, field: keyof LabConsumableRow, value: string) => {
     setDialogItems((prev) => prev.map((row, i) => i === index ? { ...row, [field]: field === 'qty' ? Number(value) || 0 : value } : row))
   }
@@ -2897,9 +2904,13 @@ export const LabTestList = ({
     if (!requestingFor) return
     const validItems = dialogItems.filter((row) => row.item_code && row.qty > 0)
     if (!validItems.length) { setDialogError('Please add at least one item with quantity.'); return }
+    if (!isMedicalChoiceRequired(dialogIsMedical)) {
+      setDialogError('Please select a category (Medical or Consumable).')
+      return
+    }
     try {
       setDialogLoading(true); setDialogError(null)
-      const mrName = await requestLabConsumables(requestingFor, validItems)
+      const mrName = await requestLabConsumables(requestingFor, validItems, undefined, isMedicalPayload(dialogIsMedical))
       await refetch(); closeRequestDialog(); alert(`Material Request ${mrName} created`)
     } catch (e) { setDialogError(e instanceof Error ? e.message : 'Failed to create Material Request') }
     finally { setDialogLoading(false) }
@@ -4052,6 +4063,7 @@ export const LabTestList = ({
             </div>
             <div className="p-4 space-y-3">
               {dialogError && <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-md px-3 py-2">{dialogError}</div>}
+              <IsMedicalSelect value={dialogIsMedical} onChange={setDialogIsMedical} compact />
               <div className="overflow-x-auto">
                 <table className="min-w-full text-sm border border-slate-200 rounded-md">
                   <thead className="bg-slate-50">
@@ -4106,7 +4118,7 @@ export const LabTestList = ({
                 <button type="button" onClick={addRow} className="px-3 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50">+ Add Row</button>
                 <div className="flex gap-2">
                   <button type="button" onClick={closeRequestDialog} disabled={dialogLoading} className="px-3 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Cancel</button>
-                  <button type="button" onClick={submitRequest} disabled={dialogLoading} className="px-3 py-1 text-xs bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">{dialogLoading ? 'Submitting...' : 'Create Material Request'}</button>
+                  <button type="button" onClick={submitRequest} disabled={dialogLoading || !isMedicalChoiceRequired(dialogIsMedical)} className="px-3 py-1 text-xs bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50">{dialogLoading ? 'Submitting...' : 'Create Material Request'}</button>
                 </div>
               </div>
             </div>

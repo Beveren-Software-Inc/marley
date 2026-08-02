@@ -16,6 +16,7 @@ import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModa
 import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
 import { CreateDepartmentModal } from './CreateDepartmentModal'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
+import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface CreateLabTestModalProps {
   onClose: () => void
@@ -180,7 +181,7 @@ export const CreateLabTestModal = ({
       if (createNurseTaskFlag && formData.patient) {
         const scheduledDateTime = formData.date && formData.time
           ? `${formData.date} ${formData.time}:00`
-          : new Date().toISOString().replace('T', ' ').slice(0, 19)
+          : fromDatetimeLocalValue()
         const templateLabel = selectedTemplate?.label || formData.template || 'Lab Test'
         try {
           await createNurseTask({
@@ -581,7 +582,14 @@ export const CreateLabTestModal = ({
                           onClick={() => handleTemplateSelect(template)}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none"
                         >
-                          {template.label}
+                          <span className="flex items-center gap-2">
+                            <span className="truncate">{template.label}</span>
+                            {Number(template.is_group) === 1 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700 shrink-0">
+                                GROUP
+                              </span>
+                            ) : null}
+                          </span>
                         </button>
                       ))}
                     </div>

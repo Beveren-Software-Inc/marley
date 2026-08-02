@@ -610,12 +610,18 @@ export interface DischargeTransferRow {
   date?: string
   time?: string
   patient_frequency?: string
+  written_frequency?: string
   is_pink?: boolean
   reference_no?: string
   route_of_administration?: string
   is_long_acting_medicine?: boolean
   end_date?: string
   medication_type?: string
+  old_medicine_code?: string
+  old_medicine_name?: string
+  medication?: string
+  medicine_no?: string
+  strength?: string
 }
 
 export interface DischargePrescriptionMedication {
@@ -629,6 +635,13 @@ export interface DischargePrescriptionMedication {
   reason_stopped?: string
   patient_visit?: string
   transferred_to_visit?: string
+  is_legacy?: number | boolean
+  old_medicine_code?: string
+  old_medicine_name?: string
+  medication?: string
+  medicine_no?: string
+  mapped_drug?: string
+  mapped_drug_name?: string
 }
 
 export interface DischargePrescriptionSections {

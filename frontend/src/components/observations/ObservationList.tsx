@@ -407,9 +407,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                     Care Context
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Room
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Frequency
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -417,9 +414,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
                     Doctor Name
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">
-                    Security Personnel
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[140px]">
                     Actions
@@ -480,9 +474,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                             : '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.room_name || obs.room || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.duration || '-'}
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
@@ -490,9 +481,6 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
                       </td>
                       <td className="px-4 py-3 text-sm text-slate-700">
                         {obs.practitioner_name || obs.healthcare_practitioner || '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm text-slate-700">
-                        {obs.designated_security_personel || '-'}
                       </td>
                       <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5 flex-wrap justify-end">

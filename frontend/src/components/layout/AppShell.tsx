@@ -57,6 +57,7 @@ const nurseScreenGroups: ScreenGroup[] = [
       { id: 'n-nut',         title: 'Nutritionist Notes' },
       { id: 'n-ther',        title: 'Therapist Notes' },
       { id: 'n-nurse-notes', title: 'Nursing Notes' },
+      { id: 'n-med-notes',   title: 'Patient Medication Notes' },
       { id: 'n-tpr',         title: 'TPR / Vital Signs' },
     ],
   },
@@ -215,6 +216,8 @@ const psychologyScreens = [
 
 const nutritionistScreens = [
   { id: 'nut-notes', title: 'Nutritionist Notes' },
+  { id: 'nut-appointments', title: 'Appointments' },
+  { id: 'nut-session', title: 'Session Scheduling' },
 ]
 
 const psychologistScreenGroups: ScreenGroup[] = [

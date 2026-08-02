@@ -9,6 +9,12 @@ import { createMaterialRequest, fetchInventoryItems, fetchItemUomOptions, getWar
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Send, Package } from 'lucide-react'
+import {
+  IsMedicalSelect,
+  isMedicalChoiceRequired,
+  isMedicalPayload,
+  type IsMedicalChoice,
+} from '../ui/IsMedicalSelect'
 
 interface CreateMaterialRequestModalProps {
   onClose: () => void
@@ -37,6 +43,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
   const [warehouses, setWarehouses] = useState<{ name: string; label: string }[]>([])
   const [loadingWarehouses, setLoadingWarehouses] = useState(false)
   const [notes, setNotes] = useState('')
+  const [isMedical, setIsMedical] = useState<IsMedicalChoice>('')
   
   const [items, setItems] = useState<RequestItem[]>([{ item_code: '', item_name: '', quantity: 1, uom: '', notes: '' }])
   const [submitting, setSubmitting] = useState(false)
@@ -166,6 +173,12 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
       return
     }
 
+    if (!isMedicalChoiceRequired(isMedical)) {
+      toast.error('Please select a category (Medical or Consumable)')
+      setActiveTab('items')
+      return
+    }
+
     if (validItems.length === 0) {
       toast.error('Please add at least one valid item')
       setActiveTab('items')
@@ -182,6 +195,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
         requested_by: user?.name || '',
         notes: notes || undefined,
         warehouse_context: warehouseContext,
+        is_medical: isMedicalPayload(isMedical),
       })
       toast.success('Material request created successfully')
       onSuccess()
@@ -311,6 +325,8 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
             {/* Items Tab */}
             {activeTab === 'items' && (
               <div className="space-y-4">
+                <IsMedicalSelect value={isMedical} onChange={setIsMedical} />
+
                 <div className="flex justify-between items-center">
                   <p className="text-sm text-slate-500">
                     Add the items you want to request from stores.
@@ -453,7 +469,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
             </button>
             <button
               type="submit"
-              disabled={submitting || !warehouse || validItems.length === 0}
+              disabled={submitting || !warehouse || validItems.length === 0 || !isMedicalChoiceRequired(isMedical)}
               className="flex-1 px-4 py-2 bg-primary text-white rounded-md hover:bg-primary/90 disabled:opacity-50 text-sm font-medium transition-colors inline-flex items-center justify-center gap-2"
             >
               <Send className="w-4 h-4" />

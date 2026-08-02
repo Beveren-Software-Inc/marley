@@ -7,6 +7,7 @@ import { ClinicalNotesList } from '../components/clinicalNotes/ClinicalNotesList
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
+import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 
 /** Nutritionist role hub — surfaces the "Nutritionist Note" clinical notes that also
  * appear in the doctor/nurse workspaces. */
@@ -14,11 +15,13 @@ export const NutritionistPage = () => {
   const {
     selectedPatient,
     setSelectedPatient,
+    activeAdmission,
     guardClinicalCreate,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const [notesRefreshKey, setNotesRefreshKey] = useState(0)
+  const [sessionRefreshKey, setSessionRefreshKey] = useState(0)
   const [showNoteModal, setShowNoteModal] = useState(false)
 
   // Single source of truth: CareContext. No local/URL sync effects (those caused blink loops).
@@ -74,6 +77,41 @@ export const NutritionistPage = () => {
         {header}
         <div className="p-4">{notesCard()}</div>
         {createModal}
+      </div>
+    )
+  }
+
+  if (screen === 'nut-session') {
+    return (
+      <div className="flex flex-col h-full min-w-0">
+        {header}
+        <div className="flex-1 min-w-0 overflow-y-auto p-4">
+          <TherapySessionPanel
+            patient={selectedPatient}
+            admissionNumber={activeAdmission || undefined}
+            refreshKey={sessionRefreshKey}
+            onRefresh={() => setSessionRefreshKey((k) => k + 1)}
+            onPatientClick={handlePatientSelect}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'nut-appointments') {
+    return (
+      <div className="flex flex-col h-full min-w-0">
+        {header}
+        <div className="flex-1 min-w-0 overflow-y-auto p-4">
+          <TherapySessionPanel
+            patient={selectedPatient}
+            admissionNumber={activeAdmission || undefined}
+            refreshKey={sessionRefreshKey}
+            onRefresh={() => setSessionRefreshKey((k) => k + 1)}
+            onPatientClick={handlePatientSelect}
+            initialTab="appointments"
+          />
+        </div>
       </div>
     )
   }

@@ -679,6 +679,7 @@ import {
 import { toast } from '../../hooks/useToast'
 import { ChevronDown } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 const TASK_TYPES = [
   'Medication Administration',
@@ -824,7 +825,7 @@ export const CreateNurseTaskModal = ({
   
   const defaultDatetime = () => {
     const d = defaultScheduledTime ? new Date(defaultScheduledTime) : new Date()
-    return d.toISOString().slice(0, 16)
+    return toDatetimeLocalValue(Number.isNaN(d.getTime()) ? new Date() : d)
   }
 
   // Get effective patient

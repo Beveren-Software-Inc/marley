@@ -23,6 +23,7 @@ import {
 } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { localDateInputValue } from '../../utils/formatDate'
 import { fetchStandardUoms, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClass,
@@ -218,8 +219,9 @@ export const CreateMedicineGivenModal = ({
 
   useEffect(() => {
     const now = new Date()
+    const localToday = localDateInputValue(now)
     if (editRow) {
-      setDate(editRow.date || initialDate || now.toISOString().slice(0, 10))
+      setDate(editRow.date || initialDate || localToday)
       setTime(toTimeInputValue(editRow.time) || initialTime || now.toTimeString().slice(0, 5))
       setDose((editRow.dose || '').trim())
       setQty(editRow.qty != null ? String(editRow.qty) : '1')
@@ -233,7 +235,7 @@ export const CreateMedicineGivenModal = ({
       setIsPrn(Boolean(editRow.is_prn))
       return
     }
-    setDate(initialDate || now.toISOString().slice(0, 10))
+    setDate(initialDate || localToday)
     setTime(initialTime || now.toTimeString().slice(0, 5))
   }, [initialDate, initialTime, editRow])
 

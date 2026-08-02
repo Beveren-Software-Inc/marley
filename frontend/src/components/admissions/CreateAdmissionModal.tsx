@@ -20,9 +20,7 @@ import { isDoctorRole } from '../../config/permissions'
 import {
   fetchInpatientRecord,
   updateInpatientAdmission,
-  fetchServiceUnits,
   fetchNextCaseNumber,
-  type ServiceUnit,
 } from '../../services/inpatientRecords'
 import {
   fetchHealthcarePractitioners,
@@ -269,11 +267,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [obsPractitionerOpen, setObsPractitionerOpen] = useState(false)
   const [obsPractitionerQuery, setObsPractitionerQuery] = useState('')
   const [selectedObsPractitioner, setSelectedObsPractitioner] = useState<LinkFieldOption | null>(null)
-  const [obsRoomOptions, setObsRoomOptions] = useState<ServiceUnit[]>([])
-  const [obsRoomOpen, setObsRoomOpen] = useState(false)
-  const [obsRoomQuery, setObsRoomQuery] = useState('')
-  const [selectedObsRoom, setSelectedObsRoom] = useState<ServiceUnit | null>(null)
-  const [obsRoomLoading, setObsRoomLoading] = useState(false)
 
   // When patientName prop is provided, resolve the real display name
   useEffect(() => {
@@ -590,23 +583,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }, obsPractitionerQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(timeoutId)
   }, [obsPractitionerQuery, obsPractitionerOpen, observationForm.department, formData.medical_department, isEditMode])
-
-  useEffect(() => {
-    if (isEditMode || !obsRoomOpen || observationForm.addObservation !== 'Yes') return
-    const timeoutId = setTimeout(async () => {
-      setObsRoomLoading(true)
-      try {
-        const results = await fetchServiceUnits(undefined, 'Vacant', obsRoomQuery.trim() || undefined)
-        setObsRoomOptions(results)
-      } catch (err) {
-        console.error('Failed to load observation rooms:', err)
-        setObsRoomOptions([])
-      } finally {
-        setObsRoomLoading(false)
-      }
-    }, obsRoomQuery.trim() === '' ? 0 : 300)
-    return () => clearTimeout(timeoutId)
-  }, [obsRoomQuery, obsRoomOpen, observationForm.addObservation, isEditMode])
 
   // Pre-fill observation tab from admission details
   useEffect(() => {
@@ -1555,53 +1531,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                       </div>
                     </div>
 
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
-                        Room / Service Unit
-                      </label>
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={selectedObsRoom ? (selectedObsRoom.healthcare_service_unit_name || selectedObsRoom.name) : obsRoomQuery}
-                          onChange={(e) => {
-                            setObsRoomQuery(e.target.value)
-                            setObsRoomOpen(true)
-                            setSelectedObsRoom(null)
-                            setObservationForm((prev) => ({ ...prev, room: '' }))
-                          }}
-                          onFocus={() => setObsRoomOpen(true)}
-                          placeholder="Search vacant rooms..."
-                          className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                        {obsRoomOpen && (
-                          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
-                            {obsRoomLoading ? (
-                              <div className="px-3 py-2 text-sm text-slate-500">Loading rooms...</div>
-                            ) : obsRoomOptions.length > 0 ? (
-                              obsRoomOptions.map((unit) => (
-                                <button
-                                  key={unit.name}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedObsRoom(unit)
-                                    setObsRoomQuery(unit.healthcare_service_unit_name || unit.name)
-                                    setObservationForm((prev) => ({ ...prev, room: unit.name }))
-                                    setObsRoomOpen(false)
-                                  }}
-                                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-                                >
-                                  {unit.healthcare_service_unit_name || unit.name}
-                                </button>
-                              ))
-                            ) : (
-                              <div className="px-3 py-2 text-sm text-slate-500">NO VACANT ROOMS FOUND</div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">Patient is placed here during observation; room becomes Vacant on discharge or when admitted to another unit.</p>
-                    </div>
-
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Start Date <span className="text-red-500">*</span></label>
                       <input
@@ -1689,19 +1618,6 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                           </div>
                         )}
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Designated Security Personnel</label>
-                      <input
-                        type="text"
-                        value={observationForm.designated_security_personel}
-                        onChange={(e) => setObservationForm((prev) => ({
-                          ...prev,
-                          designated_security_personel: e.target.value,
-                        }))}
-                        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
                     </div>
 
                     <div>
