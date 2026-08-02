@@ -287,7 +287,27 @@ def _resolve_patient_from_sub_dr(sub_dr: str) -> str | None:
 	return None
 
 
-def _resolve_patient_context(header: dict) -> dict:
+def _ensure_patient_from_sub_dr(sub_dr: str) -> tuple[str | None, bool]:
+	"""Use SUB_DR_GL_CODE as Patient id; create a minimal Patient when missing."""
+	key = _clean_oracle_num(sub_dr)
+	if not key:
+		return None, False
+	existing = _resolve_patient_from_sub_dr(key)
+	if existing:
+		return existing, False
+	from healthcare.api.patient_visit_import import ensure_patient_for_legacy_import
+
+	result = ensure_patient_for_legacy_import(key)
+	patient = result.get("patient")
+	return patient, result.get("status") == "created"
+
+
+def _resolve_patient_context(header: dict, *, ensure_patient: bool = True) -> dict:
+	"""Resolve visit/admission/patient links; never block import when they are missing.
+
+	When Patient / Patient Visit / Inpatient Admission cannot be found, fall back to
+	SUB_DR_GL_CODE as the patient id (creating the Patient if needed).
+	"""
 	sub_dr = header.get("sub_dr_gl_code") or ""
 	visit_num = header.get("visit_num") or ""
 	admission_num = header.get("admission_num") or ""
@@ -295,6 +315,7 @@ def _resolve_patient_context(header: dict) -> dict:
 	patient = None
 	patient_visit = None
 	inpatient_admission = None
+	patient_created = False
 
 	if visit_num:
 		patient_visit = _resolve_patient_visit(visit_num, sub_dr or None)
@@ -309,10 +330,14 @@ def _resolve_patient_context(header: dict) -> dict:
 	if not patient:
 		patient = _resolve_patient_from_sub_dr(sub_dr)
 
+	if not patient and ensure_patient and sub_dr:
+		patient, patient_created = _ensure_patient_from_sub_dr(sub_dr)
+
 	return {
 		"patient": patient,
 		"patient_visit": patient_visit,
 		"inpatient_admission": inpatient_admission,
+		"patient_created": patient_created,
 		"legacy_visit_num": visit_num if visit_num and not patient_visit else "",
 		"legacy_admission_num": admission_num if admission_num and not inpatient_admission else "",
 	}
@@ -523,12 +548,14 @@ def _apply_header_fields(
 	doc.legacy_visit_num = ctx.get("legacy_visit_num") or ""
 	doc.legacy_admission_num = ctx.get("legacy_admission_num") or ""
 
-	if doc.patient:
+	if doc.patient and frappe.db.exists("Patient", doc.patient):
 		patient = frappe.get_doc("Patient", doc.patient)
 		doc.patient_name = patient.patient_name
 		doc.patient_sex = patient.sex or doc.patient_sex
 		if patient.dob:
 			doc.patient_age = patient.age
+	elif doc.patient:
+		doc.patient_name = _("Patient {0}").format(doc.patient)
 
 	doc.dr_gl_code = header.get("dr_gl_code") or ""
 	doc.sub_dr_gl_code = header.get("sub_dr_gl_code") or ""
@@ -604,19 +631,22 @@ def import_legacy_lab_test(
 		return {"status": "skip_no_data", "trans_num": trans_num}
 
 	detail_only = not header
+	patient_created = False
 	if detail_only:
 		header = {"trans_num": trans_num}
 		ctx = {
 			"patient": None,
 			"patient_visit": None,
 			"inpatient_admission": None,
+			"patient_created": False,
 			"legacy_visit_num": "",
 			"legacy_admission_num": "",
 		}
 	else:
-		ctx = _resolve_patient_context(header)
-		if not ctx.get("patient"):
-			return {"status": "skip_no_patient", "trans_num": trans_num}
+		ctx = _resolve_patient_context(header, ensure_patient=True)
+		patient_created = bool(ctx.get("patient_created"))
+		# Missing visit / admission / patient must not block import.
+		# Patient is created from SUB_DR_GL_CODE when possible; otherwise Lab Test is stored without link.
 
 	template_name = _pick_primary_template(detail_lines)
 	lab_lines = _build_lab_test_lines(trans_num, detail_lines)
@@ -642,6 +672,7 @@ def import_legacy_lab_test(
 
 	doc.flags.ignore_validate = True
 	doc.flags.ignore_mandatory = True
+	doc.flags.ignore_links = True
 	doc.flags.legacy_import = True
 
 	if existing:
@@ -652,9 +683,19 @@ def import_legacy_lab_test(
 		action = "created"
 
 	if doc.docstatus == 0 and doc.status == "Completed":
-		doc.reload()
-		doc.flags.ignore_validate = True
-		doc.submit()
+		try:
+			doc.reload()
+			doc.flags.ignore_validate = True
+			doc.flags.ignore_mandatory = True
+			doc.flags.ignore_links = True
+			doc.flags.legacy_import = True
+			doc.submit()
+		except Exception:
+			# Keep the imported Lab Test even when submit fails (still in database as Draft/Completed).
+			frappe.log_error(
+				title=f"Legacy lab import submit failed: {trans_num}",
+				message=frappe.get_traceback(),
+			)
 
 	return {
 		"status": "ok",
@@ -662,6 +703,7 @@ def import_legacy_lab_test(
 		"action": action,
 		"lab_test": doc.name,
 		"patient": doc.patient,
+		"patient_created": patient_created,
 		"template": template_name,
 		"result_rows": len(lab_lines),
 		"standalone": detail_only,
@@ -743,6 +785,7 @@ def log_legacy_lab_import_completion(progress: dict | None = None) -> dict:
 		f"Processed by job: {summary['processed']}",
 		f"Imported OK (created/updated): {summary['ok']}",
 		f"Standalone (detail only): {cint(progress.get('standalone_ok', 0))}",
+		f"Patients created from SUB_DR_GL_CODE: {cint(progress.get('patients_created', 0))}",
 		f"Skipped: {summary['skipped']} "
 		f"(no patient: {summary['skip_no_patient']}, "
 		f"no header: {summary['skip_no_header']}, "
@@ -769,6 +812,7 @@ def log_legacy_lab_import_completion(progress: dict | None = None) -> dict:
 		message="\n".join(message_lines),
 	)
 	# One Error Log row per failed TRANS_NUM (easy to search in Error Log list).
+	failure_trans = {f.get("trans_num") for f in failures if f.get("trans_num")}
 	for row in summary["failures"]:
 		trans_num = row.get("trans_num") or "?"
 		frappe.log_error(
@@ -776,7 +820,7 @@ def log_legacy_lab_import_completion(progress: dict | None = None) -> dict:
 			message=row.get("detail") or row.get("reason") or "unknown",
 		)
 	for trans_num in summary["missing_trans_nums"]:
-		if any(f.get("trans_num") == trans_num for f in summary["failures"]):
+		if trans_num in failure_trans:
 			continue
 		frappe.log_error(
 			title=f"Legacy lab import missing in database: {trans_num}",
@@ -805,6 +849,7 @@ def parse_and_cache_excel(header_file_url: str, detail_file_url: str) -> dict:
 	detail_only_trans = set(details_by_trans.keys()) - header_trans
 
 	resolvable_patient = 0
+	will_create_patient = 0
 	with_results = 0
 	with_template = 0
 	standalone_with_lines = 0
@@ -812,9 +857,11 @@ def parse_and_cache_excel(header_file_url: str, detail_file_url: str) -> dict:
 		header = headers_by_trans.get(trans_num)
 		lines = details_by_trans.get(trans_num) or []
 		if header:
-			ctx = _resolve_patient_context(header)
+			ctx = _resolve_patient_context(header, ensure_patient=False)
 			if ctx.get("patient"):
 				resolvable_patient += 1
+			elif header.get("sub_dr_gl_code"):
+				will_create_patient += 1
 		elif lines:
 			standalone_with_lines += 1
 		if _pick_primary_template(lines):
@@ -846,6 +893,7 @@ def parse_and_cache_excel(header_file_url: str, detail_file_url: str) -> dict:
 		"transactions_with_header": len(header_trans),
 		"transactions_with_results": with_results,
 		"resolvable_patient": resolvable_patient,
+		"will_create_patient_from_sub_dr": will_create_patient,
 		"resolvable_template": with_template,
 		"detail_without_header": detail_only,
 		"standalone_transactions": standalone_with_lines,
@@ -912,7 +960,7 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	ok = skip_no_patient = skip_no_header = skip_existing = standalone_ok = 0
+	ok = skip_no_patient = skip_no_header = skip_existing = standalone_ok = patients_created = 0
 	errors: list[str] = []
 
 	for trans_num in batch_keys:
@@ -936,7 +984,10 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 				ok += 1
 				if result.get("standalone"):
 					standalone_ok += 1
+				if result.get("patient_created"):
+					patients_created += 1
 			elif status == "skip_no_patient":
+				# Kept for older cached jobs; current importer no longer skips for missing patient.
 				skip_no_patient += 1
 				_append_import_failure(trans_num, status)
 			elif status == "skip_no_header":
@@ -966,6 +1017,7 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 		"batch_count": len(batch_keys),
 		"ok": ok,
 		"standalone_ok": standalone_ok,
+		"patients_created": patients_created,
 		"skip_no_patient": skip_no_patient,
 		"skip_no_header": skip_no_header,
 		"skip_existing_non_legacy": skip_existing,

@@ -677,7 +677,7 @@ frappe.ui.form.on('Healthcare Settings', {
 							const counts = preview.message || {};
 							frappe.confirm(
 								__(
-									'Import legacy lab tests into Lab Test records?\n\nHeader rows: {0}\nDetail rows: {1}\nTransactions: {2}\nWith header (003): {3}\nWith result lines: {4}\nResolvable patient (header rows): {5}\nMatching lab template: {6}\nStandalone (detail only, no 003 header): {7}\n\nHeader rows link patient via Patient Visit / Inpatient Admission (or file number). Standalone rows are created from LAB 00-04 using TRANS_NUM only (no patient on header). No billing is created. Continue?',
+									'Import legacy lab tests into Lab Test records?\n\nHeader rows: {0}\nDetail rows: {1}\nTransactions: {2}\nWith header (003): {3}\nWith result lines: {4}\nExisting patient links: {5}\nWill create Patient from SUB_DR_GL_CODE: {6}\nMatching lab template: {7}\nStandalone (detail only, no 003 header): {8}\n\nMissing visit/admission/patient will not block import — Patient is created from SUB_DR_GL_CODE when needed. Standalone rows use TRANS_NUM only. No billing is created. Continue?',
 									[
 										counts.header_rows || 0,
 										counts.detail_rows || 0,
@@ -685,6 +685,7 @@ frappe.ui.form.on('Healthcare Settings', {
 										counts.transactions_with_header || counts.header_rows || 0,
 										counts.transactions_with_results || 0,
 										counts.resolvable_patient || 0,
+										counts.will_create_patient_from_sub_dr || 0,
 										counts.resolvable_template || 0,
 										counts.standalone_transactions || counts.detail_without_header || 0,
 									]
@@ -5727,10 +5728,11 @@ function open_lab_test_bundle_upload() {
 								+ 'Transactions: {2}\n'
 								+ 'With header (003): {3}\n'
 								+ 'With result lines: {4}\n'
-								+ 'Resolvable patient: {5}\n'
-								+ 'Matching lab template: {6}\n'
-								+ 'Standalone (004 only, no 003 header): {7}\n\n'
-								+ 'Parent = Lab Test header; children = lab_test_lines. is_legacy_import is ticked. No billing is created.\n\nContinue?',
+								+ 'Existing patient links: {5}\n'
+								+ 'Will create Patient from SUB_DR_GL_CODE: {6}\n'
+								+ 'Matching lab template: {7}\n'
+								+ 'Standalone (004 only, no 003 header): {8}\n\n'
+								+ 'Missing visit/admission/patient will not block import — Patient is created from SUB_DR_GL_CODE when needed. Parent = Lab Test; children = lab_test_lines. No billing is created.\n\nContinue?',
 							[
 								counts.header_rows || 0,
 								counts.detail_rows || 0,
@@ -5738,6 +5740,7 @@ function open_lab_test_bundle_upload() {
 								counts.transactions_with_header || 0,
 								counts.transactions_with_results || 0,
 								counts.resolvable_patient || 0,
+								counts.will_create_patient_from_sub_dr || 0,
 								counts.resolvable_template || 0,
 								counts.standalone_transactions || counts.detail_without_header || 0,
 							]

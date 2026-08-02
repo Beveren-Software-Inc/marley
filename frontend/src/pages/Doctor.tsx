@@ -33,6 +33,8 @@ import { LabTestHistory } from '../components/labTests/LabTestHistory'
 import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
 import { CreateMedicineGivenModal } from '../components/medication/CreateMedicineGivenModal'
 import { MedicineGivenList } from '../components/medication/MedicineGivenList'
+import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
+import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
 import { BulkScheduleIOPModal } from '../components/iop/BulkScheduleIOPModal'
 import { CreateMoodDisorderAssessmentModal } from '../components/mood_disorder/CreateMoodDisorderAssessmentModal'
@@ -1488,6 +1490,34 @@ export const DoctorPage = () => {
             }}
           />
         )}
+      </div>
+    )
+  }
+
+  // Daily Medication Chart – schedule by session for the day
+  if (screen === 'd-daily-med') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <DailyMedicationChart patient={selectedPatient} admission={activeAdmission} />
+          </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Medication Sheet – administrations with date range filters
+  if (screen === 'd-med-sheet') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <MedicationSheet patient={selectedPatient} admission={activeAdmission} />
+          </section>
+        </div>
       </div>
     )
   }

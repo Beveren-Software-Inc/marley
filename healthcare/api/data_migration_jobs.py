@@ -3671,6 +3671,8 @@ def process_legacy_lab_import_batch(offset: int = 0) -> None:
 			processed,
 			ok=cint(prev.get("ok", 0)) + cint(result.get("ok", 0)),
 			standalone_ok=cint(prev.get("standalone_ok", 0)) + cint(result.get("standalone_ok", 0)),
+			patients_created=cint(prev.get("patients_created", 0))
+			+ cint(result.get("patients_created", 0)),
 			skip_no_patient=cint(prev.get("skip_no_patient", 0))
 			+ cint(result.get("skip_no_patient", 0)),
 			skip_no_template=cint(prev.get("skip_no_template", 0))
