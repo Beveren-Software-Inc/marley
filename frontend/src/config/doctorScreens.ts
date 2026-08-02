@@ -82,12 +82,16 @@ export const doctorScreenGroups: ScreenGroup[] = [
     ],
   },
   {
-    groupTitle: '',
-    screens: [{ id: 'gm', title: 'Given Medicines' }],
+    groupTitle: 'Patient Medication',
+    screens: [
+      { id: 'd-daily-med', title: 'Daily Medication Chart' },
+      { id: 'd-med-sheet', title: 'Medication Sheet' },
+      { id: 'd-long-acting-meds', title: 'Long Acting Medicines' },
+    ],
   },
   {
     groupTitle: '',
-    screens: [{ id: 'd-long-acting-meds', title: 'Long Acting Medicines' }],
+    screens: [{ id: 'gm', title: 'Given Medicines' }],
   },
   {
     // 'lab-req' tab removed — Lab Requests now lives inside the Laboratory screen.

@@ -21,11 +21,13 @@ const OP_ONLY_DOCTOR_SCREEN_IDS = new Set([
   'admission',
   'df',
   'gm',
+  'd-daily-med',
+  'd-med-sheet',
   'single-prescription',
 ])
 
 /** Doctor screens hidden when the active mode is OP (regardless of branch scope) */
-const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'admission', 'df', 'obs'])
+const OP_MODE_DOCTOR_SCREEN_IDS = new Set(['gm', 'd-daily-med', 'd-med-sheet', 'admission', 'df', 'obs'])
 const OP_MODE_DOCTOR_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation'])
 
 /** Clinical observation — hidden only in OP mode (visible for IP and when no mode is selected) */
