@@ -716,11 +716,15 @@ def _nurse_lab_test_template_names(by_nurse):
 		return None
 	if isinstance(by_nurse, str):
 		by_nurse = by_nurse.lower() in ("1", "true", "yes")
-	return frappe.get_all(
-		"Lab Test Template",
-		filters={"by_nurse": 1 if by_nurse else 0},
-		pluck="name",
-	)
+	if not by_nurse:
+		return frappe.get_all(
+			"Lab Test Template",
+			filters={"by_nurse": 0},
+			pluck="name",
+		)
+	from healthcare.api.common import _by_nurse_lab_test_template_names
+
+	return _by_nurse_lab_test_template_names()
 
 
 def _build_template_match_or_filters(template):
@@ -832,7 +836,14 @@ def get_lab_test_template_filter_options(search=None, patient=None, by_nurse=Non
 			by_nurse = by_nurse.lower() in ("1", "true", "yes")
 		if by_nurse:
 			rows = get_lab_test_templates(search=search, by_nurse=True)
-			return [{"name": r["name"], "label": r.get("label") or r["name"]} for r in rows]
+			return [
+				{
+					"name": r["name"],
+					"label": r.get("label") or r["name"],
+					"is_group": cint(r.get("is_group") or 0),
+				}
+				for r in rows
+			]
 
 	rows = get_lab_test_templates_admin_list(search=search)
 	return [

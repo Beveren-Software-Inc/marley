@@ -27,6 +27,7 @@ import {
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface CreateDoctorMedicationPlanModalProps {
   onClose: () => void
@@ -46,7 +47,7 @@ export const CreateDoctorMedicationPlanModal = ({
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
     practitioner: '',
-    posting_date: new Date().toISOString().slice(0, 16),
+    posting_date: toDatetimeLocalValue(),
     patient_visit: isOPMode && activeVisit ? activeVisit : '',
     admission_no: isIPMode && activeAdmission ? activeAdmission : '',
     plan: '',

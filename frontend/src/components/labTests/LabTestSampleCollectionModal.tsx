@@ -11,6 +11,7 @@ import {
 import { fetchUsers, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { stripHtmlToText } from '../ui/dashboardCardListing'
+import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 export interface LabTestSampleCollectionModalProps {
   labTest: LabTest
@@ -42,7 +43,7 @@ const defaultDraft = (): RowDraft => ({
 })
 
 function nowForObservation(): string {
-  return new Date().toISOString().slice(0, 19).replace('T', ' ')
+  return fromDatetimeLocalValue()
 }
 
 function instructionPreview(details?: string | null): string {

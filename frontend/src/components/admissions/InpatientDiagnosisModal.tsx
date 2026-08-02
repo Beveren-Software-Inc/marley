@@ -11,6 +11,7 @@ import {
 import { getMedicalDiagnosisContextDefaults } from '../../services/medicalDiagnosisEntry'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { getInpatientDiagnoses, updateInpatientDiagnoses, type DiagnosisData } from '../../services/diagnosis'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface InpatientDiagnosisModalProps {
   parentDoctype: string
@@ -21,9 +22,7 @@ interface InpatientDiagnosisModalProps {
   onSuccess: () => void
 }
 
-const formatDateTime = (date: Date) => {
-  return date.toISOString().slice(0, 19)
-}
+const formatDateTime = (date: Date) => toDatetimeLocalValue(date)
 
 export const InpatientDiagnosisModal = ({
   parentDoctype,

@@ -10,6 +10,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { fetchCostCenters, fetchHealthcarePractitioners, fetchLeadSources, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
+import { localDateInputValue } from '../../utils/formatDate'
 
 interface CreateECTDetailModalProps {
   onClose: () => void
@@ -37,13 +38,12 @@ export const CreateECTDetailModal = ({
   initialPatient,
 }: CreateECTDetailModalProps) => {
   const { mode, activeAdmission, activeVisit, userCostCenter } = useCareContext()
-  const now = new Date()
   const [activeTab, setActiveTab] = useState<ECTTab>('procedure')
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     cost_center: userCostCenter || '',
-    date: now.toISOString().slice(0, 10),
-    time: now.toTimeString().slice(0, 5),
+    date: localDateInputValue(),
+    time: new Date().toTimeString().slice(0, 5),
     source: '',
     duration: '',
     energy: '',

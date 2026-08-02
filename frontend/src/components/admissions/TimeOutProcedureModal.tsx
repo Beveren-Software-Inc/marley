@@ -6,6 +6,8 @@ import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle , ClipboardList } from 'lucide-react'
 
 import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { localDateInputValue } from '../../utils/formatDate'
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
 interface SignaturePadProps {
@@ -274,17 +276,12 @@ const TABS: { id: TabId; label: string }[] = [
   { id: 'signature', label: 'Signature' },
 ]
 
-const nowDate = () => new Date().toISOString().split('T')[0]
+const nowDate = () => localDateInputValue()
 const nowTime = () => {
   const d = new Date()
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`
 }
-const nowDatetime = () => {
-  const d = new Date()
-  const date = d.toISOString().split('T')[0]
-  const time = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
-  return `${date}T${time}`
-}
+const nowDatetime = () => toDatetimeLocalValue()
 
 const labelClass = 'block text-xs font-semibold text-slate-600 mb-1'
 const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'

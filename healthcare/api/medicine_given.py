@@ -1837,6 +1837,8 @@ def get_discharge_transfer_rows(admission: str) -> list[dict]:
 		"written_frequency",
 		"medication_type",
 		"strength",
+		"stopped",
+		"medication_status",
 	):
 		if frappe.db.has_column("Inpatient Medication Order Entry", col):
 			fields.append(col)
@@ -1849,8 +1851,8 @@ def get_discharge_transfer_rows(admission: str) -> list[dict]:
 	)
 	result = []
 	for row in rows:
-		# Stopped lines are shown separately in the discharge Rx UI — do not transfer them home.
-		if (row.get("reason_stopped") or "").strip():
+		# Stopped / discontinued lines are shown separately — do not transfer them home.
+		if _entry_is_stopped_for_discharge(row):
 			continue
 		result.append(row)
 
@@ -1884,12 +1886,27 @@ def _inpatient_medication_entry_fields() -> list[str]:
 		"strength",
 		"trans_num",
 		"reference_no",
+		"stopped",
+		"medication_status",
 	):
 		if frappe.db.has_column("Inpatient Medication Order Entry", col):
 			fields.append(col)
 	if frappe.db.has_column("Inpatient Medication Order Entry", "transferred_to_visit"):
 		fields.append("transferred_to_visit")
 	return fields
+
+
+def _entry_is_stopped_for_discharge(entry: dict) -> bool:
+	"""True when medicine should appear under Stopped on discharge UI.
+
+	Stopped if reason_stopped is set, stopped checkbox is ticked, or medication_status is Discontinued.
+	"""
+	if (entry.get("reason_stopped") or "").strip():
+		return True
+	if cint(entry.get("stopped")):
+		return True
+	status = (entry.get("medication_status") or "").strip().lower()
+	return status in ("discontinued", "stopped")
 
 
 def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) -> dict:
@@ -1901,6 +1918,11 @@ def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) ->
 
 	display = medication_entry_display_fields(entry, parent_start_date=parent_start_date)
 	reason = (entry.get("reason_stopped") or "").strip()
+	medication_status = (entry.get("medication_status") or "").strip()
+	if not reason and (
+		cint(entry.get("stopped")) or medication_status.lower() in ("discontinued", "stopped")
+	):
+		reason = medication_status or "Discontinued"
 	legacy = bool(display.get("is_legacy") or is_legacy_medication_entry(entry))
 	old_code = (entry.get("old_medicine_code") or entry.get("medicine_no") or "").strip()
 	old_name = (entry.get("old_medicine_name") or entry.get("medication") or "").strip()
@@ -1937,6 +1959,8 @@ def _format_discharge_prescription_entry(entry: dict, parent_start_date=None) ->
 		"frequency": display.get("display_frequency") or "-",
 		"start_date": display.get("display_start_date"),
 		"reason_stopped": reason,
+		"medication_status": medication_status,
+		"stopped": 1 if cint(entry.get("stopped")) else 0,
 		"is_legacy": 1 if legacy or bool(old_code or old_name) else 0,
 		"old_medicine_code": old_code,
 		"old_medicine_name": old_name,
@@ -2030,8 +2054,7 @@ def get_discharge_prescription_sections(admission: str) -> dict:
 			formatted = _format_discharge_prescription_entry(
 				entry, parent_start_date=pmo_start_dates.get(entry.get("parent"))
 			)
-			reason = formatted.get("reason_stopped") or ""
-			if reason:
+			if _entry_is_stopped_for_discharge(entry):
 				stopped_medications.append(formatted)
 			else:
 				# Keep in current even after transferred_to_visit — shows medicines in use on admission.

@@ -170,6 +170,7 @@ export const NursePage = () => {
   // Doctor notes are read-only on the nurse screen — no create modal state needed
   const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
   const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
+  const [showMedicationNoteModal, setShowMedicationNoteModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
@@ -1094,6 +1095,40 @@ export const NursePage = () => {
             initialPatient={selectedPatient}
             defaultClinicalNoteType="Therapist Note"
             title="Add Therapist Note"
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Patient Medication Notes
+  if (screen === 'n-med-notes') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <ClinicalNotesList
+              patient={selectedPatient}
+              clinicalNoteType="Patient Medication Notes"
+              title="Patient Medication Notes"
+              key={clinicalNotesRefreshKey}
+              onPatientClick={handlePatientSelect}
+              onAdd={() => setShowMedicationNoteModal(true)}
+              addButtonTitle="Add Patient Medication Notes"
+            />
+          </section>
+        </div>
+        {showMedicationNoteModal && (
+          <CreateClinicalNoteModal
+            onClose={() => setShowMedicationNoteModal(false)}
+            onSuccess={() => {
+              setClinicalNotesRefreshKey(prev => prev + 1)
+              setShowMedicationNoteModal(false)
+            }}
+            initialPatient={selectedPatient}
+            defaultClinicalNoteType="Patient Medication Notes"
+            title="Add Patient Medication Notes"
           />
         )}
       </div>

@@ -14,6 +14,8 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { toast } from '../../hooks/useToast'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { localDateInputValue } from '../../utils/formatDate'
 
 interface CreateObservationModalProps {
   onClose: () => void
@@ -31,8 +33,8 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   
   const [formData, setFormData] = useState({
     patient: initialPatient || contextPatient || '',
-    posting_date: new Date().toISOString().slice(0, 16),
-    start_date: new Date().toISOString().split('T')[0],
+    posting_date: toDatetimeLocalValue(),
+    start_date: localDateInputValue(),
     practitioner: '',
     department: '',
     admission_no: (isIPMode && activeAdmission) ? activeAdmission : '',

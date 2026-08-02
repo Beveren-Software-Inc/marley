@@ -1,5 +1,6 @@
 
 import { localDateInputValue, localDatetimeInputValue } from '../../utils/formatDate'
+import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useSearchParams } from 'react-router-dom'
@@ -2235,7 +2236,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           ? {
               ...row,
               click: checking,
-              date_time: checking ? toFrappeDateTime(new Date().toISOString()) : '',
+              date_time: checking ? fromDatetimeLocalValue() : '',
               user: checking ? loggedInUser || row.user : '',
             }
           : row
@@ -2264,7 +2265,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           ? {
               ...item,
               click: !item.click,
-              date_time: !item.click ? toFrappeDateTime(new Date().toISOString()) : '',
+              date_time: !item.click ? fromDatetimeLocalValue() : '',
               user: !item.click ? loggedInUser || item.user : '',
             }
           : item

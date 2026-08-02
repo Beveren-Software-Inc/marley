@@ -2128,7 +2128,7 @@ const FilterBar = ({ filters, onChange, onClear, activeCount, byNurse, outsource
             lab_test_code: '',
             department: row.department || '',
             lab_test_template_type: '',
-            is_group: 0,
+            is_group: Number(row.is_group) ? 1 : 0,
             is_billable: 0,
             disabled: 0,
             female_min_range: '',

@@ -1494,6 +1494,20 @@ export const DoctorPage = () => {
     )
   }
 
+  // Current prescription for the active visit / admission (Patient Medication folder)
+  if (screen === 'single-prescription') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Current Prescription" filterable={false} noHeightLimit>
+            <RxPage />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
   // Daily Medication Chart – schedule by session for the day
   if (screen === 'd-daily-med') {
     return (
@@ -2181,20 +2195,6 @@ export const DoctorPage = () => {
             }}
           />
         )}
-      </div>
-    )
-  }
-
-  // Show Current Prescription
-  if (screen === 'single-prescription') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <DashboardCard title="Current Prescription" filterable={false} noHeightLimit>
-            <RxPage />
-          </DashboardCard>
-        </div>
       </div>
     )
   }

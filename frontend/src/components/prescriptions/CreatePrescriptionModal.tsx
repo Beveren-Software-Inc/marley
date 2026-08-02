@@ -787,6 +787,7 @@ export const CreatePrescriptionModal = ({
       setRouteQueries(nextRoute)
       setUomQueries(nextUom)
       setLongActingFrequencyQueries(nextLongActing)
+      setExpandedMedications(new Set(rows.map((_, idx) => idx)))
     }
 
     // Duplicate of legacy Rx: map ITEM_00_01 → current Item when possible.
@@ -947,9 +948,13 @@ export const CreatePrescriptionModal = ({
     })
   }
 
-  const validMedications = medications
-    .filter((m) => !String(m.reason_stopped || '').trim())
-    .filter((m) => m.drug && m.dosage && m.date)
+	const validMedications = medications
+    .filter((m) => {
+      const stopped = Boolean(String(m.reason_stopped || '').trim())
+      // Stopped/discontinued lines: include if drug + date present (user can remove to exclude).
+      if (stopped) return Boolean(m.drug && m.date)
+      return Boolean(m.drug && m.dosage && m.date)
+    })
     .map((m) => ({ ...m, ...flagsFromPrescriptionType(m.medication_type) }))
 
   const isSignedEvidence = Boolean(doctorsSignature)
@@ -1445,22 +1450,22 @@ export const CreatePrescriptionModal = ({
                       <button
                         type="button"
                         onClick={() => toggleMedicationExpanded(index)}
-                        disabled={!shouldShowCollapse || isStoppedRow}
+                        disabled={!shouldShowCollapse}
                         className={`w-full flex items-center justify-between px-4 py-2.5 border-b transition-colors ${
                           isStoppedRow
-                            ? 'bg-rose-50 border-rose-200 cursor-default'
-                            : `bg-slate-50 border-slate-200 hover:bg-slate-100 ${
-                                !shouldShowCollapse ? 'cursor-default' : 'cursor-pointer'
-                              }`
+                            ? 'bg-rose-50 border-rose-200'
+                            : 'bg-slate-50 border-slate-200'
+                        } ${
+                          !shouldShowCollapse
+                            ? 'cursor-default'
+                            : 'cursor-pointer hover:bg-opacity-90'
                         }`}
                       >
                         <div className={`flex items-center gap-2 text-sm font-medium min-w-0 flex-wrap ${
                           isStoppedRow ? 'text-rose-900' : 'text-slate-700'
                         }`}>
                           <Pill className={`w-4 h-4 shrink-0 ${isStoppedRow ? 'text-rose-600' : 'text-primary'}`} />
-                          <span className="shrink-0">
-                            {isStoppedRow ? 'Stopped medicine' : `Medication ${index + 1}`}
-                          </span>
+                          <span className="shrink-0">Medication {index + 1}</span>
                           {isStoppedRow ? (
                             <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide bg-rose-600 text-white">
                               Stopped
@@ -1500,7 +1505,7 @@ export const CreatePrescriptionModal = ({
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
-                          {shouldShowCollapse && !isStoppedRow && (
+                          {shouldShowCollapse && (
                             <div className="text-slate-400">
                               {isExpanded(index) ? (
                                 <ChevronUp className="w-4 h-4" />
@@ -1513,20 +1518,14 @@ export const CreatePrescriptionModal = ({
                       </button>
 
                       {isStoppedRow ? (
-                        <div className="px-4 py-3 space-y-1 bg-rose-50/60">
-                          <p className="text-sm text-rose-900">
-                            <span className="font-medium">{row.drug_name || row.drug || 'Medication'}</span>
-                            {row.dosage ? <span className="text-rose-700"> · {row.dosage}</span> : null}
-                            {row.patient_frequency ? (
-                              <span className="text-rose-700"> · {row.patient_frequency}</span>
-                            ) : null}
-                          </p>
+                        <div className="px-4 py-2.5 space-y-0.5 bg-rose-50 border-b border-rose-200">
                           <p className="text-xs text-rose-800">
                             <span className="font-semibold uppercase tracking-wide">Reason stopped: </span>
                             {row.reason_stopped}
                           </p>
-                          <p className="text-[11px] text-rose-600">
-                            Reference only — not included when saving this discharge prescription.
+                          <p className="text-[11px] font-medium text-rose-700">
+                            Warning: this medicine was stopped/discontinued. It will be included on this discharge
+                            prescription unless you remove it.
                           </p>
                         </div>
                       ) : null}
@@ -1551,7 +1550,7 @@ export const CreatePrescriptionModal = ({
                         </div>
                       )}
 
-                      {( !isStoppedRow && (isExpanded(index) || !shouldShowCollapse)) && (
+                      {(isExpanded(index) || !shouldShowCollapse) && (
                         <div className="p-4 space-y-3 animate-in fade-in duration-200">
                           <div>
                             <label className="block text-xs font-medium text-slate-600 mb-1">

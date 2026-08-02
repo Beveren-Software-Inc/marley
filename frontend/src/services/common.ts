@@ -535,6 +535,7 @@ export async function fetchHealthcareInsurance(
 export interface LabTestTemplateOption extends LinkFieldOption {
   outpatient_rate?: number
   inpatient_rate?: number
+  is_group?: number | boolean
 }
 
 export async function fetchLabTestTemplates(

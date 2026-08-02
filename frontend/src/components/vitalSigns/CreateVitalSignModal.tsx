@@ -457,6 +457,7 @@ import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface CreateVitalSignModalProps {
   onClose: () => void
@@ -483,7 +484,7 @@ export const CreateVitalSignModal = ({
     patient: editRow?.patient || initialPatient || contextPatient || '',
     signs_datetime: editRow?.signs_date
       ? `${editRow.signs_date}T${(editRow.signs_time || '00:00:00').slice(0, 5)}`
-      : new Date().toISOString().slice(0, 16),
+      : toDatetimeLocalValue(),
     temperature: editRow?.temperature || '',
     pulse: editRow?.pulse || '',
     respiratory_rate: editRow?.respiratory_rate || '',

@@ -392,7 +392,7 @@ def get_stock_ledger(cost_center, warehouse_context=None):
     not the branch pharmacy / prescription warehouse.
 
     Each row includes stock in stock UOM plus pack and unit quantities when those
-    UOMs (or custom_number_of_pack) are configured — same pack/unit model used for dispensing.
+    UOMs are configured on the Item UOM Conversion table (ERPNext conversion_factor).
     """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
@@ -491,7 +491,6 @@ def get_stock_ledger_export(cost_center, warehouse_context=None):
 				"pack_uom": item.get("pack_uom") or "",
 				"unit_qty": unit_qty,
 				"unit_uom": item.get("unit_uom") or "",
-				"units_per_pack": item.get("units_per_pack"),
 				"stock_qty": item.get("current_stock"),
 				"stock_uom": item.get("uom") or "",
 				"reorder_level": item.get("reorder_level"),
@@ -540,7 +539,7 @@ def _qty_in_uom(qty_stock_uom, stock_uom, target_uom, conversion_factor):
 
 
 def _enrich_stock_ledger_pack_unit_qty(stock_items):
-    """Attach pack_qty / unit_qty (and labels) for nurse stock ledger display."""
+    """Attach pack_qty / unit_qty from Item UOM Conversion Detail only (no units-per-pack field)."""
     if not stock_items:
         return
 
@@ -557,17 +556,6 @@ def _enrich_stock_ledger_pack_unit_qty(stock_items):
             fields=["parent", "uom", "conversion_factor"],
         ):
             uom_rows_by_item.setdefault(row.parent, []).append(row)
-
-    custom_pack_map = {}
-    item_meta = frappe.get_meta("Item")
-    if item_meta.has_field("custom_number_of_pack"):
-        for row in frappe.get_all(
-            "Item",
-            filters={"name": ["in", item_codes]},
-            fields=["name", "custom_number_of_pack"],
-        ):
-            if row.custom_number_of_pack is not None and flt(row.custom_number_of_pack) > 0:
-                custom_pack_map[row.name] = flt(row.custom_number_of_pack)
 
     for item in stock_items:
         code = item.get("item_code")
@@ -600,38 +588,15 @@ def _enrich_stock_ledger_pack_unit_qty(stock_items):
             unit_uom = stock_uom
             unit_cf = 1.0
 
-        # Fallback: custom_number_of_pack = units per pack when stock is in units
-        custom_units_per_pack = custom_pack_map.get(code)
-        if custom_units_per_pack and not pack_uom and unit_uom and _normalize_uom_key(unit_uom) == _normalize_uom_key(stock_uom):
-            pack_uom = "PACK"
-            pack_cf = custom_units_per_pack
-        elif custom_units_per_pack and not unit_uom and pack_uom and _normalize_uom_key(pack_uom) == _normalize_uom_key(stock_uom):
-            unit_uom = "Unit"
-            # 1 Unit = 1/custom stock packs → conversion_factor relative to pack stock
-            unit_cf = 1.0 / custom_units_per_pack if custom_units_per_pack else None
-
         pack_qty = _qty_in_uom(qty, stock_uom, pack_uom, pack_cf) if pack_uom else None
         unit_qty = _qty_in_uom(qty, stock_uom, unit_uom, unit_cf) if unit_uom else None
-
-        # If only pack conversion known and stock is units (or vice versa), derive the other
-        if pack_qty is None and unit_qty is not None and custom_units_per_pack:
-            pack_qty = unit_qty / custom_units_per_pack
-            pack_uom = pack_uom or "PACK"
-        if unit_qty is None and pack_qty is not None and custom_units_per_pack:
-            unit_qty = pack_qty * custom_units_per_pack
-            unit_uom = unit_uom or "Unit"
 
         item["pack_qty"] = round(flt(pack_qty), 6) if pack_qty is not None else None
         item["pack_uom"] = pack_uom
         item["unit_qty"] = round(flt(unit_qty), 6) if unit_qty is not None else None
         item["unit_uom"] = unit_uom
-        # units_per_pack = how many UNIT in one PACK (not the pack UOM conversion factor alone)
-        if pack_cf and unit_cf and pack_uom and unit_uom and _normalize_uom_key(pack_uom) != _normalize_uom_key(unit_uom):
-            item["units_per_pack"] = round(flt(pack_cf) / flt(unit_cf), 6)
-        elif custom_units_per_pack:
-            item["units_per_pack"] = round(flt(custom_units_per_pack), 6)
-        else:
-            item["units_per_pack"] = None
+        item["units_per_pack"] = None
+
 
 @frappe.whitelist()
 def get_warehouses_for_cost_center(cost_center, warehouse_context=None):
@@ -975,8 +940,8 @@ def create_material_request():
         if not mr.items:
             frappe.throw(_("At least one item is required"))
 
+        # Leave as Draft — stores/purchasing submit after review.
         mr.insert()
-        mr.submit()
         frappe.db.commit()
 
         return {"name": mr.name, "status": mr.status}
@@ -995,11 +960,23 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
     if status:
         filters["status"] = status
 
-    requests = frappe.get_all("Material Request",
+    fields = [
+        "name",
+        "transaction_date as request_date",
+        "status",
+        "custom_notes as notes",
+        "material_request_type",
+        "per_ordered",
+        "per_received",
+    ]
+    if frappe.get_meta("Material Request").has_field("custom_is_medical"):
+        fields.append("custom_is_medical as is_medical")
+
+    requests = frappe.get_all(
+        "Material Request",
         filters=filters,
-        fields=["name", "transaction_date as request_date", "status", "custom_notes as notes",
-                "material_request_type", "per_ordered", "per_received"],
-        order_by="creation desc"
+        fields=fields,
+        order_by="creation desc",
     )
     
     # Get items for each request
@@ -1013,6 +990,8 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
             warehouse_context=warehouse_context,
         )
         req["requested_by"] = frappe.db.get_value("Material Request", req["name"], "owner")
+        if "is_medical" in req:
+            req["is_medical"] = 1 if cint(req.get("is_medical")) else 0
     
     return requests
 
@@ -2358,14 +2337,29 @@ def _process_delivery_note_dispensing_lots(dn):
     process_sales_invoice_dispensing_lots(dn, is_return=False)
 
 
-def _unbilled_medicine_given_filters(admission_detail_name, consumption_date):
-    return {
+def _unbilled_medicine_given_filters(admission_detail_name, consumption_date=None):
+    filters = {
         "parent": admission_detail_name,
         "parenttype": "Admission Detail",
-        "date": getdate(consumption_date),
         "medicine_code": ["is", "set"],
         "sales_order": ["is", "not set"],
     }
+    if consumption_date:
+        filters["date"] = getdate(consumption_date)
+    return filters
+
+
+def _unbilled_medicine_given_dates(admission_detail_name):
+    """Distinct dates that still have unbilled Medicine Given rows."""
+    rows = frappe.get_all(
+        "Medicine Given",
+        filters=_unbilled_medicine_given_filters(admission_detail_name),
+        fields=["date"],
+        distinct=True,
+        order_by="date desc",
+        limit_page_length=10,
+    )
+    return [str(getdate(r.date)) for r in rows if r.get("date")]
 
 
 def _link_medicine_given_to_billing(row_names, sales_order, delivery_note):
@@ -2575,8 +2569,39 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
         filters=_unbilled_medicine_given_filters(admission_detail.name, consumption_date),
         fields=["name", "medicine_code", "medicine_name", "qty", "batch_no", "lot_no", "dispensing_lot"],
     )
+    # Given Medicine used to default date via UTC (toISOString), so near midnight Bahrain
+    # rows land on "yesterday" while Service Bill looks at local today — fall back one day.
+    if not given_rows:
+        other_dates = _unbilled_medicine_given_dates(admission_detail.name)
+        if other_dates:
+            requested = getdate(consumption_date)
+            fallback = getdate(other_dates[0])
+            if (requested - fallback).days == 1:
+                consumption_date = fallback
+                given_rows = frappe.get_all(
+                    "Medicine Given",
+                    filters=_unbilled_medicine_given_filters(admission_detail.name, consumption_date),
+                    fields=[
+                        "name",
+                        "medicine_code",
+                        "medicine_name",
+                        "qty",
+                        "batch_no",
+                        "lot_no",
+                        "dispensing_lot",
+                    ],
+                )
     billing_groups = _group_medicine_given_for_billing(given_rows)
     if not billing_groups:
+        other_dates = _unbilled_medicine_given_dates(admission_detail.name)
+        if other_dates:
+            frappe.throw(
+                _(
+                    "No unbilled medicine given records for admission {0} on {1}. "
+                    "Unbilled given medicine exists on: {2}. "
+                    "Edit those rows to today's date, or create the service bill for that date."
+                ).format(admission, getdate(consumption_date), ", ".join(other_dates))
+            )
         frappe.throw(
             _("No unbilled medicine given records found for admission {0} on {1}. Rows may already be linked to a Sales Order.").format(
                 admission, getdate(consumption_date)

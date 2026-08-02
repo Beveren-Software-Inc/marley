@@ -540,12 +540,6 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
                             : '—'}
                         </p>
                       </div>
-                      {item.units_per_pack != null ? (
-                        <div>
-                          <label className="text-xs text-slate-500">Units per pack</label>
-                          <p className="text-slate-900 font-medium">{formatQty(item.units_per_pack)}</p>
-                        </div>
-                      ) : null}
                       <div>
                         <label className="text-xs text-slate-500">Reorder Level</label>
                         <p className="text-slate-900 font-medium">{item.reorder_level}</p>

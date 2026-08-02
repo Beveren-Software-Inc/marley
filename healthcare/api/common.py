@@ -6,8 +6,33 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import cint, flt
 from healthcare.api.utils.api_utility import get_next_transaction_number
+
+
+def _by_nurse_lab_test_template_names():
+	"""Templates nurses may order: by_nurse=1, plus group parents that include any by_nurse child."""
+	direct = set(
+		frappe.get_all(
+			"Lab Test Template",
+			filters={"by_nurse": 1, "disabled": ["!=", 1]},
+			pluck="name",
+		)
+		or []
+	)
+	if not direct:
+		return []
+
+	# Include group parents that list any of those nurse templates as children
+	if frappe.db.exists("DocType", "Lab Test Group Template"):
+		parents = frappe.get_all(
+			"Lab Test Group Template",
+			filters={"lab_test_template": ["in", list(direct)]},
+			pluck="parent",
+		) or []
+		direct.update(p for p in parents if p)
+
+	return list(direct)
 
 @frappe.whitelist()
 def get_current_user_roles():
@@ -702,7 +727,8 @@ def get_discharge_templates(search=None):
 def get_lab_test_templates(search=None, department=None, by_nurse=None):
 	"""Get list of Lab Test Templates (with outpatient_rate) for link fields / create lab test.
 
-	Optional by_nurse: when truthy, only templates with Lab Test Template.by_nurse set.
+	Optional by_nurse: when truthy, only templates with Lab Test Template.by_nurse set
+	(and group parents that contain at least one by_nurse child).
 	"""
 	# Include rows where disabled is 0 or unset (imported templates often have NULL).
 	filters = {"disabled": ["!=", 1]}
@@ -721,7 +747,10 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 		if isinstance(by_nurse, str):
 			by_nurse = by_nurse.lower() in ("1", "true", "yes")
 		if by_nurse:
-			filters["by_nurse"] = 1
+			nurse_names = _by_nurse_lab_test_template_names()
+			if not nurse_names:
+				return []
+			filters["name"] = ["in", nurse_names]
 
 	query_kwargs = {
 		"doctype": "Lab Test Template",
@@ -739,6 +768,7 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			"min_range",
 			"max_range",
 			"lab_test_uom",
+			"is_group",
 		],
 		"limit": 100,
 		"order_by": "lab_test_name asc",
@@ -760,7 +790,8 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			'male_max_range': t.male_max_range,
 			'min_range': t.min_range,
 			'max_range': t.max_range,
-			'uom': t.lab_test_uom
+			'uom': t.lab_test_uom,
+			'is_group': cint(getattr(t, 'is_group', 0) or 0),
 		}
 		for t in templates
 	]
@@ -1270,7 +1301,10 @@ def get_service_request_templates(template_dt, search=None, department=None, is_
 		if isinstance(by_nurse, str):
 			by_nurse = by_nurse.lower() in ('1', 'true', 'yes')
 		if by_nurse:
-			filters['by_nurse'] = 1
+			nurse_names = _by_nurse_lab_test_template_names()
+			if not nurse_names:
+				return []
+			filters['name'] = ['in', nurse_names]
 	
 	if department:
 		if template_dt == 'Lab Test Template':

@@ -19,6 +19,7 @@ import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CreateMedicineGivenModal } from './CreateMedicineGivenModal'
+import { localDateInputValue } from '../../utils/formatDate'
 
 const iconToolbarBtn =
   'inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-slate-200 bg-white text-slate-700 hover:bg-slate-100 hover:text-slate-900 disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
@@ -360,7 +361,7 @@ export const MedicineGivenList = ({ patient, refreshKey, manageRows = true }: Me
     if (!admission?.name) return
     setCreatingSalesOrder(true)
     try {
-      const result = await createMedicineGivenSalesOrder(admission.name)
+      const result = await createMedicineGivenSalesOrder(admission.name, localDateInputValue())
       const dnMsg = result.delivery_note ? ` · Delivery Note ${result.delivery_note}` : ''
       const linkedMsg =
         result.linked_rows != null && result.linked_rows > 0

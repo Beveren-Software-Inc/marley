@@ -331,7 +331,7 @@ export interface MedicationOrderRow {
   drug_name?: string
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
   medication_status?: string
-  /** When set, row is a stopped medicine shown for reference (not saved on new Rx). */
+  /** When set, row is a stopped/discontinued medicine shown with a warning; included on save unless removed. */
   reason_stopped?: string
   medication?: string
   old_medicine_code?: string

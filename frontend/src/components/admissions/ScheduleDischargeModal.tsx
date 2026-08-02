@@ -3,6 +3,7 @@ import { scheduleDischarge } from '../../services/inpatientRecords'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 interface ScheduleDischargeModalProps {
   admission: {
@@ -27,7 +28,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
 
   const [formData, setFormData] = useState({
     discharge_practitioner: '',
-    discharge_ordered_datetime: new Date().toISOString().slice(0, 16),
+    discharge_ordered_datetime: toDatetimeLocalValue(),
     followup_date: '',
     discharge_instructions: '',
     discharge_note: ''

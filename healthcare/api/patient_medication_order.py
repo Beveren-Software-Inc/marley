@@ -392,6 +392,13 @@ def _set_medication_row(doc, row):
 	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0
 	entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
 	entry.medication_type = row.get('medication_type') or ''
+	reason_stopped = cstr(row.get('reason_stopped') or '').strip()
+	if reason_stopped and hasattr(entry, 'reason_stopped'):
+		entry.reason_stopped = reason_stopped
+		if hasattr(entry, 'stopped'):
+			entry.stopped = 1
+		if hasattr(entry, 'stopped_date') and not getattr(entry, 'stopped_date', None):
+			entry.stopped_date = nowdate()
 	
 	# Fetched / computed
 	if entry.drug:

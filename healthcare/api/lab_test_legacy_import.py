@@ -652,13 +652,15 @@ def import_legacy_lab_test(
 	lab_lines = _build_lab_test_lines(trans_num, detail_lines)
 	existing = frappe.db.exists("Lab Test", trans_num)
 
+	# Already in the system — never re-import or update (legacy or otherwise).
 	if existing:
-		doc = frappe.get_doc("Lab Test", trans_num)
-		if not doc.get("is_legacy_import"):
-			return {"status": "skip_existing_non_legacy", "trans_num": trans_num}
-	else:
-		doc = frappe.new_doc("Lab Test")
-		doc.trans_num = trans_num
+		is_legacy = cint(frappe.db.get_value("Lab Test", existing, "is_legacy_import") or 0)
+		if is_legacy:
+			return {"status": "skip_already_imported", "trans_num": trans_num, "lab_test": existing}
+		return {"status": "skip_existing_non_legacy", "trans_num": trans_num, "lab_test": existing}
+
+	doc = frappe.new_doc("Lab Test")
+	doc.trans_num = trans_num
 
 	_apply_header_fields(
 		doc, header, ctx, template_name, detail_lines, trans_num=trans_num
@@ -675,12 +677,8 @@ def import_legacy_lab_test(
 	doc.flags.ignore_links = True
 	doc.flags.legacy_import = True
 
-	if existing:
-		doc.save(ignore_permissions=True)
-		action = "updated"
-	else:
-		doc.insert(ignore_permissions=True)
-		action = "created"
+	doc.insert(ignore_permissions=True)
+	action = "created"
 
 	if doc.docstatus == 0 and doc.status == "Completed":
 		try:
@@ -755,6 +753,7 @@ def build_legacy_lab_import_summary(progress: dict | None = None) -> dict:
 		cint(progress.get("skip_no_patient", 0))
 		+ cint(progress.get("skip_no_header", 0))
 		+ cint(progress.get("skip_existing_non_legacy", 0))
+		+ cint(progress.get("skip_already_imported", 0))
 	)
 	return {
 		"total_transactions": total,
@@ -766,6 +765,7 @@ def build_legacy_lab_import_summary(progress: dict | None = None) -> dict:
 		"skip_no_patient": cint(progress.get("skip_no_patient", 0)),
 		"skip_no_header": cint(progress.get("skip_no_header", 0)),
 		"skip_existing_non_legacy": cint(progress.get("skip_existing_non_legacy", 0)),
+		"skip_already_imported": cint(progress.get("skip_already_imported", 0)),
 		"missing_from_database": len(missing),
 		"missing_trans_nums": missing[:FAILURE_LOG_LIST_MAX],
 		"failure_count": len(failures),
@@ -783,11 +783,12 @@ def log_legacy_lab_import_completion(progress: dict | None = None) -> dict:
 		"Legacy lab import summary",
 		f"Excel transactions: {summary['total_transactions']}",
 		f"Processed by job: {summary['processed']}",
-		f"Imported OK (created/updated): {summary['ok']}",
+		f"Imported OK (created): {summary['ok']}",
 		f"Standalone (detail only): {cint(progress.get('standalone_ok', 0))}",
 		f"Patients created from SUB_DR_GL_CODE: {cint(progress.get('patients_created', 0))}",
 		f"Skipped: {summary['skipped']} "
-		f"(no patient: {summary['skip_no_patient']}, "
+		f"(already imported: {summary.get('skip_already_imported', 0)}, "
+		f"no patient: {summary['skip_no_patient']}, "
 		f"no header: {summary['skip_no_header']}, "
 		f"existing non-legacy: {summary['skip_existing_non_legacy']})",
 		f"Errors during import: {summary['errors']}",
@@ -812,7 +813,7 @@ def log_legacy_lab_import_completion(progress: dict | None = None) -> dict:
 		message="\n".join(message_lines),
 	)
 	# One Error Log row per failed TRANS_NUM (easy to search in Error Log list).
-	failure_trans = {f.get("trans_num") for f in failures if f.get("trans_num")}
+	failure_trans = {f.get("trans_num") for f in (summary.get("failures") or []) if f.get("trans_num")}
 	for row in summary["failures"]:
 		trans_num = row.get("trans_num") or "?"
 		frappe.log_error(
@@ -960,7 +961,7 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 	if not batch_keys:
 		return {"processed": offset, "done": True, "batch_count": 0}
 
-	ok = skip_no_patient = skip_no_header = skip_existing = standalone_ok = patients_created = 0
+	ok = skip_no_patient = skip_no_header = skip_existing = skip_already = standalone_ok = patients_created = 0
 	errors: list[str] = []
 
 	for trans_num in batch_keys:
@@ -996,9 +997,10 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 			elif status == "skip_no_data":
 				skip_no_header += 1
 				_append_import_failure(trans_num, status)
+			elif status == "skip_already_imported":
+				skip_already += 1
 			elif status == "skip_existing_non_legacy":
 				skip_existing += 1
-				_append_import_failure(trans_num, status)
 			else:
 				errors.append(f"{trans_num}: {status}")
 				_append_import_failure(trans_num, status or "unknown")
@@ -1020,6 +1022,7 @@ def run_legacy_lab_import_batch(offset: int = 0) -> dict:
 		"patients_created": patients_created,
 		"skip_no_patient": skip_no_patient,
 		"skip_no_header": skip_no_header,
+		"skip_already_imported": skip_already,
 		"skip_existing_non_legacy": skip_existing,
 		"errors": len(errors),
 		"error_samples": errors[:5],

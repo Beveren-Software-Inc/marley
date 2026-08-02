@@ -5,6 +5,7 @@ import { fetchDocumentTypes, fetchServiceUnitTypes, type LinkFieldOption } from 
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 function YesNoField({
   label,
@@ -501,7 +502,7 @@ export const AdmissionFormModal = ({
 
   const [formData, setFormData] = useState({
     serviceUnit: '',           // primary bed name
-    checkIn: new Date().toISOString().slice(0, 16),
+    checkIn: toDatetimeLocalValue(),
     expectedDischarge: '' as string,
     ipCaseManagement: 0 as 0 | 1,
   })

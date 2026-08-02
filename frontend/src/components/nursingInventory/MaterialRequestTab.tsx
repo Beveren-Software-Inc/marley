@@ -492,6 +492,17 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                           {getStatusIcon(request.status)}
                           {request.status}
                         </span>
+                        {request.is_medical != null ? (
+                          <span
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              request.is_medical
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {request.is_medical ? 'Medical' : 'Consumable'}
+                          </span>
+                        ) : null}
                       </div>
                       <div className="text-xs text-slate-500 mt-1">
                         Requested on: {request.request_date} | Items: {request.items.length}
@@ -550,6 +561,20 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                       {selectedRequest.status}
                     </p>
                   </div>
+                  {selectedRequest.is_medical != null ? (
+                    <div>
+                      <label className="text-xs text-slate-500">Category</label>
+                      <p
+                        className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                          selectedRequest.is_medical
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-slate-100 text-slate-700'
+                        }`}
+                      >
+                        {selectedRequest.is_medical ? 'Medical' : 'Consumable'}
+                      </p>
+                    </div>
+                  ) : null}
                   <div>
                     <label className="text-xs text-slate-500">Request Date</label>
                     <p className="text-sm">{selectedRequest.request_date}</p>

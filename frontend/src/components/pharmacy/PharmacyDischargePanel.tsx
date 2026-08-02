@@ -10,6 +10,7 @@ import {
 } from '../../services/pharmacyDischarge'
 import { useAuth } from '../../providers/AuthProvider'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
+import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 function toFrappeDateTime(value?: string): string {
   if (!value) return ''
@@ -114,7 +115,7 @@ export function PharmacyDischargePanel({ patient }: PharmacyDischargePanelProps)
         return {
           ...row,
           click: checking,
-          date_time: checking ? toFrappeDateTime(new Date().toISOString()) : '',
+          date_time: checking ? fromDatetimeLocalValue() : '',
           user: checking ? loggedInUser || row.user : '',
         }
       })

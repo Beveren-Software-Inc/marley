@@ -24,6 +24,7 @@ import {
 } from '../ui/linkComboboxStyles'
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 function stripHtml(html: string): string {
   if (!html) return ''
@@ -33,7 +34,7 @@ function stripHtml(html: string): string {
 }
 
 function postingDateForInput(posting?: string): string {
-  if (!posting) return new Date().toISOString().slice(0, 16)
+  if (!posting) return toDatetimeLocalValue()
   const s = String(posting).trim()
   if (s.includes('T')) return s.slice(0, 16)
   return s.replace(' ', 'T').slice(0, 16)
