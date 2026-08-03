@@ -161,6 +161,12 @@
   color: rgb(30 41 59);
 }
 
+/* Leave room for an absolute search icon inside the field */
+.card-filter-bar input[data-search-icon] {
+  padding-left: 2rem;
+  padding-right: 1.75rem;
+}
+
 /* Selects were rendering narrow — give them the same body as the text fields. */
 .card-filter-bar select {
   min-width: 9.5rem;

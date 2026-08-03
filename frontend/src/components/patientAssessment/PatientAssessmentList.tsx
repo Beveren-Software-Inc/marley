@@ -317,7 +317,7 @@ export const PatientAssessmentList = ({
             data-pa-practitioner-filter
             className="flex flex-col gap-1 min-w-[200px] relative"
           >
-            <label className="text-xs font-medium text-slate-500">Doctor</label>
+            <label className="text-xs font-medium text-slate-500">Username</label>
             <input
               type="text"
               value={practitionerOpen ? practitionerQuery : selectedPractitionerLabel}
@@ -327,7 +327,7 @@ export const PatientAssessmentList = ({
                 if (!e.target.value) setPractitionerFilter('')
               }}
               onFocus={() => setPractitionerOpen(true)}
-              placeholder="Search doctor…"
+              placeholder="Search username…"
               className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white w-full"
             />
             {practitionerOpen && practitionerOptions.length > 0 && (
@@ -392,7 +392,7 @@ export const PatientAssessmentList = ({
                   Reference
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
-                  Practitioner
+                  Username
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
                   Score

@@ -322,12 +322,11 @@ const EditMedicationEntryModal = ({
         const start = (field === 'date' ? value : next.date) as string
         const end = (field === 'end_date' ? value : next.end_date) as string
         const days = (field === 'no_of_days' ? value : next.no_of_days) as number
+        // Do not auto-fill end date from start date alone — only when Days is set, or derive Days from start+end.
         if ((field === 'date' || field === 'end_date') && start && end) {
           next.no_of_days = String(daysBetween(start, end) || 1) as any
         } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
           next.end_date = addDaysToDate(start, days)
-        } else if (field === 'date' && start && typeof next.no_of_days === 'number' && Number(next.no_of_days) > 0) {
-          next.end_date = addDaysToDate(start, Number(next.no_of_days))
         }
       }
       return next
@@ -798,8 +797,6 @@ export const AddMedicationEntryModal = ({
           next.no_of_days = String(daysBetween(start, end) || 1) as any
         } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
           next.end_date = addDaysToDate(start, days)
-        } else if (field === 'date' && start && typeof next.no_of_days === 'number' && Number(next.no_of_days) > 0) {
-          next.end_date = addDaysToDate(start, Number(next.no_of_days))
         }
       }
       return next

@@ -335,6 +335,7 @@ export function EnvironmentalChecklistModal({
             name: `preview-${index}`,
             item_name: item.item_name,
             checked: false,
+            remarks: '',
           }))
         )
       } catch (err) {
@@ -370,8 +371,16 @@ export function EnvironmentalChecklistModal({
   const handleToggleChecked = (rowName: string) => {
     setDetails((prev) =>
       prev.map((row) =>
-        row.name === rowName ? { ...row, checked: !row.checked } : row
+        row.name === rowName
+          ? { ...row, checked: !row.checked, remarks: !row.checked ? row.remarks || '' : row.remarks }
+          : row
       )
+    )
+  }
+
+  const handleRemarksChange = (rowName: string, remarks: string) => {
+    setDetails((prev) =>
+      prev.map((row) => (row.name === rowName ? { ...row, remarks } : row))
     )
   }
 
@@ -400,10 +409,13 @@ export function EnvironmentalChecklistModal({
           practitioner: practitioner || undefined,
         })
         activeName = created.name
-        const checkedByItem = Object.fromEntries(details.map((row) => [row.item_name, row.checked]))
+        const checkedByItem = Object.fromEntries(
+          details.map((row) => [row.item_name, { checked: row.checked, remarks: row.remarks || '' }])
+        )
         const mergedDetails = (created.details || []).map((row) => ({
           ...row,
-          checked: checkedByItem[row.item_name] ?? row.checked,
+          checked: checkedByItem[row.item_name]?.checked ?? row.checked,
+          remarks: checkedByItem[row.item_name]?.remarks ?? row.remarks ?? '',
         }))
         await updateEnvironmentalChecklist(activeName, mergedDetails, {
           costCenter: costCenter || undefined,
@@ -566,10 +578,26 @@ export function EnvironmentalChecklistModal({
                     </thead>
                     <tbody className="divide-y divide-slate-200">
                       {details.map((row, index) => (
-                        <tr key={row.name} className="hover:bg-slate-50">
-                          <td className="px-4 py-2 text-sm text-slate-500 text-center">{index + 1}</td>
-                          <td className="px-4 py-2 text-sm text-slate-800">{row.item_name}</td>
-                          <td className="px-4 py-2 text-sm text-center">
+                        <tr key={row.name} className={row.checked ? 'bg-emerald-50/40' : 'hover:bg-slate-50'}>
+                          <td className="px-4 py-2 text-sm text-slate-500 text-center align-top">{index + 1}</td>
+                          <td className="px-4 py-2 text-sm text-slate-800 align-top">
+                            <div className="font-medium">{row.item_name}</div>
+                            {row.checked ? (
+                              <div className="mt-2">
+                                <label className="block text-[11px] font-medium text-slate-500 mb-1">
+                                  Remarks
+                                </label>
+                                <textarea
+                                  value={row.remarks || ''}
+                                  onChange={(e) => handleRemarksChange(row.name, e.target.value)}
+                                  rows={2}
+                                  placeholder="Add remarks for this item…"
+                                  className="w-full rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-800 placeholder:text-slate-400 focus:border-emerald-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                                />
+                              </div>
+                            ) : null}
+                          </td>
+                          <td className="px-4 py-2 text-sm text-center align-top">
                             <input
                               type="checkbox"
                               className="h-4 w-4 text-primary border-slate-300 rounded focus:ring-primary"

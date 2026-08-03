@@ -10,6 +10,7 @@
   "is_default",
   "no_charges",
   "lab_visit",
+  "disabled",
   "services_section",
   "service_charge",
   "services"
@@ -63,13 +64,19 @@
    "fieldname": "lab_visit",
    "fieldtype": "Check",
    "label": "Lab Visit"
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-26 22:07:15.032460",
- "modified_by": "mania@beverensoftware.com",
+ "modified": "2026-08-04 00:20:55.619582",
+ "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",
  "naming_rule": "By fieldname",

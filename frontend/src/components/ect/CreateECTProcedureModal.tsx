@@ -490,13 +490,13 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
-            {/* Vital Signs - Before Test */}
+            {/* Stats - Before */}
             <section className="border-t border-slate-200 pt-4 bg-blue-50/40 p-4 rounded-lg">
               <h3 className="text-sm font-bold text-blue-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
                 <svg className="w-5 h-5 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                 </svg>
-                Before Test - Vital Signs
+                Stats (Before)
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Blood Pressure (BP)">
@@ -561,13 +561,13 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
-            {/* Vital Signs - After Test */}
+            {/* Stats - After */}
             <section className="border-t border-slate-200 pt-4 bg-amber-50/40 p-4 rounded-lg">
               <h3 className="text-sm font-bold text-amber-900 mb-4 flex items-center gap-2 uppercase tracking-wide">
                 <svg className="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
                 </svg>
-                After Test - Vital Signs
+                Stats (After)
               </h3>
               <div className="grid grid-cols-2 gap-4">
                 <FormField label="Blood Pressure (BP After)">
@@ -601,18 +601,18 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
-            {/* Notes & Observations */}
+            {/* Notes & Discharge */}
             <section className="border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
-                Notes & Observations
+                Notes & Discharge
               </h3>
               <div className="space-y-4">
-                <FormField label="Progress Plan">
+                <FormField label="Notes & Discharge">
                   <textarea
                     value={formData.progress_plan}
                     onChange={(e) => handleChange('progress_plan', e.target.value)}
-                    placeholder="Enter progress plan..."
+                    placeholder="Enter notes & discharge details..."
                     className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     rows={3}
                   />

@@ -476,6 +476,7 @@ export interface MedicationSheetMedicineRow {
   drug: string
   drug_name: string
   dosage?: string
+  uom?: string | null
   dosage_form?: string
   patient_frequency?: string
   medication_type?: string

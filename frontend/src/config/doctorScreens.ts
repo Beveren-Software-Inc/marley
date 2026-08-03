@@ -128,13 +128,8 @@ export const doctorScreenGroups: ScreenGroup[] = [
     screens: [{ id: 'd-ip-medical-report', title: 'IP Medical Report' }],
   },
   {
-    // These have working handlers in Doctor.tsx but had been dropped from the
-    // sidebar, leaving them unreachable for doctors.
     groupTitle: '',
-    screens: [
-      { id: 'env', title: 'Environmental Checklist' },
-      { id: 'pkg', title: 'Package Detail' },
-    ],
+    screens: [{ id: 'env', title: 'Environmental Checklist' }],
   },
   {
     groupTitle: '',

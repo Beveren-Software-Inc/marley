@@ -61,6 +61,39 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
+def get_patient_blocking_admission(patient):
+	"""Return an open admission that should block scheduling a new one.
+
+	Includes Admitted, Admission Scheduled, and Discharge Scheduled.
+	"""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	records = frappe.get_all(
+		"Inpatient Admission",
+		filters={
+			"patient": patient,
+			"status": ["in", ["Admitted", "Admission Scheduled", "Discharge Scheduled"]],
+		},
+		fields=["name", "patient", "patient_name", "status", "case_no", "scheduled_date"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if not records:
+		return None
+
+	rec = records[0]
+	return {
+		"name": rec.name,
+		"patient": rec.patient,
+		"patient_name": rec.patient_name,
+		"status": rec.status,
+		"case_no": rec.get("case_no"),
+		"scheduled_date": rec.get("scheduled_date"),
+	}
+
+
+@frappe.whitelist()
 def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, cost_center=None, limit=20, offset=0):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
@@ -231,7 +264,31 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 
 	from healthcare.api.common import fill_missing_patient_names
 	fill_missing_patient_names(records)
+	_annotate_discharge_in_progress(records)
 	return {"data": records, "total_count": total_count}
+
+
+def _annotate_discharge_in_progress(records) -> None:
+	"""Flag admissions that have a draft Discharge (started but not submitted)."""
+	if not records:
+		return
+	names = [r.get("name") for r in records if r.get("name")]
+	for r in records:
+		r["discharge_in_progress"] = 0
+	if not names:
+		return
+	draft_admissions = {
+		row.admission
+		for row in frappe.get_all(
+			"Discharge",
+			filters={"admission": ["in", names], "docstatus": 0},
+			fields=["admission"],
+		)
+		if row.get("admission")
+	}
+	for r in records:
+		if r.get("name") in draft_admissions:
+			r["discharge_in_progress"] = 1
 
 
 def _enrich_inpatient_records_with_file_no(records):
@@ -413,6 +470,8 @@ def get_inpatient_record(name):
 			"transaction_no": getattr(row, "transaction_no", None),
 			"upload_remarks": getattr(row, "upload_remarks", None),
 			"document": getattr(row, "document", None),
+			"patient_relation": getattr(row, "patient_relation", None),
+			"signee_name": getattr(row, "signee_name", None),
 		})
 
 	return {
@@ -494,6 +553,7 @@ def get_inpatient_record(name):
 		'discharge_practitioner': getattr(record, "discharge_practitioner", None),
 		'admission_nursing_checklist_template': getattr(record, "admission_nursing_checklist_template", None),
 		'discharge_nursing_checklist_template': getattr(record, "discharge_nursing_checklist_template", None),
+		'discharge_in_progress': 1 if _get_draft_discharge_name(record.name) else 0,
 	}
 
 
@@ -1229,17 +1289,25 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 		for idx, row in enumerate(documents, start=1):
 			if not isinstance(row, dict):
 				continue
-			if not (row.get("file_name") or row.get("document") or row.get("document_type")):
+			if not (
+				row.get("file_name")
+				or row.get("document")
+				or row.get("document_type")
+				or row.get("patient_relation")
+				or row.get("signee_name")
+			):
 				continue
 			discharge_doc.append(
 				"patient_documents",
 				{
 					"idx": idx,
-					"file_name": (row.get("file_name") or "").strip() or None,
+					"file_name": (row.get("file_name") or row.get("signee_name") or "").strip() or None,
 					"document_type": (row.get("document_type") or "").strip() or None,
 					"transaction_no": (row.get("transaction_no") or "").strip() or None,
 					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 					"document": (row.get("document") or "").strip() or None,
+					"patient_relation": (row.get("patient_relation") or "").strip() or None,
+					"signee_name": (row.get("signee_name") or "").strip() or None,
 				},
 			)
 
@@ -1434,6 +1502,8 @@ def _serialize_discharge_draft_for_portal(discharge_doc) -> dict:
 				"transaction_no": row.transaction_no or "",
 				"upload_remarks": row.upload_remarks or "",
 				"document": row.document or "",
+				"patient_relation": getattr(row, "patient_relation", None) or "",
+				"signee_name": getattr(row, "signee_name", None) or "",
 			}
 			for row in (discharge_doc.get("patient_documents") or [])
 		],
@@ -2853,6 +2923,7 @@ def admit_patient(
 	case_management_template=None,
 	case_management_fee=None,
 	case_management_services=None,
+	service_unit_type=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -2860,7 +2931,14 @@ def admit_patient(
 	if not check_in:
 		frappe.throw(_("Check In datetime is required"))
 
+	service_unit_type = (service_unit_type or "").strip() or None
+	if not service_unit_type:
+		frappe.throw(_("Room Type is required"))
+
 	record = frappe.get_doc("Inpatient Admission", name)
+
+	if record.meta.has_field("admission_service_unit_type"):
+		record.admission_service_unit_type = service_unit_type
 
 	if patient_ip_category:
 		record.patient_ip_category = patient_ip_category
@@ -2956,15 +3034,20 @@ def admit_patient(
 		for idx, row in enumerate(documents, start=1):
 			if not isinstance(row, dict):
 				continue
+			file_name = (row.get("file_name") or "").strip()
+			document_type = (row.get("document_type") or "").strip()
+			signee_name = (row.get("signee_name") or "").strip()
 			record.append(
 				"e_signatures",
 				{
 					"idx": idx,
-					"file_name": (row.get("document_type") or "").strip() or None,
-					"document_type": (row.get("document_type") or "").strip() or None,
+					"file_name": file_name or document_type or signee_name or None,
+					"document_type": document_type or None,
 					"transaction_no": (row.get("transaction_no") or "").strip() or None,
 					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 					"document": (row.get("document") or "").strip() or None,
+					"patient_relation": (row.get("patient_relation") or "").strip() or None,
+					"signee_name": signee_name or None,
 				},
 			)
 
@@ -3327,17 +3410,21 @@ def _apply_e_signatures(doc, documents_data):
 		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
 		document_type = (row.get("document_type") or "").strip()
 		document_url = (row.get("document") or "").strip()
-		if not file_name and not document_type and not document_url:
+		signee_name = (row.get("signee_name") or "").strip()
+		patient_relation = (row.get("patient_relation") or "").strip()
+		if not file_name and not document_type and not document_url and not signee_name and not patient_relation:
 			continue
 		doc.append(
 			"e_signatures",
 			{
 				"idx": idx,
-				"file_name": file_name or document_type or None,
+				"file_name": file_name or document_type or signee_name or None,
 				"document_type": document_type or None,
 				"transaction_no": (row.get("transaction_no") or "").strip() or None,
 				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 				"document": document_url or None,
+				"patient_relation": patient_relation or None,
+				"signee_name": signee_name or None,
 			},
 		)
 

@@ -37,6 +37,7 @@ import {
   fetchDischargeChecklist,
   fetchDepartments,
   fetchDocumentTypes,
+  createDocumentType,
   fetchMedicalDepartments,
   fetchHealthcarePractitioners,
   fetchNursingDischargeTemplates,
@@ -103,6 +104,24 @@ interface ChecklistItem {
   click: boolean
   description?: string
   sr_num?: string
+}
+
+/** Plain text for checklist note textarea (description may arrive as HTML from templates). */
+function checklistNoteText(value?: string): string {
+  if (!value) return ''
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  if (!/<\/?[a-z][\s\S]*>/i.test(trimmed)) return trimmed
+  return trimmed
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
 }
 
 interface DischargePatientFormProps {
@@ -529,6 +548,57 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
       </div>
     </div>
   )
+}
+
+/** Patient relation on e-signature rows (Patient Upload Document.patient_relation) */
+const SIGNATURE_RELATION_OPTIONS = [
+  'Self',
+  'Father',
+  'Mother',
+  'Spouse',
+  'Siblings',
+  'Family',
+  'Guardian',
+  'Other',
+] as const
+
+const DEFAULT_SIGNATURE_DOC_TYPE = 'Signature'
+
+function resolveSignatureDocumentType(
+  types: { name: string; document_name?: string }[],
+): string {
+  // Prefer exact "Signature" — never pick "Legacy Signature" (old-system imports).
+  const exact = types.find((t) => {
+    const name = (t.name || '').trim().toLowerCase()
+    const label = (t.document_name || '').trim().toLowerCase()
+    return name === 'signature' || label === 'signature'
+  })
+  return exact?.name || DEFAULT_SIGNATURE_DOC_TYPE
+}
+
+function isSignatureDocumentRow(row: PatientDocumentRow, signatureDocType: string): boolean {
+  const dt = (row.document_type || '').trim()
+  if (!dt && !(row.patient_relation || '').trim() && !(row.signee_name || '').trim()) {
+    return false
+  }
+  const lower = dt.toLowerCase()
+  if (lower.includes('signature') || dt === signatureDocType) return true
+  if ((row.patient_relation || '').trim() || (row.signee_name || '').trim()) return true
+  return false
+}
+
+function splitPatientDocumentRows(
+  rows: PatientDocumentRow[] | undefined,
+  signatureDocType: string,
+): { documents: PatientDocumentRow[]; signatures: PatientDocumentRow[] } {
+  if (!rows?.length) return { documents: [], signatures: [] }
+  const documents: PatientDocumentRow[] = []
+  const signatures: PatientDocumentRow[] = []
+  for (const row of rows) {
+    if (isSignatureDocumentRow(row, signatureDocType)) signatures.push(row)
+    else documents.push(row)
+  }
+  return { documents, signatures }
 }
 
 // ─── Daily Visit Setup Form Component ───────────────────────────────────────
@@ -982,13 +1052,17 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [nurseChecklistItems, setNurseChecklistItems] = useState<ChecklistItem[]>([])
   const [nurseChecklistLoading, setNurseChecklistLoading] = useState(false)
   const [expandedNurseDepts, setExpandedNurseDepts] = useState<Record<string, boolean>>({})
-  const [expandedNurseItems, setExpandedNurseItems] = useState<Record<string, boolean>>({})
 
-  // Documents state
+  // Documents + signatures (signatures section under documents on Documents tab)
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [signatures, setSignatures] = useState<PatientDocumentRow[]>([])
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+  const signatureDocType = useMemo(
+    () => resolveSignatureDocumentType(documentTypes),
+    [documentTypes],
+  )
 
   // Relatives / guardians
   const [relatives, setRelatives] = useState<
@@ -1145,7 +1219,12 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [admissionMedicalDepartment, setAdmissionMedicalDepartment] = useState('')
   const [admissionRoomDefault, setAdmissionRoomDefault] = useState<AdmissionRoomDefault | null>(null)
 
-  const visibleTabIds = useMemo(() => roleVisibleTabIds, [roleVisibleTabIds])
+  const visibleTabIds = useMemo(() => {
+    const hasReceptionist = Boolean((formData.discharge_receptionist || '').trim())
+    if (hasReceptionist) return roleVisibleTabIds
+    // Checklist tabs only apply once a discharge receptionist is assigned.
+    return roleVisibleTabIds.filter((id) => id !== 'checklist' && id !== 'nursing')
+  }, [roleVisibleTabIds, formData.discharge_receptionist])
 
   const tabs = useMemo(
     () => DISCHARGE_TAB_DEFINITIONS.filter((t) => visibleTabIds.includes(t.id)),
@@ -1553,7 +1632,35 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
         setDischargeNurseOptions(nurses)
         setDischargeTemplates(templates)
         setNurseTemplateOptions(nurseTemplates)
-        setDocumentTypes(docTypes)
+        let resolvedDocTypes = docTypes
+        const hasSignatureType = resolvedDocTypes.some((t) => {
+          const name = (t.name || '').trim().toLowerCase()
+          const label = (t.document_name || '').trim().toLowerCase()
+          return name === 'signature' || label === 'signature'
+        })
+        if (!hasSignatureType) {
+          try {
+            const created = await createDocumentType(DEFAULT_SIGNATURE_DOC_TYPE)
+            resolvedDocTypes = [...resolvedDocTypes, created]
+          } catch {
+            // Document Type may already exist under another name
+          }
+        }
+        setDocumentTypes(resolvedDocTypes)
+        const sigType = resolveSignatureDocumentType(resolvedDocTypes)
+        setSignatures((prev) =>
+          prev.length
+            ? prev
+            : [
+                {
+                  patient_relation: '',
+                  signee_name: '',
+                  document_type: sigType,
+                  upload_remarks: '',
+                  document: '',
+                },
+              ],
+        )
 
         const pickLink = (
           id: string | undefined,
@@ -1572,7 +1679,8 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           checklist: ChecklistItem[] | undefined,
           nursing: ChecklistItem[] | undefined,
           docs: PatientDocumentRow[] | undefined,
-          rels: typeof relatives | undefined
+          rels: typeof relatives | undefined,
+          sigDocType: string = sigType,
         ) => {
           const fdStr = (key: string) => String(fd[key] ?? '')
           setFormData((prev) => ({ ...prev, ...fd }))
@@ -1745,7 +1853,21 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           }
 
           if (docs?.length) {
-            setDocuments(docs)
+            const split = splitPatientDocumentRows(docs, sigDocType)
+            setDocuments(split.documents)
+            setSignatures(
+              split.signatures.length
+                ? split.signatures
+                : [
+                    {
+                      patient_relation: '',
+                      signee_name: '',
+                      document_type: sigDocType,
+                      upload_remarks: '',
+                      document: '',
+                    },
+                  ],
+            )
           }
           if (rels?.length) {
             setRelatives(rels)
@@ -1998,6 +2120,31 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
     })
   }
 
+  const addSignatureRow = () => {
+    setSignatures((prev) => [
+      ...prev,
+      {
+        patient_relation: '',
+        signee_name: '',
+        document_type: signatureDocType,
+        upload_remarks: '',
+        document: '',
+      },
+    ])
+  }
+
+  const removeSignatureRow = (idx: number) => {
+    setSignatures((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  const updateSignatureRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setSignatures((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
   const handleDocumentFile = async (idx: number, file: File | null) => {
     if (!file) return
     setDocumentUploading(idx)
@@ -2026,12 +2173,13 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
     try {
       const file_url = await uploadPatientFile(file)
       if (!file_url) throw new Error('No URL returned from signature upload')
-      setDocuments(prev => {
+      setSignatures((prev) => {
         const next = [...prev]
         next[idx] = {
           ...next[idx],
           document: file_url,
-          file_name: next[idx].file_name?.trim() || `Signature ${idx + 1}`,
+          document_type: next[idx].document_type || signatureDocType,
+          file_name: (next[idx].signee_name || '').trim() || `Signature ${idx + 1}`,
         }
         return next
       })
@@ -2255,7 +2403,6 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
 
   // Nursing Checklist helpers
   const toggleNurseDept = (dept: string) => setExpandedNurseDepts(prev => ({ ...prev, [dept]: !prev[dept] }))
-  const toggleNurseItem = (itemName: string) => setExpandedNurseItems(prev => ({ ...prev, [itemName]: !prev[itemName] }))
 
   const toggleNurseCheck = (itemName: string) => {
     const loggedInUser = typeof currentUser?.name === 'string' ? currentUser.name : ''
@@ -2324,7 +2471,9 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
   const checklistStatus = checklistSummary.checklist_status
   const allCompleted = checklistStatus === 'complete'
   const financeOnlyPending = checklistStatus === 'finance_pending'
-  const canSubmitDischarge = canSubmitDischargeWithChecklist(checklistItems)
+  const hasDischargeReceptionist = Boolean((formData.discharge_receptionist || '').trim())
+  const canSubmitDischarge =
+    !hasDischargeReceptionist || canSubmitDischargeWithChecklist(checklistItems)
 
   const groupedNurseChecklist = groupByDepartment(nurseChecklistItems)
   const nurseTotalItems = nurseChecklistItems.length
@@ -2365,15 +2514,33 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
       ...formData,
       nurse_discharge_template:
         selectedNurseTemplate?.name || formData.nurse_discharge_template || '',
-      patient_document: documents
-        .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
-        .map(r => ({
-          file_name: (r.file_name || '').trim() || undefined,
-          document_type: (r.document_type || '').trim() || undefined,
-          transaction_no: (r.transaction_no || '').trim() || undefined,
-          upload_remarks: (r.upload_remarks || '').trim() || undefined,
-          document: (r.document || '').trim() || undefined,
-        })),
+      patient_document: [
+        ...documents
+          .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
+          .map((r) => ({
+            file_name: (r.file_name || '').trim() || undefined,
+            document_type: (r.document_type || '').trim() || undefined,
+            transaction_no: (r.transaction_no || '').trim() || undefined,
+            upload_remarks: (r.upload_remarks || '').trim() || undefined,
+            document: (r.document || '').trim() || undefined,
+          })),
+        ...signatures
+          .filter(
+            (r) =>
+              (r.document || '').trim() ||
+              (r.patient_relation || '').trim() ||
+              (r.signee_name || '').trim(),
+          )
+          .map((r) => ({
+            file_name: (r.signee_name || r.file_name || '').trim() || undefined,
+            document_type: (r.document_type || signatureDocType || '').trim() || undefined,
+            transaction_no: (r.transaction_no || '').trim() || undefined,
+            upload_remarks: (r.upload_remarks || '').trim() || undefined,
+            document: (r.document || '').trim() || undefined,
+            patient_relation: (r.patient_relation || '').trim() || undefined,
+            signee_name: (r.signee_name || '').trim() || undefined,
+          })),
+      ],
       patient_relatives: patientRelatives,
     }
     // observation_record is server-owned once created; never send from the portal.
@@ -2503,7 +2670,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
       },
       checklistItems,
       nurseChecklistItems,
-      documents,
+      documents: [...documents, ...signatures],
       relatives,
     })
   }
@@ -2814,12 +2981,17 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
         </span>
       )
     }
-    if (tabId === 'documents' && documents.length > 0) {
-      return (
-        <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold bg-white/70 text-slate-700 leading-none">
-          {documents.length}
-        </span>
-      )
+    if (tabId === 'documents') {
+      const count =
+        documents.length +
+        signatures.filter((s) => s.document || s.signee_name || s.patient_relation).length
+      if (count > 0) {
+        return (
+          <span className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-semibold bg-white/70 text-slate-700 leading-none">
+            {count}
+          </span>
+        )
+      }
     }
     if (tabId === 'relatives' && relatives.length > 0) {
       return (
@@ -3452,11 +3624,18 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
               </div>
 
               <aside className="space-y-3 lg:sticky lg:top-4 self-start">
-                <DischargeChecklistStatusCard
-                  dischargeChecklist={checklistItems}
-                  nursingChecklist={nurseChecklistItems}
-                  loading={checklistLoading || nurseChecklistLoading}
-                />
+                {hasDischargeReceptionist ? (
+                  <DischargeChecklistStatusCard
+                    dischargeChecklist={checklistItems}
+                    nursingChecklist={nurseChecklistItems}
+                    loading={checklistLoading || nurseChecklistLoading}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Select a <span className="font-medium text-slate-800">Discharge Receptionist</span> under
+                    Discharged By to unlock the checklist tabs.
+                  </div>
+                )}
               </aside>
             </div>
           )}
@@ -3585,59 +3764,78 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                                 )}
                               </div>
                               {item.click && rowEditable && (
-                                <div className="mt-3 grid grid-cols-2 md:grid-cols-3 gap-3">
-                                  <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
-                                    <input
-                                      type="text"
-                                      ref={userOpenForItem === item.name ? userTriggerRef : undefined}
-                                      value={
-                                        userOpenForItem === item.name
-                                          ? userQuery
-                                          : dischargedByUsers.find((u) => u.name === item.user)?.label ||
-                                            item.user ||
-                                            ''
-                                      }
-                                      onChange={(e) => {
-                                        updateChecklistItem(item.name, 'user', '')
-                                        setUserQuery(e.target.value)
-                                        setUserOpenForItem(item.name)
-                                      }}
-                                      onFocus={() => {
-                                        setUserOpenForItem(item.name)
-                                        setUserQuery(
-                                          dischargedByUsers.find((u) => u.name === item.user)?.label ||
-                                            item.user ||
-                                            '',
-                                        )
-                                      }}
-                                      placeholder="Search user..."
-                                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                    />
+                                <div className="mt-3 space-y-3">
+                                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                                    <div>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
+                                      <input
+                                        type="text"
+                                        ref={userOpenForItem === item.name ? userTriggerRef : undefined}
+                                        value={
+                                          userOpenForItem === item.name
+                                            ? userQuery
+                                            : dischargedByUsers.find((u) => u.name === item.user)?.label ||
+                                              item.user ||
+                                              ''
+                                        }
+                                        onChange={(e) => {
+                                          updateChecklistItem(item.name, 'user', '')
+                                          setUserQuery(e.target.value)
+                                          setUserOpenForItem(item.name)
+                                        }}
+                                        onFocus={() => {
+                                          setUserOpenForItem(item.name)
+                                          setUserQuery(
+                                            dischargedByUsers.find((u) => u.name === item.user)?.label ||
+                                              item.user ||
+                                              '',
+                                          )
+                                        }}
+                                        placeholder="Search user..."
+                                        className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">
+                                        Date &amp; Time
+                                      </label>
+                                      <input
+                                        type="datetime-local"
+                                        value={item.date_time ? item.date_time.slice(0, 16) : ''}
+                                        onChange={(e) =>
+                                          updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))
+                                        }
+                                        className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
+                                      <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
+                                        {assignedDeptLabel}
+                                      </p>
+                                    </div>
                                   </div>
                                   <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">
-                                      Date &amp; Time
-                                    </label>
-                                    <input
-                                      type="datetime-local"
-                                      value={item.date_time ? item.date_time.slice(0, 16) : ''}
+                                    <label className="block text-xs font-medium text-slate-600 mb-1">Note</label>
+                                    <textarea
+                                      value={checklistNoteText(item.description)}
                                       onChange={(e) =>
-                                        updateChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))
+                                        updateChecklistItem(item.name, 'description', e.target.value)
                                       }
-                                      className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                      rows={2}
+                                      placeholder="Add a note for this item…"
+                                      className="w-full min-h-[2.75rem] resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-green-400"
                                     />
-                                  </div>
-                                  <div>
-                                    <label className="block text-xs font-medium text-slate-600 mb-1">Department</label>
-                                    <p className="rounded border border-slate-100 bg-slate-50 px-2 py-1.5 text-xs text-slate-700">
-                                      {assignedDeptLabel}
-                                    </p>
                                   </div>
                                 </div>
                               )}
+                              {item.click && !rowEditable && checklistNoteText(item.description) ? (
+                                <p className="mt-2 rounded-md border border-slate-100 bg-slate-50 px-2.5 py-2 text-xs text-slate-600 whitespace-pre-wrap">
+                                  {checklistNoteText(item.description)}
+                                </p>
+                              ) : null}
                             </div>
-                            {item.description && (
+                            {item.description && !item.click && (
                               <button
                                 type="button"
                                 onClick={() => toggleItem(item.name)}
@@ -3651,7 +3849,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                               </button>
                             )}
                           </div>
-                          {isItemExpanded && item.description && (
+                          {isItemExpanded && item.description && !item.click && (
                             <div
                               className="mt-3 ml-14 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100"
                               dangerouslySetInnerHTML={{ __html: item.description }}
@@ -3788,9 +3986,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                         </button>
                         {isOpen && (
                           <div className="divide-y divide-slate-100">
-                            {items.map((item) => {
-                              const isItemExpanded = expandedNurseItems[item.name]
-                              return (
+                            {items.map((item) => (
                                 <div key={item.name} className={`transition-colors ${item.click ? 'bg-green-50/40' : 'bg-white'}`}>
                                   <div className="px-4 py-3">
                                     <div className="flex items-start gap-3">
@@ -3808,46 +4004,52 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                                           )}
                                         </div>
                                         {item.click && (
-                                          <div className="mt-3 grid grid-cols-2 gap-3">
-                                            <div>
-                                              <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
-                                              <input
-                                                type="text"
-                                                ref={userOpenForItem === `nurse_${item.name}` ? userTriggerRef : undefined}
-                                                value={userOpenForItem === `nurse_${item.name}` ? userQuery : (dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '')}
-                                                onChange={(e) => {
-                                                  updateNurseChecklistItem(item.name, 'user', '')
-                                                  setUserQuery(e.target.value)
-                                                  setUserOpenForItem(`nurse_${item.name}`)
-                                                }}
-                                                onFocus={() => { setUserOpenForItem(`nurse_${item.name}`); setUserQuery(dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '') }}
-                                                placeholder="Search user..."
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
-                                              />
+                                          <div className="mt-3 space-y-3">
+                                            <div className="grid grid-cols-2 gap-3">
+                                              <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">User</label>
+                                                <input
+                                                  type="text"
+                                                  ref={userOpenForItem === `nurse_${item.name}` ? userTriggerRef : undefined}
+                                                  value={userOpenForItem === `nurse_${item.name}` ? userQuery : (dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '')}
+                                                  onChange={(e) => {
+                                                    updateNurseChecklistItem(item.name, 'user', '')
+                                                    setUserQuery(e.target.value)
+                                                    setUserOpenForItem(`nurse_${item.name}`)
+                                                  }}
+                                                  onFocus={() => { setUserOpenForItem(`nurse_${item.name}`); setUserQuery(dischargedByUsers.find(u => u.name === item.user)?.label || item.user || '') }}
+                                                  placeholder="Search user..."
+                                                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400"
+                                                />
+                                              </div>
+                                              <div>
+                                                <label className="block text-xs font-medium text-slate-600 mb-1">Date &amp; Time</label>
+                                                <input type="datetime-local" value={item.date_time ? item.date_time.slice(0, 16) : ''}
+                                                  onChange={(e) => updateNurseChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))}
+                                                  className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
+                                              </div>
                                             </div>
                                             <div>
-                                              <label className="block text-xs font-medium text-slate-600 mb-1">Date &amp; Time</label>
-                                              <input type="datetime-local" value={item.date_time ? item.date_time.slice(0, 16) : ''}
-                                                onChange={(e) => updateNurseChecklistItem(item.name, 'date_time', toFrappeDateTime(e.target.value))}
-                                                className="w-full rounded border border-slate-200 px-2 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-green-400" />
+                                              <label className="block text-xs font-medium text-slate-600 mb-1">
+                                                Note
+                                              </label>
+                                              <textarea
+                                                value={checklistNoteText(item.description)}
+                                                onChange={(e) =>
+                                                  updateNurseChecklistItem(item.name, 'description', e.target.value)
+                                                }
+                                                rows={2}
+                                                placeholder="Add a note for this item…"
+                                                className="w-full min-h-[2.75rem] resize-y rounded-md border border-slate-200 bg-white px-2.5 py-2 text-xs text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-green-400"
+                                              />
                                             </div>
                                           </div>
                                         )}
                                       </div>
-                                      {item.description && (
-                                        <button type="button" onClick={() => toggleNurseItem(item.name)} className="shrink-0 text-xs text-slate-400 hover:text-slate-600 mt-0.5">
-                                          {isItemExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                                        </button>
-                                      )}
                                     </div>
-                                    {isItemExpanded && item.description && (
-                                      <div className="mt-3 ml-8 p-3 bg-slate-50 rounded text-xs text-slate-600 border border-slate-100"
-                                        dangerouslySetInnerHTML={{ __html: item.description }} />
-                                    )}
                                   </div>
                                 </div>
-                              )
-                            })}
+                              ))}
                           </div>
                         )}
                       </div>
@@ -4616,32 +4818,31 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
             </div>
           )}
 
-          {/* ── TAB: DOCUMENTS ── */}
+          {/* ── TAB: DOCUMENTS (+ Signatures below) ── */}
           {canViewDischargeTabPanel('documents') && (
-            <div className="p-6">
-              <p className="text-sm text-slate-500 mb-4">
-                Attach discharge documents or capture digital signatures. You can upload a photo of a signed document <em>or</em> draw a signature directly on-screen.
-              </p>
-              <div className="space-y-4">
-                {documents.length === 0 && (
-                  <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
-                    No documents added yet. Click below to add one.
-                  </div>
-                )}
-
-                {documents.map((row, idx) => (
-                  <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                        Document #{idx + 1}
-                      </span>
-                      <button type="button" onClick={() => removeDocumentRow(idx)}
-                        className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove row">
-                        <X className="w-4 h-4" />
-                      </button>
+            <div className="p-6 space-y-8">
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Attach discharge documents (photo, PDF, etc.). Capture e-signatures in the Signatures section below.
+                </p>
+                <div className="space-y-4">
+                  {documents.length === 0 && (
+                    <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
+                      No documents added yet. Click below to add one.
                     </div>
+                  )}
 
-                    <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+                  {documents.map((row, idx) => (
+                    <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                          Document #{idx + 1}
+                        </span>
+                        <button type="button" onClick={() => removeDocumentRow(idx)}
+                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" title="Remove row">
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
 
                       <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
@@ -4675,7 +4876,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                         <div className="sm:col-span-2">
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">
                             File Attachment
-                            <span className="ml-1 font-normal text-slate-400">(photo of signed doc, PDF, etc.)</span>
+                            <span className="ml-1 font-normal text-slate-400">(photo, PDF, etc.)</span>
                           </label>
                           <input type="file" disabled={documentUploading === idx}
                             onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }}
@@ -4683,46 +4884,141 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                           {documentUploading === idx && (
                             <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
                           )}
-                          {row.document && documentUploading !== idx && signatureUploading !== idx && (
+                          {row.document && documentUploading !== idx && (
                             <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
                               ✓ File attached
                             </span>
                           )}
                         </div>
                       </div>
+                    </div>
+                  ))}
 
-                      <div className="p-4 flex flex-col gap-2">
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <PenLine className="w-3.5 h-3.5 text-slate-400" />
-                          <span className="text-xs font-medium text-slate-600">Digital Signature</span>
-                          <span className="text-xs text-slate-400 ml-1">— draw &amp; save as file</span>
+                  <button type="button" onClick={addDocumentRow}
+                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add document
+                  </button>
+                </div>
+              </div>
+
+              <div className="border-t border-slate-200 pt-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <PenLine className="w-4 h-4 text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-800">Signatures</h3>
+                </div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Capture discharge e-signatures. Patient Relation and Signee Name are required for each signature.
+                </p>
+                <div className="space-y-4">
+                  {signatures.length === 0 && (
+                    <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
+                      No signatures yet. Click below to add one.
+                    </div>
+                  )}
+
+                  {signatures.map((row, idx) => (
+                    <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                          Signature #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeSignatureRow(idx)}
+                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Remove"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                              Patient Relation <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={row.patient_relation || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'patient_relation', e.target.value)}
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                            >
+                              <option value="">Select relation</option>
+                              {SIGNATURE_RELATION_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                              Signee Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              value={row.signee_name || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'signee_name', e.target.value)}
+                              placeholder="Full name of person signing"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                            <DocumentTypeSelect
+                              value={row.document_type || signatureDocType}
+                              onChange={(v) => updateSignatureRow(idx, 'document_type', v)}
+                              types={documentTypes}
+                              onTypesUpdated={setDocumentTypes}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                            <input
+                              value={row.upload_remarks || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'upload_remarks', e.target.value)}
+                              placeholder="Remarks"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
                         </div>
-                        <div className="flex-1">
-                          <SignaturePad
-                            onSave={(file) => handleSignatureFile(idx, file)}
-                            onClear={() => {}}
-                            existingUrl={row.document?.endsWith('.png') || row.document?.includes('signature_') ? row.document : undefined}
-                            uploading={signatureUploading === idx}
-                          />
+
+                        <div className="p-4 flex flex-col gap-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-600">
+                              Signature <span className="text-red-500">*</span>
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <SignaturePad
+                              onSave={(file) => handleSignatureFile(idx, file)}
+                              existingUrl={row.document || undefined}
+                              uploading={signatureUploading === idx}
+                            />
+                          </div>
+                          {signatureUploading === idx && (
+                            <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
+                          )}
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Draw above, then tap <strong>Save Signature</strong>.
+                          </p>
                         </div>
-                        {signatureUploading === idx && (
-                          <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
-                        )}
-                        <p className="text-xs text-slate-400 leading-relaxed">
-                          Draw your signature above, then tap <strong>Save Signature</strong> — it will be stored as a PNG file attached to this document row.
-                        </p>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
 
-                <button type="button" onClick={addDocumentRow}
-                  className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline">
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                  Add document
-                </button>
+                  <button
+                    type="button"
+                    onClick={addSignatureRow}
+                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add signature
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -4906,19 +5202,19 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           {/* Footer */}
           <div className="px-4 md:px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 sticky bottom-0 z-10">
             <div className="text-xs text-slate-500">
-              {checklistStatus === 'incomplete' && totalItems > 0 && (
+              {hasDischargeReceptionist && checklistStatus === 'incomplete' && totalItems > 0 && (
                 <span className="flex items-center gap-1 text-red-600">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {checklistIncomplete} checklist item{checklistIncomplete !== 1 ? 's' : ''} remaining
                 </span>
               )}
-              {financeOnlyPending && (
+              {hasDischargeReceptionist && financeOnlyPending && (
                 <span className="flex items-center gap-1 text-yellow-700">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {CHECKLIST_STATUS_LABELS.finance_pending} — discharge allowed
                 </span>
               )}
-              {allCompleted && totalItems > 0 && (
+              {hasDischargeReceptionist && allCompleted && totalItems > 0 && (
                 <span className="flex items-center gap-1 text-green-600">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Checklist complete
@@ -4945,7 +5241,12 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
               </button>
               <button
                 type="submit"
-                disabled={submitting || savingDraft || chargeSectionBusy}
+                disabled={submitting || savingDraft || chargeSectionBusy || !canSubmitDischarge}
+                title={
+                  !canSubmitDischarge
+                    ? `Complete all discharge checklist items first (${checklistIncomplete} remaining)`
+                    : undefined
+                }
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Discharging...' : 'Discharge Patient'}

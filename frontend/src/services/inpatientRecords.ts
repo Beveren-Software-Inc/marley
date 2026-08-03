@@ -26,6 +26,8 @@ export interface InpatientRecord {
   file_no?: string
   room_service_no?: string
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
+  /** 1 when a draft Discharge exists (started, not submitted). */
+  discharge_in_progress?: number | boolean
   scheduled_date: string
   admitted_datetime?: string
   admission_date?: string
@@ -676,6 +678,8 @@ export async function admitPatient(
     transaction_no?: string
     upload_remarks?: string
     document?: string
+    patient_relation?: string
+    signee_name?: string
   }[],
   patientRelatives?: {
     relative_relation?: string
@@ -697,6 +701,7 @@ export async function admitPatient(
   caseManagementTemplate?: string | null,
   caseManagementFee?: number | null,
   caseManagementServices?: Array<{ template: string; amount?: number | null }> | null,
+  serviceUnitType?: string | null,
 ) {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -734,6 +739,7 @@ export async function admitPatient(
         case_management_services: caseManagementServices?.length
           ? caseManagementServices
           : null,
+        service_unit_type: serviceUnitType || null,
       })
     }
   )
@@ -1007,6 +1013,34 @@ export async function getPatientActiveAdmission(patient: string): Promise<Inpati
   // Frappe wraps return value in `message`; null means no active admission
   if ('message' in resData) {
     return resData.message ? (resData.message as InpatientRecord) : null
+  }
+
+  return null
+}
+
+export type BlockingAdmission = {
+  name: string
+  patient?: string
+  patient_name?: string
+  status: string
+  case_no?: string
+  scheduled_date?: string
+}
+
+/** Open admission that blocks creating/scheduling another for the same patient. */
+export async function getPatientBlockingAdmission(patient: string): Promise<BlockingAdmission | null> {
+  const response = await fetch(
+    `/api/method/healthcare.api.inpatient_admission.get_patient_blocking_admission?patient=${encodeURIComponent(patient)}`
+  )
+  const resData = await response.json().catch(() => ({}))
+
+  if (!response.ok) {
+    const msg = resData?.message || resData?.exc || 'Failed to check existing admissions'
+    throw new Error(typeof msg === 'string' ? msg : String(msg))
+  }
+
+  if ('message' in resData) {
+    return resData.message ? (resData.message as BlockingAdmission) : null
   }
 
   return null

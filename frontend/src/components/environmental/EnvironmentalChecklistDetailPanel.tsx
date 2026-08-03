@@ -219,24 +219,32 @@ export function EnvironmentalChecklistDetailPanel({
                 {details.map((item) => (
                   <li
                     key={item.name}
-                    className={`flex items-start gap-2.5 rounded-md border px-3 py-2.5 ${
+                    className={`rounded-md border px-3 py-2.5 ${
                       item.checked
                         ? 'border-green-200 bg-green-50/60'
                         : 'border-slate-200 bg-slate-50/50'
                     }`}
                   >
-                    {item.checked ? (
-                      <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" strokeWidth={2.5} />
-                    ) : (
-                      <X className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" strokeWidth={2.5} />
-                    )}
-                    <span
-                      className={`text-sm leading-snug ${
-                        item.checked ? 'text-slate-800' : 'text-slate-600'
-                      }`}
-                    >
-                      {item.item_name || '—'}
-                    </span>
+                    <div className="flex items-start gap-2.5">
+                      {item.checked ? (
+                        <Check className="w-4 h-4 text-green-600 shrink-0 mt-0.5" strokeWidth={2.5} />
+                      ) : (
+                        <X className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" strokeWidth={2.5} />
+                      )}
+                      <span
+                        className={`text-sm leading-snug ${
+                          item.checked ? 'text-slate-800' : 'text-slate-600'
+                        }`}
+                      >
+                        {item.item_name || '—'}
+                      </span>
+                    </div>
+                    {item.checked && item.remarks ? (
+                      <p className="mt-1.5 ml-6 text-xs text-slate-600 whitespace-pre-wrap border-t border-green-100 pt-1.5">
+                        <span className="font-semibold text-slate-700">Remarks: </span>
+                        {item.remarks}
+                      </p>
+                    ) : null}
                   </li>
                 ))}
               </ul>

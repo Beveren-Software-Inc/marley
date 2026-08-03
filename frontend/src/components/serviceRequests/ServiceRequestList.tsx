@@ -27,7 +27,7 @@ import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { LabRequestActionModal, type LabRequestModalAction } from './LabRequestActionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
-import { Search, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
@@ -536,13 +536,12 @@ export const ServiceRequestList = ({
       <div className="card-filter-bar mb-4 flex flex-shrink-0 flex-wrap items-center gap-3 rounded-md border-b border-slate-100 bg-slate-50/80 px-1 py-2">
         {/* Search */}
         <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by SR ID..."
-            className="w-full pl-8 pr-8 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+            className="w-full pr-8 py-2 text-sm border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
           />
           {search && (
             <button type="button" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">

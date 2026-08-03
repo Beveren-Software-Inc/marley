@@ -169,7 +169,7 @@ def search_sales_orders_for_payment(search=None, patient=None, limit=30):
 
 def _validate_input(data: dict) -> None:
     """Raise if any required field is missing or values are invalid."""
-    required = ["reference_doctype", "reference_name", "paid_amount", "mode_of_payment"]
+    required = ["reference_doctype", "reference_name"]
     for field in required:
         if not data.get(field):
             frappe.throw(_(f"{field.replace('_', ' ').title()} is required"))
@@ -177,7 +177,10 @@ def _validate_input(data: dict) -> None:
     if data["reference_doctype"] not in ("Sales Invoice", "Sales Order"):
         frappe.throw(_("Reference Type must be Sales Invoice or Sales Order"))
 
-    if frappe.utils.flt(data["paid_amount"]) <= 0:
+    # Amount / mode validated via _parse_payment_modes (supports multi-mode).
+    if not data.get("payment_modes") and not data.get("mode_of_payment"):
+        frappe.throw(_("Mode of Payment is required"))
+    if not data.get("payment_modes") and frappe.utils.flt(data.get("paid_amount")) <= 0:
         frappe.throw(_("Paid Amount must be greater than zero"))
 
 
@@ -312,47 +315,66 @@ def _append_reference_row(pe, reference_doctype: str, reference_name: str, ref_d
 @frappe.whitelist()
 def create_payment_entry(data: dict) -> dict:
     """
-    Create a Payment Entry against a Sales Invoice or Sales Order.
+    Create Payment Entry(ies) against a Sales Invoice or Sales Order.
 
     Expected data keys:
         reference_doctype   : "Sales Invoice" | "Sales Order"  (required)
         reference_name      : name of the reference doc         (required)
-        paid_amount         : float                             (required)
-        mode_of_payment     : str                               (required)
+        paid_amount         : float                             (required unless payment_modes)
+        mode_of_payment     : str                               (required unless payment_modes)
+        payment_modes       : [{mode_of_payment, amount, reference_no?}]  (optional multi-mode)
         visit               : Patient Visit name                (optional)
         patient             : Patient docname                   (optional)
         remarks             : str                               (optional)
     """
+    if isinstance(data, str):
+        import json
+
+        data = json.loads(data)
+
     _validate_input(data)
+    modes = _parse_payment_modes(data)
+    results = []
+    for mode in modes:
+        payload = dict(data)
+        payload["mode_of_payment"] = mode["mode_of_payment"]
+        payload["paid_amount"] = mode["amount"]
+        if mode.get("reference_no"):
+            payload["reference_no"] = mode["reference_no"]
+        results.append(_create_single_payment_entry(payload))
+    return _combine_multi_mode_results(results)
 
+
+def _create_single_payment_entry(data: dict) -> dict:
     reference_doctype = data["reference_doctype"]
-    reference_name    = data["reference_name"]
-    paid_amount       = frappe.utils.flt(data["paid_amount"])
-    mode_of_payment   = data["mode_of_payment"]
+    reference_name = data["reference_name"]
+    paid_amount = frappe.utils.flt(data["paid_amount"])
+    mode_of_payment = data["mode_of_payment"]
 
-    ref_doc           = _get_reference_doc(reference_doctype, reference_name)
+    # Re-fetch so subsequent modes see reduced outstanding after prior PEs.
+    ref_doc = _get_reference_doc(reference_doctype, reference_name)
     company, currency = _resolve_company_and_currency(ref_doc)
-    party             = _resolve_party(ref_doc)
+    party = _resolve_party(ref_doc)
     paid_from, paid_to = _resolve_accounts(company, mode_of_payment)
 
     pe = frappe.new_doc("Payment Entry")
-    pe.payment_type               = "Receive"
-    pe.company                    = company
-    pe.posting_date               = frappe.utils.today()
-    pe.mode_of_payment            = mode_of_payment
-    pe.party_type                 = "Customer"
-    pe.party                      = party
-    pe.party_name                 = frappe.db.get_value("Customer", party, "customer_name") or party
-    pe.paid_from                  = paid_from
-    pe.paid_to                    = paid_to
+    pe.payment_type = "Receive"
+    pe.company = company
+    pe.posting_date = frappe.utils.today()
+    pe.mode_of_payment = mode_of_payment
+    pe.party_type = "Customer"
+    pe.party = party
+    pe.party_name = frappe.db.get_value("Customer", party, "customer_name") or party
+    pe.paid_from = paid_from
+    pe.paid_to = paid_to
     pe.paid_from_account_currency = currency
-    pe.paid_to_account_currency   = currency
-    pe.paid_amount                = paid_amount
-    pe.received_amount            = paid_amount
-    pe.source_exchange_rate       = 1
-    pe.target_exchange_rate       = 1
-    pe.difference_amount          = 0
-    pe.remarks                    = _build_remarks(
+    pe.paid_to_account_currency = currency
+    pe.paid_amount = paid_amount
+    pe.received_amount = paid_amount
+    pe.source_exchange_rate = 1
+    pe.target_exchange_rate = 1
+    pe.difference_amount = 0
+    pe.remarks = _build_remarks(
         reference_doctype,
         reference_name,
         data.get("visit"),
@@ -360,7 +382,7 @@ def create_payment_entry(data: dict) -> dict:
         data.get("remarks", ""),
         data.get("appointment"),
     )
-    pe.custom_insurance_claim = data.get("custom_insurance_claim")  # Optional link to Insurance Claim
+    pe.custom_insurance_claim = data.get("custom_insurance_claim")
     if data.get("custom_insurance_company") and pe.meta.has_field("custom_insurance_company"):
         pe.custom_insurance_company = data.get("custom_insurance_company")
 
@@ -445,6 +467,102 @@ def _parse_allocations(raw) -> list[dict]:
 	if not isinstance(raw, list):
 		frappe.throw(_("Allocations must be a list of invoice amounts"))
 	return raw
+
+
+def _parse_payment_modes(data: dict, *, amount_key: str = "paid_amount") -> list[dict]:
+	"""Normalize single mode fields or a payment_modes list into [{mode, amount, reference_no}]."""
+	raw = data.get("payment_modes")
+	if isinstance(raw, str):
+		import json
+
+		raw = json.loads(raw) if raw.strip() else None
+
+	modes: list[dict] = []
+	if isinstance(raw, list) and raw:
+		for row in raw:
+			if not isinstance(row, dict):
+				continue
+			mode = (row.get("mode_of_payment") or row.get("payment_mode") or "").strip()
+			amount = flt(row.get("amount") or row.get("paid_amount") or 0)
+			if not mode or amount <= 0:
+				continue
+			modes.append(
+				{
+					"mode_of_payment": mode,
+					"amount": amount,
+					"reference_no": (row.get("reference_no") or "").strip() or None,
+				}
+			)
+	else:
+		mode = (data.get("mode_of_payment") or data.get("payment_mode") or "").strip()
+		amount = flt(data.get(amount_key) or data.get("paid_amount") or data.get("refund_amount") or 0)
+		if mode and amount > 0:
+			modes.append(
+				{
+					"mode_of_payment": mode,
+					"amount": amount,
+					"reference_no": (data.get("reference_no") or "").strip() or None,
+				}
+			)
+
+	if not modes:
+		frappe.throw(_("Add at least one mode of payment with an amount greater than zero"))
+
+	seen = set()
+	for row in modes:
+		if row["mode_of_payment"] in seen:
+			frappe.throw(_("Duplicate mode of payment: {0}").format(row["mode_of_payment"]))
+		seen.add(row["mode_of_payment"])
+
+	return modes
+
+
+def _combine_multi_mode_results(results: list[dict], *, label: str = "Payment") -> dict:
+	names = [r.get("name") for r in results if r.get("name")]
+	draft = any(r.get("is_draft") for r in results)
+	unallocated = sum(flt(r.get("unallocated_amount")) for r in results)
+	if len(names) == 1:
+		return results[0]
+	msg = f"{label} entries created: {', '.join(names)}"
+	if unallocated > 0:
+		msg += f". Unallocated credit: {unallocated:.2f}"
+	return {
+		"name": names[0] if names else "",
+		"names": names,
+		"server_message": msg,
+		"unallocated_amount": unallocated,
+		"docstatus": 0 if draft else 1,
+		"is_draft": draft,
+	}
+
+
+def _split_allocations_across_modes(modes: list[dict], allocations: list[dict]) -> list[dict]:
+	"""Greedily assign invoice allocations to each payment mode in order."""
+	remaining = [
+		{
+			"reference_name": row.get("reference_name") or row.get("invoice"),
+			"left": flt(row.get("allocated_amount")),
+		}
+		for row in allocations
+		if (row.get("reference_name") or row.get("invoice")) and flt(row.get("allocated_amount")) > 0
+	]
+	out = []
+	for mode in modes:
+		mode_left = flt(mode["amount"])
+		mode_allocs = []
+		for row in remaining:
+			if mode_left <= 0:
+				break
+			take = min(flt(row["left"]), mode_left)
+			if take <= 0:
+				continue
+			mode_allocs.append(
+				{"reference_name": row["reference_name"], "allocated_amount": take}
+			)
+			row["left"] = flt(row["left"]) - take
+			mode_left -= take
+		out.append({**mode, "allocations": mode_allocs})
+	return out
 
 
 def _new_receive_payment_entry(
@@ -594,7 +712,7 @@ def list_patient_outstanding_invoices(patient: str, limit=50):
 def create_patient_advance_payment(data: dict) -> dict:
 	"""
 	Record a patient payment without an invoice. The full amount is kept as unallocated credit
-	for future invoices.
+	for future invoices. Supports payment_modes for multiple Payment Entries.
 	"""
 	if isinstance(data, str):
 		import json
@@ -603,13 +721,8 @@ def create_patient_advance_payment(data: dict) -> dict:
 	patient = data.get("patient")
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	paid_amount = flt(data.get("paid_amount"))
-	if paid_amount <= 0:
-		frappe.throw(_("Paid Amount must be greater than zero"))
-	mode_of_payment = data.get("mode_of_payment")
-	if not mode_of_payment:
-		frappe.throw(_("Mode of Payment is required"))
 
+	modes = _parse_payment_modes(data)
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
 	remarks_parts = [f"Patient advance payment — {patient}"]
@@ -617,23 +730,26 @@ def create_patient_advance_payment(data: dict) -> dict:
 		remarks_parts.append(data["remarks"])
 	remarks = " | ".join(remarks_parts)
 
-	pe = _new_receive_payment_entry(
-		customer,
-		company,
-		mode_of_payment,
-		paid_amount,
-		remarks,
-		data.get("reference_no"),
-		data.get("reference_date"),
-	)
-	return _submit_payment_entry(pe)
+	results = []
+	for mode in modes:
+		pe = _new_receive_payment_entry(
+			customer,
+			company,
+			mode["mode_of_payment"],
+			mode["amount"],
+			remarks,
+			mode.get("reference_no") or data.get("reference_no"),
+			data.get("reference_date"),
+		)
+		results.append(_submit_payment_entry(pe))
+	return _combine_multi_mode_results(results, label="Advance payment")
 
 
 @frappe.whitelist()
 def create_multi_invoice_payment(data: dict) -> dict:
 	"""
-	Single payment allocated across multiple sales invoices. Any amount above total allocations
-	is kept as unallocated patient credit.
+	Payment allocated across multiple sales invoices. Supports payment_modes (one PE per mode).
+	Any amount above total allocations is kept as unallocated patient credit.
 	"""
 	if isinstance(data, str):
 		import json
@@ -642,12 +758,9 @@ def create_multi_invoice_payment(data: dict) -> dict:
 	patient = data.get("patient")
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	paid_amount = flt(data.get("paid_amount"))
-	if paid_amount <= 0:
-		frappe.throw(_("Paid Amount must be greater than zero"))
-	mode_of_payment = data.get("mode_of_payment")
-	if not mode_of_payment:
-		frappe.throw(_("Mode of Payment is required"))
+
+	modes = _parse_payment_modes(data)
+	paid_amount = sum(flt(m["amount"]) for m in modes)
 
 	allocations = _parse_allocations(data.get("allocations"))
 	if not allocations:
@@ -659,21 +772,7 @@ def create_multi_invoice_payment(data: dict) -> dict:
 	if total_allocated > paid_amount:
 		frappe.throw(_("Total allocated amount cannot exceed the payment amount"))
 
-	customer = _patient_customer(patient)
-	company = _resolve_company_for_patient(patient, data.get("company"))
-	invoice_names = []
-	remarks_parts = [f"Multi-invoice payment — Patient: {patient}"]
-
-	pe = _new_receive_payment_entry(
-		customer,
-		company,
-		mode_of_payment,
-		paid_amount,
-		" | ".join(remarks_parts),
-		data.get("reference_no"),
-		data.get("reference_date"),
-	)
-
+	# Validate invoices once before creating any Payment Entries.
 	for row in allocations:
 		invoice_name = row.get("reference_name") or row.get("invoice")
 		allocated = flt(row.get("allocated_amount"))
@@ -689,34 +788,61 @@ def create_multi_invoice_payment(data: dict) -> dict:
 					invoice_name, allocated, outstanding
 				)
 			)
-		pe.append(
-			"references",
-			{
-				"reference_doctype": "Sales Invoice",
-				"reference_name": invoice_name,
-				"bill_no": inv.get("bill_no") or "",
-				"due_date": inv.get("due_date"),
-				"total_amount": flt(inv.grand_total),
-				"outstanding_amount": outstanding,
-				"allocated_amount": allocated,
-			},
-		)
-		invoice_names.append(invoice_name)
 
-	if not pe.references:
-		frappe.throw(_("No valid invoice allocations were provided"))
-
+	customer = _patient_customer(patient)
+	company = _resolve_company_for_patient(patient, data.get("company"))
+	remarks_base = [f"Multi-invoice payment — Patient: {patient}"]
 	if data.get("remarks"):
-		pe.remarks += f" | {data['remarks']}"
-	if invoice_names:
-		pe.remarks += f" | Invoices: {', '.join(invoice_names)}"
+		remarks_base.append(data["remarks"])
 
-	return _submit_payment_entry(pe)
+	mode_payloads = _split_allocations_across_modes(modes, allocations)
+	results = []
+	for mp in mode_payloads:
+		invoice_names = []
+		remarks = " | ".join(remarks_base)
+		pe = _new_receive_payment_entry(
+			customer,
+			company,
+			mp["mode_of_payment"],
+			mp["amount"],
+			remarks,
+			mp.get("reference_no") or data.get("reference_no"),
+			data.get("reference_date"),
+		)
+		for row in mp.get("allocations") or []:
+			invoice_name = row.get("reference_name")
+			allocated = flt(row.get("allocated_amount"))
+			if not invoice_name or allocated <= 0:
+				continue
+			inv = _get_reference_doc("Sales Invoice", invoice_name)
+			outstanding = flt(inv.outstanding_amount)
+			take = min(allocated, outstanding) if outstanding > 0 else allocated
+			if take <= 0:
+				continue
+			pe.append(
+				"references",
+				{
+					"reference_doctype": "Sales Invoice",
+					"reference_name": invoice_name,
+					"bill_no": inv.get("bill_no") or "",
+					"due_date": inv.get("due_date"),
+					"total_amount": flt(inv.grand_total),
+					"outstanding_amount": outstanding,
+					"allocated_amount": take,
+				},
+			)
+			invoice_names.append(invoice_name)
+
+		if invoice_names:
+			pe.remarks += f" | Invoices: {', '.join(invoice_names)}"
+		results.append(_submit_payment_entry(pe))
+
+	return _combine_multi_mode_results(results, label="Multi-invoice payment")
 
 
 @frappe.whitelist()
 def create_patient_refund(data: dict) -> dict:
-	"""Refund unallocated patient credit (Pay Payment Entry)."""
+	"""Refund unallocated patient credit (Pay Payment Entry). Supports payment_modes."""
 	if isinstance(data, str):
 		import json
 
@@ -724,12 +850,9 @@ def create_patient_refund(data: dict) -> dict:
 	patient = data.get("patient")
 	if not patient:
 		frappe.throw(_("Patient is required"))
-	refund_amount = flt(data.get("refund_amount") or data.get("paid_amount"))
-	if refund_amount <= 0:
-		frappe.throw(_("Refund amount must be greater than zero"))
-	mode_of_payment = data.get("mode_of_payment")
-	if not mode_of_payment:
-		frappe.throw(_("Mode of Payment is required"))
+
+	modes = _parse_payment_modes(data, amount_key="refund_amount")
+	refund_amount = sum(flt(m["amount"]) for m in modes)
 
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
@@ -739,7 +862,6 @@ def create_patient_refund(data: dict) -> dict:
 			_("Refund amount ({0}) exceeds available patient credit ({1})").format(refund_amount, credit_balance)
 		)
 
-	receivable, bank_or_cash = _resolve_accounts(company, mode_of_payment)
 	currency = frappe.get_cached_value("Company", company, "default_currency") or frappe.defaults.get_global_default(
 		"currency"
 	)
@@ -747,26 +869,36 @@ def create_patient_refund(data: dict) -> dict:
 	if data.get("remarks"):
 		remarks_parts.append(data["remarks"])
 	remarks = " | ".join(remarks_parts)
+	draft = _is_reception_portal_user()
 
-	pe = frappe.new_doc("Payment Entry")
-	pe.payment_type = "Pay"
-	pe.company = company
-	pe.posting_date = frappe.utils.today()
-	pe.mode_of_payment = mode_of_payment
-	pe.party_type = "Customer"
-	pe.party = customer
-	pe.party_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
-	pe.paid_from = bank_or_cash
-	pe.paid_to = receivable
-	pe.paid_from_account_currency = currency
-	pe.paid_to_account_currency = currency
-	pe.paid_amount = refund_amount
-	pe.received_amount = refund_amount
-	pe.source_exchange_rate = 1
-	pe.target_exchange_rate = 1
-	pe.difference_amount = 0
-	pe.remarks = remarks
-	pe.reference_no = (data.get("reference_no") or "").strip() or f"REFUND-{patient}"[:140]
-	pe.reference_date = data.get("reference_date") or frappe.utils.today()
+	results = []
+	for mode in modes:
+		receivable, bank_or_cash = _resolve_accounts(company, mode["mode_of_payment"])
+		pe = frappe.new_doc("Payment Entry")
+		pe.payment_type = "Pay"
+		pe.company = company
+		pe.posting_date = frappe.utils.today()
+		pe.mode_of_payment = mode["mode_of_payment"]
+		pe.party_type = "Customer"
+		pe.party = customer
+		pe.party_name = frappe.db.get_value("Customer", customer, "customer_name") or customer
+		pe.paid_from = bank_or_cash
+		pe.paid_to = receivable
+		pe.paid_from_account_currency = currency
+		pe.paid_to_account_currency = currency
+		pe.paid_amount = mode["amount"]
+		pe.received_amount = mode["amount"]
+		pe.source_exchange_rate = 1
+		pe.target_exchange_rate = 1
+		pe.difference_amount = 0
+		pe.remarks = remarks
+		pe.reference_no = (
+			(mode.get("reference_no") or data.get("reference_no") or "").strip()
+			or f"REFUND-{patient}"[:140]
+		)
+		pe.reference_date = data.get("reference_date") or frappe.utils.today()
+		results.append(_save_payment_entry(pe, draft=draft))
 
-	return _save_payment_entry(pe, draft=_is_reception_portal_user())
+	return _combine_multi_mode_results(results, label="Refund")
+
+

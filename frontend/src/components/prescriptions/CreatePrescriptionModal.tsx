@@ -116,7 +116,7 @@ const emptyMedicationRow = (startDate: string): MedicationOrderRow => ({
   dosage_form: '',
   instructions: '',
   date: startDate,
-  end_date: addDays(startDate, 1),
+  end_date: '',
   time: '',
   patient_frequency: '',
   is_pink: false,
@@ -623,8 +623,8 @@ export const CreatePrescriptionModal = ({
           dosage_form: med.dosage_form || '',
           instructions: med.instructions || '',
           date: med.date || formData.start_date,
-          // Long-acting meds may legitimately have no end date — don't force a default for them.
-          end_date: med.end_date || (isLongActingPrescriptionType(String(med.medication_type)) ? '' : addDays(formData.start_date, 1)),
+          // Leave end date blank when missing — do not default to today/tomorrow.
+          end_date: med.end_date || '',
           time: med.time || '',
           patient_frequency: med.patient_frequency || '',
           is_pink: med.is_pink || false,
@@ -932,12 +932,10 @@ export const CreatePrescriptionModal = ({
         const start = row.date || ''
         const end = (field === 'end_date' ? value : row.end_date) as string
         const days = (field === 'no_of_days' ? value : row.no_of_days) as number
-        if (field === 'date' || field === 'end_date') {
-          if (start && end) {
-            row.no_of_days = daysBetween(start, end) || 1
-          } else if (start && typeof days === 'number' && days > 0) {
-            row.end_date = addDays(start, days)
-          }
+        // Only derive days from start+end; only derive end when the user sets Days.
+        // Do not auto-fill end date from start date alone.
+        if ((field === 'date' || field === 'end_date') && start && end) {
+          row.no_of_days = daysBetween(start, end) || 1
         } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
           row.end_date = addDays(start, days)
         }

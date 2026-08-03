@@ -112,6 +112,8 @@ export type AdmissionClinicalSignature = {
   transaction_no?: string
   upload_remarks?: string
   document?: string
+  patient_relation?: string
+  signee_name?: string
 }
 
 export type AdmissionClinicalBundle = {

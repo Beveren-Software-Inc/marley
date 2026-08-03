@@ -21,6 +21,8 @@ import {
   fetchInpatientRecord,
   updateInpatientAdmission,
   fetchNextCaseNumber,
+  getPatientBlockingAdmission,
+  type BlockingAdmission,
 } from '../../services/inpatientRecords'
 import {
   fetchHealthcarePractitioners,
@@ -187,6 +189,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [loadingRecord, setLoadingRecord] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blockingAdmission, setBlockingAdmission] = useState<BlockingAdmission | null>(null)
+  const [checkingBlockingAdmission, setCheckingBlockingAdmission] = useState(false)
   const { userRole, userCostCenter } = useCareContext()
   const [showCreatePatient, setShowCreatePatient] = useState(false)
   const [showCreatePractitioner, setShowCreatePractitioner] = useState(false)
@@ -281,6 +285,38 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
         // fallback — keep the ID as display name
       })
   }, [patientName, isEditMode])
+
+  // Block create/schedule when the patient already has an open admission
+  useEffect(() => {
+    if (isEditMode) {
+      setBlockingAdmission(null)
+      setCheckingBlockingAdmission(false)
+      return
+    }
+    const patientId = selectedPatient?.name
+    if (!patientId) {
+      setBlockingAdmission(null)
+      setCheckingBlockingAdmission(false)
+      return
+    }
+
+    let cancelled = false
+    setCheckingBlockingAdmission(true)
+    getPatientBlockingAdmission(patientId)
+      .then((existing) => {
+        if (!cancelled) setBlockingAdmission(existing)
+      })
+      .catch(() => {
+        if (!cancelled) setBlockingAdmission(null)
+      })
+      .finally(() => {
+        if (!cancelled) setCheckingBlockingAdmission(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [selectedPatient?.name, isEditMode])
 
   // Load existing admission when editing
   useEffect(() => {
@@ -638,6 +674,14 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     if (!selectedPatient) {
       setError('Please select a patient')
       if (!isEditMode) setActiveCreateTab('admission')
+      return
+    }
+
+    if (!isEditMode && blockingAdmission) {
+      setError(
+        `This patient already has an active admission (${blockingAdmission.status}: ${blockingAdmission.case_no || blockingAdmission.name}). Please use the existing admission or complete discharge before scheduling a new one.`,
+      )
+      setActiveCreateTab('admission')
       return
     }
 
@@ -1064,6 +1108,25 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             closeAllDropdowns()
           }
         }}>
+          {!isEditMode && blockingAdmission ? (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+              <p className="font-medium">Unable to schedule a new admission</p>
+              <p className="mt-1 text-amber-800/90">
+                This patient already has an active admission
+                {blockingAdmission.status ? ` (${blockingAdmission.status})` : ''}
+                {' — '}
+                <span className="font-semibold">
+                  {blockingAdmission.case_no || blockingAdmission.name}
+                </span>
+                . Please continue with the existing admission or complete discharge before creating a new one.
+              </p>
+            </div>
+          ) : null}
+          {!isEditMode && checkingBlockingAdmission && selectedPatient ? (
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-2 text-xs text-slate-600">
+              Checking for an existing admission…
+            </div>
+          ) : null}
           {showAdmissionFields && (
           <>
           {/* Patient Selection */}
@@ -1991,7 +2054,11 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             <button type="button" onClick={onClose} className={CM_BTN_CANCEL}>
               Cancel
             </button>
-            <button type="submit" disabled={submitting || loadingRecord} className={CM_BTN_PRIMARY}>
+            <button
+              type="submit"
+              disabled={submitting || loadingRecord || Boolean(!isEditMode && blockingAdmission) || checkingBlockingAdmission}
+              className={CM_BTN_PRIMARY}
+            >
               {submitting
                 ? (isEditMode ? 'Saving...' : 'Creating...')
                 : (isEditMode ? 'Save Changes' : 'Create Admission')}

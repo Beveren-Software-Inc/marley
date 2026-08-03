@@ -29,6 +29,14 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import {
+  PaymentModeLines,
+  newPaymentModeLine,
+  sumPaymentModeLines,
+  paymentModesPayload,
+  validatePaymentModeLines,
+  type PaymentModeLine,
+} from './PaymentModeLines'
 
 interface LinkFieldProps {
   label: string
@@ -179,8 +187,7 @@ export function StandalonePaymentModal({
   const [balanceLoading, setBalanceLoading] = useState(false)
 
   const [paymentModes, setPaymentModes] = useState<string[]>([])
-  const [modeOfPayment, setModeOfPayment] = useState('')
-  const [amount, setAmount] = useState('')
+  const [modeLines, setModeLines] = useState<PaymentModeLine[]>([newPaymentModeLine()])
   const [remarks, setRemarks] = useState('')
   const [loading, setLoading] = useState(false)
   const [invoiceLoading, setInvoiceLoading] = useState(false)
@@ -193,7 +200,13 @@ export function StandalonePaymentModal({
     fetchModeOfPayments()
       .then((modes) => {
         setPaymentModes(modes)
-        if (modes.length > 0) setModeOfPayment(modes[0])
+        if (modes.length > 0) {
+          setModeLines((prev) =>
+            prev.length === 1 && !prev[0].mode_of_payment
+              ? [{ ...prev[0], mode_of_payment: modes[0] }]
+              : prev
+          )
+        }
       })
       .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque']))
   }, [])
@@ -295,7 +308,12 @@ export function StandalonePaymentModal({
       .then((summary) => {
         setInvoiceOutstanding(summary.outstanding_amount)
         if (summary.outstanding_amount > 0) {
-          setAmount(String(summary.outstanding_amount))
+          const amt = String(summary.outstanding_amount)
+          setModeLines((prev) => {
+            const next = prev.length ? [...prev] : [newPaymentModeLine()]
+            next[0] = { ...next[0], amount: amt }
+            return next
+          })
         }
       })
       .catch(() => setInvoiceOutstanding(0))
@@ -318,7 +336,7 @@ export function StandalonePaymentModal({
     [multiSelected]
   )
 
-  const parsedAmount = parseFloat(amount) || 0
+  const parsedAmount = sumPaymentModeLines(modeLines)
   const creditBalance = billingBalance?.credit_balance ?? 0
   const overpayAmount =
     paymentMode === 'single' &&
@@ -335,7 +353,7 @@ export function StandalonePaymentModal({
 
   const handleModeChange = (mode: PaymentMode) => {
     setPaymentMode(mode)
-    setAmount('')
+    setModeLines([newPaymentModeLine(paymentModes[0] || '')])
     setRemarks('')
     if (mode !== 'single') {
       setSelectedInvoice(null)
@@ -347,7 +365,11 @@ export function StandalonePaymentModal({
 
   const handleTypeChange = (type: ReferenceType) => {
     setReferenceType(type)
-    setAmount('')
+    setModeLines((prev) => {
+      const next = prev.length ? [...prev] : [newPaymentModeLine(paymentModes[0] || '')]
+      next[0] = { ...next[0], amount: '' }
+      return next
+    })
     setInvoiceOutstanding(0)
     if (type === 'Sales Invoice') {
       setSelectedOrder(null)
@@ -380,10 +402,13 @@ export function StandalonePaymentModal({
       return
     }
 
-    if (!modeOfPayment) {
-      toast.error('Please select a mode of payment')
+    const modesErr = validatePaymentModeLines(modeLines)
+    if (modesErr) {
+      toast.error(modesErr)
       return
     }
+    const modesPayload = paymentModesPayload(modeLines)
+    const primaryMode = modesPayload[0]
 
     setLoading(true)
     try {
@@ -399,7 +424,8 @@ export function StandalonePaymentModal({
         const result = await createPatientAdvancePayment({
           patient: effectivePatient,
           paid_amount: parsedAmount,
-          mode_of_payment: modeOfPayment,
+          mode_of_payment: primaryMode.mode_of_payment,
+          payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
         })
         toast.success(result.server_message || `Advance payment ${result.name} recorded`)
@@ -426,7 +452,8 @@ export function StandalonePaymentModal({
         const result = await createMultiInvoicePayment({
           patient: effectivePatient,
           paid_amount: parsedAmount,
-          mode_of_payment: modeOfPayment,
+          mode_of_payment: primaryMode.mode_of_payment,
+          payment_modes: modesPayload,
           allocations,
           remarks: remarks.trim() || undefined,
         })
@@ -447,7 +474,8 @@ export function StandalonePaymentModal({
         const result = await createPatientRefund({
           patient: effectivePatient,
           refund_amount: parsedAmount,
-          mode_of_payment: modeOfPayment,
+          mode_of_payment: primaryMode.mode_of_payment,
+          payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
         })
         toast.success(
@@ -470,7 +498,8 @@ export function StandalonePaymentModal({
           reference_doctype: referenceType,
           reference_name: selectedReference.name,
           paid_amount: parsedAmount,
-          mode_of_payment: modeOfPayment,
+          mode_of_payment: primaryMode.mode_of_payment,
+          payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
           patient: scopedPatient,
         })
@@ -645,13 +674,22 @@ export function StandalonePaymentModal({
                     const match = invoiceOptions.find((row) => row.name === opt.name)
                     if (match?.outstanding_amount && match.outstanding_amount > 0) {
                       setInvoiceOutstanding(match.outstanding_amount)
-                      setAmount(String(match.outstanding_amount))
+                      const amt = String(match.outstanding_amount)
+                      setModeLines((prev) => {
+                        const next = prev.length ? [...prev] : [newPaymentModeLine()]
+                        next[0] = { ...next[0], amount: amt }
+                        return next
+                      })
                     }
                   }}
                   onClear={() => {
                     setSelectedInvoice(null)
                     setInvoiceQuery('')
-                    setAmount('')
+                    setModeLines((prev) => {
+                      const next = prev.length ? [...prev] : [newPaymentModeLine(paymentModes[0] || '')]
+                      next[0] = { ...next[0], amount: '' }
+                      return next
+                    })
                     setInvoiceOutstanding(0)
                   }}
                 />
@@ -771,52 +809,26 @@ export function StandalonePaymentModal({
             </div>
           )}
 
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
-              {paymentMode === 'refund' ? 'Refund amount' : 'Amount received'}{' '}
-              <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="number"
-              min={moneyInput.min}
-              step={moneyInput.step}
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder={moneyInput.placeholder}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-              required
-            />
-            {paymentMode === 'multi' && multiExcess > 0 && (
-              <p className="mt-1.5 text-xs text-emerald-700">
-                {formatMoney(multiExcess)} will be kept as patient credit for future invoices.
-              </p>
-            )}
-            {overpayAmount > 0 && (
-              <p className="mt-1.5 text-xs text-emerald-700">
-                {formatMoney(overpayAmount)} exceeds the invoice outstanding and will be saved as
-                patient credit.
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
-              Mode of Payment <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={modeOfPayment}
-              onChange={(e) => setModeOfPayment(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              required
-            >
-              <option value="">Select mode of payment...</option>
-              {paymentModes.map((m) => (
-                <option key={m} value={m}>
-                  {m}
-                </option>
-              ))}
-            </select>
-          </div>
+          <PaymentModeLines
+            modes={paymentModes}
+            lines={modeLines}
+            onChange={setModeLines}
+            moneyStep={moneyInput.step}
+            moneyMin={moneyInput.min}
+            moneyPlaceholder={moneyInput.placeholder}
+            formatMoney={formatMoney}
+          />
+          {paymentMode === 'multi' && multiExcess > 0 && (
+            <p className="text-xs text-emerald-700">
+              {formatMoney(multiExcess)} will be kept as patient credit for future invoices.
+            </p>
+          )}
+          {overpayAmount > 0 && (
+            <p className="text-xs text-emerald-700">
+              {formatMoney(overpayAmount)} exceeds the invoice outstanding and will be saved as
+              patient credit.
+            </p>
+          )}
 
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1.5">Remarks</label>

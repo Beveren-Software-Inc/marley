@@ -31,6 +31,8 @@ import {
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import type { PatientDocumentRow } from '../../services/patients'
+import { useAuth } from '../../providers/AuthProvider'
+import { isDoctorRole } from '../../config/permissions'
 
 // Constants
 const STATUS_COLORS: Record<string, string> = {
@@ -1125,7 +1127,14 @@ const ProgressNotesTab = ({
 
 function resolveAdmissionSignatureRows(record: InpatientRecord): PatientDocumentRow[] {
   const rows = record.e_signatures || record.patient_documents || []
-  return rows.filter((row) => row?.document || row?.file_name || row?.document_type)
+  return rows.filter(
+    (row) =>
+      row?.document ||
+      row?.file_name ||
+      row?.document_type ||
+      row?.patient_relation ||
+      row?.signee_name,
+  )
 }
 
 const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
@@ -1157,10 +1166,11 @@ const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
 
           {eSignatures.map((row, idx) => {
             const label =
+              row.signee_name?.trim() ||
               row.file_name?.trim() ||
-              row.document_type?.trim() ||
               row.transaction_no?.trim() ||
               `Signature ${idx + 1}`
+            const relation = row.patient_relation?.trim()
             return (
               <div
                 key={`${row.document || label}-${idx}`}
@@ -1170,7 +1180,7 @@ const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{label}</p>
                     <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                      {row.document_type ? <span>Type: {row.document_type}</span> : null}
+                      {relation ? <span>Relation: {relation}</span> : null}
                       {row.transaction_no ? <span>Txn: {row.transaction_no}</span> : null}
                     </div>
                     {row.upload_remarks ? (
@@ -1210,6 +1220,13 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const [showAdmissionForm, setShowAdmissionForm] = useState(false)
   const [selectedPackage, setSelectedPackage] = useState<InpatientPackage | null>(null)
   const [showScheduleDischarge, setShowScheduleDischarge] = useState(false)
+
+  const { user } = useAuth()
+  const isDoctor = isDoctorRole(
+    user?.roles?.length
+      ? user.roles
+      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+  )
 
   const {
     diagnoses,
@@ -1301,7 +1318,12 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const signatureCount =
     (record?.signature ? 1 : 0) +
     (record?.e_signatures || record?.patient_documents || []).filter(
-      (row) => row?.document || row?.file_name || row?.document_type
+      (row) =>
+        row?.document ||
+        row?.file_name ||
+        row?.document_type ||
+        row?.patient_relation ||
+        row?.signee_name,
     ).length
 
   const tabs = [
@@ -1336,7 +1358,16 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             <h2 className="text-lg font-bold text-slate-900">{record.name}</h2>
           </div>
           {record.status && (
-            <StatusPill status={record.status} color={STATUS_COLORS[record.status] || 'default'} />
+            <div className="flex flex-col items-end gap-0.5">
+              <StatusPill status={record.status} color={STATUS_COLORS[record.status] || 'default'} />
+              {Boolean(record.discharge_in_progress) &&
+                record.status !== 'Discharged' &&
+                record.status !== 'Cancelled' && (
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">
+                    Discharge in progress
+                  </span>
+                )}
+            </div>
           )}
         </div>
 
@@ -1351,20 +1382,41 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
                 Admit Patient
               </button>
             )}
-            {record.status === 'Admitted' && (
+            {record.status === 'Admitted' && Boolean(record.discharge_in_progress) && (
               <button
-                onClick={() => setShowScheduleDischarge(true)}
-                className="px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 transition-colors"
+                type="button"
+                onClick={handleOpenDischarge}
+                className="px-4 py-2 text-sm font-medium rounded-md border border-blue-600 text-blue-600 bg-white hover:bg-blue-600 hover:text-white transition-colors"
               >
-                Schedule Discharge
+                Go to Discharge
               </button>
+            )}
+            {record.status === 'Admitted' && !record.discharge_in_progress && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowScheduleDischarge(true)}
+                  className="px-4 py-2 text-sm font-medium rounded-md border border-orange-600 text-orange-600 bg-white hover:bg-orange-600 hover:text-white transition-colors"
+                >
+                  Schedule Discharge
+                </button>
+                {isDoctor && (
+                  <button
+                    type="button"
+                    onClick={handleOpenDischarge}
+                    className="px-4 py-2 text-sm font-medium rounded-md border border-blue-600 text-blue-600 bg-white hover:bg-blue-600 hover:text-white transition-colors"
+                  >
+                    Discharge
+                  </button>
+                )}
+              </>
             )}
             {record.status === 'Discharge Scheduled' && (
               <button
                 onClick={handleOpenDischarge}
                 className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-md hover:bg-green-700 transition-colors"
               >
-                Discharge Patient
+                {Boolean(record.discharge_in_progress) ? 'Go to Discharge' : 'Discharge Patient'}
               </button>
             )}
           </div>

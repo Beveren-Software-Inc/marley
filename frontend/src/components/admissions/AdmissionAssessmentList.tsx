@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { DocDetailView } from '../ui/DocDetailView'
 import { fetchSuicidalAssessments, type SuicidalAssessment } from '../../services/suicidalAssessment'
 import { SuicidalPatientAssessmentDetailPanel } from '../suicidal/SuicidalPatientAssessmentDetailPanel'
+import { EctClinicalFormDetailPanel } from '../ect/EctClinicalFormDetailPanel'
 
 interface AssessmentRecord {
   name: string
@@ -206,31 +206,14 @@ export const AdmissionAssessmentList = ({
           document.body
         )}
 
-      {detailName && !isSuicidal && (
-        <div
-          className="fixed inset-0 z-[70] flex items-start justify-end p-2 sm:p-3"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setDetailName(null)
-          }}
-        >
-          <div className="absolute inset-0 bg-black/30" />
-          <div className="relative z-10 flex h-full w-full max-w-2xl flex-col overflow-hidden rounded-l-2xl bg-white shadow-xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-800">{detailName}</p>
-              <button
-                type="button"
-                onClick={() => setDetailName(null)}
-                className="rounded-md px-2 py-1 text-sm text-slate-500 hover:bg-slate-100"
-              >
-                Close
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              <DocDetailView doctype={doctype} name={detailName} />
-            </div>
-          </div>
-        </div>
-      )}
+      {detailName && !isSuicidal ? (
+        <EctClinicalFormDetailPanel
+          doctype={doctype}
+          doctypeLabel={doctypeLabel}
+          name={detailName}
+          onClose={() => setDetailName(null)}
+        />
+      ) : null}
     </>
   )
 }

@@ -1,10 +1,15 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DateFilterInput } from '../ui/DateFilterInput'
-import { fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
+import {
+  fetchInpatientAdmissionOptions,
+  fetchPatientVisits,
+  type LinkFieldOption,
+} from '../../services/common'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 
-type ReportId = 'receipts' | 'ip-payments' | 'soa'
+type ReportId = 'receipts' | 'ip-payments' | 'soa' | 'soa-op'
 
 const LETTERHEAD = {
   name: 'SERENE PSYCHIATRY HOSPITAL W.L.L',
@@ -62,6 +67,32 @@ function buildLetterhead(reportTitle: string, meta: string) {
     </div><hr/>`
 }
 
+function soaCategoryRows(cats: Record<string, any[]>) {
+  return Object.entries(cats)
+    .map(([cat, rows]) =>
+      rows
+        .map((r, i) => {
+          const lineDisc = Number(r.discount_amount || 0)
+          const discPct = Number(r.discount_percentage || 0)
+          const discCell =
+            lineDisc > 0
+              ? `${fmtAmt(lineDisc)}${discPct > 0 ? ` (${discPct}%)` : ''}`
+              : ''
+          return `<tr>${i === 0 ? `<td rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+        })
+        .join(''),
+    )
+    .join('')
+}
+
+function soaTotalsFooter(data: any) {
+  return `<tr class="total"><td colspan="7">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
+      <tr class="total"><td colspan="7">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
+      <tr class="total"><td colspan="7">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
+      <tr class="total"><td colspan="7">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
+      <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
+}
+
 const DOC_CSS = `
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 16px; }
   .lh { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
@@ -95,6 +126,7 @@ function openDocument(html: string, mode: 'pdf' | 'excel', filename: string) {
 }
 
 export function ReceptionReports() {
+  const { activeAdmission, activeVisit, selectedPatient } = useCareContext()
   const [report, setReport] = useState<ReportId>('receipts')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -102,18 +134,59 @@ export function ReceptionReports() {
   const [admissionQuery, setAdmissionQuery] = useState('')
   const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
   const [admissionOpen, setAdmissionOpen] = useState(false)
+  const [visit, setVisit] = useState('')
+  const [visitQuery, setVisitQuery] = useState('')
+  const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
+  const [visitOpen, setVisitOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const [data, setData] = useState<any>(null)
 
-  const needsAdmission = report !== 'receipts'
+  const needsAdmission = report === 'ip-payments' || report === 'soa'
+  const needsVisit = report === 'soa-op'
+  const resolvedAdmission = (activeAdmission || admission || '').trim()
+  const resolvedVisit = (activeVisit || visit || '').trim()
+
+  const headerCaseLabel = useMemo(() => {
+    if (!activeAdmission) return ''
+    try {
+      return localStorage.getItem('patientSearch_activeAdmissionLabel') || activeAdmission
+    } catch {
+      return activeAdmission
+    }
+  }, [activeAdmission])
+
+  const headerVisitLabel = useMemo(() => {
+    if (!activeVisit) return ''
+    try {
+      return localStorage.getItem('patientSearch_activeVisitLabel') || activeVisit
+    } catch {
+      return activeVisit
+    }
+  }, [activeVisit])
+
+  useEffect(() => {
+    if (!activeAdmission) return
+    setAdmission(activeAdmission)
+    setAdmissionQuery(headerCaseLabel || activeAdmission)
+  }, [activeAdmission, headerCaseLabel])
+
+  useEffect(() => {
+    if (!activeVisit) return
+    setVisit(activeVisit)
+    setVisitQuery(headerVisitLabel || activeVisit)
+  }, [activeVisit, headerVisitLabel])
 
   const run = async () => {
     if (report === 'receipts' && (!fromDate || !toDate)) {
       toast.error('Select From Date and To Date')
       return
     }
-    if (needsAdmission && !admission) {
-      toast.error('Select an admission (case)')
+    if (needsAdmission && !resolvedAdmission) {
+      toast.error('Select a case at the top (patient / admission), then run the report')
+      return
+    }
+    if (needsVisit && !resolvedVisit) {
+      toast.error('Select a patient visit at the top (or pick one below), then run the report')
       return
     }
     setLoading(true)
@@ -122,13 +195,16 @@ export function ReceptionReports() {
       const params = new URLSearchParams()
       if (fromDate) params.append('from_date', fromDate)
       if (toDate) params.append('to_date', toDate)
-      if (needsAdmission) params.append('admission', admission)
+      if (needsAdmission) params.append('admission', resolvedAdmission)
+      if (needsVisit) params.append('visit', resolvedVisit)
       const method =
         report === 'receipts'
           ? 'get_patient_receipts_summary'
           : report === 'ip-payments'
             ? 'get_ip_payment_discounts'
-            : 'get_ip_statement_of_account'
+            : report === 'soa-op'
+              ? 'get_op_statement_of_account'
+              : 'get_ip_statement_of_account'
       const res = await apiRequest<any>(
         `/api/method/healthcare.api.reception_reports.${method}?${params.toString()}`,
       )
@@ -155,40 +231,39 @@ export function ReceptionReports() {
       return { html, filename: `patient-receipts-${fromDate}-${toDate}` }
     }
     if (report === 'ip-payments') {
-      let html = buildLetterhead('IP Payments and Discounts', `${range}${range ? ' · ' : ''}Case No. ${admission}`)
+      let html = buildLetterhead('IP Payments and Discounts', `${range}${range ? ' · ' : ''}Case No. ${resolvedAdmission}`)
       html += sectionTable('DISCOUNT', data.discounts || [], PD_COLS, data.discount_total)
       html += sectionTable('PAID', data.paid || [], PD_COLS, data.paid_total)
       html += `<table style="width:340px"><tbody><tr class="total"><td>Gross Total</td><td class="num">${fmtAmt(data.gross_total)}</td></tr></tbody></table>`
-      return { html, filename: `ip-payments-discounts-${admission}` }
+      return { html, filename: `ip-payments-discounts-${resolvedAdmission}` }
     }
-    // SOA
-    let html = buildLetterhead('Statement of Account', `Case No. ${data.case_no} · ${range}`)
+    if (report === 'soa-op') {
+      let html = buildLetterhead('Statement of Account (OP)', `Visit No. ${data.case_no || data.visit} · ${range}`)
+      html += `<table style="margin-bottom:10px"><tbody>
+        <tr><td><b>Visit No.</b></td><td>${data.visit}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
+        <tr><td><b>Visit Date</b></td><td>${data.visit_date ?? ''}</td><td><b>Patient Name</b></td><td>${data.patient_name ?? ''}</td></tr>
+        <tr><td><b>Visit Type</b></td><td>${data.visit_type ?? ''}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
+        <tr><td><b>Status</b></td><td>${data.status ?? ''}</td><td><b>Branch</b></td><td>${data.branch ?? ''}</td></tr>
+      </tbody></table>`
+      html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
+        ${soaTotalsFooter(data)}
+      </tbody></table>
+      <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+      return { html, filename: `soa-op-${data.case_no || data.visit || resolvedVisit}` }
+    }
+    // SOA IP
+    let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`)
     html += `<table style="margin-bottom:10px"><tbody>
       <tr><td><b>Admission No.</b></td><td>${data.admission}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
       <tr><td><b>Admission Date</b></td><td>${data.admission_date ?? ''}</td><td><b>Patient Name</b></td><td>${data.patient_name ?? ''}</td></tr>
       <tr><td><b>Discharge Date</b></td><td>${data.discharge_date ?? ''}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
       <tr><td><b>Days Charged</b></td><td>${data.days_charged ?? ''}</td><td><b>Case Branch</b></td><td>${data.branch ?? ''}</td></tr>
     </tbody></table>`
-    const cats = data.categories || {}
-    const catRows = Object.entries(cats)
-      .map(([cat, rows]) =>
-        (rows as any[])
-          .map(
-            (r, i) =>
-              `<tr>${i === 0 ? `<td rowspan="${(rows as any[]).length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`,
-          )
-          .join(''),
-      )
-      .join('')
-    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${catRows}
-      <tr class="total"><td colspan="6">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
-      <tr class="total"><td colspan="6">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
-      <tr class="total"><td colspan="6">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
-      <tr class="total"><td colspan="6">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
-      <tr class="total"><td colspan="6">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>
+    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
+      ${soaTotalsFooter(data)}
     </tbody></table>
     <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
-    return { html, filename: `soa-${data.case_no || admission}` }
+    return { html, filename: `soa-${data.case_no || resolvedAdmission}` }
   }
 
   const doExport = (mode: 'pdf' | 'excel') => {
@@ -208,6 +283,14 @@ export function ReceptionReports() {
     }
   }
 
+  const searchVisits = async (q: string) => {
+    try {
+      setVisitOptions(await fetchPatientVisits(selectedPatient || undefined, q || undefined))
+    } catch {
+      setVisitOptions([])
+    }
+  }
+
   const rowsCount =
     !data ? null
     : report === 'receipts' ? (data.op?.length || 0) + (data.payment_only?.length || 0) + (data.ip?.length || 0)
@@ -222,6 +305,7 @@ export function ReceptionReports() {
             ['receipts', 'Patient Receipts Summary'],
             ['ip-payments', 'IP Payments & Discounts'],
             ['soa', 'Statement of Account (IP)'],
+            ['soa-op', 'Statement of Account (OP)'],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -251,7 +335,14 @@ export function ReceptionReports() {
           <label className="text-xs font-medium text-slate-500">To Date</label>
           <DateFilterInput value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white" />
         </div>
-        {needsAdmission && (
+        {needsAdmission && activeAdmission ? (
+          <div className="flex flex-col gap-1 min-w-[180px]">
+            <label className="text-xs font-medium text-slate-500">Case</label>
+            <div className="h-[30px] flex items-center rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 truncate" title={headerCaseLabel}>
+              {activeAdmission}
+            </div>
+          </div>
+        ) : needsAdmission ? (
           <div className="relative flex flex-col gap-1 min-w-[220px]">
             <label className="text-xs font-medium text-slate-500">Admission / Case</label>
             <input
@@ -290,7 +381,54 @@ export function ReceptionReports() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
+        {needsVisit && activeVisit ? (
+          <div className="flex flex-col gap-1 min-w-[180px]">
+            <label className="text-xs font-medium text-slate-500">Visit</label>
+            <div className="h-[30px] flex items-center rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 truncate" title={headerVisitLabel}>
+              {activeVisit}
+            </div>
+          </div>
+        ) : needsVisit ? (
+          <div className="relative flex flex-col gap-1 min-w-[220px]">
+            <label className="text-xs font-medium text-slate-500">Patient Visit</label>
+            <input
+              type="text"
+              value={visit ? visitQuery || visit : visitQuery}
+              onChange={(e) => {
+                setVisitQuery(e.target.value)
+                setVisit('')
+                setVisitOpen(true)
+                void searchVisits(e.target.value)
+              }}
+              onFocus={() => {
+                setVisitOpen(true)
+                void searchVisits(visitQuery)
+              }}
+              onBlur={() => setTimeout(() => setVisitOpen(false), 150)}
+              placeholder="Search visit…"
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            />
+            {visitOpen && visitOptions.length > 0 && (
+              <div className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
+                {visitOptions.map((o) => (
+                  <button
+                    key={o.name}
+                    type="button"
+                    onMouseDown={() => {
+                      setVisit(o.name)
+                      setVisitQuery(o.label || o.name)
+                      setVisitOpen(false)
+                    }}
+                    className="block w-full px-3 py-1.5 text-left text-sm hover:bg-slate-50"
+                  >
+                    {o.label || o.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : null}
         <button
           type="button"
           onClick={() => void run()}

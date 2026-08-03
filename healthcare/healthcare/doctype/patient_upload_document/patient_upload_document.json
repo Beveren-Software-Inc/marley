@@ -6,6 +6,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
+  "patient_relation",
   "transaction_no",
   "document_name",
   "file_name",
@@ -15,6 +16,12 @@
   "upload_remarks"
  ],
  "fields": [
+  {
+   "fieldname": "patient_relation",
+   "fieldtype": "Data",
+   "label": "Patient Relation",
+   "options": "Patient Relation"
+  },
   {
    "fieldname": "document_name",
    "fieldtype": "Data",
@@ -64,7 +71,7 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-15 12:09:11.894627",
+ "modified": "2026-08-03 18:05:45.237040",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Upload Document",

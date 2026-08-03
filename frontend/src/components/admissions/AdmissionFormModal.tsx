@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient, calculatePackagePrice, type ServiceUnit, type BedNoRecord, type InpatientPackage, createAdmissionQuotation, checkAdmissionQuotation, fetchCaseManagementTemplates, fetchAdmissionBillingSettings } from '../../services/inpatientRecords'
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
-import { fetchDocumentTypes, fetchServiceUnitTypes, type LinkFieldOption } from '../../services/common'
+import { fetchDocumentTypes, fetchServiceUnitTypes, createDocumentType, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
@@ -394,7 +394,7 @@ interface AdmissionFormModalProps {
   onClose: () => void
 }
 
-type Tab = 'admission' | 'case_management' | 'documents' | 'relatives'
+type Tab = 'admission' | 'case_management' | 'documents' | 'signatures' | 'relatives'
 
 // Relationship options – must match IP Patient Relative doctype (same as Discharge)
 const RELATION_OPTIONS = [
@@ -407,6 +407,32 @@ const RELATION_OPTIONS = [
   'Son',
   'Daughter',
 ] as const
+
+/** Patient relation on e-signature rows (Patient Upload Document.patient_relation) */
+const SIGNATURE_RELATION_OPTIONS = [
+  'Self',
+  'Father',
+  'Mother',
+  'Spouse',
+  'Siblings',
+  'Family',
+  'Guardian',
+  'Other',
+] as const
+
+const DEFAULT_SIGNATURE_DOC_TYPE = 'Signature'
+
+function resolveSignatureDocumentType(
+  types: { name: string; document_name?: string }[],
+): string {
+  // Prefer exact "Signature" — never pick "Legacy Signature" (old-system imports).
+  const exact = types.find((t) => {
+    const name = (t.name || '').trim().toLowerCase()
+    const label = (t.document_name || '').trim().toLowerCase()
+    return name === 'signature' || label === 'signature'
+  })
+  return exact?.name || DEFAULT_SIGNATURE_DOC_TYPE
+}
 
 export const AdmissionFormModal = ({
   admissionNo,
@@ -456,11 +482,16 @@ export const AdmissionFormModal = ({
   const [existingQuotation, setExistingQuotation] = useState<string | null>(null)
   const [checkingQuotation, setCheckingQuotation] = useState(false)
 
-  // Documents state
+  // Documents + signatures (separate tabs; both saved to e_signatures)
   const [documents, setDocuments] = useState<PatientDocumentRow[]>([])
+  const [signatures, setSignatures] = useState<PatientDocumentRow[]>([])
   const [documentTypes, setDocumentTypes] = useState<{ name: string; document_name?: string }[]>([])
   const [documentUploading, setDocumentUploading] = useState<number | null>(null)
   const [signatureUploading, setSignatureUploading] = useState<number | null>(null)
+  const signatureDocType = useMemo(
+    () => resolveSignatureDocumentType(documentTypes),
+    [documentTypes],
+  )
 
   // Relatives / guardians
   const [relatives, setRelatives] = useState<
@@ -744,7 +775,7 @@ export const AdmissionFormModal = ({
         setLoading(true)
         setError(null)
 
-        const [recordData, docTypes, cmTemplates, billingSettings] = await Promise.all([
+        const [recordData, fetchedDocTypes, cmTemplates, billingSettings] = await Promise.all([
           fetchInpatientRecord(admissionNo),
           fetchDocumentTypes(),
           fetchCaseManagementTemplates(),
@@ -752,7 +783,32 @@ export const AdmissionFormModal = ({
         ])
 
         setRecord(recordData)
+        let docTypes = fetchedDocTypes
+        const hasSignatureType = docTypes.some((t) => {
+          const name = (t.name || '').trim().toLowerCase()
+          const label = (t.document_name || '').trim().toLowerCase()
+          return name === 'signature' || label === 'signature'
+        })
+        if (!hasSignatureType) {
+          try {
+            const created = await createDocumentType(DEFAULT_SIGNATURE_DOC_TYPE)
+            docTypes = [...docTypes, created]
+          } catch {
+            // Document Type may already exist under another name; form still works
+          }
+        }
         setDocumentTypes(docTypes)
+
+        const sigType = resolveSignatureDocumentType(docTypes)
+        setSignatures([
+          {
+            patient_relation: '',
+            signee_name: '',
+            document_type: sigType,
+            upload_remarks: '',
+            document: '',
+          },
+        ])
         setCaseManagementTemplates(cmTemplates)
         setCombineAdmissionAndCaseManagement(
           Number(billingSettings.combine_admission_fee_and_case_management || 0)
@@ -875,12 +931,42 @@ export const AdmissionFormModal = ({
     setFormData(prev => ({ ...prev, serviceUnit: name }))
   }
 
-  // ── Document helpers ──────────────────────────────────────────────────────
+  // ── Document / signature helpers ──────────────────────────────────────────
 
-  const addDocumentRow = () => setDocuments(prev => [...prev, { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }])
-  const removeDocumentRow = (idx: number) => setDocuments(prev => prev.filter((_, i) => i !== idx))
+  const addDocumentRow = () =>
+    setDocuments((prev) => [
+      ...prev,
+      { file_name: '', document_type: '', transaction_no: '', upload_remarks: '' },
+    ])
+  const removeDocumentRow = (idx: number) =>
+    setDocuments((prev) => prev.filter((_, i) => i !== idx))
   const updateDocumentRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
-    setDocuments(prev => { const next = [...prev]; next[idx] = { ...next[idx], [field]: value }; return next })
+    setDocuments((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
+  }
+
+  const addSignatureRow = () =>
+    setSignatures((prev) => [
+      ...prev,
+      {
+        patient_relation: '',
+        signee_name: '',
+        document_type: signatureDocType,
+        upload_remarks: '',
+        document: '',
+      },
+    ])
+  const removeSignatureRow = (idx: number) =>
+    setSignatures((prev) => prev.filter((_, i) => i !== idx))
+  const updateSignatureRow = (idx: number, field: keyof PatientDocumentRow, value: string) => {
+    setSignatures((prev) => {
+      const next = [...prev]
+      next[idx] = { ...next[idx], [field]: value }
+      return next
+    })
   }
 
   const handleDocumentFile = async (idx: number, file: File | null) => {
@@ -889,9 +975,13 @@ export const AdmissionFormModal = ({
     try {
       const file_url = await uploadPatientFile(file)
       if (!file_url) throw new Error('No URL returned from upload')
-      setDocuments(prev => {
+      setDocuments((prev) => {
         const next = [...prev]
-        next[idx] = { ...next[idx], document: file_url, file_name: next[idx].file_name?.trim() || file.name }
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          file_name: next[idx].file_name?.trim() || file.name,
+        }
         return next
       })
       toast.success('File uploaded')
@@ -907,9 +997,13 @@ export const AdmissionFormModal = ({
     try {
       const file_url = await uploadPatientFile(file)
       if (!file_url) throw new Error('No URL returned from signature upload')
-      setDocuments(prev => {
+      setSignatures((prev) => {
         const next = [...prev]
-        next[idx] = { ...next[idx], document: file_url, file_name: next[idx].file_name?.trim() || `Signature ${idx + 1}` }
+        next[idx] = {
+          ...next[idx],
+          document: file_url,
+          document_type: next[idx].document_type || signatureDocType,
+        }
         return next
       })
       toast.success('Signature saved')
@@ -931,6 +1025,11 @@ export const AdmissionFormModal = ({
   const handleCreateSalesOrder = async () => {
     if (!discountedPrice || discountedPrice <= 0) {
       setError(new Error('Please calculate price first by entering number of days'))
+      return
+    }
+    if (!selectedRoomType?.name) {
+      setError(new Error('Room Type is required'))
+      setActiveTab('admission')
       return
     }
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
@@ -987,9 +1086,31 @@ export const AdmissionFormModal = ({
       return
     }
 
+    if (!selectedRoomType?.name) {
+      setError(new Error('Room Type is required'))
+      setActiveTab('admission')
+      return
+    }
+
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
       setError(new Error('Select at least one Admission Assessment Fee service'))
       setActiveTab('case_management')
+      return
+    }
+
+    const incompleteSignature = signatures.find(
+      (r) =>
+        !(r.patient_relation || '').trim() ||
+        !(r.signee_name || '').trim() ||
+        !(r.document || '').trim(),
+    )
+    if (signatures.length === 0 || incompleteSignature) {
+      setError(
+        new Error(
+          'At least one signature is required with Patient Relation, Signee Name, and a drawn signature',
+        ),
+      )
+      setActiveTab('signatures')
       return
     }
 
@@ -997,15 +1118,26 @@ export const AdmissionFormModal = ({
       setSubmitting(true)
       setError(null)
 
-      const patientDocuments = documents
-        .filter(r => (r.file_name || '').trim() || (r.document || '').trim())
-        .map(r => ({
+      const documentRows = documents
+        .filter((r) => (r.file_name || '').trim() || (r.document || '').trim())
+        .map((r) => ({
           file_name: (r.file_name || '').trim() || undefined,
           document_type: (r.document_type || '').trim() || undefined,
           transaction_no: (r.transaction_no || '').trim() || undefined,
           upload_remarks: (r.upload_remarks || '').trim() || undefined,
           document: (r.document || '').trim() || undefined,
         }))
+
+      const signatureRows = signatures.map((r) => ({
+        patient_relation: (r.patient_relation || '').trim() || undefined,
+        signee_name: (r.signee_name || '').trim() || undefined,
+        document_type: (r.document_type || signatureDocType).trim() || DEFAULT_SIGNATURE_DOC_TYPE,
+        upload_remarks: (r.upload_remarks || '').trim() || undefined,
+        document: (r.document || '').trim() || undefined,
+        file_name: (r.signee_name || '').trim() || undefined,
+      }))
+
+      const patientDocuments = [...documentRows, ...signatureRows]
 
       const patientRelatives = relatives
         .map(r => ({
@@ -1040,6 +1172,7 @@ export const AdmissionFormModal = ({
         wantCm
           ? caseManagementServices.map((s) => ({ template: s.template, amount: s.amount }))
           : null,
+        selectedRoomType.name,
       )
 
       onComplete()
@@ -1066,6 +1199,7 @@ export const AdmissionFormModal = ({
     { id: 'admission', label: 'Admission Details' },
     { id: 'case_management', label: 'Admission Assessment Fee' },
     { id: 'documents', label: 'Documents', badge: documents.length || undefined },
+    { id: 'signatures', label: 'Signatures', badge: signatures.length || undefined },
     { id: 'relatives', label: 'Relatives', badge: relatives.length || undefined },
   ]
 
@@ -1201,7 +1335,7 @@ export const AdmissionFormModal = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div ref={roomTypePickerRef} className="relative">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Room Type <span className="text-slate-400 font-normal">(optional — for pricing)</span>
+                      Room Type <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"
@@ -1569,7 +1703,7 @@ export const AdmissionFormModal = ({
             {activeTab === 'documents' && (
               <div>
                 <p className="text-sm text-slate-500 mb-4">
-                  Attach admission documents or capture digital signatures. Upload a file <em>or</em> draw a signature directly on-screen.
+                  Attach admission documents (photo, PDF, etc.). Use the Signatures tab for digital signing.
                 </p>
                 <div className="space-y-4">
                   {documents.length === 0 && (
@@ -1592,73 +1726,50 @@ export const AdmissionFormModal = ({
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
-                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
-                            <input value={row.file_name} onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
-                              placeholder="File name"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
-                            <DocumentTypeSelect
-                              value={row.document_type || ''}
-                              onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
-                              types={documentTypes}
-                              onTypesUpdated={setDocumentTypes}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
-                            <input value={row.transaction_no || ''} onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
-                              placeholder="Transaction number"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
-                            <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
-                              placeholder="Remarks"
-                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                          </div>
-                          <div className="sm:col-span-2">
-                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
-                              File Attachment
-                              <span className="ml-1 font-normal text-slate-400">(photo, PDF, etc.)</span>
-                            </label>
-                            <input type="file" disabled={documentUploading === idx}
-                              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }}
-                              className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
-                            {documentUploading === idx && (
-                              <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
-                            )}
-                            {row.document && documentUploading !== idx && signatureUploading !== idx && (
-                              <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
-                                ✓ File attached
-                              </span>
-                            )}
-                          </div>
+                      <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">File Name</label>
+                          <input value={row.file_name} onChange={(e) => updateDocumentRow(idx, 'file_name', e.target.value)}
+                            placeholder="File name"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
-
-                        <div className="p-4 flex flex-col gap-2">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <PenLine className="w-3.5 h-3.5 text-slate-400" />
-                            <span className="text-xs font-medium text-slate-600">Digital Signature</span>
-                            <span className="text-xs text-slate-400 ml-1">— draw &amp; save as file</span>
-                          </div>
-                          <div className="flex-1">
-                            <SignaturePad
-                              onSave={(file) => handleSignatureFile(idx, file)}
-                              existingUrl={row.document?.includes('signature_') ? row.document : undefined}
-                              uploading={signatureUploading === idx}
-                            />
-                          </div>
-                          {signatureUploading === idx && (
-                            <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                          <DocumentTypeSelect
+                            value={row.document_type || ''}
+                            onChange={(v) => updateDocumentRow(idx, 'document_type', v)}
+                            types={documentTypes}
+                            onTypesUpdated={setDocumentTypes}
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Transaction No</label>
+                          <input value={row.transaction_no || ''} onChange={(e) => updateDocumentRow(idx, 'transaction_no', e.target.value)}
+                            placeholder="Transaction number"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                          <input value={row.upload_remarks || ''} onChange={(e) => updateDocumentRow(idx, 'upload_remarks', e.target.value)}
+                            placeholder="Remarks"
+                            className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                        </div>
+                        <div className="sm:col-span-2">
+                          <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                            File Attachment
+                            <span className="ml-1 font-normal text-slate-400">(photo, PDF, etc.)</span>
+                          </label>
+                          <input type="file" disabled={documentUploading === idx}
+                            onChange={(e) => { const f = e.target.files?.[0]; if (f) handleDocumentFile(idx, f); e.target.value = '' }}
+                            className="w-full text-sm file:mr-2 file:rounded file:border-0 file:bg-primary file:px-3 file:py-1.5 file:text-white file:text-sm" />
+                          {documentUploading === idx && (
+                            <span className="text-xs text-slate-500 mt-0.5 block">Uploading...</span>
                           )}
-                          <p className="text-xs text-slate-400 leading-relaxed">
-                            Draw above, then tap <strong>Save Signature</strong> — stored as a PNG attached to this row.
-                          </p>
+                          {row.document && documentUploading !== idx && (
+                            <span className="text-xs text-green-600 mt-0.5 block truncate" title={row.document}>
+                              ✓ File attached
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1670,6 +1781,126 @@ export const AdmissionFormModal = ({
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                     </svg>
                     Add document
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── TAB: SIGNATURES ── */}
+            {activeTab === 'signatures' && (
+              <div>
+                <p className="text-sm text-slate-500 mb-4">
+                  Capture admission e-signatures. Patient Relation and Signee Name are required for each signature.
+                </p>
+                <div className="space-y-4">
+                  {signatures.length === 0 && (
+                    <div className="text-center py-10 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 text-sm">
+                      No signatures yet. Click below to add one.
+                    </div>
+                  )}
+
+                  {signatures.map((row, idx) => (
+                    <div key={idx} className="rounded-lg border border-slate-200 bg-slate-50/50 overflow-hidden">
+                      <div className="flex items-center justify-between px-4 py-2.5 border-b border-slate-200 bg-white">
+                        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                          Signature #{idx + 1}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => removeSignatureRow(idx)}
+                          className="p-1 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
+                          title="Remove"
+                        >
+                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 lg:grid-cols-[1fr_260px] divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+                        <div className="p-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                              Patient Relation <span className="text-red-500">*</span>
+                            </label>
+                            <select
+                              value={row.patient_relation || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'patient_relation', e.target.value)}
+                              required
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                            >
+                              <option value="">Select relation</option>
+                              {SIGNATURE_RELATION_OPTIONS.map((opt) => (
+                                <option key={opt} value={opt}>{opt}</option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">
+                              Signee Name <span className="text-red-500">*</span>
+                            </label>
+                            <input
+                              value={row.signee_name || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'signee_name', e.target.value)}
+                              placeholder="Full name of person signing"
+                              required
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Document Type</label>
+                            <DocumentTypeSelect
+                              value={row.document_type || signatureDocType}
+                              onChange={(v) => updateSignatureRow(idx, 'document_type', v)}
+                              types={documentTypes}
+                              onTypesUpdated={setDocumentTypes}
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-medium text-slate-600 mb-0.5">Upload Remarks</label>
+                            <input
+                              value={row.upload_remarks || ''}
+                              onChange={(e) => updateSignatureRow(idx, 'upload_remarks', e.target.value)}
+                              placeholder="Remarks"
+                              className="w-full rounded border border-slate-300 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="p-4 flex flex-col gap-2">
+                          <div className="flex items-center gap-1.5 mb-1">
+                            <PenLine className="w-3.5 h-3.5 text-slate-400" />
+                            <span className="text-xs font-medium text-slate-600">
+                              Signature <span className="text-red-500">*</span>
+                            </span>
+                          </div>
+                          <div className="flex-1">
+                            <SignaturePad
+                              onSave={(file) => handleSignatureFile(idx, file)}
+                              existingUrl={row.document || undefined}
+                              uploading={signatureUploading === idx}
+                            />
+                          </div>
+                          {signatureUploading === idx && (
+                            <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
+                          )}
+                          <p className="text-xs text-slate-400 leading-relaxed">
+                            Draw above, then tap <strong>Save Signature</strong>.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={addSignatureRow}
+                    className="flex items-center gap-1.5 text-sm text-primary font-medium hover:underline"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Add signature
                   </button>
                 </div>
               </div>

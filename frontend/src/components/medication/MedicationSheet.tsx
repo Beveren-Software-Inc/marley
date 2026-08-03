@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, Fragment } from 'react'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
 import { fetchInpatientAdmissionOptions } from '../../services/common'
@@ -23,6 +23,17 @@ interface MedicationSheetProps {
 const formatTime = (time?: string | null) => {
   if (!time) return '—'
   return time.length >= 5 ? time.slice(0, 5) : time
+}
+
+/** Dosage and UOM on one line with a single space, e.g. "3 UNIT". */
+function formatDosageWithUom(med: MedicationSheetMedicineRow): string {
+  const dosage = displayMedicationDosage(med)
+  const uom = (med.uom || '').trim()
+  const hasDosage = Boolean(dosage && dosage !== '-')
+  if (hasDosage && uom) return `${dosage} ${uom}`
+  if (hasDosage) return dosage
+  if (uom) return uom
+  return '—'
 }
 
 export const MedicationSheet = ({ patient, admission: admissionProp }: MedicationSheetProps) => {
@@ -218,132 +229,156 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
       )}
 
       {medicines.length > 0 && (
-        <div className="overflow-hidden rounded-lg border border-slate-200 shadow-sm">
-          <div className="hidden grid-cols-[1fr_auto_auto_auto_auto] gap-2 border-b border-slate-200 bg-slate-100 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-600 md:grid">
-            <span>Medicine</span>
-            <span className="w-28">Type</span>
-            <span className="w-24">Start</span>
-            <span className="w-24">End</span>
-            <span className="w-16 text-right">Given</span>
-          </div>
-          <ul className="divide-y divide-slate-200">
-            {medicines.map((med) => {
-              const rowKey = `${med.prescription}::${med.drug}`
-              const isExpanded = expandedKey === rowKey
-              const givenCount = med.administrations.filter((a) => a.given).length
-              const missedCount = med.administrations.filter((a) => !a.given).length
-              const rowStyle = medicationRowStyle(med.medication_type, !!med.is_pink)
+        <div className="overflow-x-auto rounded-lg border border-slate-200 shadow-sm">
+          <table className="min-w-full table-fixed text-left">
+            <colgroup>
+              <col className="w-[38%]" />
+              <col className="w-[10%]" />
+              <col className="w-[18%]" />
+              <col className="w-[12%]" />
+              <col className="w-[12%]" />
+              <col className="w-[10%]" />
+            </colgroup>
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-100 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                <th className="px-3 py-2">Medicine</th>
+                <th className="px-3 py-2">Dosage</th>
+                <th className="px-3 py-2">Type</th>
+                <th className="px-3 py-2">Start</th>
+                <th className="px-3 py-2">End</th>
+                <th className="px-3 py-2">Given</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {medicines.map((med) => {
+                const rowKey = `${med.prescription}::${med.drug}`
+                const isExpanded = expandedKey === rowKey
+                const givenCount = med.administrations.filter((a) => a.given).length
+                const missedCount = med.administrations.filter((a) => !a.given).length
+                const rowStyle = medicationRowStyle(med.medication_type, !!med.is_pink)
+                const dosageLabel = formatDosageWithUom(med)
+                const secondaryBits = [
+                  med.dosage_form,
+                  displayMedicationFrequency(med) !== '-' ? displayMedicationFrequency(med) : '',
+                  med.route_of_administration,
+                ].filter(Boolean)
+                const borderLeftColor = med.is_pink
+                  ? '#ec4899'
+                  : isHexColor(getMedicationTypeColor(med.medication_type))
+                    ? getMedicationTypeColor(med.medication_type)
+                    : '#94a3b8'
 
-              return (
-                <li key={rowKey} className="bg-white">
-                  <button
-                    type="button"
-                    onClick={() => toggleRow(med)}
-                    className="flex w-full flex-col gap-2 border-l-4 px-3 py-3 text-left transition hover:brightness-[0.98] md:grid md:grid-cols-[1fr_auto_auto_auto_auto] md:items-center"
-                    style={{
-                      ...rowStyle,
-                      borderLeftColor: med.is_pink
-                        ? '#ec4899'
-                        : isHexColor(getMedicationTypeColor(med.medication_type))
-                          ? getMedicationTypeColor(med.medication_type)
-                          : '#94a3b8',
-                    }}
-                  >
-                    <span className="flex min-w-0 items-start gap-2">
-                      {isExpanded ? (
-                        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                      ) : (
-                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
-                      )}
-                      <span className="min-w-0">
-                        <span className="block text-sm font-semibold text-slate-900">
-                          {displayMedicationDrugName(med)}
+                return (
+                  <Fragment key={rowKey}>
+                    <tr
+                      className="cursor-pointer border-l-4 transition hover:brightness-[0.98]"
+                      style={{
+                        ...rowStyle,
+                        borderLeftColor,
+                      }}
+                      onClick={() => toggleRow(med)}
+                    >
+                      <td className="px-3 py-3 align-top">
+                        <span className="flex min-w-0 items-start gap-2">
+                          {isExpanded ? (
+                            <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                          ) : (
+                            <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-slate-500" />
+                          )}
+                          <span className="min-w-0">
+                            <span className="block text-sm font-semibold text-slate-900">
+                              {displayMedicationDrugName(med)}
+                            </span>
+                            {secondaryBits.length > 0 ? (
+                              <span className="mt-0.5 block text-[11px] text-slate-500">
+                                {secondaryBits.join(' · ')}
+                              </span>
+                            ) : null}
+                          </span>
                         </span>
-                        <span className="block text-[11px] text-slate-500">
-                          {displayMedicationDosage(med)}
-                          {med.dosage_form ? ` · ${med.dosage_form}` : ''}
-                          {displayMedicationFrequency(med) !== '-' ? ` · ${displayMedicationFrequency(med)}` : ''}
-                          {med.route_of_administration ? ` · ${med.route_of_administration}` : ''}
-                        </span>
-                      </span>
-                    </span>
-                    <span className="w-28 text-xs text-slate-700 md:text-center">
-                      {med.medication_type || '—'}
-                      {med.is_pink ? (
-                        <span className="ml-1 rounded bg-pink-100 px-1 text-[10px] text-pink-700">Pink</span>
-                      ) : null}
-                    </span>
-                    <span className="w-24 text-xs text-slate-600 md:text-center">{med.start_date || '—'}</span>
-                    <span className="w-24 text-xs text-slate-600 md:text-center">{med.end_date || '—'}</span>
-                    <span className="w-16 text-xs font-medium text-slate-800 md:text-right">
-                      {givenCount}
-                      {missedCount > 0 ? (
-                        <span className="text-amber-700"> / {missedCount} missed</span>
-                      ) : null}
-                    </span>
-                  </button>
-
-                  {isExpanded && (
-                    <div className="border-t border-slate-200 bg-slate-50/90 px-3 py-3">
-                      {med.administrations.length === 0 ? (
-                        <p className="text-xs italic text-slate-500">
-                          No administrations recorded in this date range.
-                        </p>
-                      ) : (
-                        <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
-                          <table className="min-w-full text-xs">
-                            <thead className="border-b border-slate-200 bg-slate-100">
-                              <tr>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Given</th>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Time</th>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">
-                                  Medication given by
-                                </th>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Qty</th>
-                                <th className="px-3 py-2 text-left font-semibold text-slate-600">Remarks</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-100">
-                              {med.administrations.map((adm) => (
-                                <tr
-                                  key={adm.name}
-                                  className={adm.given ? 'bg-white' : 'bg-amber-50/60 text-slate-400'}
-                                >
-                                  <td className="px-3 py-2">
-                                    {adm.given ? (
-                                      <span className="font-bold text-emerald-700">✓</span>
-                                    ) : (
-                                      <span className="text-slate-300">—</span>
-                                    )}
-                                  </td>
-                                  <td className="px-3 py-2">{adm.date || '—'}</td>
-                                  <td className="px-3 py-2">
-                                    {adm.given ? formatTime(adm.time) : adm.timing_label || '—'}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {adm.given ? adm.given_by_name || adm.given_by || '—' : '—'}
-                                  </td>
-                                  <td className="px-3 py-2">
-                                    {adm.given && adm.qty != null
-                                      ? `${adm.qty}${adm.unit ? ` ${adm.unit}` : ''}`
-                                      : '—'}
-                                  </td>
-                                  <td className="max-w-xs px-3 py-2 text-slate-600">
-                                    {adm.remarks || (adm.given ? '' : 'Missed dose')}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </li>
-              )
-            })}
-          </ul>
+                      </td>
+                      <td className="px-3 py-3 align-top text-sm font-medium text-slate-800 whitespace-nowrap">
+                        {dosageLabel}
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-700">
+                        {med.medication_type || '—'}
+                        {med.is_pink ? (
+                          <span className="ml-1 rounded bg-pink-100 px-1 text-[10px] text-pink-700">Pink</span>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">{med.start_date || '—'}</td>
+                      <td className="px-3 py-3 align-top text-xs text-slate-600">{med.end_date || '—'}</td>
+                      <td className="px-3 py-3 align-top text-xs font-medium text-slate-800">
+                        {givenCount}
+                        {missedCount > 0 ? (
+                          <span className="text-amber-700"> / {missedCount} missed</span>
+                        ) : null}
+                      </td>
+                    </tr>
+                    {isExpanded ? (
+                      <tr className="bg-slate-50/90">
+                        <td colSpan={6} className="border-t border-slate-200 px-3 py-3">
+                          {med.administrations.length === 0 ? (
+                            <p className="text-xs italic text-slate-500">
+                              No administrations recorded in this date range.
+                            </p>
+                          ) : (
+                            <div className="overflow-x-auto rounded-md border border-slate-200 bg-white">
+                              <table className="min-w-full text-xs">
+                                <thead className="border-b border-slate-200 bg-slate-100">
+                                  <tr>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Given</th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Date</th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Time</th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">
+                                      Medication given by
+                                    </th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Qty</th>
+                                    <th className="px-3 py-2 text-left font-semibold text-slate-600">Remarks</th>
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                  {med.administrations.map((adm) => (
+                                    <tr
+                                      key={adm.name}
+                                      className={adm.given ? 'bg-white' : 'bg-amber-50/60 text-slate-400'}
+                                    >
+                                      <td className="px-3 py-2">
+                                        {adm.given ? (
+                                          <span className="font-bold text-emerald-700">✓</span>
+                                        ) : (
+                                          <span className="text-slate-300">—</span>
+                                        )}
+                                      </td>
+                                      <td className="px-3 py-2">{adm.date || '—'}</td>
+                                      <td className="px-3 py-2">
+                                        {adm.given ? formatTime(adm.time) : adm.timing_label || '—'}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {adm.given ? adm.given_by_name || adm.given_by || '—' : '—'}
+                                      </td>
+                                      <td className="px-3 py-2">
+                                        {adm.given && adm.qty != null
+                                          ? `${adm.qty}${adm.unit ? ` ${adm.unit}` : ''}`
+                                          : '—'}
+                                      </td>
+                                      <td className="max-w-xs px-3 py-2 text-slate-600">
+                                        {adm.remarks || (adm.given ? '' : 'Missed dose')}
+                                      </td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ) : null}
+                  </Fragment>
+                )
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

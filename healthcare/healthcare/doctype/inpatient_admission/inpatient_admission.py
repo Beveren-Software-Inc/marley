@@ -170,7 +170,7 @@ class InpatientAdmission(Document):
 			"Inpatient Admission",
 			filters={
 				"patient": self.patient,
-				"status": ["in", ["Admitted", "Admission Scheduled"]],
+				"status": ["in", ["Admitted", "Admission Scheduled", "Discharge Scheduled"]],
 				"name": ["!=", self.name or ""],
 			},
 			fields=["name", "status"],

@@ -34,6 +34,7 @@ def _serialize_checklist(doc) -> dict:
 			"name": row.name,
 			"item_name": row.item_name,
 			"checked": bool(row.checked),
+			"remarks": (getattr(row, "remarks", None) or "") or "",
 		}
 		for row in getattr(doc, "environmental_checklist_detail", []) or []
 	]
@@ -279,6 +280,8 @@ def update_environmental_checklist(
 				continue
 			row = row_map[name]
 			row.checked = 1 if item.get("checked") else 0
+			if "remarks" in item:
+				row.remarks = (item.get("remarks") or "").strip() or None
 
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()

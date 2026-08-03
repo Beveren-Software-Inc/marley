@@ -118,7 +118,8 @@ let admit_patient_dialog = function(frm) {
 		width: 100,
 		fields: [
 			{fieldtype: 'Link', label: 'Service Unit Type', fieldname: 'service_unit_type',
-				options: 'Healthcare Service Unit Type', default: frm.doc.admission_service_unit_type
+				options: 'Healthcare Service Unit Type', default: frm.doc.admission_service_unit_type,
+				reqd: 1
 			},
 			{fieldtype: 'Link', label: 'Service Unit', fieldname: 'service_unit',
 				options: 'Healthcare Service Unit'
@@ -135,6 +136,7 @@ let admit_patient_dialog = function(frm) {
 		],
 		primary_action_label: __('Admit'),
 		primary_action : function(){
+			let service_unit_type = dialog.get_value('service_unit_type');
 			let service_unit = dialog.get_value('service_unit');
 			let hospital_bed = dialog.get_value('hospital_bed');
 			let check_in = dialog.get_value('check_in');
@@ -142,8 +144,15 @@ let admit_patient_dialog = function(frm) {
 			if (dialog.get_value('expected_discharge')) {
 				expected_discharge = dialog.get_value('expected_discharge');
 			}
+			if (!service_unit_type) {
+				frappe.msgprint(__('Room Type (Service Unit Type) is required'));
+				return;
+			}
 			if (!check_in) {
 				return;
+			}
+			if (service_unit_type && frm.doc.admission_service_unit_type !== service_unit_type) {
+				frm.set_value('admission_service_unit_type', service_unit_type);
 			}
 			frappe.call({
 				doc: frm.doc,

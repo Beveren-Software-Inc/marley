@@ -4,6 +4,14 @@ import { CreditCard, AlertCircle, Loader2, Building2, MapPin, Briefcase } from '
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/serviceOrders'
 import { fetchCompanies, fetchCostCenters, fetchDepartments, fetchModeOfPayments, type LinkFieldOption } from '../../services/common'
+import {
+  PaymentModeLines,
+  newPaymentModeLine,
+  sumPaymentModeLines,
+  paymentModesPayload,
+  validatePaymentModeLines,
+  type PaymentModeLine,
+} from './PaymentModeLines'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
 import {
   CreateModalHeader,
@@ -44,14 +52,15 @@ export const PaymentModal = ({
   defaultDepartment,
   onPaymentSuccess,
 }: PaymentModalProps) => {
-  const [paymentAmount, setPaymentAmount] = useState(outstandingAmount)
   const [paymentModes, setPaymentModes] = useState<string[]>([])
-  const [paymentMode, setPaymentMode] = useState('')
+  const [modeLines, setModeLines] = useState<PaymentModeLine[]>([
+    { ...newPaymentModeLine(), amount: outstandingAmount > 0 ? String(outstandingAmount) : '' },
+  ])
   const [costCenter, setCostCenter] = useState(defaultCostCenter || '')
   const [company, setCompany] = useState(defaultCompany || '')
   const [department, setDepartment] = useState(defaultDepartment || '')
-  const [referenceNumber, setReferenceNumber] = useState('')
   const [loading, setLoading] = useState(false)
+  const paymentAmount = sumPaymentModeLines(modeLines)
 
   const [companies, setCompanies] = useState<Company[]>([])
   const [isSingleCompany, setIsSingleCompany] = useState(false)
@@ -140,7 +149,15 @@ export const PaymentModal = ({
       .then((modes) => {
         const names = modes.map((m) => m.name)
         setPaymentModes(names)
-        setPaymentMode((prev) => (prev && names.includes(prev) ? prev : names[0] || ''))
+        if (names.length > 0) {
+          setModeLines((prev) =>
+            prev.map((line, idx) =>
+              idx === 0 && !line.mode_of_payment
+                ? { ...line, mode_of_payment: names[0] }
+                : line
+            )
+          )
+        }
       })
       .catch((err) => {
         console.error('Failed to load modes of payment:', err)
@@ -151,7 +168,12 @@ export const PaymentModal = ({
   // When modal opens or defaults change, sync from invoice
   useEffect(() => {
     if (!isOpen) return
-    setPaymentAmount(outstandingAmount)
+    setModeLines([
+      {
+        ...newPaymentModeLine(paymentModes[0] || ''),
+        amount: outstandingAmount > 0 ? String(outstandingAmount) : '',
+      },
+    ])
     if (defaultCompany) {
       setCompany(defaultCompany)
     }
@@ -176,6 +198,11 @@ export const PaymentModal = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
+    const modesErr = validatePaymentModeLines(modeLines)
+    if (modesErr) {
+      toast.error(modesErr)
+      return
+    }
     if (paymentAmount <= 0) {
       toast.error('Please enter a valid payment amount')
       return
@@ -196,28 +223,31 @@ export const PaymentModal = ({
       return
     }
 
-    if (!paymentMode) {
-      toast.error('Please select a mode of payment')
-      return
-    }
+    const modesPayload = paymentModesPayload(modeLines)
+    const primary = modesPayload[0]
 
     try {
       setLoading(true)
       const result = await createPaymentEntry(
         invoiceName,
         paymentAmount,
-        paymentMode,
+        primary.mode_of_payment,
         costCenter,
         department,
-        referenceNumber
+        primary.reference_no,
+        modesPayload
       )
 
       if (result.success) {
         toast.success(result.message)
         onPaymentSuccess()
         onClose()
-        setPaymentAmount(outstandingAmount)
-        setPaymentMode(paymentModes[0] || '')
+        setModeLines([
+          {
+            ...newPaymentModeLine(paymentModes[0] || ''),
+            amount: outstandingAmount > 0 ? String(outstandingAmount) : '',
+          },
+        ])
         setCostCenter('')
         if (!isSingleCompany && !defaultCompany) {
           setCompany('')
@@ -226,7 +256,6 @@ export const PaymentModal = ({
         setDepartment('')
         setDepartmentQuery('')
         setCostCenterQuery('')
-        setReferenceNumber('')
       } else {
         toast.error(result.message || 'Failed to process payment')
       }
@@ -466,55 +495,16 @@ export const PaymentModal = ({
                 </div>
               </div>
 
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900/90">
-                  Payment amount <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min={moneyInput.min}
-                  step={moneyInput.step}
-                  value={paymentAmount}
-                  onChange={(e) => setPaymentAmount(parseFloat(e.target.value))}
-                  placeholder={moneyInput.placeholder}
-                  required
-                  className={fieldClass}
-                />
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900/90">
-                  Payment mode <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  required
-                  className={fieldClass}
-                >
-                  <option value="" disabled>
-                    Select mode of payment...
-                  </option>
-                  {paymentModes.map((mode) => (
-                    <option key={mode} value={mode}>
-                      {mode}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-sm font-medium text-emerald-900/90">
-                  Reference number <span className="text-emerald-700/50">(optional)</span>
-                </label>
-                <input
-                  type="text"
-                  value={referenceNumber}
-                  onChange={(e) => setReferenceNumber(e.target.value)}
-                  placeholder="Cheque / transaction number"
-                  className={fieldClass}
-                />
-              </div>
+              <PaymentModeLines
+                modes={paymentModes}
+                lines={modeLines}
+                onChange={setModeLines}
+                moneyStep={moneyInput.step}
+                moneyMin={moneyInput.min}
+                moneyPlaceholder={moneyInput.placeholder}
+                formatMoney={formatCurrency}
+                compact
+              />
 
               {paymentAmount > outstandingAmount && (
                 <div className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50/90 p-3 text-sm text-emerald-800">
@@ -539,7 +529,7 @@ export const PaymentModal = ({
               disabled={
                 loading ||
                 paymentAmount <= 0 ||
-                !paymentMode ||
+                validatePaymentModeLines(modeLines) != null ||
                 (!company && !isSingleCompany) ||
                 !costCenter ||
                 !department

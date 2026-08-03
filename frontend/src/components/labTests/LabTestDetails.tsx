@@ -97,6 +97,23 @@ function indicatorTone(indicator?: string): string {
   return 'bg-slate-100 text-slate-800 ring-slate-200/80'
 }
 
+function ResultValueBadge({ value }: { value?: string | null }) {
+  const text = (value || '').trim()
+  if (!text) return <span className="text-slate-400">—</span>
+  const lower = text.toLowerCase()
+  const tone =
+    lower.includes('positive') && !lower.includes('negative')
+      ? 'bg-amber-100 text-amber-900 ring-amber-200'
+      : lower.includes('negative') || lower.includes('normal')
+        ? 'bg-emerald-100 text-emerald-800 ring-emerald-200'
+        : 'bg-slate-100 text-slate-800 ring-slate-200'
+  return (
+    <span className={`inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1 ${tone}`}>
+      {text}
+    </span>
+  )
+}
+
 export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) => {
   const [labTest, setLabTest] = useState<LabTest | null>(null)
   const [loading, setLoading] = useState(true)
@@ -158,6 +175,14 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
   const followUps = parseFollowUpActions(labTest.review_follow_up_actions)
   const reviewRecorded = hasDoctorReviewData(labTest)
   const isReviewFinal = labTest.status === 'Reviewed' || labTest.status === 'Rejected'
+  const resultLines = (labTest.lab_test_lines || []).filter(
+    (line) => (line.lab_result_value || '').trim() || (line.lab_sub_num || '').trim()
+  )
+  const hasStructuredResults =
+    resultLines.length > 0 ||
+    Boolean(labTest.normal_test_items?.length) ||
+    Boolean(labTest.sensitivity_test_items?.length) ||
+    Boolean(labTest.descriptive_result || labTest.custom_result || labTest.lab_test_comment)
 
   return (
     <div className="space-y-5">
@@ -175,7 +200,211 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         )}
       </div>
 
-      {/* Doctor review — prominent when recorded or pending */}
+      {/* Results first — primary content */}
+      {hasStructuredResults ? (
+        <section className="space-y-4 rounded-xl border border-emerald-200/80 bg-white p-4 shadow-sm ring-1 ring-emerald-100/70">
+          <EmeraldSectionTitle title="Results" />
+
+          {resultLines.length > 0 ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-200">
+              <table className="min-w-full table-fixed divide-y divide-slate-200 text-sm">
+                <thead className="bg-slate-50">
+                  <tr>
+                    <th className="w-[22%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Panel
+                    </th>
+                    <th className="w-[34%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Test Name
+                    </th>
+                    <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Test Code
+                    </th>
+                    <th className="w-[24%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Result
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 bg-white">
+                  {resultLines.map((line, i) => {
+                    const panel =
+                      (line.group_name || '').trim() || (line.lab_group_num || '').trim() || '—'
+                    const testName =
+                      (line.lab_sub_template_name || '').trim() ||
+                      (line.lab_sub_num || '').trim() ||
+                      '—'
+                    const testCode = (line.lab_sub_num || '').trim() || '—'
+                    return (
+                      <tr key={`${line.sr_num || i}-${testCode}`} className="hover:bg-slate-50/80">
+                        <td className="px-3 py-2.5 align-top text-slate-700 break-words">{panel}</td>
+                        <td className="px-3 py-2.5 align-top font-medium text-slate-900 break-words">
+                          {testName}
+                        </td>
+                        <td className="px-3 py-2.5 align-top font-mono text-xs text-slate-500 break-all">
+                          {testCode}
+                        </td>
+                        <td className="px-3 py-2.5 align-top">
+                          <ResultValueBadge value={line.lab_result_value} />
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : null}
+
+          {labTest.normal_test_items && labTest.normal_test_items.length > 0 && (
+            <div>
+              {resultLines.length > 0 ? (
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Normal test results
+                </p>
+              ) : null}
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Test Name
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Result
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Unit
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Normal Range
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {labTest.normal_test_items.map(
+                      (
+                        item: {
+                          lab_test_name?: string
+                          lab_test_event?: string
+                          result_value?: string
+                          result_status?: string
+                          lab_test_uom?: string
+                          normal_range?: string
+                          abnormal?: boolean
+                        },
+                        i: number
+                      ) => (
+                        <tr key={i} className={item.abnormal ? 'bg-red-50' : 'hover:bg-slate-50'}>
+                          <td className="px-3 py-2.5 font-medium text-slate-900">
+                            {item.lab_test_event || item.lab_test_name || '—'}
+                          </td>
+                          <td
+                            className={`px-3 py-2.5 font-medium ${
+                              item.abnormal ? 'text-red-700' : 'text-slate-800'
+                            }`}
+                          >
+                            {item.result_value || '—'}
+                          </td>
+                          <td className="px-3 py-2.5 text-slate-600">{item.lab_test_uom || '—'}</td>
+                          <td className="px-3 py-2.5 whitespace-pre-line text-slate-600">
+                            {item.normal_range || '—'}
+                          </td>
+                          <td className="px-3 py-2.5">
+                            {item.result_status ? (
+                              <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                                {item.result_status}
+                              </span>
+                            ) : item.abnormal ? (
+                              <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
+                                Abnormal
+                              </span>
+                            ) : (
+                              <span className="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
+                                Normal
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {labTest.sensitivity_test_items && labTest.sensitivity_test_items.length > 0 && (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Sensitivity
+              </p>
+              <div className="overflow-x-auto rounded-lg border border-slate-200">
+                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                  <thead className="bg-slate-50">
+                    <tr>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Antibiotic
+                      </th>
+                      <th className="px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                        Sensitivity
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {labTest.sensitivity_test_items.map(
+                      (item: { antibiotic?: string; antibiotic_sensitivity?: string }, i: number) => (
+                        <tr key={i} className="hover:bg-slate-50">
+                          <td className="px-3 py-2.5 font-medium text-slate-900">{item.antibiotic}</td>
+                          <td className="px-3 py-2.5 text-slate-700">{item.antibiotic_sensitivity}</td>
+                        </tr>
+                      )
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Prefer structured lines; only show HTML custom_result when no lines */}
+          {resultLines.length === 0 && labTest.custom_result ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Custom result
+              </p>
+              <div
+                className="prose prose-sm max-w-none overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700 [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-slate-200 [&_th]:bg-slate-100 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:text-xs [&_th]:font-semibold [&_th]:uppercase [&_th]:tracking-wide [&_th]:text-slate-600 [&_td]:border [&_td]:border-slate-200 [&_td]:px-3 [&_td]:py-2 [&_td]:align-top [&_td]:text-slate-800"
+                dangerouslySetInnerHTML={{ __html: labTest.custom_result }}
+              />
+            </div>
+          ) : null}
+
+          {labTest.descriptive_result ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Descriptive result
+              </p>
+              <div
+                className="prose prose-sm max-w-none rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700"
+                dangerouslySetInnerHTML={{ __html: labTest.descriptive_result }}
+              />
+            </div>
+          ) : null}
+
+          {labTest.lab_test_comment ? (
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Lab comments
+              </p>
+              <p className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                {labTest.lab_test_comment}
+              </p>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      {/* Doctor review */}
       {(reviewRecorded || isReviewFinal || labTest.status === 'Pending Review') && (
         <section className="rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/50 p-4 shadow-sm ring-1 ring-emerald-100/70">
           <EmeraldSectionTitle title="Doctor review" />
@@ -348,81 +577,86 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </section>
       )}
 
-      {/* Grid sections */}
-      <div className="grid grid-cols-1 gap-5 text-sm md:grid-cols-2">
-        <div>
-          <SectionTitle title="Patient Information" />
-          <div className="space-y-1">
-            <Field label="Patient" value={labTest.patient_name || labTest.patient} />
-            <Field label="Patient ID" value={labTest.patient} />
-            <Field label="Age" value={labTest.patient_age} />
-            <Field label="Gender" value={labTest.patient_sex} />
-            <Field label="Email" value={labTest.email} />
-            <Field label="Mobile" value={labTest.mobile} />
-            <Field label="Report Preference" value={labTest.report_preference} />
-            {labTest.inpatient_record && (
-              <Field label="Inpatient Admission" value={labTest.inpatient_record} />
-            )}
+      {/* Secondary details */}
+      <section className="rounded-xl border border-slate-200 bg-slate-50/40 p-4">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+          Patient & request details
+        </h3>
+        <div className="grid grid-cols-1 gap-5 text-sm md:grid-cols-2">
+          <div>
+            <SectionTitle title="Patient Information" />
+            <div className="space-y-1">
+              <Field label="Patient" value={labTest.patient_name || labTest.patient} />
+              <Field label="Patient ID" value={labTest.patient} />
+              <Field label="Age" value={labTest.patient_age} />
+              <Field label="Gender" value={labTest.patient_sex} />
+              <Field label="Email" value={labTest.email} />
+              <Field label="Mobile" value={labTest.mobile} />
+              <Field label="Report Preference" value={labTest.report_preference} />
+              {labTest.inpatient_record && (
+                <Field label="Inpatient Admission" value={labTest.inpatient_record} />
+              )}
+            </div>
           </div>
-        </div>
 
-        <div>
-          <SectionTitle title="Test Information" />
-          <div className="space-y-1">
-            <Field label="Test Name" value={labTest.lab_test_name} />
-            <Field label="Template" value={labTest.template} />
-            <Field label="Department" value={labTest.department} />
-            <Field label="Service Unit" value={labTest.service_unit} />
-            <Field label="Company" value={labTest.company} />
-            <Field label="Is Outsourced" value={labTest.is_outsourced ? 'Yes' : undefined} />
+          <div>
+            <SectionTitle title="Test Information" />
+            <div className="space-y-1">
+              <Field label="Test Name" value={labTest.lab_test_name} />
+              <Field label="Template" value={labTest.template} />
+              <Field label="Department" value={labTest.department} />
+              <Field label="Service Unit" value={labTest.service_unit} />
+              <Field label="Company" value={labTest.company} />
+              <Field label="Is Outsourced" value={labTest.is_outsourced ? 'Yes' : undefined} />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <SectionTitle title="Requesting Details" />
-          <div className="space-y-1">
-            <Field label="Doctor Name" value={labTest.practitioner_name || labTest.practitioner} />
-            <Field label="Requesting Department" value={labTest.requesting_department} />
-            <Field label="Service Request" value={labTest.service_request} />
-            <Field label="Reference" value={labTest.reference_document} />
+          <div>
+            <SectionTitle title="Requesting Details" />
+            <div className="space-y-1">
+              <Field label="Doctor Name" value={labTest.practitioner_name || labTest.practitioner} />
+              <Field label="Requesting Department" value={labTest.requesting_department} />
+              <Field label="Service Request" value={labTest.service_request} />
+              <Field label="Reference" value={labTest.reference_document} />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <SectionTitle title="Lab Technician" />
-          <div className="space-y-1">
-            <Field
-              label="Doctor Name"
-              value={labTest.lab_technician_name || labTest.lab_technician}
-            />
-            <Field label="Employee (legacy)" value={labTest.employee_name || labTest.employee} />
-            <Field label="Designation" value={labTest.employee_designation} />
+          <div>
+            <SectionTitle title="Lab Technician" />
+            <div className="space-y-1">
+              <Field
+                label="Doctor Name"
+                value={labTest.lab_technician_name || labTest.lab_technician}
+              />
+              <Field label="Employee (legacy)" value={labTest.employee_name || labTest.employee} />
+              <Field label="Designation" value={labTest.employee_designation} />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <SectionTitle title="Dates & Timeline" />
-          <div className="space-y-1">
-            <Field label="Test Date" value={formatDate(labTest.date)} />
-            <Field label="Submitted" value={formatDatetime(labTest.submitted_date)} />
-            <Field label="Result Date" value={formatDate(labTest.result_date)} />
-            <Field label="Expected Result" value={formatDate(labTest.expected_result_date)} />
-            <Field label="Printed On" value={formatDatetime(labTest.printed_on)} />
+          <div>
+            <SectionTitle title="Dates & Timeline" />
+            <div className="space-y-1">
+              <Field label="Test Date" value={formatDate(labTest.date)} />
+              <Field label="Submitted" value={formatDatetime(labTest.submitted_date)} />
+              <Field label="Result Date" value={formatDate(labTest.result_date)} />
+              <Field label="Expected Result" value={formatDate(labTest.expected_result_date)} />
+              <Field label="Printed On" value={formatDatetime(labTest.printed_on)} />
+            </div>
           </div>
-        </div>
 
-        <div>
-          <SectionTitle title="Flags" />
-          <div className="space-y-1">
-            <Field label="Invoiced" value={labTest.invoiced ? 'Yes' : 'No'} />
-            <Field label="Email Sent" value={labTest.email_sent ? 'Yes' : 'No'} />
-            <Field label="SMS Sent" value={labTest.sms_sent ? 'Yes' : 'No'} />
-            <Field label="Printed" value={labTest.printed ? 'Yes' : 'No'} />
-            {labTest.amended_from && <Field label="Amended From" value={labTest.amended_from} />}
-            {labTest.sample && <Field label="Sample ID" value={labTest.sample} />}
+          <div>
+            <SectionTitle title="Flags" />
+            <div className="space-y-1">
+              <Field label="Invoiced" value={labTest.invoiced ? 'Yes' : 'No'} />
+              <Field label="Email Sent" value={labTest.email_sent ? 'Yes' : 'No'} />
+              <Field label="SMS Sent" value={labTest.sms_sent ? 'Yes' : 'No'} />
+              <Field label="Printed" value={labTest.printed ? 'Yes' : 'No'} />
+              {labTest.amended_from && <Field label="Amended From" value={labTest.amended_from} />}
+              {labTest.sample && <Field label="Sample ID" value={labTest.sample} />}
+            </div>
           </div>
         </div>
-      </div>
+      </section>
 
       {labTest.sample_instances && labTest.sample_instances.length > 0 && (
         <div>
@@ -473,37 +707,6 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
         </div>
       )}
 
-      {(labTest.descriptive_result || labTest.custom_result || labTest.lab_test_comment) && (
-        <div className="space-y-3">
-          {labTest.descriptive_result && (
-            <div>
-              <SectionTitle title="Descriptive Result" />
-              <div
-                className="prose prose-sm max-w-none rounded-md bg-slate-50 p-3 text-sm text-slate-700"
-                dangerouslySetInnerHTML={{ __html: labTest.descriptive_result }}
-              />
-            </div>
-          )}
-          {labTest.custom_result && (
-            <div>
-              <SectionTitle title="Custom Result" />
-              <div
-                className="prose prose-sm max-w-none rounded-md bg-slate-50 p-3 text-sm text-slate-700"
-                dangerouslySetInnerHTML={{ __html: labTest.custom_result }}
-              />
-            </div>
-          )}
-          {labTest.lab_test_comment && (
-            <div>
-              <SectionTitle title="Lab comments" />
-              <p className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-sm text-slate-700">
-                {labTest.lab_test_comment}
-              </p>
-            </div>
-          )}
-        </div>
-      )}
-
       {labTest.remarks &&
         Array.isArray(labTest.remarks) &&
         labTest.remarks.length > 0 &&
@@ -523,78 +726,6 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
             </div>
           </div>
         )}
-
-      {labTest.normal_test_items && labTest.normal_test_items.length > 0 && (
-        <div>
-          <SectionTitle title="Normal Test Results" />
-          <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Test</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Result</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Unit</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Normal Range</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {labTest.normal_test_items.map((item: { lab_test_name?: string; lab_test_event?: string; result_value?: string; result_status?: string; lab_test_uom?: string; normal_range?: string; abnormal?: boolean }, i: number) => (
-                  <tr key={i} className={item.abnormal ? 'bg-red-50' : 'hover:bg-slate-50'}>
-                    <td className="px-3 py-2 text-slate-800">{item.lab_test_event || item.lab_test_name}</td>
-                    <td className={`px-3 py-2 font-medium ${item.abnormal ? 'text-red-700' : 'text-slate-800'}`}>
-                      {item.result_value}
-                    </td>
-                    <td className="px-3 py-2 text-slate-600">{item.lab_test_uom || '—'}</td>
-                    <td className="px-3 py-2 text-slate-600 whitespace-pre-line">{item.normal_range || '—'}</td>
-                    <td className="px-3 py-2">
-                      {item.result_status ? (
-                        <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
-                          {item.result_status}
-                        </span>
-                      ) : item.abnormal ? (
-                        <span className="inline-flex rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-700">
-                          Abnormal
-                        </span>
-                      ) : (
-                        <span className="inline-flex rounded bg-green-100 px-2 py-0.5 text-xs font-medium text-green-700">
-                          Normal
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {labTest.sensitivity_test_items && labTest.sensitivity_test_items.length > 0 && (
-        <div>
-          <SectionTitle title="Sensitivity Test Results" />
-          <div className="overflow-x-auto rounded-md border border-slate-200">
-            <table className="min-w-full divide-y divide-slate-200 text-sm">
-              <thead className="bg-slate-50">
-                <tr>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Antibiotic</th>
-                  <th className="px-3 py-2 text-left font-medium text-slate-600">Sensitivity</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200">
-                {labTest.sensitivity_test_items.map(
-                  (item: { antibiotic?: string; antibiotic_sensitivity?: string }, i: number) => (
-                    <tr key={i} className="hover:bg-slate-50">
-                      <td className="px-3 py-2 text-slate-800">{item.antibiotic}</td>
-                      <td className="px-3 py-2 text-slate-600">{item.antibiotic_sensitivity}</td>
-                    </tr>
-                  )
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
 
       {labTest.documents && labTest.documents.length > 0 && (
         <div className="space-y-2">

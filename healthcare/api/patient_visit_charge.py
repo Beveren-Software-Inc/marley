@@ -117,8 +117,8 @@ def get_patient_visit_charge_preview(visit_type: str | None = None, patient: str
 
 
 def get_default_visit_type() -> str | None:
-	"""The Patient Visit Type flagged as default, if any."""
-	return frappe.db.get_value("Patient Visit Type", {"is_default": 1}, "name")
+	"""The Patient Visit Type flagged as default, if any (ignores disabled types)."""
+	return frappe.db.get_value("Patient Visit Type", {"is_default": 1, "disabled": 0}, "name")
 
 
 def resolve_visit_charge_lines(visit_type: str | None = None, patient: str | None = None) -> dict:

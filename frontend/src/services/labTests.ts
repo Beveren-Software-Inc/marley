@@ -44,6 +44,16 @@ export interface LabTest {
   creation?: string
   result_date?: string
   submitted_date?: string
+  /** Sample Collection link on Lab Test */
+  sample?: string
+  /** Legacy / imported sampling date */
+  sample_collected_date?: string
+  /** Earliest Sample Collection.creation when a sample is linked */
+  sample_creation?: string
+  /** sample_collected_date or Sample Collection.collected_time */
+  sampling_date?: string
+  /** Preferred display date: sample creation → sampling date → lab date */
+  report_date?: string
   female_min_range?: number | null
   female_max_range?: number | null
   male_min_range?: number | null
@@ -56,7 +66,6 @@ export interface LabTest {
   sms_sent?: number | boolean
   printed?: number | boolean
   amended_from?: string
-  sample?: string
   department?: string
   is_outsourced?: number
   email?: string

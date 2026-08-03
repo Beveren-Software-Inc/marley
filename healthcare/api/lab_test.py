@@ -488,6 +488,8 @@ _LAB_TEST_LIST_FIELDS = [
 	"result_flag",
 	"is_legacy_import",
 	"date",
+	"sample",
+	"sample_collected_date",
 ]
 
 
@@ -675,6 +677,8 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 				)
 			lab_test["lab_test_group_name"] = group_name_cache[group_code]
 
+	_attach_lab_test_sampling_dates(lab_tests)
+
 	service_requests = {
 		lt.service_request
 		for lt in lab_tests
@@ -692,6 +696,82 @@ def _enrich_lab_test_rows(lab_tests, template_cache=None):
 		for lab_test in lab_tests:
 			if cint(lab_test.get("is_group_lab_test") or 0) and lab_test.get("service_request"):
 				lab_test["service_request_status"] = sr_status_map.get(lab_test.service_request)
+
+	return lab_tests
+
+
+def _attach_lab_test_sampling_dates(lab_tests):
+	"""Attach sampling / sample-creation dates used by lab report Date columns.
+
+	Priority for ``report_date``:
+	1. Sample Collection creation (when a sample is linked)
+	2. Sampling date (``sample_collected_date``, or Sample Collection ``collected_time``)
+	3. Lab Test ``date``
+	"""
+	if not lab_tests:
+		return lab_tests
+
+	lab_names = [lt.name for lt in lab_tests if lt.get("name")]
+	instance_by_lab: dict[str, list[str]] = {}
+	if lab_names:
+		for row in frappe.get_all(
+			"Lab Test Sample Instance",
+			filters={"parent": ["in", lab_names], "parenttype": "Lab Test"},
+			fields=["parent", "sample_collection"],
+		):
+			sc = (row.get("sample_collection") or "").strip()
+			if not sc:
+				continue
+			instance_by_lab.setdefault(row.parent, []).append(sc)
+
+	sample_ids = set()
+	for lt in lab_tests:
+		sample = (lt.get("sample") or "").strip()
+		if sample:
+			sample_ids.add(sample)
+		for sc in instance_by_lab.get(lt.name, []):
+			sample_ids.add(sc)
+
+	sample_meta: dict[str, dict] = {}
+	if sample_ids:
+		for row in frappe.get_all(
+			"Sample Collection",
+			filters={"name": ["in", list(sample_ids)]},
+			fields=["name", "creation", "collected_time"],
+		):
+			sample_meta[row.name] = {
+				"creation": row.get("creation"),
+				"collected_time": row.get("collected_time"),
+			}
+
+	for lt in lab_tests:
+		linked_samples = []
+		sample = (lt.get("sample") or "").strip()
+		if sample:
+			linked_samples.append(sample)
+		for sc in instance_by_lab.get(lt.name, []):
+			if sc not in linked_samples:
+				linked_samples.append(sc)
+
+		sample_creation = None
+		sample_collected_time = None
+		for sid in linked_samples:
+			meta = sample_meta.get(sid) or {}
+			if not sample_creation and meta.get("creation"):
+				sample_creation = meta.get("creation")
+			if not sample_collected_time and meta.get("collected_time"):
+				sample_collected_time = meta.get("collected_time")
+
+		sampling_date = (lt.get("sample_collected_date") or "").strip() or sample_collected_time
+		lt["sample_creation"] = sample_creation
+		lt["sampling_date"] = sampling_date or None
+
+		if sample_creation:
+			lt["report_date"] = sample_creation
+		elif sampling_date:
+			lt["report_date"] = sampling_date
+		else:
+			lt["report_date"] = lt.get("date") or lt.get("result_date") or lt.get("submitted_date")
 
 	return lab_tests
 
@@ -1736,26 +1816,30 @@ def get_lab_test(name):
 		)
 	_apply_doc_no_practitioner_fallback(out)
 	line_rows = getattr(lab_test, 'lab_test_lines', None) or []
-	out['lab_test_lines'] = [
-		{
-			'sr_num': getattr(r, 'sr_num', None) or '',
-			'lab_group_num': getattr(r, 'lab_group_num', None) or '',
-			'group_name': getattr(r, 'group_name', None) or '',
-			'lab_sub_num': getattr(r, 'lab_sub_num', None) or '',
-			'lab_result_value': getattr(r, 'lab_result_value', None) or '',
-			'lab_amt_book': getattr(r, 'lab_amt_book', None),
-			'lab_amt_add': getattr(r, 'lab_amt_add', None),
-			'lab_amt_disc': getattr(r, 'lab_amt_disc', None),
-			'lab_amt_net': getattr(r, 'lab_amt_net', None),
-			'sta_flg': getattr(r, 'sta_flg', None),
-			'cr_id': getattr(r, 'cr_id', None) or '',
-			'cr_date': getattr(r, 'cr_date', None) or '',
-			'up_id': getattr(r, 'up_id', None) or '',
-			'up_date': getattr(r, 'up_date', None) or '',
-			'lab_04_remarks': getattr(r, 'lab_04_remarks', None) or '',
-		}
-		for r in line_rows
-	]
+	template_info_cache: dict[str, dict] = {}
+	out['lab_test_lines'] = []
+	for r in line_rows:
+		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
+		out['lab_test_lines'].append(
+			{
+				'sr_num': getattr(r, 'sr_num', None) or '',
+				'lab_group_num': getattr(r, 'lab_group_num', None) or '',
+				'group_name': getattr(r, 'group_name', None) or '',
+				'lab_sub_num': sub,
+				'lab_sub_template_name': _lab_test_template_name(sub, template_info_cache) if sub else '',
+				'lab_result_value': getattr(r, 'lab_result_value', None) or '',
+				'lab_amt_book': getattr(r, 'lab_amt_book', None),
+				'lab_amt_add': getattr(r, 'lab_amt_add', None),
+				'lab_amt_disc': getattr(r, 'lab_amt_disc', None),
+				'lab_amt_net': getattr(r, 'lab_amt_net', None),
+				'sta_flg': getattr(r, 'sta_flg', None),
+				'cr_id': getattr(r, 'cr_id', None) or '',
+				'cr_date': getattr(r, 'cr_date', None) or '',
+				'up_id': getattr(r, 'up_id', None) or '',
+				'up_date': getattr(r, 'up_date', None) or '',
+				'lab_04_remarks': getattr(r, 'lab_04_remarks', None) or '',
+			}
+		)
 	return out
 
 

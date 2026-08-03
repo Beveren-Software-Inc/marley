@@ -443,6 +443,13 @@ export interface PaymentResponse {
   success: boolean
   message: string
   payment_entry?: string
+  payment_entries?: string[]
+}
+
+export interface PaymentModePayload {
+  mode_of_payment: string
+  amount: number
+  reference_no?: string
 }
 
 
@@ -525,7 +532,8 @@ export const createPaymentEntry = async (
   paymentMode: string,
   costCenter?: string,
   department?: string,
-  referenceNumber?: string
+  referenceNumber?: string,
+  paymentModes?: PaymentModePayload[]
 ): Promise<PaymentResponse> => {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
@@ -543,6 +551,7 @@ export const createPaymentEntry = async (
       cost_center: costCenter,
       department,
       reference_number: referenceNumber,
+      payment_modes: paymentModes,
     }),
   })
 
