@@ -844,10 +844,10 @@ import {
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchHealthcarePractitioners,
-  fetchCompanies,
   getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
+import { getHealthcareServiceTemplates } from '../../services/sessionSchedule'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 
@@ -963,8 +963,15 @@ export const CreatePatientAssessmentModal = ({
   )
   const [assessmentDescription, setAssessmentDescription] = useState(editRow?.assessment_description || '')
   const [familyHistory, setFamilyHistory] = useState(editRow?.family_history || '')
-  const [companyId, setCompanyId] = useState(editRow?.company || '')
   const [therapySession, setTherapySession] = useState(editRow?.therapy_session || '')
+  const [therapyQuery, setTherapyQuery] = useState(editRow?.therapy_session || '')
+  const [therapyOpen, setTherapyOpen] = useState(false)
+  const [therapyOptions, setTherapyOptions] = useState<LinkFieldOption[]>([])
+  const [selectedTherapy, setSelectedTherapy] = useState<LinkFieldOption | null>(
+    editRow?.therapy_session
+      ? { name: editRow.therapy_session, label: editRow.therapy_session }
+      : null
+  )
 
   // ── Assessment sheet ─────────────────────────────────────────────────────────
   const [sheetRows, setSheetRows] = useState<AssessmentSheetRow[]>([])
@@ -1006,13 +1013,6 @@ export const CreatePatientAssessmentModal = ({
       : null
   )
 
-  const [companyQuery, setCompanyQuery] = useState('')
-  const [companyOpen, setCompanyOpen] = useState(false)
-  const [companyOptions, setCompanyOptions] = useState<LinkFieldOption[]>([])
-  const [selectedCompany, setSelectedCompany] = useState<LinkFieldOption | null>(
-    editRow?.company ? { name: editRow.company, label: editRow.company } : null
-  )
-
   // ── Load all assessment parameters once ───────────────────────────────────────
   useEffect(() => {
     if (allParamsLoaded.current) return
@@ -1029,8 +1029,9 @@ export const CreatePatientAssessmentModal = ({
       if (editRow.healthcare_practitioner) {
         setPractQuery(editRow.practitioner_name || editRow.healthcare_practitioner)
       }
-      if (editRow.company) {
-        setCompanyQuery(editRow.company)
+      if (editRow.therapy_session) {
+        setTherapyQuery(editRow.therapy_session)
+        setSelectedTherapy({ name: editRow.therapy_session, label: editRow.therapy_session })
       }
     }
     const patientToLoad = patient || contextPatient
@@ -1060,14 +1061,17 @@ export const CreatePatientAssessmentModal = ({
           setSelectedPract(pract)
           setPractQuery(pract.label)
         }
-        if (doc.company) {
-          setCompanyId(doc.company)
-          setSelectedCompany({ name: doc.company, label: doc.company })
-          setCompanyQuery(doc.company)
-        }
         setAssessmentDescription(doc.assessment_description || '')
         setFamilyHistory(doc.family_history || '')
-        setTherapySession(doc.therapy_session || '')
+        if (doc.therapy_session) {
+          setTherapySession(doc.therapy_session)
+          setSelectedTherapy({ name: doc.therapy_session, label: doc.therapy_session })
+          setTherapyQuery(doc.therapy_session)
+        } else {
+          setTherapySession('')
+          setSelectedTherapy(null)
+          setTherapyQuery('')
+        }
         if (Array.isArray(doc.assessment_sheet)) {
           const rows = doc.assessment_sheet.map((row) => ({
             parameter: row.parameter || row.parameter_label || '',
@@ -1224,16 +1228,28 @@ export const CreatePatientAssessmentModal = ({
     })
   }, [])
 
-  // ── Company options ───────────────────────────────────────────────────────────
+  // ── Healthcare Service (therapy_session) options ───────────────────────────────
   useEffect(() => {
-    if (!companyOpen) return
+    if (!therapyOpen) return
     let c = false
+    const careType: 'OP' | 'IP' | undefined = isIPMode ? 'IP' : isOPMode ? 'OP' : undefined
     const t = setTimeout(async () => {
-      try { const res = await fetchCompanies(companyQuery || undefined); if (!c) setCompanyOptions(res) }
-      catch { if (!c) setCompanyOptions([]) }
-    }, companyQuery.trim() ? 300 : 0)
+      try {
+        const res = await getHealthcareServiceTemplates(therapyQuery || undefined, 50, careType)
+        if (!c) {
+          setTherapyOptions(
+            res.map((o) => ({
+              name: o.name,
+              label: o.service_name || o.name,
+            })),
+          )
+        }
+      } catch {
+        if (!c) setTherapyOptions([])
+      }
+    }, therapyQuery.trim() ? 300 : 0)
     return () => { c = true; clearTimeout(t) }
-  }, [companyQuery, companyOpen])
+  }, [therapyQuery, therapyOpen, isIPMode, isOPMode])
 
   // ── Template selection: load parameters ──────────────────────────────────────
   const handleTemplateSelect = async (tmpl: AssessmentTemplateOption) => {
@@ -1314,7 +1330,6 @@ export const CreatePatientAssessmentModal = ({
         reference_type: referenceType || undefined,
         encounter: encounterId || undefined,
         healthcare_practitioner: selectedPract?.name || undefined,
-        company: companyId || undefined,
         therapy_session: therapySession || undefined,
         assessment_datetime: assessmentDatetime,
         assessment_description: assessmentDescription || undefined,
@@ -1338,7 +1353,7 @@ export const CreatePatientAssessmentModal = ({
 
   const closeAllDropdowns = () => {
     setPatientOpen(false); setTemplateOpen(false); setEncounterOpen(false)
-    setPractOpen(false); setCompanyOpen(false)
+    setPractOpen(false); setTherapyOpen(false)
     setParamOpen({})
   }
 
@@ -1530,29 +1545,42 @@ export const CreatePatientAssessmentModal = ({
                   />
                 </div>
 
-                {/* Practitioner + Company */}
+                {/* Username + Healthcare Service */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <Combo label="Doctor Name" placeholder="Search doctor…"
+                  <Combo label="Username" placeholder="Search username…"
                     displayValue={practOpen ? practQuery : (selectedPract?.label ?? practQuery)}
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
                     onOpen={() => setPractOpen(true)} open={practOpen} options={practOptions}
                     onSelect={(o) => { setSelectedPract(o); setPractQuery(o.label); setPractOpen(false) }}
                     renderOption={(o) => (<div><div className="font-medium">{o.label}</div><div className="text-xs text-slate-500">{o.name}</div></div>)}
                   />
-                  <Combo label="Company" placeholder="Search company…"
-                    displayValue={companyOpen ? companyQuery : (selectedCompany?.label ?? companyQuery)}
-                    onQueryChange={(q) => { setCompanyQuery(q); setCompanyOpen(true); if (!q) { setCompanyId(''); setSelectedCompany(null) } }}
-                    onOpen={() => setCompanyOpen(true)} open={companyOpen} options={companyOptions}
-                    onSelect={(o) => { setCompanyId(o.name); setSelectedCompany(o); setCompanyQuery(o.label); setCompanyOpen(false) }}
-                  />
-                </div>
-
-                {/* Therapy Session */}
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Therapy Session</label>
-                  <input type="text" value={therapySession} onChange={(e) => setTherapySession(e.target.value)}
-                    placeholder="Therapy session ID (optional)"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  <Combo
+                    label="Healthcare Service"
+                    placeholder="Search healthcare service…"
+                    displayValue={therapyOpen ? therapyQuery : (selectedTherapy?.label ?? therapyQuery)}
+                    onQueryChange={(q) => {
+                      setTherapyQuery(q)
+                      setTherapyOpen(true)
+                      if (!q) {
+                        setTherapySession('')
+                        setSelectedTherapy(null)
+                      }
+                    }}
+                    onOpen={() => setTherapyOpen(true)}
+                    open={therapyOpen}
+                    options={therapyOptions}
+                    onSelect={(o) => {
+                      setTherapySession(o.name)
+                      setSelectedTherapy(o)
+                      setTherapyQuery(o.label)
+                      setTherapyOpen(false)
+                    }}
+                    renderOption={(o) => (
+                      <div>
+                        <div className="font-medium">{o.label}</div>
+                        <div className="text-xs text-slate-500">{o.name}</div>
+                      </div>
+                    )}
                   />
                 </div>
 

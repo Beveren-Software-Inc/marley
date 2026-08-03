@@ -1231,17 +1231,25 @@ def _apply_discharge_payload(discharge_doc, discharge_data: dict) -> None:
 		for idx, row in enumerate(documents, start=1):
 			if not isinstance(row, dict):
 				continue
-			if not (row.get("file_name") or row.get("document") or row.get("document_type")):
+			if not (
+				row.get("file_name")
+				or row.get("document")
+				or row.get("document_type")
+				or row.get("patient_relation")
+				or row.get("signee_name")
+			):
 				continue
 			discharge_doc.append(
 				"patient_documents",
 				{
 					"idx": idx,
-					"file_name": (row.get("file_name") or "").strip() or None,
+					"file_name": (row.get("file_name") or row.get("signee_name") or "").strip() or None,
 					"document_type": (row.get("document_type") or "").strip() or None,
 					"transaction_no": (row.get("transaction_no") or "").strip() or None,
 					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 					"document": (row.get("document") or "").strip() or None,
+					"patient_relation": (row.get("patient_relation") or "").strip() or None,
+					"signee_name": (row.get("signee_name") or "").strip() or None,
 				},
 			)
 
@@ -1436,6 +1444,8 @@ def _serialize_discharge_draft_for_portal(discharge_doc) -> dict:
 				"transaction_no": row.transaction_no or "",
 				"upload_remarks": row.upload_remarks or "",
 				"document": row.document or "",
+				"patient_relation": getattr(row, "patient_relation", None) or "",
+				"signee_name": getattr(row, "signee_name", None) or "",
 			}
 			for row in (discharge_doc.get("patient_documents") or [])
 		],

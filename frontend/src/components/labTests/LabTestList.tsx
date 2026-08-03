@@ -1711,7 +1711,7 @@ import { canEditLabTestResults, canEditLabTestResultForRow, isGroupedLabRequestF
 import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
-import { LabTestDashboardCardTable } from './LabTestDashboardCardTable'
+import { LabTestDashboardCardTable, labTestReportDate } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -3827,7 +3827,10 @@ export const LabTestList = ({
                       <tr key={child.name} className="bg-indigo-50/30 hover:bg-indigo-50">
                         {/* Date */}
                         <td className="px-3 py-1.5 text-sm text-slate-700">
-                          {child.result_date ? new Date(child.result_date).toLocaleDateString('en-GB') : child.submitted_date ? new Date(child.submitted_date).toLocaleDateString('en-GB') : '-'}
+                          {(() => {
+                            const d = labTestReportDate(child)
+                            return d ? new Date(d).toLocaleDateString('en-GB') : '-'
+                          })()}
                         </td>
                         {/* File No */}
                         {!patient && (
@@ -3906,13 +3909,10 @@ export const LabTestList = ({
                 >
                   {/* Date */}
                   <td className="px-3 py-1.5 text-sm text-slate-700">
-                    {labTest.result_date
-                      ? new Date(labTest.result_date).toLocaleDateString('en-GB')
-                      : labTest.date
-                        ? new Date(labTest.date).toLocaleDateString('en-GB')
-                        : labTest.submitted_date
-                          ? new Date(labTest.submitted_date).toLocaleDateString('en-GB')
-                          : '-'}
+                    {(() => {
+                      const d = labTestReportDate(labTest)
+                      return d ? new Date(d).toLocaleDateString('en-GB') : '-'
+                    })()}
                   </td>
                   {/* File No */}
                   {!patient && (

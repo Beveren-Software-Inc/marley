@@ -425,11 +425,13 @@ const DEFAULT_SIGNATURE_DOC_TYPE = 'Signature'
 function resolveSignatureDocumentType(
   types: { name: string; document_name?: string }[],
 ): string {
-  const match = types.find((t) => {
-    const label = `${t.name} ${t.document_name || ''}`.toLowerCase()
-    return label.includes('signature')
+  // Prefer exact "Signature" — never pick "Legacy Signature" (old-system imports).
+  const exact = types.find((t) => {
+    const name = (t.name || '').trim().toLowerCase()
+    const label = (t.document_name || '').trim().toLowerCase()
+    return name === 'signature' || label === 'signature'
   })
-  return match?.name || DEFAULT_SIGNATURE_DOC_TYPE
+  return exact?.name || DEFAULT_SIGNATURE_DOC_TYPE
 }
 
 export const AdmissionFormModal = ({
@@ -783,8 +785,9 @@ export const AdmissionFormModal = ({
         setRecord(recordData)
         let docTypes = fetchedDocTypes
         const hasSignatureType = docTypes.some((t) => {
-          const label = `${t.name} ${t.document_name || ''}`.toLowerCase()
-          return label.includes('signature')
+          const name = (t.name || '').trim().toLowerCase()
+          const label = (t.document_name || '').trim().toLowerCase()
+          return name === 'signature' || label === 'signature'
         })
         if (!hasSignatureType) {
           try {

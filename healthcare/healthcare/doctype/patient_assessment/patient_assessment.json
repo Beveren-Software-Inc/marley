@@ -35,7 +35,6 @@
  ],
  "fields": [
   {
-   "fetch_from": "therapy_session.patient",
    "fieldname": "patient",
    "fieldtype": "Link",
    "in_list_view": 1,
@@ -52,15 +51,14 @@
   {
    "fieldname": "therapy_session",
    "fieldtype": "Link",
-   "label": "Therapy Session",
-   "options": "Therapy Session"
+   "label": "Healthcare Service",
+   "options": "Healthcare Service Template"
   },
   {
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
   {
-   "fetch_from": "therapy_session.practitioner",
    "fieldname": "healthcare_practitioner",
    "fieldtype": "Link",
    "label": "Healthcare Practitioner",

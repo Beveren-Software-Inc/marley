@@ -534,10 +534,11 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
 
             {eSignatures.map((row, idx) => {
               const label =
+                row.signee_name?.trim() ||
                 row.file_name?.trim() ||
-                row.document_type?.trim() ||
                 row.transaction_no?.trim() ||
                 `Signature ${idx + 1}`
+              const relation = row.patient_relation?.trim()
               return (
                 <div
                   key={`${row.document || label}-${idx}`}
@@ -545,7 +546,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
                 >
                   <p className="text-sm font-semibold text-slate-900">{label}</p>
                   <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                    {row.document_type ? <span>Type: {row.document_type}</span> : null}
+                    {relation ? <span>Relation: {relation}</span> : null}
                     {row.transaction_no ? <span>Txn: {row.transaction_no}</span> : null}
                   </div>
                   {row.upload_remarks ? (

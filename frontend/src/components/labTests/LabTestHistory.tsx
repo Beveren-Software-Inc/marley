@@ -34,7 +34,7 @@ function localDateISO(d = new Date()): string {
 function defaultDateRange(): { fromDate: string; toDate: string } {
   const toDate = localDateISO()
   const from = new Date()
-  from.setMonth(from.getMonth() - 6)
+  from.setFullYear(from.getFullYear() - 1)
   return { fromDate: localDateISO(from), toDate }
 }
 

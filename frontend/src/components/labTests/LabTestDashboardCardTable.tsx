@@ -19,6 +19,20 @@ const statusColors: Record<string, string> = {
   Requested: 'info',
 }
 
+/** Sampling / sample date for lab report tables. */
+export function labTestReportDate(lt: LabTest): string | undefined {
+  return (
+    lt.report_date ||
+    lt.sample_creation ||
+    lt.sampling_date ||
+    lt.sample_collected_date ||
+    lt.date ||
+    lt.result_date ||
+    lt.submitted_date ||
+    undefined
+  )
+}
+
 interface Props {
   labTests: LabTest[]
   onOpen: (name: string) => void
@@ -26,7 +40,7 @@ interface Props {
   /** When set, clicking the test name opens lab trends for that test. */
   onOpenTrends?: (testName: string) => void
   resolveDocName?: (lt: LabTest) => string
-  /** Compact doctor dashboard: test, status, result, flag, action only */
+  /** Compact doctor dashboard: test, status, result, flag, date, action */
   variant?: 'default' | 'doctor'
 }
 
@@ -51,11 +65,9 @@ export function LabTestDashboardCardTable({
             {isDoctor && (
               <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Flag</th>
             )}
-            {!isDoctor && (
-              <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap w-[22%]">
-                Date
-              </th>
-            )}
+            <th className="px-2 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+              Date
+            </th>
             {isDoctor && (
               <th className="px-2 py-2 text-right text-xs font-semibold text-slate-600 uppercase w-[72px]">
                 Action
@@ -68,6 +80,7 @@ export function LabTestDashboardCardTable({
             const flag = displayResultFlag(lt)
             const docName = resolveDocName(lt)
             const testLabel = (lt.lab_test_name || lt.template || '').trim()
+            const reportDate = labTestReportDate(lt)
             const metaFields = [
               ['Lab Test ID', docName],
               ['Practitioner', lt.practitioner_name || lt.practitioner],
@@ -75,7 +88,7 @@ export function LabTestDashboardCardTable({
               ['Service request', lt.service_request],
               ['Outsourced', lt.is_outsourced ? 'Yes' : ''],
               ['Lab technician', lt.lab_technician_name || lt.lab_technician],
-              ['Date', formatDashboardDate(lt.result_date || lt.date || lt.submitted_date)],
+              ['Date', formatDashboardDate(reportDate)],
               ['Group', lt.lab_test_group],
             ] as const
             return (
@@ -128,11 +141,9 @@ export function LabTestDashboardCardTable({
                     )}
                   </td>
                 )}
-                {!isDoctor && (
-                  <td className="px-2 py-2 text-slate-500 whitespace-nowrap align-top text-xs">
-                    {formatDashboardDate(lt.result_date || lt.date || lt.submitted_date)}
-                  </td>
-                )}
+                <td className="px-2 py-2 text-slate-500 whitespace-nowrap align-top text-xs">
+                  {formatDashboardDate(reportDate)}
+                </td>
                 {isDoctor && (
                   <td className="px-2 py-2 align-top text-right">
                     {lt.status === 'Pending Review' && onReview && !isLegacyHistoryLabRow(lt) ? (

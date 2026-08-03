@@ -284,7 +284,7 @@ export const MorseFallScaleList = ({
             />
           </div>
           <div data-morse-practitioner-filter className="flex flex-col gap-1 min-w-[200px]">
-            <label className="text-xs font-medium text-slate-500">Doctor</label>
+            <label className="text-xs font-medium text-slate-500">Username</label>
             <div className="relative">
               <input
                 type="text"
@@ -299,7 +299,7 @@ export const MorseFallScaleList = ({
                   setPractitionerOpen(true)
                 }}
                 onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search doctor…"
+                placeholder="Search username…"
                 className={`w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary ${
                   practitionerFilter ? 'pr-8' : ''
                 }`}
@@ -361,7 +361,7 @@ export const MorseFallScaleList = ({
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Patient</th>
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Username</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Total</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Risk</th>

@@ -321,7 +321,7 @@ export function PatientAssessmentDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Doctor Name"
+                label="Username"
                 value={displayValue(
                   doc?.practitioner_name ||
                     doc?.healthcare_practitioner ||
@@ -338,6 +338,13 @@ export function PatientAssessmentDetailPanel({
                 label="Template"
                 value={displayValue(doc?.assessment_template || preview?.assessment_template)}
               />
+              {(doc?.therapy_session || preview?.therapy_session) ? (
+                <InfoTile
+                  icon={<Link2 className="h-4 w-4" strokeWidth={2} />}
+                  label="Healthcare Service"
+                  value={displayValue(doc?.therapy_session || preview?.therapy_session)}
+                />
+              ) : null}
               {(() => {
                 const referenceSource = doc ?? preview
                 const reference = referenceSource ? referenceLabel(referenceSource) : '—'

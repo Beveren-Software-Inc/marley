@@ -1125,7 +1125,14 @@ const ProgressNotesTab = ({
 
 function resolveAdmissionSignatureRows(record: InpatientRecord): PatientDocumentRow[] {
   const rows = record.e_signatures || record.patient_documents || []
-  return rows.filter((row) => row?.document || row?.file_name || row?.document_type)
+  return rows.filter(
+    (row) =>
+      row?.document ||
+      row?.file_name ||
+      row?.document_type ||
+      row?.patient_relation ||
+      row?.signee_name,
+  )
 }
 
 const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
@@ -1157,10 +1164,11 @@ const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
 
           {eSignatures.map((row, idx) => {
             const label =
+              row.signee_name?.trim() ||
               row.file_name?.trim() ||
-              row.document_type?.trim() ||
               row.transaction_no?.trim() ||
               `Signature ${idx + 1}`
+            const relation = row.patient_relation?.trim()
             return (
               <div
                 key={`${row.document || label}-${idx}`}
@@ -1170,7 +1178,7 @@ const SignaturesTab = ({ record }: { record: InpatientRecord }) => {
                   <div className="min-w-0">
                     <p className="text-sm font-semibold text-slate-800 truncate">{label}</p>
                     <div className="mt-0.5 flex flex-wrap gap-x-3 text-xs text-slate-500">
-                      {row.document_type ? <span>Type: {row.document_type}</span> : null}
+                      {relation ? <span>Relation: {relation}</span> : null}
                       {row.transaction_no ? <span>Txn: {row.transaction_no}</span> : null}
                     </div>
                     {row.upload_remarks ? (
@@ -1301,7 +1309,12 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
   const signatureCount =
     (record?.signature ? 1 : 0) +
     (record?.e_signatures || record?.patient_documents || []).filter(
-      (row) => row?.document || row?.file_name || row?.document_type
+      (row) =>
+        row?.document ||
+        row?.file_name ||
+        row?.document_type ||
+        row?.patient_relation ||
+        row?.signee_name,
     ).length
 
   const tabs = [
