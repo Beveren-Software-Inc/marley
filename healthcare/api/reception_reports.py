@@ -187,17 +187,46 @@ def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 
 
 def _admission_sales_orders(admission):
-	return frappe.get_all(
-		"Sales Order",
-		filters={
+	"""Sales Orders billed against an IP admission.
+
+	Billing lists use ``custom_reference_type/name`` = Inpatient Admission.
+	``custom_base_reference`` is the underlying source doc (Lab Test, Service Request,
+	Discharge, etc.) — not the admission — so SOA must not filter on base alone.
+	"""
+	fields = [
+		"name",
+		"transaction_date",
+		"discount_amount",
+		"owner",
+		"creation",
+		"grand_total",
+		"custom_reference_type",
+		"custom_reference_name",
+		"custom_base_reference",
+		"custom_base_reference_name",
+	]
+	by_name = {}
+	for filters in (
+		{
+			"custom_reference_type": "Inpatient Admission",
+			"custom_reference_name": admission,
+			"docstatus": ["<", 2],
+		},
+		{
 			"custom_base_reference": "Inpatient Admission",
 			"custom_base_reference_name": admission,
 			"docstatus": ["<", 2],
 		},
-		fields=["name", "transaction_date", "discount_amount", "owner", "creation", "grand_total"],
-		order_by="transaction_date",
-		limit_page_length=0,
-	)
+	):
+		for row in frappe.get_all(
+			"Sales Order",
+			filters=filters,
+			fields=fields,
+			order_by="transaction_date",
+			limit_page_length=0,
+		):
+			by_name[row.name] = row
+	return sorted(by_name.values(), key=lambda r: (str(r.transaction_date or ""), str(r.creation or "")))
 
 
 def _admission_payments(admission, from_date=None, to_date=None):
@@ -284,9 +313,67 @@ def get_ip_payment_discounts(admission, from_date=None, to_date=None):
 	}
 
 
+def _admission_sales_invoices(admission, so_names=None):
+	"""Sales Invoices for an IP admission (by SO link and/or custom reference)."""
+	names = set()
+	so_names = [n for n in (so_names or []) if n]
+	if so_names:
+		for parent in frappe.get_all(
+			"Sales Invoice Item",
+			filters={"sales_order": ["in", so_names]},
+			pluck="parent",
+			limit_page_length=0,
+		):
+			if parent:
+				names.add(parent)
+	for filters in (
+		{
+			"custom_reference_type": "Inpatient Admission",
+			"custom_reference_name": admission,
+			"docstatus": ["<", 2],
+			"is_return": 0,
+		},
+		{
+			"custom_base_reference": "Inpatient Admission",
+			"custom_base_reference_name": admission,
+			"docstatus": ["<", 2],
+			"is_return": 0,
+		},
+	):
+		for name in frappe.get_all("Sales Invoice", filters=filters, pluck="name", limit_page_length=0):
+			if name:
+				names.add(name)
+	if not names:
+		return []
+	return frappe.get_all(
+		"Sales Invoice",
+		filters={"name": ["in", list(names)], "docstatus": ["<", 2], "is_return": 0},
+		fields=["name", "grand_total", "net_total", "total", "discount_amount", "posting_date"],
+		order_by="posting_date",
+		limit_page_length=0,
+	)
+
+
+def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentage=0):
+	return {
+		"item_code": it.item_code,
+		"item_name": it.item_name,
+		"category": it.item_group or "Other Services",
+		"rate": flt(rate),
+		"discount_amount": flt(discount_amount),
+		"discount_percentage": flt(discount_percentage),
+		"qty": flt(it.qty),
+		"amount": flt(amount),
+	}
+
+
 @frappe.whitelist()
 def get_ip_statement_of_account(admission, from_date=None, to_date=None):
-	"""Statement of Account for one IP case: services by category + bill totals."""
+	"""Statement of Account for one IP case: services by category + bill totals.
+
+	Prefers Sales Invoice lines (incl. item + additional/distributed discounts) when
+	orders have been invoiced; otherwise falls back to Sales Order lines.
+	"""
 	if not admission or not frappe.db.exists("Inpatient Admission", admission):
 		frappe.throw(_("Inpatient Admission not found"))
 
@@ -307,42 +394,147 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 
 	sos = _admission_sales_orders(admission)
 	so_names = [s.name for s in sos]
-	items = []
-	if so_names:
-		items = frappe.get_all(
-			"Sales Order Item",
-			filters={"parent": ["in", so_names]},
-			fields=["item_code", "item_name", "item_group", "rate", "qty", "amount"],
+	invoices = _admission_sales_invoices(admission, so_names)
+	si_names = [i.name for i in invoices]
+
+	raw_lines = []
+	invoiced_so_details = set()
+
+	if si_names:
+		si_items = frappe.get_all(
+			"Sales Invoice Item",
+			filters={"parent": ["in", si_names]},
+			fields=[
+				"item_code",
+				"item_name",
+				"item_group",
+				"qty",
+				"rate",
+				"amount",
+				"net_amount",
+				"price_list_rate",
+				"discount_amount",
+				"discount_percentage",
+				"distributed_discount_amount",
+				"so_detail",
+			],
 			limit_page_length=0,
 		)
+		for it in si_items:
+			if it.so_detail:
+				invoiced_so_details.add(it.so_detail)
+			item_disc = flt(it.discount_amount)
+			distributed = flt(getattr(it, "distributed_discount_amount", None) or 0)
+			line_disc = item_disc + distributed
+			list_rate = flt(it.price_list_rate)
+			if list_rate <= 0:
+				list_rate = flt(it.rate) + item_disc
+			# Net after item + additional (distributed) discounts
+			net_amt = flt(it.net_amount)
+			if net_amt <= 0 and line_disc > 0:
+				net_amt = max(flt(it.amount) - distributed, 0)
+			elif net_amt <= 0:
+				net_amt = flt(it.amount)
+			raw_lines.append(
+				_soa_line_from_item(
+					it,
+					rate=list_rate,
+					amount=net_amt,
+					discount_amount=line_disc,
+					discount_percentage=it.discount_percentage,
+				)
+			)
 
-	# Aggregate identical services: same item -> one line with frequency (count) / qty.
+	if so_names:
+		so_items = frappe.get_all(
+			"Sales Order Item",
+			filters={"parent": ["in", so_names]},
+			fields=[
+				"name",
+				"item_code",
+				"item_name",
+				"item_group",
+				"rate",
+				"qty",
+				"amount",
+				"price_list_rate",
+				"discount_amount",
+				"discount_percentage",
+			],
+			limit_page_length=0,
+		)
+		for it in so_items:
+			if it.name in invoiced_so_details:
+				continue
+			list_rate = flt(it.price_list_rate) or flt(it.rate) + flt(it.discount_amount)
+			raw_lines.append(
+				_soa_line_from_item(
+					it,
+					rate=list_rate,
+					amount=flt(it.amount),
+					discount_amount=flt(it.discount_amount),
+					discount_percentage=it.discount_percentage,
+				)
+			)
+
+	# Aggregate identical services: same item + display rate
 	lines = {}
-	for it in items:
-		key = (it.item_code, flt(it.rate))
-		row = lines.setdefault(key, {
-			"item_code": it.item_code,
-			"item_name": it.item_name,
-			"category": it.item_group or "Other Services",
-			"rate": flt(it.rate),
-			"qty": 0.0,
-			"frequency": 0,
-			"amount": 0.0,
-		})
-		row["qty"] += flt(it.qty)
+	for it in raw_lines:
+		key = (it["item_code"], round(flt(it["rate"]), 6))
+		row = lines.setdefault(
+			key,
+			{
+				"item_code": it["item_code"],
+				"item_name": it["item_name"],
+				"category": it["category"],
+				"rate": flt(it["rate"]),
+				"discount_amount": 0.0,
+				"discount_percentage": flt(it["discount_percentage"]),
+				"qty": 0.0,
+				"frequency": 0,
+				"amount": 0.0,
+			},
+		)
+		row["qty"] += flt(it["qty"])
 		row["frequency"] += 1
-		row["amount"] += flt(it.amount)
+		row["amount"] += flt(it["amount"])
+		row["discount_amount"] += flt(it["discount_amount"])
 
 	by_category = {}
 	for row in lines.values():
 		row["qty"] = round(row["qty"], 2)
 		row["amount"] = round(row["amount"], 3)
+		row["discount_amount"] = round(row["discount_amount"], 3)
 		by_category.setdefault(row["category"], []).append(row)
 	for rows in by_category.values():
 		rows.sort(key=lambda r: -r["amount"])
 
-	bill_total = round(sum(flt(s.grand_total) + flt(s.discount_amount) for s in sos), 3)
-	discount_total = round(sum(flt(s.discount_amount) for s in sos), 3)
+	# Gross bill = net line amounts + all discounts shown on lines
+	line_net = sum(flt(r["amount"]) for r in lines.values())
+	line_discount = sum(flt(r["discount_amount"]) for r in lines.values())
+	bill_total = round(line_net + line_discount, 3)
+	discount_total = round(line_discount, 3)
+
+	# Unbilled SO header discounts not already reflected on lines
+	unbilled_so_header_disc = 0.0
+	if sos:
+		invoiced_sos = set()
+		if si_names:
+			invoiced_sos = set(
+				frappe.get_all(
+					"Sales Invoice Item",
+					filters={"parent": ["in", si_names], "sales_order": ["is", "set"]},
+					pluck="sales_order",
+					limit_page_length=0,
+				)
+			)
+		for so in sos:
+			if so.name in invoiced_sos:
+				continue
+			unbilled_so_header_disc += flt(so.discount_amount)
+	discount_total = round(discount_total + unbilled_so_header_disc, 3)
+	bill_total = round(bill_total + unbilled_so_header_disc, 3)
+
 	paid_total = round(sum(flt(e.paid_amount) for e in _admission_payments(admission)), 3)
 	net_total = round(bill_total - discount_total, 3)
 

@@ -168,7 +168,8 @@ export interface PatientDocumentRow {
   transaction_no?: string
   upload_remarks?: string
   document?: string
- 
+  patient_relation?: string
+  signee_name?: string
 }
 
 export interface CreatePatientData {

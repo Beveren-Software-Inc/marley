@@ -4,6 +4,7 @@ export interface EnvironmentalChecklistDetail {
   name: string
   item_name: string
   checked: boolean
+  remarks?: string
 }
 
 export interface EnvironmentalChecklistRecord {
@@ -152,7 +153,11 @@ export async function updateEnvironmentalChecklist(
       method: 'POST',
       body: JSON.stringify({
         checklist_name: checklistName,
-        details: details.map((d) => ({ name: d.name, checked: d.checked })),
+        details: details.map((d) => ({
+          name: d.name,
+          checked: d.checked,
+          remarks: d.remarks || '',
+        })),
         cost_center: options.costCenter,
         practitioner: options.practitioner,
       }),

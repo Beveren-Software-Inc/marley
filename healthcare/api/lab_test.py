@@ -1736,26 +1736,30 @@ def get_lab_test(name):
 		)
 	_apply_doc_no_practitioner_fallback(out)
 	line_rows = getattr(lab_test, 'lab_test_lines', None) or []
-	out['lab_test_lines'] = [
-		{
-			'sr_num': getattr(r, 'sr_num', None) or '',
-			'lab_group_num': getattr(r, 'lab_group_num', None) or '',
-			'group_name': getattr(r, 'group_name', None) or '',
-			'lab_sub_num': getattr(r, 'lab_sub_num', None) or '',
-			'lab_result_value': getattr(r, 'lab_result_value', None) or '',
-			'lab_amt_book': getattr(r, 'lab_amt_book', None),
-			'lab_amt_add': getattr(r, 'lab_amt_add', None),
-			'lab_amt_disc': getattr(r, 'lab_amt_disc', None),
-			'lab_amt_net': getattr(r, 'lab_amt_net', None),
-			'sta_flg': getattr(r, 'sta_flg', None),
-			'cr_id': getattr(r, 'cr_id', None) or '',
-			'cr_date': getattr(r, 'cr_date', None) or '',
-			'up_id': getattr(r, 'up_id', None) or '',
-			'up_date': getattr(r, 'up_date', None) or '',
-			'lab_04_remarks': getattr(r, 'lab_04_remarks', None) or '',
-		}
-		for r in line_rows
-	]
+	template_info_cache: dict[str, dict] = {}
+	out['lab_test_lines'] = []
+	for r in line_rows:
+		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
+		out['lab_test_lines'].append(
+			{
+				'sr_num': getattr(r, 'sr_num', None) or '',
+				'lab_group_num': getattr(r, 'lab_group_num', None) or '',
+				'group_name': getattr(r, 'group_name', None) or '',
+				'lab_sub_num': sub,
+				'lab_sub_template_name': _lab_test_template_name(sub, template_info_cache) if sub else '',
+				'lab_result_value': getattr(r, 'lab_result_value', None) or '',
+				'lab_amt_book': getattr(r, 'lab_amt_book', None),
+				'lab_amt_add': getattr(r, 'lab_amt_add', None),
+				'lab_amt_disc': getattr(r, 'lab_amt_disc', None),
+				'lab_amt_net': getattr(r, 'lab_amt_net', None),
+				'sta_flg': getattr(r, 'sta_flg', None),
+				'cr_id': getattr(r, 'cr_id', None) or '',
+				'cr_date': getattr(r, 'cr_date', None) or '',
+				'up_id': getattr(r, 'up_id', None) or '',
+				'up_date': getattr(r, 'up_date', None) or '',
+				'lab_04_remarks': getattr(r, 'lab_04_remarks', None) or '',
+			}
+		)
 	return out
 
 

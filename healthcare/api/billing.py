@@ -1641,6 +1641,9 @@ def _order_kind_label(so_row, sr_by_name):
     if base_ref == "Patient Medication Order":
         return _("Medication / pharmacy")
 
+    if base_ref in ("Admission Detail", "Medicine Given"):
+        return _("Admission medicine charges")
+
     if base_ref == "Service Request" and base_name:
         sr = sr_by_name.get(base_name)
         return _kind_label_for_service_request(sr)

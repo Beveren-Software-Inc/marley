@@ -413,6 +413,8 @@ def get_inpatient_record(name):
 			"transaction_no": getattr(row, "transaction_no", None),
 			"upload_remarks": getattr(row, "upload_remarks", None),
 			"document": getattr(row, "document", None),
+			"patient_relation": getattr(row, "patient_relation", None),
+			"signee_name": getattr(row, "signee_name", None),
 		})
 
 	return {
@@ -2956,15 +2958,20 @@ def admit_patient(
 		for idx, row in enumerate(documents, start=1):
 			if not isinstance(row, dict):
 				continue
+			file_name = (row.get("file_name") or "").strip()
+			document_type = (row.get("document_type") or "").strip()
+			signee_name = (row.get("signee_name") or "").strip()
 			record.append(
 				"e_signatures",
 				{
 					"idx": idx,
-					"file_name": (row.get("document_type") or "").strip() or None,
-					"document_type": (row.get("document_type") or "").strip() or None,
+					"file_name": file_name or document_type or signee_name or None,
+					"document_type": document_type or None,
 					"transaction_no": (row.get("transaction_no") or "").strip() or None,
 					"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 					"document": (row.get("document") or "").strip() or None,
+					"patient_relation": (row.get("patient_relation") or "").strip() or None,
+					"signee_name": signee_name or None,
 				},
 			)
 
@@ -3327,17 +3334,21 @@ def _apply_e_signatures(doc, documents_data):
 		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
 		document_type = (row.get("document_type") or "").strip()
 		document_url = (row.get("document") or "").strip()
-		if not file_name and not document_type and not document_url:
+		signee_name = (row.get("signee_name") or "").strip()
+		patient_relation = (row.get("patient_relation") or "").strip()
+		if not file_name and not document_type and not document_url and not signee_name and not patient_relation:
 			continue
 		doc.append(
 			"e_signatures",
 			{
 				"idx": idx,
-				"file_name": file_name or document_type or None,
+				"file_name": file_name or document_type or signee_name or None,
 				"document_type": document_type or None,
 				"transaction_no": (row.get("transaction_no") or "").strip() or None,
 				"upload_remarks": (row.get("upload_remarks") or "").strip() or None,
 				"document": document_url or None,
+				"patient_relation": patient_relation or None,
+				"signee_name": signee_name or None,
 			},
 		)
 

@@ -392,17 +392,21 @@ def _build_custom_result(detail_lines: list[dict]) -> str:
 		panel = html.escape(_result_text(line.get("lab_group_num")))
 		group_name = html.escape(_result_text(line.get("group_name")))
 		sub = html.escape(_result_text(line.get("lab_sub_num")))
+		sub_name = html.escape(_result_text(line.get("lab_sub_template_name")))
 		val = html.escape(result)
-		label = group_name or panel or sub
-		rows.append(f"<tr><td>{label}</td><td>{sub}</td><td>{val}</td></tr>")
-		plain_parts.append(f"{sub or label}: {result}")
+		panel_label = group_name or panel
+		test_label = sub_name or sub
+		rows.append(
+			f"<tr><td>{panel_label}</td><td>{test_label}</td><td>{sub}</td><td>{val}</td></tr>"
+		)
+		plain_parts.append(f"{test_label or sub or panel_label}: {result}")
 
 	if not rows:
 		return ""
 
 	table = (
 		"<table class='table table-bordered table-sm'>"
-		"<thead><tr><th>Panel</th><th>Test Code</th><th>Result</th></tr></thead>"
+		"<thead><tr><th>Panel</th><th>Test Name</th><th>Test Code</th><th>Result</th></tr></thead>"
 		f"<tbody>{''.join(rows)}</tbody></table>"
 	)
 	return table

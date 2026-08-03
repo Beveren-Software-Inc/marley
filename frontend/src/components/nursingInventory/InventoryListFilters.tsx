@@ -74,6 +74,7 @@ export function FilterSearchInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         className={`${FILTER_INPUT_CLASS} pl-8 pr-8`}
+        data-search-icon
       />
       {value ? (
         <button

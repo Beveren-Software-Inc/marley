@@ -2261,7 +2261,7 @@ def _aggregate_medicine_given_items(given_rows):
 
 
 def _group_medicine_given_for_billing(given_rows):
-    """Group unbilled given rows by item + batch + dispensing lot for SO/DN lines."""
+    """Group unbilled given rows by item + batch + dispensing lot + unit for SO/DN lines."""
     groups = []
     index = {}
     for row in given_rows or []:
@@ -2272,7 +2272,8 @@ def _group_medicine_given_for_billing(given_rows):
         batch_no = (row.get("batch_no") or "").strip()
         dispensing_lot = (row.get("dispensing_lot") or "").strip()
         lot_no = (row.get("lot_no") or "").strip()
-        key = (code, batch_no, dispensing_lot, lot_no)
+        unit = (row.get("unit") or "").strip()
+        key = (code, batch_no, dispensing_lot, lot_no, unit)
         if key not in index:
             index[key] = len(groups)
             groups.append(
@@ -2280,6 +2281,7 @@ def _group_medicine_given_for_billing(given_rows):
                     "medicine_code": code,
                     "medicine_name": (row.get("medicine_name") or code).strip() or code,
                     "qty": 0,
+                    "unit": unit or None,
                     "batch_no": batch_no or None,
                     "dispensing_lot": dispensing_lot or None,
                     "lot_no": lot_no or None,
@@ -2530,8 +2532,9 @@ def _create_delivery_note_for_sales_order(
 def _create_medicine_sales_order_for_admission(admission, consumption_date):
     """Create a draft Sales Order for medicine given on one admission for a date."""
     from healthcare.api.medicine_given import _get_or_create_admission_detail
-    from healthcare.api.patient_medication_order import get_item_rate, get_item_tax, get_tax_account
+    from healthcare.api.patient_medication_order import get_item_rate_for_uom, get_item_tax, get_tax_account
     from healthcare.api.sales_order_cost_center import apply_cost_center_to_sales_order
+    from erpnext.stock.get_item_details import get_conversion_factor
 
     admission = (admission or "").strip()
     if not admission:
@@ -2567,7 +2570,16 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
     given_rows = frappe.get_all(
         "Medicine Given",
         filters=_unbilled_medicine_given_filters(admission_detail.name, consumption_date),
-        fields=["name", "medicine_code", "medicine_name", "qty", "batch_no", "lot_no", "dispensing_lot"],
+        fields=[
+            "name",
+            "medicine_code",
+            "medicine_name",
+            "qty",
+            "unit",
+            "batch_no",
+            "lot_no",
+            "dispensing_lot",
+        ],
     )
     # Given Medicine used to default date via UTC (toISOString), so near midnight Bahrain
     # rows land on "yesterday" while Service Bill looks at local today — fall back one day.
@@ -2586,6 +2598,7 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
                         "medicine_code",
                         "medicine_name",
                         "qty",
+                        "unit",
                         "batch_no",
                         "lot_no",
                         "dispensing_lot",
@@ -2633,7 +2646,8 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
 
     so.custom_reference_type = "Inpatient Admission"
     so.custom_reference_name = admission
-    so.custom_base_reference = "Admission Detail"
+    # Distinct from package / room admission charges — used by billing order_kind_label.
+    so.custom_base_reference = "Medicine Given"
     so.custom_base_reference_name = admission_detail.name
 
     if warehouse and hasattr(so, "set_warehouse"):
@@ -2643,12 +2657,20 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
     tax_templates_added = set()
     for group in billing_groups:
         item_code = group["medicine_code"]
+        stock_uom = frappe.db.get_value("Item", item_code, "stock_uom") or ""
+        uom = (group.get("unit") or "").strip() or stock_uom
+        conversion_factor = 1.0
+        if uom and stock_uom and uom != stock_uom:
+            conversion_factor = flt(get_conversion_factor(item_code, uom).get("conversion_factor")) or 1.0
         item_row = {
             "item_code": item_code,
             "qty": group["qty"],
+            "uom": uom,
+            "stock_uom": stock_uom or uom,
+            "conversion_factor": conversion_factor,
             "description": group["medicine_name"],
         }
-        rate = flt(get_item_rate(item_code))
+        rate = flt(get_item_rate_for_uom(item_code, uom))
         if rate:
             item_row["rate"] = rate
             item_row["price_list_rate"] = rate

@@ -102,8 +102,6 @@ import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
 import { OverdueClinicalActions } from '../components/doctor/OverdueClinicalActions'
-import { PatientDiagnosisList } from '../components/diagnosis/PatientDiagnosisList'
-
 const CreateLabRequestModal = ({ 
   onClose, 
   onSuccess, 
@@ -147,6 +145,11 @@ export const DoctorPage = () => {
   const [showLabTestModal, setShowLabTestModal] = useState(false)
   const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [showLabTrends, setShowLabTrends] = useState(false)
+  const [labTrendsTestName, setLabTrendsTestName] = useState('')
+  const openLabTrends = (testName = '') => {
+    setLabTrendsTestName(testName.trim())
+    setShowLabTrends(true)
+  }
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
   const [patientRefreshKey, setPatientRefreshKey] = useState(0)
   const [dischargeHasDraft, setDischargeHasDraft] = useState(false)
@@ -715,7 +718,7 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Laboratory (Lab Tests)
+  // Laboratory: Lab Request on top, Tests & Results next (+ Lab Trends on tests)
   if (screen === 'lab') {
     const focusLabTest = searchParams.get('lab_test') || undefined
     return (
@@ -737,34 +740,38 @@ export const DoctorPage = () => {
           </DashboardCard>
 
           <div className="mt-4">
-          <DashboardCard
-            title="Tests & Results"
-            onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
-            addButtonTitle="Add Lab Test"
-            fixedHeight
-          >
-            <LabTestList
-              patient={selectedPatient}
-              defaultStatus="Pending Review"
-              doctorLabDefaults
-              focusLabTest={focusLabTest}
-              focusOpenReview
-              key={`${labTestRefreshKey}-${focusLabTest || ''}`}
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
+            <DashboardCard
+              title="Tests & Results"
+              onAdd={() => guardClinicalCreate(() => setShowLabTestModal(true))}
+              addButtonTitle="Add Lab Test"
+              fixedHeight
+              headerExtra={
+                selectedPatient ? (
+                  <button
+                    type="button"
+                    onClick={() => openLabTrends()}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                    title="Lab results over time — dates in columns, tests in rows"
+                  >
+                    📈 Lab Trends
+                  </button>
+                ) : null
+              }
+            >
+              <LabTestList
+                patient={selectedPatient}
+                defaultStatus="Pending Review"
+                doctorLabDefaults
+                focusLabTest={focusLabTest}
+                focusOpenReview
+                key={`${labTestRefreshKey}-${focusLabTest || ''}`}
+                onPatientClick={handlePatientSelect}
+                onOpenLabTrends={openLabTrends}
+              />
+            </DashboardCard>
           </div>
-
-          {/* DOC-018 - update diagnosis while reviewing lab results, without
-              navigating away to the separate Diagnoses screen. */}
-          {selectedPatient && (
-            <div className="mt-4">
-              <DashboardCard title="Diagnoses — update from lab findings">
-                <PatientDiagnosisList patient={selectedPatient} refreshKey={labTestRefreshKey} />
-              </DashboardCard>
-            </div>
-          )}
         </div>
+
         {showServiceRequestModal && (
           <CreateServiceRequestModal
             onClose={() => setShowServiceRequestModal(false)}
@@ -776,6 +783,53 @@ export const DoctorPage = () => {
             initialPatient={selectedPatient}
             labTestTemplateOnly
           />
+        )}
+
+        {showLabTestModal && (
+          <CreateLabRequestModal
+            onClose={() => setShowLabTestModal(false)}
+            onSuccess={() => {
+              setLabTestRefreshKey((prev) => prev + 1)
+              setShowLabTestModal(false)
+              toast.success('Lab request created successfully')
+            }}
+            initialPatient={selectedPatient}
+          />
+        )}
+
+        {showLabTrends && (
+          <div className="fixed inset-0 z-50 flex items-start justify-end" onClick={() => setShowLabTrends(false)}>
+            <div className="absolute inset-0 bg-primary/15 backdrop-blur-[2px]" />
+            <div
+              className="relative z-10 flex h-full w-full max-w-5xl flex-col border-l border-slate-200 bg-white shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-5 py-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lab Trends</p>
+                  <p className="text-sm font-semibold text-slate-900">
+                    Results over time — dates in columns, tests in rows
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowLabTrends(false)}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-auto p-4">
+                <LabTestHistory
+                  key={`${selectedPatient || ''}|${labTrendsTestName}`}
+                  patientId={selectedPatient || undefined}
+                  onPatientChange={handlePatientSelect}
+                  initialTestName={labTrendsTestName}
+                />
+              </div>
+            </div>
+          </div>
         )}
       </div>
     )
@@ -2262,6 +2316,16 @@ export const DoctorPage = () => {
         listingScreen={labCardTab === 'reports' ? 'lab' : 'lab-req'}
         headerExtra={
           <div className="flex items-center gap-1.5">
+            {labCardTab === 'reports' && selectedPatient ? (
+              <button
+                type="button"
+                onClick={() => openLabTrends()}
+                className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-2.5 py-1 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                title="Lab results over time — dates in columns, tests in rows"
+              >
+                📈 Lab Trends
+              </button>
+            ) : null}
             <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs font-semibold">
               {([
                 ['reports', 'REPORTS'],
@@ -2279,16 +2343,6 @@ export const DoctorPage = () => {
                 </button>
               ))}
             </div>
-            {labCardTab === 'reports' && selectedPatient ? (
-              <button
-                type="button"
-                onClick={() => setShowLabTrends(true)}
-                className="inline-flex items-center gap-1 rounded-md border border-primary/40 px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5"
-                title="Lab results over time — dates in columns, tests in rows"
-              >
-                📈 Lab Trends
-              </button>
-            ) : null}
           </div>
         }
       >
@@ -2299,6 +2353,7 @@ export const DoctorPage = () => {
             doctorLabDefaults
             key={labTestRefreshKey}
             onPatientClick={handlePatientSelect}
+            onOpenLabTrends={openLabTrends}
           />
         ) : (
           <ServiceRequestList
@@ -2385,7 +2440,12 @@ export const DoctorPage = () => {
             </button>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-4">
-            <LabTestHistory patientId={selectedPatient || undefined} onPatientChange={handlePatientSelect} />
+            <LabTestHistory
+              key={`${selectedPatient || ''}|${labTrendsTestName}`}
+              patientId={selectedPatient || undefined}
+              onPatientChange={handlePatientSelect}
+              initialTestName={labTrendsTestName}
+            />
           </div>
         </div>
       </div>

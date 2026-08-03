@@ -2400,6 +2400,7 @@ export const LabTestList = ({
   focusOpenSampleCollection = false,
   focusOpenReview = false,
   statusTabs = false,
+  onOpenLabTrends,
 }: {
   patient?: string
   isOutsourced?: boolean
@@ -2424,6 +2425,8 @@ export const LabTestList = ({
   focusLabTest?: string
   focusOpenSampleCollection?: boolean
   focusOpenReview?: boolean
+  /** Doctor lab: open Lab Trends with this test name prefilled. */
+  onOpenLabTrends?: (testName: string) => void
 }) => {
   const { selectedPatient: contextPatient, userRole, guardClinicalEdit } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
@@ -3639,6 +3642,7 @@ export const LabTestList = ({
           labTests={displayLabTests}
           variant="doctor"
           onOpen={(name) => setSelectedLabTestForDetails(name)}
+          onOpenTrends={onOpenLabTrends}
           resolveDocName={resolveLabTestDocName}
           onReview={(name) => openReviewModal(name, 'Reviewed')}
         />
@@ -3646,6 +3650,7 @@ export const LabTestList = ({
         <LabTestDashboardCardTable
           labTests={displayLabTests}
           onOpen={(name) => setSelectedLabTestForDetails(name)}
+          onOpenTrends={onOpenLabTrends}
           resolveDocName={resolveLabTestDocName}
         />
       ) : (
@@ -3840,7 +3845,15 @@ export const LabTestList = ({
                         {/* Test */}
                         <td
                           className="px-3 py-1.5 text-sm text-slate-700 pl-6 cursor-pointer hover:text-indigo-600"
-                          onClick={(e) => { e.stopPropagation(); setSelectedLabTestForDetails(child.name); }}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            const testLabel = (child.lab_test_name || child.template || '').trim()
+                            if (onOpenLabTrends && testLabel) {
+                              onOpenLabTrends(testLabel)
+                              return
+                            }
+                            setSelectedLabTestForDetails(child.name)
+                          }}
                         >
                           <span className="text-slate-400 mr-1">↳</span>{child.lab_test_name || child.template || '-'}
                         </td>
@@ -3917,7 +3930,15 @@ export const LabTestList = ({
                   {/* Test */}
                   <td
                     className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer hover:text-primary"
-                    onClick={(e) => { e.stopPropagation(); setSelectedLabTestForDetails(detailsName); }}
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const testLabel = (labTest.lab_test_name || labTest.template || '').trim()
+                      if (onOpenLabTrends && testLabel) {
+                        onOpenLabTrends(testLabel)
+                        return
+                      }
+                      setSelectedLabTestForDetails(detailsName)
+                    }}
                   >
                     <div className="flex items-center gap-1.5 min-w-0">
                       {isLegacyHistoryLabRow(labTest) && (

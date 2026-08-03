@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import {
   fetchLabTestHistoryMatrix,
+  type LabHistoryMatrixCell,
   type LabHistoryMatrixColumn,
   type LabHistoryMatrixRow,
 } from '../../services/labTests'
@@ -13,6 +14,8 @@ interface LabTestHistoryProps {
   patientName?: string
   onPatientChange?: (patientId: string) => void
   className?: string
+  /** Prefill the Test Name filter (e.g. when opening trends from a listing row). */
+  initialTestName?: string
 }
 
 interface Filters {
@@ -40,17 +43,54 @@ const makeDefaultFilters = (): Filters => ({
   testName: '',
 })
 
-function formatColumnHeader(col: LabHistoryMatrixColumn): { dateLine: string; timeLine: string } {
-  let dateLine = col.date || '—'
+function formatColumnHeader(col: LabHistoryMatrixColumn): string {
   try {
     if (col.date) {
-      dateLine = new Date(col.date + 'T00:00:00').toLocaleDateString('en-GB')
+      return new Date(col.date + 'T00:00:00').toLocaleDateString('en-GB')
     }
   } catch {
-    dateLine = col.date || '—'
+    /* fall through */
   }
-  const timeLine = col.time || ''
-  return { dateLine, timeLine }
+  return col.date || '—'
+}
+
+type VerticalHistoryEvent = {
+  key: string
+  date: string
+  time: string
+  dateLine: string
+  testLabel: string
+  cell: LabHistoryMatrixCell
+}
+
+/** Dates with an actual result for the filtered test(s) — newest first. */
+function buildVerticalHistoryEvents(
+  columns: LabHistoryMatrixColumn[],
+  rows: LabHistoryMatrixRow[],
+): VerticalHistoryEvent[] {
+  const events: VerticalHistoryEvent[] = []
+  for (const row of rows) {
+    for (const col of columns) {
+      if (!col.key || col.key.startsWith('__pad_')) continue
+      const cell = row.cells[col.key]
+      const value = (cell?.value ?? '').toString().trim()
+      if (!value) continue
+      events.push({
+        key: `${row.key}::${col.key}`,
+        date: col.date || '',
+        time: col.time || '',
+        dateLine: formatColumnHeader(col),
+        testLabel: row.label,
+        cell,
+      })
+    }
+  }
+  events.sort((a, b) => {
+    const byDate = (b.date || '').localeCompare(a.date || '')
+    if (byDate !== 0) return byDate
+    return (b.time || '').localeCompare(a.time || '')
+  })
+  return events
 }
 
 const MIN_DATE_COLUMNS = 20
@@ -244,9 +284,13 @@ export const LabTestHistory = ({
   patientName,
   onPatientChange,
   className = '',
+  initialTestName = '',
 }: LabTestHistoryProps) => {
   const defaults = defaultDateRange()
-  const [filters, setFilters] = useState<Filters>({ ...defaults, testName: '' })
+  const [filters, setFilters] = useState<Filters>({
+    ...defaults,
+    testName: initialTestName.trim(),
+  })
   const [columns, setColumns] = useState<LabHistoryMatrixColumn[]>([])
   const [rows, setRows] = useState<LabHistoryMatrixRow[]>([])
   const [displayPatientName, setDisplayPatientName] = useState(patientName || '')
@@ -257,6 +301,10 @@ export const LabTestHistory = ({
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
   const [patientOpen, setPatientOpen] = useState(false)
   const [patientLoading, setPatientLoading] = useState(false)
+
+  useEffect(() => {
+    setFilters((prev) => ({ ...prev, testName: initialTestName.trim() }))
+  }, [initialTestName])
 
   useEffect(() => {
     setPatientQuery(patientName || patientId || '')
@@ -399,14 +447,30 @@ export const LabTestHistory = ({
       ) : (
         <>
           {(() => {
-            const displayColumns = padHistoryColumns(columns)
+            const focusedTest = filters.testName.trim()
+            const verticalMode = Boolean(focusedTest)
+            const verticalEvents = verticalMode ? buildVerticalHistoryEvents(columns, rows) : []
+            const displayColumns = verticalMode ? columns : padHistoryColumns(columns)
+            const showTestCol = verticalMode && rows.length > 1
+
             return (
               <>
           <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2">
             <span>
-              {rows.length} test{rows.length !== 1 ? 's' : ''} × {columns.length} date
-              {columns.length !== 1 ? 's' : ''}
-              {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
+              {verticalMode ? (
+                <>
+                  {focusedTest}
+                  {' · '}
+                  {verticalEvents.length} result{verticalEvents.length !== 1 ? 's' : ''}
+                  {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
+                </>
+              ) : (
+                <>
+                  {rows.length} test{rows.length !== 1 ? 's' : ''} × {columns.length} date
+                  {columns.length !== 1 ? 's' : ''}
+                  {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
+                </>
+              )}
             </span>
             <span className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1">
@@ -423,6 +487,55 @@ export const LabTestHistory = ({
           </div>
 
           <div className="overflow-auto max-h-[520px]" style={{ scrollbarWidth: 'thin' }}>
+            {verticalMode ? (
+              verticalEvents.length === 0 ? (
+                <div className="px-4 py-8 text-center text-sm text-slate-400">
+                  NO RESULTS FOR THIS TEST IN THE SELECTED DATE RANGE.
+                </div>
+              ) : (
+                <table className="w-full min-w-[360px] border-collapse">
+                  <thead className="sticky top-0 z-10 bg-slate-50">
+                    <tr>
+                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                        Date
+                      </th>
+                      {showTestCol ? (
+                        <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                          Test
+                        </th>
+                      ) : null}
+                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                        Result
+                      </th>
+                      <th className="border-b border-slate-200 px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                        Flag
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {verticalEvents.map((ev) => (
+                      <tr key={ev.key} className="hover:bg-slate-50/50">
+                        <td className="px-3 py-2 text-sm font-medium text-slate-800 whitespace-nowrap">
+                          {ev.dateLine}
+                        </td>
+                        {showTestCol ? (
+                          <td className="px-3 py-2 text-sm text-slate-700">{ev.testLabel}</td>
+                        ) : null}
+                        <td className={`px-3 py-2 text-sm ${cellClass(ev.cell.flag)}`}>
+                          <span className="inline-flex items-center gap-1 font-medium">
+                            {ev.cell.value}
+                            {cellDirectionArrow(ev.cell.direction)}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 text-xs capitalize text-slate-600">
+                          {ev.cell.flag || '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )
+            ) : (
             <table className="border-collapse w-auto table-fixed">
               <colgroup>
                 <col style={{ width: `${TEST_COLUMN_WIDTH_PX}px` }} />
@@ -439,7 +552,7 @@ export const LabTestHistory = ({
                     Test
                   </th>
                   {displayColumns.map((col) => {
-                    const { dateLine, timeLine } = formatColumnHeader(col)
+                    const dateLine = formatColumnHeader(col)
                     const isPad = col.key.startsWith('__pad_')
                     return (
                       <th
@@ -449,16 +562,7 @@ export const LabTestHistory = ({
                         }`}
                         title={isPad ? undefined : col.lab_test_name || col.lab_test}
                       >
-                        {isPad ? (
-                          <div className="leading-tight">—</div>
-                        ) : (
-                          <>
-                            <div className="leading-tight">{dateLine}</div>
-                            {timeLine ? (
-                              <div className="text-[9px] font-normal text-slate-400 mt-0.5 truncate">{timeLine}</div>
-                            ) : null}
-                          </>
-                        )}
+                        <div className="leading-tight">{isPad ? '—' : dateLine}</div>
                       </th>
                     )
                   })}
@@ -513,6 +617,7 @@ export const LabTestHistory = ({
                 )}
               </tbody>
             </table>
+            )}
           </div>
               </>
             )

@@ -676,6 +676,8 @@ export async function admitPatient(
     transaction_no?: string
     upload_remarks?: string
     document?: string
+    patient_relation?: string
+    signee_name?: string
   }[],
   patientRelatives?: {
     relative_relation?: string

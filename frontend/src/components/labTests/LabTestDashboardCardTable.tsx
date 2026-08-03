@@ -23,6 +23,8 @@ interface Props {
   labTests: LabTest[]
   onOpen: (name: string) => void
   onReview?: (name: string) => void
+  /** When set, clicking the test name opens lab trends for that test. */
+  onOpenTrends?: (testName: string) => void
   resolveDocName?: (lt: LabTest) => string
   /** Compact doctor dashboard: test, status, result, flag, action only */
   variant?: 'default' | 'doctor'
@@ -32,6 +34,7 @@ export function LabTestDashboardCardTable({
   labTests,
   onOpen,
   onReview,
+  onOpenTrends,
   resolveDocName = resolveLabTestDocName,
   variant = 'default',
 }: Props) {
@@ -64,6 +67,7 @@ export function LabTestDashboardCardTable({
           {labTests.map((lt) => {
             const flag = displayResultFlag(lt)
             const docName = resolveDocName(lt)
+            const testLabel = (lt.lab_test_name || lt.template || '').trim()
             const metaFields = [
               ['Lab Test ID', docName],
               ['Practitioner', lt.practitioner_name || lt.practitioner],
@@ -78,14 +82,29 @@ export function LabTestDashboardCardTable({
               <tr key={lt.name} className={dashboardCardRowHoverClass}>
                 <td className="px-2 py-2 text-slate-800 font-medium align-top">
                   <div className="flex items-start gap-1 min-w-0">
-                    <span className="line-clamp-2 min-w-0 flex-1">
+                    <button
+                      type="button"
+                      className={`line-clamp-2 min-w-0 flex-1 text-left ${
+                        onOpenTrends
+                          ? 'cursor-pointer text-primary hover:underline'
+                          : 'cursor-default'
+                      }`}
+                      onClick={() => {
+                        if (onOpenTrends && testLabel) {
+                          onOpenTrends(testLabel)
+                          return
+                        }
+                        onOpen(docName)
+                      }}
+                      title={onOpenTrends ? 'Open lab trends for this test' : 'View lab test'}
+                    >
                       {isLegacyHistoryLabRow(lt) && (
                         <span className="mr-1 inline-flex items-center rounded bg-amber-100 px-1 py-0.5 text-[9px] font-bold uppercase text-amber-800">
                           History
                         </span>
                       )}
-                      {lt.lab_test_name || lt.template || '—'}
-                    </span>
+                      {testLabel || '—'}
+                    </button>
                     <CardRowMetaHint fields={metaFields} />
                   </div>
                 </td>

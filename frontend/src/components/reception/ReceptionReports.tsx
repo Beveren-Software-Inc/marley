@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 type ReportId = 'receipts' | 'ip-payments' | 'soa'
 
@@ -95,6 +96,7 @@ function openDocument(html: string, mode: 'pdf' | 'excel', filename: string) {
 }
 
 export function ReceptionReports() {
+  const { activeAdmission } = useCareContext()
   const [report, setReport] = useState<ReportId>('receipts')
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -106,14 +108,29 @@ export function ReceptionReports() {
   const [data, setData] = useState<any>(null)
 
   const needsAdmission = report !== 'receipts'
+  const resolvedAdmission = (activeAdmission || admission || '').trim()
+  const headerCaseLabel = useMemo(() => {
+    if (!activeAdmission) return ''
+    try {
+      return localStorage.getItem('patientSearch_activeAdmissionLabel') || activeAdmission
+    } catch {
+      return activeAdmission
+    }
+  }, [activeAdmission])
+
+  useEffect(() => {
+    if (!activeAdmission) return
+    setAdmission(activeAdmission)
+    setAdmissionQuery(headerCaseLabel || activeAdmission)
+  }, [activeAdmission, headerCaseLabel])
 
   const run = async () => {
     if (report === 'receipts' && (!fromDate || !toDate)) {
       toast.error('Select From Date and To Date')
       return
     }
-    if (needsAdmission && !admission) {
-      toast.error('Select an admission (case)')
+    if (needsAdmission && !resolvedAdmission) {
+      toast.error('Select a case at the top (patient / admission), then run the report')
       return
     }
     setLoading(true)
@@ -122,7 +139,7 @@ export function ReceptionReports() {
       const params = new URLSearchParams()
       if (fromDate) params.append('from_date', fromDate)
       if (toDate) params.append('to_date', toDate)
-      if (needsAdmission) params.append('admission', admission)
+      if (needsAdmission) params.append('admission', resolvedAdmission)
       const method =
         report === 'receipts'
           ? 'get_patient_receipts_summary'
@@ -155,11 +172,11 @@ export function ReceptionReports() {
       return { html, filename: `patient-receipts-${fromDate}-${toDate}` }
     }
     if (report === 'ip-payments') {
-      let html = buildLetterhead('IP Payments and Discounts', `${range}${range ? ' · ' : ''}Case No. ${admission}`)
+      let html = buildLetterhead('IP Payments and Discounts', `${range}${range ? ' · ' : ''}Case No. ${resolvedAdmission}`)
       html += sectionTable('DISCOUNT', data.discounts || [], PD_COLS, data.discount_total)
       html += sectionTable('PAID', data.paid || [], PD_COLS, data.paid_total)
       html += `<table style="width:340px"><tbody><tr class="total"><td>Gross Total</td><td class="num">${fmtAmt(data.gross_total)}</td></tr></tbody></table>`
-      return { html, filename: `ip-payments-discounts-${admission}` }
+      return { html, filename: `ip-payments-discounts-${resolvedAdmission}` }
     }
     // SOA
     let html = buildLetterhead('Statement of Account', `Case No. ${data.case_no} · ${range}`)
@@ -173,22 +190,27 @@ export function ReceptionReports() {
     const catRows = Object.entries(cats)
       .map(([cat, rows]) =>
         (rows as any[])
-          .map(
-            (r, i) =>
-              `<tr>${i === 0 ? `<td rowspan="${(rows as any[]).length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`,
-          )
+          .map((r, i) => {
+            const lineDisc = Number(r.discount_amount || 0)
+            const discPct = Number(r.discount_percentage || 0)
+            const discCell =
+              lineDisc > 0
+                ? `${fmtAmt(lineDisc)}${discPct > 0 ? ` (${discPct}%)` : ''}`
+                : ''
+            return `<tr>${i === 0 ? `<td rowspan="${(rows as any[]).length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+          })
           .join(''),
       )
       .join('')
-    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${catRows}
-      <tr class="total"><td colspan="6">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
-      <tr class="total"><td colspan="6">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
-      <tr class="total"><td colspan="6">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
-      <tr class="total"><td colspan="6">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
-      <tr class="total"><td colspan="6">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>
+    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${catRows}
+      <tr class="total"><td colspan="7">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
+      <tr class="total"><td colspan="7">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
+      <tr class="total"><td colspan="7">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
+      <tr class="total"><td colspan="7">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
+      <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>
     </tbody></table>
     <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
-    return { html, filename: `soa-${data.case_no || admission}` }
+    return { html, filename: `soa-${data.case_no || resolvedAdmission}` }
   }
 
   const doExport = (mode: 'pdf' | 'excel') => {
@@ -251,7 +273,14 @@ export function ReceptionReports() {
           <label className="text-xs font-medium text-slate-500">To Date</label>
           <DateFilterInput value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white" />
         </div>
-        {needsAdmission && (
+        {needsAdmission && activeAdmission ? (
+          <div className="flex flex-col gap-1 min-w-[180px]">
+            <label className="text-xs font-medium text-slate-500">Case</label>
+            <div className="h-[30px] flex items-center rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 truncate" title={headerCaseLabel}>
+              {activeAdmission}
+            </div>
+          </div>
+        ) : needsAdmission ? (
           <div className="relative flex flex-col gap-1 min-w-[220px]">
             <label className="text-xs font-medium text-slate-500">Admission / Case</label>
             <input
@@ -290,7 +319,7 @@ export function ReceptionReports() {
               </div>
             )}
           </div>
-        )}
+        ) : null}
         <button
           type="button"
           onClick={() => void run()}
