@@ -44,7 +44,6 @@ import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskMod
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { ObservationList } from '../components/observations/ObservationList'
-import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAssessmentModal'
 import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
@@ -1802,43 +1801,6 @@ export const DoctorPage = () => {
             }}
           />
         )}
-      </div>
-    )
-  }
-
-  // Show Package Details
-  if (screen === 'pkg') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <DashboardCard 
-            title="Package Details" 
-            onAdd={async () => {
-              if (!selectedPatient) {
-                toast.error('Please select a patient first')
-                return
-              }
-              try {
-                const admission = await getPatientActiveAdmission(selectedPatient)
-                if (!admission) {
-                  toast.error('No active admission found for this patient')
-                  return
-                }
-                window.open(
-                  `/app/inpatient-record/${encodeURIComponent(admission.name)}`,
-                  '_blank'
-                )
-              } catch (err) {
-                const msg = err instanceof Error ? err.message : 'Failed to open admission'
-                toast.error(msg)
-              }
-            }}
-            addButtonTitle="Manage Packages for Admission"
-          >
-            <PackageDetailView patient={selectedPatient} />
-          </DashboardCard>
-        </div>
       </div>
     )
   }

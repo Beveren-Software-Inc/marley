@@ -566,8 +566,11 @@ def get_nursing_checklist_templates(search=None):
 @frappe.whitelist()
 def get_patient_visit_types(search=None):
 	"""Patient Visit Type options for dropdowns — portal roles (e.g. Nurse) lack doctype read perms
-	(REST grants Patient Visit Type only to Doctor / Reception / System Manager)."""
-	filters = {}
+	(REST grants Patient Visit Type only to Doctor / Reception / System Manager).
+
+	Disabled visit types are excluded so they do not appear in create/edit/filter dropdowns.
+	"""
+	filters = {"disabled": 0}
 
 	if search:
 		filters['visit_type'] = ['like', f'%{search}%']

@@ -1357,14 +1357,75 @@ def cancel_or_delete_sales_invoice(invoice_name):
 
 
 @frappe.whitelist()
-def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center=None,department=None, reference_number=None):
+def create_payment_entry(
+    invoice_name,
+    payment_amount=None,
+    payment_mode=None,
+    cost_center=None,
+    department=None,
+    reference_number=None,
+    payment_modes=None,
+):
     """
-    Create a payment entry against a sales invoice
+    Create payment entry(ies) against a sales invoice.
+
+    Pass either a single payment_mode + payment_amount, or payment_modes as a list of
+    {mode_of_payment, amount, reference_no?} — one Payment Entry is created per mode.
     """
     try:
-        # Get the sales invoice
-        invoice = frappe.get_doc("Sales Invoice", invoice_name)
+        import json
+        from frappe.utils import cstr
 
+        if isinstance(payment_modes, str):
+            payment_modes = json.loads(payment_modes) if payment_modes.strip() else None
+
+        modes = []
+        if isinstance(payment_modes, list) and payment_modes:
+            for row in payment_modes:
+                if not isinstance(row, dict):
+                    continue
+                mode = cstr(row.get("mode_of_payment") or row.get("payment_mode") or "").strip()
+                amount = flt(row.get("amount") or row.get("paid_amount") or 0)
+                if not mode or amount <= 0:
+                    continue
+                modes.append(
+                    {
+                        "mode_of_payment": mode,
+                        "amount": amount,
+                        "reference_no": cstr(row.get("reference_no") or "").strip() or None,
+                    }
+                )
+        else:
+            mode = cstr(payment_mode or "").strip()
+            amount = flt(payment_amount)
+            if not mode:
+                return {"success": False, "message": _("Mode of payment is required.")}
+            if amount <= 0:
+                return {"success": False, "message": _("Payment amount must be greater than zero.")}
+            modes.append(
+                {
+                    "mode_of_payment": mode,
+                    "amount": amount,
+                    "reference_no": cstr(reference_number or "").strip() or None,
+                }
+            )
+
+        if not modes:
+            return {
+                "success": False,
+                "message": _("Add at least one mode of payment with an amount greater than zero"),
+            }
+
+        seen = set()
+        for row in modes:
+            if row["mode_of_payment"] in seen:
+                return {
+                    "success": False,
+                    "message": _("Duplicate mode of payment: {0}").format(row["mode_of_payment"]),
+                }
+            seen.add(row["mode_of_payment"])
+
+        invoice = frappe.get_doc("Sales Invoice", invoice_name)
         if invoice.docstatus != 1:
             return {
                 "success": False,
@@ -1372,97 +1433,97 @@ def create_payment_entry(invoice_name, payment_amount, payment_mode, cost_center
             }
 
         outstanding = flt(invoice.outstanding_amount)
-        pay_amt = flt(payment_amount)
         if outstanding <= 0:
             return {"success": False, "message": _("This invoice has no outstanding balance.")}
-        if pay_amt <= 0:
-            return {"success": False, "message": _("Payment amount must be greater than zero.")}
 
-        if not payment_mode or not cstr(payment_mode).strip():
-            return {"success": False, "message": _("Mode of payment is required.")}
-        payment_mode = cstr(payment_mode).strip()
-
-        # Get the company document
+        total_paid = sum(flt(m["amount"]) for m in modes)
         company = frappe.get_doc("Company", invoice.company)
-        
-        # Get default accounts from Company
         default_receivable_account = company.default_receivable_account
         default_cash_account = company.default_cash_account
         default_bank_account = company.default_bank_account
-        
-        # Determine which account to use for 'paid_to' based on payment mode
-        # Cash payment -> use default_cash_account
-        # Bank payment -> use default_bank_account
-        paid_to_account = None
-        if payment_mode.lower() == 'cash':
-            paid_to_account = default_cash_account
-        else:
-            paid_to_account = default_bank_account
-        
-        # Fallback if no account found for the payment mode
-        if not paid_to_account:
-            paid_to_account = default_cash_account or default_bank_account
-        
-        # Validate we have required accounts
+
         if not default_receivable_account:
-            frappe.throw("Default Receivable Account not set in Company {0}".format(invoice.company))
-        
-        if not paid_to_account:
-            frappe.throw("No Cash or Bank account found. Please set default_cash_account or default_bank_account in Company {0}".format(invoice.company))
-        
-        # Create payment entry
-        payment_entry = frappe.new_doc("Payment Entry")
-        payment_entry.payment_type = "Receive"
-        payment_entry.company = invoice.company
-        payment_entry.party_type = "Customer"
-        payment_entry.party = invoice.customer
-        payment_entry.party_name = invoice.customer_name
-        payment_entry.paid_amount = pay_amt
-        payment_entry.received_amount = pay_amt
-        payment_entry.reference_date = frappe.utils.today()
-        payment_entry.reference_no = reference_number or f"PAY-{invoice_name}"
-        payment_entry.mode_of_payment = payment_mode
-        payment_entry.department = department
-        
-        # Set the accounts correctly for a Receive payment
-        # paid_from = where money is coming FROM (Party's Receivable account)
-        # paid_to = where money is going TO (Your Cash/Bank account)
-        payment_entry.paid_from = default_receivable_account
-        payment_entry.paid_to = paid_to_account
-        
-        # Set cost center if provided
-        if cost_center:
-            payment_entry.cost_center = cost_center
-        
-        # Set currency (single currency - no exchange rate needed)
-        payment_entry.currency = company.default_currency
-        
-        # Add reference to the invoice (overpayment remainder becomes unallocated credit)
-        allocated = min(pay_amt, outstanding) if outstanding > 0 else pay_amt
-        payment_entry.append("references", {
-            "reference_doctype": "Sales Invoice",
-            "reference_name": invoice_name,
-            "total_amount": flt(invoice.grand_total),
-            "outstanding_amount": outstanding,
-            "allocated_amount": allocated,
-        })
+            frappe.throw(
+                "Default Receivable Account not set in Company {0}".format(invoice.company)
+            )
 
         from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
-        stamp_receptionist_shift_on_doc(payment_entry)
-        
-        # Insert and submit
-        payment_entry.insert()
-        payment_entry.submit()
-        
+        created = []
+        for mode_row in modes:
+            # Refresh outstanding after each PE so allocations stay accurate.
+            invoice.reload()
+            outstanding = flt(invoice.outstanding_amount)
+            pay_amt = flt(mode_row["amount"])
+            payment_mode = mode_row["mode_of_payment"]
+            ref_no = mode_row.get("reference_no") or reference_number or f"PAY-{invoice_name}"
+
+            paid_to_account = None
+            if payment_mode.lower() == "cash":
+                paid_to_account = default_cash_account
+            else:
+                paid_to_account = default_bank_account
+            if not paid_to_account:
+                paid_to_account = default_cash_account or default_bank_account
+            if not paid_to_account:
+                frappe.throw(
+                    "No Cash or Bank account found. Please set default_cash_account or default_bank_account in Company {0}".format(
+                        invoice.company
+                    )
+                )
+
+            payment_entry = frappe.new_doc("Payment Entry")
+            payment_entry.payment_type = "Receive"
+            payment_entry.company = invoice.company
+            payment_entry.party_type = "Customer"
+            payment_entry.party = invoice.customer
+            payment_entry.party_name = invoice.customer_name
+            payment_entry.paid_amount = pay_amt
+            payment_entry.received_amount = pay_amt
+            payment_entry.reference_date = frappe.utils.today()
+            payment_entry.reference_no = ref_no
+            payment_entry.mode_of_payment = payment_mode
+            payment_entry.department = department
+            payment_entry.paid_from = default_receivable_account
+            payment_entry.paid_to = paid_to_account
+            if cost_center:
+                payment_entry.cost_center = cost_center
+            payment_entry.currency = company.default_currency
+
+            allocated = min(pay_amt, outstanding) if outstanding > 0 else pay_amt
+            payment_entry.append(
+                "references",
+                {
+                    "reference_doctype": "Sales Invoice",
+                    "reference_name": invoice_name,
+                    "total_amount": flt(invoice.grand_total),
+                    "outstanding_amount": outstanding,
+                    "allocated_amount": allocated,
+                },
+            )
+
+            stamp_receptionist_shift_on_doc(payment_entry)
+            payment_entry.insert()
+            payment_entry.submit()
+            created.append(payment_entry.name)
+
         frappe.db.commit()
-        
+
+        if len(created) == 1:
+            return {
+                "success": True,
+                "message": f"Payment of {total_paid} successfully recorded against invoice {invoice_name}",
+                "payment_entry": created[0],
+                "payment_entries": created,
+            }
+
         return {
             "success": True,
-            "message": f"Payment of {pay_amt} successfully recorded against invoice {invoice_name}",
-            "payment_entry": payment_entry.name
+            "message": f"Payments recorded against invoice {invoice_name}: {', '.join(created)}",
+            "payment_entry": created[0],
+            "payment_entries": created,
         }
-        
+
     except Exception as e:
         frappe.db.rollback()
         frappe.log_error(f"Payment Entry Error: {str(e)}", "Billing Payment")

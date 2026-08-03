@@ -1027,6 +1027,11 @@ export const AdmissionFormModal = ({
       setError(new Error('Please calculate price first by entering number of days'))
       return
     }
+    if (!selectedRoomType?.name) {
+      setError(new Error('Room Type is required'))
+      setActiveTab('admission')
+      return
+    }
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
       setError(new Error('Select at least one Admission Assessment Fee service on the Admission Assessment Fee tab'))
       setActiveTab('case_management')
@@ -1078,6 +1083,12 @@ export const AdmissionFormModal = ({
 
     if (days <= 0) {
       setError(new Error('Number of days must be greater than 0'))
+      return
+    }
+
+    if (!selectedRoomType?.name) {
+      setError(new Error('Room Type is required'))
+      setActiveTab('admission')
       return
     }
 
@@ -1161,6 +1172,7 @@ export const AdmissionFormModal = ({
         wantCm
           ? caseManagementServices.map((s) => ({ template: s.template, amount: s.amount }))
           : null,
+        selectedRoomType.name,
       )
 
       onComplete()
@@ -1323,7 +1335,7 @@ export const AdmissionFormModal = ({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div ref={roomTypePickerRef} className="relative">
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Room Type <span className="text-slate-400 font-normal">(optional — for pricing)</span>
+                      Room Type <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="text"

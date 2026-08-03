@@ -6,13 +6,21 @@ import {
 import { toast } from '../../hooks/useToast'
 import { createPaymentEntry } from '../../services/paymentEntry'
 import { fetchModeOfPayments, fetchSalesInvoices, fetchSalesOrders } from '../../services/paymentEntry'
-import { useMoneyInputConfig } from '../../hooks/useFormatMoney'
+import { useMoneyInputConfig, useFormatMoney } from '../../hooks/useFormatMoney'
 import {
   linkComboboxDropdownClass,
   linkComboboxEmptyPanelClass,
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import {
+  PaymentModeLines,
+  newPaymentModeLine,
+  sumPaymentModeLines,
+  paymentModesPayload,
+  validatePaymentModeLines,
+  type PaymentModeLine,
+} from '../billing/PaymentModeLines'
 
 // ─── Reusable searchable link field ──────────────────────────────────────────
 interface LinkFieldProps {
@@ -103,6 +111,7 @@ export const CreatePaymentModal = ({
   onSuccess,
 }: CreatePaymentModalProps) => {
   const moneyInput = useMoneyInputConfig()
+  const formatMoney = useFormatMoney()
 
   // ── Reference type selection ──
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
@@ -121,16 +130,23 @@ export const CreatePaymentModal = ({
 
   // ── Other fields ──
   const [paymentModes, setPaymentModes] = useState<string[]>([])
-  const [paymentMode, setPaymentMode] = useState('')
-  const [amount, setAmount] = useState('')
+  const [modeLines, setModeLines] = useState<PaymentModeLine[]>([newPaymentModeLine()])
   const [remarks, setRemarks] = useState('')
-  const [referenceNo, setReferenceNo] = useState('')
   const [loading, setLoading] = useState(false)
 
   // Load payment modes once
   useEffect(() => {
     fetchModeOfPayments()
-      .then(setPaymentModes)
+      .then((modes) => {
+        setPaymentModes(modes)
+        if (modes.length > 0) {
+          setModeLines((prev) =>
+            prev.length === 1 && !prev[0].mode_of_payment
+              ? [{ ...prev[0], mode_of_payment: modes[0] }]
+              : prev
+          )
+        }
+      })
       .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque', 'Insurance']))
   }, [])
 
@@ -191,12 +207,15 @@ export const CreatePaymentModal = ({
       toast.error(`Please select a ${referenceType}`)
       return
     }
-    if (!amount || parseFloat(amount) <= 0) {
-      toast.error('Please enter a valid payment amount')
+    const modesErr = validatePaymentModeLines(modeLines)
+    if (modesErr) {
+      toast.error(modesErr)
       return
     }
-    if (!paymentMode) {
-      toast.error('Please select a mode of payment')
+    const modesPayload = paymentModesPayload(modeLines)
+    const paid = sumPaymentModeLines(modeLines)
+    if (paid <= 0) {
+      toast.error('Please enter a valid payment amount')
       return
     }
 
@@ -206,10 +225,10 @@ export const CreatePaymentModal = ({
         visit: visitName,
         reference_doctype: referenceType,
         reference_name: selectedReference.name,
-        paid_amount: parseFloat(amount),
-        mode_of_payment: paymentMode,
+        paid_amount: paid,
+        mode_of_payment: modesPayload[0].mode_of_payment,
+        payment_modes: modesPayload,
         remarks: remarks.trim() || undefined,
-        reference_no: referenceNo.trim() || undefined,
         patient,
       })
       toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
@@ -300,55 +319,15 @@ export const CreatePaymentModal = ({
             />
           )}
 
-          {/* Amount */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
-              Amount <span className="text-red-500">*</span>
-            </label>
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400 font-medium select-none">$</span>
-              <input
-                type="number"
-                min={moneyInput.min}
-                step={moneyInput.step}
-                value={amount}
-                onChange={e => setAmount(e.target.value)}
-                placeholder={moneyInput.placeholder}
-                className="w-full rounded-md border border-slate-300 pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                required
-              />
-            </div>
-          </div>
-
-          {/* Mode of Payment */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">
-              Mode of Payment <span className="text-red-500">*</span>
-            </label>
-            <select
-              value={paymentMode}
-              onChange={e => setPaymentMode(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-              required
-            >
-              <option value="">Select mode of payment...</option>
-              {paymentModes.map(m => (
-                <option key={m} value={m}>{m}</option>
-              ))}
-            </select>
-          </div>
-
-          {/* Reference No. — bank/card transaction reference */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1.5">Reference No.</label>
-            <input
-              type="text"
-              value={referenceNo}
-              onChange={e => setReferenceNo(e.target.value)}
-              placeholder="Bank / card transaction reference (optional)"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-            />
-          </div>
+          <PaymentModeLines
+            modes={paymentModes}
+            lines={modeLines}
+            onChange={setModeLines}
+            moneyStep={moneyInput.step}
+            moneyMin={moneyInput.min}
+            moneyPlaceholder={moneyInput.placeholder}
+            formatMoney={formatMoney}
+          />
 
           {/* Remarks */}
           <div>

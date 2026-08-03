@@ -1,5 +1,11 @@
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+export interface PaymentModePayload {
+  mode_of_payment: string
+  amount: number
+  reference_no?: string
+}
+
 export interface CreatePaymentEntryData {
   visit?: string
   appointment?: string
@@ -7,6 +13,8 @@ export interface CreatePaymentEntryData {
   reference_name: string
   paid_amount: number
   mode_of_payment: string
+  /** When set, backend creates one Payment Entry per mode. */
+  payment_modes?: PaymentModePayload[]
   remarks?: string
   patient?: string
   /** Bank/card transaction reference shown on the Payment Entry. */
@@ -22,6 +30,8 @@ export interface SalesInvoiceSummary {
 
 export interface CreatePaymentEntryResult {
   name: string
+  /** Present when multiple modes created multiple Payment Entries. */
+  names?: string[]
   server_message?: string
   unallocated_amount?: number
   docstatus?: number
@@ -183,6 +193,7 @@ export async function createPatientAdvancePayment(data: {
   patient: string
   paid_amount: number
   mode_of_payment: string
+  payment_modes?: PaymentModePayload[]
   remarks?: string
 }): Promise<CreatePaymentEntryResult> {
   return paymentApiRequest<CreatePaymentEntryResult>(
@@ -195,6 +206,7 @@ export async function createMultiInvoicePayment(data: {
   patient: string
   paid_amount: number
   mode_of_payment: string
+  payment_modes?: PaymentModePayload[]
   allocations: InvoiceAllocationRow[]
   remarks?: string
 }): Promise<CreatePaymentEntryResult> {
@@ -208,6 +220,7 @@ export async function createPatientRefund(data: {
   patient: string
   refund_amount: number
   mode_of_payment: string
+  payment_modes?: PaymentModePayload[]
   remarks?: string
 }): Promise<CreatePaymentEntryResult> {
   return paymentApiRequest<CreatePaymentEntryResult>(

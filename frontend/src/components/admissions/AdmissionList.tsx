@@ -660,7 +660,16 @@ export const AdmissionList = ({
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
+                      <div className="flex flex-col items-start gap-0.5">
+                        <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
+                        {Boolean(record.discharge_in_progress) &&
+                          record.status !== 'Discharged' &&
+                          record.status !== 'Cancelled' && (
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">
+                              Discharge in progress
+                            </span>
+                          )}
+                      </div>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.admission_doctor_name || record.admission_by_doctor || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.resident_doctor_name || record.residents_doctor_no || '-'}</td>

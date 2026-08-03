@@ -70,7 +70,6 @@ const LISTING_CANDIDATES: Record<
     { path: '/reception', screen: 'r-medical-history' },
   ],
   'package-details': [
-    { path: '/doctor', screen: 'pkg' },
     { path: '/nurse', screen: 'n-package' },
   ],
 }

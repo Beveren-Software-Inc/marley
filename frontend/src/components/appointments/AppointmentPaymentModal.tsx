@@ -12,6 +12,14 @@ import {
   fetchSalesInvoiceSummary,
 } from '../../services/paymentEntry'
 import type { Appointment } from '../../services/appointments'
+import {
+  PaymentModeLines,
+  newPaymentModeLine,
+  sumPaymentModeLines,
+  paymentModesPayload,
+  validatePaymentModeLines,
+  type PaymentModeLine,
+} from '../billing/PaymentModeLines'
 
 interface AppointmentPaymentModalProps {
   appointment: Appointment
@@ -27,8 +35,7 @@ export const AppointmentPaymentModal = ({
   onSuccess,
 }: AppointmentPaymentModalProps) => {
   const [paymentModes, setPaymentModes] = useState<string[]>([])
-  const [paymentMode, setPaymentMode] = useState('')
-  const [amount, setAmount] = useState('')
+  const [modeLines, setModeLines] = useState<PaymentModeLine[]>([newPaymentModeLine()])
   const [remarks, setRemarks] = useState('')
   const [outstanding, setOutstanding] = useState<number | null>(null)
   const [grandTotal, setGrandTotal] = useState<number | null>(null)
@@ -43,7 +50,13 @@ export const AppointmentPaymentModal = ({
     fetchModeOfPayments()
       .then((modes) => {
         setPaymentModes(modes)
-        if (modes.length && !paymentMode) setPaymentMode(modes[0])
+        if (modes.length) {
+          setModeLines((prev) =>
+            prev.length === 1 && !prev[0].mode_of_payment
+              ? [{ ...prev[0], mode_of_payment: modes[0] }]
+              : prev
+          )
+        }
       })
       .catch(() => setPaymentModes(['Cash', 'Bank Transfer', 'Credit Card', 'Cheque']))
   }, [])
@@ -58,7 +71,12 @@ export const AppointmentPaymentModal = ({
         setOutstanding(inv.outstanding_amount)
         setGrandTotal(inv.grand_total)
         if (inv.outstanding_amount > 0) {
-          setAmount(String(inv.outstanding_amount))
+          const amt = String(inv.outstanding_amount)
+          setModeLines((prev) => {
+            const next = prev.length ? [...prev] : [newPaymentModeLine()]
+            next[0] = { ...next[0], amount: amt }
+            return next
+          })
         }
       })
       .catch((err) => {
@@ -76,17 +94,19 @@ export const AppointmentPaymentModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    const paid = parseFloat(amount)
+    const modesErr = validatePaymentModeLines(modeLines)
+    if (modesErr) {
+      toast.error(modesErr)
+      return
+    }
+    const modesPayload = paymentModesPayload(modeLines)
+    const paid = sumPaymentModeLines(modeLines)
     if (!Number.isFinite(paid) || paid <= 0) {
       toast.error('Enter a valid payment amount')
       return
     }
     if (outstanding != null && outstanding > 0 && paid > outstanding) {
       toast.error(`Amount cannot exceed outstanding (${outstanding})`)
-      return
-    }
-    if (!paymentMode) {
-      toast.error('Select a mode of payment')
       return
     }
 
@@ -97,7 +117,8 @@ export const AppointmentPaymentModal = ({
         reference_doctype: 'Sales Invoice',
         reference_name: salesInvoice,
         paid_amount: paid,
-        mode_of_payment: paymentMode,
+        mode_of_payment: modesPayload[0].mode_of_payment,
+        payment_modes: modesPayload,
         patient: appointment.patient,
         appointment: appointment.name,
         remarks: remarks.trim() || undefined,
@@ -175,41 +196,13 @@ export const AppointmentPaymentModal = ({
                 </p>
               )}
 
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Mode of payment <span className="text-red-500">*</span>
-                </label>
-                <select
-                  value={paymentMode}
-                  onChange={(e) => setPaymentMode(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
-                  required
-                  disabled={noOutstanding}
-                >
-                  <option value="">Select…</option>
-                  {paymentModes.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Amount <span className="text-red-500">*</span>
-                </label>
-                <input
-                  type="number"
-                  min="0.01"
-                  step="0.01"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  required
-                  disabled={noOutstanding}
+              {!noOutstanding && (
+                <PaymentModeLines
+                  modes={paymentModes}
+                  lines={modeLines}
+                  onChange={setModeLines}
                 />
-              </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Remarks</label>

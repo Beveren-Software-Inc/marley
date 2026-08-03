@@ -1219,7 +1219,12 @@ export const DischargePatientForm = ({ admission, onClose, onSuccess }: Discharg
   const [admissionMedicalDepartment, setAdmissionMedicalDepartment] = useState('')
   const [admissionRoomDefault, setAdmissionRoomDefault] = useState<AdmissionRoomDefault | null>(null)
 
-  const visibleTabIds = useMemo(() => roleVisibleTabIds, [roleVisibleTabIds])
+  const visibleTabIds = useMemo(() => {
+    const hasReceptionist = Boolean((formData.discharge_receptionist || '').trim())
+    if (hasReceptionist) return roleVisibleTabIds
+    // Checklist tabs only apply once a discharge receptionist is assigned.
+    return roleVisibleTabIds.filter((id) => id !== 'checklist' && id !== 'nursing')
+  }, [roleVisibleTabIds, formData.discharge_receptionist])
 
   const tabs = useMemo(
     () => DISCHARGE_TAB_DEFINITIONS.filter((t) => visibleTabIds.includes(t.id)),
@@ -2466,7 +2471,9 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
   const checklistStatus = checklistSummary.checklist_status
   const allCompleted = checklistStatus === 'complete'
   const financeOnlyPending = checklistStatus === 'finance_pending'
-  const canSubmitDischarge = canSubmitDischargeWithChecklist(checklistItems)
+  const hasDischargeReceptionist = Boolean((formData.discharge_receptionist || '').trim())
+  const canSubmitDischarge =
+    !hasDischargeReceptionist || canSubmitDischargeWithChecklist(checklistItems)
 
   const groupedNurseChecklist = groupByDepartment(nurseChecklistItems)
   const nurseTotalItems = nurseChecklistItems.length
@@ -3617,11 +3624,18 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
               </div>
 
               <aside className="space-y-3 lg:sticky lg:top-4 self-start">
-                <DischargeChecklistStatusCard
-                  dischargeChecklist={checklistItems}
-                  nursingChecklist={nurseChecklistItems}
-                  loading={checklistLoading || nurseChecklistLoading}
-                />
+                {hasDischargeReceptionist ? (
+                  <DischargeChecklistStatusCard
+                    dischargeChecklist={checklistItems}
+                    nursingChecklist={nurseChecklistItems}
+                    loading={checklistLoading || nurseChecklistLoading}
+                  />
+                ) : (
+                  <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                    Select a <span className="font-medium text-slate-800">Discharge Receptionist</span> under
+                    Discharged By to unlock the checklist tabs.
+                  </div>
+                )}
               </aside>
             </div>
           )}
@@ -5188,19 +5202,19 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
           {/* Footer */}
           <div className="px-4 md:px-6 py-4 border-t border-slate-200 flex items-center justify-between bg-slate-50 shrink-0 sticky bottom-0 z-10">
             <div className="text-xs text-slate-500">
-              {checklistStatus === 'incomplete' && totalItems > 0 && (
+              {hasDischargeReceptionist && checklistStatus === 'incomplete' && totalItems > 0 && (
                 <span className="flex items-center gap-1 text-red-600">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {checklistIncomplete} checklist item{checklistIncomplete !== 1 ? 's' : ''} remaining
                 </span>
               )}
-              {financeOnlyPending && (
+              {hasDischargeReceptionist && financeOnlyPending && (
                 <span className="flex items-center gap-1 text-yellow-700">
                   <AlertCircle className="w-3.5 h-3.5" />
                   {CHECKLIST_STATUS_LABELS.finance_pending} — discharge allowed
                 </span>
               )}
-              {allCompleted && totalItems > 0 && (
+              {hasDischargeReceptionist && allCompleted && totalItems > 0 && (
                 <span className="flex items-center gap-1 text-green-600">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   Checklist complete
@@ -5227,7 +5241,12 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
               </button>
               <button
                 type="submit"
-                disabled={submitting || savingDraft || chargeSectionBusy}
+                disabled={submitting || savingDraft || chargeSectionBusy || !canSubmitDischarge}
+                title={
+                  !canSubmitDischarge
+                    ? `Complete all discharge checklist items first (${checklistIncomplete} remaining)`
+                    : undefined
+                }
                 className="px-4 py-2 text-sm font-medium text-white bg-green-600 rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {submitting ? 'Discharging...' : 'Discharge Patient'}

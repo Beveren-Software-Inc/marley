@@ -61,6 +61,39 @@ def get_patient_active_admission(patient):
 
 
 @frappe.whitelist()
+def get_patient_blocking_admission(patient):
+	"""Return an open admission that should block scheduling a new one.
+
+	Includes Admitted, Admission Scheduled, and Discharge Scheduled.
+	"""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+
+	records = frappe.get_all(
+		"Inpatient Admission",
+		filters={
+			"patient": patient,
+			"status": ["in", ["Admitted", "Admission Scheduled", "Discharge Scheduled"]],
+		},
+		fields=["name", "patient", "patient_name", "status", "case_no", "scheduled_date"],
+		order_by="modified desc",
+		limit=1,
+	)
+	if not records:
+		return None
+
+	rec = records[0]
+	return {
+		"name": rec.name,
+		"patient": rec.patient,
+		"patient_name": rec.patient_name,
+		"status": rec.status,
+		"case_no": rec.get("case_no"),
+		"scheduled_date": rec.get("scheduled_date"),
+	}
+
+
+@frappe.whitelist()
 def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, cost_center=None, limit=20, offset=0):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
@@ -231,7 +264,31 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 
 	from healthcare.api.common import fill_missing_patient_names
 	fill_missing_patient_names(records)
+	_annotate_discharge_in_progress(records)
 	return {"data": records, "total_count": total_count}
+
+
+def _annotate_discharge_in_progress(records) -> None:
+	"""Flag admissions that have a draft Discharge (started but not submitted)."""
+	if not records:
+		return
+	names = [r.get("name") for r in records if r.get("name")]
+	for r in records:
+		r["discharge_in_progress"] = 0
+	if not names:
+		return
+	draft_admissions = {
+		row.admission
+		for row in frappe.get_all(
+			"Discharge",
+			filters={"admission": ["in", names], "docstatus": 0},
+			fields=["admission"],
+		)
+		if row.get("admission")
+	}
+	for r in records:
+		if r.get("name") in draft_admissions:
+			r["discharge_in_progress"] = 1
 
 
 def _enrich_inpatient_records_with_file_no(records):
@@ -496,6 +553,7 @@ def get_inpatient_record(name):
 		'discharge_practitioner': getattr(record, "discharge_practitioner", None),
 		'admission_nursing_checklist_template': getattr(record, "admission_nursing_checklist_template", None),
 		'discharge_nursing_checklist_template': getattr(record, "discharge_nursing_checklist_template", None),
+		'discharge_in_progress': 1 if _get_draft_discharge_name(record.name) else 0,
 	}
 
 
@@ -2865,6 +2923,7 @@ def admit_patient(
 	case_management_template=None,
 	case_management_fee=None,
 	case_management_services=None,
+	service_unit_type=None,
 ):
 	"""Admit a patient - wrapper for the DocType method"""
 	if not name:
@@ -2872,7 +2931,14 @@ def admit_patient(
 	if not check_in:
 		frappe.throw(_("Check In datetime is required"))
 
+	service_unit_type = (service_unit_type or "").strip() or None
+	if not service_unit_type:
+		frappe.throw(_("Room Type is required"))
+
 	record = frappe.get_doc("Inpatient Admission", name)
+
+	if record.meta.has_field("admission_service_unit_type"):
+		record.admission_service_unit_type = service_unit_type
 
 	if patient_ip_category:
 		record.patient_ip_category = patient_ip_category
