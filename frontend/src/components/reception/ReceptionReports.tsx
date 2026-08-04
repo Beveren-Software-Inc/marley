@@ -142,9 +142,10 @@ export function ReceptionReports() {
   const [data, setData] = useState<any>(null)
 
   const needsAdmission = report === 'ip-payments' || report === 'soa'
-  const needsVisit = report === 'soa-op'
+  const isSoaOp = report === 'soa-op'
   const resolvedAdmission = (activeAdmission || admission || '').trim()
-  const resolvedVisit = (activeVisit || visit || '').trim()
+  // Visit is optional for OP SOA — do not force the header active visit.
+  const resolvedVisit = (visit || '').trim()
 
   const headerCaseLabel = useMemo(() => {
     if (!activeAdmission) return ''
@@ -170,6 +171,7 @@ export function ReceptionReports() {
     setAdmissionQuery(headerCaseLabel || activeAdmission)
   }, [activeAdmission, headerCaseLabel])
 
+  // Prefill visit from care context when the active visit changes; user can still clear it.
   useEffect(() => {
     if (!activeVisit) return
     setVisit(activeVisit)
@@ -185,9 +187,17 @@ export function ReceptionReports() {
       toast.error('Select a case at the top (patient / admission), then run the report')
       return
     }
-    if (needsVisit && !resolvedVisit) {
-      toast.error('Select a patient visit at the top (or pick one below), then run the report')
-      return
+    if (isSoaOp) {
+      if (!resolvedVisit) {
+        if (!selectedPatient) {
+          toast.error('Select a patient at the top, or pick a Patient Visit')
+          return
+        }
+        if (!fromDate || !toDate) {
+          toast.error('Select From Date and To Date when Visit is blank')
+          return
+        }
+      }
     }
     setLoading(true)
     setData(null)
@@ -196,7 +206,10 @@ export function ReceptionReports() {
       if (fromDate) params.append('from_date', fromDate)
       if (toDate) params.append('to_date', toDate)
       if (needsAdmission) params.append('admission', resolvedAdmission)
-      if (needsVisit) params.append('visit', resolvedVisit)
+      if (isSoaOp) {
+        if (resolvedVisit) params.append('visit', resolvedVisit)
+        if (selectedPatient) params.append('patient', selectedPatient)
+      }
       const method =
         report === 'receipts'
           ? 'get_patient_receipts_summary'
@@ -238,18 +251,21 @@ export function ReceptionReports() {
       return { html, filename: `ip-payments-discounts-${resolvedAdmission}` }
     }
     if (report === 'soa-op') {
-      let html = buildLetterhead('Statement of Account (OP)', `Visit No. ${data.case_no || data.visit} · ${range}`)
+      const visitMeta = resolvedVisit
+        ? `Visit No. ${data.case_no || data.visit}`
+        : `Patient ${data.patient_name || selectedPatient || ''} · All OP visits`
+      let html = buildLetterhead('Statement of Account (OP)', `${visitMeta}${range ? ` · ${range}` : ''}`)
       html += `<table style="margin-bottom:10px"><tbody>
-        <tr><td><b>Visit No.</b></td><td>${data.visit}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
+        <tr><td><b>Visit No.</b></td><td>${data.visit ?? (resolvedVisit ? resolvedVisit : 'Multiple visits')}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
         <tr><td><b>Visit Date</b></td><td>${data.visit_date ?? ''}</td><td><b>Patient Name</b></td><td>${data.patient_name ?? ''}</td></tr>
-        <tr><td><b>Visit Type</b></td><td>${data.visit_type ?? ''}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
+        <tr><td><b>Visit Type</b></td><td>${data.visit_type ?? (resolvedVisit ? '' : 'All OP')}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
         <tr><td><b>Status</b></td><td>${data.status ?? ''}</td><td><b>Branch</b></td><td>${data.branch ?? ''}</td></tr>
       </tbody></table>`
       html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
         ${soaTotalsFooter(data)}
       </tbody></table>
       <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
-      return { html, filename: `soa-op-${data.case_no || data.visit || resolvedVisit}` }
+      return { html, filename: `soa-op-${data.case_no || data.visit || selectedPatient || 'patient'}` }
     }
     // SOA IP
     let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`)
@@ -382,33 +398,45 @@ export function ReceptionReports() {
             )}
           </div>
         ) : null}
-        {needsVisit && activeVisit ? (
-          <div className="flex flex-col gap-1 min-w-[180px]">
-            <label className="text-xs font-medium text-slate-500">Visit</label>
-            <div className="h-[30px] flex items-center rounded-md border border-slate-200 bg-white px-2.5 text-sm font-medium text-slate-800 truncate" title={headerVisitLabel}>
-              {activeVisit}
-            </div>
-          </div>
-        ) : needsVisit ? (
+        {isSoaOp ? (
           <div className="relative flex flex-col gap-1 min-w-[220px]">
-            <label className="text-xs font-medium text-slate-500">Patient Visit</label>
-            <input
-              type="text"
-              value={visit ? visitQuery || visit : visitQuery}
-              onChange={(e) => {
-                setVisitQuery(e.target.value)
-                setVisit('')
-                setVisitOpen(true)
-                void searchVisits(e.target.value)
-              }}
-              onFocus={() => {
-                setVisitOpen(true)
-                void searchVisits(visitQuery)
-              }}
-              onBlur={() => setTimeout(() => setVisitOpen(false), 150)}
-              placeholder="Search visit…"
-              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
-            />
+            <label className="text-xs font-medium text-slate-500">
+              Patient Visit <span className="font-normal text-slate-400">(optional)</span>
+            </label>
+            <div className="relative">
+              <input
+                type="text"
+                value={visit ? visitQuery || visit : visitQuery}
+                onChange={(e) => {
+                  setVisitQuery(e.target.value)
+                  setVisit('')
+                  setVisitOpen(true)
+                  void searchVisits(e.target.value)
+                }}
+                onFocus={() => {
+                  setVisitOpen(true)
+                  void searchVisits(visitQuery)
+                }}
+                onBlur={() => setTimeout(() => setVisitOpen(false), 150)}
+                placeholder={selectedPatient ? 'All visits for patient (leave blank)' : 'Search visit…'}
+                className="w-full rounded-md border border-slate-300 px-2 py-1.5 pr-7 text-sm bg-white"
+              />
+              {(visit || visitQuery) && (
+                <button
+                  type="button"
+                  className="absolute inset-y-0 right-1 my-auto h-6 w-6 rounded text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                  title="Clear visit"
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    setVisit('')
+                    setVisitQuery('')
+                    setVisitOpen(false)
+                  }}
+                >
+                  ×
+                </button>
+              )}
+            </div>
             {visitOpen && visitOptions.length > 0 && (
               <div className="absolute top-full z-20 mt-1 max-h-56 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow-lg">
                 {visitOptions.map((o) => (
