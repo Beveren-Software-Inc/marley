@@ -3,6 +3,7 @@ import {
   Building2,
   Calendar,
   ClipboardList,
+  Copy,
   FileText,
   Lock,
   NotebookPen,
@@ -14,7 +15,11 @@ import { fetchClinicalNote, type ClinicalNote } from '../../services/clinicalNot
 import { fetchActiveCareEpisodeStatus } from '../../services/careEpisode'
 import {
   fetchMedicationsForClinicalNoteDay,
+  fetchPrescription,
+  fetchPrescriptions,
+  mapOrderToDuplicateMedication,
   type ClinicalNoteDayMedication,
+  type MedicationOrderRow,
 } from '../../services/prescriptions'
 import {
   displayMedicationDosage,
@@ -29,6 +34,8 @@ import type { CareMode } from '../../providers/CareContextProvider'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { RichTextContent } from '../ui/RichTextContent'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
+import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
+import { toast } from '../../hooks/useToast'
 
 type ClinicalNoteDoc = ClinicalNote & Record<string, unknown>
 
@@ -182,6 +189,9 @@ export function ClinicalNoteDetailPanel({
   const [visitIsIOP, setVisitIsIOP] = useState(false)
   const [dayMedications, setDayMedications] = useState<ClinicalNoteDayMedication[]>([])
   const [loadingMedications, setLoadingMedications] = useState(false)
+  const [showDuplicatePrescription, setShowDuplicatePrescription] = useState(false)
+  const [duplicateMedications, setDuplicateMedications] = useState<MedicationOrderRow[]>([])
+  const [loadingDuplicate, setLoadingDuplicate] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -319,6 +329,75 @@ export function ClinicalNoteDetailPanel({
     return null
   }, [doc, preview])
 
+  const noteSource = doc ?? preview
+  const duplicatePatient = noteSource?.patient || ''
+  const duplicateInpatientAdmission =
+    (noteSource as ClinicalNoteDoc | undefined)?.inpatient_admission ||
+    ((noteSource as ClinicalNoteDoc | undefined)?.reference_doctype === 'Inpatient Admission'
+      ? (noteSource as ClinicalNoteDoc | undefined)?.reference_document
+      : undefined) ||
+    undefined
+  const duplicatePatientVisit =
+    (noteSource as ClinicalNoteDoc | undefined)?.reference_doctype === 'Patient Visit'
+      ? (noteSource as ClinicalNoteDoc | undefined)?.reference_document || undefined
+      : undefined
+  const duplicateCareContext: 'Patient Visit' | 'Inpatient Admission' | undefined =
+    duplicateInpatientAdmission
+      ? 'Inpatient Admission'
+      : duplicatePatientVisit
+        ? 'Patient Visit'
+        : careMode === 'IP'
+          ? 'Inpatient Admission'
+          : careMode === 'OP'
+            ? 'Patient Visit'
+            : undefined
+  const duplicatePractitioner =
+    (noteSource as ClinicalNoteDoc | undefined)?.practitioner ||
+    dayMedications.find((m) => m.practitioner)?.practitioner ||
+    undefined
+
+  const openDuplicatePrescription = async () => {
+    if (!duplicatePatient) return
+    setLoadingDuplicate(true)
+    try {
+      const list = await fetchPrescriptions(200, 0, {
+        patient: duplicatePatient,
+        careContext: duplicateCareContext,
+        patientEncounter: duplicatePatientVisit,
+        inpatientRecord: duplicateInpatientAdmission,
+      })
+
+      // Prefer active/open prescriptions; fall back to full list if nothing matches.
+      const preferred = list.filter(
+        (rx) => !['Cancelled', 'Stopped', 'Discontinued'].includes(String(rx.status || '')),
+      )
+      const sourceList = preferred.length > 0 ? preferred : list
+
+      const allOrders: MedicationOrderRow[] = []
+      for (const row of sourceList) {
+        let orders = row.medication_orders || []
+        if (!orders.length) {
+          try {
+            const full = await fetchPrescription(row.name)
+            orders = full?.medication_orders || []
+          } catch {
+            orders = []
+          }
+        }
+        for (const order of orders) {
+          allOrders.push(mapOrderToDuplicateMedication(order))
+        }
+      }
+
+      setDuplicateMedications(allOrders)
+      setShowDuplicatePrescription(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load patient prescriptions')
+    } finally {
+      setLoadingDuplicate(false)
+    }
+  }
+
   return (
     <DetailSlideOver
       title={title}
@@ -387,10 +466,26 @@ export function ClinicalNoteDetailPanel({
           </section>
 
           <section className={MODAL_SECTION_CLASS}>
-            <h3 className={MODAL_SECTION_TITLE_CLASS}>
-              <Pill className="h-4 w-4 text-emerald-600" strokeWidth={2} />
-              Medications
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3 border-b border-slate-100 pb-2">
+              <h3 className={`${MODAL_SECTION_TITLE_CLASS} mb-0 border-0 pb-0`}>
+                <Pill className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+                Medications
+              </h3>
+              <button
+                type="button"
+                onClick={() => void openDuplicatePrescription()}
+                disabled={!duplicatePatient || loadingDuplicate}
+                className="inline-flex shrink-0 items-center gap-1.5 rounded-md border border-primary bg-white px-2.5 py-1.5 text-xs font-medium text-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-50"
+                title="Duplicate all prescriptions for this patient into a new prescription"
+              >
+                {loadingDuplicate ? (
+                  <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-primary/30 border-t-primary" />
+                ) : (
+                  <Copy className="h-3.5 w-3.5" strokeWidth={2} />
+                )}
+                {loadingDuplicate ? 'Loading…' : 'Duplicate Prescription'}
+              </button>
+            </div>
             {loadingMedications ? (
               <div className="flex items-center gap-2 py-3 text-sm text-slate-500">
                 <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-emerald-200 border-t-emerald-600" />
@@ -516,6 +611,30 @@ export function ClinicalNoteDetailPanel({
             </p>
           ) : null}
         </div>
+      ) : null}
+
+      {showDuplicatePrescription && duplicatePatient ? (
+        <CreatePrescriptionModal
+          onClose={() => {
+            setShowDuplicatePrescription(false)
+            setDuplicateMedications([])
+          }}
+          onSuccess={() => {
+            setShowDuplicatePrescription(false)
+            setDuplicateMedications([])
+            toast.success(
+              duplicateMedications.length > 0
+                ? 'Prescription duplicated successfully'
+                : 'Prescription created successfully',
+            )
+          }}
+          initialPatient={duplicatePatient}
+          initialCareContext={duplicateCareContext}
+          initialPatientEncounter={duplicatePatientVisit}
+          initialInpatientRecord={duplicateInpatientAdmission}
+          initialPractitioner={duplicatePractitioner}
+          initialMedications={duplicateMedications}
+        />
       ) : null}
     </DetailSlideOver>
   )

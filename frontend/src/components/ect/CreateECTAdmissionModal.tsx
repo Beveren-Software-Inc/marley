@@ -7,6 +7,7 @@ import { createECTAdmission } from '../../services/ectAdmission'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface CreateECTAdmissionModalProps {
   onClose: () => void
@@ -20,9 +21,12 @@ export const CreateECTAdmissionModal = ({
   initialPatient,
 }: CreateECTAdmissionModalProps) => {
   const now = new Date()
+  const { mode, activeAdmission, activeVisit } = useCareContext()
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     patient_name: '',
+    inpatient_admission: mode === 'IP' ? (activeAdmission || '') : '',
+    patient_visit: mode === 'OP' ? (activeVisit || '') : '',
     date: now.toISOString().slice(0, 10),
     bp: '',
     hr: '',
@@ -67,6 +71,8 @@ export const CreateECTAdmissionModal = ({
       await createECTAdmission({
         patient: formData.patient,
         patient_name: formData.patient_name || undefined,
+        inpatient_admission: formData.inpatient_admission || undefined,
+        patient_visit: formData.patient_visit || undefined,
         date: formData.date || undefined,
         bp: formData.bp || undefined,
         hr: formData.hr || undefined,
@@ -113,6 +119,14 @@ export const CreateECTAdmissionModal = ({
       load()
     }
   }, [initialPatient])
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      inpatient_admission: mode === 'IP' ? (activeAdmission || prev.inpatient_admission) : prev.inpatient_admission,
+      patient_visit: mode === 'OP' ? (activeVisit || prev.patient_visit) : prev.patient_visit,
+    }))
+  }, [mode, activeAdmission, activeVisit])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -200,6 +214,29 @@ export const CreateECTAdmissionModal = ({
           )}
 
           <div className="p-4 overflow-y-auto flex-1 min-h-0 space-y-4">
+            {(formData.inpatient_admission || formData.patient_visit) && (
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Inpatient Admission</label>
+                  <input
+                    type="text"
+                    value={formData.inpatient_admission}
+                    readOnly
+                    className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Patient Visit</label>
+                  <input
+                    type="text"
+                    value={formData.patient_visit}
+                    readOnly
+                    className="w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700"
+                  />
+                </div>
+              </div>
+            )}
+
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Patient <span className="text-red-500">*</span>

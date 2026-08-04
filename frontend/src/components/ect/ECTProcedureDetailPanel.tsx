@@ -186,11 +186,11 @@ export function ECTProcedureDetailPanel({ name, subtitle, onClose }: ECTProcedur
             <section className={MODAL_SECTION_CLASS}>
               <h3 className={MODAL_SECTION_TITLE_CLASS}>
                 <ClipboardList className="h-4 w-4 text-sky-600" strokeWidth={2} />
-                Notes &amp; discharge
+                Notes
               </h3>
               <div className="space-y-2.5">
                 {hasValue(doc.progress_plan) ? (
-                  <NoteBlock label="Notes & discharge" value={String(doc.progress_plan)} />
+                  <NoteBlock label="Notes" value={String(doc.progress_plan)} />
                 ) : null}
                 {hasValue(doc.other_complications) ? (
                   <NoteBlock

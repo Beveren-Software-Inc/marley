@@ -601,18 +601,18 @@ export const CreateECTProcedureModal = ({
               </div>
             </section>
 
-            {/* Notes & Discharge */}
+            {/* Notes */}
             <section className="border-t border-slate-200 pt-4">
               <h3 className="text-sm font-semibold text-slate-900 mb-4 flex items-center gap-2">
                 <span className="inline-block w-1 h-5 bg-slate-400 rounded-full"></span>
-                Notes & Discharge
+                Notes
               </h3>
               <div className="space-y-4">
-                <FormField label="Notes & Discharge">
+                <FormField label="Notes">
                   <textarea
                     value={formData.progress_plan}
                     onChange={(e) => handleChange('progress_plan', e.target.value)}
-                    placeholder="Enter notes & discharge details..."
+                    placeholder="Enter notes..."
                     className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
                     rows={3}
                   />

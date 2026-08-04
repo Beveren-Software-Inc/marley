@@ -57,6 +57,7 @@
   "practitioner_primary_contact",
   "mobile_no",
   "email_id",
+  "signature",
   "column_break_26",
   "practitioner_primary_address",
   "primary_address"
@@ -395,6 +396,11 @@
    "fieldname": "receive_commision",
    "fieldtype": "Check",
    "label": "Receive Commision"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Attach",
+   "label": "Signature"
   }
  ],
  "image_field": "image",
@@ -425,7 +431,7 @@
    "link_fieldname": "practitioner"
   }
  ],
- "modified": "2026-07-13 13:04:19.285043",
+ "modified": "2026-08-04 12:57:59.666723",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Practitioner",

@@ -24,6 +24,7 @@ import {
   fetchLongActingFrequencies,
   fetchRouteOfAdministrationList,
   resolvePrescriptionDrugRoute,
+  fetchDoc,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -748,6 +749,37 @@ export const CreatePrescriptionModal = ({
       }
     }
   }, [initialPractitioner, practitioners, isEditing, formData.practitioner])
+
+  // Auto-fill Doctors Signature from Healthcare Practitioner.signature when a doctor is selected.
+  useEffect(() => {
+    const practitionerName = formData.practitioner?.trim()
+    if (!practitionerName) return
+
+    // Keep an existing saved signature when editing the same practitioner.
+    if (
+      isEditing &&
+      prescriptionData?.doctors_signature &&
+      prescriptionData.practitioner === practitionerName
+    ) {
+      return
+    }
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const doc = await fetchDoc('Healthcare Practitioner', practitionerName)
+        if (cancelled) return
+        const sig = typeof doc.signature === 'string' ? doc.signature.trim() : ''
+        setDoctorsSignature(sig || null)
+      } catch (err) {
+        console.error('Failed to load practitioner signature for prescription:', err)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [formData.practitioner, isEditing, prescriptionData?.doctors_signature, prescriptionData?.practitioner])
 
   useEffect(() => {
     if (initialPatient && !selectedPatient) {
@@ -1914,6 +1946,9 @@ export const CreatePrescriptionModal = ({
                   Draw a signature or upload a file into the same signature field. Either marks the
                   prescription as <strong>Signed</strong>. Without either it stays{' '}
                   <strong>Unsigned</strong> until signed later.
+                  {doctorsSignature ? (
+                    <> If the selected doctor already has a signature on their practitioner profile, it is filled in automatically.</>
+                  ) : null}
                 </p>
                 <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-4">
                   <div className="flex items-center gap-1.5 mb-3">

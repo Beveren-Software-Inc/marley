@@ -341,6 +341,8 @@ def create_ect_admission(data):
 		"doctype": "ECT Admission",
 		"patient": data.get("patient"),
 		"patient_name": data.get("patient_name"),
+		"inpatient_admission": data.get("inpatient_admission"),
+		"patient_visit": data.get("patient_visit"),
 		"date": data.get("date"),
 		"bp": data.get("bp"),
 		"hr": data.get("hr"),

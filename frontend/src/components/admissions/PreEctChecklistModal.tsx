@@ -429,6 +429,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
     try {
       const payload = {
         inpatient_admission: currentAdmission,
+        patient: currentPatient || undefined,
         patient_visit: form.patient_visit || undefined,
         date: form.date || undefined,
         time: form.time || undefined,

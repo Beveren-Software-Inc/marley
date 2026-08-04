@@ -83,8 +83,29 @@ class HealthcarePractitioner(Document):
 		self.append("practitioner_schedules", {"schedule": default_schedule})
 
 	def on_update(self):
-		if self.user_id:
-			frappe.permissions.add_user_permission("Healthcare Practitioner", self.name, self.user_id)
+		if not self.user_id:
+			return
+
+		# Only create the link permission if it is missing. The cache-backed
+		# helper can miss an existing row and then insert blows up with
+		# DuplicateEntryError on every subsequent save (e.g. signature upload).
+		already_exists = frappe.db.exists(
+			"User Permission",
+			{
+				"user": self.user_id,
+				"allow": "Healthcare Practitioner",
+				"for_value": self.name,
+			},
+		)
+		if already_exists:
+			return
+
+		try:
+			frappe.permissions.add_user_permission(
+				"Healthcare Practitioner", self.name, self.user_id
+			)
+		except frappe.DuplicateEntryError:
+			pass
 
 	def set_full_name(self):
 		if self.last_name:

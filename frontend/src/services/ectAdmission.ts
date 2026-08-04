@@ -3,6 +3,8 @@ import { ensureCSRF } from './apiClient'
 export interface CreateECTAdmissionData {
   patient: string
   patient_name?: string
+  inpatient_admission?: string
+  patient_visit?: string
   date?: string
   bp?: string
   hr?: string

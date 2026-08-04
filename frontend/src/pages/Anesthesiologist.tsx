@@ -26,7 +26,11 @@ import { PatientHistoryList } from '../components/patientHistory/PatientHistoryL
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
 
 export const AnesthesiologistPage = () => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient } = useCareContext()
+  const {
+    selectedPatient: globalPatient,
+    setSelectedPatient: setGlobalPatient,
+    activeAdmission,
+  } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
   const patientFromUrl = searchParams.get('patient') || ''
@@ -255,7 +259,7 @@ export const AnesthesiologistPage = () => {
           </section>
         </div>
         {showPreEctModal && (
-          <PreEctChecklistModal admissionNo="" patient={selectedPatient || ''} patientName=""
+          <PreEctChecklistModal admissionNo={activeAdmission || ''} patient={selectedPatient || ''} patientName=""
             onClose={() => setShowPreEctModal(false)}
             onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }} />
         )}

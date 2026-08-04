@@ -3,7 +3,7 @@
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "field:trans_no",
- "creation": "2026-07-03 15:15:00.000000",
+ "creation": "2026-07-03 15:15:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -42,6 +42,8 @@
   "acc_patient",
   "section_break_clinical",
   "diagnosis",
+  "patient_needs",
+  "employees_care",
   "section_break_audit",
   "create_user_id",
   "create_date",
@@ -235,7 +237,7 @@
   {
    "fieldname": "acc_patient",
    "fieldtype": "Data",
-   "label": "Acc Patient"
+   "label": "Accompanying  Patient"
   },
   {
    "fieldname": "section_break_clinical",
@@ -267,12 +269,22 @@
    "fieldname": "legacy",
    "fieldtype": "Check",
    "label": "Legacy"
+  },
+  {
+   "fieldname": "patient_needs",
+   "fieldtype": "Small Text",
+   "label": "Patient Needs"
+  },
+  {
+   "fieldname": "employees_care",
+   "fieldtype": "Small Text",
+   "label": "Employees care"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-03 15:15:00.000000",
+ "modified": "2026-08-04 14:01:28.411822",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Sick Leave",
