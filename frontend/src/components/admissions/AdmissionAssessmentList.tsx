@@ -9,7 +9,9 @@ interface AssessmentRecord {
   patient: string
   patient_name?: string
   inpatient_admission?: string
+  admission?: string
   admission_no?: string
+  date?: string
   assessment_date?: string
   creation: string
 }
@@ -23,6 +25,12 @@ interface AdmissionAssessmentListProps {
 }
 
 const SUICIDAL_DOCTYPE = 'Suicidal Patient Assessment'
+const ADMISSION_FIELD_BY_DOCTYPE: Record<string, 'admission_no' | 'inpatient_admission' | 'admission'> = {
+  'Recovery Room Record': 'admission',
+}
+const DATE_FIELD_BY_DOCTYPE: Record<string, 'assessment_date' | 'date' | 'creation'> = {
+  'Recovery Room Record': 'date',
+}
 
 export const AdmissionAssessmentList = ({
   doctype,
@@ -61,9 +69,13 @@ export const AdmissionAssessmentList = ({
 
         const filters: [string, string, string][] = []
         if (patient) filters.push(['patient', '=', patient])
+        const admissionField = ADMISSION_FIELD_BY_DOCTYPE[doctype] || 'inpatient_admission'
+        const dateField = DATE_FIELD_BY_DOCTYPE[doctype] || 'creation'
+        const fields = ['name', 'patient', 'patient_name', 'creation', admissionField]
+        if (dateField !== 'creation') fields.push(dateField)
         const params = new URLSearchParams({
           doctype,
-          fields: JSON.stringify(['name', 'patient', 'patient_name', 'inpatient_admission', 'creation']),
+          fields: JSON.stringify(fields),
           filters: JSON.stringify(filters),
           order_by: 'creation desc',
           limit: '50',
@@ -94,7 +106,7 @@ export const AdmissionAssessmentList = ({
   }
 
   const formatDate = (row: AssessmentRecord) => {
-    const value = isSuicidal ? row.assessment_date : row.creation
+    const value = isSuicidal ? row.assessment_date : (row.date || row.assessment_date || row.creation)
     if (!value) return '—'
     return new Date(value).toLocaleDateString('en-GB')
   }
@@ -170,7 +182,7 @@ export const AdmissionAssessmentList = ({
                   </td>
                 )}
                 <td className="px-3 py-2 text-slate-500 text-xs">
-                  {row.admission_no || row.inpatient_admission || '—'}
+                  {row.admission_no || row.inpatient_admission || row.admission || '—'}
                 </td>
                 <td className="px-3 py-2 text-xs">
                   <button

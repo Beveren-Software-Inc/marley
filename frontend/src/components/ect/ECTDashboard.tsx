@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAuth } from '../../providers/AuthProvider'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { isAdmin } from '../../config/permissions'
 import { ECTDetailsList } from './ECTDetailsList'
 import { ConsolidatedECTDetailsList } from './ConsolidatedECTDetailsList'
@@ -48,6 +49,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   // F046: only anesthesiologists/admins may see the anesthesia sub-workflow cards
   // (Recovery Room / Alderete / Pre-ECT); their doctypes 403 for other roles.
   const { user } = useAuth()
+  const { activeAdmission } = useCareContext()
   const roles = user?.roles ?? []
   const canSeeAnesthesia =
     isAdmin(roles) ||
@@ -234,7 +236,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
         />
       )}
       {showPreEctModal && (
-        <PreEctChecklistModal admissionNo="" patient={selectedPatient || ''} patientName=""
+        <PreEctChecklistModal admissionNo={activeAdmission || ''} patient={selectedPatient || ''} patientName=""
           onClose={() => setShowPreEctModal(false)}
           onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }}
         />
