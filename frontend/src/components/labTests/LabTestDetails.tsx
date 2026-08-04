@@ -210,17 +210,20 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
               <table className="min-w-full table-fixed divide-y divide-slate-200 text-sm">
                 <thead className="bg-slate-50">
                   <tr>
-                    <th className="w-[22%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Panel
                     </th>
-                    <th className="w-[34%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[28%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Test Name
                     </th>
-                    <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[16%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Test Code
                     </th>
-                    <th className="w-[24%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    <th className="w-[18%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Result
+                    </th>
+                    <th className="w-[20%] px-3 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
+                      Range
                     </th>
                   </tr>
                 </thead>
@@ -233,6 +236,7 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                       (line.lab_sub_num || '').trim() ||
                       '—'
                     const testCode = (line.lab_sub_num || '').trim() || '—'
+                    const range = (line.normal_range || '').trim() || '—'
                     return (
                       <tr key={`${line.sr_num || i}-${testCode}`} className="hover:bg-slate-50/80">
                         <td className="px-3 py-2.5 align-top text-slate-700 break-words">{panel}</td>
@@ -244,6 +248,9 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                         </td>
                         <td className="px-3 py-2.5 align-top">
                           <ResultValueBadge value={line.lab_result_value} />
+                        </td>
+                        <td className="px-3 py-2.5 align-top whitespace-pre-line text-slate-600">
+                          {range}
                         </td>
                       </tr>
                     )
