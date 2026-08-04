@@ -819,55 +819,175 @@ def _soa_aggregate_lines(sos, invoices):
 
 
 @frappe.whitelist()
-def get_op_statement_of_account(visit, from_date=None, to_date=None):
-	"""Statement of Account for one OP Patient Visit: services by category + bill totals."""
-	if not visit or not frappe.db.exists("Patient Visit", visit):
-		frappe.throw(_("Patient Visit not found"))
+def get_op_statement_of_account(visit=None, from_date=None, to_date=None, patient=None):
+	"""Statement of Account for OP.
 
-	pv = frappe.db.get_value(
+	- With ``visit``: one Patient Visit (existing behaviour).
+	- Without ``visit``: require ``patient`` + ``from_date``/``to_date`` and include
+	  services/items from all of that patient's OP visits whose SO/SI dates fall
+	  in the range.
+	"""
+	visit = (visit or "").strip() or None
+	patient = (patient or "").strip() or None
+	from_date = (from_date or "").strip() or None
+	to_date = (to_date or "").strip() or None
+
+	if visit:
+		if not frappe.db.exists("Patient Visit", visit):
+			frappe.throw(_("Patient Visit not found"))
+		return _build_op_soa(
+			visits=[visit],
+			from_date=from_date,
+			to_date=to_date,
+			filter_docs_by_date=False,
+			header_visit=visit,
+		)
+
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Select a patient, or pick a Patient Visit"))
+	if not from_date or not to_date:
+		frappe.throw(_("From Date and To Date are required when Visit is not selected"))
+
+	visits = frappe.get_all(
 		"Patient Visit",
-		visit,
-		[
-			"name",
-			"patient",
-			"patient_name",
-			"encounter_date",
-			"cost_center",
-			"practitioner_name",
-			"practitioner",
-			"visit_type",
-			"status",
-		],
-		as_dict=True,
+		filters={"patient": patient},
+		pluck="name",
+		limit_page_length=0,
 	)
-	file_no = frappe.db.get_value("Patient", pv.patient, "file_no") if pv.patient else None
-	doctor_name = pv.practitioner_name
-	if not doctor_name and pv.practitioner:
-		doctor_name = frappe.db.get_value("Healthcare Practitioner", pv.practitioner, "practitioner_name")
+	return _build_op_soa(
+		visits=visits,
+		from_date=from_date,
+		to_date=to_date,
+		filter_docs_by_date=True,
+		header_visit=None,
+		patient=patient,
+	)
 
-	sos = _visit_sales_orders(visit)
-	so_names = [s.name for s in sos]
-	invoices = _visit_sales_invoices(visit, so_names)
+
+def _build_op_soa(
+	visits,
+	from_date=None,
+	to_date=None,
+	filter_docs_by_date=False,
+	header_visit=None,
+	patient=None,
+):
+	"""Aggregate OP SOA lines for one or many Patient Visits."""
+	visits = [v for v in (visits or []) if v]
+
+	pv = None
+	if header_visit:
+		pv = frappe.db.get_value(
+			"Patient Visit",
+			header_visit,
+			[
+				"name",
+				"patient",
+				"patient_name",
+				"encounter_date",
+				"cost_center",
+				"practitioner_name",
+				"practitioner",
+				"visit_type",
+				"status",
+			],
+			as_dict=True,
+		)
+		patient = pv.patient if pv else patient
+
+	if not patient and visits:
+		patient = frappe.db.get_value("Patient Visit", visits[0], "patient")
+
+	patient_name = None
+	file_no = None
+	if patient:
+		prow = frappe.db.get_value("Patient", patient, ["patient_name", "file_no"], as_dict=True)
+		if prow:
+			patient_name = prow.patient_name
+			file_no = prow.file_no
+	if pv:
+		patient_name = pv.patient_name or patient_name
+
+	sos_by_name = {}
+	for v in visits:
+		for so in _visit_sales_orders(v):
+			sos_by_name[so.name] = so
+	all_sos = list(sos_by_name.values())
+	all_so_names = [s.name for s in all_sos]
+
+	invoices_by_name = {}
+	for v in visits:
+		for inv in _visit_sales_invoices(v, all_so_names):
+			invoices_by_name[inv.name] = inv
+	all_invoices = list(invoices_by_name.values())
+
+	sos = all_sos
+	invoices = all_invoices
+	if filter_docs_by_date and from_date and to_date:
+		fd, td = getdate(from_date), getdate(to_date)
+		sos = [
+			s
+			for s in all_sos
+			if s.transaction_date and fd <= getdate(s.transaction_date) <= td
+		]
+		invoices = [
+			i
+			for i in all_invoices
+			if i.posting_date and fd <= getdate(i.posting_date) <= td
+		]
+
 	by_category, bill_total, discount_total = _soa_aggregate_lines(sos, invoices)
 
-	paid_total = round(sum(flt(e.paid_amount) for e in _visit_payments(visit, from_date, to_date)), 3)
+	paid_total = 0.0
+	for v in visits:
+		paid_total += sum(flt(e.paid_amount) for e in _visit_payments(v, from_date, to_date))
+	paid_total = round(paid_total, 3)
 	net_total = round(bill_total - discount_total, 3)
 
+	doctor_name = None
+	visit_date = None
+	visit_type = None
+	status = None
+	branch = None
+	case_no = None
+	visit_label = None
+
+	if pv:
+		doctor_name = pv.practitioner_name
+		if not doctor_name and pv.practitioner:
+			doctor_name = frappe.db.get_value(
+				"Healthcare Practitioner", pv.practitioner, "practitioner_name"
+			)
+		visit_date = str(pv.encounter_date) if pv.encounter_date else None
+		visit_type = pv.visit_type
+		status = pv.status
+		branch = (pv.cost_center or "").replace(" - SPH", "") or None
+		case_no = pv.name
+		visit_label = pv.name
+	else:
+		case_no = "Multiple visits"
+		visit_label = "Multiple visits"
+		if from_date and to_date:
+			visit_date = f"{from_date} to {to_date}"
+
 	return {
-		"visit": pv.name,
-		"case_no": pv.name,
-		"patient": pv.patient,
-		"patient_name": pv.patient_name,
+		"visit": visit_label,
+		"case_no": case_no,
+		"patient": patient,
+		"patient_name": patient_name,
 		"file_no": file_no,
 		"doctor_name": doctor_name,
-		"visit_date": str(pv.encounter_date) if pv.encounter_date else None,
-		"visit_type": pv.visit_type,
-		"status": pv.status,
-		"branch": (pv.cost_center or "").replace(" - SPH", "") or None,
+		"visit_date": visit_date,
+		"visit_type": visit_type,
+		"status": status,
+		"branch": branch,
 		"categories": by_category,
 		"bill_total": bill_total,
 		"discount_total": discount_total,
 		"paid_total": paid_total,
 		"net_total": net_total,
 		"balance": round(net_total - paid_total, 3),
+		"from_date": from_date,
+		"to_date": to_date,
+		"visit_count": len(visits),
 	}
