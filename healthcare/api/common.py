@@ -4634,15 +4634,37 @@ def create_sick_leave(data):
 
 		doc = frappe.new_doc("Sick Leave")
 		allowed_fields = [
-			"admission_no", "patient", "patient_name",
-			"from_date", "to_date", "days", "diagnosis", "doctor", "source",
+			"admission_no",
+			"patient",
+			"patient_name",
+			"from_date",
+			"to_date",
+			"days",
+			"diagnosis",
+			"doctor",
+			"doctor_name",
+			"source",
+			"sr_no",
 		]
 		for field in allowed_fields:
-			if field in data:
+			if field in data and data.get(field) not in (None, ""):
 				setattr(doc, field, data[field])
+
+		# autoname is field:trans_no — always assign server-side
+		if not (getattr(doc, "trans_no", None) or "").strip():
+			doc.trans_no = get_next_transaction_number("Sick Leave", fieldname="trans_no")
+
+		if doc.doctor and not (getattr(doc, "doctor_name", None) or "").strip():
+			doc.doctor_name = frappe.db.get_value(
+				"Healthcare Practitioner", doc.doctor, "practitioner_name"
+			)
+
+		if doc.patient and not (getattr(doc, "patient_name", None) or "").strip():
+			doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
+
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
-		return {"success": True, "name": doc.name}
+		return {"success": True, "name": doc.name, "trans_no": doc.trans_no}
 	except Exception as e:
 		frappe.logger().error(f"Error creating sick leave: {str(e)}")
 		return {"success": False, "message": str(e)}

@@ -1680,6 +1680,8 @@ export const NursePage = () => {
               patient={selectedPatient}
               refreshKey={sickLeaveRefreshKey}
               onAdd={() => setShowSickLeaveModal(true)}
+              addButtonTitle="Add Sick Leave"
+              onPatientClick={handlePatientSelect}
             />
           </section>
         </div>

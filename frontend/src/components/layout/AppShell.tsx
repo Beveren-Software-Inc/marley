@@ -90,8 +90,11 @@ const nurseScreenGroups: ScreenGroup[] = [
     screens: [{ id: 'n-ip-services', title: 'ECT Service' }],
   },
   {
-    groupTitle: '',
-    screens: [{ id: 'n-other', title: 'Other Services' }],
+    groupTitle: 'Other Services',
+    screens: [
+      { id: 'n-other', title: 'Other Services' },
+      { id: 'n-sick', title: 'Sick Leave' },
+    ],
   },
   {
     groupTitle: '',

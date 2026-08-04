@@ -21,8 +21,9 @@ export interface CreateSickLeaveInput {
   days?: string
   diagnosis?: string
   doctor?: string
+  doctor_name?: string
   source?: string
-  patient_visit?: string
+  sr_no?: string
 }
 
 export interface SickLeaveFilters {

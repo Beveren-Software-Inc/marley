@@ -28,6 +28,7 @@ export interface Prescription {
   medication_orders?: MedicationOrderEntry[]
   source_prescription?: string
   nursing_pharmacy_giveout?: 0 | 1
+  giveout_charge_percent?: number
   after_discharge?: 0 | 1
   creation?: string
   modified?: string
@@ -376,6 +377,8 @@ export interface NursingPharmacyGiveOutResult {
   pmo_status: string
   source_prescription?: string
   service_requests?: string[]
+  giveout_charge_percent?: number
+  no_charges?: 0 | 1
 }
 
 export interface MedicationOrderEntry {
@@ -833,6 +836,10 @@ export async function createNursingPharmacyGiveOut(input: {
   source_prescription?: string
   practitioner?: string
   warehouse?: string
+  /** When true, medicines are billed at 0 (e.g. ECT — session charged separately). */
+  no_charges?: boolean
+  /** Percent of medicine list price to bill (0–100). Ignored when no_charges is true. Default 100. */
+  charge_percent?: number
 }): Promise<NursingPharmacyGiveOutResult> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<NursingPharmacyGiveOutResult>(
@@ -848,6 +855,13 @@ export async function createNursingPharmacyGiveOut(input: {
         source_prescription: input.source_prescription || undefined,
         practitioner: input.practitioner || undefined,
         warehouse: input.warehouse || undefined,
+        no_charges: input.no_charges ? 1 : 0,
+        charge_percent:
+          input.no_charges
+            ? 0
+            : input.charge_percent != null
+              ? input.charge_percent
+              : 100,
       }),
     }
   )

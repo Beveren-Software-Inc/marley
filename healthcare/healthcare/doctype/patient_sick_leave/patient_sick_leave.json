@@ -271,20 +271,22 @@
    "label": "Legacy"
   },
   {
+   "default": "0",
    "fieldname": "patient_needs",
-   "fieldtype": "Small Text",
+   "fieldtype": "Check",
    "label": "Patient Needs"
   },
   {
+   "default": "0",
    "fieldname": "employees_care",
-   "fieldtype": "Small Text",
+   "fieldtype": "Check",
    "label": "Employees care"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 14:01:28.411822",
+ "modified": "2026-08-04 22:10:26.392142",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Sick Leave",

@@ -124,6 +124,7 @@ fixtures = [
                    "Payment Entry-custom_payment_owner",
                    "UOM-custom_is_medical",
                    "Material Request-custom_is_medical",
+                   "Sales Order-custom_no_charges"
 
                 ),
             ]

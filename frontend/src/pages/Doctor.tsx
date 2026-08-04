@@ -1178,13 +1178,14 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Sick Leave">
+          <DashboardCard
+            title="Sick Leave"
+            onAdd={() => setDoctorSickLeaveOpen(true)}
+          >
             <SickLeaveList
               patient={selectedPatient}
               onPatientClick={handlePatientSelect}
               refreshKey={doctorSickLeaveRefresh}
-              onAdd={() => setDoctorSickLeaveOpen(true)}
-              addButtonTitle="Issue Sick Leave"
             />
           </DashboardCard>
         </div>

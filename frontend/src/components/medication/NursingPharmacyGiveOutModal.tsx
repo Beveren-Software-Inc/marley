@@ -500,6 +500,9 @@ export function NursingPharmacyGiveOutModal({
   >({})
   const [serviceLoading, setServiceLoading] = useState<Record<number, boolean>>({})
   const servicesSectionRef = useRef<HTMLDivElement>(null)
+  /** full = 100%, none = 0% (ECT / included), percent = custom */
+  const [chargeMode, setChargeMode] = useState<'full' | 'none' | 'percent'>('full')
+  const [chargePercentInput, setChargePercentInput] = useState('50')
 
   useEffect(() => {
     fetchStandardUoms()
@@ -1102,6 +1105,21 @@ export function NursingPharmacyGiveOutModal({
       return
     }
 
+    let chargePercent = 100
+    let noCharges = false
+    if (chargeMode === 'none') {
+      chargePercent = 0
+      noCharges = true
+    } else if (chargeMode === 'percent') {
+      const parsed = Number(chargePercentInput)
+      if (!Number.isFinite(parsed) || parsed < 0 || parsed > 100) {
+        setError('Charge percent must be between 0 and 100')
+        return
+      }
+      chargePercent = parsed
+      noCharges = parsed <= 0
+    }
+
     try {
       setSubmitting(true)
       setError(null)
@@ -1125,15 +1143,23 @@ export function NursingPharmacyGiveOutModal({
         source_prescription: sourcePrescription || undefined,
         practitioner: practitioner || undefined,
         warehouse: selectedWarehouse,
+        no_charges: noCharges,
+        charge_percent: chargePercent,
       })
       const srNote =
         result.service_requests && result.service_requests.length
           ? ` · ${result.service_requests.length} service request(s) completed`
           : ''
+      const chargeNote =
+        noCharges || chargePercent <= 0
+          ? ' · medicines not charged'
+          : chargePercent < 100
+            ? ` · medicines billed at ${chargePercent}%`
+            : ''
       toast.success(
         `Pharmacy give-out submitted. Sales Order ${result.sales_order} created${
           result.delivery_note ? ` · Delivery Note ${result.delivery_note}` : ''
-        }${srNote}.`
+        }${srNote}${chargeNote}.`
       )
       onSuccess()
       onClose()
@@ -1229,7 +1255,20 @@ export function NursingPharmacyGiveOutModal({
   const selectedServiceCount = serviceRows.filter(
     (r) => r.item_code?.trim() && (Number(r.quantity) || 0) > 0
   ).length
-  const grandTotal = medicationTotal + serviceTotal
+  const resolvedChargePercent =
+    chargeMode === 'none'
+      ? 0
+      : chargeMode === 'percent'
+        ? Math.min(100, Math.max(0, Number(chargePercentInput) || 0))
+        : 100
+  const billedMedicationTotal = medicationTotal * (resolvedChargePercent / 100)
+  const grandTotal = billedMedicationTotal + serviceTotal
+  const submitLabel =
+    resolvedChargePercent <= 0
+      ? 'Submit (no medicine charges)'
+      : resolvedChargePercent < 100
+        ? `Submit & bill at ${resolvedChargePercent}%`
+        : 'Submit & bill patient'
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -1260,86 +1299,67 @@ export function NursingPharmacyGiveOutModal({
                   </div>
                 )}
 
-                <div className="rounded-lg border border-emerald-200 bg-emerald-50/60 px-4 py-3">
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-emerald-800 mb-1.5">
-                    Give-out warehouse <span className="text-red-500">*</span>
-                  </label>
-                  {loadingWarehouses ? (
-                    <div className="text-sm text-slate-600">Loading warehouses…</div>
-                  ) : giveOutWarehouses.length > 0 ? (
-                    <>
-                      <select
-                        value={selectedWarehouse}
-                        onChange={(e) => handleWarehouseChange(e.target.value)}
-                        className="w-full rounded-md border border-emerald-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                      >
-                        {giveOutWarehouses.map((wh) => (
-                          <option key={wh.name} value={wh.name}>
-                            {wh.label || wh.name}
-                            {pharmacyWarehouse && wh.name === pharmacyWarehouse
-                              ? ' (branch pharmacy warehouse)'
-                              : miniWarehouse && wh.name === miniWarehouse
-                                ? ' (nurse mini warehouse)'
-                                : ''}
-                          </option>
-                        ))}
-                      </select>
-                      <p className="text-xs text-emerald-800/80 mt-1.5">
-                        Only medicines with stock at{' '}
-                        <span className="font-medium">{selectedWarehouse || 'the selected warehouse'}</span>{' '}
-                        are shown (branch pharmacy warehouse from Healthcare Settings when available).
-                        {displayBatchAndLot
-                          ? ' Batch and dispensing lot pickers are enabled — select them for each medicine below.'
-                          : ' Batch and dispensing lot are auto-selected (FIFO).'}
-                        {pharmacyWarehouse && selectedWarehouse === pharmacyWarehouse
-                          ? ' Using this branch pharmacy warehouse.'
-                          : pharmacyWarehouse
-                            ? ` Branch pharmacy warehouse: ${pharmacyWarehouse}.`
-                            : miniWarehouse && selectedWarehouse === miniWarehouse
-                              ? ' Auto-selected your ward mini warehouse.'
-                              : miniWarehouse
-                                ? ` Ward mini warehouse: ${miniWarehouse}.`
-                                : null}
-                      </p>
-                    </>
-                  ) : (
-                    <p className="text-sm text-amber-800">
-                      No give-out warehouses configured. Add them in Healthcare Settings → Stock → Pharmacy Give Out.
-                    </p>
-                  )}
-                </div>
-
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-3">
-                  <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">
-                    Doctor / Practitioner
-                    {serviceRows.length > 0 ? <span className="text-red-500"> *</span> : null}
-                  </label>
-                  <SearchCombobox
-                    value={practitioner}
-                    displayValue={practQuery}
-                    options={practitionerOptions}
-                    loading={practitionerLoading}
-                    placeholder="Search doctor..."
-                    onQueryChange={(q) => {
-                      setPractQuery(q)
-                      if (!q.trim()) setPractitioner('')
-                      void loadPractitionerOptions(q)
-                    }}
-                    onOpen={() => void loadPractitionerOptions(practQuery || practitioner)}
-                    onSelect={(opt) => {
-                      setPractitioner(opt.name)
-                      setPractQuery(opt.label || opt.practitioner_name || opt.name)
-                      setPractitionerOptions([])
-                    }}
-                    onClear={() => {
-                      setPractitioner('')
-                      setPractQuery('')
-                    }}
-                  />
-                  <p className="text-xs text-slate-500 mt-1.5">
-                    Required when billing services on this give-out. Pre-filled from the current
-                    prescription when available.
-                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">
+                        Give-out warehouse <span className="text-red-500">*</span>
+                      </label>
+                      {loadingWarehouses ? (
+                        <div className="text-sm text-slate-600 py-2">Loading warehouses…</div>
+                      ) : giveOutWarehouses.length > 0 ? (
+                        <select
+                          value={selectedWarehouse}
+                          onChange={(e) => handleWarehouseChange(e.target.value)}
+                          className="w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        >
+                          {giveOutWarehouses.map((wh) => (
+                            <option key={wh.name} value={wh.name}>
+                              {wh.label || wh.name}
+                              {pharmacyWarehouse && wh.name === pharmacyWarehouse
+                                ? ' (branch pharmacy warehouse)'
+                                : miniWarehouse && wh.name === miniWarehouse
+                                  ? ' (nurse mini warehouse)'
+                                  : ''}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-amber-800">
+                          No give-out warehouses configured. Add them in Healthcare Settings → Stock →
+                          Pharmacy Give Out.
+                        </p>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold uppercase tracking-wide text-slate-600 mb-1.5">
+                        Doctor / Practitioner
+                        {serviceRows.length > 0 ? <span className="text-red-500"> *</span> : null}
+                      </label>
+                      <SearchCombobox
+                        value={practitioner}
+                        displayValue={practQuery}
+                        options={practitionerOptions}
+                        loading={practitionerLoading}
+                        placeholder="Search doctor..."
+                        onQueryChange={(q) => {
+                          setPractQuery(q)
+                          if (!q.trim()) setPractitioner('')
+                          void loadPractitionerOptions(q)
+                        }}
+                        onOpen={() => void loadPractitionerOptions(practQuery || practitioner)}
+                        onSelect={(opt) => {
+                          setPractitioner(opt.name)
+                          setPractQuery(opt.label || opt.practitioner_name || opt.name)
+                          setPractitionerOptions([])
+                        }}
+                        onClear={() => {
+                          setPractitioner('')
+                          setPractQuery('')
+                        }}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 {error && (
@@ -1781,20 +1801,84 @@ export function NursingPharmacyGiveOutModal({
                   </button>
                 </div>
 
+                {(rows.some((r) => r.drug?.trim()) || selectedServiceCount > 0) && (
+                  <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 space-y-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Medicine charges
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Use no charges when medicines are included in another bill (e.g. ECT session).
+                        Services below are always billed at the entered amount.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {(
+                        [
+                          { id: 'full' as const, label: 'Full charge' },
+                          { id: 'none' as const, label: 'No charges' },
+                          { id: 'percent' as const, label: 'Charge %' },
+                        ] as const
+                      ).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setChargeMode(opt.id)}
+                          className={`rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                            chargeMode === opt.id
+                              ? 'border-emerald-600 bg-emerald-50 text-emerald-900'
+                              : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                      {chargeMode === 'percent' ? (
+                        <div className="flex items-center gap-1.5">
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            step={1}
+                            value={chargePercentInput}
+                            onChange={(e) => setChargePercentInput(e.target.value)}
+                            className="w-20 rounded-md border border-slate-300 px-2 py-1.5 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                            aria-label="Charge percent"
+                          />
+                          <span className="text-sm text-slate-600">%</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                )}
+
                 {rows.some((r) => r.drug?.trim()) || selectedServiceCount > 0 ? (
                   <div className="flex justify-end border-t border-slate-200 pt-3">
                     <div className="text-right space-y-0.5">
-                      {selectedServiceCount > 0 ? (
+                      {selectedServiceCount > 0 || resolvedChargePercent < 100 ? (
                         <>
                           <p className="text-xs text-slate-500">
-                            Medicines: {formatCurrency(medicationTotal)}
+                            Medicines (list): {formatCurrency(medicationTotal)}
                           </p>
-                          <p className="text-xs text-slate-500">
-                            Services: {formatCurrency(serviceTotal)}
-                          </p>
+                          {resolvedChargePercent < 100 ? (
+                            <p className="text-xs text-slate-500">
+                              Medicines billed
+                              {resolvedChargePercent <= 0
+                                ? ' (no charge)'
+                                : ` at ${resolvedChargePercent}%`}
+                              : {formatCurrency(billedMedicationTotal)}
+                            </p>
+                          ) : null}
+                          {selectedServiceCount > 0 ? (
+                            <p className="text-xs text-slate-500">
+                              Services: {formatCurrency(serviceTotal)}
+                            </p>
+                          ) : null}
                         </>
                       ) : null}
-                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Total</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                        Total to bill
+                      </p>
                       <p className="text-base font-semibold text-slate-900">
                         {formatCurrency(grandTotal)}
                       </p>
@@ -1820,7 +1904,7 @@ export function NursingPharmacyGiveOutModal({
                 !rows.some((r) => r.drug?.trim())
               }
             >
-              {submitting ? 'Submitting…' : 'Submit & bill patient'}
+              {submitting ? 'Submitting…' : submitLabel}
             </button>
           </CreateModalFooter>
         </form>
