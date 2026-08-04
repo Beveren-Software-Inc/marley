@@ -5,6 +5,8 @@ export interface LabTestLine {
   lab_sub_num?: string
   lab_sub_template_name?: string
   lab_result_value?: string
+  /** Reference / normal range from the child Lab Test Template */
+  normal_range?: string
   lab_amt_book?: number
   lab_amt_add?: number
   lab_amt_disc?: number

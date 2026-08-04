@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt, strip_html
+from frappe.utils import cint, cstr, flt, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
@@ -1388,6 +1388,7 @@ def _lab_test_template_info(template_id: str, cache: dict) -> dict:
 	"""Resolve Lab Test Template display name and reference ranges (legacy lab_sub_num)."""
 	empty = {
 		"name": "",
+		"lab_test_normal_range": "",
 		"female_min_range": None,
 		"female_max_range": None,
 		"male_min_range": None,
@@ -1409,6 +1410,7 @@ def _lab_test_template_info(template_id: str, cache: dict) -> dict:
 			[
 				"lab_test_name",
 				"lab_test_code",
+				"lab_test_normal_range",
 				"female_min_range",
 				"female_max_range",
 				"male_min_range",
@@ -1420,6 +1422,7 @@ def _lab_test_template_info(template_id: str, cache: dict) -> dict:
 		)
 		if row:
 			info["name"] = row.lab_test_name or row.lab_test_code or key
+			info["lab_test_normal_range"] = (row.lab_test_normal_range or "").strip()
 			info["female_min_range"] = row.female_min_range
 			info["female_max_range"] = row.female_max_range
 			info["male_min_range"] = row.male_min_range
@@ -1428,6 +1431,42 @@ def _lab_test_template_info(template_id: str, cache: dict) -> dict:
 			info["max_range"] = row.max_range
 	cache[key] = info
 	return info
+
+
+def _format_minmax_range(lo, hi):
+	has_lo = lo is not None and cstr(lo).strip() != ""
+	has_hi = hi is not None and cstr(hi).strip() != ""
+	if not has_lo and not has_hi:
+		return ""
+	return f"{lo if has_lo else '—'} – {hi if has_hi else '—'}"
+
+
+def _format_template_normal_range_for_patient(tpl_info: dict, patient_sex: str | None = None) -> str:
+	"""Human-readable reference range for a lab_test_lines row (view modal)."""
+	text = (tpl_info.get("lab_test_normal_range") or "").strip()
+	if text:
+		return text
+
+	sex = (patient_sex or "").strip().lower()
+	if sex.startswith("f"):
+		formatted = _format_minmax_range(tpl_info.get("female_min_range"), tpl_info.get("female_max_range"))
+		if formatted:
+			return formatted
+	elif sex.startswith("m"):
+		formatted = _format_minmax_range(tpl_info.get("male_min_range"), tpl_info.get("male_max_range"))
+		if formatted:
+			return formatted
+
+	formatted = _format_minmax_range(tpl_info.get("min_range"), tpl_info.get("max_range"))
+	if formatted:
+		return formatted
+
+	return _format_multiple_result_normal_range(
+		tpl_info.get("male_min_range"),
+		tpl_info.get("male_max_range"),
+		tpl_info.get("female_min_range"),
+		tpl_info.get("female_max_range"),
+	)
 
 
 def _lab_test_template_name(template_id: str, cache: dict) -> str:
@@ -1817,17 +1856,28 @@ def get_lab_test(name):
 	_apply_doc_no_practitioner_fallback(out)
 	line_rows = getattr(lab_test, 'lab_test_lines', None) or []
 	template_info_cache: dict[str, dict] = {}
+	patient_sex = (
+		(getattr(lab_test, 'patient_sex', None) or getattr(lab_test, 'gender', None) or '')
+	).strip()
+	if not patient_sex and lab_test.patient:
+		patient_sex = (
+			frappe.db.get_value('Patient', lab_test.patient, 'sex')
+			or frappe.db.get_value('Patient', lab_test.patient, 'gender')
+			or ''
+		)
 	out['lab_test_lines'] = []
 	for r in line_rows:
 		sub = (getattr(r, 'lab_sub_num', None) or '').strip()
+		tpl_info = _lab_test_template_info(sub, template_info_cache) if sub else {}
 		out['lab_test_lines'].append(
 			{
 				'sr_num': getattr(r, 'sr_num', None) or '',
 				'lab_group_num': getattr(r, 'lab_group_num', None) or '',
 				'group_name': getattr(r, 'group_name', None) or '',
 				'lab_sub_num': sub,
-				'lab_sub_template_name': _lab_test_template_name(sub, template_info_cache) if sub else '',
+				'lab_sub_template_name': (tpl_info.get('name') or '').strip() if sub else '',
 				'lab_result_value': getattr(r, 'lab_result_value', None) or '',
+				'normal_range': _format_template_normal_range_for_patient(tpl_info, patient_sex) if sub else '',
 				'lab_amt_book': getattr(r, 'lab_amt_book', None),
 				'lab_amt_add': getattr(r, 'lab_amt_add', None),
 				'lab_amt_disc': getattr(r, 'lab_amt_disc', None),

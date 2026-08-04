@@ -424,6 +424,121 @@ def auto_resolve_medicine_given_batch_lot(
 	return resolved_batch, resolved_lot, resolved_dispensing
 
 
+def allocate_dispensing_lots_for_qty(
+	item_code: str,
+	warehouse: str | None,
+	qty: float,
+	batch_no: str | None = None,
+	preferred_dispensing_lot: str | None = None,
+) -> list[dict]:
+	"""FIFO-allocate qty across one or more Dispensing Lots (open next lot when short).
+
+	Returns a list of ``{batch_no, dispensing_lot, qty}`` covering ``qty`` in the lot UOM
+	(typically UNIT). Used by pharmacy give-out so a 6-UNIT issue can take 4 from lot A
+	and 2 from lot B instead of failing on the first lot.
+	"""
+	needed = flt(qty)
+	if needed <= 0:
+		return []
+
+	if not _item_requires_dispensing_lot(item_code):
+		return [
+			{
+				"batch_no": (batch_no or "").strip() or None,
+				"dispensing_lot": None,
+				"qty": needed,
+			}
+		]
+
+	warehouse = (warehouse or "").strip() or None
+	preferred = (preferred_dispensing_lot or "").strip() or None
+	# Prefer lots on the selected batch first, then any other open lots for the item.
+	lots = _get_dispensing_lots_for_item(item_code, warehouse, batch_no, fifo=True)
+	if batch_no:
+		extra = _get_dispensing_lots_for_item(item_code, warehouse, None, fifo=True)
+		seen = {(l.get("name") or "").strip() for l in lots}
+		for lot in extra:
+			name = (lot.get("name") or "").strip()
+			if name and name not in seen:
+				lots.append(lot)
+				seen.add(name)
+
+	if preferred:
+		preferred_rows = [l for l in lots if (l.get("name") or "").strip() == preferred]
+		other_rows = [l for l in lots if (l.get("name") or "").strip() != preferred]
+		if not preferred_rows and frappe.db.exists("Dispensing Lot", preferred):
+			lot_doc = frappe.db.get_value(
+				"Dispensing Lot",
+				preferred,
+				["name", "remaining_qty", "batch_no", "uom", "serial_no"],
+				as_dict=True,
+			)
+			if lot_doc and flt(lot_doc.remaining_qty) > 0:
+				preferred_rows = [
+					{
+						"name": lot_doc.name,
+						"remaining_qty": flt(lot_doc.remaining_qty),
+						"batch_no": lot_doc.batch_no,
+						"uom": lot_doc.uom,
+					}
+				]
+		lots = preferred_rows + other_rows
+
+	allocations: list[dict] = []
+	remaining = needed
+	uom_label = ""
+
+	for lot in lots:
+		if remaining <= 0:
+			break
+		lot_name = (lot.get("name") or "").strip()
+		lot_remaining = flt(lot.get("remaining_qty"))
+		if not lot_name or lot_remaining <= 0:
+			continue
+		take = min(remaining, lot_remaining)
+		if take <= 0:
+			continue
+		allocations.append(
+			{
+				"batch_no": (lot.get("batch_no") or batch_no or "").strip() or None,
+				"dispensing_lot": lot_name,
+				"qty": take,
+			}
+		)
+		uom_label = (lot.get("uom") or uom_label or "").strip()
+		remaining = flt(remaining - take)
+
+	if remaining > 0:
+		available = needed - remaining
+		frappe.throw(
+			_(
+				"Insufficient dispensing lot quantity for {0}. Need {1}{2}, available {3}{2}. "
+				"Open or receive more dispensing lots at this warehouse."
+			).format(
+				item_code,
+				needed,
+				f" {uom_label}" if uom_label else "",
+				available,
+			)
+		)
+
+	return allocations
+
+
+def format_dispensing_lot_field(lot_names: list[str] | None) -> str | None:
+	"""Join multiple Dispensing Lot names for custom_dispensing_lot (newline-separated)."""
+	clean = []
+	seen = set()
+	for name in lot_names or []:
+		token = (name or "").strip()
+		if token and token not in seen:
+			clean.append(token)
+			seen.add(token)
+	if not clean:
+		return None
+	return "\n".join(clean) if len(clean) > 1 else clean[0]
+
+
 def _resolve_batch_no_for_dispensing_lot_filter(batch_no: str, item_code: str | None = None) -> list[str]:
 	"""Return Batch doc name / batch_id variants for filtering Dispensing Lot.batch_no."""
 	batch_no = (batch_no or "").strip()

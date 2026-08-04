@@ -112,6 +112,18 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
           <DetailField label="Date" value={prescription.posting_date || prescription.start_date} />
           <DetailField label="Inpatient admission" value={prescription.inpatient_record} />
           <DetailField label="Source prescription" value={sourcePrescription} />
+          <DetailField
+            label="Medicine charges"
+            value={
+              prescription.giveout_charge_percent == null
+                ? undefined
+                : Number(prescription.giveout_charge_percent) <= 0
+                  ? 'No charges'
+                  : Number(prescription.giveout_charge_percent) >= 100
+                    ? 'Full charge'
+                    : `${Number(prescription.giveout_charge_percent)}%`
+            }
+          />
           <DetailField label="Invoice" value={invoiceForPrescription(prescription)} />
           <DetailField
             label="Doctor Name"

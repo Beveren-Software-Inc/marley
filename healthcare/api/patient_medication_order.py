@@ -2085,22 +2085,38 @@ def _resolve_sales_order_reference(pmo):
 
 
 def _pharmacy_giveout_billing_groups_from_pmo(pmo):
-	"""Build SO/DN billing groups with batch and dispensing lot from pharmacy give-out stock lines."""
+	"""Build SO/DN billing groups with batch and dispensing lot from pharmacy give-out stock lines.
+
+	When a medicine qty spans multiple dispensing lots, one group is emitted per lot
+	allocation so the Delivery Note can consume each lot correctly.
+	"""
 	stock_lines = getattr(getattr(pmo, "flags", None), "pharmacy_giveout_item_stock", None) or []
 	groups = []
 	for idx, row in enumerate(pmo.get("medication_orders") or []):
 		if not getattr(row, "drug", None):
 			continue
 		stock = stock_lines[idx] if idx < len(stock_lines) else {}
-		groups.append(
-			{
-				"medicine_code": row.drug,
-				"medicine_name": getattr(row, "drug_name", None) or row.drug,
-				"qty": flt(getattr(row, "quantity", 0)) or 1,
-				"batch_no": stock.get("batch_no"),
-				"dispensing_lot": stock.get("dispensing_lot"),
-			}
-		)
+		row_qty = flt(getattr(row, "quantity", 0)) or 1
+		allocations = stock.get("allocations") or []
+		if not allocations:
+			allocations = [
+				{
+					"medicine_code": row.drug,
+					"batch_no": stock.get("batch_no"),
+					"dispensing_lot": stock.get("dispensing_lot"),
+					"qty": row_qty,
+				}
+			]
+		for alloc in allocations:
+			groups.append(
+				{
+					"medicine_code": row.drug,
+					"medicine_name": getattr(row, "drug_name", None) or row.drug,
+					"qty": flt(alloc.get("qty")) or row_qty,
+					"batch_no": alloc.get("batch_no") or stock.get("batch_no"),
+					"dispensing_lot": alloc.get("dispensing_lot") or stock.get("dispensing_lot"),
+				}
+			)
 	return groups
 
 
@@ -2145,39 +2161,165 @@ def _apply_stock_to_sales_order_item_row(item_row, batch_no=None, dispensing_lot
 				item_row["serial_no"] = serial_no
 
 
-def _append_sales_order_items_from_pmo(so, pmo, warehouse=None):
-	"""Append Sales Order items (with rates/taxes) from PMO medication rows."""
+def _resolve_pharmacy_giveout_charge_percent(no_charges=None, charge_percent=None):
+	"""Resolve medicine billing percent for pharmacy give-out (0–100).
+
+	``no_charges`` (ECT / included-in-session) forces 0%. Omitting both defaults to 100%.
+	Important: 0 is a valid percent (no charges) — never coalesce it with ``or 100``.
+	"""
+	if cint(no_charges):
+		return 0.0
+	if charge_percent is None or charge_percent == "":
+		return 100.0
+	pct = flt(charge_percent)
+	if pct < 0 or pct > 100:
+		frappe.throw(_("Charge percent must be between 0 and 100"))
+	return pct
+
+
+def _pmo_giveout_charge_percent(pmo, charge_percent=None):
+	"""Prefer explicit charge_percent; else PMO field; else 100. Treat 0 as no charges."""
+	if charge_percent is not None and charge_percent != "":
+		return _resolve_pharmacy_giveout_charge_percent(None, charge_percent)
+	if pmo is not None and frappe.get_meta("Patient Medication Order").has_field("giveout_charge_percent"):
+		val = getattr(pmo, "giveout_charge_percent", None)
+		if val is not None and val != "":
+			return _resolve_pharmacy_giveout_charge_percent(None, val)
+	return 100.0
+
+
+def _apply_giveout_charge_percent(full_rate, charge_percent):
+	"""Apply give-out charge % to a list rate. Returns (billed_rate, price_list_rate)."""
+	full_rate = flt(full_rate)
+	pct = flt(charge_percent)
+	if pct >= 100:
+		return full_rate, full_rate
+	if pct <= 0:
+		# Keep price_list_rate at 0 too so ERPNext cannot fall back to list price.
+		return 0.0, 0.0
+	return flt(full_rate) * pct / 100.0, full_rate
+
+
+def _set_giveout_item_pricing(item_row, full_rate, charge_percent):
+	"""Write rate / price list / amount for a give-out SO item (mutates item_row)."""
+	billed_rate, price_list_rate = _apply_giveout_charge_percent(full_rate, charge_percent)
+	pct = flt(charge_percent)
+	qty = flt(item_row.get("qty") or 0)
+	item_row["rate"] = billed_rate
+	item_row["price_list_rate"] = price_list_rate
+	item_row["amount"] = flt(billed_rate) * qty
+	if pct <= 0:
+		item_row["discount_percentage"] = 0
+		item_row["discount_amount"] = 0
+	elif pct < 100 and full_rate:
+		item_row["discount_percentage"] = 100.0 - pct
+		item_row["discount_amount"] = flt(full_rate - billed_rate) * qty
+
+
+def _force_giveout_medicine_so_rates(so, pmo, charge_percent):
+	"""Re-apply medicine rates after ERPNext pricing may have overwritten zeros."""
+	pct = flt(charge_percent)
+	if pct >= 100:
+		return
+
+	drug_codes = {
+		(getattr(row, "drug", None) or "").strip()
+		for row in (pmo.get("medication_orders") or [])
+		if getattr(row, "drug", None)
+	}
+	drug_codes.discard("")
+	if not drug_codes:
+		return
+
+	for item in so.get("items") or []:
+		code = (getattr(item, "item_code", None) or "").strip()
+		if code not in drug_codes:
+			continue
+		qty = flt(getattr(item, "qty", 0))
+		if pct <= 0:
+			item.rate = 0
+			item.price_list_rate = 0
+			item.amount = 0
+			if hasattr(item, "net_rate"):
+				item.net_rate = 0
+			if hasattr(item, "net_amount"):
+				item.net_amount = 0
+			if hasattr(item, "base_rate"):
+				item.base_rate = 0
+			if hasattr(item, "base_amount"):
+				item.base_amount = 0
+			if hasattr(item, "discount_percentage"):
+				item.discount_percentage = 0
+			if hasattr(item, "discount_amount"):
+				item.discount_amount = 0
+		else:
+			full = flt(getattr(item, "price_list_rate", 0)) or get_item_rate_for_uom(
+				code, getattr(item, "uom", None)
+			)
+			billed = flt(full) * pct / 100.0
+			item.price_list_rate = full
+			item.rate = billed
+			item.amount = billed * qty
+			if hasattr(item, "discount_percentage"):
+				item.discount_percentage = 100.0 - pct
+
+	if hasattr(so, "calculate_taxes_and_totals"):
+		so.calculate_taxes_and_totals()
+
+
+def _append_sales_order_items_from_pmo(so, pmo, warehouse=None, charge_percent=None):
+	"""Append Sales Order items (with rates/taxes) from PMO medication rows.
+
+	Pharmacy give-out may split one PMO medicine across several SO lines when the
+	qty is allocated across multiple dispensing lots.
+	"""
 	tax_templates_added = set()
 	stock_lines = getattr(getattr(pmo, "flags", None), "pharmacy_giveout_item_stock", None) or []
+	charge_percent = _pmo_giveout_charge_percent(pmo, charge_percent)
 
 	for idx, row in enumerate(pmo.get("medication_orders") or []):
 		if not getattr(row, "drug", None):
 			continue
-		qty = flt(getattr(row, "quantity", 0)) or 1
+		row_qty = flt(getattr(row, "quantity", 0)) or 1
 		uom = (getattr(row, "uom", None) or "").strip() or frappe.db.get_value("Item", row.drug, "stock_uom")
-		item_row = {
-			"item_code": row.drug,
-			"qty": qty,
-			"description": getattr(row, "drug_name", None) or row.drug,
-		}
-		if uom:
-			item_row["uom"] = uom
-			from erpnext.stock.get_item_details import get_conversion_factor
+		full_rate = flt(getattr(row, "rate", 0)) or get_item_rate_for_uom(row.drug, uom)
 
-			item_row["conversion_factor"] = flt(get_conversion_factor(row.drug, uom).get("conversion_factor")) or 1
-		rate = flt(getattr(row, "rate", 0)) or get_item_rate_for_uom(row.drug, uom)
-		if rate:
-			item_row["rate"] = rate
-			item_row["price_list_rate"] = rate
-		if warehouse:
-			item_row["warehouse"] = warehouse
 		stock = stock_lines[idx] if idx < len(stock_lines) else {}
-		_apply_stock_to_sales_order_item_row(
-			item_row,
-			batch_no=stock.get("batch_no"),
-			dispensing_lot=stock.get("dispensing_lot"),
-		)
-		so.append("items", item_row)
+		allocations = stock.get("allocations") or []
+		if not allocations:
+			allocations = [
+				{
+					"qty": row_qty,
+					"batch_no": stock.get("batch_no"),
+					"dispensing_lot": stock.get("dispensing_lot"),
+				}
+			]
+
+		from erpnext.stock.get_item_details import get_conversion_factor
+
+		conversion_factor = 1
+		if uom:
+			conversion_factor = flt(get_conversion_factor(row.drug, uom).get("conversion_factor")) or 1
+
+		for alloc in allocations:
+			qty = flt(alloc.get("qty")) or row_qty
+			item_row = {
+				"item_code": row.drug,
+				"qty": qty,
+				"description": getattr(row, "drug_name", None) or row.drug,
+			}
+			if uom:
+				item_row["uom"] = uom
+				item_row["conversion_factor"] = conversion_factor
+			_set_giveout_item_pricing(item_row, full_rate, charge_percent)
+			if warehouse:
+				item_row["warehouse"] = warehouse
+			_apply_stock_to_sales_order_item_row(
+				item_row,
+				batch_no=alloc.get("batch_no") or stock.get("batch_no"),
+				dispensing_lot=alloc.get("dispensing_lot") or stock.get("dispensing_lot"),
+			)
+			so.append("items", item_row)
 
 		tax_info = get_item_tax(row.drug, pmo.company)
 		tax_template = tax_info.get("tax_template")
@@ -2250,10 +2392,11 @@ def _append_sales_order_service_items(so, services, company=None, tax_templates_
 	return tax_templates_added
 
 
-def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None, services=None):
+def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None, services=None, charge_percent=None):
 	"""Create and submit Sales Order for a submitted PMO; link back on PMO.
 
 	``services`` are billed on the Sales Order only (not written to the PMO).
+	``charge_percent`` applies to medicine lines only (0 = no drug charges).
 	"""
 	if pmo.docstatus != 1:
 		frappe.throw(_("Only submitted Patient Medication Orders can create Sales Orders"))
@@ -2304,7 +2447,18 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None,
 		if frappe.get_meta("Sales Order").has_field("custom_is_pharmacy_give_out"):
 			so.custom_is_pharmacy_give_out = 1
 
-	tax_templates_added = _append_sales_order_items_from_pmo(so, pmo, warehouse=warehouse)
+	charge_percent = _pmo_giveout_charge_percent(pmo, charge_percent)
+
+	if flt(charge_percent) <= 0 and frappe.get_meta("Sales Order").has_field("custom_no_charges"):
+		so.custom_no_charges = 1
+
+	# Prevent ERPNext pricing rules / price list from restoring full rates on no-charge lines.
+	so.ignore_pricing_rule = 1
+	so.flags.ignore_pricing_rule = True
+
+	tax_templates_added = _append_sales_order_items_from_pmo(
+		so, pmo, warehouse=warehouse, charge_percent=charge_percent
+	)
 	_append_sales_order_service_items(
 		so, services, company=pmo.company, tax_templates_added=tax_templates_added
 	)
@@ -2315,7 +2469,12 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None,
 	cc = cost_center or cost_center_from_patient_medication_order(pmo, ref_doctype, ref_name)
 	apply_cost_center_to_sales_order(so, cc)
 
+	_force_giveout_medicine_so_rates(so, pmo, charge_percent)
 	so.insert(ignore_permissions=True)
+	_force_giveout_medicine_so_rates(so, pmo, charge_percent)
+	if flt(charge_percent) < 100:
+		so.flags.ignore_pricing_rule = True
+		so.save(ignore_permissions=True)
 	so.submit()
 
 	pmo.reference_doctype = "Sales Order"
@@ -2666,12 +2825,20 @@ def create_nursing_pharmacy_giveout(
 	warehouse=None,
 	patient_visit=None,
 	services=None,
+	no_charges=None,
+	charge_percent=None,
 ):
 	"""Nursing pharmacy give-out: create PMO from edited prescription lines, bill via submitted Sales Order.
 
 	IP give-outs pass inpatient_record; OP give-outs pass patient_visit instead.
 	``services`` are billed on the Sales Order only (not written onto the PMO) and
 	create completed Other Service Requests.
+
+	Medicine billing:
+	- ``no_charges`` / ``charge_percent=0``: stock still goes out; drug lines billed at 0
+	  (e.g. ECT session where the session is charged separately).
+	- ``charge_percent`` 1–100: bill medicines at that percent of list price.
+	- Default: 100% (full charge). Services always bill at the entered rate.
 	"""
 	if not _user_can_access_patient_medication_order_portal():
 		frappe.throw(_("Not permitted"), frappe.PermissionError)
@@ -2700,6 +2867,8 @@ def create_nursing_pharmacy_giveout(
 	valid_rows = [row for row in medication_orders if row.get("drug")]
 	if not valid_rows:
 		frappe.throw(_("At least one medication with a drug is required"))
+
+	resolved_charge_percent = _resolve_pharmacy_giveout_charge_percent(no_charges, charge_percent)
 
 	service_rows = []
 	for row in services or []:
@@ -2747,6 +2916,7 @@ def create_nursing_pharmacy_giveout(
 			warehouse=warehouse,
 			patient_visit=patient_visit,
 			services=service_rows,
+			charge_percent=resolved_charge_percent,
 		)
 	except frappe.ValidationError as exc:
 		frappe.throw(_format_pharmacy_giveout_error(exc, warehouse=warehouse), exc=exc)
@@ -2767,12 +2937,19 @@ def _create_nursing_pharmacy_giveout_documents(
 	warehouse=None,
 	patient_visit=None,
 	services=None,
+	charge_percent=100,
 ):
-	from healthcare.api.medicine_given import _validate_medicine_given_batch_lot, auto_resolve_medicine_given_batch_lot
+	from healthcare.api.medicine_given import (
+		_item_requires_dispensing_lot,
+		_validate_medicine_given_batch_lot,
+		allocate_dispensing_lots_for_qty,
+		auto_resolve_medicine_given_batch_lot,
+	)
 
 	manual_batch_lot_pick = _display_batch_and_lot_on_pharmacy_giveout()
 	start_date = nowdate()
 	services = services or []
+	charge_percent = _pmo_giveout_charge_percent(None, charge_percent)
 
 	doc = frappe.new_doc("Patient Medication Order")
 	doc.trans_no = get_next_transaction_number("Patient Medication Order", fieldname="trans_no")
@@ -2798,6 +2975,8 @@ def _create_nursing_pharmacy_giveout_documents(
 
 	doc.nursing_pharmacy_giveout = 1
 	doc.is_pharmacy_give_out = 1
+	if frappe.get_meta("Patient Medication Order").has_field("giveout_charge_percent"):
+		doc.giveout_charge_percent = charge_percent
 	if source_prescription and frappe.db.exists("Patient Medication Order", source_prescription):
 		doc.source_prescription = source_prescription
 
@@ -2828,6 +3007,7 @@ def _create_nursing_pharmacy_giveout_documents(
 		if not row.get("quantity") and not row.get("qty"):
 			row["quantity"] = 1
 		drug = (row.get("drug") or "").strip()
+		allocations = []
 		if drug:
 			batch_no = row.get("batch_no")
 			lot_no = row.get("lot_no")
@@ -2844,19 +3024,51 @@ def _create_nursing_pharmacy_giveout_documents(
 				row["batch_no"] = batch_no
 				row["lot_no"] = lot_no
 				row["dispensing_lot"] = dispensing_lot
-			_validate_medicine_given_batch_lot(
-				drug,
-				inpatient_record,
-				batch_no,
-				lot_no,
-				dispensing_lot,
-				warehouse=warehouse,
-			)
+
+			qty = flt(row.get("quantity") or row.get("qty") or 1)
+			if _item_requires_dispensing_lot(drug):
+				# Open additional FIFO lots when the first lot cannot cover the full qty.
+				allocations = allocate_dispensing_lots_for_qty(
+					drug,
+					warehouse,
+					qty,
+					batch_no=batch_no,
+					preferred_dispensing_lot=dispensing_lot,
+				)
+				if allocations:
+					row["dispensing_lot"] = allocations[0].get("dispensing_lot")
+					row["batch_no"] = allocations[0].get("batch_no") or batch_no
+				for alloc in allocations:
+					_validate_medicine_given_batch_lot(
+						drug,
+						inpatient_record,
+						alloc.get("batch_no") or batch_no,
+						lot_no,
+						alloc.get("dispensing_lot"),
+						warehouse=warehouse,
+					)
+			else:
+				allocations = [
+					{
+						"batch_no": (batch_no or "").strip() or None,
+						"dispensing_lot": None,
+						"qty": qty,
+					}
+				]
+				_validate_medicine_given_batch_lot(
+					drug,
+					inpatient_record,
+					batch_no,
+					lot_no,
+					dispensing_lot,
+					warehouse=warehouse,
+				)
 		_set_medication_row(doc, row)
 		doc.flags.pharmacy_giveout_item_stock.append(
 			{
 				"batch_no": (row.get("batch_no") or "").strip() or None,
 				"dispensing_lot": (row.get("dispensing_lot") or "").strip() or None,
+				"allocations": allocations,
 			}
 		)
 
@@ -2870,7 +3082,11 @@ def _create_nursing_pharmacy_giveout_documents(
 	doc.submit()
 
 	so = _create_submitted_sales_order_for_pmo(
-		doc, cost_center=cost_center, warehouse=warehouse, services=services
+		doc,
+		cost_center=cost_center,
+		warehouse=warehouse,
+		services=services,
+		charge_percent=charge_percent,
 	)
 
 	service_requests = []
@@ -2908,6 +3124,8 @@ def _create_nursing_pharmacy_giveout_documents(
 		"pmo_status": frappe.db.get_value("Patient Medication Order", doc.name, "status"),
 		"source_prescription": source_prescription,
 		"service_requests": service_requests,
+		"giveout_charge_percent": charge_percent,
+		"no_charges": cint(charge_percent <= 0),
 	}
 
 
@@ -3021,6 +3239,8 @@ def get_nursing_pharmacy_giveouts(
 	]
 	if pmo_meta.has_field("source_prescription"):
 		fields.append("source_prescription")
+	if pmo_meta.has_field("giveout_charge_percent"):
+		fields.append("giveout_charge_percent")
 
 	conditions = ["docstatus = 1", "nursing_pharmacy_giveout = 1"]
 	params = {}

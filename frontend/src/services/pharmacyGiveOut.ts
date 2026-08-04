@@ -35,6 +35,7 @@ export interface PharmacyGiveOutRow {
   invoice?: string
   reference_doctype?: string
   reference_document_name?: string
+  giveout_charge_percent?: number
   medication_count?: number
   medications_summary?: string
   service_count?: number

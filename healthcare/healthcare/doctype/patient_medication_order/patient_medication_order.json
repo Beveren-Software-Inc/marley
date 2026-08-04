@@ -21,6 +21,7 @@
   "is_pink",
   "after_discharge",
   "nursing_pharmacy_giveout",
+  "giveout_charge_percent",
   "discharge_id",
   "source_prescription",
   "ip_admission_rec_id",
@@ -313,6 +314,15 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Nursing Pharmacy Give Out",
+   "read_only": 1
+  },
+  {
+   "default": "100",
+   "depends_on": "eval:doc.nursing_pharmacy_giveout",
+   "description": "Percent of medicine list price billed on the Sales Order. 0 = no medicine charges (e.g. ECT session). Services are billed separately at full rate.",
+   "fieldname": "giveout_charge_percent",
+   "fieldtype": "Percent",
+   "label": "Give Out Charge %",
    "read_only": 1
   },
   {
