@@ -747,6 +747,7 @@ function appointmentCardMetaFields(apt: Appointment): readonly CardMetaField[] {
   const fields: CardMetaField[] = [
     ['Appointment ID', apt.name],
     ['Type', apt.appointment_type],
+    ['Visit type', apt.visit_type],
     ['Doctor', apt.practitioner_name || apt.practitioner],
     ['Department', apt.department],
     ['Branch', apt.cost_center],
@@ -2016,6 +2017,14 @@ export const AppointmentList = ({
             </table>
           ) : cardCompactLayout ? (
             <table className="w-full table-fixed">
+              <colgroup>
+                <col className={patient ? 'w-[22%]' : 'w-[18%]'} />
+                <col className={patient ? 'w-[26%]' : 'w-[20%]'} />
+                <col className={patient ? 'w-[20%]' : 'w-[16%]'} />
+                <col className={patient ? 'w-[18%]' : 'w-[14%]'} />
+                <col className={patient ? 'w-[14%]' : 'w-[12%]'} />
+                {!patient && <col className="w-[20%]" />}
+              </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
@@ -2047,25 +2056,33 @@ export const AppointmentList = ({
                     className={dashboardCardRowHoverClass}
                     onClick={() => setDetailApt(apt)}
                   >
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top">
-                      <span className="text-primary font-medium break-words">
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0 overflow-hidden">
+                      <span className="text-primary font-medium block truncate" title={formatAppointmentDateTime(apt.appointment_date, apt)}>
                         {formatAppointmentDateTime(apt.appointment_date, apt)}
                       </span>
                       <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
-                      {apt.practitioner_name || apt.practitioner || '-'}
-                    </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
-                      {apt.appointment_type || '-'}
+                    <td
+                      className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0 overflow-hidden"
+                      title={apt.practitioner_name || apt.practitioner || undefined}
+                    >
+                      <span className="block truncate">
+                        {apt.practitioner_name || apt.practitioner || '-'}
+                      </span>
                     </td>
                     <td
-                      className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap"
+                      className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0 overflow-hidden"
+                      title={apt.visit_type || undefined}
+                    >
+                      <span className="block truncate">{apt.visit_type || '-'}</span>
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0 overflow-hidden"
                       title={apt.cost_center || undefined}
                     >
-                      {branchLabel(apt.cost_center)}
+                      <span className="block truncate">{branchLabel(apt.cost_center)}</span>
                     </td>
-                    <td className="px-3 py-2.5 align-top">
+                    <td className="px-3 py-2.5 align-top min-w-0 overflow-hidden">
                       {apt.status ? (
                         <StatusPill status={apt.status} color={getStatusColor(apt.status)} />
                       ) : (
@@ -2074,7 +2091,7 @@ export const AppointmentList = ({
                     </td>
                     {!patient && (
                       <td
-                        className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0"
+                        className="px-3 py-2.5 text-xs text-slate-700 align-top min-w-0 overflow-hidden"
                         onClick={(e) => {
                           if (apt.patient) {
                             e.stopPropagation()
@@ -2110,7 +2127,7 @@ export const AppointmentList = ({
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[8rem]">
-                  Appointment Type
+                  Visit Type
                 </th>
                 <th className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap min-w-[7rem]">
                   File No.
@@ -2167,7 +2184,7 @@ export const AppointmentList = ({
                     )}
                     title={doctorUnavailable ? 'Doctor unavailable' : undefined}
                   >
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.appointment_type || '-'}</td>
+                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.visit_type || '-'}</td>
                     <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{apt.file_no || '-'}</td>
                     {!patient && (
                       <td

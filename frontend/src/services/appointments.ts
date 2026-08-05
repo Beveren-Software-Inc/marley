@@ -12,6 +12,8 @@ export interface Appointment {
   old_time?: string
   status?: string
   appointment_type?: string
+  /** From linked Patient Visit (not appointment_type). */
+  visit_type?: string
   department?: string
   practitioner?: string
   practitioner_name?: string
