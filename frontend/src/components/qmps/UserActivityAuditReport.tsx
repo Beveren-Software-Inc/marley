@@ -14,6 +14,7 @@ import { toast } from '../../hooks/useToast'
 
 type ViewMode = 'timeline' | 'summary'
 type SortKey = NonNullable<ActivityAuditFilters['sort_by']>
+type ExportMode = 'pdf' | 'excel'
 
 const ACTIVITY_TYPE_OPTIONS = [
   { value: 'all', label: 'All activity' },
@@ -37,6 +38,112 @@ const SUMMARY_SORT_OPTIONS: { value: SummarySortKey; label: string }[] = [
   { value: 'last_activity', label: 'Last active' },
   { value: 'user', label: 'User name' },
 ]
+
+const EXPORT_CSS = `
+  body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 16px; }
+  h1 { font-size: 16px; margin: 0 0 4px; }
+  .meta { color: #475569; margin-bottom: 12px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { border: 1px solid #333; padding: 4px 6px; text-align: left; vertical-align: top; }
+  th { background: #f1f5f9; }
+  td.num, th.num { text-align: right; }
+  @page { size: A4 landscape; margin: 10mm; }
+`
+
+function escapeHtml(value: string | number | null | undefined): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+}
+
+function openExportDocument(html: string, mode: ExportMode, filename: string) {
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(filename)}</title><style>${EXPORT_CSS}</style></head><body>${html}</body></html>`
+  if (mode === 'pdf') {
+    const win = window.open('', '_blank')
+    if (!win) {
+      toast.error('Pop-up blocked — allow pop-ups to export PDF')
+      return
+    }
+    win.document.write(doc + '<script>window.onload = () => window.print()</'.concat('script>'))
+    win.document.close()
+    return
+  }
+  const blob = new Blob([doc], { type: 'application/vnd.ms-excel' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = `${filename}.xls`
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
+
+function buildTimelineExportHtml(rows: ActivityAuditRow[], meta: string): string {
+  const body = rows
+    .map((row) => {
+      const ts = row.timestamp ? new Date(row.timestamp).toLocaleString('en-GB') : ''
+      return `<tr>
+        <td>${escapeHtml(ts)}</td>
+        <td>${escapeHtml(row.full_name || row.user)}<br/><span style="color:#64748b">${escapeHtml(row.user)}</span></td>
+        <td>${escapeHtml(row.activity_type)}</td>
+        <td>${escapeHtml(row.doctype || '—')}</td>
+        <td>${escapeHtml(row.reference || '—')}</td>
+        <td>${escapeHtml(row.details || '—')}</td>
+      </tr>`
+    })
+    .join('')
+  return `
+    <h1>Staff Activity Audit — Activity Log</h1>
+    <div class="meta">${escapeHtml(meta)}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Date / Time</th>
+          <th>User</th>
+          <th>Activity</th>
+          <th>DocType</th>
+          <th>Reference</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>`
+}
+
+function buildWorkloadExportHtml(rows: UserActivitySummaryRow[], meta: string): string {
+  const body = rows
+    .map((row) => {
+      const topDocs = row.top_doctypes.map((d) => `${d.doctype} (${d.count})`).join(', ')
+      const last = row.last_activity ? new Date(row.last_activity).toLocaleString('en-GB') : '—'
+      return `<tr>
+        <td>${escapeHtml(row.full_name || row.user)}<br/><span style="color:#64748b">${escapeHtml(row.user)}</span></td>
+        <td class="num">${row.login_count}</td>
+        <td class="num">${row.route_views}</td>
+        <td class="num">${row.document_edits}</td>
+        <td class="num">${row.total_events}</td>
+        <td>${escapeHtml(topDocs || '—')}</td>
+        <td>${escapeHtml(last)}</td>
+      </tr>`
+    })
+    .join('')
+  return `
+    <h1>Staff Activity Audit — User Workload Summary</h1>
+    <div class="meta">${escapeHtml(meta)}</div>
+    <table>
+      <thead>
+        <tr>
+          <th>User</th>
+          <th class="num">Logins</th>
+          <th class="num">Page views</th>
+          <th class="num">Document edits</th>
+          <th class="num">Total</th>
+          <th>Top documents</th>
+          <th>Last active</th>
+        </tr>
+      </thead>
+      <tbody>${body}</tbody>
+    </table>`
+}
 
 function activityBadgeClass(type: string): string {
   if (type === 'Login' || type === 'Logout' || type === 'Impersonate') {
@@ -284,6 +391,7 @@ export function UserActivityAuditReport() {
   const [summarySortOrder, setSummarySortOrder] = useState<'asc' | 'desc'>('desc')
   const [page, setPage] = useState(0)
   const pageSize = 100
+  const [exporting, setExporting] = useState(false)
 
   const dateFilters = useMemo(
     () => ({
@@ -293,6 +401,22 @@ export function UserActivityAuditReport() {
     }),
     [fromDate, toDate, periodDays]
   )
+
+  const periodMetaLabel = useMemo(() => {
+    const parts: string[] = []
+    if (fromDate || toDate) {
+      parts.push(`From ${fromDate || '…'} to ${toDate || '…'}`)
+    } else {
+      parts.push(`Last ${periodDays} day${periodDays === 1 ? '' : 's'}`)
+    }
+    if (user) parts.push(`User: ${userLabel || user}`)
+    if (viewMode === 'timeline') {
+      if (doctype) parts.push(`DocType: ${doctype}`)
+      if (activityType && activityType !== 'all') parts.push(`Activity: ${activityType}`)
+    }
+    parts.push(`Printed ${new Date().toLocaleString('en-GB')}`)
+    return parts.join(' · ')
+  }, [activityType, doctype, fromDate, periodDays, toDate, user, userLabel, viewMode])
 
   const buildFilters = useCallback(
     (pageOffset = page): ActivityAuditFilters => ({
@@ -388,6 +512,43 @@ export function UserActivityAuditReport() {
     setPage(0)
   }
 
+  const exportTimeline = async (mode: ExportMode) => {
+    setExporting(true)
+    try {
+      const report = await fetchUserActivityReport({
+        ...buildFilters(0),
+        limit: 5000,
+        offset: 0,
+      })
+      const exportRows = report.rows || []
+      if (!exportRows.length) {
+        toast.error('No activity to export')
+        return
+      }
+      openExportDocument(
+        buildTimelineExportHtml(exportRows, periodMetaLabel),
+        mode,
+        `staff-activity-log-${new Date().toISOString().slice(0, 10)}`
+      )
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export activity log')
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const exportWorkloadPdf = () => {
+    if (!summaryRows.length) {
+      toast.error('No workload summary to export')
+      return
+    }
+    openExportDocument(
+      buildWorkloadExportHtml(summaryRows, periodMetaLabel),
+      'pdf',
+      `user-workload-summary-${new Date().toISOString().slice(0, 10)}`
+    )
+  }
+
   const totalPages = Math.max(1, Math.ceil(totalCount / pageSize))
 
   return (
@@ -400,14 +561,45 @@ export function UserActivityAuditReport() {
               Combined view of logins, page access, and document changes. CEO access only.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={refreshAll}
-            disabled={loading || summaryLoading}
-            className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
-          >
-            {loading || summaryLoading ? 'Refreshing…' : 'Refresh'}
-          </button>
+          <div className="flex flex-wrap items-center justify-end gap-2 ml-auto">
+            <button
+              type="button"
+              onClick={refreshAll}
+              disabled={loading || summaryLoading || exporting}
+              className="px-3 py-1.5 text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              {loading || summaryLoading ? 'Refreshing…' : 'Refresh'}
+            </button>
+            {viewMode === 'timeline' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => void exportTimeline('pdf')}
+                  disabled={exporting || loading}
+                  className="px-3 py-1.5 text-xs rounded-md border border-primary text-primary bg-white hover:bg-primary/5 disabled:opacity-40"
+                >
+                  {exporting ? 'Exporting…' : 'Export PDF'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void exportTimeline('excel')}
+                  disabled={exporting || loading}
+                  className="px-3 py-1.5 text-xs rounded-md border border-primary text-primary bg-white hover:bg-primary/5 disabled:opacity-40"
+                >
+                  Export Excel
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={exportWorkloadPdf}
+                disabled={summaryLoading || !summaryRows.length}
+                className="px-3 py-1.5 text-xs rounded-md border border-primary text-primary bg-white hover:bg-primary/5 disabled:opacity-40"
+              >
+                Export PDF
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="mt-3 flex flex-wrap gap-2">
