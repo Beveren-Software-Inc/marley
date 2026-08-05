@@ -601,6 +601,33 @@ def _new_receive_payment_entry(
 	return pe
 
 
+def _resolve_op_or_ip_doctype(value: str | None) -> str | None:
+	"""Map UI OP/IP (or DocType name) to Payment Entry custom_op_or_ip Link value."""
+	raw = (value or "").strip()
+	if not raw:
+		return None
+	key = raw.upper()
+	if key in ("OP", "PATIENT VISIT"):
+		return "Patient Visit"
+	if key in ("IP", "INPATIENT ADMISSION"):
+		return "Inpatient Admission"
+	if raw in ("Patient Visit", "Inpatient Admission"):
+		return raw
+	return None
+
+
+def _apply_advance_case_fields(pe, data: dict) -> None:
+	"""Optional reporting fields: custom_op_or_ip (DocType) + custom_case_no (Dynamic Link)."""
+	if not pe.meta.has_field("custom_op_or_ip"):
+		return
+	doctype = _resolve_op_or_ip_doctype(data.get("custom_op_or_ip"))
+	case_no = (data.get("custom_case_no") or "").strip()
+	if doctype:
+		pe.custom_op_or_ip = doctype
+	if case_no and pe.meta.has_field("custom_case_no") and getattr(pe, "custom_op_or_ip", None):
+		pe.custom_case_no = case_no
+
+
 def _is_reception_portal_user(user: str | None = None) -> bool:
 	from healthcare.healthcare.discharge_checklist_permissions import _is_reception_user
 
@@ -741,6 +768,7 @@ def create_patient_advance_payment(data: dict) -> dict:
 			mode.get("reference_no") or data.get("reference_no"),
 			data.get("reference_date"),
 		)
+		_apply_advance_case_fields(pe, data)
 		results.append(_submit_payment_entry(pe))
 	return _combine_multi_mode_results(results, label="Advance payment")
 

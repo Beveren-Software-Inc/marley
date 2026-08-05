@@ -8,8 +8,20 @@ import {
 import { apiRequest } from '../../services/apiClient'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { resolveAdmissionDateTime } from '../../utils/admissionDateTime'
 
 type ReportId = 'receipts' | 'ip-payments' | 'soa' | 'soa-op'
+
+function toInputDate(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function todayInputDate(): string {
+  return toInputDate(new Date())
+}
 
 const LETTERHEAD = {
   name: 'SERENE PSYCHIATRY HOSPITAL W.L.L',
@@ -177,6 +189,50 @@ export function ReceptionReports() {
     setVisit(activeVisit)
     setVisitQuery(headerVisitLabel || activeVisit)
   }, [activeVisit, headerVisitLabel])
+
+  // SOA (IP): From Date = admission date, To Date = today
+  useEffect(() => {
+    if (report !== 'soa') return
+
+    setToDate(todayInputDate())
+
+    if (!resolvedAdmission) return
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        const fields = JSON.stringify([
+          'scheduled_date',
+          'admitted_datetime',
+          'admission_date',
+          'admission_time',
+        ])
+        const row = await apiRequest<{
+          scheduled_date?: string
+          admitted_datetime?: string
+          admission_date?: string
+          admission_time?: string
+        }>(
+          `/api/resource/Inpatient%20Admission/${encodeURIComponent(resolvedAdmission)}?fields=${encodeURIComponent(fields)}`,
+        )
+        if (cancelled || !row) return
+        // Match SOA report's admission_date (scheduled_date), then fall back to admitted datetime.
+        const scheduled = (row.scheduled_date || '').toString().slice(0, 10)
+        if (scheduled) {
+          setFromDate(scheduled)
+          return
+        }
+        const dt = resolveAdmissionDateTime(row)
+        if (dt) setFromDate(toInputDate(dt))
+      } catch {
+        /* leave From Date unchanged if admission cannot be loaded */
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [report, resolvedAdmission])
 
   const run = async () => {
     if (report === 'receipts' && (!fromDate || !toDate)) {

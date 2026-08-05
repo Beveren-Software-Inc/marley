@@ -347,3 +347,85 @@ def get_patient_billing_cost_center_breakdown(reference_type=None, reference_nam
         )
 
     return {'restricted': False, 'rows': rows}
+
+
+@frappe.whitelist()
+def get_patient_cross_branch_paid_breakdown(reference_type=None, reference_name=None, patient=None):
+	"""Charges paid when Payment Entry branch ≠ Sales Invoice branch (cross-branch payment).
+
+	Same unrestricted-user gate as Charges by Branch. Aggregates allocated payment
+	amounts by invoice cost center and payment cost center.
+	"""
+	from healthcare.api.common import get_permitted_cost_centers
+
+	permitted_cc = get_permitted_cost_centers()
+	if permitted_cc is not None:
+		return {'restricted': True, 'rows': []}
+
+	if not patient and not reference_name:
+		return {'restricted': False, 'rows': []}
+
+	conditions = [
+		"pe.docstatus = 1",
+		"pe.payment_type = 'Receive'",
+		"per.reference_doctype = 'Sales Invoice'",
+		"IFNULL(NULLIF(pe.cost_center, ''), '') != ''",
+		"IFNULL(NULLIF(si.cost_center, ''), '') != ''",
+		"pe.cost_center != si.cost_center",
+	]
+	params = {}
+
+	if reference_name:
+		if reference_type:
+			conditions.append("si.custom_reference_type = %(reference_type)s")
+			params['reference_type'] = reference_type
+		conditions.append("si.custom_reference_name = %(reference_name)s")
+		params['reference_name'] = reference_name
+	if patient:
+		conditions.append("si.patient = %(patient)s")
+		params['patient'] = patient
+
+	where_sql = " AND ".join(conditions)
+	rows_raw = frappe.db.sql(
+		f"""
+		SELECT
+			si.cost_center AS invoice_cost_center,
+			pe.cost_center AS payment_cost_center,
+			SUM(IFNULL(per.allocated_amount, 0)) AS paid_amount,
+			COUNT(DISTINCT pe.name) AS payment_count,
+			COUNT(DISTINCT si.name) AS invoice_count
+		FROM `tabPayment Entry` pe
+		INNER JOIN `tabPayment Entry Reference` per
+			ON per.parent = pe.name AND per.parenttype = 'Payment Entry'
+		INNER JOIN `tabSales Invoice` si
+			ON si.name = per.reference_name
+		WHERE {where_sql}
+		GROUP BY si.cost_center, pe.cost_center
+		ORDER BY paid_amount DESC
+		""",
+		params,
+		as_dict=True,
+	)
+
+	def _cc_label(cc_key):
+		if not cc_key:
+			return '(No cost center)'
+		return frappe.db.get_value('Cost Center', cc_key, 'cost_center_name') or cc_key
+
+	rows = []
+	for r in rows_raw:
+		inv_cc = (r.get('invoice_cost_center') or '').strip()
+		pay_cc = (r.get('payment_cost_center') or '').strip()
+		rows.append(
+			{
+				'invoice_cost_center': inv_cc,
+				'invoice_branch_name': _cc_label(inv_cc),
+				'payment_cost_center': pay_cc,
+				'payment_branch_name': _cc_label(pay_cc),
+				'paid_amount': flt(r.get('paid_amount')),
+				'payment_count': int(r.get('payment_count') or 0),
+				'invoice_count': int(r.get('invoice_count') or 0),
+			}
+		)
+
+	return {'restricted': False, 'rows': rows}

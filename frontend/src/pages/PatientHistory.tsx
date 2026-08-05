@@ -271,7 +271,16 @@ export const PatientHistoryPage = () => {
             </div>
           </section>
 
-          {/* Content cards — single 2-col grid so visible cards flow side by side when clinical cards are hidden */}
+          {/* Major sections — full width, first after Summary */}
+          <DashboardCard fixedHeight title="Patient Visits" {...listingProps('patient-visits')}>
+            <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+          </DashboardCard>
+
+          <DashboardCard fixedHeight title="Admissions" {...listingProps('admissions')}>
+            <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
+          </DashboardCard>
+
+          {/* Remaining content cards — 2-col grid */}
           <div className="grid gap-4 md:grid-cols-2 auto-rows-fr md:[&>*:last-child:nth-child(odd)]:col-span-2">
             <DashboardCard fixedHeight title="Warnings & Messages" {...listingProps('warnings')}>
               <WarningMessagesList patient={selectedPatient} onPatientClick={handlePatientSelect} />
@@ -291,14 +300,6 @@ export const PatientHistoryPage = () => {
                 <PatientDiagnosisList patient={selectedPatient} />
               </DashboardCard>
             )}
-
-            <DashboardCard fixedHeight title="Admissions" {...listingProps('admissions')}>
-              <AdmissionList patient={selectedPatient} onPatientFromAdmission={handlePatientSelect} />
-            </DashboardCard>
-
-            <DashboardCard fixedHeight title="Patient Visits" {...listingProps('patient-visits')}>
-              <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
-            </DashboardCard>
 
             {canViewClinical && (
               <DashboardCard fixedHeight title="Lab Test Reports" {...listingProps('lab')}>
@@ -331,15 +332,18 @@ export const PatientHistoryPage = () => {
             )}
           </div>
 
-          {canViewClinical && (
-            <DashboardCard noHeightLimit title="Medical History" {...listingProps('medical-history')}>
-              <MedicalHistoryView patient={selectedPatient} />
-            </DashboardCard>
-          )}
+          {/* Medical History + Package — same row (left / right) */}
+          <div className="grid gap-4 md:grid-cols-2 auto-rows-fr md:[&>*:last-child:nth-child(odd)]:col-span-2">
+            {canViewClinical && (
+              <DashboardCard noHeightLimit title="Medical History" {...listingProps('medical-history')}>
+                <MedicalHistoryView patient={selectedPatient} />
+              </DashboardCard>
+            )}
 
-          <DashboardCard noHeightLimit title="Package Details" {...listingProps('package-details')}>
-            <PackageDetailsList patient={selectedPatient} />
-          </DashboardCard>
+            <DashboardCard noHeightLimit title="Package Details" {...listingProps('package-details')}>
+              <PackageDetailsList patient={selectedPatient} />
+            </DashboardCard>
+          </div>
             </>
           )}
         </div>

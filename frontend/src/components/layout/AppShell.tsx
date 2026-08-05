@@ -195,6 +195,10 @@ const receptionScreenGroups: ScreenGroup[] = [
     groupTitle: '',
     screens: [{ id: 'r-promotions', title: 'Promotion Analysis' }],
   },
+  {
+    groupTitle: '',
+    screens: [{ id: 'r-handover-notes', title: 'Daily Handover & Shift Notes' }],
+  },
 ]
 
 const insuranceScreens = [

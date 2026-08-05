@@ -13,6 +13,7 @@ import {
   fetchDailyAutoVisitBalances,
   fetchBillingCostCenterScope,
   fetchPatientBillingCostCenterBreakdown,
+  fetchPatientCrossBranchPaidBreakdown,
   fetchPaymentEntries,
   fetchPaymentSummary,
   getInvoicesByReference,
@@ -24,6 +25,7 @@ import {
   type InpatientBalance,
   type OutpatientBalance,
   type PatientBillingCcRow,
+  type PatientCrossBranchPaidRow,
   type PaymentEntryRow,
   type PaymentSummary,
 } from '../../services/serviceOrders'
@@ -54,6 +56,7 @@ import {
   FileDown,
   X,
   Wallet,
+  ChevronDown,
 } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -181,6 +184,8 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [invoiceListRefreshKey, setInvoiceListRefreshKey] = useState(0)
   const [billingCcRestricted, setBillingCcRestricted] = useState<boolean | null>(null)
   const [ccBreakdown, setCcBreakdown] = useState<PatientBillingCcRow[]>([])
+  const [crossBranchPaid, setCrossBranchPaid] = useState<PatientCrossBranchPaidRow[]>([])
+  const [crossBranchOpen, setCrossBranchOpen] = useState(false)
   const [payments, setPayments] = useState<PaymentEntryRow[]>([])
   const [paymentSummary, setPaymentSummary] = useState<PaymentSummary | null>(null)
   const [showDateFilters, setShowDateFilters] = useState(false)
@@ -358,6 +363,7 @@ const handleMakePayment = async (
         setRecentInvoices([])
         setBillingCcRestricted(null)
         setCcBreakdown([])
+        setCrossBranchPaid([])
         setLoading(false)
         setHasLoadedOnce(true)
       }
@@ -381,9 +387,14 @@ const handleMakePayment = async (
       setRecentInvoices(recentInvoicesData)
 
       try {
-        const [ccScope, ccBreakdownRes, paymentRows, paySummary] = await Promise.all([
+        const [ccScope, ccBreakdownRes, crossBranchRes, paymentRows, paySummary] = await Promise.all([
           fetchBillingCostCenterScope(),
           fetchPatientBillingCostCenterBreakdown(
+            scopedReferenceType,
+            scopedReferenceName,
+            effectivePatient
+          ),
+          fetchPatientCrossBranchPaidBreakdown(
             scopedReferenceType,
             scopedReferenceName,
             effectivePatient
@@ -394,12 +405,14 @@ const handleMakePayment = async (
         if (isStale?.()) return
         setBillingCcRestricted(!!ccScope.restricted)
         setCcBreakdown(ccBreakdownRes.restricted ? [] : ccBreakdownRes.rows || [])
+        setCrossBranchPaid(crossBranchRes.restricted ? [] : crossBranchRes.rows || [])
         setPayments(paymentRows)
         setPaymentSummary(paySummary)
       } catch {
         if (isStale?.()) return
         setBillingCcRestricted(null)
         setCcBreakdown([])
+        setCrossBranchPaid([])
         setPayments([])
         setPaymentSummary(null)
       }
@@ -1082,6 +1095,7 @@ const handleMakePayment = async (
                   <th className="px-3 py-2 text-left">Payment</th>
                   <th className="px-3 py-2 text-left">Date</th>
                   <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-left">OP / IP</th>
                   <th className="px-3 py-2 text-left">Mode</th>
                   <th className="px-3 py-2 text-right">Amount</th>
                   <th className="px-3 py-2 text-left">Receptionist</th>
@@ -1093,6 +1107,7 @@ const handleMakePayment = async (
                 {payments.map((p) => {
                   const isRefund = p.payment_type === 'Pay'
                   const isDraft = Number(p.docstatus) === 0
+                  const isAdvance = !isRefund && !isDraft && !p.invoice_name
                   const signedAmount = isRefund ? -(p.paid_amount || 0) : p.paid_amount || 0
                   const typeLabel = isDraft
                     ? 'Draft refund'
@@ -1101,6 +1116,18 @@ const handleMakePayment = async (
                       : p.invoice_name
                         ? 'Invoice payment'
                         : 'Advance'
+                  const opIpRaw = (p.custom_op_or_ip || '').trim()
+                  const opIpLabel =
+                    opIpRaw === 'Patient Visit' || opIpRaw.toUpperCase() === 'OP'
+                      ? 'OP'
+                      : opIpRaw === 'Inpatient Admission' || opIpRaw.toUpperCase() === 'IP'
+                        ? 'IP'
+                        : ''
+                  const caseNo = (p.custom_case_no || '').trim()
+                  const advanceCaseLabel =
+                    isAdvance && (opIpLabel || caseNo)
+                      ? [opIpLabel, caseNo].filter(Boolean).join(' · ')
+                      : ''
                   return (
                   <tr key={p.name}>
                     <td className="px-3 py-2 font-mono text-xs">{p.name}</td>
@@ -1117,6 +1144,9 @@ const handleMakePayment = async (
                       }`}>
                         {typeLabel}
                       </span>
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-700 whitespace-nowrap">
+                      {advanceCaseLabel || '—'}
                     </td>
                     <td className="px-3 py-2">{p.mode_of_payment || '-'}</td>
                     <td className={`px-3 py-2 text-right font-medium ${isDraft ? 'text-slate-500' : isRefund ? 'text-amber-700' : 'text-slate-800'}`}>
@@ -1159,7 +1189,7 @@ const handleMakePayment = async (
                   )
                 })}
                 {payments.length === 0 && (
-                  <tr><td colSpan={8} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
+                  <tr><td colSpan={9} className="px-3 py-6 text-center text-slate-500">NO PAYMENTS FOUND FOR SELECTED FILTERS.</td></tr>
                 )}
               </tbody>
             </table>
@@ -1791,38 +1821,123 @@ const handleMakePayment = async (
       </div>
 
       {showCcBreakdown && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-          <div className="px-5 py-4 border-b border-slate-200">
-            <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
-            <p className="text-xs text-slate-500 mt-1">
-              For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single branch.
-            </p>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-slate-50 border-b border-slate-200">
-                <tr>
-                  <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Service orders</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Orders amount</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoices</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoiced total</th>
-                  <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Outstanding</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {ccBreakdown.map((row) => (
-                  <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
-                    <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.invoices_grand_total)}</td>
-                    <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatCurrency(row.outstanding)}</td>
+        <div className="space-y-3">
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-200">
+              <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single branch.
+              </p>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Service orders</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Orders amount</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoices</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Invoiced total</th>
+                    <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">Outstanding</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {ccBreakdown.map((row) => (
+                    <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.invoices_grand_total)}</td>
+                      <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">{formatCurrency(row.outstanding)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setCrossBranchOpen((open) => !open)}
+              className="w-full px-5 py-4 flex items-center justify-between gap-3 text-left hover:bg-slate-50 transition"
+              aria-expanded={crossBranchOpen}
+            >
+              <div>
+                <h3 className="font-semibold text-slate-800">
+                  Cross-branch paid charges
+                  {crossBranchPaid.length > 0 ? (
+                    <span className="ml-2 text-xs font-medium text-slate-500">
+                      ({crossBranchPaid.length})
+                    </span>
+                  ) : null}
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Invoice branch differs from Payment Entry branch — paid at another branch (Cross‑Branch Payment).
+                </p>
+              </div>
+              <ChevronDown
+                className={`h-5 w-5 shrink-0 text-slate-500 transition-transform ${
+                  crossBranchOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+            {crossBranchOpen ? (
+              <div className="border-t border-slate-200 overflow-x-auto">
+                {crossBranchPaid.length === 0 ? (
+                  <p className="px-5 py-6 text-center text-sm text-slate-400">
+                    No cross-branch payments for this selection.
+                  </p>
+                ) : (
+                  <table className="w-full text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">
+                          Invoice branch
+                        </th>
+                        <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase">
+                          Payment branch
+                        </th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">
+                          Invoices
+                        </th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">
+                          Payments
+                        </th>
+                        <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase">
+                          Paid amount
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {crossBranchPaid.map((row) => (
+                        <tr
+                          key={`${row.invoice_cost_center}|${row.payment_cost_center}`}
+                          className="hover:bg-slate-50"
+                        >
+                          <td className="px-4 py-2.5 text-slate-800 font-medium">
+                            {row.invoice_branch_name}
+                          </td>
+                          <td className="px-4 py-2.5 text-slate-700">
+                            {row.payment_branch_name}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                            {row.invoice_count}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                            {row.payment_count}
+                          </td>
+                          <td className="px-4 py-2.5 text-right tabular-nums font-medium text-slate-900">
+                            {formatCurrency(row.paid_amount)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
+            ) : null}
           </div>
         </div>
       )}

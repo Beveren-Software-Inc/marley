@@ -2016,15 +2016,19 @@ export const AppointmentList = ({
             </table>
           ) : cardCompactLayout ? (
             <table className="w-full table-fixed">
-              <colgroup>
-                <col className={patient ? 'w-[48%]' : 'w-[34%]'} />
-                <col className={patient ? 'w-[52%]' : 'w-[26%]'} />
-                {!patient && <col className="w-[40%]" />}
-              </colgroup>
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                     Date &amp; Time
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Doctor Name
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Visit Type
+                  </th>
+                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
+                    Branch
                   </th>
                   <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">
                     Status
@@ -2048,6 +2052,18 @@ export const AppointmentList = ({
                         {formatAppointmentDateTime(apt.appointment_date, apt)}
                       </span>
                       <CardRowMetaHint fields={appointmentCardMetaFields(apt)} />
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
+                      {apt.practitioner_name || apt.practitioner || '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
+                      {apt.appointment_type || '-'}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap"
+                      title={apt.cost_center || undefined}
+                    >
+                      {branchLabel(apt.cost_center)}
                     </td>
                     <td className="px-3 py-2.5 align-top">
                       {apt.status ? (

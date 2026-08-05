@@ -195,6 +195,10 @@ export async function createPatientAdvancePayment(data: {
   mode_of_payment: string
   payment_modes?: PaymentModePayload[]
   remarks?: string
+  /** OP / IP / Patient Visit / Inpatient Admission — optional reporting tag */
+  custom_op_or_ip?: string
+  /** Visit or admission name — optional Dynamic Link case */
+  custom_case_no?: string
 }): Promise<CreatePaymentEntryResult> {
   return paymentApiRequest<CreatePaymentEntryResult>(
     'healthcare.api.payment_entry.create_patient_advance_payment',

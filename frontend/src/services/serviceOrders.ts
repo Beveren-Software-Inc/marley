@@ -127,6 +127,10 @@ export interface PaymentEntryRow {
   invoice_name?: string | null
   invoice_reference_type?: string | null
   invoice_reference_name?: string | null
+  /** Advance tagging: "Patient Visit" | "Inpatient Admission" */
+  custom_op_or_ip?: string | null
+  /** Advance visit / admission name */
+  custom_case_no?: string | null
 }
 
 export interface PaymentModeSummary {
@@ -287,6 +291,39 @@ export async function fetchPatientBillingCostCenterBreakdown(
   )
   const data = await response.json()
   const msg = data.message as PatientBillingCcBreakdown | undefined
+  return msg && Array.isArray(msg.rows) ? msg : { restricted: false, rows: [] }
+}
+
+export interface PatientCrossBranchPaidRow {
+  invoice_cost_center: string
+  invoice_branch_name: string
+  payment_cost_center: string
+  payment_branch_name: string
+  paid_amount: number
+  payment_count: number
+  invoice_count: number
+}
+
+export interface PatientCrossBranchPaidBreakdown {
+  restricted: boolean
+  rows: PatientCrossBranchPaidRow[]
+}
+
+export async function fetchPatientCrossBranchPaidBreakdown(
+  referenceType?: string,
+  referenceName?: string,
+  patient?: string
+): Promise<PatientCrossBranchPaidBreakdown> {
+  const params = new URLSearchParams()
+  if (referenceType) params.append('reference_type', referenceType)
+  if (referenceName) params.append('reference_name', referenceName)
+  if (patient) params.append('patient', patient)
+  const response = await fetch(
+    `/api/method/healthcare.api.sales_invoice.get_patient_cross_branch_paid_breakdown?${params.toString()}`,
+    { credentials: 'include' }
+  )
+  const data = await response.json()
+  const msg = data.message as PatientCrossBranchPaidBreakdown | undefined
   return msg && Array.isArray(msg.rows) ? msg : { restricted: false, rows: [] }
 }
 

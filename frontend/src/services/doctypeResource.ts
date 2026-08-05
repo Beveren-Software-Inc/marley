@@ -64,21 +64,27 @@ export async function fetchDoctypeRows(
     params.set('filters', JSON.stringify(active.map(([k, v]) => [k, '=', v])))
   }
 
-  const res = await apiRequest<{ data: Record<string, any>[] }>(
+  // apiRequest already unwraps Frappe's `{ data: ... }` envelope.
+  const res = await apiRequest<Record<string, any>[] | { data?: Record<string, any>[] }>(
     `/api/resource/${encodeURIComponent(doctype)}?${params.toString()}`
   )
-  return res?.data ?? []
+  if (Array.isArray(res)) return res
+  if (res && Array.isArray(res.data)) return res.data
+  return []
 }
 
 export async function createDoctypeRow(
   doctype: string,
   payload: Record<string, any>
 ): Promise<{ name: string }> {
-  const res = await apiRequest<{ data: { name: string } }>(
+  // apiRequest already unwraps Frappe's `{ data: ... }` envelope.
+  const res = await apiRequest<{ name?: string; data?: { name: string } }>(
     `/api/resource/${encodeURIComponent(doctype)}`,
     { method: 'POST', body: JSON.stringify(payload) }
   )
-  return res?.data ?? { name: '' }
+  if (res?.name) return { name: res.name }
+  if (res?.data?.name) return { name: res.data.name }
+  return { name: '' }
 }
 
 export async function fetchLinkOptions(

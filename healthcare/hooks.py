@@ -124,12 +124,15 @@ fixtures = [
                    "Payment Entry-custom_payment_owner",
                    "UOM-custom_is_medical",
                    "Material Request-custom_is_medical",
-                   "Sales Order-custom_no_charges"
+                   "Sales Order-custom_no_charges",
+                   "Payment Entry-custom_case_no",
+                   "Payment Entry-custom_op_or_ip"
 
                 ),
             ]
         ],
     },
+    
     # {
     #     "doctype": "Discharge Template"
     # },
