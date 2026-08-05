@@ -23,6 +23,12 @@ import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
 import { useAuth } from '../../providers/AuthProvider'
 import { isReceptionRole } from '../../config/permissions'
+import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  fetchPatientVisits,
+  fetchInpatientAdmissionOptions,
+  type LinkFieldOption,
+} from '../../services/common'
 import {
   linkComboboxDropdownClass,
   linkComboboxEmptyPanelClass,
@@ -123,6 +129,7 @@ const LinkField = ({
 
 type ReferenceType = 'Sales Invoice' | 'Sales Order'
 type PaymentMode = 'single' | 'advance' | 'multi' | 'refund'
+type AdvanceCareKind = '' | 'OP' | 'IP'
 
 const PAYMENT_MODE_LABELS: Record<PaymentMode, string> = {
   single: 'Invoice / Order',
@@ -148,6 +155,11 @@ export function StandalonePaymentModal({
   const moneyInput = useMoneyInputConfig()
   const formatMoney = useFormatMoney()
   const { user } = useAuth()
+  const {
+    mode: careMode,
+    activeVisit,
+    activeAdmission,
+  } = useCareContext()
   const isReceptionUser = useMemo(() => {
     const roles = user?.roles?.length
       ? user.roles
@@ -193,6 +205,14 @@ export function StandalonePaymentModal({
   const [invoiceLoading, setInvoiceLoading] = useState(false)
   const [orderLoading, setOrderLoading] = useState(false)
   const [limitToPatient, setLimitToPatient] = useState(!!initialPatient)
+
+  /** Optional advance reporting: OP/IP + visit/admission case */
+  const [advanceOpIp, setAdvanceOpIp] = useState<AdvanceCareKind>('')
+  const [advanceCase, setAdvanceCase] = useState<{ name: string; label: string } | null>(null)
+  const [caseQuery, setCaseQuery] = useState('')
+  const [caseOptions, setCaseOptions] = useState<LinkFieldOption[]>([])
+  const [caseOpen, setCaseOpen] = useState(false)
+  const [caseLoading, setCaseLoading] = useState(false)
 
   const effectivePatient = selectedPatient?.name
 
@@ -261,6 +281,60 @@ export function StandalonePaymentModal({
       .finally(() => setMultiLoading(false))
   }, [paymentMode, effectivePatient])
 
+  // Autofill OP/IP + case from care-context visit/admission when on advance
+  useEffect(() => {
+    if (paymentMode !== 'advance') {
+      setAdvanceOpIp('')
+      setAdvanceCase(null)
+      setCaseQuery('')
+      return
+    }
+    let kind: AdvanceCareKind = ''
+    let caseName = ''
+    if (careMode === 'OP' && activeVisit) {
+      kind = 'OP'
+      caseName = activeVisit
+    } else if (careMode === 'IP' && activeAdmission) {
+      kind = 'IP'
+      caseName = activeAdmission
+    } else if (activeVisit) {
+      kind = 'OP'
+      caseName = activeVisit
+    } else if (activeAdmission) {
+      kind = 'IP'
+      caseName = activeAdmission
+    }
+    setAdvanceOpIp(kind)
+    if (caseName) {
+      setAdvanceCase({ name: caseName, label: caseName })
+      setCaseQuery('')
+    } else {
+      setAdvanceCase(null)
+      setCaseQuery('')
+    }
+  }, [paymentMode, careMode, activeVisit, activeAdmission])
+
+  // Search visit/admission options for advance case no
+  useEffect(() => {
+    if (paymentMode !== 'advance' || !advanceOpIp || !caseOpen) return
+    const t = setTimeout(async () => {
+      setCaseLoading(true)
+      try {
+        const q = caseQuery.trim() || undefined
+        if (advanceOpIp === 'OP') {
+          setCaseOptions(await fetchPatientVisits(effectivePatient || undefined, q))
+        } else {
+          setCaseOptions(await fetchInpatientAdmissionOptions(q, effectivePatient || undefined))
+        }
+      } catch {
+        setCaseOptions([])
+      } finally {
+        setCaseLoading(false)
+      }
+    }, caseQuery.trim() === '' ? 0 : 300)
+    return () => clearTimeout(t)
+  }, [paymentMode, advanceOpIp, caseOpen, caseQuery, effectivePatient])
+
   const scopedPatient = limitToPatient && effectivePatient ? effectivePatient : undefined
 
   useEffect(() => {
@@ -325,6 +399,7 @@ export function StandalonePaymentModal({
         setInvoiceOpen(false)
         setOrderOpen(false)
         setPatientOpen(false)
+        setCaseOpen(false)
       }
     }
     document.addEventListener('mousedown', handler)
@@ -427,6 +502,8 @@ export function StandalonePaymentModal({
           mode_of_payment: primaryMode.mode_of_payment,
           payment_modes: modesPayload,
           remarks: remarks.trim() || undefined,
+          custom_op_or_ip: advanceOpIp || undefined,
+          custom_case_no: advanceCase?.name || undefined,
         })
         toast.success(result.server_message || `Advance payment ${result.name} recorded`)
       } else if (paymentMode === 'multi') {
@@ -726,6 +803,75 @@ export function StandalonePaymentModal({
                 Record a payment without an invoice. The full amount is saved as patient credit and
                 can be applied to future bills.
               </span>
+            </div>
+          )}
+
+          {paymentMode === 'advance' && (
+            <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1.5">
+                  OP or IP <span className="font-normal text-slate-400">(optional)</span>
+                </label>
+                <div className="flex rounded-lg border border-slate-300 overflow-hidden">
+                  {(['OP', 'IP'] as const).map((kind) => (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => {
+                        if (advanceOpIp === kind) {
+                          setAdvanceOpIp('')
+                          setAdvanceCase(null)
+                          setCaseQuery('')
+                          return
+                        }
+                        setAdvanceOpIp(kind)
+                        setAdvanceCase(null)
+                        setCaseQuery('')
+                        setCaseOptions([])
+                      }}
+                      className={`flex-1 py-2 text-sm font-medium transition-colors ${
+                        advanceOpIp === kind
+                          ? 'bg-primary text-white'
+                          : 'bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      {kind}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {advanceOpIp ? (
+                <LinkField
+                  label="Case No"
+                  placeholder={
+                    advanceOpIp === 'OP'
+                      ? 'Search patient visit…'
+                      : 'Search admission / case…'
+                  }
+                  value={advanceCase}
+                  options={caseOptions.map((o) => ({
+                    name: o.name,
+                    label: o.label || o.name,
+                  }))}
+                  open={caseOpen}
+                  query={caseQuery}
+                  loading={caseLoading}
+                  onQueryChange={(q) => {
+                    setCaseQuery(q)
+                    setAdvanceCase(null)
+                  }}
+                  onOpen={() => setCaseOpen(true)}
+                  onSelect={(opt) => {
+                    setAdvanceCase(opt)
+                    setCaseQuery('')
+                    setCaseOpen(false)
+                  }}
+                  onClear={() => {
+                    setAdvanceCase(null)
+                    setCaseQuery('')
+                  }}
+                />
+              ) : null}
             </div>
           )}
 

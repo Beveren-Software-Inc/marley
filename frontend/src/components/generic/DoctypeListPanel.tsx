@@ -63,8 +63,9 @@ export const DoctypeListPanel = ({
     setLoading(true)
     try {
       setRows(await fetchDoctypeRows(doctype, fieldNames, filters, limit, orderBy, parentDoctype))
-    } catch {
+    } catch (e) {
       setRows([])
+      toast.error(e instanceof Error ? e.message : `Failed to load ${doctype}`)
     } finally {
       setLoading(false)
     }

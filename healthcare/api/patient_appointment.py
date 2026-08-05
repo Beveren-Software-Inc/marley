@@ -68,6 +68,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 		'practitioner', 'practitioner_name', 'company', 'cost_center',
 		'temporary_patient_name', 'temporary_mobile_no',
 		'invoiced', 'ref_sales_invoice', 'remarks', 'notes',
+		'patient_visit',
 	]
 
 	count_args = {'doctype': 'Patient Appointment', 'filters': filters}
@@ -81,6 +82,7 @@ def get_all_appointments(limit=50, offset=0, status=None, patient=None,
 	appointments = frappe.get_all(**fetch_args)
 	_enrich_appointments_with_sales_order(appointments)
 	_enrich_appointments_with_file_no(appointments)
+	_enrich_appointments_with_visit_type(appointments)
 	from healthcare.api.common import fill_missing_patient_names
 	fill_missing_patient_names(appointments)
 
@@ -226,6 +228,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
         'status', 'appointment_type', 'department',
         'practitioner', 'practitioner_name', 'cost_center',
         'remarks', 'notes',
+        'patient_visit',
     ]
 
     count_args = {'doctype': 'Patient Appointment', 'filters': filters}
@@ -238,6 +241,7 @@ def get_practitioner_appointments(limit=50, offset=0, status=None,
     total_count = len(frappe.get_all(**count_args, fields=['name'], limit=0))
     appointments = frappe.get_all(**fetch_args)
     _enrich_appointments_with_file_no(appointments)
+    _enrich_appointments_with_visit_type(appointments)
     from healthcare.api.common import fill_missing_patient_names
     fill_missing_patient_names(appointments)
 
@@ -416,6 +420,48 @@ def _enrich_appointments_with_file_no(appointments):
 		}
 	for apt in appointments:
 		apt["file_no"] = file_map.get(apt.get("patient"))
+
+
+def _enrich_appointments_with_visit_type(appointments):
+	"""Attach visit_type from the Patient Visit linked to each appointment (not appointment_type)."""
+	if not appointments:
+		return
+
+	visit_ids = list({a.get("patient_visit") for a in appointments if a.get("patient_visit")})
+	apt_names_missing_visit = [
+		a.get("name") for a in appointments if a.get("name") and not a.get("patient_visit")
+	]
+
+	visit_by_apt = {}
+	if apt_names_missing_visit:
+		for row in frappe.get_all(
+			"Patient Visit",
+			filters={"appointment": ["in", apt_names_missing_visit], "docstatus": ["!=", 2]},
+			fields=["name", "appointment", "visit_type"],
+			order_by="creation desc",
+		):
+			if row.appointment and row.appointment not in visit_by_apt:
+				visit_by_apt[row.appointment] = row
+
+	visit_type_by_id = {}
+	if visit_ids:
+		for row in frappe.get_all(
+			"Patient Visit",
+			filters={"name": ["in", visit_ids]},
+			fields=["name", "visit_type"],
+		):
+			visit_type_by_id[row.name] = row.visit_type
+
+	for apt in appointments:
+		visit_id = apt.get("patient_visit")
+		vtype = visit_type_by_id.get(visit_id) if visit_id else None
+		if not vtype:
+			linked = visit_by_apt.get(apt.get("name"))
+			if linked:
+				if not visit_id:
+					apt["patient_visit"] = linked.name
+				vtype = linked.visit_type
+		apt["visit_type"] = vtype or None
 
 
 def _enrich_appointments_with_sales_order(appointments):

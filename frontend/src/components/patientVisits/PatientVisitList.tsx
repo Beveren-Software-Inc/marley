@@ -109,10 +109,12 @@ export const PatientVisitList = ({
 
   // When OP mode has a specific visit selected globally, lock the list to that visit.
   // Fall back to the patient prop, then context patient, for broader filtering.
-  const effectiveVisitFilter = (mode === 'OP' && activeVisit) ? activeVisit : undefined
+  // Patient History (explicit `patient`) must show all visits — no active-visit lock.
+  const effectiveVisitFilter =
+    !patient && mode === 'OP' && activeVisit ? activeVisit : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
-  /** OP browse (no active visit, not a typed sub-list): default From/To to today. */
-  const shouldUseOpDefaults = !effectiveVisitFilter && !visitType
+  /** OP browse (no patient scope, no active visit, not a typed sub-list): default From/To to today. */
+  const shouldUseOpDefaults = !patient && !effectiveVisitFilter && !visitType
   const opDefaultsOnMount = shouldUseOpDefaults ? getOpDefaultDateRange() : null
 
   const [selectedStatus, setSelectedStatus] = useState<string>('')
@@ -180,11 +182,12 @@ export const PatientVisitList = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Keep the Branch filter in sync with the global (top-bar) navbar branch.
+  // Keep the Branch filter in sync with the global (top-bar) navbar branch — not on patient-scoped history.
   useEffect(() => {
+    if (patient) return
     if (!userCostCenter) return
     setFilterBranch(userCostCenter)
-  }, [userCostCenter])
+  }, [userCostCenter, patient])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -341,7 +344,7 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
-    setFilterBranch(userCostCenter || '')
+    setFilterBranch(patient ? '' : userCostCenter || '')
     setVisitTypeFilter('')
     setReceptionistFilter('')
   }
@@ -355,8 +358,8 @@ export const PatientVisitList = ({
   const tableColSpan = detailedColumns
     ? 17
     : cardCompactLayout
-    ? 3
-    : 9 +
+    ? 6
+    : 11 +
       (patient ? 0 : 1) +
       (showAppointmentAmount ? 1 : 0) -
       (hideLabPharmacyAmounts ? 2 : 0)
@@ -743,7 +746,7 @@ export const PatientVisitList = ({
                 ? 'w-full min-w-[1620px]'
                 : cardCompactLayout
                 ? 'w-full table-fixed'
-                : `w-full ${hideLabPharmacyAmounts ? 'min-w-[900px]' : 'min-w-[1200px]'}`
+                : `w-full ${hideLabPharmacyAmounts ? 'min-w-[1100px]' : 'min-w-[1400px]'}`
             }
           >
             <thead className="bg-slate-50 border-b border-slate-200">
@@ -765,6 +768,15 @@ export const PatientVisitList = ({
                       Encounter Date
                     </th>
                     <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Doctor Name
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Visit Type
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                      Branch
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
                       Status
                     </th>
                   </>
@@ -774,7 +786,9 @@ export const PatientVisitList = ({
                     {!patient && (
                       <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Patient</th>
                     )}
-                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Doctor</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Doctor Name</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Visit Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Branch</th>
                     <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Encounter Date</th>
                     {showAppointmentAmount && (
                       <th className="px-4 py-3 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">
@@ -884,6 +898,18 @@ export const PatientVisitList = ({
                         {formatDashboardDate(visit.encounter_date)}
                       </button>
                     </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
+                      {visit.practitioner_name || '-'}
+                    </td>
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
+                      {visit.visit_type || '-'}
+                    </td>
+                    <td
+                      className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap"
+                      title={visit.cost_center || undefined}
+                    >
+                      {branchLabel(visit.cost_center)}
+                    </td>
                     <td className="px-3 py-2.5 align-top">
                       <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
                     </td>
@@ -907,6 +933,13 @@ export const PatientVisitList = ({
                     </td>
                   )}
                   <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
+                  <td
+                    className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap"
+                    title={visit.cost_center || undefined}
+                  >
+                    {branchLabel(visit.cost_center)}
+                  </td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 cursor-pointer hover:underline hover:text-primary"
                     onClick={() => openVisitDetail(visit)}

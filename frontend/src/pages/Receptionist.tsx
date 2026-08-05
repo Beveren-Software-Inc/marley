@@ -72,6 +72,7 @@ type View =
   | 'financial-consent'
   | 'signatures'
   | 'promotions'
+  | 'handover-notes'
   | 'patients'
   | 'billing'
   | 'billing-additional-collection'
@@ -284,6 +285,8 @@ export const ReceptionistPage = () => {
       setCurrentView('signatures')
     } else if (screen === 'r-promotions') {
       setCurrentView('promotions')
+    } else if (screen === 'r-handover-notes') {
+      setCurrentView('handover-notes')
       } else if (screen === 'billing') {
       setCurrentView('billing')
     } else if (screen === 'billing-additional-collection') {
@@ -784,6 +787,45 @@ export const ReceptionistPage = () => {
               </p>
             </div>
             <PromotionAnalysis />
+          </div>
+        )}
+
+        {/* Receptionist Daily Handover & Shift Notes */}
+        {currentView === 'handover-notes' && (
+          <div className="p-4">
+            <div className="mb-4">
+              <h2 className="text-xl font-semibold text-slate-900">
+                Daily Handover &amp; Shift Notes
+              </h2>
+              <p className="mt-1 text-sm text-slate-600">
+                Record shift handover notes for the next receptionist — subject, date, and notes.
+              </p>
+            </div>
+            <DashboardCard title="Receptionist Daily Handover" noHeightLimit>
+              <DoctypeListPanel
+                doctype="Receptionist Daily Handover"
+                columns={[
+                  { fieldname: 'name', label: 'ID' },
+                  { fieldname: 'subject', label: 'Subject' },
+                  { fieldname: 'date', label: 'Date' },
+                  { fieldname: 'notes', label: 'Notes' },
+                  { fieldname: 'owner', label: 'Created By' },
+                ]}
+                createFields={[
+                  { fieldname: 'subject', label: 'Subject', fieldtype: 'Data', reqd: true },
+                  {
+                    fieldname: 'date',
+                    label: 'Date',
+                    fieldtype: 'Date',
+                    reqd: true,
+                    default: new Date().toISOString().slice(0, 10),
+                  },
+                  { fieldname: 'notes', label: 'Notes', fieldtype: 'Small Text', reqd: true },
+                ]}
+                orderBy="date desc"
+                emptyMessage="No handover notes recorded yet."
+              />
+            </DashboardCard>
           </div>
         )}
 

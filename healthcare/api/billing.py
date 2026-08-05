@@ -787,6 +787,11 @@ def get_payment_entries(
         if has_payment_owner
         else "pe.owner"
     )
+    pe_meta = frappe.get_meta("Payment Entry")
+    has_op_or_ip = pe_meta.has_field("custom_op_or_ip")
+    has_case_no = pe_meta.has_field("custom_case_no")
+    op_or_ip_select = "MAX(pe.custom_op_or_ip) AS custom_op_or_ip" if has_op_or_ip else "NULL AS custom_op_or_ip"
+    case_no_select = "MAX(pe.custom_case_no) AS custom_case_no" if has_case_no else "NULL AS custom_case_no"
 
     if cashier:
         conditions.append(f"{credited_expr} = %(cashier)s")
@@ -855,7 +860,9 @@ def get_payment_entries(
             MAX(IFNULL(NULLIF(u.full_name, ''), {credited_expr})) AS cashier_name,
             GROUP_CONCAT(DISTINCT per.reference_name ORDER BY per.reference_name SEPARATOR ', ') AS invoice_name,
             MAX(si.custom_reference_type) AS invoice_reference_type,
-            MAX(si.custom_reference_name) AS invoice_reference_name
+            MAX(si.custom_reference_name) AS invoice_reference_name,
+            {op_or_ip_select},
+            {case_no_select}
         FROM `tabPayment Entry` pe
         LEFT JOIN `tabUser` u
             ON u.name = {credited_expr}
