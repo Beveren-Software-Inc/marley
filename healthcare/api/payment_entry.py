@@ -74,6 +74,7 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 			or_filters=or_filters,
 			fields=[
 				"name",
+				"patient",
 				"customer_name",
 				"patient_name",
 				"outstanding_amount",
@@ -91,6 +92,7 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 			filters=filters,
 			fields=[
 				"name",
+				"patient",
 				"customer_name",
 				"patient_name",
 				"outstanding_amount",
@@ -107,6 +109,7 @@ def search_sales_invoices_for_payment(search=None, patient=None, limit=30):
 			"label": _format_invoice_payment_label(row),
 			"outstanding_amount": flt(row.outstanding_amount),
 			"customer_name": row.customer_name,
+			"patient": row.patient,
 			"patient_name": row.patient_name,
 		}
 		for row in rows
@@ -712,6 +715,7 @@ def list_patient_outstanding_invoices(patient: str, limit=50):
 		filters=filters,
 		fields=[
 			"name",
+			"patient",
 			"customer_name",
 			"patient_name",
 			"outstanding_amount",
@@ -730,6 +734,8 @@ def list_patient_outstanding_invoices(patient: str, limit=50):
 			"outstanding_amount": flt(row.outstanding_amount),
 			"grand_total": flt(row.grand_total),
 			"posting_date": row.posting_date,
+			"patient": row.patient,
+			"patient_name": row.patient_name,
 		}
 		for row in rows
 	]

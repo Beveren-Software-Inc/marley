@@ -19,6 +19,53 @@ function labelForField(field: string): string {
   )
 }
 
+function stripHtml(text: string): string {
+  return text.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+/** Unwrap Frappe payloads that put a traceback string inside a JSON array. */
+function unwrapTracePayload(raw: unknown): string {
+  if (raw == null) return ''
+  if (typeof raw !== 'string') {
+    try {
+      return unwrapTracePayload(JSON.stringify(raw))
+    } catch {
+      return String(raw)
+    }
+  }
+  let text = raw.trim()
+  if (!text) return ''
+  if (text.startsWith('[') || text.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(text) as unknown
+      if (Array.isArray(parsed)) {
+        text = parsed.map((item) => (typeof item === 'string' ? item : JSON.stringify(item))).join('\n')
+      } else if (parsed && typeof parsed === 'object' && typeof (parsed as { message?: string }).message === 'string') {
+        text = (parsed as { message: string }).message
+      }
+    } catch {
+      /* keep text */
+    }
+  }
+  return text
+}
+
+function friendlyPhoneError(msg: string): string | null {
+  const m =
+    msg.match(/InvalidPhoneNumberError:\s*(.+?)(?:\n|$)/i) ||
+    msg.match(/Phone Number\s+(.+?)\s+set in field\s+(.+?)\s+is not valid/i) ||
+    msg.match(/^(.+?)\s+is not a valid Phone Number/i)
+  if (!m) return null
+  if (m[2]) {
+    const phone = stripHtml(m[1] || '').replace(/^["']|["']$/g, '')
+    const field = stripHtml(m[2] || '').replace(/^["']|["']$/g, '')
+    return `Invalid phone number “${phone}” in ${field}. Enter digits only (optional +/country code)—no names or relation text.`
+  }
+  const phone = stripHtml(m[1] || '').replace(/^["']|["']$/g, '')
+  if (!phone || phone.toLowerCase().includes('traceback')) return null
+  return `Invalid phone number “${phone}”. Enter digits only (optional +/country code)—no names or relation text. Check Relatives and contact phone fields.`
+}
+
 function messageFromMandatoryExc(exc: string): string | null {
   const match = exc.match(/MandatoryError:\s*\[[^\]]+\]:\s*([^\n]+)/)
   if (!match) return null
@@ -28,7 +75,11 @@ function messageFromMandatoryExc(exc: string): string | null {
 }
 
 function messageFromExceptionString(exc: string): string | null {
-  const mandatory = messageFromMandatoryExc(exc)
+  const text = unwrapTracePayload(exc)
+  const phone = friendlyPhoneError(text)
+  if (phone) return phone
+
+  const mandatory = messageFromMandatoryExc(text)
   if (mandatory) return mandatory
 
   const patterns = [
@@ -37,10 +88,12 @@ function messageFromExceptionString(exc: string): string | null {
     /frappe\.exceptions\.\w+:\s*(.+?)(?:\n|$)/s,
   ]
   for (const re of patterns) {
-    const m = exc.match(re)
+    const m = text.match(re)
     if (m?.[1]) {
-      const msg = m[1].trim()
-      if (msg && !msg.includes('Traceback') && msg.length < 500) return msg
+      const msg = stripHtml(m[1]).trim()
+      if (msg && !msg.includes('Traceback') && msg.length < 500) {
+        return friendlyPhoneError(msg) || msg
+      }
     }
   }
   return null
@@ -59,14 +112,16 @@ function parseServerMessages(raw: unknown): string | null {
         } catch {
           const trimmed = item.trim()
           if (trimmed && !trimmed.startsWith('[') && !trimmed.includes('Traceback')) {
-            return trimmed
+            return friendlyPhoneError(trimmed) || trimmed
           }
+          const fromExc = messageFromExceptionString(trimmed)
+          if (fromExc) return fromExc
         }
       } else if (item && typeof item === 'object') {
         parsed = item as { message?: string }
       }
-      const msg = parsed?.message?.trim()
-      if (msg && !msg.includes('Traceback')) return msg
+      const msg = parsed?.message ? stripHtml(String(parsed.message)).trim() : ''
+      if (msg && !msg.includes('Traceback')) return friendlyPhoneError(msg) || msg
     }
   } catch {
     /* ignore */
@@ -86,12 +141,18 @@ export function frappeErrorMessage(
   if (fromServer) return fromServer
 
   const msg = out.message
-  if (typeof msg === 'string' && msg.trim() && !msg.trim().startsWith('[')) {
-    return msg.trim()
+  if (typeof msg === 'string' && msg.trim()) {
+    const unwrapped = unwrapTracePayload(msg)
+    if (unwrapped.includes('Traceback') || unwrapped.includes('File "')) {
+      const fromExc = messageFromExceptionString(unwrapped)
+      if (fromExc) return fromExc
+    } else if (!unwrapped.trim().startsWith('[')) {
+      return friendlyPhoneError(unwrapped) || stripHtml(unwrapped)
+    }
   }
   if (msg && typeof msg === 'object' && typeof (msg as { message?: string }).message === 'string') {
-    const inner = (msg as { message: string }).message.trim()
-    if (inner && !inner.includes('Traceback')) return inner
+    const inner = stripHtml((msg as { message: string }).message).trim()
+    if (inner && !inner.includes('Traceback')) return friendlyPhoneError(inner) || inner
   }
 
   if (typeof out.exc === 'string' && out.exc.trim()) {
@@ -99,12 +160,20 @@ export function frappeErrorMessage(
     if (fromExc) return fromExc
     if (!out.exc.includes('Traceback')) {
       const last = out.exc.split('\n').filter(Boolean).pop()?.trim()
-      if (last && last.length < 300) return last
+      if (last && last.length < 300) return friendlyPhoneError(last) || last
     }
+  }
+
+  if (typeof out.exception === 'string' && out.exception.trim()) {
+    const fromExc = messageFromExceptionString(out.exception)
+    if (fromExc) return fromExc
   }
 
   if (typeof out.exc_type === 'string' && out.exc_type === 'MandatoryError') {
     return 'Please fill in all required fields before saving.'
+  }
+  if (typeof out.exc_type === 'string' && out.exc_type === 'InvalidPhoneNumberError') {
+    return 'One of the phone numbers is invalid. Enter digits only (optional +/country code)—no names or relation text.'
   }
 
   return fallback

@@ -176,15 +176,32 @@ class InpatientAdmission(Document):
 			fields=["name", "status"],
 			limit=1,
 		)
-		if existing:
-			frappe.throw(
-				_("Patient {0} already has an active Inpatient Admission ({1}): {2}").format(
-					frappe.bold(self.patient),
-					existing[0].status,
-					frappe.get_desk_link("Inpatient Admission", existing[0].name),
-				),
-				title=_("Duplicate Admission"),
-			)
+		if not existing:
+			return
+
+		row = existing[0]
+		patient_label = (
+			frappe.db.get_value("Patient", self.patient, "patient_name") or self.patient_name or self.patient
+		)
+		admission_link = frappe.get_desk_link("Inpatient Admission", row.name)
+
+		if row.status == "Discharge Scheduled":
+			detail = _(
+				"Discharge is already scheduled on {0}. Complete or cancel that discharge before admitting again."
+			).format(admission_link)
+		elif row.status == "Admission Scheduled":
+			detail = _(
+				"An admission is already scheduled ({0}). Open that record to admit the patient, or cancel it first."
+			).format(admission_link)
+		else:
+			detail = _(
+				"The patient is already admitted ({0}). Discharge them first before creating a new admission."
+			).format(admission_link)
+
+		frappe.throw(
+			_("Cannot admit {0}. {1}").format(frappe.bold(patient_label), detail),
+			title=_("Active Admission Exists"),
+		)
 
 	@frappe.whitelist()
 	def admit(self, service_unit=None, check_in=None, expected_discharge=None, hospital_bed=None):

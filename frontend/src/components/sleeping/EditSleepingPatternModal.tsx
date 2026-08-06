@@ -36,6 +36,7 @@ export const EditSleepingPatternModal = ({
   const [eveningTo, setEveningTo] = useState(() => frappeDateTimeToInput(row.evening_to))
   const [nightFrom, setNightFrom] = useState(() => frappeDateTimeToInput(row.night_from))
   const [nightTo, setNightTo] = useState(() => frappeDateTimeToInput(row.night_to))
+  const [sleepComment, setSleepComment] = useState(() => row.sleep_comment || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -47,6 +48,7 @@ export const EditSleepingPatternModal = ({
     setEveningTo(frappeDateTimeToInput(row.evening_to))
     setNightFrom(frappeDateTimeToInput(row.night_from))
     setNightTo(frappeDateTimeToInput(row.night_to))
+    setSleepComment(row.sleep_comment || '')
   }, [row])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -64,6 +66,7 @@ export const EditSleepingPatternModal = ({
         evening_to: inputDateTimeToFrappe(eveningTo) ?? null,
         night_from: inputDateTimeToFrappe(nightFrom) ?? null,
         night_to: inputDateTimeToFrappe(nightTo) ?? null,
+        sleep_comment: sleepComment.trim() || null,
       })
       toast.success('Sleeping Pattern updated')
       onSuccess?.()
@@ -170,6 +173,17 @@ export const EditSleepingPatternModal = ({
                 </div>
               </div>
             </div>
+          </div>
+
+          <div className="pt-2 border-t border-slate-200">
+            <label className="block text-sm font-medium text-slate-700 mb-1">Comment</label>
+            <textarea
+              value={sleepComment}
+              onChange={(e) => setSleepComment(e.target.value)}
+              rows={3}
+              placeholder="Sleep notes…"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-2">

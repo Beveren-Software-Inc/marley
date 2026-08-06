@@ -196,6 +196,12 @@ export function GroomingChartDetailPanel({
                 </div>
               </div>
             </div>
+            {source.hygiene_comment ? (
+              <div className="mt-3 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Comment</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{source.hygiene_comment}</p>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
@@ -210,6 +216,12 @@ export function GroomingChartDetailPanel({
               <CheckRow label="Dinner" value={source.dinner} />
               <CheckRow label="Snack 3" value={source.snack_3} />
             </div>
+            {source.meal_comment ? (
+              <div className="mt-3 rounded-md border border-emerald-100 bg-emerald-50/50 px-3 py-2">
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800">Comment</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{source.meal_comment}</p>
+              </div>
+            ) : null}
           </section>
 
           <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">

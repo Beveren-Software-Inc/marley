@@ -678,8 +678,19 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     }
 
     if (!isEditMode && blockingAdmission) {
+      const caseLabel = blockingAdmission.case_no || blockingAdmission.name
+      const status = blockingAdmission.status || 'active'
+      let advice =
+        'Open that admission, or finish discharge before scheduling a new one.'
+      if (status === 'Discharge Scheduled') {
+        advice = 'Complete or cancel that discharge before admitting again.'
+      } else if (status === 'Admission Scheduled') {
+        advice = 'Open that record to admit the patient, or cancel it first.'
+      } else if (status === 'Admitted') {
+        advice = 'Discharge the patient first before creating a new admission.'
+      }
       setError(
-        `This patient already has an active admission (${blockingAdmission.status}: ${blockingAdmission.case_no || blockingAdmission.name}). Please use the existing admission or complete discharge before scheduling a new one.`,
+        `Cannot admit this patient — they already have an active admission (${status}: ${caseLabel}). ${advice}`,
       )
       setActiveCreateTab('admission')
       return
@@ -1112,13 +1123,19 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
             <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
               <p className="font-medium">Unable to schedule a new admission</p>
               <p className="mt-1 text-amber-800/90">
-                This patient already has an active admission
-                {blockingAdmission.status ? ` (${blockingAdmission.status})` : ''}
-                {' — '}
+                This patient already has an active admission (
+                {blockingAdmission.status || 'active'}:{' '}
                 <span className="font-semibold">
                   {blockingAdmission.case_no || blockingAdmission.name}
                 </span>
-                . Please continue with the existing admission or complete discharge before creating a new one.
+                ).{' '}
+                {blockingAdmission.status === 'Discharge Scheduled'
+                  ? 'Complete or cancel that discharge before admitting again.'
+                  : blockingAdmission.status === 'Admission Scheduled'
+                    ? 'Open that record to admit the patient, or cancel it first.'
+                    : blockingAdmission.status === 'Admitted'
+                      ? 'Discharge the patient first before creating a new admission.'
+                      : 'Continue with the existing admission or finish discharge before creating a new one.'}
               </p>
             </div>
           ) : null}

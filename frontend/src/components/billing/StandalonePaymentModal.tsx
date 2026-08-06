@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { AlertCircle, Info } from 'lucide-react'
 import {
   CREATE_MODAL_OVERLAY,
@@ -144,6 +144,21 @@ export interface StandalonePaymentModalProps {
   patientName?: string
   onClose: () => void
   onSuccess: () => void
+  /** Start on this payment type (e.g. multi after list multi-select). */
+  initialMode?: PaymentMode
+  /**
+   * Prefill Multiple invoices allocations (invoice → amount).
+   * When set with initialMode multi, only these invoices start selected.
+   */
+  initialAllocations?: Record<string, number>
+  /** Optional rows to merge into the multi list (e.g. selected from Cross-Branch list). */
+  initialInvoices?: PaymentReferenceOption[]
+}
+
+type PickedInvoice = {
+  label: string
+  outstanding: number
+  patient?: string
 }
 
 export function StandalonePaymentModal({
@@ -151,6 +166,9 @@ export function StandalonePaymentModal({
   patientName: initialPatientName,
   onClose,
   onSuccess,
+  initialMode = 'single',
+  initialAllocations,
+  initialInvoices,
 }: StandalonePaymentModalProps) {
   const moneyInput = useMoneyInputConfig()
   const formatMoney = useFormatMoney()
@@ -167,7 +185,10 @@ export function StandalonePaymentModal({
     return isReceptionRole(roles)
   }, [user])
 
-  const [paymentMode, setPaymentMode] = useState<PaymentMode>('single')
+  const initialAllocationsRef = useRef(initialAllocations)
+  const initialInvoicesRef = useRef(initialInvoices)
+
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>(initialMode)
   const [referenceType, setReferenceType] = useState<ReferenceType>('Sales Invoice')
 
   const [selectedPatient, setSelectedPatient] = useState<{ name: string; label: string } | null>(
@@ -183,7 +204,8 @@ export function StandalonePaymentModal({
   const [invoiceQuery, setInvoiceQuery] = useState('')
   const [invoiceOptions, setInvoiceOptions] = useState<PaymentReferenceOption[]>([])
   const [invoiceOpen, setInvoiceOpen] = useState(false)
-  const [selectedInvoice, setSelectedInvoice] = useState<{ name: string; label: string } | null>(null)
+  /** Invoice / Order mode: allow multi-select of Sales Invoices */
+  const [pickedInvoices, setPickedInvoices] = useState<Record<string, PickedInvoice>>({})
   const [invoiceOutstanding, setInvoiceOutstanding] = useState(0)
 
   const [orderQuery, setOrderQuery] = useState('')
@@ -265,14 +287,42 @@ export function StandalonePaymentModal({
     setMultiLoading(true)
     fetchPatientOutstandingInvoices(effectivePatient)
       .then((rows) => {
-        setMultiInvoices(rows)
+        const seedRows = initialInvoicesRef.current || []
+        const byName = new Map<string, PaymentReferenceOption>()
+        for (const row of rows) byName.set(row.name, row)
+        for (const row of seedRows) {
+          if (!byName.has(row.name)) byName.set(row.name, row)
+        }
+        const merged = Array.from(byName.values())
+        setMultiInvoices(merged)
+
+        const seed = initialAllocationsRef.current
         const initial: Record<string, number> = {}
-        rows.forEach((row) => {
-          if (row.outstanding_amount && row.outstanding_amount > 0) {
-            initial[row.name] = row.outstanding_amount
+        if (seed && Object.keys(seed).length > 0) {
+          for (const [name, amt] of Object.entries(seed)) {
+            const row = byName.get(name)
+            const outstanding = row?.outstanding_amount || amt
+            if (outstanding > 0) {
+              initial[name] = Math.min(Number(amt) || outstanding, outstanding)
+            }
           }
-        })
+        } else {
+          merged.forEach((row) => {
+            if (row.outstanding_amount && row.outstanding_amount > 0) {
+              initial[row.name] = row.outstanding_amount
+            }
+          })
+        }
         setMultiSelected(initial)
+        const total = Object.values(initial).reduce((s, v) => s + (v || 0), 0)
+        if (total > 0) {
+          const amt = String(total)
+          setModeLines((prev) => {
+            const next = prev.length ? [...prev] : [newPaymentModeLine()]
+            next[0] = { ...next[0], amount: amt }
+            return next
+          })
+        }
       })
       .catch(() => {
         setMultiInvoices([])
@@ -280,6 +330,34 @@ export function StandalonePaymentModal({
       })
       .finally(() => setMultiLoading(false))
   }, [paymentMode, effectivePatient])
+
+  const syncAmountFromPicked = (picked: Record<string, PickedInvoice>) => {
+    const total = Object.values(picked).reduce((s, row) => s + (row.outstanding || 0), 0)
+    setInvoiceOutstanding(total)
+    const amt = total > 0 ? String(total) : ''
+    setModeLines((prev) => {
+      const next = prev.length ? [...prev] : [newPaymentModeLine()]
+      next[0] = { ...next[0], amount: amt }
+      return next
+    })
+  }
+
+  const togglePickedInvoice = (opt: PaymentReferenceOption) => {
+    setPickedInvoices((prev) => {
+      const next = { ...prev }
+      if (opt.name in next) {
+        delete next[opt.name]
+      } else {
+        next[opt.name] = {
+          label: opt.label,
+          outstanding: opt.outstanding_amount || 0,
+          patient: opt.patient,
+        }
+      }
+      syncAmountFromPicked(next)
+      return next
+    })
+  }
 
   // Autofill OP/IP + case from care-context visit/admission when on advance
   useEffect(() => {
@@ -377,21 +455,25 @@ export function StandalonePaymentModal({
   }, [scopedPatient, paymentMode])
 
   useEffect(() => {
-    if (!selectedInvoice || referenceType !== 'Sales Invoice') return
-    fetchSalesInvoiceSummary(selectedInvoice.name)
+    if (paymentMode !== 'single' || referenceType !== 'Sales Invoice') return
+    const names = Object.keys(pickedInvoices)
+    if (names.length !== 1) return
+    const name = names[0]
+    fetchSalesInvoiceSummary(name)
       .then((summary) => {
-        setInvoiceOutstanding(summary.outstanding_amount)
-        if (summary.outstanding_amount > 0) {
-          const amt = String(summary.outstanding_amount)
-          setModeLines((prev) => {
-            const next = prev.length ? [...prev] : [newPaymentModeLine()]
-            next[0] = { ...next[0], amount: amt }
-            return next
-          })
-        }
+        setPickedInvoices((prev) => {
+          if (!(name in prev)) return prev
+          const next = {
+            ...prev,
+            [name]: { ...prev[name], outstanding: summary.outstanding_amount },
+          }
+          syncAmountFromPicked(next)
+          return next
+        })
       })
-      .catch(() => setInvoiceOutstanding(0))
-  }, [selectedInvoice, referenceType])
+      .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refresh outstanding when single pick settles
+  }, [paymentMode, referenceType, Object.keys(pickedInvoices).join(',')])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -411,11 +493,18 @@ export function StandalonePaymentModal({
     [multiSelected]
   )
 
+  const pickedInvoiceTotal = useMemo(
+    () => Object.values(pickedInvoices).reduce((sum, row) => sum + (row.outstanding || 0), 0),
+    [pickedInvoices]
+  )
+  const pickedInvoiceCount = Object.keys(pickedInvoices).length
+
   const parsedAmount = sumPaymentModeLines(modeLines)
   const creditBalance = billingBalance?.credit_balance ?? 0
   const overpayAmount =
     paymentMode === 'single' &&
     referenceType === 'Sales Invoice' &&
+    pickedInvoiceCount === 1 &&
     invoiceOutstanding > 0 &&
     parsedAmount > invoiceOutstanding
       ? parsedAmount - invoiceOutstanding
@@ -431,7 +520,7 @@ export function StandalonePaymentModal({
     setModeLines([newPaymentModeLine(paymentModes[0] || '')])
     setRemarks('')
     if (mode !== 'single') {
-      setSelectedInvoice(null)
+      setPickedInvoices({})
       setSelectedOrder(null)
       setInvoiceQuery('')
       setOrderQuery('')
@@ -446,12 +535,13 @@ export function StandalonePaymentModal({
       return next
     })
     setInvoiceOutstanding(0)
+    setPickedInvoices({})
     if (type === 'Sales Invoice') {
       setSelectedOrder(null)
       setOrderQuery('')
       setOrderOpen(false)
     } else {
-      setSelectedInvoice(null)
+      setPickedInvoices({})
       setInvoiceQuery('')
       setInvoiceOpen(false)
     }
@@ -562,25 +652,79 @@ export function StandalonePaymentModal({
               : `Refund ${result.name} recorded`)
         )
       } else {
-        const selectedReference = referenceType === 'Sales Invoice' ? selectedInvoice : selectedOrder
-        if (!selectedReference) {
-          toast.error(`Please select a ${referenceType}`)
-          return
+        if (referenceType === 'Sales Invoice') {
+          const names = Object.keys(pickedInvoices)
+          if (names.length === 0) {
+            toast.error('Please select at least one Sales Invoice')
+            return
+          }
+          if (parsedAmount <= 0) {
+            toast.error('Please enter a valid payment amount')
+            return
+          }
+          if (names.length === 1) {
+            const result = await createPaymentEntry({
+              reference_doctype: 'Sales Invoice',
+              reference_name: names[0],
+              paid_amount: parsedAmount,
+              mode_of_payment: primaryMode.mode_of_payment,
+              payment_modes: modesPayload,
+              remarks: remarks.trim() || undefined,
+              patient: scopedPatient,
+            })
+            toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
+          } else {
+            const patients = new Set(
+              names.map((n) => pickedInvoices[n].patient || effectivePatient || '').filter(Boolean)
+            )
+            const payPatient = effectivePatient || (patients.size === 1 ? [...patients][0] : '')
+            if (!payPatient) {
+              toast.error('Select a patient before paying multiple invoices')
+              return
+            }
+            if (patients.size > 1) {
+              toast.error('Selected invoices belong to different patients')
+              return
+            }
+            const allocations = names.map((reference_name) => ({
+              reference_name,
+              allocated_amount: pickedInvoices[reference_name].outstanding || 0,
+            }))
+            const allocatedTotal = allocations.reduce((s, a) => s + a.allocated_amount, 0)
+            if (allocatedTotal > parsedAmount) {
+              toast.error('Total allocated amount cannot exceed payment amount')
+              return
+            }
+            const result = await createMultiInvoicePayment({
+              patient: payPatient,
+              paid_amount: parsedAmount,
+              mode_of_payment: primaryMode.mode_of_payment,
+              payment_modes: modesPayload,
+              allocations,
+              remarks: remarks.trim() || undefined,
+            })
+            toast.success(result.server_message || `Payment ${result.name} recorded`)
+          }
+        } else {
+          if (!selectedOrder) {
+            toast.error('Please select a Sales Order')
+            return
+          }
+          if (parsedAmount <= 0) {
+            toast.error('Please enter a valid payment amount')
+            return
+          }
+          const result = await createPaymentEntry({
+            reference_doctype: 'Sales Order',
+            reference_name: selectedOrder.name,
+            paid_amount: parsedAmount,
+            mode_of_payment: primaryMode.mode_of_payment,
+            payment_modes: modesPayload,
+            remarks: remarks.trim() || undefined,
+            patient: scopedPatient,
+          })
+          toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
         }
-        if (parsedAmount <= 0) {
-          toast.error('Please enter a valid payment amount')
-          return
-        }
-        const result = await createPaymentEntry({
-          reference_doctype: referenceType,
-          reference_name: selectedReference.name,
-          paid_amount: parsedAmount,
-          mode_of_payment: primaryMode.mode_of_payment,
-          payment_modes: modesPayload,
-          remarks: remarks.trim() || undefined,
-          patient: scopedPatient,
-        })
-        toast.success(result.server_message || `Payment entry ${result.name} created successfully`)
       }
       onSuccess()
     } catch (err) {
@@ -593,11 +737,17 @@ export function StandalonePaymentModal({
   const submitDisabled =
     loading ||
     (paymentMode === 'single' &&
-      !(referenceType === 'Sales Invoice' ? selectedInvoice : selectedOrder)) ||
+      referenceType === 'Sales Invoice' &&
+      pickedInvoiceCount === 0) ||
+    (paymentMode === 'single' && referenceType === 'Sales Order' && !selectedOrder) ||
     (paymentMode !== 'single' && !effectivePatient) ||
     parsedAmount <= 0 ||
     (paymentMode === 'multi' && Object.keys(multiSelected).length === 0) ||
     (paymentMode === 'multi' && multiTotalAllocated > parsedAmount) ||
+    (paymentMode === 'single' &&
+      referenceType === 'Sales Invoice' &&
+      pickedInvoiceCount > 1 &&
+      pickedInvoiceTotal > parsedAmount) ||
     (paymentMode === 'refund' && parsedAmount > creditBalance)
 
   return (
@@ -733,43 +883,102 @@ export function StandalonePaymentModal({
               )}
 
               {referenceType === 'Sales Invoice' ? (
-                <LinkField
-                  label="Sales Invoice"
-                  placeholder="Search by invoice ID, case no, admission or visit…"
-                  value={selectedInvoice}
-                  options={invoiceOptions}
-                  open={invoiceOpen}
-                  query={invoiceQuery}
-                  loading={invoiceLoading}
-                  required
-                  onQueryChange={setInvoiceQuery}
-                  onOpen={() => setInvoiceOpen(true)}
-                  onSelect={(opt) => {
-                    setSelectedInvoice(opt)
-                    setInvoiceQuery('')
-                    setInvoiceOpen(false)
-                    const match = invoiceOptions.find((row) => row.name === opt.name)
-                    if (match?.outstanding_amount && match.outstanding_amount > 0) {
-                      setInvoiceOutstanding(match.outstanding_amount)
-                      const amt = String(match.outstanding_amount)
-                      setModeLines((prev) => {
-                        const next = prev.length ? [...prev] : [newPaymentModeLine()]
-                        next[0] = { ...next[0], amount: amt }
-                        return next
-                      })
-                    }
-                  }}
-                  onClear={() => {
-                    setSelectedInvoice(null)
-                    setInvoiceQuery('')
-                    setModeLines((prev) => {
-                      const next = prev.length ? [...prev] : [newPaymentModeLine(paymentModes[0] || '')]
-                      next[0] = { ...next[0], amount: '' }
-                      return next
-                    })
-                    setInvoiceOutstanding(0)
-                  }}
-                />
+                <div data-standalone-payment-link className="relative space-y-2">
+                  <label className="block text-xs font-medium text-slate-600">
+                    Sales Invoice(s) <span className="text-red-500">*</span>
+                    <span className="ml-1 font-normal text-slate-400">— multi-select unpaid / partial</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={invoiceQuery}
+                    onChange={(e) => {
+                      setInvoiceQuery(e.target.value)
+                      setInvoiceOpen(true)
+                    }}
+                    onFocus={() => setInvoiceOpen(true)}
+                    placeholder="Search by invoice ID, case no, admission or visit…"
+                    className={linkComboboxInputWithClearClass}
+                  />
+                  {invoiceOpen && invoiceLoading && (
+                    <div className={linkComboboxEmptyPanelClass}>Loading…</div>
+                  )}
+                  {invoiceOpen && !invoiceLoading && invoiceOptions.length > 0 && (
+                    <div className={`${linkComboboxDropdownClass} max-h-56`}>
+                      {invoiceOptions.map((opt) => {
+                        const checked = opt.name in pickedInvoices
+                        return (
+                          <label
+                            key={opt.name}
+                            className={`${linkComboboxOptionClassCompact} flex items-start gap-2 cursor-pointer ${
+                              checked ? 'bg-primary/5' : ''
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              className="mt-0.5 rounded border-slate-300 text-primary focus:ring-primary"
+                              checked={checked}
+                              onChange={() => togglePickedInvoice(opt)}
+                            />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate">{opt.label}</span>
+                              {opt.outstanding_amount != null && opt.outstanding_amount > 0 && (
+                                <span className="block text-[10px] text-slate-500">
+                                  Outstanding {formatMoney(opt.outstanding_amount)}
+                                </span>
+                              )}
+                            </span>
+                          </label>
+                        )
+                      })}
+                    </div>
+                  )}
+                  {invoiceOpen && !invoiceLoading && invoiceOptions.length === 0 && (
+                    <div className={linkComboboxEmptyPanelClass}>
+                      {invoiceQuery.trim()
+                        ? 'NO RESULTS FOUND'
+                        : 'No matching records. Try searching by ID, customer, or patient name.'}
+                    </div>
+                  )}
+                  {pickedInvoiceCount > 0 && (
+                    <div className="rounded-md border border-slate-200 bg-slate-50/80 divide-y divide-slate-100">
+                      {Object.entries(pickedInvoices).map(([name, row]) => (
+                        <div
+                          key={name}
+                          className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-xs"
+                        >
+                          <div className="min-w-0">
+                            <div className="font-mono text-[11px] text-primary truncate">{name}</div>
+                            <div className="text-slate-500 truncate">{row.label}</div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <span className="tabular-nums text-slate-700">
+                              {formatMoney(row.outstanding)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                togglePickedInvoice({
+                                  name,
+                                  label: row.label,
+                                  outstanding_amount: row.outstanding,
+                                  patient: row.patient,
+                                })
+                              }
+                              className="text-slate-400 hover:text-red-600"
+                              title="Remove"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                      <div className="px-2.5 py-1.5 text-[11px] text-slate-600">
+                        {pickedInvoiceCount} selected · total{' '}
+                        <strong>{formatMoney(pickedInvoiceTotal)}</strong>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
                 <LinkField
                   label="Sales Order"

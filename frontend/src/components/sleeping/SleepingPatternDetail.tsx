@@ -132,6 +132,15 @@ export const SleepingPatternDetail = ({ name }: SleepingPatternDetailProps) => {
           </div>
         </div>
       </div>
+
+      {doc.sleep_comment ? (
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700 mb-2">Comment</h3>
+          <p className="whitespace-pre-wrap text-sm text-slate-800 rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+            {doc.sleep_comment}
+          </p>
+        </div>
+      ) : null}
     </div>
   )
 }

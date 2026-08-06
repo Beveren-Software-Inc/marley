@@ -1063,7 +1063,10 @@ export const AdmissionFormModal = ({
           : undefined
       )
       const quotationName = (result as any).quotation_name || (result as any).sales_order_name || null
-      if (quotationName) setSalesOrderCreated(quotationName)
+      if (quotationName) {
+        setSalesOrderCreated(quotationName)
+        setExistingQuotation(quotationName)
+      }
       const includedCm = Boolean((result as any).case_management_included)
       toast.success(
         includedCm
@@ -1080,6 +1083,12 @@ export const AdmissionFormModal = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!salesOrderCreated && !existingQuotation) {
+      setError(new Error('Create a quotation first before admitting the patient'))
+      setActiveTab('admission')
+      return
+    }
 
     if (days <= 0) {
       setError(new Error('Number of days must be greater than 0'))
@@ -1177,7 +1186,12 @@ export const AdmissionFormModal = ({
 
       onComplete()
     } catch (err) {
-      setError(err instanceof Error ? err : new Error('Failed to admit patient'))
+      const message =
+        err instanceof Error ? err.message : 'Failed to admit patient'
+      setError(new Error(message))
+      if (/phone/i.test(message)) {
+        setActiveTab('relatives')
+      }
     } finally {
       setSubmitting(false)
     }
@@ -2062,14 +2076,16 @@ export const AdmissionFormModal = ({
             )}
 
             {error && (
-              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700">
-                {error.message}
+              <div className="bg-red-50 border border-red-200 rounded-md p-3 text-sm text-red-700 whitespace-pre-wrap break-words">
+                {error.message.includes('Traceback')
+                  ? 'Something went wrong while admitting the patient. Please check phone numbers and try again.'
+                  : error.message}
               </div>
             )}
           </div>
 
           {/* Footer */}
-          <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex justify-between items-center bg-white">
+          <div className="shrink-0 border-t border-slate-200 px-6 py-4 flex justify-between items-center bg-white gap-3">
             {activeTab === 'admission' && !existingQuotation && !salesOrderCreated && (
               <button
                 type="button"
@@ -2081,15 +2097,32 @@ export const AdmissionFormModal = ({
               </button>
             )}
 
-            <div className="flex gap-3 ml-auto">
-              <button type="button" onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
-                Cancel
-              </button>
-              <button type="submit" disabled={submitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50">
-                {submitting ? 'Admitting...' : 'Admit Patient'}
-              </button>
+            <div className="flex flex-col items-end gap-1 ml-auto">
+              {!salesOrderCreated && !existingQuotation && !checkingQuotation && (
+                <p className="text-[11px] text-amber-700">Create a quotation to enable Admit Patient</p>
+              )}
+              <div className="flex gap-3">
+                <button type="button" onClick={onClose}
+                  className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50">
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    submitting ||
+                    checkingQuotation ||
+                    (!salesOrderCreated && !existingQuotation)
+                  }
+                  title={
+                    !salesOrderCreated && !existingQuotation
+                      ? 'Create a quotation first'
+                      : undefined
+                  }
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Admitting...' : 'Admit Patient'}
+                </button>
+              </div>
             </div>
           </div>
         </form>

@@ -685,7 +685,9 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 			continue
 		frequency = getattr(entry, 'long_acting_frequency', None) or 'Weekly'
 		start_dt = getdate(entry.date) if entry.date else getdate(pmo_doc.start_date)
-		end_dt = getdate(entry.end_date) if entry.end_date else (getdate(pmo_doc.end_date) if pmo_doc.end_date else None)
+		# Only copy End Date when the prescription line has one — do not fall back to
+		# the PMO header end_date (often auto-filled from start/line dates).
+		end_dt = getdate(entry.end_date) if getattr(entry, "end_date", None) else None
 		# Next run date = start date + interval (Weekly +7d, Biweekly +14d, Monthly +30d, etc.)
 		interval_days = _long_acting_frequency_interval_days(frequency)
 		next_run = add_days(start_dt, interval_days)

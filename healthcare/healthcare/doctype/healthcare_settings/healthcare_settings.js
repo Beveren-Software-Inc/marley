@@ -138,6 +138,107 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Delete Duplicate Unlinked Customers'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_customer_dedupe.preview_patient_customer_dedupe',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`Delete “${row.customer}” (${row.customer_name}) — keep “${row.keep_customer}” (Patient ${row.keep_patient})`
+						)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Analyze Customers with the same full name. When at least one of those '
+							+ 'Customers is linked to a Patient, delete the other(s) that are not linked '
+							+ 'to any Patient. The patient-linked Customer is always kept.\n\n'
+							+ 'Customers that are not duplicates of a patient-linked name '
+							+ '(e.g. Default Customer) are left alone.\n'
+							+ 'Customers with invoices / payments / other links are skipped, not force-deleted.\n\n'
+							+ 'Duplicate name groups: {0}\n'
+							+ 'Groups with a patient-linked Customer: {1}\n'
+							+ 'Groups skipped (no patient link): {2}\n'
+							+ 'Unlinked duplicates to delete: {3}\n'
+							+ 'Patient-linked Customers kept: {4}\n\n'
+							+ 'Sample:\n{5}\n\nContinue?',
+							[
+								counts.duplicate_name_groups || 0,
+								counts.groups_with_patient_link || 0,
+								counts.groups_skipped_no_patient_link || 0,
+								counts.to_delete || 0,
+								counts.kept_linked || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_customer_dedupe.start_patient_customer_dedupe',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_customer_dedupe');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Expire Long Acting Medicine (past End Date)'), () => {
+			frappe.call({
+				method: 'healthcare.api.long_acting_medicine_expire.preview_long_acting_medicine_expire',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.name}: ${row.patient || '—'} · status ${row.status} · end ${row.end_date}`
+						)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Scan Long Acting Medicine records.\n\n'
+							+ 'When End Date is set and today is after that End Date '
+							+ '(End Date before {0}), set Status to Inactive '
+							+ '(Draft / Active / Paused only; Completed stays Completed).\n\n'
+							+ 'Records to update: {1}\n\n'
+							+ 'Sample:\n{2}\n\nContinue?',
+							[
+								counts.as_of || '',
+								counts.to_update || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.long_acting_medicine_expire.start_long_acting_medicine_expire',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('long_acting_medicine_expire');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Discharge Scheduled Admissions'), () => {
 			frappe.confirm(
 				__(
@@ -6693,6 +6794,23 @@ function poll_migration_status(jobKey) {
 								s.errors || 0,
 								s.processed || 0,
 							]
+						);
+					} else if (jobKey === 'patient_customer_dedupe') {
+						msg = __(
+							'{0} finished: {1} deleted, {2} skipped (has transactions), {3} skipped (still linked / missing), {4} errors (of {5} candidates).',
+							[
+								jobKey,
+								s.deleted || 0,
+								s.skipped_has_links || 0,
+								(s.skipped_linked || 0) + (s.skipped_missing || 0),
+								s.errors || 0,
+								s.total || s.processed || 0,
+							]
+						);
+					} else if (jobKey === 'long_acting_medicine_expire') {
+						msg = __(
+							'{0} finished: {1} set to Inactive, {2} errors (scanned {3}).',
+							[jobKey, s.updated || 0, s.errors || 0, s.processed || 0]
 						);
 					} else {
 						msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [
