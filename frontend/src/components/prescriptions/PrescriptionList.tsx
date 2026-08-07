@@ -849,11 +849,6 @@ export const PrescriptionList = ({
           patient={addMedicationTarget.patient}
           patientEncounter={addMedicationTarget.patient_encounter}
           inpatientRecord={addMedicationTarget.inpatient_record}
-          defaultPractitioner={
-            addMedicationTarget.practitioner ||
-            addMedicationTarget.healthcare_practitioner ||
-            undefined
-          }
           onClose={() => setAddMedicationTarget(null)}
           onSaved={() => {
             setAddMedicationTarget(null)

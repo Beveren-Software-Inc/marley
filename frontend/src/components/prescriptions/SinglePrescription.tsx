@@ -775,7 +775,6 @@ export const AddMedicationEntryModal = ({
   patient,
   patientEncounter,
   inpatientRecord,
-  defaultPractitioner,
   onClose,
   onSaved,
 }: {
@@ -783,8 +782,6 @@ export const AddMedicationEntryModal = ({
   patient?: string
   patientEncounter?: string
   inpatientRecord?: string
-  /** Fallback doctor from the parent prescription header */
-  defaultPractitioner?: string
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) => {
@@ -806,7 +803,7 @@ export const AddMedicationEntryModal = ({
     is_long_acting: false,
     long_acting_frequency: '',
     medication_type: '',
-    healthcare_practitioner: defaultPractitioner || '',
+    healthcare_practitioner: '',
   })
   const [saving, setSaving] = useState(false)
   const [doseWarning, setDoseWarning] = useState<PrescriptionDoseValidationPreview | null>(null)
@@ -838,12 +835,12 @@ export const AddMedicationEntryModal = ({
     fetchStandardUoms(undefined, { medicalOnly: true }).then(setAddUomOptions).catch(() => setAddUomOptions([]))
   }, [])
 
+  // Same as Create Prescription: default doctor = Healthcare Practitioner linked to the logged-in user.
   useEffect(() => {
     let cancelled = false
     ;(async () => {
       try {
-        const current = await getCurrentUserPractitioner()
-        const pract = current || defaultPractitioner || ''
+        const pract = await getCurrentUserPractitioner()
         if (cancelled || !pract) return
         setForm((f) => (f.healthcare_practitioner ? f : { ...f, healthcare_practitioner: pract }))
         const opts = await fetchHealthcarePractitioners(pract).catch(() => [])
@@ -858,7 +855,7 @@ export const AddMedicationEntryModal = ({
     return () => {
       cancelled = true
     }
-  }, [defaultPractitioner])
+  }, [])
 
   const addSearchUoms = async (q: string) => {
     setAddUomLoading(true)
@@ -2331,11 +2328,6 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           patient={prescription.patient}
           patientEncounter={prescription.patient_encounter}
           inpatientRecord={prescription.inpatient_record}
-          defaultPractitioner={
-            prescription.practitioner ||
-            prescription.healthcare_practitioner ||
-            undefined
-          }
           onClose={() => setShowAddModal(false)}
           onSaved={() => {
             setShowAddModal(false)

@@ -297,19 +297,21 @@ def _get_latest_inpatient_medication_order(admission: str) -> dict | None:
 
 
 def _get_current_inpatient_medication_orders(admission: str) -> list[dict]:
-	"""All current clinical PMOs for an admission (same idea as Current Prescription).
+	"""All current signed clinical PMOs for an admission (same as Current Prescription).
 
-	Includes Signed / Unsigned / In Process (and similar), excludes Cancelled,
+	Includes Signed / In Process (and legacy Pending), excludes Unsigned, Cancelled,
 	Completed, Stopped, and Nursing Pharmacy Give Out.
 	Ordered newest first.
 	"""
 	if not admission:
 		return []
 
+	from healthcare.api.patient_medication_order import _is_current_signed_clinical_pmo
+
 	filters = {
 		"inpatient_record": admission,
 		"docstatus": 1,
-		"status": ["not in", ["Cancelled", "Completed", "Stopped"]],
+		"status": ["not in", ["Cancelled", "Completed", "Stopped", "Unsigned", "Draft"]],
 	}
 	pmo_meta = frappe.get_meta("Patient Medication Order")
 	if pmo_meta.has_field("nursing_pharmacy_giveout"):
@@ -319,12 +321,23 @@ def _get_current_inpatient_medication_orders(admission: str) -> list[dict]:
 	if pmo_meta.has_field("after_discharge"):
 		filters["after_discharge"] = ["!=", 1]
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Patient Medication Order",
 		filters=filters,
-		fields=["name", "start_date", "end_date", "posting_date", "modified", "creation", "status"],
+		fields=[
+			"name",
+			"start_date",
+			"end_date",
+			"posting_date",
+			"modified",
+			"creation",
+			"status",
+			"new_system",
+			"doctors_signature",
+		],
 		order_by="creation desc",
 	)
+	return [row for row in rows if _is_current_signed_clinical_pmo(row)]
 
 
 def _admin_in_date_range(row_date, from_date, to_date) -> bool:

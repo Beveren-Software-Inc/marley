@@ -489,11 +489,6 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
           patient={prescription.patient}
           patientEncounter={prescription.patient_encounter}
           inpatientRecord={prescription.inpatient_record}
-          defaultPractitioner={
-            prescription.practitioner ||
-            prescription.healthcare_practitioner ||
-            undefined
-          }
           onClose={() => setShowAddMedicationModal(false)}
           onSaved={() => {
             setShowAddMedicationModal(false)

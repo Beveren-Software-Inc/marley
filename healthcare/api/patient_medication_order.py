@@ -1329,16 +1329,49 @@ def get_tax_account(tax_template: str) -> str:
     return None
 
 
+def _is_current_signed_clinical_pmo(row) -> bool:
+	"""Whether a PMO belongs on Current Prescription / daily chart / medication sheet.
+
+	Shows only signed (or legacy) clinical orders that are still active.
+	Unsigned / draft new-system prescriptions stay out until signed.
+	"""
+	status = cstr(
+		(row.get("status") if isinstance(row, dict) else getattr(row, "status", None)) or ""
+	).strip()
+	if status in ("Cancelled", "Completed", "Stopped", "Unsigned", "Draft"):
+		return False
+
+	new_system = cint(
+		row.get("new_system") if isinstance(row, dict) else getattr(row, "new_system", 0)
+	)
+	signature = cstr(
+		(
+			row.get("doctors_signature")
+			if isinstance(row, dict)
+			else getattr(row, "doctors_signature", None)
+		)
+		or ""
+	).strip()
+
+	if new_system:
+		if not signature:
+			return False
+		if status and status not in ("Signed", "In Process"):
+			return False
+
+	return True
+
+
 @frappe.whitelist()
 def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patient_encounter=None):
 	"""
 	Fetch current clinical medication order(s) for an inpatient record or patient encounter.
 
 	When several signed/active Patient Medication Orders exist for the same admission/visit
-	(excluding cancelled and Nursing Pharmacy Give Out), medicines from all of them are
-	returned together so Current Prescription shows every active line.
+	(excluding unsigned, cancelled, completed, and Nursing Pharmacy Give Out), medicines from
+	all of them are returned together so Current Prescription shows every active signed line.
 
-	The latest order remains the primary document for header actions (add / sign / edit Rx).
+	The latest signed order remains the primary document for header actions (add / sign / edit Rx).
 	"""
 	if not inpatient_record and not patient_encounter:
 		frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
@@ -1358,22 +1391,18 @@ def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patien
 	medication_orders = frappe.get_all(
 		"Patient Medication Order",
 		filters=filters,
-		fields=["name", "status", "creation"],
+		fields=["name", "status", "creation", "new_system", "doctors_signature"],
 		order_by="creation desc",
 		limit_page_length=50,
 	)
 
-	active_names = []
-	for row in medication_orders:
-		if row.status in ("Cancelled", "Completed"):
-			continue
-		active_names.append(row.name)
+	active_names = [row.name for row in medication_orders if _is_current_signed_clinical_pmo(row)]
 
 	if not active_names:
 		frappe.msgprint("No medication order found")
 		return None
 
-	# Latest = primary (add medicine / sign / edit header)
+	# Latest signed = primary (add medicine / sign / edit header)
 	primary = frappe.get_doc("Patient Medication Order", active_names[0])
 	_ensure_pmo_read_permission(primary)
 	_apply_pmo_practitioner_display(primary)
