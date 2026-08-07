@@ -184,6 +184,7 @@
    "label": "Written frequency"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "injection_given_on",
    "fieldtype": "Select",
    "label": "Injection Given On",

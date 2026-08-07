@@ -2,7 +2,7 @@
 import { createCreditNote } from '../../services/serviceOrders'
 
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { Loader2, RefreshCw } from 'lucide-react'
 import { BillingSpecialtyNavCards } from '../../components/billing/BillingSpecialtyNavCards'
 import { AdditionalCollectionInvoiceModal } from '../../components/billing/AdditionalCollectionInvoiceModal'
@@ -13,6 +13,7 @@ import {
   type SpecialtyInvoiceRow,
 } from '../../services/billingSpecialty'
 import { PaymentModal } from '../../components/billing/PaymentModal'
+import { StandalonePaymentModal } from '../../components/billing/StandalonePaymentModal'
 import {
   canRecordPaymentAgainstSalesInvoice,
   isDraftSalesInvoice,
@@ -61,6 +62,8 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
   const [showCreate, setShowCreate] = useState(false)
   const [detailInvoice, setDetailInvoice] = useState<string | null>(null)
   const [paymentFor, setPaymentFor] = useState<SpecialtyInvoiceRow | null>(null)
+  const [multiPayOpen, setMultiPayOpen] = useState(false)
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(() => new Set())
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
@@ -83,6 +86,7 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
       setLoading(true)
       const data = await fetchAdditionalCollectionInvoices()
       setRows(data)
+      setSelectedNames(new Set())
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to load invoices')
     } finally {
@@ -93,6 +97,75 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
   useEffect(() => {
     void load()
   }, [load])
+
+  const payableRows = useMemo(
+    () => rows.filter((r) => canRecordPaymentAgainstSalesInvoice(r)),
+    [rows]
+  )
+  const selectedPayable = useMemo(
+    () => payableRows.filter((r) => selectedNames.has(r.name)),
+    [payableRows, selectedNames]
+  )
+  const allPayableSelected =
+    payableRows.length > 0 && payableRows.every((r) => selectedNames.has(r.name))
+
+  const toggleSelect = (name: string) => {
+    setSelectedNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  const toggleSelectAllPayable = () => {
+    if (allPayableSelected) {
+      setSelectedNames(new Set())
+      return
+    }
+    setSelectedNames(new Set(payableRows.map((r) => r.name)))
+  }
+
+  const openMultiRecordPayment = () => {
+    if (selectedPayable.length === 0) {
+      toast.error('Select unpaid or partially paid invoices first')
+      return
+    }
+    const patients = new Set(
+      selectedPayable.map((r) => (r.patient || '').trim()).filter(Boolean)
+    )
+    if (patients.size === 0) {
+      toast.error('Selected invoices have no patient — cannot record a combined payment')
+      return
+    }
+    if (patients.size > 1) {
+      toast.error('Select invoices for one patient only')
+      return
+    }
+    setMultiPayOpen(true)
+  }
+
+  const multiPayPatient = selectedPayable[0]?.patient || patient || ''
+  const multiPayPatientName =
+    selectedPayable[0]?.customer_name || selectedPayable[0]?.customer || undefined
+  const multiPayAllocations = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const r of selectedPayable) {
+      map[r.name] = Number(r.outstanding_amount) || 0
+    }
+    return map
+  }, [selectedPayable])
+  const multiPayInvoices = useMemo(
+    () =>
+      selectedPayable.map((r) => ({
+        name: r.name,
+        label: `${r.name} · ${r.customer_name || r.customer || ''}`.trim(),
+        outstanding_amount: Number(r.outstanding_amount) || 0,
+        patient: r.patient || undefined,
+        patient_name: r.customer_name || undefined,
+      })),
+    [selectedPayable]
+  )
 
   // Handle any status change or action that requires refresh
   const handleAction = async (action: () => Promise<void>) => {
@@ -131,21 +204,29 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-        
-        <button
-  type="button"
-  onClick={() => void load()}
-  disabled={loading}
-  className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
->
-  {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-</button>
+          {selectedPayable.length > 0 && (
+            <button
+              type="button"
+              onClick={openMultiRecordPayment}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-primary text-primary bg-white hover:bg-primary/5"
+            >
+              Record Payment ({selectedPayable.length})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            className="inline-flex items-center justify-center w-7 h-7 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+          >
+            {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+          </button>
           <button
             type="button"
             onClick={() => setShowCreate(true)}
-           className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+            className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
           >
-             +
+            +
           </button>
         </div>
       </div>
@@ -162,6 +243,17 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
             <table className="min-w-full text-xs">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-3 py-2 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allPayableSelected}
+                      disabled={payableRows.length === 0}
+                      onChange={toggleSelectAllPayable}
+                      className="rounded border-slate-300 text-primary focus:ring-primary"
+                      title="Select all unpaid / partially paid"
+                      aria-label="Select all unpaid or partially paid"
+                    />
+                  </th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Invoice</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Date</th>
                   <th className="text-left px-3 py-2 font-medium text-slate-600">Customer</th>
@@ -174,8 +266,20 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r) => (
+                {rows.map((r) => {
+                  const payable = canRecordPaymentAgainstSalesInvoice(r)
+                  return (
                   <tr key={r.name} className="hover:bg-slate-50/80">
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedNames.has(r.name)}
+                        disabled={!payable}
+                        onChange={() => toggleSelect(r.name)}
+                        className="rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-30"
+                        aria-label={`Select ${r.name}`}
+                      />
+                    </td>
                     <td className="px-3 py-2">
                       <button
                         type="button"
@@ -327,7 +431,8 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -360,6 +465,22 @@ export function AdditionalCollectionBillingPage({ patient }: AdditionalCollectio
           void load()
         }}
       />
+
+      {multiPayOpen && multiPayPatient && (
+        <StandalonePaymentModal
+          patient={multiPayPatient}
+          patientName={multiPayPatientName}
+          initialMode="multi"
+          initialAllocations={multiPayAllocations}
+          initialInvoices={multiPayInvoices}
+          onClose={() => setMultiPayOpen(false)}
+          onSuccess={() => {
+            setMultiPayOpen(false)
+            setSelectedNames(new Set())
+            void load()
+          }}
+        />
+      )}
     </div>
   )
 }

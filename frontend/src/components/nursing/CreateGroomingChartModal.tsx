@@ -96,6 +96,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient, editRow 
   const [shower, setShower] = useState<0 | 1>(editRow?.shower ?? 0)
   const [bowel, setBowel] = useState<0 | 1>(editRow?.bowel ?? 0)
   const [bedWetting, setBedWetting] = useState<0 | 1>(editRow?.bed_wetting ?? 0)
+  const [hygieneComment, setHygieneComment] = useState(editRow?.hygiene_comment ?? '')
 
   // Check fields – meals
   const [breakfast, setBreakfast] = useState<0 | 1>(editRow?.breakfast ?? 0)
@@ -104,6 +105,7 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient, editRow 
   const [snack2, setSnack2] = useState<0 | 1>(editRow?.snack_2 ?? 0)
   const [dinner, setDinner] = useState<0 | 1>(editRow?.dinner ?? 0)
   const [snack3, setSnack3] = useState<0 | 1>(editRow?.snack_3 ?? 0)
+  const [mealComment, setMealComment] = useState(editRow?.meal_comment ?? '')
 
   // Patient dropdown
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -298,7 +300,9 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient, editRow 
         brush_teeth_noon: brushTeethNoon,
         change_clothes_noon: changeClothesNoon,
         shower, bowel, bed_wetting: bedWetting,
+        hygiene_comment: hygieneComment.trim() || null,
         breakfast, snack_1: snack1, lunch, snack_2: snack2, dinner, snack_3: snack3,
+        meal_comment: mealComment.trim() || null,
         weight: weight ? parseFloat(weight) : null,
         fluid_intake: fluidIntake ? parseFloat(fluidIntake) : null,
         fluid_output: fluidOutput ? parseFloat(fluidOutput) : null,
@@ -631,20 +635,42 @@ export const CreateGroomingChartModal = ({ onClose, onSuccess, patient, editRow 
                     <CheckField label="Bed Wetting" name="bed_wetting" checked={!!bedWetting} onChange={(_, v) => setBedWetting(v)} />
                   </div>
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Comment</label>
+                  <textarea
+                    value={hygieneComment}
+                    onChange={(e) => setHygieneComment(e.target.value)}
+                    rows={3}
+                    placeholder="Hygiene notes…"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
               </>
             )}
 
             {/* ─── Meals ─── */}
             {activeTab === 'meals' && (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-700 mb-3">Meal Tracking</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <CheckField label="Breakfast" name="breakfast" checked={!!breakfast} onChange={(_, v) => setBreakfast(v)} />
-                  <CheckField label="Snack 1" name="snack_1" checked={!!snack1} onChange={(_, v) => setSnack1(v)} />
-                  <CheckField label="Lunch" name="lunch" checked={!!lunch} onChange={(_, v) => setLunch(v)} />
-                  <CheckField label="Snack 2" name="snack_2" checked={!!snack2} onChange={(_, v) => setSnack2(v)} />
-                  <CheckField label="Dinner" name="dinner" checked={!!dinner} onChange={(_, v) => setDinner(v)} />
-                  <CheckField label="Snack 3" name="snack_3" checked={!!snack3} onChange={(_, v) => setSnack3(v)} />
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 mb-3">Meal Tracking</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <CheckField label="Breakfast" name="breakfast" checked={!!breakfast} onChange={(_, v) => setBreakfast(v)} />
+                    <CheckField label="Snack 1" name="snack_1" checked={!!snack1} onChange={(_, v) => setSnack1(v)} />
+                    <CheckField label="Lunch" name="lunch" checked={!!lunch} onChange={(_, v) => setLunch(v)} />
+                    <CheckField label="Snack 2" name="snack_2" checked={!!snack2} onChange={(_, v) => setSnack2(v)} />
+                    <CheckField label="Dinner" name="dinner" checked={!!dinner} onChange={(_, v) => setDinner(v)} />
+                    <CheckField label="Snack 3" name="snack_3" checked={!!snack3} onChange={(_, v) => setSnack3(v)} />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Comment</label>
+                  <textarea
+                    value={mealComment}
+                    onChange={(e) => setMealComment(e.target.value)}
+                    rows={3}
+                    placeholder="Meal notes…"
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                 </div>
               </div>
             )}

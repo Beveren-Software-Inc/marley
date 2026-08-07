@@ -179,8 +179,19 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
             <p className="text-slate-900">{sheet.patient_name || '-'}</p>
           </div>
           <div>
-            <span className="font-semibold text-slate-600">Current prescription</span>
-            <p className="font-mono text-slate-900">{sheet.prescription || '—'}</p>
+            <span className="font-semibold text-slate-600">
+              {(sheet.prescriptions?.length || 0) > 1
+                ? `Current prescriptions (${sheet.prescriptions!.length})`
+                : 'Current prescription'}
+            </span>
+            <p className="font-mono text-slate-900">
+              {(sheet.prescriptions && sheet.prescriptions.length > 0
+                ? sheet.prescriptions
+                : sheet.prescription
+                  ? [sheet.prescription]
+                  : []
+              ).join(' · ') || '—'}
+            </p>
           </div>
           <div>
             <span className="font-semibold text-slate-600">Medicines</span>
@@ -289,6 +300,11 @@ export const MedicationSheet = ({ patient, admission: admissionProp }: Medicatio
                             <span className="block text-sm font-semibold text-slate-900">
                               {displayMedicationDrugName(med)}
                             </span>
+                            {(sheet?.prescriptions?.length || 0) > 1 && med.prescription ? (
+                              <span className="mt-0.5 block font-mono text-[11px] text-slate-500">
+                                {med.prescription}
+                              </span>
+                            ) : null}
                             {secondaryBits.length > 0 ? (
                               <span className="mt-0.5 block text-[11px] text-slate-500">
                                 {secondaryBits.join(' · ')}

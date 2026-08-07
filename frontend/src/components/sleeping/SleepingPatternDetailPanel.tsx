@@ -284,6 +284,15 @@ export function SleepingPatternDetailPanel({
             </div>
           </section>
 
+          {source.sleep_comment ? (
+            <section className="rounded-xl border border-emerald-200/80 bg-white px-4 py-4 shadow-sm ring-1 ring-emerald-100/80 sm:px-5 sm:py-5">
+              <div className="mb-2 flex items-center gap-2 border-b border-emerald-100 pb-3">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-emerald-900">Comment</h3>
+              </div>
+              <p className="whitespace-pre-wrap text-sm text-slate-700">{source.sleep_comment}</p>
+            </section>
+          ) : null}
+
           <section className={MODAL_SECTION_CLASS}>
             <h3 className={MODAL_SECTION_TITLE_CLASS}>
               <FileText className="h-4 w-4 text-emerald-600" strokeWidth={2} />

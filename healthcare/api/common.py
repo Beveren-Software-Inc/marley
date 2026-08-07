@@ -1733,12 +1733,15 @@ def get_long_acting_medicine(name: str | None = None):
 
 
 @frappe.whitelist()
-def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None, patient=None, limit=50, offset=0):
+def get_long_acting_medicine_list_for_reception(
+	start_date=None, frequency=None, patient=None, status=None, limit=50, offset=0
+):
 	"""Get Long Acting Medicine docs for receptionist view, with optional filters.
 
 	- start_date: filter by start_date (exact date)
 	- frequency: filter by frequency (Weekly, Biweekly, etc.)
 	- patient: optional filter by patient
+	- status: optional filter by status (Active, Inactive, …); empty = all
 	"""
 	limit = int(limit) if limit else 50
 	offset = int(offset) if offset else 0
@@ -1750,6 +1753,8 @@ def get_long_acting_medicine_list_for_reception(start_date=None, frequency=None,
 		filters["frequency"] = frequency
 	if patient:
 		filters["patient"] = patient
+	if status:
+		filters["status"] = status
 
 	docs = frappe.get_all(
 		"Long Acting Medicine",
@@ -4115,7 +4120,9 @@ def get_grooming_charts(
 				"name", "date", "admission_no", "file_no", "patient_name", "cost_center",
 				"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 				"change_clothes_noon", "shower", "bowel", "bed_wetting",
+				"hygiene_comment",
 				"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+				"meal_comment",
 				"weight", "lmp", "creation", "modified", "owner"
 			],
 			order_by="date desc, creation desc",
@@ -4161,7 +4168,9 @@ def create_grooming_chart(data):
 			"date", "admission_no", "file_no", "patient_name", "cost_center", "trans_num",
 			"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 			"change_clothes_noon", "shower", "bowel", "bed_wetting",
+			"hygiene_comment",
 			"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+			"meal_comment",
 			"weight", "lmp","fluid_intake", "fluid_output",
 		]
 		for field in allowed_fields:
@@ -4196,7 +4205,9 @@ def update_grooming_chart(data):
 		"date", "admission_no", "file_no", "patient_name", "cost_center",
 		"brush_teeth_morning", "change_clothes_morning", "brush_teeth_noon",
 		"change_clothes_noon", "shower", "bowel", "bed_wetting",
+		"hygiene_comment",
 		"breakfast", "snack_1", "lunch", "snack_2", "dinner", "snack_3",
+		"meal_comment",
 		"weight", "lmp", "fluid_intake", "fluid_output",
 	]
 	for field in allowed_fields:

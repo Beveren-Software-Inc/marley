@@ -608,8 +608,11 @@ export async function createAdmissionQuotation(
   
   const resData = await response.json()
 
-  if (!response.ok) {
-    throw new Error(resData.message || resData.exc || `Request failed with status ${response.status}`)
+  if (!response.ok || resData?.exc) {
+    const { frappeErrorMessage } = await import('../utils/frappeErrorMessage')
+    throw new Error(
+      frappeErrorMessage(resData as Record<string, unknown>, 'Failed to create Quotation')
+    )
   }
 
   if (resData?.message) {
@@ -746,8 +749,11 @@ export async function admitPatient(
 
   const resData = await response.json()
 
-  if (!response.ok) {
-    throw new Error(resData.message || resData.exc || `Request failed with status ${response.status}`)
+  if (!response.ok || resData?.exc) {
+    const { frappeErrorMessage } = await import('../utils/frappeErrorMessage')
+    throw new Error(
+      frappeErrorMessage(resData as Record<string, unknown>, 'Failed to admit patient')
+    )
   }
 
   if (resData?.message) {

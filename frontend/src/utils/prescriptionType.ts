@@ -54,6 +54,59 @@ export function isPrnPrescriptionType(medicationType?: string | null): boolean {
   return normalizePrescriptionType(medicationType) === 'PRN'
 }
 
+/** Calendar date YYYY-MM-DD in local time. */
+export function todayDateString(asOf: Date = new Date()): string {
+  const y = asOf.getFullYear()
+  const m = String(asOf.getMonth() + 1).padStart(2, '0')
+  const d = String(asOf.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+/**
+ * Future Plan is not a selectable type — it is a display bucket for lines whose
+ * Start Date is after today. On/after that date they show under their real type (PRN, etc.).
+ */
+export function isFuturePlanByStartDate(
+  order: { date?: string | null; start_date?: string | null } | null | undefined,
+  asOf: Date = new Date()
+): boolean {
+  if (!order) return false
+  const start = String(order.date || order.start_date || '').trim().slice(0, 10)
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(start)) return false
+  return start > todayDateString(asOf)
+}
+
+/** Filter/count helper for Current Prescription type cards (incl. computed Future Plan). */
+export function matchesPrescriptionTypeFilter(
+  order: {
+    medication_type?: string | null
+    date?: string | null
+    start_date?: string | null
+    reason_stopped?: string | null
+  },
+  filterKey: string,
+  asOf: Date = new Date()
+): boolean {
+  if (filterKey === 'All') return true
+  if (filterKey === '__stopped__') return Boolean(String(order.reason_stopped || '').trim())
+  const future = isFuturePlanByStartDate(order, asOf)
+  if (filterKey === 'Future Plan') return future
+  // Real types only include lines that have started (not future-dated)
+  if (future) return false
+  return normalizePrescriptionType(order.medication_type) === filterKey
+}
+
+/** Types doctors/nurses may pick when creating or adding a medication line. */
+export const SELECTABLE_PRESCRIPTION_TYPES = [
+  'STAT',
+  'PRN',
+  'Regular - Psy (Active)',
+  'Regular - Med (Active)',
+  'Regular - Psy (Inactive)',
+  'Regular - Med (Inactive)',
+  'Long Acting Medicine',
+] as const
+
 /** Map Prescription Type to API fields (is_prn, is_long_acting_medicine) before save. */
 export function normalizeMedicationOrderForSave<T extends Record<string, unknown>>(
   row: T & {

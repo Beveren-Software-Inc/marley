@@ -608,9 +608,12 @@ export const PrescriptionList = ({
             const lineStatus = (m?.medication_status || '').trim() || row.status || 'Draft'
             const metaFields = [
               ['Prescription', row.name],
-              ['Doctor', row.healthcare_practitioner
-                ? (row.healthcare_practitioner_name || row.healthcare_practitioner)
-                : (row.user_name || '')],
+              ['Doctor',
+                m?.healthcare_practitioner
+                  ? (m.healthcare_practitioner_name || m.healthcare_practitioner)
+                  : row.healthcare_practitioner || row.practitioner
+                    ? (row.healthcare_practitioner_name || row.healthcare_practitioner || row.practitioner)
+                    : (row.user_name || '')],
               ['Care context', row.care_context],
               ['Visit', row.patient_encounter],
               ['Admission', row.inpatient_record],

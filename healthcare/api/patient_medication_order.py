@@ -55,7 +55,7 @@ def _ensure_pmo_write_permission(doc_or_name) -> None:
 
 
 def _apply_pmo_practitioner_display(doc_or_row) -> None:
-	"""Resolve display name from healthcare_practitioner; leave empty when that link is blank."""
+	"""Resolve display name from healthcare_practitioner or practitioner Link."""
 	get = doc_or_row.get if hasattr(doc_or_row, "get") else lambda k, d=None: getattr(doc_or_row, k, d)
 
 	def set_val(key, value):
@@ -64,15 +64,48 @@ def _apply_pmo_practitioner_display(doc_or_row) -> None:
 		else:
 			setattr(doc_or_row, key, value)
 
-	hp = cstr(get("healthcare_practitioner") or "").strip()
+	hp = cstr(get("healthcare_practitioner") or get("practitioner") or "").strip()
 	if hp:
 		set_val(
 			"healthcare_practitioner_name",
 			frappe.db.get_value("Healthcare Practitioner", hp, "practitioner_name") or hp,
 		)
-	else:
-		# Do not use practitioner / fetch_from name — UI falls back to user_name.
+	elif not cstr(get("healthcare_practitioner_name") or "").strip():
 		set_val("healthcare_practitioner_name", None)
+
+
+def _enrich_entry_practitioners_for_display(doc) -> None:
+	"""For older lines with no child doctor, expose the parent PMO doctor on the row for UI.
+
+	Does not write to the database — only enriches the in-memory / API payload.
+	"""
+	if not doc:
+		return
+	parent_hp = cstr(
+		getattr(doc, "practitioner", None) or getattr(doc, "healthcare_practitioner", None) or ""
+	).strip()
+	if not parent_hp:
+		return
+	parent_name = cstr(getattr(doc, "healthcare_practitioner_name", None) or "").strip()
+	if not parent_name:
+		parent_name = frappe.db.get_value("Healthcare Practitioner", parent_hp, "practitioner_name") or parent_hp
+	for row in doc.get("medication_orders") or []:
+		if not hasattr(row, "healthcare_practitioner"):
+			continue
+		if cstr(getattr(row, "healthcare_practitioner", None) or "").strip():
+			if hasattr(row, "healthcare_practitioner_name") and not cstr(
+				getattr(row, "healthcare_practitioner_name", None) or ""
+			).strip():
+				row.healthcare_practitioner_name = (
+					frappe.db.get_value(
+						"Healthcare Practitioner", row.healthcare_practitioner, "practitioner_name"
+					)
+					or row.healthcare_practitioner
+				)
+			continue
+		row.healthcare_practitioner = parent_hp
+		if hasattr(row, "healthcare_practitioner_name"):
+			row.healthcare_practitioner_name = parent_name
 
 
 @frappe.whitelist()
@@ -124,6 +157,11 @@ def get_medication_orders(
 			params['status'] = status
 		else:
 			conditions.append("status != 'Cancelled'")
+		# Sold nursing pharmacy give-outs have their own list — not clinical prescriptions
+		if frappe.get_meta("Patient Medication Order").has_field("nursing_pharmacy_giveout"):
+			conditions.append("IFNULL(nursing_pharmacy_giveout, 0) = 0")
+		if frappe.get_meta("Patient Medication Order").has_field("is_pharmacy_give_out"):
+			conditions.append("IFNULL(is_pharmacy_give_out, 0) = 0")
 		if search:
 			conditions.append(
 				"(name LIKE %(search)s OR patient_name LIKE %(search)s OR patient LIKE %(search)s)"
@@ -178,6 +216,10 @@ def get_medication_orders(
 			filters.append(['status', '=', status])
 		else:
 			filters.append(['status', '!=', 'Cancelled'])
+		if frappe.get_meta("Patient Medication Order").has_field("nursing_pharmacy_giveout"):
+			filters.append(['nursing_pharmacy_giveout', '!=', 1])
+		if frappe.get_meta("Patient Medication Order").has_field("is_pharmacy_give_out"):
+			filters.append(['is_pharmacy_give_out', '!=', 1])
 		if care_context in ('Patient Visit', 'Inpatient Admission'):
 			filters.append(['care_context', '=', care_context])
 		if patient_encounter:
@@ -204,21 +246,26 @@ def get_medication_orders(
 	# Child medication rows for the medicine-level prescription listing
 	entries_by_parent = {}
 	if orders:
+		entry_fields = [
+			'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
+			'route_of_administration', 'patient_frequency', 'date', 'end_date',
+			'instructions', 'medication_status', 'is_prn', 'medication_type',
+			'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
+			'written_frequency', 'old_medicine_code', 'old_medicine_name',
+			'no_of_days', 'time', 'is_pink', 'reference_no',
+			'is_long_acting_medicine',
+		]
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'healthcare_practitioner'):
+			entry_fields.append('healthcare_practitioner')
+		if frappe.db.has_column('Inpatient Medication Order Entry', 'healthcare_practitioner_name'):
+			entry_fields.append('healthcare_practitioner_name')
 		entries = frappe.get_all(
 			'Inpatient Medication Order Entry',
 			filters={
 				'parenttype': 'Patient Medication Order',
 				'parent': ['in', [o['name'] for o in orders]],
 			},
-			fields=[
-				'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
-				'route_of_administration', 'patient_frequency', 'date', 'end_date',
-				'instructions', 'medication_status', 'is_prn', 'medication_type',
-				'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
-				'written_frequency', 'old_medicine_code', 'old_medicine_name',
-				'no_of_days', 'time', 'is_pink', 'reference_no',
-				'is_long_acting_medicine',
-			],
+			fields=entry_fields,
 			order_by='parent, idx',
 			limit_page_length=0,
 		)
@@ -310,6 +357,21 @@ def get_medication_orders(
 			fullname_cache[owner] = frappe.utils.get_fullname(owner)
 		o['owner_full_name'] = fullname_cache.get(owner)
 		o['medication_orders'] = entries_by_parent.get(o['name'], [])
+		# Older lines may lack child doctor — expose parent doctor for list UI
+		parent_hp = cstr(o.get('practitioner') or o.get('healthcare_practitioner') or '').strip()
+		parent_name = cstr(o.get('healthcare_practitioner_name') or '').strip()
+		if parent_hp:
+			for e in o['medication_orders']:
+				if not cstr(e.get('healthcare_practitioner') or '').strip():
+					e['healthcare_practitioner'] = parent_hp
+					e['healthcare_practitioner_name'] = parent_name or parent_hp
+				elif not cstr(e.get('healthcare_practitioner_name') or '').strip():
+					e['healthcare_practitioner_name'] = (
+						frappe.db.get_value(
+							'Healthcare Practitioner', e['healthcare_practitioner'], 'practitioner_name'
+						)
+						or e['healthcare_practitioner']
+					)
 
 	return orders
 
@@ -360,6 +422,18 @@ def _normalize_long_acting_medication_row(row):
 	return row
 
 
+def _pink_reference_required_for_pmo(doc) -> bool:
+	"""Pink Reference No is mandatory for outpatient prescriptions only."""
+	if not doc:
+		return True
+	care = cstr(getattr(doc, "care_context", None) or "").strip()
+	if care == "Inpatient Admission":
+		return False
+	if getattr(doc, "inpatient_record", None) and care != "Patient Visit":
+		return False
+	return True
+
+
 def _set_medication_row(doc, row):
 	"""Append one medication order row to doc. row is a dict with keys from Inpatient Medication Order Entry."""
 	row = _normalize_long_acting_medication_row(row)
@@ -371,12 +445,14 @@ def _set_medication_row(doc, row):
 	entry.instructions = row.get('instructions') or ''
 	entry.date = row.get('date')
 	entry.time = row.get('time') or '00:00:00'
-	entry.end_date = row.get('end_date')
+	# Keep blank when UI left End Date empty (do not coerce to start/today)
+	entry.end_date = row.get('end_date') or None
 	entry.patient_frequency = row.get('patient_frequency')
 	entry.is_pink = 1 if row.get('is_pink') else 0
 	entry.is_prn = 1 if row.get('is_prn') else 0
 	entry.reference_no = (row.get('reference_no') or '').strip()
-	if entry.is_pink and not entry.reference_no:
+	# Pink reference required for OP only — inpatient prescriptions skip this
+	if entry.is_pink and not entry.reference_no and _pink_reference_required_for_pmo(doc):
 		drug_label = row.get('drug_name') or row.get('drug') or ''
 		frappe.throw(
 			_("Reference No is required for pink medication: {0}").format(drug_label or _("Unknown")),
@@ -399,6 +475,13 @@ def _set_medication_row(doc, row):
 			entry.stopped = 1
 		if hasattr(entry, 'stopped_date') and not getattr(entry, 'stopped_date', None):
 			entry.stopped_date = nowdate()
+
+	# Prescribing doctor on the line (defaults to parent practitioner on create)
+	_apply_entry_healthcare_practitioner(
+		entry,
+		row.get("healthcare_practitioner") or row.get("practitioner"),
+		parent_doc=doc,
+	)
 	
 	# Fetched / computed
 	if entry.drug:
@@ -427,6 +510,26 @@ def _set_medication_row(doc, row):
 		entry.rate = rate
 		entry.amount = flt(entry.quantity) * rate
 	return entry
+
+
+def _apply_entry_healthcare_practitioner(entry, practitioner=None, parent_doc=None):
+	"""Set child-row Healthcare Practitioner (and name) from explicit value or parent PMO."""
+	if entry is None or not hasattr(entry, "healthcare_practitioner"):
+		return
+	hp = cstr(practitioner or getattr(entry, "healthcare_practitioner", None) or "").strip()
+	if not hp and parent_doc is not None:
+		hp = cstr(
+			getattr(parent_doc, "practitioner", None)
+			or getattr(parent_doc, "healthcare_practitioner", None)
+			or ""
+		).strip()
+	if not hp:
+		return
+	entry.healthcare_practitioner = hp
+	if hasattr(entry, "healthcare_practitioner_name"):
+		entry.healthcare_practitioner_name = (
+			frappe.db.get_value("Healthcare Practitioner", hp, "practitioner_name") or hp
+		)
 
 
 def _normalize_legacy_medicine_display_codes(doc):
@@ -640,11 +743,16 @@ def create_patient_medication_order(
 			if not row.get('time'):
 				row['time'] = '00:00:00'
 			_set_medication_row(doc, row)
-		# Set end_date from last row date if we have rows
+		# Only set parent End Date when a line has an explicit end_date.
+		# Do not fill from start/line date (left blank on UI must stay blank).
 		if doc.medication_orders:
-			last_dates = [r.date for r in doc.medication_orders if r.date]
-			if last_dates:
-				doc.end_date = max(last_dates)
+			explicit_ends = [
+				getdate(r.end_date)
+				for r in doc.medication_orders
+				if getattr(r, "end_date", None)
+			]
+			if explicit_ends:
+				doc.end_date = max(explicit_ends)
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
@@ -655,7 +763,61 @@ def create_patient_medication_order(
 	# Create Long Acting Medicine for each medication row marked as long-acting
 	_create_long_acting_medicine_for_entries(doc)
 
+	# Discharge medication: close other active inpatient prescriptions for this admission
+	if cint(getattr(doc, "after_discharge", 0)):
+		admission = cstr(getattr(doc, "inpatient_record", None) or "").strip()
+		if not admission and getattr(doc, "patient_encounter", None):
+			admission = cstr(
+				frappe.db.get_value("Patient Visit", doc.patient_encounter, "inpatient_record") or ""
+			).strip()
+		if admission:
+			_complete_inpatient_prescriptions_on_discharge(admission, except_name=doc.name)
+
 	return {'name': doc.name, 'status': doc.status}
+
+
+def _complete_inpatient_prescriptions_on_discharge(admission: str, except_name: str | None = None) -> list[str]:
+	"""Mark other active inpatient PMOs Completed when discharge medication is created.
+
+	Discharge means the inpatient stay is ending — Signed / Unsigned / In Process
+	clinical prescriptions for that admission should no longer stay current.
+	"""
+	if not admission:
+		return []
+
+	filters = {
+		"inpatient_record": admission,
+		"docstatus": 1,
+		"status": ["not in", ["Completed", "Cancelled"]],
+	}
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if pmo_meta.has_field("after_discharge"):
+		filters["after_discharge"] = ["!=", 1]
+	if pmo_meta.has_field("nursing_pharmacy_giveout"):
+		filters["nursing_pharmacy_giveout"] = ["!=", 1]
+	if pmo_meta.has_field("is_pharmacy_give_out"):
+		filters["is_pharmacy_give_out"] = ["!=", 1]
+
+	rows = frappe.get_all(
+		"Patient Medication Order",
+		filters=filters,
+		fields=["name", "total_orders", "completed_orders"],
+	)
+	completed_names = []
+	for row in rows:
+		if except_name and row.name == except_name:
+			continue
+		total = cint(row.total_orders) or 0
+		updates = {"status": "Completed"}
+		# Keep Completed sticky if set_status() runs later (it derives from completed_orders)
+		if total and cint(row.completed_orders) < total:
+			updates["completed_orders"] = total
+		if frappe.db.has_column("Patient Medication Order", "end_date"):
+			if not frappe.db.get_value("Patient Medication Order", row.name, "end_date"):
+				updates["end_date"] = nowdate()
+		frappe.db.set_value("Patient Medication Order", row.name, updates, update_modified=True)
+		completed_names.append(row.name)
+	return completed_names
 
 
 def _long_acting_frequency_interval_days(frequency):
@@ -685,7 +847,9 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 			continue
 		frequency = getattr(entry, 'long_acting_frequency', None) or 'Weekly'
 		start_dt = getdate(entry.date) if entry.date else getdate(pmo_doc.start_date)
-		end_dt = getdate(entry.end_date) if entry.end_date else (getdate(pmo_doc.end_date) if pmo_doc.end_date else None)
+		# Only copy End Date when the prescription line has one — do not fall back to
+		# the PMO header end_date (often auto-filled from start/line dates).
+		end_dt = getdate(entry.end_date) if getattr(entry, "end_date", None) else None
 		# Next run date = start date + interval (Weekly +7d, Biweekly +14d, Monthly +30d, etc.)
 		interval_days = _long_acting_frequency_interval_days(frequency)
 		next_run = add_days(start_dt, interval_days)
@@ -824,6 +988,7 @@ def get_medication_order_by_id(name):
 
 	# Optional: enrich practitioner name (same as your list function)
 	_apply_pmo_practitioner_display(doc)
+	_enrich_entry_practitioners_for_display(doc)
 	_apply_legacy_ip_admission_medicine_fallbacks(doc)
 	_normalize_legacy_medicine_display_codes(doc)
 	_apply_current_item_from_legacy_mapping(doc)
@@ -1164,43 +1329,135 @@ def get_tax_account(tax_template: str) -> str:
     return None
 
 
+def _is_current_signed_clinical_pmo(row) -> bool:
+	"""Whether a PMO belongs on Current Prescription / daily chart / medication sheet.
+
+	Shows only signed (or legacy) clinical orders that are still active.
+	Unsigned / draft new-system prescriptions stay out until signed.
+	"""
+	status = cstr(
+		(row.get("status") if isinstance(row, dict) else getattr(row, "status", None)) or ""
+	).strip()
+	if status in ("Cancelled", "Completed", "Stopped", "Unsigned", "Draft"):
+		return False
+
+	new_system = cint(
+		row.get("new_system") if isinstance(row, dict) else getattr(row, "new_system", 0)
+	)
+	signature = cstr(
+		(
+			row.get("doctors_signature")
+			if isinstance(row, dict)
+			else getattr(row, "doctors_signature", None)
+		)
+		or ""
+	).strip()
+
+	if new_system:
+		if not signature:
+			return False
+		if status and status not in ("Signed", "In Process"):
+			return False
+
+	return True
+
+
 @frappe.whitelist()
 def get_medication_order_by_inpatient_or_encounter(inpatient_record=None, patient_encounter=None):
-    """
-    Fetch medication order for a specific inpatient record or patient encounter
-    """
-    if not inpatient_record and not patient_encounter:
-        frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
+	"""
+	Fetch current clinical medication order(s) for an inpatient record or patient encounter.
 
-    filters = {}
-    if inpatient_record:
-        filters["inpatient_record"] = inpatient_record
-    if patient_encounter:
-        filters["patient_encounter"] = patient_encounter
+	When several signed/active Patient Medication Orders exist for the same admission/visit
+	(excluding unsigned, cancelled, completed, and Nursing Pharmacy Give Out), medicines from
+	all of them are returned together so Current Prescription shows every active signed line.
 
-    # Get the medication order linked to this inpatient record or encounter
-    medication_orders = frappe.get_all(
-        "Patient Medication Order",
-        filters=filters,
-        fields=["name"],
-        order_by="creation desc",
-        limit=1
-    )
+	The latest signed order remains the primary document for header actions (add / sign / edit Rx).
+	"""
+	if not inpatient_record and not patient_encounter:
+		frappe.throw("Either Inpatient Record ID or Patient Encounter ID is required")
 
-    if not medication_orders:
-        frappe.msgprint("No medication order found")
-        return None
+	filters = {"docstatus": ["!=", 2]}
+	if inpatient_record:
+		filters["inpatient_record"] = inpatient_record
+	if patient_encounter:
+		filters["patient_encounter"] = patient_encounter
 
-    doc = frappe.get_doc("Patient Medication Order", medication_orders[0].name)
-    _ensure_pmo_read_permission(doc)
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if pmo_meta.has_field("nursing_pharmacy_giveout"):
+		filters["nursing_pharmacy_giveout"] = ["!=", 1]
+	if pmo_meta.has_field("is_pharmacy_give_out"):
+		filters["is_pharmacy_give_out"] = ["!=", 1]
 
-    # Enrich with practitioner name
-    _apply_pmo_practitioner_display(doc)
-    _apply_legacy_ip_admission_medicine_fallbacks(doc)
-    _normalize_legacy_medicine_display_codes(doc)
-    _apply_current_item_from_legacy_mapping(doc)
+	medication_orders = frappe.get_all(
+		"Patient Medication Order",
+		filters=filters,
+		fields=["name", "status", "creation", "new_system", "doctors_signature"],
+		order_by="creation desc",
+		limit_page_length=50,
+	)
 
-    return doc
+	active_names = [row.name for row in medication_orders if _is_current_signed_clinical_pmo(row)]
+
+	if not active_names:
+		frappe.msgprint("No medication order found")
+		return None
+
+	# Latest signed = primary (add medicine / sign / edit header)
+	primary = frappe.get_doc("Patient Medication Order", active_names[0])
+	_ensure_pmo_read_permission(primary)
+	_apply_pmo_practitioner_display(primary)
+	_enrich_entry_practitioners_for_display(primary)
+	_apply_legacy_ip_admission_medicine_fallbacks(primary)
+	_normalize_legacy_medicine_display_codes(primary)
+	_apply_current_item_from_legacy_mapping(primary)
+
+	merged_entries = []
+	active_prescriptions = []
+	total_completed = 0
+
+	# Oldest → newest so lines read chronologically; primary is still latest for actions
+	for name in reversed(active_names):
+		doc = primary if name == primary.name else frappe.get_doc("Patient Medication Order", name)
+		if name != primary.name:
+			_ensure_pmo_read_permission(doc)
+			_apply_pmo_practitioner_display(doc)
+			_enrich_entry_practitioners_for_display(doc)
+			_apply_legacy_ip_admission_medicine_fallbacks(doc)
+			_normalize_legacy_medicine_display_codes(doc)
+			_apply_current_item_from_legacy_mapping(doc)
+
+		active_prescriptions.append(
+			{
+				"name": doc.name,
+				"status": doc.status,
+				"practitioner": getattr(doc, "practitioner", None),
+				"healthcare_practitioner": getattr(doc, "healthcare_practitioner", None),
+				"healthcare_practitioner_name": getattr(doc, "healthcare_practitioner_name", None),
+				"user_name": getattr(doc, "user_name", None),
+				"start_date": str(doc.start_date) if doc.start_date else None,
+				"end_date": str(doc.end_date) if doc.end_date else None,
+				"creation": str(doc.creation) if doc.creation else None,
+			}
+		)
+		total_completed += cint(getattr(doc, "completed_orders", 0) or 0)
+		for entry in doc.get("medication_orders") or []:
+			row = entry.as_dict()
+			row["parent"] = doc.name
+			row["parenttype"] = "Patient Medication Order"
+			row["parentfield"] = "medication_orders"
+			# Per-line doctor fallback already applied on doc; keep parent Rx for UI
+			row["_prescription_name"] = doc.name
+			row["_prescription_status"] = doc.status
+			merged_entries.append(row)
+
+	result = primary.as_dict()
+	result["medication_orders"] = merged_entries
+	result["active_prescriptions"] = active_prescriptions
+	result["total_orders"] = len(merged_entries)
+	result["completed_orders"] = total_completed
+	# Keep primary identity for add/sign; expose all IDs for the header
+	result["name"] = primary.name
+	return result
 
 
 @frappe.whitelist()
@@ -1597,13 +1854,21 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
     if not inpatient_record:
         frappe.throw(_("Inpatient record is required"))
     
+    filters = {
+        "care_context": "Inpatient Admission",
+        "inpatient_record": inpatient_record,
+        "docstatus": 1,
+        "status": ["!=", "Cancelled"],
+    }
+    pmo_meta = frappe.get_meta("Patient Medication Order")
+    if pmo_meta.has_field("nursing_pharmacy_giveout"):
+        filters["nursing_pharmacy_giveout"] = ["!=", 1]
+    if pmo_meta.has_field("is_pharmacy_give_out"):
+        filters["is_pharmacy_give_out"] = ["!=", 1]
+
     prescriptions = frappe.get_all(
         "Patient Medication Order",
-        filters={
-            "care_context": "Inpatient Admission",
-            "inpatient_record": inpatient_record,
-            "docstatus": 1
-        },
+        filters=filters,
         fields=["name", "patient", "patient_name", "status", "practitioner", "healthcare_practitioner_name"]
     )
     
@@ -1883,14 +2148,25 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         "instructions", "date", "end_date", "time", "patient_frequency",
         "route_of_administration", "reference_no", "is_pink", "is_prn",
         "is_long_acting_medicine", "long_acting_frequency", "medication_type",
-        "frequency_in_a_day"
+        "frequency_in_a_day", "healthcare_practitioner", "healthcare_practitioner_name",
     ]
 
     for field, value in updates.items():
         if field in allowed_fields:
             entry.set(field, value)
 
-    if cint(getattr(entry, "is_pink", 0)) and not cstr(getattr(entry, "reference_no", "") or "").strip():
+    if "healthcare_practitioner" in updates or "practitioner" in updates:
+        _apply_entry_healthcare_practitioner(
+            entry,
+            updates.get("healthcare_practitioner") or updates.get("practitioner"),
+            parent_doc=doc,
+        )
+
+    if (
+        cint(getattr(entry, "is_pink", 0))
+        and not cstr(getattr(entry, "reference_no", "") or "").strip()
+        and _pink_reference_required_for_pmo(doc)
+    ):
         drug_label = getattr(entry, "drug_name", None) or getattr(entry, "drug", None) or order_entry_name
         frappe.throw(
             _("Reference No is required for pink medication: {0}").format(drug_label),
@@ -1924,35 +2200,28 @@ def add_medication_order_entry(patient_medication_order, entry_data):
 
     entry_data = _normalize_long_acting_medication_row(entry_data)
 
-    if cint(entry_data.get("is_pink")) and not cstr(entry_data.get("reference_no") or "").strip():
+    # Doctor who added this line (any doctor may add after the original Rx)
+    hp = cstr(
+        entry_data.get("healthcare_practitioner") or entry_data.get("practitioner") or ""
+    ).strip()
+    if not hp:
+        frappe.throw(_("Doctor is required when adding a medication"), title=_("Missing Doctor"))
+    entry_data["healthcare_practitioner"] = hp
+
+    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+
+    if (
+        cint(entry_data.get("is_pink"))
+        and not cstr(entry_data.get("reference_no") or "").strip()
+        and _pink_reference_required_for_pmo(doc)
+    ):
         drug_label = entry_data.get("drug_name") or entry_data.get("drug") or ""
         frappe.throw(
             _("Reference No is required for pink medication: {0}").format(drug_label or _("Unknown")),
             title=_("Missing Reference No"),
         )
 
-    doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
-
-    new_entry = doc.append("medication_orders", {
-        "drug": entry_data.get("drug"),
-        "drug_name": entry_data.get("drug_name"),
-        "dosage": entry_data.get("dosage"),
-        "uom": entry_data.get("uom"),
-        "dosage_form": entry_data.get("dosage_form"),
-        "no_of_days": entry_data.get("no_of_days"),
-        "instructions": entry_data.get("instructions"),
-        "date": entry_data.get("date"),
-        "end_date": entry_data.get("end_date"),
-        "time": entry_data.get("time"),
-        "patient_frequency": entry_data.get("patient_frequency"),
-        "route_of_administration": entry_data.get("route_of_administration"),
-        "reference_no": entry_data.get("reference_no"),
-        "is_pink": entry_data.get("is_pink", 0),
-        "is_prn": entry_data.get("is_prn", 0),
-        "is_long_acting_medicine": entry_data.get("is_long_acting_medicine", 0),
-        "long_acting_frequency": entry_data.get("long_acting_frequency"),
-        "medication_type": entry_data.get("medication_type"),
-    })
+    new_entry = _set_medication_row(doc, entry_data)
 
     doc.save(ignore_permissions=True)
     frappe.db.commit()

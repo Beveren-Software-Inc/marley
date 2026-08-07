@@ -53,6 +53,9 @@
   "rate",
   "column_break_ugjx",
   "amount",
+  "section_break_lgun",
+  "healthcare_practitioner",
+  "healthcare_practitioner_name",
   "section_break_vfoy",
   "trans_num",
   "old_medicine_code",
@@ -80,7 +83,6 @@
   },
   {
    "allow_on_submit": 1,
-   "default": "",
    "fieldname": "medication_status",
    "fieldtype": "Select",
    "in_list_view": 1,
@@ -199,8 +201,7 @@
    "allow_on_submit": 1,
    "fieldname": "reference_no",
    "fieldtype": "Data",
-   "label": "Reference No",
-   "mandatory_depends_on": "eval:doc.is_pink"
+   "label": "Reference No"
   },
   {
    "allow_on_submit": 1,
@@ -444,12 +445,28 @@
   {
    "fieldname": "column_break_hjui",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_lgun",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "healthcare_practitioner",
+   "fieldtype": "Link",
+   "label": "Healthcare Practitioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "healthcare_practitioner.practitioner_name",
+   "fieldname": "healthcare_practitioner_name",
+   "fieldtype": "Data",
+   "label": "Healthcare Practitioner Name"
   }
  ],
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-06-28 10:14:19.631553",
+ "modified": "2026-08-08 01:34:36.186606",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",

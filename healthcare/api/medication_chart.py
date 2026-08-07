@@ -1,6 +1,6 @@
 import frappe
 from frappe import _
-from frappe.utils import cint, getdate, nowdate, add_days
+from frappe.utils import cint, cstr, getdate, nowdate, add_days
 
 from healthcare.api.medicine_given import (
 	is_daily_prescription_frequency,
@@ -92,19 +92,12 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 
 	selected_date = getdate(date or nowdate())
 
-	# All submitted medication orders for this admission (not only the latest).
-	prescriptions = frappe.get_all(
-		"Patient Medication Order",
-		filters={
-			"inpatient_record": admission,
-			"docstatus": 1,
-			"status": ["not in", ["Cancelled", "Stopped"]],
-		},
-		fields=["name", "start_date", "end_date"],
-		order_by="creation asc",
-	)
+	# All current clinical medication orders for this admission (not only the latest).
+	prescriptions = _get_current_inpatient_medication_orders(admission)
+	# Daily chart wants chronological order for rows
+	prescriptions = sorted(prescriptions, key=lambda p: str(p.get("creation") or ""))
 	if not prescriptions:
-		return {"sessions": _get_sessions(), "rows": []}
+		return {"sessions": _get_sessions(), "rows": [], "prn_rows": []}
 
 	pmo_by_name = {p.name: p for p in prescriptions}
 	pmo_names = list(pmo_by_name.keys())
@@ -124,12 +117,14 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 			"medication_status",
 			"stopped",
 			"is_prn",
+			"medication_type",
+			"instructions",
 		],
 		order_by="parent asc, idx asc",
 	)
 
 	if not order_rows:
-		return {"sessions": _get_sessions(), "rows": []}
+		return {"sessions": _get_sessions(), "rows": [], "prn_rows": []}
 
 	# Map frequencies → session hours from dosage_strength.
 	frequency_times: dict[str, list[int]] = {}
@@ -154,7 +149,7 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 			fields=["name", "medicine_code", "medicine_name", "time", "user"],
 		)
 
-	# Index given by (medicine_code, session_id)
+	# Index given by (medicine_code, session_id) for scheduled doses
 	given_index: dict[tuple[str, str], dict] = {}
 	for row in given_rows:
 		med_code = row.get("medicine_code")
@@ -172,18 +167,12 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 	sessions = _get_sessions()
 
 	rows_out = []
+	prn_rows_out = []
 	for entry in order_rows:
 		drug = entry.get("drug")
 		if not drug:
 			continue
 		if cint(entry.get("stopped")) or (entry.get("medication_status") or "").strip() == "Discontinued":
-			continue
-		if cint(entry.get("is_prn")):
-			# PRN is as-needed; not on fixed daily session grid.
-			continue
-
-		freq_name = entry.get("patient_frequency")
-		if not _frequency_on_daily_chart(freq_name):
 			continue
 
 		pmo = pmo_by_name.get(entry.parent) or {}
@@ -194,6 +183,11 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		):
 			continue
 
+		freq_name = entry.get("patient_frequency")
+		if not _frequency_on_daily_chart(freq_name):
+			continue
+
+		is_prn = cint(entry.get("is_prn")) or (cstr(entry.get("medication_type") or "").strip() == "PRN")
 		times = frequency_times.get(freq_name, []) if freq_name else []
 
 		slot_list = []
@@ -210,22 +204,28 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 				}
 			)
 
-		rows_out.append(
-			{
-				"order_entry": entry.name,
-				"prescription": entry.parent,
-				"drug": drug,
-				"drug_name": entry.get("drug_name"),
-				"dosage": entry.get("dosage"),
-				"dosage_form": entry.get("dosage_form"),
-				"patient_frequency": freq_name,
-				"slots": slot_list,
-			}
-		)
+		row_payload = {
+			"order_entry": entry.name,
+			"prescription": entry.parent,
+			"drug": drug,
+			"drug_name": entry.get("drug_name"),
+			"dosage": entry.get("dosage"),
+			"dosage_form": entry.get("dosage_form"),
+			"patient_frequency": freq_name,
+			"instructions": entry.get("instructions") or "",
+			"is_prn": 1 if is_prn else 0,
+			"slots": slot_list,
+		}
+		# PRN still follows frequency sessions — shown in a separate section only
+		if is_prn:
+			prn_rows_out.append(row_payload)
+		else:
+			rows_out.append(row_payload)
 
 	return {
 		"sessions": sessions,
 		"rows": rows_out,
+		"prn_rows": prn_rows_out,
 	}
 
 
@@ -292,17 +292,52 @@ def _user_display_name(user_id: str | None) -> str:
 
 def _get_latest_inpatient_medication_order(admission: str) -> dict | None:
 	"""Latest submitted inpatient PMO for this admission (current medication)."""
-	from healthcare.api.medicine_given import _get_latest_active_inpatient_medication_order
+	rows = _get_current_inpatient_medication_orders(admission)
+	return rows[0] if rows else None
 
-	name = _get_latest_active_inpatient_medication_order(admission)
-	if not name:
-		return None
-	return frappe.db.get_value(
+
+def _get_current_inpatient_medication_orders(admission: str) -> list[dict]:
+	"""All current signed clinical PMOs for an admission (same as Current Prescription).
+
+	Includes Signed / In Process (and legacy Pending), excludes Unsigned, Cancelled,
+	Completed, Stopped, and Nursing Pharmacy Give Out.
+	Ordered newest first.
+	"""
+	if not admission:
+		return []
+
+	from healthcare.api.patient_medication_order import _is_current_signed_clinical_pmo
+
+	filters = {
+		"inpatient_record": admission,
+		"docstatus": 1,
+		"status": ["not in", ["Cancelled", "Completed", "Stopped", "Unsigned", "Draft"]],
+	}
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if pmo_meta.has_field("nursing_pharmacy_giveout"):
+		filters["nursing_pharmacy_giveout"] = ["!=", 1]
+	if pmo_meta.has_field("is_pharmacy_give_out"):
+		filters["is_pharmacy_give_out"] = ["!=", 1]
+	if pmo_meta.has_field("after_discharge"):
+		filters["after_discharge"] = ["!=", 1]
+
+	rows = frappe.get_all(
 		"Patient Medication Order",
-		name,
-		["name", "start_date", "end_date", "posting_date", "modified", "creation"],
-		as_dict=True,
+		filters=filters,
+		fields=[
+			"name",
+			"start_date",
+			"end_date",
+			"posting_date",
+			"modified",
+			"creation",
+			"status",
+			"new_system",
+			"doctors_signature",
+		],
+		order_by="creation desc",
 	)
+	return [row for row in rows if _is_current_signed_clinical_pmo(row)]
 
 
 def _admin_in_date_range(row_date, from_date, to_date) -> bool:
@@ -322,8 +357,8 @@ def get_medication_sheet_detail(
 ) -> dict:
 	"""Prescription medicines for an IP admission with given / missed administration rows.
 
-	Used by the Medication Sheet UI: color-coded medicine list; expand each row to see
-	when given, by whom, and remarks. Missed doses appear as blank / not-given rows.
+	Uses all current signed/active Patient Medication Orders for the admission
+	(not only the latest), matching Current Prescription behaviour.
 	"""
 	if not admission:
 		frappe.throw(_("Inpatient Admission is required"))
@@ -335,20 +370,24 @@ def get_medication_sheet_detail(
 	patient = admission_doc.patient
 	patient_name = admission_doc.patient_name or patient
 
-	latest_pmo = _get_latest_inpatient_medication_order(admission)
-	if not latest_pmo:
+	current_pmos = _get_current_inpatient_medication_orders(admission)
+	if not current_pmos:
 		return {
 			"admission": admission,
 			"patient": patient,
 			"patient_name": patient_name,
 			"prescription": None,
+			"prescriptions": [],
 			"from_date": str(from_date_parsed) if from_date_parsed else None,
 			"to_date": str(to_date_parsed) if to_date_parsed else None,
 			"medicines": [],
 		}
 
-	current_prescription = latest_pmo.name
-	pmo_by_name = {latest_pmo.name: latest_pmo}
+	# Newest first from helper; keep that order for header display
+	pmo_by_name = {p.name: p for p in current_pmos}
+	pmo_names = [p.name for p in current_pmos]
+	primary_prescription = pmo_names[0]
+
 	from healthcare.api.medication_order_display import (
 		medication_entry_display_fields,
 		medication_entry_drug_key,
@@ -380,9 +419,9 @@ def get_medication_sheet_detail(
 	]
 	order_entries = frappe.get_all(
 		"Inpatient Medication Order Entry",
-		filters={"parent": current_prescription},
+		filters={"parent": ["in", pmo_names]},
 		fields=entry_fields,
-		order_by="idx asc",
+		order_by="parent asc, idx asc",
 	)
 
 	admission_detail_name = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
@@ -537,7 +576,8 @@ def get_medication_sheet_detail(
 		"admission": admission,
 		"patient": patient,
 		"patient_name": patient_name,
-		"prescription": current_prescription,
+		"prescription": primary_prescription,
+		"prescriptions": pmo_names,
 		"from_date": str(from_date_parsed) if from_date_parsed else None,
 		"to_date": str(to_date_parsed) if to_date_parsed else None,
 		"medicines": medicines_out,

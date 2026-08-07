@@ -24,6 +24,8 @@
   "column_break_wsqe",
   "night_from",
   "night_to",
+  "section_break_comment",
+  "sleep_comment",
   "section_break_other",
   "admission_no_old",
   "section_break_owji",
@@ -119,6 +121,16 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Night To"
+  },
+  {
+   "fieldname": "section_break_comment",
+   "fieldtype": "Section Break",
+   "label": "Comment"
+  },
+  {
+   "fieldname": "sleep_comment",
+   "fieldtype": "Small Text",
+   "label": "Sleep Comment"
   },
   {
    "fieldname": "section_break_other",

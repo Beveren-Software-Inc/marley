@@ -18,6 +18,7 @@ export interface SleepingPattern {
   evening_to?: string | null
   night_from?: string | null
   night_to?: string | null
+  sleep_comment?: string | null
   creation?: string | null
   modified?: string | null
 }
@@ -40,6 +41,7 @@ export interface CreateSleepingPatternPayload {
   evening_to?: string
   night_from?: string
   night_to?: string
+  sleep_comment?: string
   patient?: string
 }
 
@@ -53,6 +55,7 @@ export type UpdateSleepingPatternPayload = {
   evening_to?: string | null
   night_from?: string | null
   night_to?: string | null
+  sleep_comment?: string | null
 }
 
 /** Convert Frappe datetime to value for datetime-local inputs. */

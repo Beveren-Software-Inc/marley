@@ -37,8 +37,9 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [error, setError] = useState<string | null>(null)
   const [startDate, setStartDate] = useState('')
   const [frequency, setFrequency] = useState<string>('')
+  const [status, setStatus] = useState<string>('Active')
   const [sortBy, setSortBy] = useState<'next_run_date' | 'start_date'>('next_run_date')
-  const hasActiveFilters = Boolean(startDate || frequency)
+  const hasActiveFilters = Boolean(startDate || frequency || (status && status !== 'Active'))
   const [detailName, setDetailName] = useState<string | null>(null)
   const [detailPreview, setDetailPreview] = useState<LongActingMedicineRow | undefined>(undefined)
   const [bulkSending, setBulkSending] = useState(false)
@@ -69,6 +70,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
       const data = await fetchReceptionLongActingMedicineList({
         start_date: startDate || undefined,
         frequency: frequency || undefined,
+        status: status || undefined,
         patient: patient || undefined,
         limit: 100,
         offset: 0,
@@ -81,7 +83,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
     } finally {
       setLoading(false)
     }
-  }, [startDate, frequency, patient])
+  }, [startDate, frequency, status, patient])
 
   useEffect(() => {
     load()
@@ -97,6 +99,7 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const clearFilters = () => {
     setStartDate('')
     setFrequency('')
+    setStatus('Active')
   }
 
   // Close action menu when clicking outside
@@ -343,6 +346,21 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
       )}
 
       <div className="card-filter-bar flex flex-wrap items-end gap-3 px-1 py-2 border-b border-slate-100 bg-slate-50/80 rounded-md">
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
+          <select
+            className="border border-slate-300 rounded px-2 py-1.5 text-sm bg-white min-w-[140px]"
+            value={status}
+            onChange={(e) => setStatus(e.target.value)}
+          >
+            <option value="">Select All</option>
+            <option value="Active">Active</option>
+            <option value="Draft">Draft</option>
+            <option value="Paused">Paused</option>
+            <option value="Inactive">Inactive</option>
+            <option value="Completed">Completed</option>
+          </select>
+        </div>
         <div className="relative" ref={bulkMenuRef}>
           <button
             type="button"

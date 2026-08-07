@@ -1,5 +1,5 @@
 // components/billing/ServiceInvoicesList.tsx
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import {
   fetchServiceInvoices,
   fetchInvoiceSummary,
@@ -14,6 +14,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaymentModal } from './PaymentModal'
+import { StandalonePaymentModal } from './StandalonePaymentModal'
 import { cancelOrDeleteSalesInvoice, submitSalesInvoiceDoc } from '../../services/billingSpecialty'
 import {
   canRecordPaymentAgainstSalesInvoice,
@@ -56,6 +57,8 @@ export const ServiceInvoicesList = ({
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>(propStatusFilter || '')
   const [paymentFor, setPaymentFor] = useState<ServiceInvoice | null>(null)
+  const [multiPayOpen, setMultiPayOpen] = useState(false)
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(() => new Set())
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<{ name: string; kind: 'submit' | 'cancel' } | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
@@ -88,6 +91,72 @@ export const ServiceInvoicesList = ({
       : 'Patient Visit'
     : undefined
   const hasCaseSearch = Boolean(debouncedCaseSearch)
+
+  const payableInvoices = useMemo(
+    () => invoices.filter((inv) => canRecordPaymentAgainstSalesInvoice(inv)),
+    [invoices]
+  )
+  const selectedPayable = useMemo(
+    () => payableInvoices.filter((inv) => selectedNames.has(inv.name)),
+    [payableInvoices, selectedNames]
+  )
+  const allPayableSelected =
+    payableInvoices.length > 0 && payableInvoices.every((inv) => selectedNames.has(inv.name))
+
+  const toggleSelect = (name: string) => {
+    setSelectedNames((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
+  }
+
+  const toggleSelectAllPayable = () => {
+    if (allPayableSelected) {
+      setSelectedNames(new Set())
+      return
+    }
+    setSelectedNames(new Set(payableInvoices.map((inv) => inv.name)))
+  }
+
+  const openMultiRecordPayment = () => {
+    if (selectedPayable.length === 0) {
+      toast.error('Select unpaid or partially paid invoices first')
+      return
+    }
+    const patients = new Set(selectedPayable.map((inv) => (inv.patient || '').trim()).filter(Boolean))
+    if (patients.size === 0) {
+      toast.error('Selected invoices have no patient')
+      return
+    }
+    if (patients.size > 1) {
+      toast.error('Select invoices for one patient only')
+      return
+    }
+    setMultiPayOpen(true)
+  }
+
+  const multiPayPatient = selectedPayable[0]?.patient || effectivePatient || ''
+  const multiPayPatientName = selectedPayable[0]?.patient_name || selectedPayable[0]?.customer_name
+  const multiPayAllocations = useMemo(() => {
+    const map: Record<string, number> = {}
+    for (const inv of selectedPayable) {
+      map[inv.name] = Number(inv.outstanding_amount) || 0
+    }
+    return map
+  }, [selectedPayable])
+  const multiPayInvoices = useMemo(
+    () =>
+      selectedPayable.map((inv) => ({
+        name: inv.name,
+        label: `${inv.name} · ${inv.patient_name || inv.customer_name || ''}`.trim(),
+        outstanding_amount: Number(inv.outstanding_amount) || 0,
+        patient: inv.patient,
+        patient_name: inv.patient_name,
+      })),
+    [selectedPayable]
+  )
 
   const loadData = async (isStale?: () => boolean) => {
     if (!effectivePatient && !scopedReferenceName && !hasCaseSearch) {
@@ -123,6 +192,7 @@ export const ServiceInvoicesList = ({
       if (isStale?.()) return
       setInvoices(invoicesData)
       setSummary(summaryData)
+      setSelectedNames(new Set())
     } catch (error) {
       if (isStale?.()) return
       console.error('Failed to load service invoices:', error)
@@ -270,14 +340,25 @@ export const ServiceInvoicesList = ({
             </select>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => void loadData()}
-          className="p-2 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100"
-          title="Refresh"
-        >
-          <RefreshCw className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-2">
+          {selectedPayable.length > 0 && (
+            <button
+              type="button"
+              onClick={openMultiRecordPayment}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-primary text-primary bg-white hover:bg-primary/5"
+            >
+              Record Payment ({selectedPayable.length})
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="p-2 rounded-md text-slate-500 hover:text-slate-700 hover:bg-slate-100"
+            title="Refresh"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {invoices.length === 0 ? (
@@ -294,6 +375,17 @@ export const ServiceInvoicesList = ({
             <table className="w-full">
               <thead className="bg-slate-50 border-b border-slate-200">
                 <tr>
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allPayableSelected}
+                      disabled={payableInvoices.length === 0}
+                      onChange={toggleSelectAllPayable}
+                      className="rounded border-slate-300 text-primary focus:ring-primary"
+                      title="Select all unpaid / partially paid"
+                      aria-label="Select all unpaid or partially paid"
+                    />
+                  </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice ID</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Due Date</th>
@@ -309,8 +401,20 @@ export const ServiceInvoicesList = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {invoices.map((invoice) => (
+                {invoices.map((invoice) => {
+                  const payable = canRecordPaymentAgainstSalesInvoice(invoice)
+                  return (
                   <tr key={invoice.name} className="hover:bg-slate-50">
+                    <td className="px-4 py-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedNames.has(invoice.name)}
+                        disabled={!payable}
+                        onChange={() => toggleSelect(invoice.name)}
+                        className="rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-30"
+                        aria-label={`Select ${invoice.name}`}
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -480,7 +584,8 @@ export const ServiceInvoicesList = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -501,6 +606,23 @@ export const ServiceInvoicesList = ({
           onAfterInvoiceMutation?.()
         }}
       />
+
+      {multiPayOpen && multiPayPatient && (
+        <StandalonePaymentModal
+          patient={multiPayPatient}
+          patientName={multiPayPatientName}
+          initialMode="multi"
+          initialAllocations={multiPayAllocations}
+          initialInvoices={multiPayInvoices}
+          onClose={() => setMultiPayOpen(false)}
+          onSuccess={() => {
+            setMultiPayOpen(false)
+            setSelectedNames(new Set())
+            void loadData()
+            onAfterInvoiceMutation?.()
+          }}
+        />
+      )}
     </div>
   )
 }

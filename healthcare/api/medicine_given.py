@@ -830,14 +830,24 @@ def get_medicine_given_item_lots(admission: str, item_code: str) -> list[str]:
 
 
 def _get_latest_active_inpatient_medication_order(admission: str) -> str | None:
-	"""Return latest submitted inpatient PMO for this admission that allows medicine giving."""
+	"""Return latest submitted inpatient PMO for this admission that allows medicine giving.
+
+	Skips cancelled and Nursing Pharmacy Give Out (sold) orders.
+	"""
 	from healthcare.healthcare.doctype.patient_medication_order.patient_medication_order import (
 		PatientMedicationOrder,
 	)
 
+	filters = {"inpatient_record": admission, "docstatus": 1, "status": ["!=", "Cancelled"]}
+	pmo_meta = frappe.get_meta("Patient Medication Order")
+	if pmo_meta.has_field("nursing_pharmacy_giveout"):
+		filters["nursing_pharmacy_giveout"] = ["!=", 1]
+	if pmo_meta.has_field("is_pharmacy_give_out"):
+		filters["is_pharmacy_give_out"] = ["!=", 1]
+
 	rows = frappe.get_all(
 		"Patient Medication Order",
-		filters={"inpatient_record": admission, "docstatus": 1},
+		filters=filters,
 		fields=["name"],
 		order_by="modified desc, creation desc",
 		limit_page_length=0,
@@ -2630,6 +2640,7 @@ def create_visit_and_prescription_on_discharge(
 	from healthcare.api.patient_medication_order import create_patient_medication_order
 
 	discharge_id = _resolve_discharge_id_for_admission(admission)
+	# Always mark as after-discharge — this API is only used for discharge medication transfer
 	result = create_patient_medication_order(
 		patient=patient,
 		care_context="Patient Visit",
@@ -2638,7 +2649,7 @@ def create_visit_and_prescription_on_discharge(
 		patient_encounter=pv.name,
 		practitioner=practitioner,
 		medication_orders=medication_orders,
-		after_discharge=bool(str(after_discharge).lower() in ['1', 'true', 'yes']),
+		after_discharge=True,
 		doctors_signature=doctors_signature,
 		discharge_id=discharge_id,
 	)

@@ -21,6 +21,7 @@
   "shower",
   "bowel",
   "bed_wetting",
+  "hygiene_comment",
   "column_break_whmg",
   "breakfast",
   "snack_1",
@@ -28,6 +29,7 @@
   "snack_2",
   "dinner",
   "snack_3",
+  "meal_comment",
   "column_break_kleq",
   "weight",
   "lmp",
@@ -134,6 +136,11 @@
    "label": "Bed Wetting"
   },
   {
+   "fieldname": "hygiene_comment",
+   "fieldtype": "Small Text",
+   "label": "Hygiene Comment"
+  },
+  {
    "fieldname": "column_break_whmg",
    "fieldtype": "Column Break"
   },
@@ -172,6 +179,11 @@
    "fieldname": "snack_3",
    "fieldtype": "Check",
    "label": "Snack 3"
+  },
+  {
+   "fieldname": "meal_comment",
+   "fieldtype": "Small Text",
+   "label": "Meal Comment"
   },
   {
    "fieldname": "column_break_kleq",

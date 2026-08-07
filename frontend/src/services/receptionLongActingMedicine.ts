@@ -5,6 +5,7 @@ export interface ReceptionLongActingFilters {
   start_date?: string
   frequency?: string
   patient?: string
+  status?: string
   limit?: number
   offset?: number
 }
@@ -16,6 +17,7 @@ export async function fetchReceptionLongActingMedicineList(
   if (filters.start_date) params.start_date = filters.start_date
   if (filters.frequency) params.frequency = filters.frequency
   if (filters.patient) params.patient = filters.patient
+  if (filters.status) params.status = filters.status
   if (filters.limit != null) params.limit = filters.limit
   if (filters.offset != null) params.offset = filters.offset
 

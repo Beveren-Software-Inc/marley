@@ -104,7 +104,6 @@ const PRESCRIPTION_TYPES = [
   'PRN',
   'Regular - Psy (Active)',
   'Regular - Med (Active)',
-  'Future Plan',
   'Long Acting Medicine',
 ] as const
 
@@ -1053,7 +1052,8 @@ export const CreatePrescriptionModal = ({
     const pinkMissingRef = validMedications.filter(
       (med) => med.is_pink && !String(med.reference_no || '').trim()
     )
-    if (pinkMissingRef.length > 0) {
+    // Pink reference is required for outpatient only — not inpatient prescriptions
+    if (formData.care_context !== 'Inpatient Admission' && pinkMissingRef.length > 0) {
       const names = pinkMissingRef.map((m) => m.drug_name || m.drug).join(', ')
       setError(`Reference No is required for pink medication(s): ${names}`)
       setActiveTab('medications')
@@ -1894,14 +1894,23 @@ export const CreatePrescriptionModal = ({
                             {!!row.is_pink && (
                               <div>
                                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                                  Reference No <span className="text-red-500">*</span>
+                                  Reference No
+                                  {formData.care_context !== 'Inpatient Admission' ? (
+                                    <span className="text-red-500"> *</span>
+                                  ) : (
+                                    <span className="text-slate-400 font-normal"> (optional)</span>
+                                  )}
                                 </label>
                                 <input
                                   type="text"
                                   value={row.reference_no ?? ''}
                                   onChange={(e) => updateMedicationRow(index, 'reference_no', e.target.value)}
-                                  placeholder="Enter reference number"
-                                  required
+                                  placeholder={
+                                    formData.care_context === 'Inpatient Admission'
+                                      ? 'Optional for inpatient'
+                                      : 'Enter reference number'
+                                  }
+                                  required={formData.care_context !== 'Inpatient Admission'}
                                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                                 />
                               </div>

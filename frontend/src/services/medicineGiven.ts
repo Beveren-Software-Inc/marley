@@ -420,12 +420,16 @@ export interface MedicationChartRow {
   dosage?: string
   dosage_form?: string
   patient_frequency?: string
+  instructions?: string
+  is_prn?: 0 | 1
   slots: MedicationChartSlot[]
 }
 
 export interface MedicationChartResponse {
   sessions: MedicationChartSession[]
   rows: MedicationChartRow[]
+  /** Same session-slot shape as rows; shown in a separate PRN section */
+  prn_rows?: MedicationChartRow[]
 }
 
 export async function fetchDailyMedicationChart(
@@ -450,6 +454,7 @@ export async function fetchDailyMedicationChart(
     message || {
       sessions: [],
       rows: [],
+      prn_rows: [],
     }
   )
 }
@@ -491,8 +496,10 @@ export interface MedicationSheetDetail {
   admission: string
   patient?: string
   patient_name?: string
-  /** Latest submitted Patient Medication Order for this admission (current medication). */
+  /** Primary (latest) current Patient Medication Order for this admission. */
   prescription?: string | null
+  /** All current signed/active prescriptions whose medicines are included. */
+  prescriptions?: string[]
   from_date?: string | null
   to_date?: string | null
   medicines: MedicationSheetMedicineRow[]

@@ -53,6 +53,7 @@ def _serialize_sleeping_pattern(row) -> dict:
 		"evening_to": row.get("evening_to"),
 		"night_from": row.get("night_from"),
 		"night_to": row.get("night_to"),
+		"sleep_comment": row.get("sleep_comment"),
 		"morning_total": morning_total,
 		"evening_total": evening_total,
 		"night_total": night_total,
@@ -102,6 +103,7 @@ def create_sleeping_pattern(**data):
 		"evening_to",
 		"night_from",
 		"night_to",
+		"sleep_comment",
 		"cr_id",
 		"cr_date",
 		"up_id",
@@ -109,6 +111,8 @@ def create_sleeping_pattern(**data):
 	):
 		if fieldname in data and data.get(fieldname) not in (None, ""):
 			doc.set(fieldname, data.get(fieldname))
+		elif fieldname == "sleep_comment" and "sleep_comment" in data:
+			doc.set("sleep_comment", data.get("sleep_comment") or "")
 
 	if doc.get("__islocal") or not doc.name:
 		doc.insert(ignore_permissions=True)
@@ -165,6 +169,7 @@ def get_sleeping_patterns(
 			"evening_to",
 			"night_from",
 			"night_to",
+			"sleep_comment",
 			"owner",
 			"creation",
 			"modified",
@@ -228,6 +233,9 @@ def update_sleeping_pattern(**data):
 		if fieldname in data:
 			value = data.get(fieldname)
 			doc.set(fieldname, value if value not in (None, "") else None)
+
+	if "sleep_comment" in data:
+		doc.set("sleep_comment", data.get("sleep_comment") or "")
 
 	for fieldname in ("branch", "cost_center"):
 		if fieldname in data and data.get(fieldname) not in (None, ""):

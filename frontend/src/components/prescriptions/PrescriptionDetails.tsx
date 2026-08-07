@@ -21,7 +21,11 @@ import {
   displayPrescriptionPractitioner,
   isLegacyMedicationOrderRow,
 } from '../../utils/medicationOrderDisplayUtils'
-import { normalizePrescriptionType } from '../../utils/prescriptionType'
+import {
+  matchesPrescriptionTypeFilter,
+  isFuturePlanByStartDate,
+  normalizePrescriptionType,
+} from '../../utils/prescriptionType'
 
 // ─── Medication type definitions ──────────────────────────────────────────────
 const MED_TYPES = [
@@ -164,12 +168,14 @@ const MedicationRow = ({
   prescriptionPractitioner: {
     healthcare_practitioner_name?: string
     healthcare_practitioner?: string
+    practitioner?: string
     user_name?: string
   }
   canManage?: boolean
   onAction?: (entry: string, drug: string, action: MedicationAction) => void
 }) => {
-  const color = getTypeColor(order.medication_type)
+  const isFuture = isFuturePlanByStartDate(order)
+  const color = getTypeColor(isFuture ? 'Future Plan' : order.medication_type)
   const rowStyle: React.CSSProperties = isHex(color)
     ? hexRowStyle(color)
     : order.is_pink ? {} : {}
@@ -195,6 +201,7 @@ const MedicationRow = ({
           {order.is_pink && <SmallBadge cls="bg-pink-100 text-pink-700">🩷 Pink</SmallBadge>}
           {order.is_prn  && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
           {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
+          {isFuture && <SmallBadge cls="bg-indigo-100 text-indigo-800 border border-indigo-200">📅 Future Plan</SmallBadge>}
         </div>
         <div className="text-xs text-slate-400 mt-0.5">{displayDrugCode}</div>
         {isLegacyRow && (
@@ -254,9 +261,13 @@ const MedicationRow = ({
 
 // ─── Detail card ──────────────────────────────────────────────────────────────
 const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentStartDate?: string }) => {
-  const color = getTypeColor(order.medication_type)
+  const isFuture = isFuturePlanByStartDate(order)
+  const color = getTypeColor(isFuture ? 'Future Plan' : order.medication_type)
   const cardStyle: React.CSSProperties = isHex(color) ? hexRowStyle(color) : {}
   const instructions = displayMedicationInstructions(order)
+  const typeLabel = isFuture
+    ? `Future Plan · ${normalizePrescriptionType(order.medication_type) || order.medication_type || '—'}`
+    : order.medication_type
 
   return (
     <div
@@ -271,7 +282,7 @@ const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentSt
     >
       <div className="flex items-center justify-between flex-wrap gap-1">
         <span className="font-semibold text-slate-800">{displayMedicationDrugName(order)}</span>
-        <span className="text-xs text-slate-400">{order.medication_type}</span>
+        <span className="text-xs text-slate-400">{typeLabel}</span>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs">
         {instructions && <div><span className="font-medium text-slate-700">Instructions:</span> <span className="text-slate-600">{instructions}</span></div>}
@@ -391,13 +402,10 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
 
   const orders = prescription.medication_orders || []
   const countFor = (key: string) =>
-    key === 'All'
-      ? orders.length
-      : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === key).length
-  const filteredOrders =
-    activeType === 'All'
-      ? orders
-      : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === activeType)
+    orders.filter((o: any) => matchesPrescriptionTypeFilter(o, key)).length
+  const filteredOrders = orders.filter((o: any) =>
+    matchesPrescriptionTypeFilter(o, activeType)
+  )
   const activeTypeDef = MED_TYPES.find(t => t.key === activeType)
   const completionPct = (prescription.total_orders ?? 0) > 0
     ? Math.round(((prescription.completed_orders ?? 0) / (prescription.total_orders ?? 0)) * 100)
@@ -624,6 +632,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
                         prescriptionPractitioner={{
                           healthcare_practitioner_name: prescription.healthcare_practitioner_name,
                           healthcare_practitioner: prescription.healthcare_practitioner,
+                          practitioner: prescription.practitioner,
                           user_name: prescription.user_name,
                         }}
                         canManage={canManageMeds}

@@ -14,6 +14,7 @@ export interface GroomingChartRow {
   shower: 0 | 1
   bowel: 0 | 1
   bed_wetting: 0 | 1
+  hygiene_comment?: string | null
   // meals
   breakfast: 0 | 1
   snack_1: 0 | 1
@@ -21,6 +22,7 @@ export interface GroomingChartRow {
   snack_2: 0 | 1
   dinner: 0 | 1
   snack_3: 0 | 1
+  meal_comment?: string | null
   // measurements
   weight: number | null
   lmp: string | null
@@ -54,12 +56,14 @@ export interface CreateGroomingChartInput {
   shower?: 0 | 1
   bowel?: 0 | 1
   bed_wetting?: 0 | 1
+  hygiene_comment?: string | null
   breakfast?: 0 | 1
   snack_1?: 0 | 1
   lunch?: 0 | 1
   snack_2?: 0 | 1
   dinner?: 0 | 1
   snack_3?: 0 | 1
+  meal_comment?: string | null
   weight?: number | null
   lmp?: string
   patient_visit?: string

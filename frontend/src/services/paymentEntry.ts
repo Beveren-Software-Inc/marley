@@ -57,6 +57,7 @@ export interface PaymentReferenceOption {
   outstanding_amount?: number
   grand_total?: number
   customer_name?: string
+  patient?: string
   patient_name?: string
 }
 
