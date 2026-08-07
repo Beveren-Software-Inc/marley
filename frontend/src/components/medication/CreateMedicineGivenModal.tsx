@@ -42,6 +42,8 @@ interface CreateMedicineGivenModalProps {
   initialOrderEntry?: string
   initialDate?: string
   initialTime?: string
+  /** Pre-check PRN when opened from the Daily Chart PRN section. */
+  initialIsPrn?: boolean
   /** When set, opens in edit mode for an existing given medicine row. */
   editRow?: MedicineGivenRow
   onClose: () => void
@@ -175,6 +177,7 @@ export const CreateMedicineGivenModal = ({
   initialOrderEntry,
   initialDate,
   initialTime,
+  initialIsPrn = false,
   editRow,
   onClose,
   onSuccess,
@@ -201,7 +204,7 @@ export const CreateMedicineGivenModal = ({
   const [overrideReason, setOverrideReason] = useState('')
   const [doseWarning, setDoseWarning] = useState<MedicineGivenDoseValidationPreview | null>(null)
   const [checkingDose, setCheckingDose] = useState(false)
-  const [isPrn, setIsPrn] = useState(false)
+  const [isPrn, setIsPrn] = useState(Boolean(initialIsPrn))
   const [stockOptions, setStockOptions] = useState<MedicineGivenStockOptions | null>(null)
   const [loadingStock, setLoadingStock] = useState(false)
   const [batchNo, setBatchNo] = useState('')
@@ -400,9 +403,9 @@ export const CreateMedicineGivenModal = ({
     const selected = prescriptionOrders.find((o) => o.name === selectedOrder)
     setUom((selected?.uom || '').trim())
     setUomQuery((selected?.uom || '').trim())
+    // Dose = clinical amount from the prescription line; quantity given is always units dispensed
     setDose((selected?.dosage || '').trim())
-    const orderQty = selected?.quantity
-    setQty(orderQty != null && orderQty > 0 ? String(orderQty) : '1')
+    setQty('1')
   }, [selectedOrder, prescriptionOrders, isEdit])
 
   useEffect(() => {

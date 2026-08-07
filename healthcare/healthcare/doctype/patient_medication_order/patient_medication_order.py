@@ -23,8 +23,32 @@ class PatientMedicationOrder(Document):
 		self.validate_inpatient()
 		self.validate_duplicate()
 		self.validate_pink_reference_no()
+		self.ensure_entry_healthcare_practitioners()
 		self.set_total_orders()
 		self.set_status()
+
+	def ensure_entry_healthcare_practitioners(self):
+		"""Copy parent doctor onto medication lines that have no line-level practitioner yet.
+
+		On create/submit the header doctor is the prescribing doctor for every initial line.
+		Lines added later keep their own healthcare_practitioner (set when adding).
+		"""
+		parent_hp = cstr(
+			getattr(self, "practitioner", None) or getattr(self, "healthcare_practitioner", None) or ""
+		).strip()
+		for row in self.get("medication_orders") or []:
+			if not hasattr(row, "healthcare_practitioner"):
+				continue
+			hp = cstr(getattr(row, "healthcare_practitioner", None) or "").strip()
+			if not hp:
+				if not parent_hp:
+					continue
+				hp = parent_hp
+				row.healthcare_practitioner = hp
+			if hasattr(row, "healthcare_practitioner_name"):
+				row.healthcare_practitioner_name = (
+					frappe.db.get_value("Healthcare Practitioner", hp, "practitioner_name") or hp
+				)
 
 	def on_submit(self):
 		self.validate_inpatient()
@@ -48,7 +72,14 @@ class PatientMedicationOrder(Document):
 		# 	frappe.throw(_("No Inpatient Admission found against patient {0}").format(self.patient))
 
 	def validate_pink_reference_no(self):
-		"""Reference No is mandatory on pink medication lines."""
+		"""Reference No is mandatory on pink medication lines for outpatient only.
+
+		Inpatient prescriptions do not require a pink reference number.
+		"""
+		if cstr(getattr(self, "care_context", "") or "").strip() == "Inpatient Admission":
+			return
+		if getattr(self, "inpatient_record", None) and not getattr(self, "patient_encounter", None):
+			return
 		for row in self.get("medication_orders") or []:
 			if not cint(getattr(row, "is_pink", 0)):
 				continue

@@ -15,8 +15,11 @@ import {
 import {
   flagsFromPrescriptionType,
   isLongActingPrescriptionType,
+  matchesPrescriptionTypeFilter,
   normalizeMedicationOrderForSave,
   normalizePrescriptionType,
+  isFuturePlanByStartDate,
+  SELECTABLE_PRESCRIPTION_TYPES,
 } from '../../utils/prescriptionType'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
 import { RefreshCw, MoreVertical, Pencil, Plus, X, ChevronDown, History } from 'lucide-react'
@@ -53,6 +56,8 @@ import {
   fetchDosageForms,
   fetchStandardUoms,
   resolvePrescriptionDrugRoute,
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -277,6 +282,7 @@ const EditMedicationEntryModal = ({
     is_pink: order.is_pink || false,
     reference_no: order.reference_no || '',
     long_acting_frequency: order.long_acting_frequency || '',
+    healthcare_practitioner: order.healthcare_practitioner || '',
     medication_type:
       order.medication_type === 'Contraindicated' ? '' : (order.medication_type || ''),
     ...flagsFromPrescriptionType(
@@ -303,6 +309,10 @@ const EditMedicationEntryModal = ({
   const [uomOptions, setUomOptions] = useState<LinkFieldOption[]>([])
   const [uomLoading, setUomLoading] = useState(false)
   const [dosageFormOptions, setDosageFormOptions] = useState<LinkFieldOption[]>([])
+  const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
+  const [practQuery, setPractQuery] = useState(
+    order.healthcare_practitioner_name || order.healthcare_practitioner || ''
+  )
 
   useEffect(() => {
     fetchDosageForms().then(setDosageFormOptions).catch(() => setDosageFormOptions([]))
@@ -402,7 +412,11 @@ const EditMedicationEntryModal = ({
 
   const handleSave = async () => {
     if (givenCheck.given) return
-    if (form.is_pink && !String(form.reference_no || '').trim()) {
+    if (!String(form.healthcare_practitioner || '').trim()) {
+      toast.error('Doctor is required')
+      return
+    }
+    if (form.is_pink && !String(form.reference_no || '').trim() && !inpatientRecord) {
       toast.error('Reference No is required for pink medications')
       return
     }
@@ -486,6 +500,37 @@ const EditMedicationEntryModal = ({
             <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Doctor *</label>
+            <MiniCombobox
+              value={form.healthcare_practitioner}
+              displayValue={
+                form.healthcare_practitioner
+                  ? practitioners.find((p) => p.name === form.healthcare_practitioner)?.label || practQuery
+                  : practQuery
+              }
+              placeholder="Search doctor..."
+              options={practitioners}
+              disabled={disabled}
+              onQueryChange={(q) => {
+                setPractQuery(q)
+                setForm((f) => ({ ...f, healthcare_practitioner: '' }))
+                fetchHealthcarePractitioners(q || undefined).then(setPractitioners).catch(() => {})
+              }}
+              onOpen={() => {
+                fetchHealthcarePractitioners(practQuery || undefined).then(setPractitioners).catch(() => {})
+              }}
+              onSelect={(opt) => {
+                setForm((f) => ({ ...f, healthcare_practitioner: opt.name }))
+                setPractQuery(opt.label || opt.name)
+              }}
+              onClear={() => {
+                setForm((f) => ({ ...f, healthcare_practitioner: '' }))
+                setPractQuery('')
+              }}
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Dosage</label>
@@ -526,8 +571,10 @@ const EditMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
               >
                 <option value="">— Select —</option>
-                {MED_TYPES.filter(t => t.key !== 'All' && t.key !== '__stopped__').map(t => (
-                  <option key={t.key} value={t.key}>{t.label}</option>
+                {SELECTABLE_PRESCRIPTION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {MED_TYPES.find((m) => m.key === t)?.label || t}
+                  </option>
                 ))}
               </select>
             </div>
@@ -649,14 +696,19 @@ const EditMedicationEntryModal = ({
             {!!form.is_pink && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Reference No <span className="text-red-500">*</span>
+                  Reference No
+                  {!inpatientRecord ? (
+                    <span className="text-red-500"> *</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal"> (optional)</span>
+                  )}
                 </label>
                 <input
                   type="text"
                   value={form.reference_no || ''}
                   onChange={(e) => updateField('reference_no', e.target.value)}
                   disabled={disabled}
-                  placeholder="Enter reference number"
+                  placeholder={inpatientRecord ? 'Optional for inpatient' : 'Enter reference number'}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
                 />
               </div>
@@ -723,6 +775,7 @@ export const AddMedicationEntryModal = ({
   patient,
   patientEncounter,
   inpatientRecord,
+  defaultPractitioner,
   onClose,
   onSaved,
 }: {
@@ -730,6 +783,8 @@ export const AddMedicationEntryModal = ({
   patient?: string
   patientEncounter?: string
   inpatientRecord?: string
+  /** Fallback doctor from the parent prescription header */
+  defaultPractitioner?: string
   onClose: () => void
   onSaved: () => void | Promise<void>
 }) => {
@@ -751,6 +806,7 @@ export const AddMedicationEntryModal = ({
     is_long_acting: false,
     long_acting_frequency: '',
     medication_type: '',
+    healthcare_practitioner: defaultPractitioner || '',
   })
   const [saving, setSaving] = useState(false)
   const [doseWarning, setDoseWarning] = useState<PrescriptionDoseValidationPreview | null>(null)
@@ -774,11 +830,35 @@ export const AddMedicationEntryModal = ({
   const [addUomOptions, setAddUomOptions] = useState<LinkFieldOption[]>([])
   const [addUomLoading, setAddUomLoading] = useState(false)
   const [addDosageForms, setAddDosageForms] = useState<LinkFieldOption[]>([])
+  const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
+  const [practQuery, setPractQuery] = useState('')
 
   useEffect(() => {
     fetchDosageForms().then(setAddDosageForms).catch(() => setAddDosageForms([]))
     fetchStandardUoms(undefined, { medicalOnly: true }).then(setAddUomOptions).catch(() => setAddUomOptions([]))
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const current = await getCurrentUserPractitioner()
+        const pract = current || defaultPractitioner || ''
+        if (cancelled || !pract) return
+        setForm((f) => (f.healthcare_practitioner ? f : { ...f, healthcare_practitioner: pract }))
+        const opts = await fetchHealthcarePractitioners(pract).catch(() => [])
+        if (cancelled) return
+        setPractitioners(opts)
+        const match = opts.find((p) => p.name === pract)
+        setPractQuery(match?.label || pract)
+      } catch {
+        /* ignore */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [defaultPractitioner])
 
   const addSearchUoms = async (q: string) => {
     setAddUomLoading(true)
@@ -872,7 +952,11 @@ export const AddMedicationEntryModal = ({
       toast.error('Drug, Dosage, and Start Date are required')
       return
     }
-    if (form.is_pink && !String(form.reference_no || '').trim()) {
+    if (!String(form.healthcare_practitioner || '').trim()) {
+      toast.error('Doctor is required')
+      return
+    }
+    if (form.is_pink && !String(form.reference_no || '').trim() && !inpatientRecord) {
       toast.error('Reference No is required for pink medications')
       return
     }
@@ -938,6 +1022,36 @@ export const AddMedicationEntryModal = ({
           </button>
         </div>
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">Doctor *</label>
+            <MiniCombobox
+              value={form.healthcare_practitioner}
+              displayValue={
+                form.healthcare_practitioner
+                  ? practitioners.find((p) => p.name === form.healthcare_practitioner)?.label || practQuery
+                  : practQuery
+              }
+              placeholder="Search doctor..."
+              options={practitioners}
+              onQueryChange={(q) => {
+                setPractQuery(q)
+                setForm((f) => ({ ...f, healthcare_practitioner: '' }))
+                fetchHealthcarePractitioners(q || undefined).then(setPractitioners).catch(() => {})
+              }}
+              onOpen={() => {
+                fetchHealthcarePractitioners(practQuery || undefined).then(setPractitioners).catch(() => {})
+              }}
+              onSelect={(opt) => {
+                setForm((f) => ({ ...f, healthcare_practitioner: opt.name }))
+                setPractQuery(opt.label || opt.name)
+              }}
+              onClear={() => {
+                setForm((f) => ({ ...f, healthcare_practitioner: '' }))
+                setPractQuery('')
+              }}
+            />
+          </div>
+
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Drug *</label>
             <MiniCombobox
@@ -1015,9 +1129,9 @@ export const AddMedicationEntryModal = ({
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
               >
                 <option value="">— Select —</option>
-                {MED_TYPES.filter((t) => t.key !== 'All' && t.key !== '__stopped__').map((t) => (
-                  <option key={t.key} value={t.key}>
-                    {t.label}
+                {SELECTABLE_PRESCRIPTION_TYPES.map((t) => (
+                  <option key={t} value={t}>
+                    {MED_TYPES.find((m) => m.key === t)?.label || t}
                   </option>
                 ))}
               </select>
@@ -1136,13 +1250,18 @@ export const AddMedicationEntryModal = ({
             {!!form.is_pink && (
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">
-                  Reference No <span className="text-red-500">*</span>
+                  Reference No
+                  {!inpatientRecord ? (
+                    <span className="text-red-500"> *</span>
+                  ) : (
+                    <span className="text-slate-400 font-normal"> (optional)</span>
+                  )}
                 </label>
                 <input
                   type="text"
                   value={form.reference_no || ''}
                   onChange={(e) => updateField('reference_no', e.target.value)}
-                  placeholder="Enter reference number"
+                  placeholder={inpatientRecord ? 'Optional for inpatient' : 'Enter reference number'}
                   className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 />
               </div>
@@ -1219,6 +1338,7 @@ const MedicationRow = ({
   prescriptionPractitioner: {
     healthcare_practitioner_name?: string
     healthcare_practitioner?: string
+    practitioner?: string
     user_name?: string
   }
   onUpdated: () => void | Promise<void>
@@ -1230,7 +1350,8 @@ const MedicationRow = ({
   /** When set, show a Prescription ID column (history view). */
   historyPrescriptionName?: string
 }) => {
-  const color = getTypeColor(order.medication_type)
+  const isFuture = isFuturePlanByStartDate(order)
+  const color = getTypeColor(isFuture ? 'Future Plan' : order.medication_type)
   const rowStyle = isHex(color) ? hexRowStyle(color) : {}
   const reasonStopped = String(order.reason_stopped || '').trim()
   const isStopped = Boolean(reasonStopped)
@@ -1368,6 +1489,7 @@ const MedicationRow = ({
               ) : null}
               {order.is_prn && <SmallBadge cls="bg-amber-100 text-amber-700">PRN</SmallBadge>}
               {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
+              {isFuture && <SmallBadge cls="bg-indigo-100 text-indigo-800 border border-indigo-200">📅 Future Plan</SmallBadge>}
             </div>
             {displayDrugCode && displayDrugCode !== '-' ? (
               <div className="block w-full text-xs text-slate-400 tabular-nums">{displayDrugCode}</div>
@@ -1531,10 +1653,21 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
     try {
       const data = await fetchPrescriptionByInpatientOrEncounter(inpatientRecordId, patientEncounterId)
       setPrescription(data)
-      if (data?.name) {
+      const rxNames = [
+        ...new Set(
+          [
+            data?.name,
+            ...(data?.active_prescriptions || []).map((r) => r.name),
+            ...(data?.medication_orders || []).map((o: any) => o.parent || o._prescription_name),
+          ].filter(Boolean) as string[],
+        ),
+      ]
+      if (rxNames.length) {
         try {
-          const statuses = await getGivenStatusForPrescription(data.name)
-          setGivenStatus(statuses || {})
+          const statusMaps = await Promise.all(
+            rxNames.map((name) => getGivenStatusForPrescription(name).catch(() => ({}))),
+          )
+          setGivenStatus(Object.assign({}, ...statusMaps))
         } catch {
           setGivenStatus({})
         }
@@ -1571,6 +1704,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           _rx_practitioner: {
             healthcare_practitioner_name: rx.healthcare_practitioner_name,
             healthcare_practitioner: rx.healthcare_practitioner,
+            practitioner: rx.practitioner,
             user_name: rx.user_name,
           },
         })),
@@ -1633,19 +1767,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
 
   // ── History: same type filters, all prescriptions for this patient ──
   if (showHistory) {
-    const countFor = (key: string) => {
-      if (key === 'All') return historyOrders.length
-      if (key === '__stopped__') {
-        return historyOrders.filter((o) => String(o.reason_stopped || '').trim()).length
-      }
-      return historyOrders.filter((o) => normalizePrescriptionType(o.medication_type) === key).length
-    }
-    const filteredOrders =
-      activeType === 'All'
-        ? historyOrders
-        : activeType === '__stopped__'
-          ? historyOrders.filter((o) => String(o.reason_stopped || '').trim())
-          : historyOrders.filter((o) => normalizePrescriptionType(o.medication_type) === activeType)
+    const countFor = (key: string) =>
+      historyOrders.filter((o) => matchesPrescriptionTypeFilter(o, key)).length
+    const filteredOrders = historyOrders.filter((o) =>
+      matchesPrescriptionTypeFilter(o, activeType)
+    )
     const activeTypeDef = MED_TYPES.find((t) => t.key === activeType)
 
     return (
@@ -2006,17 +2132,32 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   }
 
   const orders = prescription.medication_orders || []
-  const countFor = (key: string) => {
-    if (key === 'All') return orders.length
-    if (key === '__stopped__') return orders.filter((o: any) => String(o.reason_stopped || '').trim()).length
-    return orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === key).length
+  const activePrescriptions = prescription.active_prescriptions?.length
+    ? prescription.active_prescriptions
+    : [{ name: prescription.name, status: prescription.status }]
+  const practitionerForOrder = (order: any) => {
+    const parentName = order.parent || order._prescription_name || prescription.name
+    const fromActive = activePrescriptions.find((r) => r.name === parentName)
+    if (fromActive) {
+      return {
+        healthcare_practitioner_name: fromActive.healthcare_practitioner_name,
+        healthcare_practitioner: fromActive.healthcare_practitioner,
+        practitioner: fromActive.practitioner,
+        user_name: fromActive.user_name,
+      }
+    }
+    return {
+      healthcare_practitioner_name: prescription.healthcare_practitioner_name,
+      healthcare_practitioner: prescription.healthcare_practitioner,
+      practitioner: prescription.practitioner,
+      user_name: prescription.user_name,
+    }
   }
-  const filteredOrders =
-    activeType === 'All'
-      ? orders
-      : activeType === '__stopped__'
-        ? orders.filter((o: any) => String(o.reason_stopped || '').trim())
-        : orders.filter((o: any) => normalizePrescriptionType(o.medication_type) === activeType)
+  const countFor = (key: string) =>
+    orders.filter((o: any) => matchesPrescriptionTypeFilter(o, key)).length
+  const filteredOrders = orders.filter((o: any) =>
+    matchesPrescriptionTypeFilter(o, activeType)
+  )
   const activeTypeDef = MED_TYPES.find((t) => t.key === activeType)
   const completionPct =
     (prescription.total_orders ?? 0) > 0
@@ -2031,22 +2172,32 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
             <div>
               <p className="text-xs text-slate-400 uppercase tracking-wide leading-none mb-0.5">
                 Prescription - {mode === 'OP' ? 'Outpatient' : 'Inpatient'}
+                {activePrescriptions.length > 1 ? (
+                  <span className="ml-1 text-slate-500 normal-case tracking-normal">
+                    · {activePrescriptions.length} active orders
+                  </span>
+                ) : null}
               </p>
               <h1 className="text-base font-bold text-slate-900 leading-none">
-                {prescription.name}
-                {prescription.status && (
-                  <span
-                    className={`ml-2 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
-                      prescription.status === 'Signed'
-                        ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                        : prescription.status === 'Unsigned'
-                          ? 'bg-orange-100 text-orange-800 border-orange-200'
-                          : 'bg-slate-100 text-slate-700 border-slate-200'
-                    }`}
-                  >
-                    {prescription.status}
+                {activePrescriptions.map((rx, i) => (
+                  <span key={rx.name}>
+                    {i > 0 ? <span className="text-slate-300 font-normal"> · </span> : null}
+                    <span className="font-mono">{rx.name}</span>
+                    {rx.status ? (
+                      <span
+                        className={`ml-1.5 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded border ${
+                          rx.status === 'Signed'
+                            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            : rx.status === 'Unsigned'
+                              ? 'bg-orange-100 text-orange-800 border-orange-200'
+                              : 'bg-slate-100 text-slate-700 border-slate-200'
+                        }`}
+                      >
+                        {rx.status}
+                      </span>
+                    ) : null}
                   </span>
-                )}
+                ))}
                 {prescription.is_pink && (
                   <span className="ml-2 text-xs font-medium text-pink-500">🩷 Pink</span>
                 )}
@@ -2113,7 +2264,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
             <table className="min-w-full text-sm divide-y divide-slate-200">
               <thead className="bg-slate-50">
                 <tr>
-                  {['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Practitioner', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])].map(
+                  {(
+                    activePrescriptions.length > 1
+                      ? ['Drug', 'Prescription', 'Dosage', 'Form', 'Frequency', 'Route', 'Practitioner', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])]
+                      : ['Drug', 'Dosage', 'Form', 'Frequency', 'Route', 'Practitioner', 'Period', 'Status', ...(readOnly ? [] : ['Actions'])]
+                  ).map(
                     (h) => (
                       <th
                         key={h}
@@ -2130,20 +2285,21 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
               <tbody className="divide-y divide-slate-100 bg-white">
                 {filteredOrders.map((order: any) => (
                   <MedicationRow
-                    key={order.name}
+                    key={`${order.parent || prescription.name}:${order.name}`}
                     order={order}
-                    prescriptionName={prescription.name}
-                    prescriptionPractitioner={{
-                      healthcare_practitioner_name: prescription.healthcare_practitioner_name,
-                      healthcare_practitioner: prescription.healthcare_practitioner,
-                      user_name: prescription.user_name,
-                    }}
+                    prescriptionName={order.parent || order._prescription_name || prescription.name}
+                    prescriptionPractitioner={practitionerForOrder(order)}
                     onUpdated={load}
                     onEdit={() => guardClinicalEdit(() => setEditingOrder(order))}
                     readOnly={readOnly}
                     givenInfo={givenStatus[order.name]}
                     parentStartDate={prescription.start_date}
                     parentEndDate={prescription.end_date}
+                    historyPrescriptionName={
+                      activePrescriptions.length > 1
+                        ? order.parent || order._prescription_name || prescription.name
+                        : undefined
+                    }
                   />
                 ))}
               </tbody>
@@ -2155,7 +2311,9 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
       {editingOrder && (
         <EditMedicationEntryModal
           order={editingOrder}
-          prescriptionName={prescription.name}
+          prescriptionName={
+            editingOrder.parent || editingOrder._prescription_name || prescription.name
+          }
           patient={prescription.patient}
           patientEncounter={prescription.patient_encounter}
           inpatientRecord={prescription.inpatient_record}
@@ -2173,6 +2331,11 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
           patient={prescription.patient}
           patientEncounter={prescription.patient_encounter}
           inpatientRecord={prescription.inpatient_record}
+          defaultPractitioner={
+            prescription.practitioner ||
+            prescription.healthcare_practitioner ||
+            undefined
+          }
           onClose={() => setShowAddModal(false)}
           onSaved={() => {
             setShowAddModal(false)

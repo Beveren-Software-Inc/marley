@@ -23,13 +23,18 @@ export type MedicationOrderLike = {
   old_route?: string | null
   username?: string | null
   frequency?: string | null
+  /** Doctor who prescribed / added this line */
+  healthcare_practitioner?: string | null
+  healthcare_practitioner_name?: string | null
 }
 
 export type PrescriptionPractitionerLike = {
-  /** Resolved name of Patient Medication Order.healthcare_practitioner */
+  /** Resolved name of Patient Medication Order.healthcare_practitioner / practitioner */
   healthcare_practitioner_name?: string | null
-  /** Healthcare Practitioner link on Patient Medication Order */
+  /** Healthcare Practitioner link on Patient Medication Order (alternate field) */
   healthcare_practitioner?: string | null
+  /** Main prescribing doctor Link on Patient Medication Order */
+  practitioner?: string | null
   user_name?: string | null
 }
 
@@ -122,17 +127,33 @@ export function displayMedicationRoute(order: MedicationOrderLike): string {
 }
 
 /**
- * Practitioner column: healthcare_practitioner name if set, else user_name.
+ * Practitioner column: prefer the doctor on the medication line, then parent Rx doctor, else user_name.
+ *
+ * Parent PMOs store the doctor on `practitioner` (and sometimes `healthcare_practitioner`).
+ * Older lines may have neither set — fall back to the header doctor name/link.
  */
 export function displayPrescriptionPractitioner(
   prescription: PrescriptionPractitionerLike,
   order?: MedicationOrderLike | null
 ): string {
-  const hp = text(prescription.healthcare_practitioner)
-  if (hp) {
-    return text(prescription.healthcare_practitioner_name) || hp
+  const lineHp = text(order?.healthcare_practitioner)
+  if (lineHp) {
+    return text(order?.healthcare_practitioner_name) || lineHp
   }
-  return text(prescription.user_name) || text(order?.username) || '-'
+  const lineName = text(order?.healthcare_practitioner_name)
+  if (lineName) return lineName
+
+  const parentHp =
+    text(prescription.healthcare_practitioner) || text(prescription.practitioner)
+  if (parentHp) {
+    return text(prescription.healthcare_practitioner_name) || parentHp
+  }
+  return (
+    text(prescription.healthcare_practitioner_name) ||
+    text(prescription.user_name) ||
+    text(order?.username) ||
+    '-'
+  )
 }
 
 export function displayMedicationInstructions(order: MedicationOrderLike): string {

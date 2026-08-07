@@ -36,6 +36,18 @@ export interface Prescription {
   is_pink?: 0 | 1
   doctors_signature?: string
   new_system?: 0 | 1
+  /** When Current Prescription merges several active PMOs for one admission/visit */
+  active_prescriptions?: Array<{
+    name: string
+    status?: string
+    practitioner?: string
+    healthcare_practitioner?: string
+    healthcare_practitioner_name?: string
+    user_name?: string
+    start_date?: string
+    end_date?: string
+    creation?: string
+  }>
 }
 
 export interface PrescriptionFilters {
@@ -350,7 +362,7 @@ export interface MedicationOrderRow {
   time: string
   patient_frequency?: string
   is_pink?: boolean
-  /** Required when is_pink is true */
+  /** Required when is_pink is true (outpatient only; optional for inpatient) */
   reference_no?: string
   /** PRN (Pro Re Nata) — give only as needed */
   is_prn?: boolean
@@ -398,7 +410,7 @@ export interface MedicationOrderEntry {
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
   is_pink?: 0 | 1 | boolean
-  /** Required when is_pink is set */
+  /** Required when is_pink is set (outpatient only; optional for inpatient) */
   reference_no?: string
   /** Per-drug doctor action status: '' (active) | 'On Hold' | 'Discontinued' */
   medication_status?: string
@@ -410,6 +422,9 @@ export interface MedicationOrderEntry {
   reason_stopped?: string
   stopped_date?: string
   stop_by?: string
+  /** Doctor who prescribed / added this medication line */
+  healthcare_practitioner?: string
+  healthcare_practitioner_name?: string
 }
 
 export async function resolveMedicationsForDuplicate(
@@ -510,7 +525,7 @@ export async function createPrescription(
       dosage_form: row.dosage_form,
       instructions: row.instructions,
       date: row.date,
-      end_date: row.end_date,
+      end_date: row.end_date || undefined,
       time: row.time,
       patient_frequency: row.is_long_acting ? longFreq : row.patient_frequency,
       is_pink: row.is_pink,
