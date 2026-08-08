@@ -1426,6 +1426,79 @@ frappe.ui.form.on('Healthcare Settings', {
 			open_tricare_price_update_upload();
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Lab Test Template Prices (July 2026)'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Lab Test Template Prices (July 2026)'),
+				preview_method:
+					'healthcare.api.lab_test_template_price_update.preview_lab_test_template_price_update',
+				import_method:
+					'healthcare.api.lab_test_template_price_update.update_lab_test_template_prices_from_excel',
+				freeze_message: __('Reading Lab Prices Excel…'),
+				import_freeze_message: __('Updating Lab Test Template prices…'),
+				build_confirm_message: (counts) => {
+					const missingSample = (counts.samples_missing || []).join('\n') || __('(none)');
+					const updateSample = (counts.samples_updates || []).join('\n') || __('(none)');
+					return __(
+						'Update Lab Test Template prices from this Excel now (not a background job)?\n\n'
+							+ 'Mapping:\n'
+							+ '  OP price → OP Rate (op_rate)\n'
+							+ '  IP price → IP Rate (lab_test_rate)\n'
+							+ '  Lab/group name → Lab Test Name (when different)\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Matched templates: {1}\n'
+							+ 'Missing templates: {2}\n'
+							+ 'Templates to update: {3}\n'
+							+ '  OP rate changes: {4}\n'
+							+ '  IP rate changes: {5}\n'
+							+ '  Name changes: {6}\n'
+							+ 'Already correct: {7}\n\n'
+							+ 'Sample updates:\n{8}\n\n'
+							+ 'Sample missing:\n{9}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.matched || 0,
+							counts.missing || 0,
+							counts.templates_needing_update || 0,
+							counts.would_update_op || 0,
+							counts.would_update_ip || 0,
+							counts.would_update_name || 0,
+							counts.unchanged || 0,
+							updateSample,
+							missingSample,
+						]
+					);
+				},
+				build_result_message: (result) => {
+					const missingSample = (result.samples_missing || []).join('\n') || __('(none)');
+					return __(
+						'Lab Test Template prices updated.\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Matched: {1}\n'
+							+ 'Templates updated: {2}\n'
+							+ '  OP rates: {3}\n'
+							+ '  IP rates: {4}\n'
+							+ '  Names: {5}\n'
+							+ 'Unchanged: {6}\n'
+							+ 'Missing templates: {7}\n'
+							+ 'Errors: {8}\n\n'
+							+ 'Sample missing:\n{9}',
+						[
+							result.excel_rows || 0,
+							result.matched || 0,
+							result.updated || 0,
+							result.updated_op || 0,
+							result.updated_ip || 0,
+							result.updated_name || 0,
+							result.unchanged || 0,
+							result.missing || 0,
+							result.errors || 0,
+							missingSample,
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),
