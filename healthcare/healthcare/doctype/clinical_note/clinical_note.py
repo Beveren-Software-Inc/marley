@@ -42,9 +42,26 @@ def fill_patient_from_inpatient_admission(doc):
 
 
 def assign_clinical_note_trans_no(doc) -> None:
-	"""Assign trans_no for new Clinical Notes (autoname: field:trans_no). Server-only."""
+	"""Assign trans_no for new Clinical Notes (autoname: field:trans_no). Server-only.
+
+	Prefer a cheap MAX() for pure integer sequences so background migrations and UI
+	saves do not scan the whole Clinical Note table on every insert.
+	"""
 	if (doc.get("trans_no") or "").strip():
 		return
+
+	max_int = frappe.db.sql(
+		"""
+		SELECT MAX(CAST(trans_no AS UNSIGNED))
+		FROM `tabClinical Note`
+		WHERE trans_no REGEXP '^[0-9]+$'
+		"""
+	)
+	max_val = max_int[0][0] if max_int else None
+	if max_val is not None:
+		doc.trans_no = str(int(max_val) + 1)
+		return
+
 	doc.trans_no = get_next_transaction_number("Clinical Note", fieldname="trans_no")
 
 

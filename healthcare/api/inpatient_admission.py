@@ -94,11 +94,27 @@ def get_patient_blocking_admission(patient):
 
 
 @frappe.whitelist()
-def get_inpatient_records(status=None, search=None, patient=None, practitioner=None, from_date=None, to_date=None, exclude_cancelled=None, cost_center=None, limit=20, offset=0):
+def get_inpatient_records(
+	status=None,
+	search=None,
+	patient=None,
+	practitioner=None,
+	from_date=None,
+	to_date=None,
+	exclude_cancelled=None,
+	cost_center=None,
+	discharge_in_progress=None,
+	limit=20,
+	offset=0,
+):
 	"""Get list of Inpatient Admissions with optional status, search, patient, practitioner and date filters.
 
 	Always enforces Cost Center User Permissions so that users restricted to a
 	specific cost center cannot see admissions belonging to other cost centers.
+
+	discharge_in_progress (optional, UI grouping only — does not change stored status):
+	  1 → only admissions with a draft Discharge
+	  0 → exclude admissions that have a draft Discharge
 	Returns { data: [...], total_count: N }
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
@@ -106,9 +122,20 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 	limit = cint(limit) or 20
 	offset = cint(offset) or 0
 	exclude_cancelled = cint(exclude_cancelled)
+	# None = no filter; "0"/"1" (or 0/1) = exclude / only draft-discharge admissions
+	dip_filter = None if discharge_in_progress in (None, "") else cint(discharge_in_progress)
 
 	# Use SQL path when we have search, practitioner, date, status, or exclude_cancelled filters
-	use_sql = bool(search or practitioner or from_date or to_date or status or exclude_cancelled or cost_center)
+	use_sql = bool(
+		search
+		or practitioner
+		or from_date
+		or to_date
+		or status
+		or exclude_cancelled
+		or cost_center
+		or dip_filter is not None
+	)
 
 	if use_sql:
 		conditions = ["1=1"]
@@ -137,6 +164,14 @@ def get_inpatient_records(status=None, search=None, patient=None, practitioner=N
 		if cost_center:
 			conditions.append("ia.cost_center = %(cost_center_filter)s")
 			params['cost_center_filter'] = cost_center
+		if dip_filter == 1:
+			conditions.append(
+				"EXISTS (SELECT 1 FROM `tabDischarge` d WHERE d.admission = ia.name AND d.docstatus = 0)"
+			)
+		elif dip_filter == 0:
+			conditions.append(
+				"NOT EXISTS (SELECT 1 FROM `tabDischarge` d WHERE d.admission = ia.name AND d.docstatus = 0)"
+			)
 
 		# ── Cost-centre User Permission enforcement ──────────────────────────
 		if permitted_cc is not None:

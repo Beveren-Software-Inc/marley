@@ -1677,6 +1677,7 @@ import {
   finishGroupLabTests,
   updateLabTestRemarks,
   canEditLabTestSampleCollection,
+  isLabTestSampleCollectionDone,
   fetchLabTestTemplateDetails,
   type LabConsumableRow,
   type LabTest,
@@ -1707,7 +1708,12 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
-import { canEditLabTestResults, canEditLabTestResultForRow, isGroupedLabRequestFinished } from '../../config/permissions'
+import {
+  canEditLabTestResults,
+  canEditLabTestResultForRow,
+  isGroupedLabRequestFinished,
+  labResultLockReason,
+} from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
@@ -1889,7 +1895,7 @@ const calculateResultFlag = (
     return { flag: 'Critically High', color: 'danger', bgColor: 'bg-red-100', textColor: 'text-red-700' }
   }
   if (val < min * 0.5) {
-    return { flag: 'Critically Low', color: 'danger', bgColor: 'bg-red-100', textColor: 'text-red-700' }
+    return { flag: 'Critically Low', color: 'warning', bgColor: 'bg-yellow-100', textColor: 'text-yellow-900' }
   }
   
   // Check normal range
@@ -1897,7 +1903,7 @@ const calculateResultFlag = (
     return { flag: 'High', color: 'warning', bgColor: 'bg-orange-100', textColor: 'text-orange-700' }
   }
   if (val < min) {
-    return { flag: 'Low', color: 'warning', bgColor: 'bg-orange-100', textColor: 'text-orange-700' }
+    return { flag: 'Low', color: 'warning', bgColor: 'bg-yellow-100', textColor: 'text-yellow-800' }
   }
   
   return { flag: 'Normal', color: 'success', bgColor: 'bg-green-100', textColor: 'text-green-700' }
@@ -2058,13 +2064,14 @@ const highLowMarkFromRange = (
 
 const multipleStatusMarkClass = (status: string): string => {
   const s = status.toLowerCase()
+  if (s === 'low' || s === 'critically low') {
+    return 'border-yellow-300 bg-yellow-50 text-yellow-900'
+  }
   if (
     s.includes('deficien') ||
     s.includes('toxicity') ||
     s === 'high' ||
     s === 'critically high' ||
-    s === 'low' ||
-    s === 'critically low' ||
     s === 'abnormal'
   ) {
     return 'border-red-300 bg-red-50 text-red-800'
@@ -2925,6 +2932,15 @@ export const LabTestList = ({
       setResultDialogTab('results'); setWorksheetExpanded(false)
       setActiveLabTest({ name: labTestName, patient: '' })
       const [doc, docTypes] = await Promise.all([fetchLabTest(labTestName), fetchDocumentTypes()])
+      if (!isLabTestSampleCollectionDone(doc) || !canEditLabTestResultForRow(doc, userRole, { nurseLabContext })) {
+        setResultDialogOpen(false)
+        setResultDialogLoading(false)
+        toast.error(
+          labResultLockReason(doc, userRole, { nurseLabContext }) ||
+            'Complete sample collection before entering results.'
+        )
+        return
+      }
       setActiveLabTest(doc); setCustomResult(doc.custom_result || ''); setLabComment(doc.lab_test_comment || '')
       setWorksheetText(doc.worksheet_instructions || ''); setResultDocumentTypes(docTypes)
       const existingItems: NormalTestResultRow[] = (doc.normal_test_items || []).map((r: any) => ({ ...r }))
@@ -3156,8 +3172,8 @@ export const LabTestList = ({
           className={`min-h-[22px] min-w-[72px] rounded px-1.5 py-0.5 text-sm transition-colors ${
             !rowEditable
               ? displayResult
-                ? 'text-slate-800'
-                : 'text-slate-400'
+                ? 'cursor-not-allowed bg-slate-50 text-slate-800'
+                : 'cursor-not-allowed border border-dashed border-slate-200 bg-slate-50 text-slate-400'
               : dirty
                 ? 'cursor-pointer border border-amber-300 bg-amber-50 text-amber-900 font-medium hover:bg-amber-100/80'
                 : isEmpty
@@ -3168,7 +3184,8 @@ export const LabTestList = ({
             !rowEditable
               ? resultsReadOnly
                 ? 'Results are read-only on the doctor view'
-                : 'Results cannot be edited in this status'
+                : labResultLockReason(labTest, userRole, { nurseLabContext }) ||
+                  'Results cannot be edited in this status'
               : dirty
                 ? 'Unsaved — click Save in the header'
                 : isEmpty
@@ -3176,7 +3193,9 @@ export const LabTestList = ({
                   : 'Edit result'
           }>
           {!rowEditable && isEmpty ? (
-            <span className="text-slate-400">—</span>
+            <span className="text-slate-400" title="Complete sample collection before entering results">
+              —
+            </span>
           ) : displayResult ? (
             <span className="block truncate">{displayResult}</span>
           ) : (
@@ -3202,7 +3221,13 @@ export const LabTestList = ({
     }
 
     const Icon = isLow ? ArrowDown : ArrowUp
-    const colorClass = isCriticalResultFlag(flag) ? 'text-red-600' : 'text-orange-600'
+    const colorClass = isLow
+      ? isCriticalResultFlag(flag)
+        ? 'text-yellow-700'
+        : 'text-yellow-600'
+      : isCriticalResultFlag(flag)
+        ? 'text-red-600'
+        : 'text-orange-600'
 
     return (
       <td className="px-2 py-1.5 text-center" title={resultFlagLabel(flag)}>
@@ -3224,13 +3249,19 @@ export const LabTestList = ({
       )
     }
 
+    const isLow = rawFlag === 'Critically Low' || rawFlag === 'Low'
     const critical = isCriticalResultFlag(rawFlag)
+    const badgeClass = isLow
+      ? critical
+        ? 'bg-yellow-100 text-yellow-900 ring-1 ring-yellow-400'
+        : 'bg-yellow-100 text-yellow-800'
+      : critical
+        ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+        : 'bg-orange-100 text-orange-700'
     return (
       <td className="px-3 py-1.5">
         <span
-          className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
-            critical ? 'bg-red-100 text-red-700 ring-1 ring-red-300' : 'bg-orange-100 text-orange-700'
-          }`}
+          className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${badgeClass}`}
           title={critical ? 'Critical value — urgent attention required' : undefined}
         >
           {flag}
@@ -3385,9 +3416,25 @@ export const LabTestList = ({
                 Delete Lab Test
               </button>
             )}
-            {canEditResultRow(labTest) && (
-              <button type="button" onClick={() => { setOpenActionRow(null); openResultDialog(labTest.name) }}
-                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Enter Results</button>
+            {canEditResults && !resultsReadOnly && (
+              <button
+                type="button"
+                disabled={!canEditResultRow(labTest)}
+                onClick={() => {
+                  if (!canEditResultRow(labTest)) return
+                  setOpenActionRow(null)
+                  void openResultDialog(labTest.name)
+                }}
+                title={
+                  canEditResultRow(labTest)
+                    ? 'Enter results'
+                    : labResultLockReason(labTest, userRole, { nurseLabContext }) ||
+                      'Complete sample collection before entering results.'
+                }
+                className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:text-slate-400 disabled:hover:bg-transparent"
+              >
+                Enter Results
+              </button>
             )}
             {labTest.docstatus === 0 && (
               <button type="button" onClick={() => { setOpenActionRow(null); guardClinicalEdit(() => setEditLabTestName(labTest.name)) }}
@@ -3458,8 +3505,9 @@ export const LabTestList = ({
 
         const resultFlag = (test as any).result_flag || ''
         const flagBadge = resultFlag ? `<span style="display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 12px; font-size: 10px; font-weight: 600; ${
-          resultFlag === 'High' || resultFlag === 'Low' ? 'background: #fed7aa; color: #9b2c2c;' :
-          resultFlag === 'Critically High' || resultFlag === 'Critically Low' ? 'background: #fee2e2; color: #991b1b;' :
+          resultFlag === 'Low' || resultFlag === 'Critically Low' ? 'background: #fef9c3; color: #854d0e;' :
+          resultFlag === 'High' ? 'background: #fed7aa; color: #9b2c2c;' :
+          resultFlag === 'Critically High' ? 'background: #fee2e2; color: #991b1b;' :
           'background: #dcfce7; color: #166534;'
         }">${resultFlag}</span>` : ''
 
@@ -4243,12 +4291,24 @@ export const LabTestList = ({
                               // else the patient's gendered range, else the template range.
                               const { min, max } = effectiveRowRange(row, templateDetails, activeLabTest?.patient_sex || activeLabTest?.gender)
                               const hasResult = row.result_value !== '' && row.result_value != null && !isNaN(result)
-                              const outOfRange = hasResult && !row.uses_status_bands && ((min != null && result < min) || (max != null && result > max))
+                              const isLowResult =
+                                hasResult && !row.uses_status_bands && min != null && result < min
+                              const isHighResult =
+                                hasResult && !row.uses_status_bands && max != null && result > max
                               const statusOptions = templateDetails.status_options || []
                               const isMultiple = Boolean(templateDetails.is_multiple)
                               const statusMark = isMultiple ? (row.result_status || '') : ''
                               return (
-                                <tr key={idx} className={outOfRange ? 'bg-red-50' : 'hover:bg-slate-50/50'}>
+                                <tr
+                                  key={idx}
+                                  className={
+                                    isLowResult
+                                      ? 'bg-yellow-50'
+                                      : isHighResult
+                                        ? 'bg-red-50'
+                                        : 'hover:bg-slate-50/50'
+                                  }
+                                >
                                   <td className="px-3 py-3">
                                     <div className="text-sm font-medium text-slate-800">{row.lab_test_event || row.lab_test_name || '—'}</div>
                                     {row.lab_test_uom && <div className="text-[11px] text-slate-400 mt-0.5">{row.lab_test_uom}</div>}
@@ -4280,9 +4340,20 @@ export const LabTestList = ({
                                           return next
                                         })
                                       }}
-                                      className={`w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${outOfRange ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300' : 'border-slate-300'}`}
+                                      className={`w-full border rounded-md px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${
+                                        isLowResult
+                                          ? 'border-yellow-400 bg-yellow-50 text-yellow-900 focus:ring-yellow-300'
+                                          : isHighResult
+                                            ? 'border-red-400 bg-red-50 text-red-700 focus:ring-red-300'
+                                            : 'border-slate-300'
+                                      }`}
                                       placeholder="0.00" />
-                                    {outOfRange && <div className="text-[10px] text-red-600 mt-0.5 font-medium">⚠ Out of range</div>}
+                                    {isLowResult && (
+                                      <div className="text-[10px] text-yellow-800 mt-0.5 font-medium">⚠ Low (below range)</div>
+                                    )}
+                                    {isHighResult && (
+                                      <div className="text-[10px] text-red-600 mt-0.5 font-medium">⚠ High (above range)</div>
+                                    )}
                                   </td>
                                   {isMultiple ? (
                                     <td className="px-3 py-3">

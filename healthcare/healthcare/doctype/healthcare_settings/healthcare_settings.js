@@ -956,11 +956,13 @@ frappe.ui.form.on('Healthcare Settings', {
 							: counts.already_linked || 0;
 					frappe.confirm(
 						__(
-							'Run in background: for each Patient Visit with encounter_comment, create a Doctor Progress Note?\n\n'
+							'Run in background: for each Patient Visit with encounter_comment (Review Details), create a Doctor Progress Note?\n\n'
 								+ 'Visits with comment: {0}\n'
-								+ 'Duplicate visit + note (skipped): {1}\n'
+								+ 'Already have note for same patient + visit (skipped): {1}\n'
 								+ 'Notes to create: {2}\n\n'
-								+ 'Note text = encounter_comment. Date, practitioner, patient, cost center, and username (if on visit) are copied from the visit. Visits that already have a Clinical Note with the same text for that visit are skipped. Continue?',
+								+ 'Note text = encounter_comment. Posting date = visit encounter date. '
+								+ 'Practitioner, patient, cost center, and username (if on visit) are copied from the visit. '
+								+ 'Visits that already have a Doctor Progress Note for the same patient and same visit are skipped (no duplicates). Continue?',
 							[total, duplicates, counts.to_create || 0]
 						),
 						() =>
@@ -972,6 +974,33 @@ frappe.ui.form.on('Healthcare Settings', {
 					);
 				},
 			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Stop Clinical Notes from Visit Encounter Comment'), () => {
+			frappe.confirm(
+				__(
+					'Stop the background job that creates Clinical Notes from Patient Visit encounter comments?\n\n'
+						+ 'The current visit being processed will finish; no further visits or batches will run.'
+				),
+				() => {
+					frappe.call({
+						method:
+							'healthcare.api.data_migration_jobs.stop_patient_visit_encounter_comment_clinical_note_migration',
+						freeze: true,
+						freeze_message: __('Requesting stop…'),
+						callback(r) {
+							const msg = r.message || {};
+							frappe.show_alert({
+								message: msg.message || __('Stop requested'),
+								indicator: msg.ok ? 'orange' : 'red',
+							});
+							if (msg.ok) {
+								poll_migration_status('patient_visit_encounter_comment_clinical_note');
+							}
+						},
+					});
+				}
+			);
 		}, __('Data Maintenance'));
 
 		frm.add_custom_button(__('Fix Patient Gender (1→Male, 2→Female)'), () => {
@@ -1395,6 +1424,79 @@ frappe.ui.form.on('Healthcare Settings', {
 
 		frm.add_custom_button(__('TRICARE Price Lists (June 16 2026)'), () => {
 			open_tricare_price_update_upload();
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Lab Test Template Prices (July 2026)'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Lab Test Template Prices (July 2026)'),
+				preview_method:
+					'healthcare.api.lab_test_template_price_update.preview_lab_test_template_price_update',
+				import_method:
+					'healthcare.api.lab_test_template_price_update.update_lab_test_template_prices_from_excel',
+				freeze_message: __('Reading Lab Prices Excel…'),
+				import_freeze_message: __('Updating Lab Test Template prices…'),
+				build_confirm_message: (counts) => {
+					const missingSample = (counts.samples_missing || []).join('\n') || __('(none)');
+					const updateSample = (counts.samples_updates || []).join('\n') || __('(none)');
+					return __(
+						'Update Lab Test Template prices from this Excel now (not a background job)?\n\n'
+							+ 'Mapping:\n'
+							+ '  OP price → OP Rate (op_rate)\n'
+							+ '  IP price → IP Rate (lab_test_rate)\n'
+							+ '  Lab/group name → Lab Test Name (when different)\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Matched templates: {1}\n'
+							+ 'Missing templates: {2}\n'
+							+ 'Templates to update: {3}\n'
+							+ '  OP rate changes: {4}\n'
+							+ '  IP rate changes: {5}\n'
+							+ '  Name changes: {6}\n'
+							+ 'Already correct: {7}\n\n'
+							+ 'Sample updates:\n{8}\n\n'
+							+ 'Sample missing:\n{9}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.matched || 0,
+							counts.missing || 0,
+							counts.templates_needing_update || 0,
+							counts.would_update_op || 0,
+							counts.would_update_ip || 0,
+							counts.would_update_name || 0,
+							counts.unchanged || 0,
+							updateSample,
+							missingSample,
+						]
+					);
+				},
+				build_result_message: (result) => {
+					const missingSample = (result.samples_missing || []).join('\n') || __('(none)');
+					return __(
+						'Lab Test Template prices updated.\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Matched: {1}\n'
+							+ 'Templates updated: {2}\n'
+							+ '  OP rates: {3}\n'
+							+ '  IP rates: {4}\n'
+							+ '  Names: {5}\n'
+							+ 'Unchanged: {6}\n'
+							+ 'Missing templates: {7}\n'
+							+ 'Errors: {8}\n\n'
+							+ 'Sample missing:\n{9}',
+						[
+							result.excel_rows || 0,
+							result.matched || 0,
+							result.updated || 0,
+							result.updated_op || 0,
+							result.updated_ip || 0,
+							result.updated_name || 0,
+							result.unchanged || 0,
+							result.missing || 0,
+							result.errors || 0,
+							missingSample,
+						]
+					);
+				},
+			});
 		}, __('Direct Upload'));
 
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
@@ -6229,7 +6331,18 @@ function poll_migration_status(jobKey) {
 			callback(r) {
 				const s = r.message || {};
 				if (s.running && !s.done) {
-					if (s.processed) {
+					if (
+						jobKey === 'patient_visit_encounter_comment_clinical_note' &&
+						s.stop_requested
+					) {
+						frappe.show_alert({
+							message: __(
+								'{0}: stop requested — finishing current visit, then halting… ({1} processed)',
+								[jobKey, s.processed || 0]
+							),
+							indicator: 'orange',
+						});
+					} else if (s.processed) {
 						frappe.show_alert({
 							message: __('{0}: {1} records processed so far…', [jobKey, s.processed]),
 							indicator: 'blue',
@@ -6719,16 +6832,30 @@ function poll_migration_status(jobKey) {
 							]
 						);
 					} else if (jobKey === 'patient_visit_encounter_comment_clinical_note') {
-						msg = __(
-							'{0} finished: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors.',
-							[
-								jobKey,
-								s.created || 0,
-								s.skipped_existing || 0,
-								s.skipped_no_patient || 0,
-								s.errors || 0,
-							]
-						);
+						if (s.stopped) {
+							msg = __(
+								'{0} stopped: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors, {5} visits processed.',
+								[
+									jobKey,
+									s.created || 0,
+									s.skipped_existing || 0,
+									s.skipped_no_patient || 0,
+									s.errors || 0,
+									s.processed || 0,
+								]
+							);
+						} else {
+							msg = __(
+								'{0} finished: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors.',
+								[
+									jobKey,
+									s.created || 0,
+									s.skipped_existing || 0,
+									s.skipped_no_patient || 0,
+									s.errors || 0,
+								]
+							);
+						}
 					} else if (jobKey === 'patient_cpr_photo_import') {
 						msg = __(
 							'{0} finished: {1} front uploaded, {2} back uploaded, {3} invalid, {4} patient not found, {5} skipped (existing), {6} errors.',

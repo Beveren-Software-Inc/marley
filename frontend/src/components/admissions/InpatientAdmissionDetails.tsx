@@ -1,6 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { fetchInpatientRecord, type InpatientRecord, type InpatientPackage } from '../../services/inpatientRecords'
+import {
+  fetchInpatientRecord,
+  getAdmissionDisplayStatus,
+  ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
+  type InpatientRecord,
+  type InpatientPackage,
+} from '../../services/inpatientRecords'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
@@ -38,6 +44,7 @@ import { isDoctorRole } from '../../config/permissions'
 const STATUS_COLORS: Record<string, string> = {
   'Admission Scheduled': 'warning',
   'Admitted': 'success',
+  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'info',
   'Discharge Scheduled': 'info',
   'Discharged': 'default',
   'Cancelled': 'danger',
@@ -1358,16 +1365,15 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
             <h2 className="text-lg font-bold text-slate-900">{record.name}</h2>
           </div>
           {record.status && (
-            <div className="flex flex-col items-end gap-0.5">
-              <StatusPill status={record.status} color={STATUS_COLORS[record.status] || 'default'} />
-              {Boolean(record.discharge_in_progress) &&
-                record.status !== 'Discharged' &&
-                record.status !== 'Cancelled' && (
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">
-                    Discharge in progress
-                  </span>
-                )}
-            </div>
+            (() => {
+              const displayStatus = getAdmissionDisplayStatus(record)
+              return (
+                <StatusPill
+                  status={displayStatus}
+                  color={STATUS_COLORS[displayStatus] || STATUS_COLORS[record.status] || 'default'}
+                />
+              )
+            })()
           )}
         </div>
 

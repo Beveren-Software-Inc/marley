@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { fetchInpatientRecords, type InpatientRecord } from '../services/inpatientRecords'
+import {
+  fetchInpatientRecords,
+  resolveAdmissionListStatusFilter,
+  type InpatientRecord,
+} from '../services/inpatientRecords'
 
 export function useInpatientRecords(
+  /** UI status filter (includes "Discharge in Progress"; mapped for API). */
   status?: string,
   search?: string,
   patient?: string,
@@ -29,7 +34,20 @@ export function useInpatientRecords(
         setRefreshing(true)
       }
       setError(null)
-      const response = await fetchInpatientRecords(status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter)
+      const resolved = resolveAdmissionListStatusFilter(status)
+      const response = await fetchInpatientRecords(
+        resolved.status,
+        search,
+        patient,
+        practitioner,
+        fromDate,
+        toDate,
+        limit,
+        offset,
+        excludeCancelled,
+        costCenter,
+        resolved.dischargeInProgress
+      )
       setRecords(response.data)
       setTotalCount(response.total_count)
     } catch (err) {

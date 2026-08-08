@@ -110,12 +110,13 @@
   .even-row { background-color: #f4f8fc; }
 
   .flag-normal   { color: #1a6b3a; font-weight: bold; font-size: 8.5pt; }
-  .flag-low      { color: #c0392b; font-weight: bold; font-size: 8.5pt; }
-  .flag-high     { color: #d35400; font-weight: bold; font-size: 8.5pt; }
+  .flag-low      { color: #854d0e; font-weight: bold; font-size: 8.5pt; background-color: #fef9c3; padding: 1px 5px; }
+  .flag-high     { color: #c0392b; font-weight: bold; font-size: 8.5pt; }
   .flag-critical { color: #7b0000; font-weight: bold; font-size: 8.5pt; background-color: #fde8e8; padding: 1px 5px; }
 
   .result-val      { font-weight: bold; }
   .result-abnormal { color: #c0392b; font-weight: bold; }
+  .result-low      { color: #854d0e; font-weight: bold; }
 
   /* ── REMARKS ── */
   .remarks-box {
@@ -235,14 +236,14 @@
     {% for item in doc.normal_test_items %}
     <tr class="{{ 'even-row' if loop.index is even else '' }}">
       <td>{{ item.lab_test_event or item.lab_test_name }}</td>
-      <td align="center" class="result-val {% if item.result_status and item.result_status not in ['Normal'] and ('Deficien' in (item.result_status or '') or 'Insufficien' in (item.result_status or '') or 'Toxicity' in (item.result_status or '') or item.result_status in ['Low','High','Critical','Abnormal']) %}result-abnormal{% endif %}">
+      <td align="center" class="result-val {% if item.result_status in ['Low', 'Critically Low'] %}result-low{% elif item.result_status and item.result_status not in ['Normal'] and ('Deficien' in (item.result_status or '') or 'Insufficien' in (item.result_status or '') or 'Toxicity' in (item.result_status or '') or item.result_status in ['High','Critical','Critically High','Abnormal']) %}result-abnormal{% endif %}">
         {{ item.result_value }}
       </td>
       <td align="center">{{ item.lab_test_uom or "" }}</td>
       <td align="center">
         {% if item.result_status == "Normal" %}<span class="flag-normal">Normal</span>
-        {% elif item.result_status == "Low" %}<span class="flag-low">Low</span>
-        {% elif item.result_status == "High" %}<span class="flag-high">High</span>
+        {% elif item.result_status in ["Low", "Critically Low"] %}<span class="flag-low">{{ item.result_status }}</span>
+        {% elif item.result_status in ["High", "Critically High"] %}<span class="flag-high">{{ item.result_status }}</span>
         {% elif item.result_status == "Critical" %}<span class="flag-critical">Critical</span>
         {% elif item.result_status %}<span class="flag-normal">{{ item.result_status }}</span>
         {% else %}<span style="color:#999">&#8212;</span>{% endif %}

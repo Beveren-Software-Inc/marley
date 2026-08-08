@@ -26,7 +26,7 @@ export interface InpatientRecord {
   file_no?: string
   room_service_no?: string
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
-  /** 1 when a draft Discharge exists (started, not submitted). */
+  /** 1 when a draft Discharge exists (started, not submitted). Backend status stays Admitted. */
   discharge_in_progress?: number | boolean
   scheduled_date: string
   admitted_datetime?: string
@@ -115,6 +115,34 @@ export interface InpatientRecord {
   patient_documents?: PatientDocumentRow[]
 }
 
+/** UI-only list/filter label; backend status remains Admitted. */
+export const ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS = 'Discharge in Progress'
+
+/** Status shown in pills/lists when draft discharge exists (backend still Admitted). */
+export function getAdmissionDisplayStatus(
+  record: Pick<InpatientRecord, 'status' | 'discharge_in_progress'>
+): string {
+  if (record.status === 'Admitted' && Boolean(record.discharge_in_progress)) {
+    return ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS
+  }
+  return record.status
+}
+
+/** Map UI status filter → API status + discharge_in_progress (admission.status unchanged in DB). */
+export function resolveAdmissionListStatusFilter(uiStatus?: string): {
+  status?: string
+  dischargeInProgress?: boolean
+} {
+  if (!uiStatus) return {}
+  if (uiStatus === ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS) {
+    return { status: 'Admitted', dischargeInProgress: true }
+  }
+  if (uiStatus === 'Admitted') {
+    return { status: 'Admitted', dischargeInProgress: false }
+  }
+  return { status: uiStatus }
+}
+
 export interface PackageDetail {
   name: string
   admission_no: string
@@ -181,7 +209,9 @@ export async function fetchInpatientRecords(
   limit?: number,
   offset?: number,
   excludeCancelled?: boolean,
-  costCenter?: string
+  costCenter?: string,
+  /** When set with status=Admitted: true = draft discharge only; false = exclude draft discharge. */
+  dischargeInProgress?: boolean
 ): Promise<InpatientRecordsPaginatedResponse> {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
@@ -192,6 +222,9 @@ export async function fetchInpatientRecords(
   if (toDate) params.append('to_date', toDate)
   if (excludeCancelled) params.append('exclude_cancelled', '1')
   if (costCenter) params.append('cost_center', costCenter)
+  if (dischargeInProgress !== undefined) {
+    params.append('discharge_in_progress', dischargeInProgress ? '1' : '0')
+  }
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
 

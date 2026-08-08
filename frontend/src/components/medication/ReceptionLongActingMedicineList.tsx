@@ -2,7 +2,12 @@ import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel, InjectionSide } from '../../services/longActingMedicine'
 import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
-import { LONG_ACTING_FREQUENCY_OPTIONS } from '../../services/prescriptions'
+import {
+  LONG_ACTING_FREQUENCY_OPTIONS,
+  mapLongActingMedicineToDuplicateMedications,
+  type MedicationOrderRow,
+} from '../../services/prescriptions'
+import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
 import { LongActingMedicineDetailPanel } from './LongActingMedicineDetailPanel'
 import { toast } from '../../hooks/useToast'
 import { Mail, MoreHorizontal } from 'lucide-react'
@@ -18,11 +23,19 @@ interface ReceptionLongActingMedicineListProps {
   patient?: string
   refreshKey?: string | number
   onPatientClick?: (patient: string) => void
+  /** When a prescription is created from Duplicate / parent +, refresh parent lists */
+  onPrescriptionCreated?: () => void
 }
 
-export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatientClick }: ReceptionLongActingMedicineListProps) => {
-  const { userRole } = useCareContext()
+export const ReceptionLongActingMedicineList = ({
+  patient,
+  refreshKey,
+  onPatientClick,
+  onPrescriptionCreated,
+}: ReceptionLongActingMedicineListProps) => {
+  const { userRole, guardClinicalCreate } = useCareContext()
   const canRecordGiveOut = isDoctorRole(userRole) || isNurseRole(userRole)
+  const canDuplicateAsPrescription = isDoctorRole(userRole)
   // #11: reception / non-clinical roles see only due dates — medicine details are masked (not removed).
   const maskMedDetails = !canSeeLongActingMedDetails(userRole)
   const mask = (value: React.ReactNode) =>
@@ -62,6 +75,41 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
   const [giveOutModalLoading, setGiveOutModalLoading] = useState(false)
   const [givingOutId, setGivingOutId] = useState<string | null>(null)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
+
+  // Duplicate → Create Prescription (Long Acting type pre-selected)
+  const [duplicateRx, setDuplicateRx] = useState<{
+    patient?: string
+    practitioner?: string
+    medications: MedicationOrderRow[]
+  } | null>(null)
+  const [duplicateLoadingId, setDuplicateLoadingId] = useState<string | null>(null)
+
+  const openDuplicatePrescription = async (e: React.MouseEvent, row: LongActingMedicineRow) => {
+    e.stopPropagation()
+    setOpenMenuRow(null)
+    if (!canDuplicateAsPrescription) return
+    try {
+      setDuplicateLoadingId(row.name)
+      let source: LongActingMedicineRow = row
+      try {
+        source = await fetchLongActingMedicine(row.name)
+      } catch {
+        /* use list row if detail fetch fails */
+      }
+      const medications = mapLongActingMedicineToDuplicateMedications(source)
+      guardClinicalCreate(() =>
+        setDuplicateRx({
+          patient: source.patient || row.patient,
+          practitioner: source.practitioner || row.practitioner,
+          medications,
+        })
+      )
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to open duplicate prescription')
+    } finally {
+      setDuplicateLoadingId(null)
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -584,6 +632,17 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
                                 <span className="text-purple-500 text-base leading-none">📱</span> Send SMS
                               </button>
                               <div className="border-t border-slate-100 my-1" />
+                              {canDuplicateAsPrescription && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => void openDuplicatePrescription(e, row)}
+                                  disabled={duplicateLoadingId === row.name}
+                                  className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 disabled:opacity-50"
+                                >
+                                  <span className="text-teal-600 text-base leading-none">⧉</span>
+                                  {duplicateLoadingId === row.name ? 'Opening…' : 'Duplicate'}
+                                </button>
+                              )}
                               {canRecordGiveOut && row.can_stop && (
                                 <button
                                   type="button"
@@ -860,6 +919,21 @@ export const ReceptionLongActingMedicineList = ({ patient, refreshKey, onPatient
             </div>
           </div>
         </div>
+      )}
+
+      {duplicateRx && (
+        <CreatePrescriptionModal
+          onClose={() => setDuplicateRx(null)}
+          onSuccess={() => {
+            setDuplicateRx(null)
+            toast.success('Prescription created from long acting medicine')
+            load()
+            onPrescriptionCreated?.()
+          }}
+          initialPatient={duplicateRx.patient}
+          initialPractitioner={duplicateRx.practitioner}
+          initialMedications={duplicateRx.medications}
+        />
       )}
     </div>
   )

@@ -61,6 +61,21 @@ export function isGroupedLabRequestFinished(
 /** Lab statuses that are final — after these, only admins may amend a result. */
 const FINAL_LAB_STATUSES = ['Approved', 'Completed'] as const
 
+/** Sample collection not finished yet — results must stay locked. */
+const LAB_PRE_SAMPLE_COLLECTION_STATUSES = new Set([
+  'Draft',
+  'Requested',
+  'Awaiting sample collection',
+  'Sample Collection in Progress',
+  'Sample collection in progress',
+])
+
+function labTestSampleCollectionDone(labTest: { status?: string }): boolean {
+  const status = (labTest.status || '').trim()
+  if (!status || status === 'Cancelled') return false
+  return !LAB_PRE_SAMPLE_COLLECTION_STATUSES.has(status)
+}
+
 type LabTestRowPerm = {
   docstatus?: number
   status?: string
@@ -101,6 +116,9 @@ export function canEditLabTestResultForRow(
   const status = (labTest.status || '').trim()
   if (status === 'Rejected' || status === 'Cancelled') return false
 
+  // Results stay locked until sample collection is completed.
+  if (!labTestSampleCollectionDone(labTest)) return false
+
   const isFinal = FINAL_LAB_STATUSES.includes(status as (typeof FINAL_LAB_STATUSES)[number])
     || isGroupedLabRequestFinished(labTest)
   if (isFinal) {
@@ -125,6 +143,9 @@ export function labResultLockReason(
   const status = (labTest.status || '').trim()
   if (status === 'Rejected' || status === 'Cancelled') {
     return `This result is ${status.toLowerCase()} and cannot be edited.`
+  }
+  if (!labTestSampleCollectionDone(labTest)) {
+    return 'Complete sample collection before entering results.'
   }
   const isFinal = FINAL_LAB_STATUSES.includes(status as (typeof FINAL_LAB_STATUSES)[number])
     || isGroupedLabRequestFinished(labTest)

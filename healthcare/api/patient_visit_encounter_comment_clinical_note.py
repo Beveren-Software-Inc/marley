@@ -7,13 +7,16 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import cint, get_datetime, getdate, now_datetime, strip_html
+from frappe.utils import cint, get_datetime, getdate, now_datetime
 
 from healthcare.api.clinical_note import _get_or_create_clinical_note_type
 from healthcare.healthcare.doctype.clinical_note.clinical_note import assign_clinical_note_trans_no
 
 DOCTOR_PROGRESS_NOTE_TYPE = "Doctor Progress Note"
 BATCH_SIZE = 1000
+# Commit after each create so UI Clinical Note / Patient Note saves are not blocked
+# waiting on a long migration transaction (lock wait timeouts).
+COMMIT_EVERY_CREATED = 1
 
 _VISIT_USERNAME_FIELDS = ("username", "user_name", "create_user_id")
 
@@ -22,8 +25,12 @@ def _require_admin() -> None:
 	frappe.only_for(("System Manager", "Healthcare Administrator"))
 
 
-def migration_enabled() -> bool:
+def _migration_enabled() -> bool:
 	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "active")))
+
+
+# Keep old name for callers/tests
+migration_enabled = _migration_enabled
 
 
 def _encounter_comment_visits_sql_count() -> int:
@@ -40,128 +47,102 @@ def _encounter_comment_visits_sql_count() -> int:
 	)
 
 
-def _normalize_note_text(text: str | None) -> str:
-	content = (text or "").strip()
-	if not content:
-		return ""
-	if "<" in content and ">" in content:
-		content = strip_html(content)
-	return " ".join(content.split()).casefold()
+def _visit_reference_clause(visit_placeholder: str = "%s") -> str:
+	"""Match either legacy or current Patient Visit reference fields on Clinical Note."""
+	return f"""(
+		(reference_doc = 'Patient Visit' AND reference_name = {visit_placeholder})
+		OR (reference_doctype = 'Patient Visit' AND reference_document = {visit_placeholder})
+	)"""
 
 
-def _clinical_note_rows_for_visit(visit_name: str) -> list[dict]:
-	return frappe.db.sql(
-		"""
-		SELECT name, note
+def _existing_clinical_note_for_patient_visit(
+	patient: str | None,
+	visit_name: str | None,
+	*,
+	prefetched_keys: set[tuple[str, str]] | None = None,
+) -> str | None:
+	"""Return existing Clinical Note name (or 'exists') for this patient + visit.
+
+	Duplicate key is patient + Patient Visit — not note text — so re-runs never recreate
+	notes already made for the same visit (including prior Doctor Progress Notes).
+	"""
+	patient = (patient or "").strip()
+	visit_name = (visit_name or "").strip()
+	if not patient or not visit_name:
+		return None
+
+	if prefetched_keys is not None:
+		return "exists" if (patient, visit_name) in prefetched_keys else None
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT name
 		FROM `tabClinical Note`
 		WHERE docstatus != 2
-		  AND (
-			(reference_doc = 'Patient Visit' AND reference_name = %s)
-			OR (reference_doctype = 'Patient Visit' AND reference_document = %s)
-		  )
+		  AND patient = %s
+		  AND {_visit_reference_clause("%s")}
+		LIMIT 1
 		""",
-		(visit_name, visit_name),
-		as_dict=True,
+		(patient, visit_name, visit_name),
 	)
+	return rows[0][0] if rows else None
 
 
-def _existing_matching_clinical_note(
-	visit_name: str,
-	encounter_comment: str | None,
-	*,
-	prefetched_notes: dict[str, list[str]] | None = None,
-) -> str | None:
-	expected = _normalize_note_text(encounter_comment)
-	if not expected:
-		return None
-
-	if prefetched_notes is not None:
-		if expected in prefetched_notes.get(visit_name, []):
-			return "exists"
-		return None
-
-	for row in _clinical_note_rows_for_visit(visit_name):
-		if _normalize_note_text(row.get("note")) == expected:
-			return row.name
-	return None
-
-
-def _prefetch_normalized_notes_for_visits(visit_names: list[str]) -> dict[str, list[str]]:
+def _prefetch_patient_visit_note_keys(visit_names: list[str]) -> set[tuple[str, str]]:
+	"""Set of (patient, visit_name) that already have any Clinical Note linked to that visit."""
 	if not visit_names:
-		return {}
+		return set()
 
 	placeholders = ", ".join(["%s"] * len(visit_names))
 	rows = frappe.db.sql(
 		f"""
 		SELECT
-			COALESCE(NULLIF(reference_name, ''), reference_document) AS visit_name,
-			note
+			patient,
+			COALESCE(NULLIF(reference_name, ''), reference_document) AS visit_name
 		FROM `tabClinical Note`
 		WHERE docstatus != 2
+		  AND IFNULL(patient, '') != ''
 		  AND (
 			(reference_doc = 'Patient Visit' AND reference_name IN ({placeholders}))
 			OR (reference_doctype = 'Patient Visit' AND reference_document IN ({placeholders}))
 		  )
 		""",
-		tuple(visit_names) * 2,
+		(*visit_names, *visit_names),
 		as_dict=True,
 	)
-	by_visit: dict[str, list[str]] = {}
+	keys: set[tuple[str, str]] = set()
 	for row in rows:
+		patient = (row.get("patient") or "").strip()
 		visit_name = (row.get("visit_name") or "").strip()
-		if not visit_name:
-			continue
-		normalized = _normalize_note_text(row.get("note"))
-		if not normalized:
-			continue
-		by_visit.setdefault(visit_name, []).append(normalized)
-	return by_visit
+		if patient and visit_name:
+			keys.add((patient, visit_name))
+	return keys
 
 
-def _normalized_notes_by_visit() -> dict[str, list[str]]:
-	rows = frappe.db.sql(
-		"""
-		SELECT
-			COALESCE(NULLIF(reference_name, ''), reference_document) AS visit_name,
-			note
-		FROM `tabClinical Note`
-		WHERE docstatus != 2
-		  AND (
-			(reference_doc = 'Patient Visit' AND IFNULL(reference_name, '') != '')
-			OR (reference_doctype = 'Patient Visit' AND IFNULL(reference_document, '') != '')
-		  )
-		""",
-		as_dict=True,
+def _count_visits_already_with_clinical_note() -> int:
+	"""How many visits-with-comment already have a Clinical Note for that patient+visit."""
+	return int(
+		frappe.db.sql(
+			"""
+			SELECT COUNT(*)
+			FROM `tabPatient Visit` pv
+			WHERE pv.encounter_comment IS NOT NULL
+			  AND TRIM(pv.encounter_comment) != ''
+			  AND IFNULL(pv.patient, '') != ''
+			  AND EXISTS (
+				SELECT 1
+				FROM `tabClinical Note` cn
+				WHERE cn.docstatus != 2
+				  AND cn.patient = pv.patient
+				  AND (
+					(cn.reference_doc = 'Patient Visit' AND cn.reference_name = pv.name)
+					OR (cn.reference_doctype = 'Patient Visit' AND cn.reference_document = pv.name)
+				  )
+			  )
+			"""
+		)[0][0]
+		or 0
 	)
-	by_visit: dict[str, list[str]] = {}
-	for row in rows:
-		visit_name = (row.get("visit_name") or "").strip()
-		if not visit_name:
-			continue
-		normalized = _normalize_note_text(row.get("note"))
-		if not normalized:
-			continue
-		by_visit.setdefault(visit_name, []).append(normalized)
-	return by_visit
-
-
-def _count_duplicate_visit_notes() -> int:
-	visits = frappe.get_all(
-		"Patient Visit",
-		filters=[
-			["encounter_comment", "is", "set"],
-			["encounter_comment", "!=", ""],
-		],
-		fields=["name", "encounter_comment"],
-		limit_page_length=0,
-	)
-	notes_by_visit = _normalized_notes_by_visit()
-	duplicate_count = 0
-	for visit in visits:
-		expected = _normalize_note_text(visit.get("encounter_comment"))
-		if expected and expected in notes_by_visit.get(visit.name, []):
-			duplicate_count += 1
-	return duplicate_count
 
 
 def _username_from_visit(visit: dict) -> str | None:
@@ -175,6 +156,7 @@ def _username_from_visit(visit: dict) -> str | None:
 
 
 def _posting_datetime_from_visit(visit: dict) -> datetime:
+	"""Posting date/time on Clinical Note = Patient Visit encounter date (+ time if present)."""
 	enc_date = visit.get("encounter_date")
 	if not enc_date:
 		return now_datetime()
@@ -182,7 +164,10 @@ def _posting_datetime_from_visit(visit: dict) -> datetime:
 	try:
 		return get_datetime(f"{getdate(enc_date)} {enc_time}")
 	except Exception:
-		return get_datetime(getdate(enc_date))
+		try:
+			return get_datetime(getdate(enc_date))
+		except Exception:
+			return now_datetime()
 
 
 def _note_html(text: str | None) -> str:
@@ -210,6 +195,7 @@ def _build_clinical_note_doc(visit: dict) -> frappe.model.document.Document:
 	note_body = _note_html(visit.get("encounter_comment"))
 	practitioner = (visit.get("practitioner") or "").strip() or None
 	visit_name = visit["name"]
+	posting_dt = _posting_datetime_from_visit(visit)
 
 	fields: dict[str, Any] = {
 		"doctype": "Clinical Note",
@@ -218,7 +204,7 @@ def _build_clinical_note_doc(visit: dict) -> frappe.model.document.Document:
 		"clinical_note_type": DOCTOR_PROGRESS_NOTE_TYPE,
 		"medical_role": _resolve_medical_role(practitioner),
 		"practitioner": practitioner,
-		"posting_date": _posting_datetime_from_visit(visit),
+		"posting_date": posting_dt,
 		"note": note_body,
 		"reference_doc": "Patient Visit",
 		"reference_name": visit_name,
@@ -236,6 +222,8 @@ def _build_clinical_note_doc(visit: dict) -> frappe.model.document.Document:
 		fields["inpatient_admission"] = inpatient
 
 	doc = frappe.get_doc({k: v for k, v in fields.items() if v not in (None, "")})
+	# Always keep posting_date even if somehow empty-string filtered (datetime never is)
+	doc.posting_date = posting_dt
 	assign_clinical_note_trans_no(doc)
 	doc.flags.ignore_permissions = True
 	doc.flags.ignore_mandatory = True
@@ -245,7 +233,9 @@ def _build_clinical_note_doc(visit: dict) -> frappe.model.document.Document:
 def upsert_clinical_note_from_patient_visit(
 	visit: dict,
 	*,
-	prefetched_notes: dict[str, list[str]] | None = None,
+	prefetched_keys: set[tuple[str, str]] | None = None,
+	# Back-compat: older callers passed prefetched_notes (text map) — ignore content, still use visit keys if provided as set
+	prefetched_notes: Any = None,
 ) -> str:
 	if not migration_enabled():
 		return "skip_disabled"
@@ -257,23 +247,37 @@ def upsert_clinical_note_from_patient_visit(
 	if not (visit.get("encounter_comment") or "").strip():
 		return "skip_no_comment"
 
-	if not visit.get("patient"):
+	patient = (visit.get("patient") or "").strip()
+	if not patient:
 		return "skip_no_patient"
 
-	if _existing_matching_clinical_note(
+	# Prefer explicit prefetched_keys; if legacy prefetched_notes is a set of tuples, accept it
+	keys = prefetched_keys
+	if keys is None and isinstance(prefetched_notes, set):
+		keys = prefetched_notes
+
+	if _existing_clinical_note_for_patient_visit(
+		patient,
 		visit_name,
-		visit.get("encounter_comment"),
-		prefetched_notes=prefetched_notes,
+		prefetched_keys=keys,
 	):
 		return "skip_existing"
 
+	posting_dt = _posting_datetime_from_visit(visit)
 	doc = _build_clinical_note_doc(visit)
 	doc.insert()
 
-	if prefetched_notes is not None:
-		normalized = _normalize_note_text(visit.get("encounter_comment"))
-		if normalized:
-			prefetched_notes.setdefault(visit_name, []).append(normalized)
+	# Force encounter-date posting even if Datetime default "now" raced on insert
+	frappe.db.set_value(
+		"Clinical Note",
+		doc.name,
+		"posting_date",
+		posting_dt,
+		update_modified=False,
+	)
+
+	if keys is not None:
+		keys.add((patient, visit_name))
 
 	return "created"
 
@@ -283,17 +287,21 @@ def preview_patient_visit_encounter_comment_clinical_note() -> dict:
 	_require_admin()
 	is_active = migration_enabled()
 	total = _encounter_comment_visits_sql_count()
-	already_duplicate = _count_duplicate_visit_notes() if total else 0
+	already_linked = _count_visits_already_with_clinical_note() if total else 0
 	return {
 		"migration_enabled": is_active,
 		"total_with_comment": total,
-		"already_linked": already_duplicate,
-		"already_duplicate": already_duplicate,
-		"to_create": max(total - already_duplicate, 0) if is_active else 0,
+		"already_linked": already_linked,
+		"already_duplicate": already_linked,
+		"to_create": max(total - already_linked, 0) if is_active else 0,
 	}
 
 
-def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) -> dict:
+def run_patient_visit_encounter_comment_clinical_note_batch(
+	*,
+	offset: int = 0,
+	stop_check=None,
+) -> dict:
 	if not migration_enabled():
 		return {
 			"batch_size": 0,
@@ -305,6 +313,7 @@ def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) 
 			"next_offset": offset,
 			"has_more": False,
 			"skipped_disabled": True,
+			"stopped": False,
 		}
 
 	visits = frappe.get_all(
@@ -334,25 +343,37 @@ def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) 
 		limit_page_length=BATCH_SIZE,
 	)
 
-	prefetched_notes = _prefetch_normalized_notes_for_visits([v["name"] for v in visits])
+	prefetched_keys = _prefetch_patient_visit_note_keys([v["name"] for v in visits])
 
 	created = 0
 	skipped_existing = 0
 	skipped_no_patient = 0
 	skipped_no_comment = 0
 	errors = 0
+	processed_in_batch = 0
+	stopped = False
+	created_since_commit = 0
 
 	for visit in visits:
+		if callable(stop_check) and stop_check():
+			stopped = True
+			break
+		processed_in_batch += 1
 		if not (visit.get("encounter_comment") or "").strip():
 			skipped_no_comment += 1
 			continue
 		try:
 			status = upsert_clinical_note_from_patient_visit(
 				visit,
-				prefetched_notes=prefetched_notes,
+				prefetched_keys=prefetched_keys,
 			)
 			if status == "created":
 				created += 1
+				created_since_commit += 1
+				# Release row / index locks so interactive UI saves can proceed
+				if created_since_commit >= COMMIT_EVERY_CREATED:
+					frappe.db.commit()
+					created_since_commit = 0
 			elif status == "skip_existing":
 				skipped_existing += 1
 			elif status == "skip_no_patient":
@@ -362,6 +383,8 @@ def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) 
 			else:
 				skipped_no_comment += 1
 		except Exception:
+			frappe.db.rollback()
+			created_since_commit = 0
 			errors += 1
 			frappe.log_error(
 				title=f"Patient Visit encounter_comment → Clinical Note failed: {visit.get('name')}",
@@ -370,6 +393,7 @@ def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) 
 
 	frappe.db.commit()
 
+	next_offset = offset + processed_in_batch
 	return {
 		"batch_size": len(visits),
 		"created": created,
@@ -377,10 +401,13 @@ def run_patient_visit_encounter_comment_clinical_note_batch(*, offset: int = 0) 
 		"skipped_no_patient": skipped_no_patient,
 		"skipped_no_comment": skipped_no_comment,
 		"errors": errors,
-		"next_offset": offset + len(visits),
-		"has_more": len(visits) >= BATCH_SIZE and migration_enabled(),
+		"next_offset": next_offset,
+		"has_more": (not stopped) and len(visits) >= BATCH_SIZE and migration_enabled(),
+		"stopped": stopped,
 	}
 
 
 def migration_disabled_message() -> str:
-	return _("Enable Active in Healthcare Settings before creating Clinical Notes from visit encounter comments.")
+	return _(
+		"Enable Active in Healthcare Settings before creating Clinical Notes from visit encounter comments."
+	)

@@ -29,7 +29,12 @@ import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import type { InpatientRecord, InpatientPackage } from '../../services/inpatientRecords'
+import {
+  ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
+  getAdmissionDisplayStatus,
+  type InpatientRecord,
+  type InpatientPackage,
+} from '../../services/inpatientRecords'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
 import { createInvoiceForInpatientAdmission } from '../../services/inpatientRecords' // Add this import
@@ -46,9 +51,10 @@ import { DateFilterInput } from '../ui/DateFilterInput'
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
   'Admitted': 'success',
+  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'info',
   'Discharge Scheduled': 'info',
   'Discharged': 'default',
-  'Cancelled': 'danger'
+  'Cancelled': 'danger',
 }
 
 /** Default status on every inpatient admission list. */
@@ -410,7 +416,14 @@ export const AdmissionList = ({
     setFilterBranch('')
   }
 
-  const statuses = ['Admission Scheduled', 'Admitted', 'Discharge Scheduled', 'Discharged', 'Cancelled']
+  const statuses = [
+    'Admission Scheduled',
+    'Admitted',
+    ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS,
+    'Discharge Scheduled',
+    'Discharged',
+    'Cancelled',
+  ]
   const hasActiveFilters =
     Boolean(practitionerFilter || dateFrom || dateTo || filterBranch) ||
     selectedStatus !== defaultStatus
@@ -422,7 +435,7 @@ export const AdmissionList = ({
       r.name,
       formatAdmissionPatientLabel(r),
       formatAdmissionDate(r, { fallback: '' }),
-      r.status || '',
+      getAdmissionDisplayStatus(r) || '',
     ])
     const csv = [headers, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(',')).join('\n')
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
@@ -437,7 +450,7 @@ export const AdmissionList = ({
   const printFilteredList = () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
     if (!win) return
-    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${formatAdmissionPatientLabel(r)}</td><td>${formatAdmissionDate(r, { fallback: '' })}</td><td>${r.status || ''}</td></tr>`).join('')
+    const rows = records.map((r) => `<tr><td>${r.name}</td><td>${formatAdmissionPatientLabel(r)}</td><td>${formatAdmissionDate(r, { fallback: '' })}</td><td>${getAdmissionDisplayStatus(r) || ''}</td></tr>`).join('')
     win.document.write(`<html><head><title>Inpatient Admission Listing</title></head><body><h3>Inpatient Admission Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Case No</th><th>Patient</th><th>Admission Date</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
     win.document.close()
     win.print()
@@ -660,16 +673,15 @@ export const AdmissionList = ({
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      <div className="flex flex-col items-start gap-0.5">
-                        <StatusPill status={record.status} color={statusColors[record.status] || 'default'} />
-                        {Boolean(record.discharge_in_progress) &&
-                          record.status !== 'Discharged' &&
-                          record.status !== 'Cancelled' && (
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-red-600">
-                              Discharge in progress
-                            </span>
-                          )}
-                      </div>
+                      {(() => {
+                        const displayStatus = getAdmissionDisplayStatus(record)
+                        return (
+                          <StatusPill
+                            status={displayStatus}
+                            color={statusColors[displayStatus] || statusColors[record.status] || 'default'}
+                          />
+                        )
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.admission_doctor_name || record.admission_by_doctor || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.resident_doctor_name || record.residents_doctor_no || '-'}</td>
