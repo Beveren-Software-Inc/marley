@@ -60,16 +60,34 @@ def _job_progress_key(job: str) -> str:
 	return f"healthcare:data_migration:{job}:progress"
 
 
+def _job_stop_key(job: str) -> str:
+	return f"healthcare:data_migration:{job}:stop"
+
+
 def _acquire_lock(job: str) -> None:
 	if frappe.cache().get_value(_job_lock_key(job)):
 		frappe.throw(
 			_("Job “{0}” is already running. Wait for it to finish before starting again.").format(job)
 		)
+	_clear_stop_request(job)
 	frappe.cache().set_value(_job_lock_key(job), 1, expires_in_sec=JOB_LOCK_SECONDS)
 
 
 def _release_lock(job: str) -> None:
 	frappe.cache().delete_value(_job_lock_key(job))
+	_clear_stop_request(job)
+
+
+def _request_stop(job: str) -> None:
+	frappe.cache().set_value(_job_stop_key(job), 1, expires_in_sec=JOB_LOCK_SECONDS)
+
+
+def _clear_stop_request(job: str) -> None:
+	frappe.cache().delete_value(_job_stop_key(job))
+
+
+def _stop_requested(job: str) -> bool:
+	return bool(frappe.cache().get_value(_job_stop_key(job)))
 
 
 def _set_progress(
@@ -907,6 +925,7 @@ def start_patient_visit_encounter_comment_clinical_note_migration() -> dict:
 		total_with_comment=preview.get("total_with_comment"),
 		already_linked=preview.get("already_linked"),
 		to_create=preview.get("to_create"),
+		stopped=False,
 	)
 	frappe.enqueue(
 		"healthcare.api.data_migration_jobs.process_patient_visit_encounter_comment_clinical_note_batch",
@@ -918,13 +937,63 @@ def start_patient_visit_encounter_comment_clinical_note_migration() -> dict:
 	return {
 		"ok": True,
 		"message": _(
-			"Patient Visit encounter_comment → Clinical Note job started ({0} visits with comment, {1} to create, {2} duplicate visit+note skipped)."
+			"Patient Visit encounter_comment → Clinical Note job started ({0} visits with comment, {1} to create, {2} already linked patient+visit skipped)."
 		).format(
 			preview.get("total_with_comment") or 0,
 			preview.get("to_create") or 0,
 			preview.get("already_duplicate") or preview.get("already_linked") or 0,
 		),
 	}
+
+
+@frappe.whitelist()
+def stop_patient_visit_encounter_comment_clinical_note_migration() -> dict:
+	"""Request stop of the visit encounter_comment → Clinical Note background job."""
+	_require_admin()
+	job = "patient_visit_encounter_comment_clinical_note"
+	running = bool(frappe.cache().get_value(_job_lock_key(job)))
+	if not running:
+		return {
+			"ok": False,
+			"message": _("That job is not running."),
+		}
+	_request_stop(job)
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	_set_progress(job, cint(prev.get("processed") or 0), stop_requested=True, **{
+		k: prev.get(k)
+		for k in prev
+		if k not in ("done", "error", "stop_requested", "stopped")
+	})
+	return {
+		"ok": True,
+		"message": _(
+			"Stop requested. The Clinical Notes job will halt after the current visit "
+			"(no further batches will be queued)."
+		),
+	}
+
+
+def _finalize_patient_visit_encounter_comment_job_stopped(job: str, processed: int) -> None:
+	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+	_set_progress(
+		job,
+		processed,
+		done=True,
+		stopped=True,
+		created=cint(prev.get("created")),
+		skipped_existing=cint(prev.get("skipped_existing")),
+		skipped_no_patient=cint(prev.get("skipped_no_patient")),
+		skipped_no_comment=cint(prev.get("skipped_no_comment")),
+		errors=cint(prev.get("errors")),
+		total_with_comment=prev.get("total_with_comment"),
+		already_linked=prev.get("already_linked"),
+		to_create=prev.get("to_create"),
+	)
+	_release_lock(job)
+	frappe.log_error(
+		title="Patient Visit encounter_comment → Clinical Note migration stopped",
+		message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+	)
 
 
 def process_patient_visit_encounter_comment_clinical_note_batch(offset: int = 0) -> None:
@@ -934,7 +1003,14 @@ def process_patient_visit_encounter_comment_clinical_note_batch(offset: int = 0)
 
 	job = "patient_visit_encounter_comment_clinical_note"
 	try:
-		result = run_patient_visit_encounter_comment_clinical_note_batch(offset=offset)
+		if _stop_requested(job):
+			_finalize_patient_visit_encounter_comment_job_stopped(job, cint(offset))
+			return
+
+		result = run_patient_visit_encounter_comment_clinical_note_batch(
+			offset=offset,
+			stop_check=lambda: _stop_requested(job),
+		)
 		processed = result.get("next_offset") or offset
 		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
 		_set_progress(
@@ -949,6 +1025,10 @@ def process_patient_visit_encounter_comment_clinical_note_batch(offset: int = 0)
 			already_linked=prev.get("already_linked"),
 			to_create=prev.get("to_create"),
 		)
+
+		if result.get("stopped") or _stop_requested(job):
+			_finalize_patient_visit_encounter_comment_job_stopped(job, processed)
+			return
 
 		if result.get("has_more"):
 			frappe.enqueue(
@@ -1098,7 +1178,11 @@ def get_migration_job_status(job: str) -> dict:
 	_require_admin()
 	progress = frappe.cache().get_value(_job_progress_key(job)) or {}
 	running = bool(frappe.cache().get_value(_job_lock_key(job)))
-	return {"running": running, **progress}
+	return {
+		**progress,
+		"running": running,
+		"stop_requested": _stop_requested(job) or bool(progress.get("stop_requested")),
+	}
 
 
 def _patient_history_import_admissions_cache_key() -> str:

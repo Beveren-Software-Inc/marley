@@ -113,6 +113,25 @@ def _ensure_lab_result_edit_permission(doc=None):
 	)
 
 
+# Results may not be entered while sample collection is still outstanding.
+LAB_PRE_SAMPLE_COLLECTION_STATUSES = frozenset(
+	(
+		"Draft",
+		"Requested",
+		"Awaiting sample collection",
+		"Sample Collection in Progress",
+		"Sample collection in progress",
+	)
+)
+
+
+def _lab_test_sample_collection_done(doc) -> bool:
+	status = cstr(getattr(doc, "status", None) or "").strip()
+	if not status or status == "Cancelled":
+		return False
+	return status not in LAB_PRE_SAMPLE_COLLECTION_STATUSES
+
+
 def _ensure_lab_result_save_allowed(doc):
 	"""F013/F014: lab result editors may correct results until a final status; after a
 	final status (Approved/Completed) or a finished group, only administrators/CEO may amend."""
@@ -120,6 +139,12 @@ def _ensure_lab_result_save_allowed(doc):
 		frappe.throw(_("Cannot update a cancelled Lab Test"))
 	if doc.status in ("Rejected", "Cancelled"):
 		frappe.throw(_("Cannot update a {0} Lab Test").format(doc.status))
+
+	if not _lab_test_sample_collection_done(doc):
+		frappe.throw(
+			_("Complete sample collection before entering lab test results."),
+			title=_("Sample collection required"),
+		)
 
 	is_final = doc.status in FINAL_LAB_STATUSES or _is_group_lab_finished(doc)
 	if is_final:
@@ -130,7 +155,7 @@ def _ensure_lab_result_save_allowed(doc):
 				frappe.PermissionError,
 			)
 		return
-	# Draft, or submitted-but-not-final (Pending Review / Reviewed / …): editable by
+	# Sample Collected / Testing / Pending Review / Reviewed / …: editable by
 	# any lab result editor (role checked separately in _ensure_lab_result_edit_permission).
 	return
 

@@ -86,6 +86,8 @@ export interface LongActingMedicineItem {
   patient_frequency?: string
   qty_per_cycle?: number | string
   is_active?: number | boolean
+  old_med_no?: string
+  old_medication_name?: string
 }
 
 export async function fetchLongActingMedicine(name: string): Promise<LongActingMedicineRow> {

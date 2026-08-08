@@ -1,4 +1,5 @@
 import { flagsFromPrescriptionType } from '../utils/prescriptionType'
+import type { LongActingMedicineRow } from './longActingMedicine'
 
 export interface Prescription {
   name: string
@@ -493,6 +494,78 @@ export function mapOrderToDuplicateMedication(order: any): MedicationOrderRow {
     medicine_no: order.medicine_no || '',
     medication: order.medication || '',
   }
+}
+
+/** Blank medication line pre-set as Long Acting Medicine (doctor + on LAM listing). */
+export function emptyLongActingMedicationRow(startDate?: string): MedicationOrderRow {
+  const date = startDate || new Date().toISOString().split('T')[0]
+  return {
+    drug: '',
+    drug_name: '',
+    dosage: '',
+    uom: 'UNIT',
+    no_of_days: 1,
+    dosage_form: '',
+    instructions: '',
+    date,
+    end_date: '',
+    time: '',
+    patient_frequency: '',
+    is_pink: false,
+    reference_no: '',
+    is_prn: false,
+    is_long_acting: true,
+    long_acting_frequency: 'Weekly',
+    route_of_administration: '',
+    medication_type: 'Long Acting Medicine',
+  }
+}
+
+/** Map a Long Acting Medicine doc into Create Prescription medication rows (Duplicate). */
+export function mapLongActingMedicineToDuplicateMedications(
+  lam: LongActingMedicineRow
+): MedicationOrderRow[] {
+  const today = new Date().toISOString().split('T')[0]
+  const freq = (lam.frequency || 'Weekly').trim() || 'Weekly'
+  const activeMeds = (lam.medications || []).filter(
+    (m) => m.is_active !== 0 && m.is_active !== false
+  )
+  const source =
+    activeMeds.length > 0
+      ? activeMeds
+      : [
+          {
+            drug: '',
+            drug_name: lam.drug_name || lam.medication_label || '',
+            dosage: lam.default_dosage,
+            dosage_form: lam.default_dosage_form,
+            instructions: '',
+            patient_frequency: '',
+          },
+        ]
+
+  return source.map((m) => ({
+    drug: m.drug || '',
+    drug_name: m.drug_name || m.drug || '',
+    dosage: m.dosage != null && m.dosage !== '' ? String(m.dosage) : '',
+    uom: 'UNIT',
+    no_of_days: 1,
+    dosage_form: m.dosage_form || '',
+    instructions: m.instructions || '',
+    date: today,
+    end_date: lam.end_date || '',
+    time: '',
+    patient_frequency: m.patient_frequency || freq,
+    is_pink: false,
+    reference_no: '',
+    is_prn: false,
+    is_long_acting: true,
+    long_acting_frequency: freq,
+    route_of_administration: '',
+    medication_type: 'Long Acting Medicine',
+    old_medicine_code: m.old_med_no || '',
+    old_medicine_name: m.old_medication_name || '',
+  }))
 }
 
 export async function createPrescription(

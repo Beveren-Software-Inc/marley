@@ -615,6 +615,15 @@ export const SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES = new Set([
   'Sample collection in progress',
 ])
 
+/** Statuses where sample collection is not finished yet — results stay locked. */
+export const LAB_TEST_PRE_SAMPLE_COLLECTION_STATUSES = new Set([
+  'Draft',
+  'Requested',
+  'Awaiting sample collection',
+  'Sample Collection in Progress',
+  'Sample collection in progress',
+])
+
 export const AD_HOC_SAMPLE_COLLECTION_LAB_TEST_STATUSES = new Set(['Requested', 'Draft'])
 
 export function canRecordAdHocSampleCollection(labTest: {
@@ -630,6 +639,17 @@ export function canRecordAdHocSampleCollection(labTest: {
 export function canEditLabTestSampleCollection(status?: string | null): boolean {
   if (!status) return false
   return SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES.has(status.trim())
+}
+
+/** True once sample collection is done (Sample Collected or any later workflow status). */
+export function isLabTestSampleCollectionDone(labTest: {
+  status?: string | null
+}): boolean {
+  const status = (labTest.status || '').trim()
+  if (!status) return false
+  if (LAB_TEST_PRE_SAMPLE_COLLECTION_STATUSES.has(status)) return false
+  if (status === 'Cancelled') return false
+  return true
 }
 
 export interface LabSampleCollectionFormData {

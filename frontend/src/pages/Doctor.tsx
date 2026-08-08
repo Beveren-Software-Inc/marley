@@ -57,6 +57,7 @@ import { PhysicalExaminationList } from '../components/physicalExam/PhysicalExam
 import { PhysicalExaminationModal } from '../components/physicalExam/PhysicalExaminationModal'
 import { CreatePrescriptionModal } from '../components/prescriptions/CreatePrescriptionModal'
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
+import { emptyLongActingMedicationRow } from '../services/prescriptions'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
@@ -174,12 +175,9 @@ export const DoctorPage = () => {
   const [showDoctorNoteModal, setShowDoctorNoteModal] = useState(false)
   const [showDoctorOrderModal, setShowDoctorOrderModal] = useState(false)
   const [showNursingNoteModal, setShowNursingNoteModal] = useState(false)
-  const [showNutritionNoteModal, setShowNutritionNoteModal] = useState(false)
-  const [showTherapistNoteModal, setShowTherapistNoteModal] = useState(false)
   const [showDoctorProgressNoteModal, setShowDoctorProgressNoteModal] = useState(false)
   const [showDoctorMedicationPlanModal, setShowDoctorMedicationPlanModal] = useState(false)
   const [, setDoctorMedicationPlanRefreshKey] = useState(0)
-  const [showPsychologistNoteModal, setShowPsychologistNoteModal] = useState(false)
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [vitalSignsRefreshKey, setVitalSignsRefreshKey] = useState(0)
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
@@ -189,7 +187,8 @@ export const DoctorPage = () => {
   const [doctorSickLeaveOpen, setDoctorSickLeaveOpen] = useState(false)
   const [doctorSickLeaveRefresh, setDoctorSickLeaveRefresh] = useState(0)
   const [showCreateNurseTaskModal, setShowCreateNurseTaskModal] = useState(false)
-  const [longActingRefreshKey] = useState(0)
+  const [longActingRefreshKey, setLongActingRefreshKey] = useState(0)
+  const [showLongActingPrescriptionModal, setShowLongActingPrescriptionModal] = useState(false)
   const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
   const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
   const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
@@ -834,17 +833,13 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Psychologist Notes
+  // Show Psychologist Notes (read-only for doctors)
   if (screen === 'psy-n') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Patient Psychologist Notes" 
-            onAdd={() => guardClinicalCreate(() => setShowPsychologistNoteModal(true))}
-            addButtonTitle="Add Psychologist Note"
-          >
+          <DashboardCard title="Patient Psychologist Notes">
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Psychologist Note"
@@ -853,33 +848,17 @@ export const DoctorPage = () => {
             />
           </DashboardCard>
         </div>
-        {showPsychologistNoteModal && (
-          <CreateClinicalNoteModal
-            onClose={() => setShowPsychologistNoteModal(false)}
-            onSuccess={() => {
-              setClinicalNotesRefreshKey(prev => prev + 1)
-              setShowPsychologistNoteModal(false)
-            }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Psychologist Note"
-            title="Add Psychologist Note"
-          />
-        )}
       </div>
     )
   }
 
-  // Show Psychologist Orders
+  // Show Psychologist Orders (read-only for doctors)
   if (screen === 'psy-o') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Psychology Orders" 
-            onAdd={() => guardClinicalCreate(() => setShowDiagnosisModal(true))}
-            addButtonTitle="Add Psychologist Order"
-          >
+          <DashboardCard title="Psychology Orders">
             <ClinicalNotesList
               patient={selectedPatient}
               clinicalNoteType="Psychologist Order"
@@ -887,33 +866,17 @@ export const DoctorPage = () => {
             />
           </DashboardCard>
         </div>
-        {showDiagnosisModal && (
-          <CreateClinicalNoteModal
-            onClose={() => setShowDiagnosisModal(false)}
-            onSuccess={() => {
-              setDiagnosisRefreshKey(prev => prev + 1)
-              setShowDiagnosisModal(false)
-            }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Psychologist Order"
-            title="Add Psychologist Order"
-          />
-        )}
       </div>
     )
   }
 
-  // Show Therapist Notes
+  // Show Therapist Notes (read-only for doctors)
   if (screen === 'ther') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Occupational Therapy Notes"
-            onAdd={() => guardClinicalCreate(() => setShowTherapistNoteModal(true))}
-            addButtonTitle="Add Therapist Note"
-          >
+          <DashboardCard title="Occupational Therapy Notes">
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Therapist Note"
@@ -922,18 +885,6 @@ export const DoctorPage = () => {
             />
           </DashboardCard>
         </div>
-        {showTherapistNoteModal && (
-          <CreateClinicalNoteModal
-            onClose={() => setShowTherapistNoteModal(false)}
-            onSuccess={() => {
-              setClinicalNotesRefreshKey(prev => prev + 1)
-              setShowTherapistNoteModal(false)
-            }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Therapist Note"
-            title="Add Therapist Note"
-          />
-        )}
       </div>
     )
   }
@@ -1599,13 +1550,35 @@ export const DoctorPage = () => {
           <div className="mb-4">
             <h2 className="text-xl font-semibold text-slate-900">Long Acting Medicines</h2>
           </div>
-          <DashboardCard title="Long Acting Medicines" noHeightLimit>
+          <DashboardCard
+            title="Long Acting Medicines"
+            noHeightLimit
+            onAdd={() => guardClinicalCreate(() => setShowLongActingPrescriptionModal(true))}
+            addButtonTitle="Add Long Acting Prescription"
+          >
             <ReceptionLongActingMedicineList
               patient={selectedPatient || undefined}
               refreshKey={longActingRefreshKey}
+              onPatientClick={handlePatientSelect}
+              onPrescriptionCreated={() => {
+                setLongActingRefreshKey((prev) => prev + 1)
+                setPrescriptionRefreshKey((prev) => prev + 1)
+              }}
             />
           </DashboardCard>
         </div>
+        {showLongActingPrescriptionModal && (
+          <CreatePrescriptionModal
+            onClose={() => setShowLongActingPrescriptionModal(false)}
+            onSuccess={() => {
+              setShowLongActingPrescriptionModal(false)
+              setLongActingRefreshKey((prev) => prev + 1)
+              setPrescriptionRefreshKey((prev) => prev + 1)
+            }}
+            initialPatient={selectedPatient}
+            initialMedications={[emptyLongActingMedicationRow()]}
+          />
+        )}
       </div>
     )
   }
@@ -1619,6 +1592,7 @@ export const DoctorPage = () => {
           <AppointmentsCard
             fullScreen
             doctorScheduleMode
+            defaultTodayDates
             patient={selectedPatient || undefined}
             onPatientSelect={handlePatientSelect}
             onOpenVisitInHeader={returnToDoctorHome}
@@ -1739,17 +1713,13 @@ export const DoctorPage = () => {
     )
   }
 
-  // Show Nutritionist Notes
+  // Show Nutritionist Notes (read-only for doctors)
   if (screen === 'nut') {
     return (
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard 
-            title="Nutrition Notes" 
-            onAdd={() => guardClinicalCreate(() => setShowNutritionNoteModal(true))}
-            addButtonTitle="Add Nutritionist Note"
-          >
+          <DashboardCard title="Nutrition Notes">
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Nutritionist Note"
@@ -1758,18 +1728,6 @@ export const DoctorPage = () => {
             />
           </DashboardCard>
         </div>
-        {showNutritionNoteModal && (
-          <CreateClinicalNoteModal
-            onClose={() => setShowNutritionNoteModal(false)}
-            onSuccess={() => {
-              setClinicalNotesRefreshKey(prev => prev + 1)
-              setShowNutritionNoteModal(false)
-            }}
-            initialPatient={selectedPatient}
-            defaultClinicalNoteType="Nutritionist Note"
-            title="Add Nutritionist Note"
-          />
-        )}
       </div>
     )
   }
@@ -2219,6 +2177,7 @@ export const DoctorPage = () => {
   const doctorAppointmentsCard = (
     <AppointmentsCard
       doctorScheduleMode
+      defaultTodayDates
       listingScreen="appointments"
       patient={selectedPatient || undefined}
       onPatientSelect={handlePatientSelect}

@@ -302,13 +302,30 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                         },
                         i: number
                       ) => (
-                        <tr key={i} className={item.abnormal ? 'bg-red-50' : 'hover:bg-slate-50'}>
+                        <tr
+                          key={i}
+                          className={
+                            item.result_status === 'Low' || item.result_status === 'Critically Low'
+                              ? 'bg-yellow-50'
+                              : item.abnormal ||
+                                  item.result_status === 'High' ||
+                                  item.result_status === 'Critically High'
+                                ? 'bg-red-50'
+                                : 'hover:bg-slate-50'
+                          }
+                        >
                           <td className="px-3 py-2.5 font-medium text-slate-900">
                             {item.lab_test_event || item.lab_test_name || '—'}
                           </td>
                           <td
                             className={`px-3 py-2.5 font-medium ${
-                              item.abnormal ? 'text-red-700' : 'text-slate-800'
+                              item.result_status === 'Low' || item.result_status === 'Critically Low'
+                                ? 'text-yellow-800'
+                                : item.abnormal ||
+                                    item.result_status === 'High' ||
+                                    item.result_status === 'Critically High'
+                                  ? 'text-red-700'
+                                  : 'text-slate-800'
                             }`}
                           >
                             {item.result_value || '—'}
@@ -319,7 +336,18 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
                           </td>
                           <td className="px-3 py-2.5">
                             {item.result_status ? (
-                              <span className="inline-flex rounded bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-800">
+                              <span
+                                className={`inline-flex rounded px-2 py-0.5 text-xs font-medium ${
+                                  item.result_status === 'Low' || item.result_status === 'Critically Low'
+                                    ? 'bg-yellow-100 text-yellow-900'
+                                    : item.result_status === 'High' ||
+                                        item.result_status === 'Critically High'
+                                      ? 'bg-red-100 text-red-700'
+                                      : item.result_status === 'Normal'
+                                        ? 'bg-green-100 text-green-800'
+                                        : 'bg-slate-100 text-slate-800'
+                                }`}
+                              >
                                 {item.result_status}
                               </span>
                             ) : item.abnormal ? (

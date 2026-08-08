@@ -14,6 +14,24 @@ export function displayResultFlag(lt: LabTest): string {
   return simplifyResultFlagLabel(lt.result_flag) || ''
 }
 
+/** Badge classes: High / critical high = red-orange; Low / critical low = yellow. */
+export function resultFlagBadgeClass(flag?: string | null): string {
+  const f = (flag || '').trim().toLowerCase()
+  if (!f) return 'bg-slate-100 text-slate-500'
+  if (f.includes('low')) {
+    return f.includes('critical')
+      ? 'bg-yellow-100 text-yellow-900 ring-1 ring-yellow-400'
+      : 'bg-yellow-100 text-yellow-800'
+  }
+  if (f.includes('high') || f.includes('critical')) {
+    return f.includes('critical')
+      ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+      : 'bg-orange-100 text-orange-700'
+  }
+  if (f === 'normal') return 'bg-green-100 text-green-700'
+  return 'bg-orange-100 text-orange-700'
+}
+
 export function labTestResultPreview(lt: LabTest): string {
   const lines = lt.lab_test_lines || []
   if (lt.is_legacy_line_row || lt.is_legacy_import) {

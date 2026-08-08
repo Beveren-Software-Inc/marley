@@ -111,12 +111,14 @@ function padHistoryColumns(columns: LabHistoryMatrixColumn[]): LabHistoryMatrixC
   return padded
 }
 
-function cellClass(flag?: string) {
+function cellClass(flag?: string, direction?: 'high' | 'low' | null) {
   switch (flag) {
     case 'normal':
       return 'bg-green-100 text-green-900'
     case 'abnormal':
-      return 'bg-red-100 text-red-900 font-medium'
+      return direction === 'low'
+        ? 'bg-yellow-100 text-yellow-900 font-medium'
+        : 'bg-red-100 text-red-900 font-medium'
     default:
       return 'bg-white text-slate-800'
   }
@@ -127,7 +129,7 @@ function cellDirectionArrow(direction?: 'high' | 'low' | null) {
     return <span className="shrink-0 text-[10px] font-bold leading-none text-red-800" aria-label="High">↑</span>
   }
   if (direction === 'low') {
-    return <span className="shrink-0 text-[10px] font-bold leading-none text-red-800" aria-label="Low">↓</span>
+    return <span className="shrink-0 text-[10px] font-bold leading-none text-yellow-700" aria-label="Low">↓</span>
   }
   return null
 }
@@ -477,11 +479,14 @@ export const LabTestHistory = ({
                 <span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Normal
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> Abnormal
+                <span className="w-3 h-3 rounded bg-red-100 border border-red-200" /> High
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-3 h-3 rounded bg-yellow-100 border border-yellow-200" /> Low
               </span>
               <span className="inline-flex items-center gap-1 text-slate-500">
                 <span className="text-red-800 font-bold">↑</span> High
-                <span className="text-red-800 font-bold ml-2">↓</span> Low
+                <span className="text-yellow-700 font-bold ml-2">↓</span> Low
               </span>
             </span>
           </div>
@@ -521,7 +526,7 @@ export const LabTestHistory = ({
                         {showTestCol ? (
                           <td className="px-3 py-2 text-sm text-slate-700">{ev.testLabel}</td>
                         ) : null}
-                        <td className={`px-3 py-2 text-sm ${cellClass(ev.cell.flag)}`}>
+                        <td className={`px-3 py-2 text-sm ${cellClass(ev.cell.flag, ev.cell.direction)}`}>
                           <span className="inline-flex items-center gap-1 font-medium">
                             {ev.cell.value}
                             {cellDirectionArrow(ev.cell.direction)}
@@ -595,7 +600,9 @@ export const LabTestHistory = ({
                         <td
                           key={col.key}
                           className={`px-1.5 py-1 text-center text-xs border-l w-[58px] min-w-[58px] max-w-[72px] ${
-                            isPad ? 'border-slate-50 bg-slate-50/30' : `border-slate-100 ${cellClass(cell?.flag)}`
+                            isPad
+                              ? 'border-slate-50 bg-slate-50/30'
+                              : `border-slate-100 ${cellClass(cell?.flag, cell?.direction)}`
                           }`}
                           title={
                             cell?.value

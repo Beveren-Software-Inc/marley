@@ -5,7 +5,7 @@ import {
   dashboardCardRowHoverClass,
   formatDashboardDate,
 } from '../ui/dashboardCardListing'
-import { displayResultFlag, labTestResultPreview } from './labTestReviewUtils'
+import { displayResultFlag, labTestResultPreview, resultFlagBadgeClass } from './labTestReviewUtils'
 import { isLegacyHistoryLabRow, resolveLabTestDocName } from './labTestDisplayUtils'
 
 const statusColors: Record<string, string> = {
@@ -133,7 +133,11 @@ export function LabTestDashboardCardTable({
                 {isDoctor && (
                   <td className="px-2 py-2 align-top">
                     {flag ? (
-                      <span className="inline-flex items-center rounded-md bg-orange-100 px-1.5 py-0.5 text-[10px] font-medium text-orange-700">
+                      <span
+                        className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-medium ${resultFlagBadgeClass(
+                          lt.result_flag || flag,
+                        )}`}
+                      >
                         {flag}
                       </span>
                     ) : (

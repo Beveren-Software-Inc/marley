@@ -956,11 +956,13 @@ frappe.ui.form.on('Healthcare Settings', {
 							: counts.already_linked || 0;
 					frappe.confirm(
 						__(
-							'Run in background: for each Patient Visit with encounter_comment, create a Doctor Progress Note?\n\n'
+							'Run in background: for each Patient Visit with encounter_comment (Review Details), create a Doctor Progress Note?\n\n'
 								+ 'Visits with comment: {0}\n'
-								+ 'Duplicate visit + note (skipped): {1}\n'
+								+ 'Already have note for same patient + visit (skipped): {1}\n'
 								+ 'Notes to create: {2}\n\n'
-								+ 'Note text = encounter_comment. Date, practitioner, patient, cost center, and username (if on visit) are copied from the visit. Visits that already have a Clinical Note with the same text for that visit are skipped. Continue?',
+								+ 'Note text = encounter_comment. Posting date = visit encounter date. '
+								+ 'Practitioner, patient, cost center, and username (if on visit) are copied from the visit. '
+								+ 'Visits that already have a Doctor Progress Note for the same patient and same visit are skipped (no duplicates). Continue?',
 							[total, duplicates, counts.to_create || 0]
 						),
 						() =>
@@ -972,6 +974,33 @@ frappe.ui.form.on('Healthcare Settings', {
 					);
 				},
 			});
+		}, __('Data Maintenance'));
+
+		frm.add_custom_button(__('Stop Clinical Notes from Visit Encounter Comment'), () => {
+			frappe.confirm(
+				__(
+					'Stop the background job that creates Clinical Notes from Patient Visit encounter comments?\n\n'
+						+ 'The current visit being processed will finish; no further visits or batches will run.'
+				),
+				() => {
+					frappe.call({
+						method:
+							'healthcare.api.data_migration_jobs.stop_patient_visit_encounter_comment_clinical_note_migration',
+						freeze: true,
+						freeze_message: __('Requesting stop…'),
+						callback(r) {
+							const msg = r.message || {};
+							frappe.show_alert({
+								message: msg.message || __('Stop requested'),
+								indicator: msg.ok ? 'orange' : 'red',
+							});
+							if (msg.ok) {
+								poll_migration_status('patient_visit_encounter_comment_clinical_note');
+							}
+						},
+					});
+				}
+			);
 		}, __('Data Maintenance'));
 
 		frm.add_custom_button(__('Fix Patient Gender (1→Male, 2→Female)'), () => {
@@ -6229,7 +6258,18 @@ function poll_migration_status(jobKey) {
 			callback(r) {
 				const s = r.message || {};
 				if (s.running && !s.done) {
-					if (s.processed) {
+					if (
+						jobKey === 'patient_visit_encounter_comment_clinical_note' &&
+						s.stop_requested
+					) {
+						frappe.show_alert({
+							message: __(
+								'{0}: stop requested — finishing current visit, then halting… ({1} processed)',
+								[jobKey, s.processed || 0]
+							),
+							indicator: 'orange',
+						});
+					} else if (s.processed) {
 						frappe.show_alert({
 							message: __('{0}: {1} records processed so far…', [jobKey, s.processed]),
 							indicator: 'blue',
@@ -6719,16 +6759,30 @@ function poll_migration_status(jobKey) {
 							]
 						);
 					} else if (jobKey === 'patient_visit_encounter_comment_clinical_note') {
-						msg = __(
-							'{0} finished: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors.',
-							[
-								jobKey,
-								s.created || 0,
-								s.skipped_existing || 0,
-								s.skipped_no_patient || 0,
-								s.errors || 0,
-							]
-						);
+						if (s.stopped) {
+							msg = __(
+								'{0} stopped: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors, {5} visits processed.',
+								[
+									jobKey,
+									s.created || 0,
+									s.skipped_existing || 0,
+									s.skipped_no_patient || 0,
+									s.errors || 0,
+									s.processed || 0,
+								]
+							);
+						} else {
+							msg = __(
+								'{0} finished: {1} created, {2} duplicate visit+note, {3} no patient, {4} errors.',
+								[
+									jobKey,
+									s.created || 0,
+									s.skipped_existing || 0,
+									s.skipped_no_patient || 0,
+									s.errors || 0,
+								]
+							);
+						}
 					} else if (jobKey === 'patient_cpr_photo_import') {
 						msg = __(
 							'{0} finished: {1} front uploaded, {2} back uploaded, {3} invalid, {4} patient not found, {5} skipped (existing), {6} errors.',
