@@ -64,30 +64,88 @@ def _job_stop_key(job: str) -> str:
 	return f"healthcare:data_migration:{job}:stop"
 
 
+def _job_stop_global_key(job: str) -> str:
+	"""DB-backed stop flag so RQ workers see stop even if Redis/cache is flaky."""
+	return f"healthcare_migration_stop::{job}"
+
+
+def _job_lock_global_key(job: str) -> str:
+	return f"healthcare_migration_lock::{job}"
+
+
 def _acquire_lock(job: str) -> None:
-	if frappe.cache().get_value(_job_lock_key(job)):
+	if _job_is_marked_running(job):
 		frappe.throw(
 			_("Job “{0}” is already running. Wait for it to finish before starting again.").format(job)
 		)
 	_clear_stop_request(job)
 	frappe.cache().set_value(_job_lock_key(job), 1, expires_in_sec=JOB_LOCK_SECONDS)
+	frappe.db.set_global(_job_lock_global_key(job), "1")
+	frappe.db.commit()
+
+
+def _renew_lock(job: str) -> None:
+	"""Keep lock alive across long multi-batch runs."""
+	frappe.cache().set_value(_job_lock_key(job), 1, expires_in_sec=JOB_LOCK_SECONDS)
+	frappe.db.set_global(_job_lock_global_key(job), "1")
 
 
 def _release_lock(job: str) -> None:
 	frappe.cache().delete_value(_job_lock_key(job))
+	frappe.db.set_global(_job_lock_global_key(job), None)
 	_clear_stop_request(job)
+
+
+def _job_appears_active(job: str) -> bool:
+	"""True when lock is held or progress shows an unfinished run."""
+	if _job_is_marked_running(job):
+		return True
+	progress = frappe.cache().get_value(_job_progress_key(job)) or {}
+	if not progress:
+		return False
+	if progress.get("done") or progress.get("stopped") or progress.get("error"):
+		return False
+	return True
 
 
 def _request_stop(job: str) -> None:
 	frappe.cache().set_value(_job_stop_key(job), 1, expires_in_sec=JOB_LOCK_SECONDS)
+	# Commit so background workers see this on the next DB read / after their commit.
+	frappe.db.set_global(_job_stop_global_key(job), "1")
+	frappe.db.commit()
 
 
 def _clear_stop_request(job: str) -> None:
 	frappe.cache().delete_value(_job_stop_key(job))
+	frappe.db.set_global(_job_stop_global_key(job), None)
+
+
+def _read_global_flag(key: str) -> bool:
+	"""Read tabDefaultValue directly so RQ workers are not stuck on a stale defaults cache."""
+	row = frappe.db.sql(
+		"""
+		SELECT defvalue
+		FROM `tabDefaultValue`
+		WHERE defkey = %s AND parent = %s
+		LIMIT 1
+		""",
+		(key, "__default"),
+	)
+	if not row:
+		return False
+	return bool(cint(row[0][0]))
 
 
 def _stop_requested(job: str) -> bool:
-	return bool(frappe.cache().get_value(_job_stop_key(job)))
+	if frappe.cache().get_value(_job_stop_key(job)):
+		return True
+	return _read_global_flag(_job_stop_global_key(job))
+
+
+def _job_is_marked_running(job: str) -> bool:
+	if frappe.cache().get_value(_job_lock_key(job)):
+		return True
+	return _read_global_flag(_job_lock_global_key(job))
 
 
 def _set_progress(
@@ -951,19 +1009,37 @@ def stop_patient_visit_encounter_comment_clinical_note_migration() -> dict:
 	"""Request stop of the visit encounter_comment → Clinical Note background job."""
 	_require_admin()
 	job = "patient_visit_encounter_comment_clinical_note"
-	running = bool(frappe.cache().get_value(_job_lock_key(job)))
-	if not running:
-		return {
-			"ok": False,
-			"message": _("That job is not running."),
-		}
+	# Always set the stop flag. The Redis lock can disappear (worker recycle / expiry)
+	# while RQ is still creating notes — refusing here left the job unstoppable.
 	_request_stop(job)
 	prev = frappe.cache().get_value(_job_progress_key(job)) or {}
-	_set_progress(job, cint(prev.get("processed") or 0), stop_requested=True, **{
-		k: prev.get(k)
-		for k in prev
-		if k not in ("done", "error", "stop_requested", "stopped")
-	})
+	_set_progress(
+		job,
+		cint(prev.get("processed") or 0),
+		stop_requested=True,
+		done=False,
+		**{
+			k: prev.get(k)
+			for k in prev
+			if k
+			not in (
+				"processed",
+				"done",
+				"error",
+				"stop_requested",
+				"stopped",
+				"updated_at",
+			)
+		},
+	)
+	if not _job_appears_active(job) and not prev:
+		return {
+			"ok": True,
+			"message": _(
+				"Stop signal sent. No active job lock was found — if a worker is still "
+				"creating Clinical Notes, it will halt after the current visit."
+			),
+		}
 	return {
 		"ok": True,
 		"message": _(
@@ -990,6 +1066,7 @@ def _finalize_patient_visit_encounter_comment_job_stopped(job: str, processed: i
 		to_create=prev.get("to_create"),
 	)
 	_release_lock(job)
+	frappe.db.commit()
 	frappe.log_error(
 		title="Patient Visit encounter_comment → Clinical Note migration stopped",
 		message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
@@ -1003,6 +1080,7 @@ def process_patient_visit_encounter_comment_clinical_note_batch(offset: int = 0)
 
 	job = "patient_visit_encounter_comment_clinical_note"
 	try:
+		_renew_lock(job)
 		if _stop_requested(job):
 			_finalize_patient_visit_encounter_comment_job_stopped(job, cint(offset))
 			return
@@ -1177,7 +1255,12 @@ def start_morse_fall_scale_detail_dedupe_migration() -> dict:
 def get_migration_job_status(job: str) -> dict:
 	_require_admin()
 	progress = frappe.cache().get_value(_job_progress_key(job)) or {}
-	running = bool(frappe.cache().get_value(_job_lock_key(job)))
+	running = _job_is_marked_running(job) or (
+		bool(progress)
+		and not progress.get("done")
+		and not progress.get("stopped")
+		and not progress.get("error")
+	)
 	return {
 		**progress,
 		"running": running,
