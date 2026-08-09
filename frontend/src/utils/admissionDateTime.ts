@@ -64,6 +64,8 @@ export function formatDateTimeDisplay(value?: string | null, fallback = '—'): 
 
 export interface AdmissionSpanFields extends AdmissionDateFields {
   discharge_datetime?: string | null
+  /** Planned discharge date from a draft Discharge (Discharge in Progress). */
+  draft_discharge_date?: string | null
 }
 
 /** Format date only (no time) for display. */
@@ -75,12 +77,12 @@ export function formatDateOnlyDisplay(value?: string | null, fallback = '—'): 
   return dt.toLocaleDateString('en-GB')
 }
 
-/** Admission date, or admission → discharge when discharged (dates only, no time). */
+/** Admission date, or admission → discharge when discharged / discharge in progress (dates only). */
 export function formatAdmissionDateSpan(record: AdmissionSpanFields): string {
   const start = formatAdmissionDate(record, { includeTime: false, fallback: '' })
   if (!start) return ''
 
-  const discharge = (record.discharge_datetime || '').trim()
+  const discharge = (record.discharge_datetime || record.draft_discharge_date || '').trim()
   if (discharge) {
     const end = formatDateOnlyDisplay(discharge, '')
     if (end) return `${start} → ${end}`

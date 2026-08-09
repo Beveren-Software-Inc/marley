@@ -31,7 +31,7 @@ export function IpAdmissionDateBadge({ className = '' }: { className?: string })
   return (
     <span
       className={`shrink-0 text-[10px] md:text-xs text-white/90 whitespace-nowrap tabular-nums ${className}`}
-      title="Admission dates"
+      title={dateSpan.includes('→') ? 'Admission → discharge date' : 'Admission date'}
     >
       {dateSpan}
     </span>

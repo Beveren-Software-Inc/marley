@@ -304,26 +304,37 @@ def get_inpatient_records(
 
 
 def _annotate_discharge_in_progress(records) -> None:
-	"""Flag admissions that have a draft Discharge (started but not submitted)."""
+	"""Flag admissions that have a draft Discharge (started but not submitted).
+
+	Also attaches ``draft_discharge_date`` from the draft Discharge doctype so the
+	UI can show admission → planned discharge while status is still Admitted.
+	"""
 	if not records:
 		return
 	names = [r.get("name") for r in records if r.get("name")]
 	for r in records:
 		r["discharge_in_progress"] = 0
+		r["draft_discharge_date"] = None
 	if not names:
 		return
-	draft_admissions = {
-		row.admission
-		for row in frappe.get_all(
-			"Discharge",
-			filters={"admission": ["in", names], "docstatus": 0},
-			fields=["admission"],
-		)
-		if row.get("admission")
-	}
+
+	drafts = frappe.get_all(
+		"Discharge",
+		filters={"admission": ["in", names], "docstatus": 0},
+		fields=["admission", "discharge_date", "modified"],
+		order_by="modified desc",
+	)
+	draft_dates = {}
+	for row in drafts:
+		adm = row.get("admission")
+		if not adm or adm in draft_dates:
+			continue
+		draft_dates[adm] = row.get("discharge_date")
+
 	for r in records:
-		if r.get("name") in draft_admissions:
+		if r.get("name") in draft_dates:
 			r["discharge_in_progress"] = 1
+			r["draft_discharge_date"] = draft_dates[r["name"]]
 
 
 def _enrich_inpatient_records_with_file_no(records):
@@ -588,7 +599,23 @@ def get_inpatient_record(name):
 		'discharge_practitioner': getattr(record, "discharge_practitioner", None),
 		'admission_nursing_checklist_template': getattr(record, "admission_nursing_checklist_template", None),
 		'discharge_nursing_checklist_template': getattr(record, "discharge_nursing_checklist_template", None),
-		'discharge_in_progress': 1 if _get_draft_discharge_name(record.name) else 0,
+		**_draft_discharge_fields(record.name),
+	}
+
+
+def _draft_discharge_fields(admission_name: str) -> dict:
+	"""UI helpers for an in-progress (draft) Discharge on this admission."""
+	draft = frappe.db.get_value(
+		"Discharge",
+		{"admission": admission_name, "docstatus": 0},
+		["name", "discharge_date"],
+		as_dict=True,
+	)
+	if not draft:
+		return {"discharge_in_progress": 0, "draft_discharge_date": None}
+	return {
+		"discharge_in_progress": 1,
+		"draft_discharge_date": draft.get("discharge_date"),
 	}
 
 

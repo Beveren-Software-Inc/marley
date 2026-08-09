@@ -248,6 +248,9 @@ export interface MultiLabPricingLine {
   discount?: number
   discount_applied?: number
   net_amount?: number
+  billed_from_parent_group?: number
+  billing_only?: number
+  price_included_in_group?: number
 }
 
 export interface MultiLabRequestPricing {

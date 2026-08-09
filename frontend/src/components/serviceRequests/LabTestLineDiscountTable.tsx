@@ -39,11 +39,18 @@ export function LabTestLineDiscountTable({
               const d = lineDiscounts[line.template] || defaultLineDiscount()
               const net = line.net_amount ?? line.amount
               const applied = line.discount_applied ?? 0
+              // Included-in-group children are covered by the group charge line.
+              if (line.price_included_in_group && !(line.amount > 0)) {
+                return null
+              }
               return (
-                <tr key={line.template} className="border-b border-slate-100 last:border-0">
+                <tr
+                  key={`${line.template}-${line.billed_from_parent_group || 0}-${line.billing_only || 0}`}
+                  className="border-b border-slate-100 last:border-0"
+                >
                   <td className="px-3 py-2.5">
                     <div className="font-medium text-slate-900">{line.lab_test_name || line.template}</div>
-                    {line.parent_group ? (
+                    {line.parent_group && !line.billed_from_parent_group ? (
                       <div className="text-xs text-slate-500">
                         Group: {line.parent_group_name || line.parent_group}
                       </div>

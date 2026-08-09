@@ -709,6 +709,9 @@ def book_lab_and_forward(service_request_name):
 	errors = []
 
 	for spec in specs:
+		# Parent group rate line — billed on SO, no Lab Test document.
+		if cint(spec.get("billing_only")):
+			continue
 		tpl = spec["template"]
 		amount = spec.get("amount")
 		parent_group = spec.get("parent_group")
