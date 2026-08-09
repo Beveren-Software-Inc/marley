@@ -4,6 +4,8 @@ import {
   BookOpen,
   Building2,
   ClipboardList,
+  FileSpreadsheet,
+  FileText,
   LogOut,
   NotebookPen,
   PenLine,
@@ -18,6 +20,12 @@ import { RichTextContent } from '../ui/RichTextContent'
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { attachFileDisplayUrl } from '../ui/SignaturePad'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
+import {
+  buildIpClinicalSummaryHtml,
+  openClinicalSummaryDocument,
+  type ClinicalSummaryExportMode,
+} from '../../utils/clinicalSummaryExport'
+import { toast } from '../../hooks/useToast'
 
 interface LastAdmissionClinicalTabProps {
   patient: string
@@ -108,6 +116,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedAdmission, setSelectedAdmission] = useState<string>('')
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     setSelectedAdmission('')
@@ -138,6 +147,24 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
       cancelled = true
     }
   }, [patient, selectedAdmission])
+
+  const handleExport = (mode: ClinicalSummaryExportMode) => {
+    if (!bundle?.admission || !bundle.has_data) {
+      toast.error('Nothing to export — no inpatient clinical data')
+      return
+    }
+    setExporting(true)
+    try {
+      const html = buildIpClinicalSummaryHtml(bundle)
+      openClinicalSummaryDocument(
+        html,
+        mode,
+        `clinical-summary-ip-${bundle.admission || patient}`,
+      )
+    } finally {
+      setExporting(false)
+    }
+  }
 
   if (loading && !bundle) {
     return (
@@ -204,23 +231,45 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
             Review clinical documentation from a prior admission — useful for follow-up OP visits.
           </p>
         </div>
-        {bundle.admission_options.length > 1 ? (
-          <select
-            value={selectedAdmission || bundle.admission}
-            onChange={(e) => setSelectedAdmission(e.target.value)}
-            className="min-w-[220px] rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          {bundle.admission_options.length > 1 ? (
+            <select
+              value={selectedAdmission || bundle.admission}
+              onChange={(e) => setSelectedAdmission(e.target.value)}
+              className="min-w-[220px] rounded-md border border-emerald-200 bg-white px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            >
+              {bundle.admission_options.map((opt) => (
+                <option key={opt.name} value={opt.name}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-emerald-900 ring-1 ring-emerald-200">
+              {adm?.name} · {adm?.status}
+            </span>
+          )}
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => handleExport('pdf')}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+            title="Print PDF (sections with data only)"
           >
-            {bundle.admission_options.map((opt) => (
-              <option key={opt.name} value={opt.name}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <span className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-emerald-900 ring-1 ring-emerald-200">
-            {adm?.name} · {adm?.status}
-          </span>
-        )}
+            <FileText className="h-3.5 w-3.5" />
+            PDF
+          </button>
+          <button
+            type="button"
+            disabled={exporting}
+            onClick={() => handleExport('excel')}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50 disabled:opacity-50"
+            title="Export Excel (sections with data only)"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5" />
+            Excel
+          </button>
+        </div>
       </div>
 
       <div className="space-y-4">

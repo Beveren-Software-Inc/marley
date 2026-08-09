@@ -20,6 +20,7 @@ import { AppointmentList } from '../components/appointments/AppointmentList'
 import { AdmissionList } from '../components/admissions/AdmissionList'
 import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { LastAdmissionClinicalTab } from '../components/patientHistory/LastAdmissionClinicalTab'
+import { OpClinicalSummaryTab } from '../components/patientHistory/OpClinicalSummaryTab'
 import { fetchPatientHistorySummary, type PatientHistorySummary } from '../services/patients'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import {
@@ -43,7 +44,7 @@ export const PatientHistoryPage = () => {
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   const [summary, setSummary] = useState<PatientHistorySummary | null>(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
-  const [activeTab, setActiveTab] = useState<'general' | 'admission'>('general')
+  const [activeTab, setActiveTab] = useState<'general' | 'admission' | 'op'>('general')
   const [legacyDocsExpanded, setLegacyDocsExpanded] = useState(false)
 
   const canViewClinical = useMemo(() => {
@@ -58,7 +59,7 @@ export const PatientHistoryPage = () => {
   }, [selectedPatient])
 
   useEffect(() => {
-    if (!canViewClinical && activeTab === 'admission') {
+    if (!canViewClinical && (activeTab === 'admission' || activeTab === 'op')) {
       setActiveTab('general')
     }
   }, [canViewClinical, activeTab])
@@ -124,7 +125,7 @@ export const PatientHistoryPage = () => {
         </div>
       ) : (
         <div className="flex-1 p-4 space-y-6">
-          <div className="flex gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1 w-fit">
+          <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-100/80 p-1 w-fit">
             <button
               type="button"
               onClick={() => setActiveTab('general')}
@@ -146,13 +147,28 @@ export const PatientHistoryPage = () => {
                     : 'text-slate-600 hover:text-slate-900'
                 }`}
               >
-                Clinical summary
+                Clinical summary (IP)
+              </button>
+            )}
+            {canViewClinical && (
+              <button
+                type="button"
+                onClick={() => setActiveTab('op')}
+                className={`rounded-md px-4 py-2 text-sm font-medium transition ${
+                  activeTab === 'op'
+                    ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                Clinical summary (OP)
               </button>
             )}
           </div>
 
           {canViewClinical && activeTab === 'admission' ? (
             <LastAdmissionClinicalTab patient={selectedPatient} />
+          ) : canViewClinical && activeTab === 'op' ? (
+            <OpClinicalSummaryTab patient={selectedPatient} onPatientSelect={handlePatientSelect} />
           ) : (
             <>
           {/* Demographics */}

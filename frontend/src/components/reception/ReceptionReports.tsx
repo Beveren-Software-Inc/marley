@@ -105,7 +105,8 @@ function soaTotalsFooter(data: any) {
       <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
 }
 
-const DOC_CSS = `
+function docCss(orientation: 'portrait' | 'landscape' = 'landscape') {
+  return `
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 16px; }
   .lh { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
   .lh-name { font-size: 15px; font-weight: bold; }
@@ -117,11 +118,17 @@ const DOC_CSS = `
   th { background: #f1f5f9; }
   td.num, th.num { text-align: right; }
   tr.total td { font-weight: bold; background: #f8fafc; }
-  @page { size: A4 landscape; margin: 10mm; }
+  @page { size: A4 ${orientation}; margin: 10mm; }
 `
+}
 
-function openDocument(html: string, mode: 'pdf' | 'excel', filename: string) {
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>${DOC_CSS}</style></head><body>${html}</body></html>`
+function openDocument(
+  html: string,
+  mode: 'pdf' | 'excel',
+  filename: string,
+  orientation: 'portrait' | 'landscape' = 'landscape',
+) {
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>${docCss(orientation)}</style></head><body>${html}</body></html>`
   if (mode === 'pdf') {
     const win = window.open('', '_blank')
     if (!win) return
@@ -399,7 +406,8 @@ export function ReceptionReports() {
       toast.error('Run the report first')
       return
     }
-    openDocument(built.html, mode, built.filename)
+    const orientation = report === 'soa' || report === 'soa-op' ? 'portrait' : 'landscape'
+    openDocument(built.html, mode, built.filename, orientation)
   }
 
   const searchAdmissions = async (q: string) => {
