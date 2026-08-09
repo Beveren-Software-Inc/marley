@@ -44,7 +44,7 @@ import { isDoctorRole } from '../../config/permissions'
 const STATUS_COLORS: Record<string, string> = {
   'Admission Scheduled': 'warning',
   'Admitted': 'success',
-  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'info',
+  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'warning',
   'Discharge Scheduled': 'info',
   'Discharged': 'default',
   'Cancelled': 'danger',
@@ -349,6 +349,9 @@ const AdmissionDetailsSection = ({ record }: { record: InpatientRecord }) => {
         <Field label="Scheduled Date" value={formatDate(record.scheduled_date)} />
         <Field label="Admitted" value={formatAdmissionDate(record)} />
         <Field label="Expected Discharge" value={formatDate(record.expected_discharge)} />
+        {Boolean(record.discharge_in_progress) && record.draft_discharge_date ? (
+          <Field label="Discharge Date (in progress)" value={formatDate(record.draft_discharge_date)} />
+        ) : null}
         <Field label="Expected Length of Stay" value={record.expected_length_of_stay ? `${record.expected_length_of_stay} days` : undefined} />
         <Field label="Admission Ordered For" value={formatDate(record.admission_ordered_for)} />
         <Field label="Company" value={record.company} />

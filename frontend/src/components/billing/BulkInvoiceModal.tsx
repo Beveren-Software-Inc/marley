@@ -72,8 +72,15 @@ export const BulkInvoiceModal = ({
         toast.success(`Invoice ${result} created`)
         onSuccess(result)
       } else {
+        const parts = (result.details || []).map((d) => {
+          if (d.source === 'delivery_note') return `${d.invoice} (stock/DN)`
+          if (d.source === 'sales_order') return `${d.invoice} (services)`
+          return d.invoice
+        })
         toast.success(
-          `Created ${result.invoices.length} invoices (one per branch): ${result.invoices.join(', ')}`,
+          parts.length
+            ? `Created ${result.invoices.length} invoices: ${parts.join(', ')}`
+            : `Created ${result.invoices.length} invoices: ${result.invoices.join(', ')}`,
         )
         onSuccess(result.invoices[0])
       }

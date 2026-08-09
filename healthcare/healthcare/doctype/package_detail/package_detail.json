@@ -11,13 +11,18 @@
   "column_break_gurl",
   "patient_full_name",
   "patient_category",
+  "inpatient_package",
   "section_break_dates",
   "from_date",
   "to_date",
   "total_days",
   "column_break_xljw",
   "currency",
+  "amount_per_day",
   "transaction_amount",
+  "section_break_refs",
+  "quotation",
+  "sales_order",
   "section_break_other",
   "remarks",
   "vch_status"
@@ -57,6 +62,14 @@
    "read_only": 1
   },
   {
+   "fieldname": "inpatient_package",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Inpatient Package",
+   "options": "Inpatient Package"
+  },
+  {
    "fieldname": "section_break_dates",
    "fieldtype": "Section Break",
    "label": "Package Duration"
@@ -89,11 +102,36 @@
    "options": "Currency"
   },
   {
+   "fieldname": "amount_per_day",
+   "fieldtype": "Currency",
+   "label": "Amount Per Day",
+   "options": "currency"
+  },
+  {
    "fieldname": "transaction_amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Transaction Amount",
    "options": "Company:company:default_currency"
+  },
+  {
+   "fieldname": "section_break_refs",
+   "fieldtype": "Section Break",
+   "label": "Billing References"
+  },
+  {
+   "fieldname": "quotation",
+   "fieldtype": "Link",
+   "label": "Quotation",
+   "options": "Quotation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_order",
+   "fieldtype": "Link",
+   "label": "Sales Order",
+   "options": "Sales Order",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_other",

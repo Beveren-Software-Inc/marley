@@ -327,6 +327,16 @@ export function isReceptionRole(roles: string[] | undefined): boolean {
   return hasExactRole(roles, ['Reception']) || roleMatches(roles, (r) => r.includes('reception'))
 }
 
+/** May allocate patient advance credit against outstanding Sales Invoices. */
+export function canReconcileInvoiceAdvances(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return (
+    hasExactRole(roles, ['Invoice Reconciliator', 'Accounts Manager', 'Healthcare Administrator']) ||
+    roleMatches(roles, (r) => r.includes('invoice reconciliator'))
+  )
+}
+
 export function isDoctorRole(roles: string[] | undefined): boolean {
   if (!roles?.length) return false
   return (

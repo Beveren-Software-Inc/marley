@@ -662,7 +662,8 @@ export const CreateClinicalNoteModal = ({
     admission_no:
       defaultAdmission ||
       (isIPMode && activeAdmission ? activeAdmission : ''),
-    patient_visit: (mode === 'OP' && activeVisit) ? activeVisit : (defaultVisit || ''),
+    // Prefer explicit defaultVisit (e.g. from Patient Visit details) over global active visit.
+    patient_visit: defaultVisit || (mode === 'OP' && activeVisit ? activeVisit : '') || '',
   })
 
   const effectiveVisit = formData.patient_visit || activeVisit || ''
@@ -931,8 +932,8 @@ export const CreateClinicalNoteModal = ({
     setFormData((prev) => {
       const hasVisit = (id: string) => visitOptions.some((v) => v.name === id)
       let next = prev.patient_visit
-      if (activeVisit && hasVisit(activeVisit)) next = activeVisit
-      else if (defaultVisit && hasVisit(defaultVisit)) next = defaultVisit
+      if (defaultVisit && hasVisit(defaultVisit)) next = defaultVisit
+      else if (activeVisit && hasVisit(activeVisit)) next = activeVisit
       else if (prev.patient_visit && hasVisit(prev.patient_visit)) next = prev.patient_visit
       else next = visitOptions[0]?.name || ''
       return next === prev.patient_visit ? prev : { ...prev, patient_visit: next }

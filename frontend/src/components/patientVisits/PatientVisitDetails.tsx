@@ -8,6 +8,7 @@ import {
   NotebookPen,
   Package,
   Pill,
+  Plus,
   Stethoscope,
 } from 'lucide-react'
 import { fetchPatientVisit, type PatientVisit, cancelVisit } from '../../services/patientVisits'
@@ -16,6 +17,10 @@ import { CancelVisitModal } from './CancelVisitModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
+import { PatientDiagnosisModal } from '../diagnosis/PatientDiagnosisModal'
+import { CreatePrescriptionModal } from '../prescriptions/CreatePrescriptionModal'
+import { CreateClinicalNoteModal } from '../clinicalNotes/CreateClinicalNoteModal'
+import { CreateServiceRequestModal } from '../serviceRequests/CreateServiceRequestModal'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
@@ -25,8 +30,8 @@ import { fetchIPServices, type IPServiceRow } from '../../services/ipServices'
 import { fetchPrescriptions, type Prescription } from '../../services/prescriptions'
 import { fetchClinicalNotes, type ClinicalNote } from '../../services/clinicalNotes'
 import {
-  getMedicalDiagnosisForContext,
-  type MedicalDiagnosisEntryRow,
+  getMedicalDiagnosisForPatient,
+  type MedicalDiagnosisEntryAggRow,
 } from '../../services/medicalDiagnosisEntry'
 import {
   displayMedicationDosage,
@@ -82,8 +87,21 @@ function formatDateTime(value?: string | null): string {
   }
 }
 
-function useVisitTabData(visitNo: string) {
-  const [diagnoses, setDiagnoses] = useState<MedicalDiagnosisEntryRow[]>([])
+function diagnosisIsForVisit(dx: MedicalDiagnosisEntryAggRow, visitNo: string): boolean {
+  if (dx.visit_num === visitNo) return true
+  return dx.parent === visitNo && dx.parent_type === 'Patient Visit'
+}
+
+function sortDiagnosesByDateDesc(rows: MedicalDiagnosisEntryAggRow[]): MedicalDiagnosisEntryAggRow[] {
+  return [...rows].sort((a, b) => {
+    const da = a.posting_date ? new Date(a.posting_date).getTime() : 0
+    const db = b.posting_date ? new Date(b.posting_date).getTime() : 0
+    return db - da
+  })
+}
+
+function useVisitTabData(visitNo: string, patient?: string) {
+  const [diagnoses, setDiagnoses] = useState<MedicalDiagnosisEntryAggRow[]>([])
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [serviceRequests, setServiceRequests] = useState<ServiceRequest[]>([])
   const [ipServices, setIpServices] = useState<IPServiceRow[]>([])
@@ -96,15 +114,31 @@ function useVisitTabData(visitNo: string) {
   const [loadingNotes, setLoadingNotes] = useState(false)
 
   const loadDiagnoses = useCallback(async () => {
+    if (!patient) {
+      setDiagnoses([])
+      return
+    }
     setLoadingDiagnoses(true)
     try {
-      setDiagnoses(await getMedicalDiagnosisForContext('Patient Visit', visitNo))
+      const all = await getMedicalDiagnosisForPatient(patient)
+      const visitOnes: MedicalDiagnosisEntryAggRow[] = []
+      const others: MedicalDiagnosisEntryAggRow[] = []
+      const seen = new Set<string>()
+      for (const dx of all) {
+        const key = dx.name || `${dx.diagnosis}-${dx.posting_date}-${dx.parent || ''}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        if (diagnosisIsForVisit(dx, visitNo)) visitOnes.push(dx)
+        else others.push(dx)
+      }
+      // This visit's diagnoses first (unique / highlighted), then older history.
+      setDiagnoses([...sortDiagnosesByDateDesc(visitOnes), ...sortDiagnosesByDateDesc(others)])
     } catch {
       setDiagnoses([])
     } finally {
       setLoadingDiagnoses(false)
     }
-  }, [visitNo])
+  }, [visitNo, patient])
 
   const loadLabTests = useCallback(async () => {
     setLoadingLabTests(true)
@@ -152,7 +186,20 @@ function useVisitTabData(visitNo: string) {
   const loadNotes = useCallback(async () => {
     setLoadingNotes(true)
     try {
-      setNotes((await fetchClinicalNotes(100, 0, undefined, undefined, undefined, undefined, 'Patient Visit', visitNo)).data)
+      setNotes(
+        (
+          await fetchClinicalNotes(
+            100,
+            0,
+            undefined,
+            undefined,
+            undefined,
+            undefined,
+            'Patient Visit',
+            visitNo,
+          )
+        ).data,
+      )
     } catch {
       setNotes([])
     } finally {
@@ -161,13 +208,15 @@ function useVisitTabData(visitNo: string) {
   }, [visitNo])
 
   useEffect(() => {
-    // Prefetch all tab data so counts show on the tab bar.
-    void loadDiagnoses()
     void loadLabTests()
     void loadServices()
     void loadPrescriptions()
     void loadNotes()
-  }, [visitNo, loadDiagnoses, loadLabTests, loadServices, loadPrescriptions, loadNotes])
+  }, [visitNo, loadLabTests, loadServices, loadPrescriptions, loadNotes])
+
+  useEffect(() => {
+    void loadDiagnoses()
+  }, [loadDiagnoses])
 
   return {
     diagnoses,
@@ -181,6 +230,11 @@ function useVisitTabData(visitNo: string) {
     loadingServices,
     loadingPrescriptions,
     loadingNotes,
+    reloadDiagnoses: loadDiagnoses,
+    reloadPrescriptions: loadPrescriptions,
+    reloadNotes: loadNotes,
+    reloadLabTests: loadLabTests,
+    reloadServices: loadServices,
   }
 }
 
@@ -193,6 +247,10 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showVitalSignModal, setShowVitalSignModal] = useState(false)
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
+  const [showDiagnosisModal, setShowDiagnosisModal] = useState(false)
+  const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
+  const [showProgressNoteModal, setShowProgressNoteModal] = useState(false)
+  const [showLabRequestModal, setShowLabRequestModal] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('details')
   const [expandedLabRequests, setExpandedLabRequests] = useState<Record<string, boolean>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
@@ -210,7 +268,16 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
     loadingServices,
     loadingPrescriptions,
     loadingNotes,
-  } = useVisitTabData(visitNo)
+    reloadDiagnoses,
+    reloadPrescriptions,
+    reloadNotes,
+    reloadLabTests,
+    reloadServices,
+  } = useVisitTabData(visitNo, visit?.patient)
+
+  const canEdit = !!(visit && visit.status !== 'Cancelled')
+  const visitDiagnosesCount = diagnoses.filter((dx) => diagnosisIsForVisit(dx, visitNo)).length
+  const diagnosesTabCount = diagnoses.length
 
   const loadVisit = async () => {
     try {
@@ -257,7 +324,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
   const tabs: Array<{ id: TabType; label: string; icon: ElementType; count: number }> = [
     { id: 'details', label: 'Details', icon: Info, count: 0 },
-    { id: 'diagnoses', label: 'Diagnoses', icon: Stethoscope, count: diagnoses.length },
+    { id: 'diagnoses', label: 'Diagnoses', icon: Stethoscope, count: diagnosesTabCount },
     { id: 'lab_tests', label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
     { id: 'services', label: 'Services', icon: Package, count: servicesCount },
     { id: 'prescriptions', label: 'Prescriptions', icon: Pill, count: prescriptions.length },
@@ -414,29 +481,76 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
       {activeTab === 'diagnoses' && (
         <div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-md font-semibold text-slate-800">Patient Diagnoses</h3>
+              <p className="text-xs text-slate-500">
+                This visit first
+                {visitDiagnosesCount ? ` (${visitDiagnosesCount})` : ''}
+                {diagnoses.length > visitDiagnosesCount
+                  ? ` · then prior history (${diagnoses.length - visitDiagnosesCount})`
+                  : ''}
+              </p>
+            </div>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowDiagnosisModal(true)}
+                className="flex items-center gap-1 rounded-md border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary/5"
+              >
+                <Plus className="h-4 w-4" />
+                Manage Diagnoses
+              </button>
+            ) : null}
+          </div>
           {loadingDiagnoses ? (
             <LoadingSpinner message="Loading diagnoses..." />
           ) : diagnoses.length === 0 ? (
-            <EmptyState icon={Stethoscope} message="No diagnoses for this visit" />
+            <EmptyState icon={Stethoscope} message="No diagnoses for this patient" />
           ) : (
             <ul className="divide-y divide-slate-100 overflow-hidden rounded-lg border border-slate-200 bg-white">
-              {diagnoses.map((dx) => (
-                <li key={dx.name || `${dx.diagnosis}-${dx.posting_date}`} className="px-4 py-3">
-                  <p className="font-semibold text-slate-900">
-                    {dx.diagnosis_name || dx.diagnosis || 'Diagnosis'}
-                  </p>
-                  {dx.details ? (
-                    <p className="mt-1 whitespace-pre-wrap text-slate-600">
-                      {htmlToPlainText(dx.details)}
+              {diagnoses.map((dx) => {
+                const onThisVisit = diagnosisIsForVisit(dx, visitNo)
+                return (
+                  <li
+                    key={dx.name || `${dx.diagnosis}-${dx.posting_date}-${dx.parent || ''}`}
+                    className={`px-4 py-3 ${onThisVisit ? 'bg-sky-50/70' : ''}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <p className="font-semibold text-slate-900">
+                        {dx.diagnosis_name || dx.diagnosis || 'Diagnosis'}
+                      </p>
+                      {onThisVisit ? (
+                        <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                          This visit
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                          {dx.parent_type === 'Inpatient Admission'
+                            ? `Admission ${dx.parent || ''}`.trim()
+                            : dx.parent
+                              ? `Visit ${dx.parent}`
+                              : 'Prior'}
+                        </span>
+                      )}
+                    </div>
+                    {dx.details ? (
+                      <p className="mt-1 whitespace-pre-wrap text-slate-600">
+                        {htmlToPlainText(dx.details)}
+                      </p>
+                    ) : null}
+                    <p className="mt-1 text-xs text-slate-400">
+                      {[
+                        dx.posting_date ? formatDate(dx.posting_date) : null,
+                        dx.practitioner_name || dx.practitioner,
+                        dx.diagnosis_group_name,
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
                     </p>
-                  ) : null}
-                  <p className="mt-1 text-xs text-slate-400">
-                    {[dx.posting_date ? formatDate(dx.posting_date) : null, dx.practitioner_name]
-                      .filter(Boolean)
-                      .join(' · ')}
-                  </p>
-                </li>
-              ))}
+                  </li>
+                )
+              })}
             </ul>
           )}
         </div>
@@ -444,6 +558,19 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
       {activeTab === 'lab_tests' && (
         <div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-md font-semibold text-slate-800">Lab Tests</h3>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowLabRequestModal(true)}
+                className="flex items-center gap-1 rounded-md border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary/5"
+              >
+                <Plus className="h-4 w-4" />
+                Create Lab Request
+              </button>
+            ) : null}
+          </div>
           {loadingLabTests ? (
             <LoadingSpinner message="Loading lab tests..." />
           ) : labTests.length === 0 ? (
@@ -615,6 +742,19 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
       {activeTab === 'prescriptions' && (
         <div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-md font-semibold text-slate-800">Prescriptions</h3>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowPrescriptionModal(true)}
+                className="flex items-center gap-1 rounded-md border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary/5"
+              >
+                <Plus className="h-4 w-4" />
+                Create Prescription
+              </button>
+            ) : null}
+          </div>
           {loadingPrescriptions ? (
             <LoadingSpinner message="Loading prescriptions..." />
           ) : prescriptions.length === 0 ? (
@@ -669,6 +809,19 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
       {activeTab === 'notes' && (
         <div>
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <h3 className="text-md font-semibold text-slate-800">Clinical Notes</h3>
+            {canEdit ? (
+              <button
+                type="button"
+                onClick={() => setShowProgressNoteModal(true)}
+                className="flex items-center gap-1 rounded-md border border-primary px-3 py-1.5 text-sm text-primary transition-colors hover:bg-primary/5"
+              >
+                <Plus className="h-4 w-4" />
+                Add Progress Note
+              </button>
+            ) : null}
+          </div>
           {loadingNotes ? (
             <LoadingSpinner message="Loading notes..." />
           ) : notes.length === 0 ? (
@@ -787,6 +940,69 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
           onSuccess={() => {
             setShowEditModal(false)
             loadVisit()
+            onUpdate?.()
+          }}
+        />
+      ) : null}
+
+      {showDiagnosisModal && visit ? (
+        <PatientDiagnosisModal
+          parentDoctype="Patient Visit"
+          parentName={visit.name}
+          patient={visit.patient}
+          patientName={visit.patient_name}
+          mode="manage"
+          onClose={() => setShowDiagnosisModal(false)}
+          onSuccess={() => {
+            setShowDiagnosisModal(false)
+            void reloadDiagnoses()
+            onUpdate?.()
+          }}
+        />
+      ) : null}
+
+      {showPrescriptionModal && visit ? (
+        <CreatePrescriptionModal
+          initialPatient={visit.patient}
+          initialCareContext="Patient Visit"
+          initialPatientEncounter={visit.name}
+          initialPractitioner={visit.practitioner}
+          onClose={() => setShowPrescriptionModal(false)}
+          onSuccess={() => {
+            setShowPrescriptionModal(false)
+            void reloadPrescriptions()
+            onUpdate?.()
+          }}
+        />
+      ) : null}
+
+      {showProgressNoteModal && visit ? (
+        <CreateClinicalNoteModal
+          initialPatient={visit.patient}
+          defaultVisit={visit.name}
+          forcedMode="OP"
+          defaultClinicalNoteType="Doctor Progress Note"
+          title="Add Patient Progress Note"
+          onClose={() => setShowProgressNoteModal(false)}
+          onSuccess={() => {
+            setShowProgressNoteModal(false)
+            void reloadNotes()
+            onUpdate?.()
+          }}
+        />
+      ) : null}
+
+      {showLabRequestModal && visit ? (
+        <CreateServiceRequestModal
+          initialPatient={visit.patient}
+          labTestTemplateOnly
+          forcedMode="OP"
+          initialPatientVisit={visit.name}
+          onClose={() => setShowLabRequestModal(false)}
+          onSuccess={() => {
+            setShowLabRequestModal(false)
+            void reloadLabTests()
+            void reloadServices()
             onUpdate?.()
           }}
         />

@@ -11,8 +11,17 @@ DEFAULT_PACKAGE_SO_DELIVERY_DAYS = 30
 
 
 def create_sales_order_from_package_quotation(doc, method=None):
-	"""On Quotation submit: when custom_package is set, create and submit Sales Order."""
+	"""On Quotation submit: when custom_package is set, optionally create Sales Order.
+
+	Controlled by Healthcare Settings → Create Sales Order on Quotation Submission.
+	When that checkbox is off, the quotation submits without creating a Sales Order.
+	"""
 	if doc.doctype != "Quotation" or doc.docstatus != 1:
+		return
+
+	if not frappe.db.get_single_value(
+		"Healthcare Settings", "create_sales_order_on_quotation_submission"
+	):
 		return
 
 	package = (getattr(doc, "custom_package", None) or "").strip()
@@ -36,6 +45,13 @@ def create_sales_order_from_package_quotation(doc, method=None):
 	sales_order.flags.ignore_permissions = True
 	sales_order.insert(ignore_permissions=True)
 	sales_order.submit()
+
+	try:
+		from healthcare.api.package_charge_to_today import record_package_charge_from_quotation
+
+		record_package_charge_from_quotation(doc, sales_order.name)
+	except Exception:
+		frappe.log_error(title=f"Package charge ledger failed: {doc.name}")
 
 	frappe.msgprint(
 		_("Sales Order {0} created and submitted from package quotation {1}.").format(

@@ -36,6 +36,7 @@
   "op_rate",
   "pricing",
   "price",
+  "price_included_in_group",
   "inventory_section",
   "consumables",
   "section_break_description",
@@ -547,6 +548,8 @@
   {
    "fieldname": "lab_group",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Parent Group",
    "options": "Lab Test Template"
   },
@@ -657,6 +660,14 @@
    "fieldtype": "Table",
    "label": "Multiple Result Type",
    "options": "Multiple Results"
+  },
+  {
+   "default": "0",
+   "depends_on": "eval:doc.lab_group",
+   "description": "When ticked, this child test is covered by the parent group price. Unticked children are billed in addition to the group price.",
+   "fieldname": "price_included_in_group",
+   "fieldtype": "Check",
+   "label": "Price Included in Group"
   }
  ],
  "grid_page_length": 50,
@@ -667,7 +678,7 @@
    "link_fieldname": "template"
   }
  ],
- "modified": "2026-07-26 13:20:44.168712",
+ "modified": "2026-08-09 19:17:51.883538",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Lab Test Template",

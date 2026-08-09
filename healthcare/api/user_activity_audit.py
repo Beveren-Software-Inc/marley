@@ -19,7 +19,58 @@ SORT_COLUMNS = {
 	"activity_type": "activity_type",
 	"doctype": "doctype",
 	"reference": "reference",
+	"department": "department",
 }
+
+
+def _employee_department_by_user(user_ids=None):
+	"""Map User → Employee.department for active employees with a linked user."""
+	params = {}
+	user_clause = ""
+	if user_ids is not None:
+		user_ids = [u for u in set(user_ids) if u]
+		if not user_ids:
+			return {}
+		user_clause = "AND e.user_id IN %(users)s"
+		params["users"] = user_ids
+
+	rows = frappe.db.sql(
+		f"""
+		SELECT e.user_id, e.department
+		FROM `tabEmployee` e
+		INNER JOIN (
+			SELECT user_id, MAX(name) AS name
+			FROM `tabEmployee`
+			WHERE status = 'Active'
+			  AND IFNULL(user_id, '') != ''
+			  AND IFNULL(department, '') != ''
+			GROUP BY user_id
+		) pick ON pick.name = e.name
+		WHERE e.status = 'Active'
+		  AND IFNULL(e.user_id, '') != ''
+		  AND IFNULL(e.department, '') != ''
+		  {user_clause}
+		""",
+		params or None,
+		as_dict=True,
+	)
+	return {r.user_id: r.department for r in rows}
+
+
+def _department_user_filter(department, params, alias="src.user"):
+	"""SQL fragment restricting users to those whose Employee belongs to department."""
+	if not department or department in ("", "all"):
+		return ""
+	params["department"] = department
+	return f"""
+		AND {alias} IN (
+			SELECT e.user_id
+			FROM `tabEmployee` e
+			WHERE e.department = %(department)s
+			  AND e.status = 'Active'
+			  AND IFNULL(e.user_id, '') != ''
+		)
+	"""
 
 
 def _can_view_audit():
@@ -144,9 +195,33 @@ def get_user_activity_filter_options(from_date=None, to_date=None, period_days=7
 		as_dict=True,
 	)
 
+	departments = frappe.db.sql(
+		"""
+		SELECT DISTINCT e.department AS department
+		FROM `tabEmployee` e
+		WHERE e.status = 'Active'
+		  AND IFNULL(e.department, '') != ''
+		  AND IFNULL(e.user_id, '') != ''
+		  AND e.user_id IN (
+			SELECT user AS name FROM `tabActivity Log`
+			WHERE creation BETWEEN %(f)s AND %(t)s AND user NOT IN ('Guest', 'Administrator')
+			UNION
+			SELECT user AS name FROM `tabRoute History`
+			WHERE creation BETWEEN %(f)s AND %(t)s AND user NOT IN ('Guest', 'Administrator')
+			UNION
+			SELECT owner AS name FROM `tabVersion`
+			WHERE creation BETWEEN %(f)s AND %(t)s AND owner NOT IN ('Guest', 'Administrator')
+		  )
+		ORDER BY e.department ASC
+		""",
+		{"f": from_dt, "t": to_dt},
+		as_dict=True,
+	)
+
 	return {
 		"users": users,
 		"doctypes": [r.doctype for r in doctypes],
+		"departments": [r.department for r in departments],
 	}
 
 
@@ -157,6 +232,7 @@ def get_user_activity_report(
 	period_days=7,
 	user=None,
 	doctype=None,
+	department=None,
 	activity_type=None,
 	sort_by="timestamp",
 	sort_order="desc",
@@ -170,7 +246,11 @@ def get_user_activity_report(
 	limit = min(max(cint(limit) or 100, 1), 500)
 	offset = max(cint(offset) or 0, 0)
 
-	sort_col = SORT_COLUMNS.get((sort_by or "timestamp").strip().lower(), "timestamp")
+	sort_key = (sort_by or "timestamp").strip().lower()
+	sort_by_department = sort_key == "department"
+	sort_col = SORT_COLUMNS.get(sort_key, "timestamp")
+	if sort_by_department:
+		sort_col = "timestamp"
 	sort_dir = "ASC" if str(sort_order or "desc").lower() == "asc" else "DESC"
 
 	user_filter = ""
@@ -184,6 +264,8 @@ def get_user_activity_report(
 	if doctype and doctype not in ("", "all"):
 		doctype_filter = "AND src.doctype = %(doctype)s"
 		params["doctype"] = doctype
+
+	department_filter = _department_user_filter(department, params)
 
 	type_filter = ""
 	activity_type = (activity_type or "all").strip().lower()
@@ -246,6 +328,7 @@ def get_user_activity_report(
 		WHERE 1=1
 		{user_filter}
 		{doctype_filter}
+		{department_filter}
 		{type_filter}
 		ORDER BY src.{sort_col} {sort_dir}, src.timestamp DESC
 		LIMIT %(limit)s OFFSET %(offset)s
@@ -292,10 +375,13 @@ def get_user_activity_report(
 		WHERE 1=1
 		{user_filter}
 		{doctype_filter}
+		{department_filter}
 		{type_filter}
 		""",
 		params,
 	)[0][0]
+
+	dept_map = _employee_department_by_user([r.user for r in rows])
 
 	# Enrich version rows with change summaries (batch fetch)
 	version_keys = [r for r in rows if r.source == "version" and r.reference]
@@ -312,6 +398,7 @@ def get_user_activity_report(
 
 	for r in rows:
 		r["timestamp"] = str(r.timestamp)
+		r["department"] = dept_map.get(r.user) or ""
 		if r.source == "route_history":
 			r["details"] = _parse_route(r.reference)
 		elif r.source == "version":
@@ -323,6 +410,10 @@ def get_user_activity_report(
 			r["details"] = "Logged out"
 		elif r.activity_type == "Impersonate":
 			r["details"] = "Impersonated another user"
+
+	if sort_by_department:
+		reverse = sort_dir == "DESC"
+		rows.sort(key=lambda r: (r.get("department") or "").lower(), reverse=reverse)
 
 	return {
 		"from_date": from_dt,
@@ -392,6 +483,7 @@ def get_user_activity_summary(
 	to_date=None,
 	period_days=7,
 	user=None,
+	department=None,
 	sort_by="document_edits",
 	sort_order="desc",
 	limit=100,
@@ -412,6 +504,10 @@ def get_user_activity_summary(
 		user_filter_al = "AND al.user = %(user)s"
 		user_filter_rh = "AND rh.user = %(user)s"
 		user_filter_v = "AND v.owner = %(user)s"
+
+	user_filter_al += _department_user_filter(department, params, alias="al.user")
+	user_filter_rh += _department_user_filter(department, params, alias="rh.user")
+	user_filter_v += _department_user_filter(department, params, alias="v.owner")
 
 	login_rows = frappe.db.sql(
 		f"""
@@ -490,6 +586,7 @@ def get_user_activity_summary(
 			summary[u] = {
 				"user": u,
 				"full_name": users_meta.get(u) or u,
+				"department": "",
 				"login_count": 0,
 				"logout_count": 0,
 				"route_views": 0,
@@ -530,6 +627,10 @@ def get_user_activity_summary(
 			row["login_count"] + row["logout_count"] + row["route_views"] + row["document_edits"]
 		)
 		row["last_activity"] = str(row["last_activity"]) if row["last_activity"] else None
+
+	dept_map = _employee_department_by_user(list(summary.keys()))
+	for u, row in summary.items():
+		row["department"] = dept_map.get(u) or ""
 
 	rows = list(summary.values())
 	sort_field = SUMMARY_SORT_COLUMNS.get((sort_by or "document_edits").strip().lower(), "document_edits")

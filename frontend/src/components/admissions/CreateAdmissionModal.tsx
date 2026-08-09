@@ -1959,7 +1959,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               <div>
                 <h3 className="text-sm font-semibold text-slate-800 mb-1">Admission Signature</h3>
                 <p className="text-sm text-slate-500 mb-3">
-                  Capture a signature for this admission (stored on the admission record).
+                  Capture a signature for this admission (draw or upload). Stored on the admission record.
                 </p>
                 <SignaturePad
                   onSave={handleSignatureSave}

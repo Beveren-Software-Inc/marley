@@ -804,21 +804,39 @@ def get_payment_entries(
         if patient_customer:
             params["customer"] = patient_customer
 
+    # Advances = Payment Entries with no Sales Invoice reference (unallocated credit).
+    # Always include them for the patient/customer even when a visit/admission case filter
+    # is set — otherwise selecting a case hides all advances.
+    advance_clause = None
+    if patient_customer:
+        advance_clause = "(per.reference_name IS NULL AND pe.party = %(customer)s)"
+    elif patient:
+        # No linked customer — cannot reliably match party; leave advances out of case filter
+        advance_clause = None
+
     if reference_name:
-        if reference_type:
-            conditions.append("si.custom_reference_type = %(reference_type)s")
-            params["reference_type"] = reference_type
         params["reference_name"] = reference_name
-        if patient_customer:
-            conditions.append(
-                "(si.custom_reference_name = %(reference_name)s "
-                "OR (per.reference_name IS NULL AND pe.party = %(customer)s))"
+        invoice_match_parts = ["si.custom_reference_name = %(reference_name)s"]
+        if reference_type:
+            params["reference_type"] = reference_type
+            invoice_match_parts = [
+                "(si.custom_reference_type = %(reference_type)s AND si.custom_reference_name = %(reference_name)s)"
+            ]
+        # Also include advances tagged with this case on Payment Entry
+        if has_case_no:
+            invoice_match_parts.append(
+                "(per.reference_name IS NULL AND IFNULL(pe.custom_case_no, '') = %(reference_name)s)"
             )
-        elif patient:
+        if advance_clause:
+            # Any patient advance (case-tagged or not) still shows under this patient+case view
+            invoice_match_parts.append(advance_clause)
+        if patient and not patient_customer:
             conditions.append("si.patient = %(patient)s")
             conditions.append("si.custom_reference_name = %(reference_name)s")
+            if reference_type:
+                conditions.append("si.custom_reference_type = %(reference_type)s")
         else:
-            conditions.append("si.custom_reference_name = %(reference_name)s")
+            conditions.append("(" + " OR ".join(invoice_match_parts) + ")")
     elif patient:
         if patient_customer:
             conditions.append(
@@ -1328,9 +1346,24 @@ def submit_sales_invoice_doc(invoice_name):
     if doc.docstatus != 0:
         frappe.throw(_("Only draft invoices can be submitted"))
 
-    from healthcare.api.sales_order_cost_center import finalize_sales_invoice_cost_centers
+    from healthcare.api.sales_order_cost_center import (
+        finalize_sales_invoice_cost_centers,
+        sync_sales_invoice_uom_from_previous_docs,
+    )
 
     finalize_sales_invoice_cost_centers(doc)
+    sync_sales_invoice_uom_from_previous_docs(doc)
+
+    # set_missing_values / calculate during save can reset UOM — restore right before prevdoc check
+    _orig = doc.validate_with_previous_doc
+
+    def _validate_with_previous_preserving_uom(*args, **kwargs):
+        sync_sales_invoice_uom_from_previous_docs(doc)
+        return _orig(*args, **kwargs)
+
+    doc.validate_with_previous_doc = _validate_with_previous_preserving_uom
+
+    doc.flags.ignore_permissions = True
     doc.save(ignore_permissions=True)
     doc.submit()
     frappe.db.commit()

@@ -18,6 +18,22 @@ export function currencyFractionDigits(currencyCode: string): number {
   return THREE_DECIMAL_CURRENCIES.has(c) ? 3 : 2
 }
 
+/** Round to currency minor units (avoids float compare bugs, e.g. BHD 3 dp). */
+export function roundMoneyAmount(amount: number, currencyCode: string): number {
+  const digits = currencyFractionDigits(currencyCode)
+  const f = 10 ** digits
+  const n = Number(amount)
+  if (!Number.isFinite(n)) return 0
+  return Math.round((n + Number.EPSILON) * f) / f
+}
+
+/** True when a > b beyond half a minor unit (currency-safe). */
+export function moneyGreaterThan(a: number, b: number, currencyCode: string): boolean {
+  const digits = currencyFractionDigits(currencyCode)
+  const eps = 0.5 * 10 ** -digits
+  return roundMoneyAmount(a, currencyCode) - roundMoneyAmount(b, currencyCode) > eps
+}
+
 /** Smallest currency unit for HTML number inputs (e.g. 0.001 for BHD, 0.01 for USD). */
 export function currencyInputStep(currencyCode: string): number {
   return 10 ** -currencyFractionDigits(currencyCode)

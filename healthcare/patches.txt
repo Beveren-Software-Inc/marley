@@ -12,6 +12,7 @@ healthcare.patches.v15_0.setup_service_request
 healthcare.patches.v15_0.add_observation_to_patient_history
 healthcare.patches.v15_0.create_patient_medical_records_for_observations #25-12-2024
 healthcare.patches.v16_0.rename_doctor_commission_period_to_payroll
+healthcare.patches.v16_0.rename_price_included_in_group
 
 [post_model_sync]
 healthcare.patches.v15_0.rename_field_medical_department_in_appoitment_type_service_item
@@ -38,3 +39,4 @@ healthcare.patches.v16_0.grant_occupational_therapist_therapy_access
 
 healthcare.patches.v16_0.grant_nutritionist_notes_access
 healthcare.patches.v16_0.create_missing_clinical_note_types
+healthcare.patches.v16_0.ensure_invoice_reconciliator_role

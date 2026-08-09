@@ -66,6 +66,8 @@ interface CreateServiceRequestModalProps {
   forcedMode?: 'OP' | 'IP'
   /** Prefill / lock inpatient admission when creating from an admission context. */
   initialInpatientRecord?: string
+  /** Prefill / lock patient visit when creating from a visit details panel. */
+  initialPatientVisit?: string
 }
 
 interface PricingRow {
@@ -82,6 +84,7 @@ interface GroupTemplateRow {
   template_dn: string
   template_label: string
   pricing: PricingRow[]
+  price_included_in_group?: number | boolean
 }
 
 interface PricingResponse {
@@ -107,6 +110,7 @@ export const CreateServiceRequestModal = ({
   nurseLabTemplatesOnly = false,
   forcedMode,
   initialInpatientRecord,
+  initialPatientVisit,
 }: CreateServiceRequestModalProps) => {
   const { mode: contextMode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const mode = forcedMode || contextMode
@@ -159,7 +163,8 @@ export const CreateServiceRequestModal = ({
     template_dt: '',
     template_dn: '',
     practitioner: '',
-    patient_visit: mode === 'OP' ? activeVisit || '' : '',
+    patient_visit:
+      mode === 'OP' ? (initialPatientVisit || activeVisit || '') : '',
     inpatient_record:
       mode === 'IP' ? (initialInpatientRecord || activeAdmission || '') : '',
     cost_center: '',
@@ -189,12 +194,15 @@ export const CreateServiceRequestModal = ({
 
   const groupTotal = useMemo(() => {
     if (!isGroupTemplate) return 0
-    return selectedGroupTemplates.reduce((total, templateDn) => {
+    // Group price + only children that are NOT marked price_included_in_group.
+    const parentAmount = getBestPrice(pricingRows) || 0
+    const extraChildren = selectedGroupTemplates.reduce((total, templateDn) => {
       const row = groupRows.find((entry) => entry.template_dn === templateDn)
-      if (!row) return total
+      if (!row || row.price_included_in_group) return total
       return total + (getBestPrice(row.pricing) || 0)
     }, 0)
-  }, [groupRows, isGroupTemplate, patientCategory, selectedGroupTemplates])
+    return parentAmount + extraChildren
+  }, [groupRows, isGroupTemplate, patientCategory, selectedGroupTemplates, pricingRows])
 
   const nonGroupListSubtotal = useMemo(() => {
     if (isGroupTemplate) return 0
@@ -390,6 +398,12 @@ export const CreateServiceRequestModal = ({
   useEffect(() => {
     if (mode !== 'OP' || !form.patient || patientVisits.length === 0) return
     setForm((prev) => {
+      if (
+        initialPatientVisit &&
+        patientVisits.some((v) => v.name === initialPatientVisit)
+      ) {
+        return { ...prev, patient_visit: initialPatientVisit }
+      }
       if (activeVisit && patientVisits.some((v) => v.name === activeVisit))
         return { ...prev, patient_visit: activeVisit }
       const first = patientVisits[0]?.name
@@ -397,7 +411,7 @@ export const CreateServiceRequestModal = ({
       const currentOk = prev.patient_visit && patientVisits.some((v) => v.name === prev.patient_visit)
       return currentOk ? prev : { ...prev, patient_visit: first }
     })
-  }, [mode, form.patient, activeVisit, patientVisits])
+  }, [mode, form.patient, activeVisit, patientVisits, initialPatientVisit])
 
   useEffect(() => {
     if (mode !== 'IP' || !form.patient || admissions.length === 0) return
@@ -1111,12 +1125,14 @@ export const CreateServiceRequestModal = ({
                   Tests in this group
                 </div>
                 <p className="mb-3 text-xs text-slate-600">
-                  Tick the child lab tests to include in this request. Each line shows a single reference amount (full billing tiers are handled at reception).
+                  Tick the child lab tests to include in this request. Tests marked “included in group”
+                  are covered by the group price; other children add their own price on top.
                 </p>
                 <div className="space-y-2.5">
                   {groupRows.map((row) => {
                     const checked = selectedGroupTemplates.includes(row.template_dn)
-                    const price = getBestPrice(row.pricing) || 0
+                    const included = Boolean(row.price_included_in_group)
+                    const price = included ? 0 : getBestPrice(row.pricing) || 0
                     return (
                       <label
                         key={row.template_dn}
@@ -1139,15 +1155,28 @@ export const CreateServiceRequestModal = ({
                           />
                           <span>
                             <span className="font-medium text-slate-900">{row.template_label}</span>
+                            {included ? (
+                              <span className="mt-0.5 block text-[11px] font-medium text-slate-500">
+                                Price included in group
+                              </span>
+                            ) : null}
                           </span>
                         </span>
                         <span className="shrink-0 rounded-lg bg-emerald-100/80 px-3 py-1.5 text-right text-sm font-semibold tabular-nums text-emerald-900">
-                          {formatMoney(price)}
+                          {included ? 'Included' : formatMoney(price)}
                         </span>
                       </label>
                     )
                   })}
                 </div>
+                {(getBestPrice(pricingRows) || 0) > 0 ? (
+                  <div className="mt-3 flex flex-wrap items-baseline justify-between gap-2 border-t border-emerald-100 pt-3 text-sm">
+                    <span className="text-slate-600">Group price</span>
+                    <span className="font-semibold tabular-nums text-slate-900">
+                      {formatMoney(getBestPrice(pricingRows) || 0)}
+                    </span>
+                  </div>
+                ) : null}
               </div>
             )}
 

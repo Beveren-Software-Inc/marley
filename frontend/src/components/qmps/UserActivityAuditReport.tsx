@@ -85,6 +85,7 @@ function buildTimelineExportHtml(rows: ActivityAuditRow[], meta: string): string
       return `<tr>
         <td>${escapeHtml(ts)}</td>
         <td>${escapeHtml(row.full_name || row.user)}<br/><span style="color:#64748b">${escapeHtml(row.user)}</span></td>
+        <td>${escapeHtml(row.department || '—')}</td>
         <td>${escapeHtml(row.activity_type)}</td>
         <td>${escapeHtml(row.doctype || '—')}</td>
         <td>${escapeHtml(row.reference || '—')}</td>
@@ -100,6 +101,7 @@ function buildTimelineExportHtml(rows: ActivityAuditRow[], meta: string): string
         <tr>
           <th>Date / Time</th>
           <th>User</th>
+          <th>Department</th>
           <th>Activity</th>
           <th>DocType</th>
           <th>Reference</th>
@@ -117,6 +119,7 @@ function buildWorkloadExportHtml(rows: UserActivitySummaryRow[], meta: string): 
       const last = row.last_activity ? new Date(row.last_activity).toLocaleString('en-GB') : '—'
       return `<tr>
         <td>${escapeHtml(row.full_name || row.user)}<br/><span style="color:#64748b">${escapeHtml(row.user)}</span></td>
+        <td>${escapeHtml(row.department || '—')}</td>
         <td class="num">${row.login_count}</td>
         <td class="num">${row.route_views}</td>
         <td class="num">${row.document_edits}</td>
@@ -133,6 +136,7 @@ function buildWorkloadExportHtml(rows: UserActivitySummaryRow[], meta: string): 
       <thead>
         <tr>
           <th>User</th>
+          <th>Department</th>
           <th class="num">Logins</th>
           <th class="num">Page views</th>
           <th class="num">Document edits</th>
@@ -311,6 +315,9 @@ function SummaryCard({
         <div>
           <h3 className="text-sm font-semibold text-slate-900">{row.full_name || row.user}</h3>
           <p className="text-[11px] text-slate-500 mt-0.5">{row.user}</p>
+          {row.department ? (
+            <p className="text-[11px] text-slate-600 mt-0.5">{row.department}</p>
+          ) : null}
         </div>
         <span className="inline-flex px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
           {row.document_edits} edits
@@ -377,6 +384,7 @@ export function UserActivityAuditReport() {
   const [totalCount, setTotalCount] = useState(0)
   const [totalUsers, setTotalUsers] = useState(0)
   const [doctypeOptions, setDoctypeOptions] = useState<string[]>([])
+  const [departmentOptions, setDepartmentOptions] = useState<string[]>([])
 
   const [periodDays, setPeriodDays] = useState(7)
   const [fromDate, setFromDate] = useState('')
@@ -384,6 +392,7 @@ export function UserActivityAuditReport() {
   const [user, setUser] = useState('')
   const [userLabel, setUserLabel] = useState('')
   const [doctype, setDoctype] = useState('')
+  const [department, setDepartment] = useState('')
   const [activityType, setActivityType] = useState<ActivityAuditFilters['activity_type']>('all')
   const [sortBy, setSortBy] = useState<SortKey>('timestamp')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
@@ -410,32 +419,35 @@ export function UserActivityAuditReport() {
       parts.push(`Last ${periodDays} day${periodDays === 1 ? '' : 's'}`)
     }
     if (user) parts.push(`User: ${userLabel || user}`)
+    if (department) parts.push(`Department: ${department}`)
     if (viewMode === 'timeline') {
       if (doctype) parts.push(`DocType: ${doctype}`)
       if (activityType && activityType !== 'all') parts.push(`Activity: ${activityType}`)
     }
     parts.push(`Printed ${new Date().toLocaleString('en-GB')}`)
     return parts.join(' · ')
-  }, [activityType, doctype, fromDate, periodDays, toDate, user, userLabel, viewMode])
+  }, [activityType, department, doctype, fromDate, periodDays, toDate, user, userLabel, viewMode])
 
   const buildFilters = useCallback(
     (pageOffset = page): ActivityAuditFilters => ({
       ...dateFilters,
       user: user || undefined,
       doctype: doctype || undefined,
+      department: department || undefined,
       activity_type: activityType,
       sort_by: sortBy,
       sort_order: sortOrder,
       limit: pageSize,
       offset: pageOffset * pageSize,
     }),
-    [activityType, dateFilters, doctype, page, sortBy, sortOrder, user]
+    [activityType, dateFilters, department, doctype, page, sortBy, sortOrder, user]
   )
 
   const loadFilterOptions = useCallback(async () => {
     try {
       const opts = await fetchUserActivityFilterOptions(dateFilters)
       setDoctypeOptions(opts.doctypes || [])
+      setDepartmentOptions(opts.departments || [])
     } catch {
       /* non-fatal */
     }
@@ -462,6 +474,7 @@ export function UserActivityAuditReport() {
       const report = await fetchUserActivitySummary({
         ...dateFilters,
         user: user || undefined,
+        department: department || undefined,
         sort_by: summarySortBy,
         sort_order: summarySortOrder,
         limit: 200,
@@ -475,7 +488,7 @@ export function UserActivityAuditReport() {
     } finally {
       setSummaryLoading(false)
     }
-  }, [dateFilters, summarySortBy, summarySortOrder, user])
+  }, [dateFilters, department, summarySortBy, summarySortOrder, user])
 
   const refreshAll = useCallback(() => {
     loadFilterOptions()
@@ -695,6 +708,25 @@ export function UserActivityAuditReport() {
             />
           </div>
 
+          <div className="space-y-1">
+            <label className="block text-[11px] font-medium text-slate-500">Department</label>
+            <select
+              value={department}
+              onChange={(e) => {
+                setDepartment(e.target.value)
+                setPage(0)
+              }}
+              className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm bg-white"
+            >
+              <option value="">All departments</option>
+              {departmentOptions.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {viewMode === 'timeline' && (
             <>
               <div className="space-y-1">
@@ -850,6 +882,7 @@ export function UserActivityAuditReport() {
                           onSort={handleSort}
                         />
                       </th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Department</th>
                       <th className="px-3 py-2 text-left">
                         <SortHeader
                           label="Activity"
@@ -889,6 +922,9 @@ export function UserActivityAuditReport() {
                         <td className="px-3 py-2">
                           <div className="font-medium text-slate-800">{row.full_name || row.user}</div>
                           <div className="text-[10px] text-slate-500">{row.user}</div>
+                        </td>
+                        <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                          {row.department || '—'}
                         </td>
                         <td className="px-3 py-2">
                           <span

@@ -362,10 +362,14 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 			parent_group_name = (
 				frappe.db.get_value("Lab Test Template", parent_group, "lab_test_name") or parent_group
 			)
+		lab_test_name = frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl
+		# When children are free and the parent group carries the rate, label that line clearly.
+		if spec.get("billed_from_parent_group") and parent_group_name:
+			lab_test_name = f"{parent_group_name} (group charge)"
 		lines.append(
 			{
 				"template": tpl,
-				"lab_test_name": frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl,
+				"lab_test_name": lab_test_name,
 				"parent_group": parent_group,
 				"parent_group_name": parent_group_name,
 				"amount": amount,
@@ -374,6 +378,9 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 				"discount": float(spec.get("discount") or 0),
 				"discount_applied": applied,
 				"net_amount": net,
+				"billed_from_parent_group": 1 if spec.get("billed_from_parent_group") else 0,
+				"billing_only": 1 if spec.get("billing_only") else 0,
+				"price_included_in_group": 1 if spec.get("price_included_in_group") else 0,
 			}
 		)
 	return {
@@ -468,7 +475,7 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 					'lab_group': template_dn,
 					'disabled': 0  # Only get enabled templates
 				},
-				fields=['name', 'lab_test_name'],
+				fields=['name', 'lab_test_name', 'price_included_in_group'],
 				order_by='lab_test_name asc',
 				ignore_permissions=True,
 			)
@@ -478,14 +485,32 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 				if not child.name:
 					continue
 				label = child.lab_test_name or child.name
+				included = cint(child.get('price_included_in_group'))
+				child_pricing = _build_pricing_rows_for_template(
+					'Lab Test Template', child.name, patient_care_type, patient=patient
+				)
+				# Included-in-group children show 0 for basket UI (covered by parent).
+				if included:
+					child_pricing = [
+						{**row, 'price': 0} if isinstance(row, dict) else row
+						for row in (child_pricing or [])
+					]
 				group_templates.append({
 					'template_dn': child.name,
 					'template_label': label,
-					'pricing': _build_pricing_rows_for_template(
-						'Lab Test Template', child.name, patient_care_type, patient=patient
-					),
+					'price_included_in_group': included,
+					'pricing': child_pricing,
 				})
-			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
+			# Parent group rate — always included in the group total.
+			parent_pricing = _build_pricing_rows_for_template(
+				'Lab Test Template', template_dn, patient_care_type, patient=patient
+			)
+			return {
+				'is_group': True,
+				'pricing': parent_pricing,
+				'group_templates': group_templates,
+				'parent_template_dn': template_dn,
+			}
 		else:
 			# Regular lab test template (not a group)
 			pricing = _build_pricing_rows_for_template(
@@ -1326,6 +1351,8 @@ def confirm_payment(service_request_name):
 			lab_test_name = (
 				frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl
 			)
+			if spec.get("billed_from_parent_group"):
+				lab_test_name = f"{lab_test_name} (group charge)"
 			list_rate = flt(spec.get("amount") or 0)
 			net_rate = flt(
 				spec.get("net_amount") if spec.get("net_amount") is not None else list_rate

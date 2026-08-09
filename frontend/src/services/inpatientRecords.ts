@@ -28,6 +28,8 @@ export interface InpatientRecord {
   status: 'Admission Scheduled' | 'Admitted' | 'Discharge Scheduled' | 'Discharged' | 'Cancelled'
   /** 1 when a draft Discharge exists (started, not submitted). Backend status stays Admitted. */
   discharge_in_progress?: number | boolean
+  /** Planned discharge date from the draft Discharge doctype (while in progress). */
+  draft_discharge_date?: string
   scheduled_date: string
   admitted_datetime?: string
   admission_date?: string

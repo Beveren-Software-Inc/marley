@@ -8,7 +8,7 @@ from typing import Any
 
 import frappe
 from frappe import _
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 
 def _get_patient_category_multiplier(patient: str) -> tuple[float, str | None]:
@@ -176,26 +176,90 @@ def expand_lab_test_specs(
 			if children:
 				filters["name"] = ["in", children]
 
+			child_fields = ["name", "price_included_in_group"]
+			if not frappe.db.has_column("Lab Test Template", "price_included_in_group") and frappe.db.has_column(
+				"Lab Test Template", "price_incuded_in_group"
+			):
+				child_fields = ["name", "price_incuded_in_group"]
+
 			child_rows = frappe.get_all(
 				"Lab Test Template",
 				filters=filters,
-				fields=["name"],
+				fields=child_fields,
 				order_by="lab_test_name asc",
 				ignore_permissions=True,
 			)
+
+			group_specs: list[dict[str, Any]] = []
 			for child in child_rows:
 				tpl = child.name
 				if not tpl or tpl in seen_templates:
 					continue
 				seen_templates.add(tpl)
-				priced = _priced_row(tpl)
-				specs.append(
+				included = cint(
+					child.get("price_included_in_group")
+					if "price_included_in_group" in child
+					else child.get("price_incuded_in_group")
+				)
+				if included:
+					priced = {
+						"amount": 0.0,
+						"insurance_discount_pct": 0.0,
+						"insurance_discount_amount": 0.0,
+					}
+				else:
+					priced = _priced_row(tpl)
+				group_specs.append(
 					{
 						"template": tpl,
 						"parent_group": parent,
+						"price_included_in_group": included,
 						**priced,
 					}
 				)
+
+			# Group charge always applies when the parent template has a rate.
+			# Included children are covered by it; unticked children add their own rates.
+			if group_specs:
+				parent_priced = _priced_row(parent)
+				parent_amount = flt(parent_priced.get("amount") or 0)
+				if parent_amount > 0:
+					parent_item = frappe.db.get_value("Lab Test Template", parent, "item")
+					if parent_item:
+						group_specs.insert(
+							0,
+							{
+								"template": parent,
+								"parent_group": parent,
+								"amount": parent_priced["amount"],
+								"insurance_discount_pct": parent_priced.get("insurance_discount_pct"),
+								"insurance_discount_amount": parent_priced.get(
+									"insurance_discount_amount"
+								),
+								"billed_from_parent_group": 1,
+								"billing_only": 1,
+								"price_included_in_group": 0,
+							},
+						)
+					else:
+						# No billing Item on the group — park the group rate on an included child.
+						anchor = next(
+							(s for s in group_specs if s.get("price_included_in_group")),
+							group_specs[0],
+						)
+						if cint(anchor.get("price_included_in_group")) or flt(anchor.get("amount")) <= 0:
+							anchor["amount"] = parent_priced["amount"]
+							anchor["insurance_discount_pct"] = parent_priced.get(
+								"insurance_discount_pct"
+							)
+							anchor["insurance_discount_amount"] = parent_priced.get(
+								"insurance_discount_amount"
+							)
+						else:
+							anchor["amount"] = flt(anchor.get("amount") or 0) + parent_amount
+						anchor["billed_from_parent_group"] = 1
+
+			specs.extend(group_specs)
 
 	return specs
 

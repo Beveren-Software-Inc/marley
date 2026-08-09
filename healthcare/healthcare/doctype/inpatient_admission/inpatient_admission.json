@@ -79,6 +79,7 @@
   "standard_package",
   "inpatient_package",
   "rate_per_day",
+  "package_days_billed",
   "case_management_fee",
   "ip_case_management",
   "ip_case_management_fee",
@@ -800,6 +801,14 @@
    "fieldtype": "Link",
    "label": "Inpatient Package",
    "options": "Inpatient Package"
+  },
+  {
+   "default": "0",
+   "description": "Package days already billed via package quotations / Package Detail. Used for mid-stay charges on Statement of Account.",
+   "fieldname": "package_days_billed",
+   "fieldtype": "Int",
+   "label": "Package Days Billed",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_uxsd",
