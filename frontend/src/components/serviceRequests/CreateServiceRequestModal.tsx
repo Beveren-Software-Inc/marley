@@ -66,6 +66,8 @@ interface CreateServiceRequestModalProps {
   forcedMode?: 'OP' | 'IP'
   /** Prefill / lock inpatient admission when creating from an admission context. */
   initialInpatientRecord?: string
+  /** Prefill / lock patient visit when creating from a visit details panel. */
+  initialPatientVisit?: string
 }
 
 interface PricingRow {
@@ -107,6 +109,7 @@ export const CreateServiceRequestModal = ({
   nurseLabTemplatesOnly = false,
   forcedMode,
   initialInpatientRecord,
+  initialPatientVisit,
 }: CreateServiceRequestModalProps) => {
   const { mode: contextMode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
   const mode = forcedMode || contextMode
@@ -159,7 +162,8 @@ export const CreateServiceRequestModal = ({
     template_dt: '',
     template_dn: '',
     practitioner: '',
-    patient_visit: mode === 'OP' ? activeVisit || '' : '',
+    patient_visit:
+      mode === 'OP' ? (initialPatientVisit || activeVisit || '') : '',
     inpatient_record:
       mode === 'IP' ? (initialInpatientRecord || activeAdmission || '') : '',
     cost_center: '',
@@ -189,12 +193,15 @@ export const CreateServiceRequestModal = ({
 
   const groupTotal = useMemo(() => {
     if (!isGroupTemplate) return 0
-    return selectedGroupTemplates.reduce((total, templateDn) => {
+    const childSum = selectedGroupTemplates.reduce((total, templateDn) => {
       const row = groupRows.find((entry) => entry.template_dn === templateDn)
       if (!row) return total
       return total + (getBestPrice(row.pricing) || 0)
     }, 0)
-  }, [groupRows, isGroupTemplate, patientCategory, selectedGroupTemplates])
+    // Child panels often have no rate — fall back to the parent group template amount.
+    if (childSum > 0) return childSum
+    return getBestPrice(pricingRows) || 0
+  }, [groupRows, isGroupTemplate, patientCategory, selectedGroupTemplates, pricingRows])
 
   const nonGroupListSubtotal = useMemo(() => {
     if (isGroupTemplate) return 0
@@ -390,6 +397,12 @@ export const CreateServiceRequestModal = ({
   useEffect(() => {
     if (mode !== 'OP' || !form.patient || patientVisits.length === 0) return
     setForm((prev) => {
+      if (
+        initialPatientVisit &&
+        patientVisits.some((v) => v.name === initialPatientVisit)
+      ) {
+        return { ...prev, patient_visit: initialPatientVisit }
+      }
       if (activeVisit && patientVisits.some((v) => v.name === activeVisit))
         return { ...prev, patient_visit: activeVisit }
       const first = patientVisits[0]?.name
@@ -397,7 +410,7 @@ export const CreateServiceRequestModal = ({
       const currentOk = prev.patient_visit && patientVisits.some((v) => v.name === prev.patient_visit)
       return currentOk ? prev : { ...prev, patient_visit: first }
     })
-  }, [mode, form.patient, activeVisit, patientVisits])
+  }, [mode, form.patient, activeVisit, patientVisits, initialPatientVisit])
 
   useEffect(() => {
     if (mode !== 'IP' || !form.patient || admissions.length === 0) return

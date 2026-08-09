@@ -44,7 +44,7 @@ import { isDoctorRole } from '../../config/permissions'
 const STATUS_COLORS: Record<string, string> = {
   'Admission Scheduled': 'warning',
   'Admitted': 'success',
-  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'info',
+  [ADMISSION_UI_STATUS_DISCHARGE_IN_PROGRESS]: 'warning',
   'Discharge Scheduled': 'info',
   'Discharged': 'default',
   'Cancelled': 'danger',

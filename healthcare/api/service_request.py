@@ -362,10 +362,14 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 			parent_group_name = (
 				frappe.db.get_value("Lab Test Template", parent_group, "lab_test_name") or parent_group
 			)
+		lab_test_name = frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl
+		# When children are free and the parent group carries the rate, label that line clearly.
+		if spec.get("billed_from_parent_group") and parent_group_name:
+			lab_test_name = f"{parent_group_name} (group charge)"
 		lines.append(
 			{
 				"template": tpl,
-				"lab_test_name": frappe.db.get_value("Lab Test Template", tpl, "lab_test_name") or tpl,
+				"lab_test_name": lab_test_name,
 				"parent_group": parent_group,
 				"parent_group_name": parent_group_name,
 				"amount": amount,
@@ -374,6 +378,7 @@ def get_multi_lab_request_pricing(items, patient=None, patient_care_type=None):
 				"discount": float(spec.get("discount") or 0),
 				"discount_applied": applied,
 				"net_amount": net,
+				"billed_from_parent_group": 1 if spec.get("billed_from_parent_group") else 0,
 			}
 		)
 	return {
@@ -485,7 +490,16 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 						'Lab Test Template', child.name, patient_care_type, patient=patient
 					),
 				})
-			return {'is_group': True, 'pricing': [], 'group_templates': group_templates}
+			# Parent group rate (e.g. URINE:DRUG TEST) — used when child templates have no amount.
+			parent_pricing = _build_pricing_rows_for_template(
+				'Lab Test Template', template_dn, patient_care_type, patient=patient
+			)
+			return {
+				'is_group': True,
+				'pricing': parent_pricing,
+				'group_templates': group_templates,
+				'parent_template_dn': template_dn,
+			}
 		else:
 			# Regular lab test template (not a group)
 			pricing = _build_pricing_rows_for_template(

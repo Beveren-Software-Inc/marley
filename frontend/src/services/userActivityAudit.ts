@@ -4,6 +4,7 @@ export type ActivityAuditRow = {
   timestamp: string
   user: string
   full_name: string
+  department?: string
   activity_type: string
   doctype: string | null
   reference: string
@@ -17,8 +18,9 @@ export type ActivityAuditFilters = {
   period_days?: number
   user?: string
   doctype?: string
+  department?: string
   activity_type?: 'all' | 'login' | 'route' | 'document'
-  sort_by?: 'timestamp' | 'user' | 'activity_type' | 'doctype' | 'reference'
+  sort_by?: 'timestamp' | 'user' | 'activity_type' | 'doctype' | 'reference' | 'department'
   sort_order?: 'asc' | 'desc'
   limit?: number
   offset?: number
@@ -36,6 +38,7 @@ export type ActivityAuditReport = {
 export type ActivityAuditFilterOptions = {
   users: { user: string; full_name: string }[]
   doctypes: string[]
+  departments: string[]
 }
 
 export type AuditUserOption = {
@@ -47,6 +50,7 @@ export type AuditUserOption = {
 export type UserActivitySummaryRow = {
   user: string
   full_name: string
+  department?: string
   login_count: number
   logout_count: number
   route_views: number
@@ -98,6 +102,7 @@ export async function fetchUserActivityReport(
   if (filters.period_days != null) params.set('period_days', String(filters.period_days))
   if (filters.user) params.set('user', filters.user)
   if (filters.doctype) params.set('doctype', filters.doctype)
+  if (filters.department) params.set('department', filters.department)
   if (filters.activity_type) params.set('activity_type', filters.activity_type)
   if (filters.sort_by) params.set('sort_by', filters.sort_by)
   if (filters.sort_order) params.set('sort_order', filters.sort_order)
@@ -121,7 +126,7 @@ export async function searchAuditUsers(search?: string, limit = 30): Promise<Aud
 }
 
 export async function fetchUserActivitySummary(
-  filters: Pick<ActivityAuditFilters, 'from_date' | 'to_date' | 'period_days' | 'user'> & {
+  filters: Pick<ActivityAuditFilters, 'from_date' | 'to_date' | 'period_days' | 'user' | 'department'> & {
     sort_by?: SummarySortKey
     sort_order?: 'asc' | 'desc'
     limit?: number
@@ -132,6 +137,7 @@ export async function fetchUserActivitySummary(
   if (filters.to_date) params.set('to_date', filters.to_date)
   if (filters.period_days != null) params.set('period_days', String(filters.period_days))
   if (filters.user) params.set('user', filters.user)
+  if (filters.department) params.set('department', filters.department)
   if (filters.sort_by) params.set('sort_by', filters.sort_by)
   if (filters.sort_order) params.set('sort_order', filters.sort_order)
   if (filters.limit != null) params.set('limit', String(filters.limit))

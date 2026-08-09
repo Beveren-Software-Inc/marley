@@ -183,19 +183,36 @@ def expand_lab_test_specs(
 				order_by="lab_test_name asc",
 				ignore_permissions=True,
 			)
+			group_specs: list[dict[str, Any]] = []
 			for child in child_rows:
 				tpl = child.name
 				if not tpl or tpl in seen_templates:
 					continue
 				seen_templates.add(tpl)
 				priced = _priced_row(tpl)
-				specs.append(
+				group_specs.append(
 					{
 						"template": tpl,
 						"parent_group": parent,
 						**priced,
 					}
 				)
+
+			# Children often have no rate; bill the parent group template once when that happens.
+			child_total = sum(flt(s.get("amount") or 0) for s in group_specs)
+			if group_specs and child_total <= 0:
+				parent_priced = _priced_row(parent)
+				if flt(parent_priced.get("amount") or 0) > 0:
+					group_specs[0]["amount"] = parent_priced["amount"]
+					group_specs[0]["insurance_discount_pct"] = parent_priced.get(
+						"insurance_discount_pct"
+					)
+					group_specs[0]["insurance_discount_amount"] = parent_priced.get(
+						"insurance_discount_amount"
+					)
+					group_specs[0]["billed_from_parent_group"] = 1
+
+			specs.extend(group_specs)
 
 	return specs
 
