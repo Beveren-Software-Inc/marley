@@ -38,3 +38,4 @@ healthcare.patches.v16_0.grant_occupational_therapist_therapy_access
 
 healthcare.patches.v16_0.grant_nutritionist_notes_access
 healthcare.patches.v16_0.create_missing_clinical_note_types
+healthcare.patches.v16_0.ensure_invoice_reconciliator_role

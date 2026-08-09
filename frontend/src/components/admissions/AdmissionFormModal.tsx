@@ -3,8 +3,9 @@ import { fetchInpatientRecord, fetchServiceUnits, fetchBedNumbers, admitPatient,
 import { uploadPatientFile, type PatientDocumentRow } from '../../services/patients'
 import { fetchDocumentTypes, fetchServiceUnitTypes, createDocumentType, type LinkFieldOption } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
+import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { toast } from '../../hooks/useToast'
-import { PenLine, Trash2, Check, X, BedDouble } from 'lucide-react'
+import { PenLine, X, BedDouble, Check } from 'lucide-react'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 function YesNoField({
@@ -38,179 +39,6 @@ function YesNoField({
           />
           No
         </label>
-      </div>
-    </div>
-  )
-}
-
-// ─── Signature Pad ────────────────────────────────────────────────────────────
-
-interface SignaturePadProps {
-  onSave: (file: File) => void
-  onClear?: () => void
-  existingUrl?: string
-  uploading?: boolean
-}
-
-const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-  const isDrawing = useRef(false)
-  const [hasStrokes, setHasStrokes] = useState(false)
-  const [mode, setMode] = useState<'idle' | 'drawing' | 'done'>(existingUrl ? 'done' : 'idle')
-
-  const initCtx = useCallback(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return null
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return null
-    ctx.strokeStyle = '#1e293b'
-    ctx.lineWidth = 2.2
-    ctx.lineCap = 'round'
-    ctx.lineJoin = 'round'
-    return ctx
-  }, [])
-
-  const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
-    const rect = canvas.getBoundingClientRect()
-    const scaleX = canvas.width / rect.width
-    const scaleY = canvas.height / rect.height
-    if ('touches' in e) {
-      const t = e.touches[0]
-      return { x: (t.clientX - rect.left) * scaleX, y: (t.clientY - rect.top) * scaleY }
-    }
-    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }
-  }
-
-  const startDraw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = initCtx()
-    if (!ctx) return
-    isDrawing.current = true
-    const pos = getPos(e, canvas)
-    ctx.beginPath()
-    ctx.moveTo(pos.x, pos.y)
-  }
-
-  const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    e.preventDefault()
-    if (!isDrawing.current) return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = initCtx()
-    if (!ctx) return
-    const pos = getPos(e, canvas)
-    ctx.lineTo(pos.x, pos.y)
-    ctx.stroke()
-    setHasStrokes(true)
-  }
-
-  const endDraw = () => { isDrawing.current = false }
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    setHasStrokes(false)
-    onClear?.()
-  }
-
-  const saveSignature = () => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    canvas.toBlob((blob) => {
-      if (!blob) return
-      const file = new File([blob], `signature_${Date.now()}.png`, { type: 'image/png' })
-      onSave(file)
-      setMode('done')
-    }, 'image/png')
-  }
-
-  useEffect(() => {
-    if (mode !== 'drawing') return
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * window.devicePixelRatio
-    canvas.height = rect.height * window.devicePixelRatio
-    const ctx = canvas.getContext('2d')
-    if (ctx) ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
-    setHasStrokes(false)
-  }, [mode])
-
-  if (mode === 'idle') {
-    return (
-      <button
-        type="button"
-        onClick={() => setMode('drawing')}
-        className="w-full h-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary hover:bg-blue-50/50 transition-all group"
-      >
-        <PenLine className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        <span className="text-xs font-medium">Add Signature</span>
-      </button>
-    )
-  }
-
-  if (mode === 'done' && existingUrl) {
-    return (
-      <div className="w-full h-full min-h-[96px] flex flex-col items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 p-2">
-        <img src={existingUrl} alt="Signature" className="max-h-16 object-contain" />
-        <button
-          type="button"
-          onClick={() => { setMode('drawing'); clearCanvas() }}
-          className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
-        >
-          <Trash2 className="w-3 h-3" /> Re-sign
-        </button>
-      </div>
-    )
-  }
-
-  return (
-    <div className="w-full rounded-lg border border-slate-300 bg-white overflow-hidden flex flex-col">
-      <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100 bg-slate-50">
-        <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
-          <PenLine className="w-3 h-3" /> Draw signature
-        </span>
-        <div className="flex items-center gap-1">
-          <button type="button" onClick={clearCanvas} disabled={!hasStrokes}
-            className="text-xs text-slate-400 hover:text-red-500 disabled:opacity-30 flex items-center gap-0.5 transition-colors px-1.5 py-0.5 rounded hover:bg-red-50">
-            <Trash2 className="w-3 h-3" /> Clear
-          </button>
-          <button type="button" onClick={() => { setMode('idle'); clearCanvas() }}
-            className="text-xs text-slate-400 hover:text-slate-600 px-1.5 py-0.5 rounded hover:bg-slate-100 transition-colors">
-            Cancel
-          </button>
-        </div>
-      </div>
-      <div className="relative" style={{ touchAction: 'none' }}>
-        <canvas
-          ref={canvasRef}
-          style={{ width: '100%', height: '96px', display: 'block', cursor: 'crosshair' }}
-          onMouseDown={startDraw} onMouseMove={draw} onMouseUp={endDraw} onMouseLeave={endDraw}
-          onTouchStart={startDraw} onTouchMove={draw} onTouchEnd={endDraw}
-        />
-        {!hasStrokes && (
-          <span className="absolute inset-0 flex items-center justify-center text-xs text-slate-300 pointer-events-none select-none">
-            Sign here
-          </span>
-        )}
-      </div>
-      <div className="px-2.5 py-2 border-t border-slate-100 flex justify-end">
-        <button type="button" onClick={saveSignature} disabled={!hasStrokes || uploading}
-          className="flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-          {uploading ? (
-            <span className="flex items-center gap-1">
-              <span className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-              Saving…
-            </span>
-          ) : (
-            <><Check className="w-3 h-3" /> Save Signature</>
-          )}
-        </button>
       </div>
     </div>
   )
@@ -638,9 +466,9 @@ export const AdmissionFormModal = ({
       if (days > 0 && selectedPackage.name) {
         // For custom packages, compute directly from the entered rate × room multiplier
         if (selectedPackage.name === '__custom__') {
+          // Quotation rate comes from package/custom rate only; room type picks Item
           const programPrice = selectedPackage.package_rate * days
-          const total = programPrice * (activeRoomMultiplier || 1)
-          setCalculatedPrice(total)
+          setCalculatedPrice(programPrice)
           setPriceBreakdown({
             program_price: programPrice,
             room_multiplier: activeRoomMultiplier || 1,
@@ -655,9 +483,11 @@ export const AdmissionFormModal = ({
             serviceUnit: selectedServiceUnits[0]?.name,
             roomMultiplier: activeRoomMultiplier,
           })
-          setCalculatedPrice(result.total_price)
+          // Use program (package) price for quotation — not room-multiplied total
+          const programPrice = result.program_price ?? result.total_price
+          setCalculatedPrice(programPrice)
           setPriceBreakdown({
-            program_price: result.program_price ?? result.total_price,
+            program_price: programPrice,
             room_multiplier: result.room_multiplier ?? activeRoomMultiplier,
             service_unit_type: result.service_unit_type || activeRoomType,
           })
@@ -1116,7 +946,7 @@ export const AdmissionFormModal = ({
     if (signatures.length === 0 || incompleteSignature) {
       setError(
         new Error(
-          'At least one signature is required with Patient Relation, Signee Name, and a drawn signature',
+          'At least one signature is required with Patient Relation, Signee Name, and a drawn or uploaded signature',
         ),
       )
       setActiveTab('signatures')
@@ -1502,12 +1332,13 @@ export const AdmissionFormModal = ({
                     </div>
                     {priceBreakdown && (
                       <p className="text-xs text-green-800 mt-1">
-                        Program {priceBreakdown.program_price?.toLocaleString() ?? '—'} BD
-                        {' × '}
-                        Room {(priceBreakdown.room_multiplier ?? 1).toLocaleString()}
+                        Package rate (quotation): {priceBreakdown.program_price?.toLocaleString() ?? '—'} BD
                         {priceBreakdown.service_unit_type
-                          ? ` (${priceBreakdown.service_unit_type})`
-                          : ' (select a room type to apply multiplier)'}
+                          ? ` · Room type ${priceBreakdown.service_unit_type} (item only)`
+                          : ''}
+                        {priceBreakdown.room_multiplier != null && priceBreakdown.room_multiplier !== 1
+                          ? ` · room ×${priceBreakdown.room_multiplier} not applied to rate`
+                          : ''}
                       </p>
                     )}
                     {discountPercent > 0 && (
@@ -1515,7 +1346,7 @@ export const AdmissionFormModal = ({
                         Discount {discountPercent}% applied (original {calculatedPrice.toLocaleString()} BHD)
                       </p>
                     )}
-                    <p className="text-xs text-green-700 mt-1">For {days} {days === 1 ? 'day' : 'days'}</p>
+                    <p className="text-xs text-green-700 mt-1">For {days} {days === 1 ? 'day' : 'days'} (rate = package / day)</p>
                   </div>
                 ) : null}
 
@@ -1804,7 +1635,8 @@ export const AdmissionFormModal = ({
             {activeTab === 'signatures' && (
               <div>
                 <p className="text-sm text-slate-500 mb-4">
-                  Capture admission e-signatures. Patient Relation and Signee Name are required for each signature.
+                  Capture admission e-signatures (draw on screen or upload an image from phone / files).
+                  Patient Relation and Signee Name are required for each signature.
                 </p>
                 <div className="space-y-4">
                   {signatures.length === 0 && (
@@ -1891,7 +1723,8 @@ export const AdmissionFormModal = ({
                           <div className="flex-1">
                             <SignaturePad
                               onSave={(file) => handleSignatureFile(idx, file)}
-                              existingUrl={row.document || undefined}
+                              onClear={() => updateSignatureRow(idx, 'document', '')}
+                              existingUrl={attachFileDisplayUrl(row.document)}
                               uploading={signatureUploading === idx}
                             />
                           </div>
@@ -1899,7 +1732,7 @@ export const AdmissionFormModal = ({
                             <p className="text-xs text-slate-500 text-center">Uploading signature...</p>
                           )}
                           <p className="text-xs text-slate-400 leading-relaxed">
-                            Draw above, then tap <strong>Save Signature</strong>.
+                            Draw and save, or upload a signature image.
                           </p>
                         </div>
                       </div>

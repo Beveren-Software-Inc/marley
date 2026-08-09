@@ -3,6 +3,20 @@ from frappe import _
 from frappe.utils import cint, flt
 
 
+# Fixed to 3 dp (BHD fils). All payment amounts are normalized here so float
+# noise from the UI never trips "allocated > paid" checks.
+MONEY_PRECISION = 3
+
+
+def _money(amount) -> float:
+	"""Force money to exactly 3 decimal places."""
+	return flt(amount, MONEY_PRECISION)
+
+
+def _money_gt(a, b) -> bool:
+	return _money(a) > _money(b)
+
+
 # ─── Helpers ──────────────────────────────────────────────────────────────────
 
 def _payment_search_cost_center_filter(filters: dict) -> bool:
@@ -469,7 +483,16 @@ def _parse_allocations(raw) -> list[dict]:
 		raw = json.loads(raw)
 	if not isinstance(raw, list):
 		frappe.throw(_("Allocations must be a list of invoice amounts"))
-	return raw
+	out = []
+	for row in raw:
+		if not isinstance(row, dict):
+			continue
+		name = (row.get("reference_name") or row.get("invoice") or "").strip()
+		amt = _money(row.get("allocated_amount") or row.get("amount") or 0)
+		if not name or amt <= 0:
+			continue
+		out.append({"reference_name": name, "allocated_amount": amt})
+	return out
 
 
 def _parse_payment_modes(data: dict, *, amount_key: str = "paid_amount") -> list[dict]:
@@ -486,7 +509,7 @@ def _parse_payment_modes(data: dict, *, amount_key: str = "paid_amount") -> list
 			if not isinstance(row, dict):
 				continue
 			mode = (row.get("mode_of_payment") or row.get("payment_mode") or "").strip()
-			amount = flt(row.get("amount") or row.get("paid_amount") or 0)
+			amount = _money(row.get("amount") or row.get("paid_amount") or 0)
 			if not mode or amount <= 0:
 				continue
 			modes.append(
@@ -498,7 +521,7 @@ def _parse_payment_modes(data: dict, *, amount_key: str = "paid_amount") -> list
 			)
 	else:
 		mode = (data.get("mode_of_payment") or data.get("payment_mode") or "").strip()
-		amount = flt(data.get(amount_key) or data.get("paid_amount") or data.get("refund_amount") or 0)
+		amount = _money(data.get(amount_key) or data.get("paid_amount") or data.get("refund_amount") or 0)
 		if mode and amount > 0:
 			modes.append(
 				{
@@ -544,27 +567,27 @@ def _split_allocations_across_modes(modes: list[dict], allocations: list[dict]) 
 	remaining = [
 		{
 			"reference_name": row.get("reference_name") or row.get("invoice"),
-			"left": flt(row.get("allocated_amount")),
+			"left": _money(row.get("allocated_amount")),
 		}
 		for row in allocations
-		if (row.get("reference_name") or row.get("invoice")) and flt(row.get("allocated_amount")) > 0
+		if (row.get("reference_name") or row.get("invoice")) and _money(row.get("allocated_amount")) > 0
 	]
 	out = []
 	for mode in modes:
-		mode_left = flt(mode["amount"])
+		mode_left = _money(mode["amount"])
 		mode_allocs = []
 		for row in remaining:
 			if mode_left <= 0:
 				break
-			take = min(flt(row["left"]), mode_left)
+			take = _money(min(flt(row["left"]), mode_left))
 			if take <= 0:
 				continue
 			mode_allocs.append(
 				{"reference_name": row["reference_name"], "allocated_amount": take}
 			)
-			row["left"] = flt(row["left"]) - take
-			mode_left -= take
-		out.append({**mode, "allocations": mode_allocs})
+			row["left"] = _money(flt(row["left"]) - take)
+			mode_left = _money(mode_left - take)
+		out.append({**mode, "amount": _money(mode["amount"]), "allocations": mode_allocs})
 	return out
 
 
@@ -593,8 +616,9 @@ def _new_receive_payment_entry(
 	pe.paid_to = paid_to
 	pe.paid_from_account_currency = currency
 	pe.paid_to_account_currency = currency
-	pe.paid_amount = paid_amount
-	pe.received_amount = paid_amount
+	amount = _money(paid_amount)
+	pe.paid_amount = amount
+	pe.received_amount = amount
 	pe.source_exchange_rate = 1
 	pe.target_exchange_rate = 1
 	pe.difference_amount = 0
@@ -794,29 +818,29 @@ def create_multi_invoice_payment(data: dict) -> dict:
 		frappe.throw(_("Patient is required"))
 
 	modes = _parse_payment_modes(data)
-	paid_amount = sum(flt(m["amount"]) for m in modes)
+	paid_amount = _money(sum(_money(m["amount"]) for m in modes))
 
 	allocations = _parse_allocations(data.get("allocations"))
 	if not allocations:
 		frappe.throw(_("Select at least one invoice to allocate"))
 
-	total_allocated = sum(flt(row.get("allocated_amount")) for row in allocations)
+	total_allocated = _money(sum(_money(row.get("allocated_amount")) for row in allocations))
 	if total_allocated <= 0:
 		frappe.throw(_("Total allocated amount must be greater than zero"))
-	if total_allocated > paid_amount:
+	if _money_gt(total_allocated, paid_amount):
 		frappe.throw(_("Total allocated amount cannot exceed the payment amount"))
 
 	# Validate invoices once before creating any Payment Entries.
 	for row in allocations:
 		invoice_name = row.get("reference_name") or row.get("invoice")
-		allocated = flt(row.get("allocated_amount"))
+		allocated = _money(row.get("allocated_amount"))
 		if not invoice_name or allocated <= 0:
 			continue
 		inv = _get_reference_doc("Sales Invoice", invoice_name)
 		if inv.get("patient") and inv.patient != patient:
 			frappe.throw(_("Invoice {0} does not belong to patient {1}").format(invoice_name, patient))
-		outstanding = flt(inv.outstanding_amount)
-		if allocated > outstanding:
+		outstanding = _money(inv.outstanding_amount)
+		if _money_gt(allocated, outstanding):
 			frappe.throw(
 				_("Allocation for {0} ({1}) exceeds outstanding amount ({2})").format(
 					invoice_name, allocated, outstanding
@@ -845,12 +869,12 @@ def create_multi_invoice_payment(data: dict) -> dict:
 		)
 		for row in mp.get("allocations") or []:
 			invoice_name = row.get("reference_name")
-			allocated = flt(row.get("allocated_amount"))
+			allocated = _money(row.get("allocated_amount"))
 			if not invoice_name or allocated <= 0:
 				continue
 			inv = _get_reference_doc("Sales Invoice", invoice_name)
-			outstanding = flt(inv.outstanding_amount)
-			take = min(allocated, outstanding) if outstanding > 0 else allocated
+			outstanding = _money(inv.outstanding_amount)
+			take = _money(min(allocated, outstanding) if outstanding > 0 else allocated)
 			if take <= 0:
 				continue
 			pe.append(
@@ -860,7 +884,7 @@ def create_multi_invoice_payment(data: dict) -> dict:
 					"reference_name": invoice_name,
 					"bill_no": inv.get("bill_no") or "",
 					"due_date": inv.get("due_date"),
-					"total_amount": flt(inv.grand_total),
+					"total_amount": _money(inv.grand_total),
 					"outstanding_amount": outstanding,
 					"allocated_amount": take,
 				},
@@ -886,12 +910,12 @@ def create_patient_refund(data: dict) -> dict:
 		frappe.throw(_("Patient is required"))
 
 	modes = _parse_payment_modes(data, amount_key="refund_amount")
-	refund_amount = sum(flt(m["amount"]) for m in modes)
+	refund_amount = _money(sum(_money(m["amount"]) for m in modes))
 
 	customer = _patient_customer(patient)
 	company = _resolve_company_for_patient(patient, data.get("company"))
-	credit_balance = _get_patient_credit_balance(customer, company)
-	if refund_amount > credit_balance:
+	credit_balance = _money(_get_patient_credit_balance(customer, company))
+	if _money_gt(refund_amount, credit_balance):
 		frappe.throw(
 			_("Refund amount ({0}) exceeds available patient credit ({1})").format(refund_amount, credit_balance)
 		)

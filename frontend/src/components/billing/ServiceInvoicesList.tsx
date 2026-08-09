@@ -61,6 +61,7 @@ export const ServiceInvoicesList = ({
   const [selectedNames, setSelectedNames] = useState<Set<string>>(() => new Set())
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionBusy, setActionBusy] = useState<{ name: string; kind: 'submit' | 'cancel' } | null>(null)
+  const [bulkSubmitting, setBulkSubmitting] = useState(false)
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const [caseSearch, setCaseSearch] = useState('')
   const [debouncedCaseSearch, setDebouncedCaseSearch] = useState('')
@@ -96,12 +97,27 @@ export const ServiceInvoicesList = ({
     () => invoices.filter((inv) => canRecordPaymentAgainstSalesInvoice(inv)),
     [invoices]
   )
+  const draftInvoices = useMemo(
+    () => invoices.filter((inv) => isDraftSalesInvoice(inv.docstatus)),
+    [invoices]
+  )
+  const selectableInvoices = useMemo(() => {
+    const map = new Map<string, ServiceInvoice>()
+    for (const inv of draftInvoices) map.set(inv.name, inv)
+    for (const inv of payableInvoices) map.set(inv.name, inv)
+    return [...map.values()]
+  }, [draftInvoices, payableInvoices])
+
   const selectedPayable = useMemo(
     () => payableInvoices.filter((inv) => selectedNames.has(inv.name)),
     [payableInvoices, selectedNames]
   )
-  const allPayableSelected =
-    payableInvoices.length > 0 && payableInvoices.every((inv) => selectedNames.has(inv.name))
+  const selectedDrafts = useMemo(
+    () => draftInvoices.filter((inv) => selectedNames.has(inv.name)),
+    [draftInvoices, selectedNames]
+  )
+  const allSelectableSelected =
+    selectableInvoices.length > 0 && selectableInvoices.every((inv) => selectedNames.has(inv.name))
 
   const toggleSelect = (name: string) => {
     setSelectedNames((prev) => {
@@ -112,12 +128,12 @@ export const ServiceInvoicesList = ({
     })
   }
 
-  const toggleSelectAllPayable = () => {
-    if (allPayableSelected) {
+  const toggleSelectAllSelectable = () => {
+    if (allSelectableSelected) {
       setSelectedNames(new Set())
       return
     }
-    setSelectedNames(new Set(payableInvoices.map((inv) => inv.name)))
+    setSelectedNames(new Set(selectableInvoices.map((inv) => inv.name)))
   }
 
   const openMultiRecordPayment = () => {
@@ -135,6 +151,41 @@ export const ServiceInvoicesList = ({
       return
     }
     setMultiPayOpen(true)
+  }
+
+  const submitSelectedDrafts = async () => {
+    if (selectedDrafts.length === 0) {
+      toast.error('Select draft invoices to submit')
+      return
+    }
+    if (
+      !window.confirm(
+        `Submit ${selectedDrafts.length} draft invoice${selectedDrafts.length === 1 ? '' : 's'}?`
+      )
+    ) {
+      return
+    }
+    setBulkSubmitting(true)
+    let ok = 0
+    const failures: string[] = []
+    for (const inv of selectedDrafts) {
+      try {
+        await submitSalesInvoiceDoc(inv.name)
+        ok += 1
+      } catch (e) {
+        failures.push(`${inv.name}: ${e instanceof Error ? e.message : 'failed'}`)
+      }
+    }
+    setBulkSubmitting(false)
+    if (ok > 0) {
+      toast.success(`Submitted ${ok} invoice${ok === 1 ? '' : 's'}`)
+    }
+    if (failures.length > 0) {
+      toast.error(failures.slice(0, 3).join(' · ') + (failures.length > 3 ? ` (+${failures.length - 3} more)` : ''))
+    }
+    setSelectedNames(new Set())
+    await loadData()
+    onAfterInvoiceMutation?.()
   }
 
   const multiPayPatient = selectedPayable[0]?.patient || effectivePatient || ''
@@ -341,6 +392,18 @@ export const ServiceInvoicesList = ({
           )}
         </div>
         <div className="flex items-center gap-2">
+          {selectedDrafts.length > 0 && (
+            <button
+              type="button"
+              disabled={bulkSubmitting}
+              onClick={() => void submitSelectedDrafts()}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-primary text-white bg-primary hover:bg-primary/90 disabled:opacity-50"
+            >
+              {bulkSubmitting
+                ? 'Submitting…'
+                : `Submit invoices (${selectedDrafts.length})`}
+            </button>
+          )}
           {selectedPayable.length > 0 && (
             <button
               type="button"
@@ -378,12 +441,12 @@ export const ServiceInvoicesList = ({
                   <th className="px-4 py-3 w-10">
                     <input
                       type="checkbox"
-                      checked={allPayableSelected}
-                      disabled={payableInvoices.length === 0}
-                      onChange={toggleSelectAllPayable}
+                      checked={allSelectableSelected}
+                      disabled={selectableInvoices.length === 0}
+                      onChange={toggleSelectAllSelectable}
                       className="rounded border-slate-300 text-primary focus:ring-primary"
-                      title="Select all unpaid / partially paid"
-                      aria-label="Select all unpaid or partially paid"
+                      title="Select all drafts and unpaid invoices"
+                      aria-label="Select all drafts and unpaid invoices"
                     />
                   </th>
                   <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Invoice ID</th>
@@ -403,13 +466,14 @@ export const ServiceInvoicesList = ({
               <tbody className="divide-y divide-slate-200">
                 {invoices.map((invoice) => {
                   const payable = canRecordPaymentAgainstSalesInvoice(invoice)
+                  const selectable = payable || isDraftSalesInvoice(invoice.docstatus)
                   return (
                   <tr key={invoice.name} className="hover:bg-slate-50">
                     <td className="px-4 py-3">
                       <input
                         type="checkbox"
                         checked={selectedNames.has(invoice.name)}
-                        disabled={!payable}
+                        disabled={!selectable}
                         onChange={() => toggleSelect(invoice.name)}
                         className="rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-30"
                         aria-label={`Select ${invoice.name}`}

@@ -335,9 +335,16 @@ export interface CreateBulkInvoiceOptions {
 }
 
 export interface BulkInvoiceSplitResult {
-  split_by_cost_center: true
+  split_by_cost_center?: boolean
+  split_by_fulfillment?: boolean
   invoices: string[]
-  details?: Array<{ invoice: string; cost_center?: string | null }>
+  details?: Array<{
+    invoice: string
+    cost_center?: string | null
+    source?: string
+    delivery_notes?: string[]
+    sales_orders?: string[]
+  }>
 }
 
 export type BulkInvoiceResult = string | BulkInvoiceSplitResult
@@ -347,8 +354,9 @@ function parseBulkInvoiceMessage(message: unknown): BulkInvoiceResult {
   if (
     message &&
     typeof message === 'object' &&
-    (message as BulkInvoiceSplitResult).split_by_cost_center &&
-    Array.isArray((message as BulkInvoiceSplitResult).invoices)
+    Array.isArray((message as BulkInvoiceSplitResult).invoices) &&
+    ((message as BulkInvoiceSplitResult).split_by_cost_center ||
+      (message as BulkInvoiceSplitResult).split_by_fulfillment)
   ) {
     return message as BulkInvoiceSplitResult
   }

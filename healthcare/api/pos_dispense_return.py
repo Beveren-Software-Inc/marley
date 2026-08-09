@@ -112,13 +112,14 @@ def get_returned_qty_for_so_item(so, item):
 
 
 def get_net_billable_qty_for_so_item(so, item) -> float:
-	"""Qty to invoice after POS dispense returns."""
+	"""Qty still invoiceable on a Sales Order line (sold − returns − billed)."""
 	sold_qty = flt(item.qty)
 	if sold_qty <= 0:
 		return 0
-	if not is_pos_dispense_sales_order(so):
-		return sold_qty
-	return max(0, sold_qty - get_returned_qty_for_so_item(so, item))
+	if is_pos_dispense_sales_order(so):
+		sold_qty = max(0, sold_qty - get_returned_qty_for_so_item(so, item))
+	billed = flt(getattr(item, "billed_qty", None) or 0)
+	return max(0, sold_qty - billed)
 
 
 def sales_order_has_billable_qty(so) -> bool:

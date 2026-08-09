@@ -91,25 +91,16 @@ def get_service_orders(
                 sales_orders.append(frappe._dict(row))
                 seen.add(row_name)
 
-    # Check if invoice exists for each sales order
+    from healthcare.controllers.sales_order import ensure_service_sales_order_status
+
+    # Check if invoice exists for each sales order (partial = still billable).
+    # Service-only SOs stuck on "To Deliver" get skip_delivery_note + status refresh.
     for so in sales_orders:
-        # Find linked Sales Invoice
-        invoice = frappe.db.get_value(
-            'Sales Invoice Item',
-            {'sales_order': so.name},
-            'parent'
-        )
-        
-        if invoice:
-            invoice_doc = frappe.get_doc('Sales Invoice', invoice)
-            so.invoice_status = invoice_doc.status
-            so.invoice_name = invoice
-            so.invoice_amount = invoice_doc.grand_total
-            so.invoice_date = invoice_doc.posting_date
-        else:
-            so.invoice_status = 'Not Created'
-            so.invoice_name = None
-            so.invoice_amount = 0
+        if so.get("status") in ("To Deliver", "To Deliver and Bill") and cint(so.get("docstatus")) == 1:
+            fixed = ensure_service_sales_order_status(so.name)
+            if fixed:
+                so.status = fixed
+        _apply_sales_order_invoice_status(so)
 
     cc_keys = list({so.get('cost_center') for so in sales_orders if so.get('cost_center')})
     cc_labels = {}
@@ -216,19 +207,23 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
     for so in sales_orders:
         order_amount = _summary_amount(so)
         summary['total_amount'] += order_amount
-        # Check if invoice exists
-        invoice_exists = frappe.db.exists('Sales Invoice Item', {'sales_order': so.name})
-        
-        if invoice_exists:
-            invoice = frappe.db.get_value('Sales Invoice Item', {'sales_order': so.name}, 'parent')
-            invoice_status = frappe.db.get_value('Sales Invoice', invoice, 'status')
-            
+        links = _sales_order_invoice_links(so.name)
+        remaining = _sales_order_has_remaining_to_invoice(so.name)
+
+        if links and not remaining:
+            invoice_status = links[0].status
             if invoice_status == 'Paid':
                 summary['invoiced']['count'] += 1
                 summary['invoiced']['amount'] += order_amount
-            elif invoice_status in ['Unpaid', 'Overdue']:
+            elif invoice_status in ['Unpaid', 'Overdue', 'Partially Paid']:
                 summary['partially_invoiced']['count'] += 1
                 summary['partially_invoiced']['amount'] += order_amount
+            else:
+                summary['partially_invoiced']['count'] += 1
+                summary['partially_invoiced']['amount'] += order_amount
+        elif links and remaining:
+            summary['partially_invoiced']['count'] += 1
+            summary['partially_invoiced']['amount'] += order_amount
         else:
             if order_amount <= 0:
                 continue
@@ -299,16 +294,195 @@ def get_service_order_summary(reference_type=None, reference_name=None, patient=
 #     return invoice.name
 
 def _sales_order_has_billable_qty(sales_order_name, so_doc=None):
-	from healthcare.api.pos_dispense_return import is_pos_dispense_sales_order, sales_order_has_billable_qty
+	from healthcare.api.pos_dispense_return import sales_order_has_billable_qty
 
 	so = so_doc or frappe.get_doc("Sales Order", sales_order_name)
-	if not is_pos_dispense_sales_order(so):
-		return True
-	return sales_order_has_billable_qty(so)
+	return sales_order_has_billable_qty(so) or bool(
+		_uninvoiced_delivery_notes_for_sales_orders([so.name])
+	)
+
+
+def _delivery_note_rows_for_sales_orders(so_names: list[str]) -> list[dict]:
+	"""Submitted non-return Delivery Note lines linked to the given Sales Orders."""
+	names = [n for n in (so_names or []) if n]
+	if not names:
+		return []
+	return frappe.db.sql(
+		"""
+		SELECT
+			dn.name AS delivery_note,
+			dni.name AS dn_detail,
+			dni.so_detail,
+			dni.against_sales_order AS sales_order,
+			dni.item_code,
+			dni.qty,
+			dni.billed_amt
+		FROM `tabDelivery Note` dn
+		INNER JOIN `tabDelivery Note Item` dni ON dni.parent = dn.name
+		WHERE dni.against_sales_order IN %(sos)s
+		  AND dn.docstatus = 1
+		  AND IFNULL(dn.is_return, 0) = 0
+		ORDER BY dn.creation ASC, dni.idx ASC
+		""",
+		{"sos": names},
+		as_dict=True,
+	)
+
+
+def _so_details_covered_by_delivery_note(so_names: list[str]) -> set[str]:
+	"""Sales Order Item names that already have a Delivery Note (bill via DN, not SO)."""
+	return {
+		row.so_detail
+		for row in _delivery_note_rows_for_sales_orders(so_names)
+		if row.get("so_detail")
+	}
+
+
+def _dn_has_pending_invoice_qty(delivery_note: str) -> bool:
+	"""True when the Delivery Note still has qty left to invoice (ignores cancelled SI)."""
+	try:
+		from erpnext.stock.doctype.delivery_note.delivery_note import (
+			get_invoiced_qty_map,
+			get_returned_qty_map,
+		)
+	except ImportError:
+		return not frappe.db.exists(
+			"Sales Invoice Item",
+			{"delivery_note": delivery_note, "docstatus": ["<", 2]},
+		)
+
+	dn = frappe.get_doc("Delivery Note", delivery_note)
+	# Include draft invoices so bulk create does not duplicate open SI drafts
+	draft_or_submitted = frappe.db.sql(
+		"""
+		SELECT dn_detail, SUM(qty) AS qty
+		FROM `tabSales Invoice Item`
+		WHERE delivery_note = %s AND docstatus < 2
+		GROUP BY dn_detail
+		""",
+		delivery_note,
+		as_dict=True,
+	)
+	invoiced_qty_map = {r.dn_detail: flt(r.qty) for r in draft_or_submitted if r.dn_detail}
+	if not invoiced_qty_map:
+		invoiced_qty_map = get_invoiced_qty_map(delivery_note)
+
+	returned_qty_map = get_returned_qty_map(delivery_note)
+	for item in dn.items:
+		pending = flt(item.qty) - flt(invoiced_qty_map.get(item.name, 0))
+		returned = flt(returned_qty_map.get(item.name, 0))
+		if returned > 0:
+			pending = max(0, pending - returned)
+		if pending > 0:
+			return True
+	return False
+
+
+def _uninvoiced_delivery_notes_for_sales_orders(so_names: list[str]) -> list[str]:
+	seen = []
+	for row in _delivery_note_rows_for_sales_orders(so_names):
+		dn = row.delivery_note
+		if dn in seen:
+			continue
+		if _dn_has_pending_invoice_qty(dn):
+			seen.append(dn)
+	return seen
+
+
+def _submitted_si_qty_by_so_detail(so_name: str) -> dict[str, float]:
+	"""Qty already on submitted Sales Invoices for each Sales Order Item row."""
+	rows = frappe.db.sql(
+		"""
+		SELECT sii.so_detail AS so_detail, SUM(sii.qty) AS qty
+		FROM `tabSales Invoice Item` sii
+		INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+		WHERE sii.sales_order = %s
+		  AND si.docstatus = 1
+		  AND IFNULL(si.is_return, 0) = 0
+		  AND IFNULL(sii.so_detail, '') != ''
+		GROUP BY sii.so_detail
+		""",
+		so_name,
+		as_dict=True,
+	)
+	return {r.so_detail: flt(r.qty) for r in rows if r.so_detail}
+
+
+def _sales_order_invoice_links(so_name: str) -> list[dict]:
+	"""Submitted/draft Sales Invoices linked to this Sales Order (via SI Item.sales_order)."""
+	return frappe.db.sql(
+		"""
+		SELECT DISTINCT
+			si.name,
+			si.status,
+			si.docstatus,
+			si.outstanding_amount,
+			si.grand_total,
+			si.creation
+		FROM `tabSales Invoice Item` sii
+		INNER JOIN `tabSales Invoice` si ON si.name = sii.parent
+		WHERE sii.sales_order = %s
+		  AND si.docstatus < 2
+		ORDER BY si.creation DESC
+		""",
+		so_name,
+		as_dict=True,
+	)
+
+
+def _apply_sales_order_invoice_status(so) -> None:
+	"""Set invoice_name / invoice_status on a Sales Order list row."""
+	links = _sales_order_invoice_links(so.name)
+	remaining = _sales_order_has_remaining_to_invoice(so.name)
+
+	if not links:
+		so.invoice_status = "Not Created"
+		so.invoice_name = None
+		so.invoice_amount = 0
+		return
+
+	primary = links[0]
+	so.invoice_name = primary.name
+	so.invoice_amount = flt(primary.grand_total)
+
+	if not remaining:
+		so.invoice_status = primary.status or "Invoiced"
+		so.invoice_date = frappe.db.get_value("Sales Invoice", primary.name, "posting_date")
+		return
+
+	# Linked invoice(s) exist but something still open — still expose the invoice id
+	so.invoice_status = "Partial"
+	so.partial_invoice_name = primary.name
+
+
+def _sales_order_has_remaining_to_invoice(so) -> bool:
+	"""True if services remain on the SO and/or linked DNs still need invoicing."""
+	so_name = so.name if hasattr(so, "name") else so
+	doc = so if hasattr(so, "items") else frappe.get_doc("Sales Order", so_name)
+	dn_covered = _so_details_covered_by_delivery_note([doc.name])
+	from healthcare.api.pos_dispense_return import (
+		get_returned_qty_for_so_item,
+		is_pos_dispense_sales_order,
+	)
+
+	si_qty = _submitted_si_qty_by_so_detail(doc.name)
+	for item in doc.items:
+		if item.name in dn_covered:
+			# Stock lines are billed via Delivery Note invoice, not SO lines
+			continue
+		sold = flt(item.qty)
+		if sold <= 0:
+			continue
+		if is_pos_dispense_sales_order(doc):
+			sold = max(0, sold - get_returned_qty_for_so_item(doc, item))
+		invoiced = max(flt(getattr(item, "billed_qty", None) or 0), flt(si_qty.get(item.name) or 0))
+		if sold - invoiced > 0.0005:
+			return True
+	return bool(_uninvoiced_delivery_notes_for_sales_orders([doc.name]))
 
 
 def _load_billable_sales_orders_by_names(names):
-	"""Return submitted, not-yet-invoiced Sales Order docs for the given names."""
+	"""Return submitted Sales Order docs that still have invoiceable SO or DN qty."""
 	import json
 
 	if isinstance(names, str):
@@ -334,8 +508,6 @@ def _load_billable_sales_orders_by_names(names):
 			frappe.throw(
 				frappe._("Sales Order {0} must be submitted before invoicing.").format(name)
 			)
-		if frappe.db.exists("Sales Invoice Item", {"sales_order": name}):
-			frappe.throw(frappe._("Sales Order {0} is already invoiced.").format(name))
 
 		if permitted_cc is not None:
 			if not permitted_cc:
@@ -348,11 +520,11 @@ def _load_billable_sales_orders_by_names(names):
 		if customer and so.customer != customer:
 			frappe.throw(frappe._("All selected orders must belong to the same customer."))
 		customer = so.customer
-		if not _sales_order_has_billable_qty(so.name, so_doc=so):
+		if not _sales_order_has_remaining_to_invoice(so):
 			frappe.throw(
-				frappe._("Sales Order {0} has no billable quantity remaining (items may be fully returned).").format(
-					name
-				)
+				frappe._(
+					"Sales Order {0} has nothing left to invoice (services and delivery notes are fully billed or returned)."
+				).format(name)
 			)
 		docs.append(so)
 
@@ -383,17 +555,34 @@ def _create_invoices_from_sales_orders_by_cost_center(
 	reference_name=None,
 	patient=None,
 ):
-	"""Create one Sales Invoice per distinct cost center on the selected orders."""
+	"""Create invoice(s) per cost center, each group split SO services vs DN stock."""
 	invoices = []
 	for cc, group in _group_sales_orders_by_cost_center(sales_orders).items():
-		invoice_name = _create_invoice_from_sales_orders(
+		created = _create_invoices_from_sales_orders(
 			group,
 			reference_type=reference_type,
 			reference_name=reference_name,
 			patient=patient,
 		)
-		invoices.append({"invoice": invoice_name, "cost_center": cc or None})
+		for row in created:
+			row = dict(row)
+			row["cost_center"] = cc or None
+			invoices.append(row)
 	return invoices
+
+
+def _normalize_invoice_result(details: list[dict]):
+	"""Return a single invoice name, or a split payload for the frontend."""
+	if not details:
+		frappe.throw(frappe._("No invoices were created."))
+	if len(details) == 1:
+		return details[0]["invoice"]
+	return {
+		"split_by_fulfillment": True,
+		"split_by_cost_center": any(d.get("cost_center") for d in details),
+		"invoices": [row["invoice"] for row in details],
+		"details": details,
+	}
 
 
 def _invoice_sales_orders(
@@ -402,7 +591,7 @@ def _invoice_sales_orders(
 	reference_name=None,
 	patient=None,
 ):
-	"""Create invoice(s), splitting by cost center when Healthcare Settings requires it."""
+	"""Create invoice(s): services from SO, stock from Delivery Note; optional CC split."""
 	if not sales_orders:
 		frappe.throw(frappe._("Select at least one sales order to invoice."))
 
@@ -413,20 +602,15 @@ def _invoice_sales_orders(
 			reference_name=reference_name,
 			patient=patient,
 		)
-		if len(details) == 1:
-			return details[0]["invoice"]
-		return {
-			"split_by_cost_center": True,
-			"invoices": [row["invoice"] for row in details],
-			"details": details,
-		}
+		return _normalize_invoice_result(details)
 
-	return _create_invoice_from_sales_orders(
+	details = _create_invoices_from_sales_orders(
 		sales_orders,
 		reference_type=reference_type,
 		reference_name=reference_name,
 		patient=patient,
 	)
+	return _normalize_invoice_result(details)
 
 
 def _pending_billable_sales_order_names(
@@ -434,7 +618,7 @@ def _pending_billable_sales_order_names(
 	reference_name=None,
 	patient=None,
 ):
-	"""Submitted, not-yet-invoiced Sales Order names for a reference or patient."""
+	"""Submitted Sales Order names that still have SO or DN qty to invoice."""
 	names: list[str] = []
 
 	if reference_type and reference_name:
@@ -452,9 +636,8 @@ def _pending_billable_sales_order_names(
 			filters["cost_center"] = ["in", permitted_cc]
 
 		for row in frappe.get_all("Sales Order", filters=filters, fields=["name"]):
-			if frappe.db.exists("Sales Invoice Item", {"sales_order": row.name}):
-				continue
-			if _sales_order_has_billable_qty(row.name):
+			so = frappe.get_doc("Sales Order", row.name)
+			if _sales_order_has_remaining_to_invoice(so):
 				names.append(row.name)
 
 	if patient:
@@ -503,51 +686,40 @@ def close_pending_costs_for_admission(inpatient_admission: str) -> dict:
 		"skipped": False,
 		"invoices": result.get("invoices") or [],
 		"details": result.get("details") or [],
-		"split_by_cost_center": True,
+		"split_by_cost_center": bool(result.get("split_by_cost_center")),
+		"split_by_fulfillment": bool(result.get("split_by_fulfillment")),
 	}
 
 
-def _create_invoice_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
-	"""Build one Sales Invoice from one or more submitted Sales Orders."""
-	first = sales_orders[0]
-	ref_type = reference_type or first.custom_reference_type
-	ref_name = reference_name or first.custom_reference_name
-	pt = patient or getattr(first, "patient", None)
-
-	invoice = frappe.new_doc("Sales Invoice")
-	invoice.customer = first.customer
-	if getattr(first, "company", None):
-		invoice.company = first.company
-	if ref_type:
+def _apply_invoice_healthcare_refs(invoice, ref_type, ref_name, patient, company=None, customer=None):
+	if customer and not invoice.customer:
+		invoice.customer = customer
+	if company and not invoice.company:
+		invoice.company = company
+	if ref_type and invoice.meta.has_field("custom_reference_type"):
 		invoice.custom_reference_type = ref_type
-	if ref_name:
+	if ref_name and invoice.meta.has_field("custom_reference_name"):
 		invoice.custom_reference_name = ref_name
-		if ref_type:
+		if ref_type and invoice.meta.has_field("custom_base_reference"):
 			invoice.custom_base_reference = ref_type
-		invoice.custom_base_reference_name = ref_name
-	if pt and hasattr(invoice, "patient"):
-		invoice.patient = pt
-	invoice.posting_date = today()
-	invoice.due_date = frappe.utils.add_days(today(), 30)
-	# Preserve SO list + insurance discount; do not let pricing rules/margins reinflate rates.
+		if invoice.meta.has_field("custom_base_reference_name"):
+			invoice.custom_base_reference_name = ref_name
+	if patient and invoice.meta.has_field("patient"):
+		invoice.patient = patient
 	invoice.ignore_pricing_rule = 1
+	if not invoice.posting_date:
+		invoice.posting_date = today()
+	if not invoice.due_date:
+		invoice.due_date = frappe.utils.add_days(today(), 30)
 
-	items_added = 0
-	header_cc = None
-	for so in sales_orders:
-		so_cc = cost_center_from_sales_order(so)
-		if not header_cc and so_cc:
-			header_cc = so_cc
-		for item in so.items:
-			line = sales_invoice_item_from_sales_order_item(so, item)
-			if not line:
-				continue
-			invoice.append("items", line)
-			items_added += 1
 
-	if items_added == 0:
-		frappe.throw(frappe._("No items found in the sales orders to invoice"))
+def _sync_invoice_uom_from_previous_docs(invoice) -> None:
+	from healthcare.api.sales_order_cost_center import sync_sales_invoice_uom_from_previous_docs
 
+	sync_sales_invoice_uom_from_previous_docs(invoice)
+
+
+def _finalize_and_save_invoice(invoice, header_cc=None, ref_type=None, ref_name=None):
 	if header_cc:
 		apply_cost_center_to_sales_invoice(invoice, header_cc)
 	elif ref_type and ref_name:
@@ -558,9 +730,212 @@ def _create_invoice_from_sales_orders(sales_orders, reference_type=None, referen
 	from healthcare.api.receptionist_shift import stamp_receptionist_shift_on_doc
 
 	stamp_receptionist_shift_on_doc(invoice)
-	invoice.save()
-	frappe.db.commit()
+	_sync_invoice_uom_from_previous_docs(invoice)
+
+	# Re-apply after ERPNext validate/set_missing_item_details may reset UOM factors
+	_orig_validate_with_previous = invoice.validate_with_previous_doc
+
+	def _validate_with_previous_preserving_uom(*args, **kwargs):
+		_sync_invoice_uom_from_previous_docs(invoice)
+		return _orig_validate_with_previous(*args, **kwargs)
+
+	invoice.validate_with_previous_doc = _validate_with_previous_preserving_uom
+
+	invoice.flags.ignore_permissions = True
+	invoice.save(ignore_permissions=True)
 	return invoice.name
+
+
+def _create_delivery_note_invoice(
+	delivery_notes: list[str],
+	*,
+	reference_type=None,
+	reference_name=None,
+	patient=None,
+	customer=None,
+	company=None,
+	header_cc=None,
+):
+	"""One Sales Invoice mapped from one or more Delivery Notes (stock / pharmacy)."""
+	from erpnext.stock.doctype.delivery_note.delivery_note import make_sales_invoice as make_si_from_dn
+
+	target = None
+	for dn_name in delivery_notes:
+		try:
+			target = make_si_from_dn(dn_name, target_doc=target)
+		except Exception:
+			frappe.log_error(title=f"DN→SI map failed: {dn_name}")
+			raise
+
+	if not target or not target.get("items"):
+		return None
+
+	_apply_invoice_healthcare_refs(
+		target,
+		reference_type,
+		reference_name,
+		patient,
+		company=company,
+		customer=customer,
+	)
+	# Stock already moved on DN — never update stock again on this invoice
+	if target.meta.has_field("update_stock"):
+		target.update_stock = 0
+
+	name = _finalize_and_save_invoice(
+		target, header_cc=header_cc, ref_type=reference_type, ref_name=reference_name
+	)
+	return {
+		"invoice": name,
+		"source": "delivery_note",
+		"delivery_notes": list(delivery_notes),
+	}
+
+
+def _create_service_sales_order_invoice(
+	sales_orders,
+	*,
+	skip_so_details: set[str],
+	reference_type=None,
+	reference_name=None,
+	patient=None,
+):
+	"""Sales Invoice for SO lines that were not fulfilled via Delivery Note."""
+	first = sales_orders[0]
+	ref_type = reference_type or first.custom_reference_type
+	ref_name = reference_name or first.custom_reference_name
+	pt = patient or getattr(first, "patient", None)
+
+	invoice = frappe.new_doc("Sales Invoice")
+	_apply_invoice_healthcare_refs(
+		invoice,
+		ref_type,
+		ref_name,
+		pt,
+		company=getattr(first, "company", None),
+		customer=first.customer,
+	)
+
+	items_added = 0
+	header_cc = None
+	for so in sales_orders:
+		so_cc = cost_center_from_sales_order(so)
+		if not header_cc and so_cc:
+			header_cc = so_cc
+		for item in so.items:
+			if item.name in skip_so_details:
+				continue
+			line = sales_invoice_item_from_sales_order_item(so, item)
+			if not line:
+				continue
+			invoice.append("items", line)
+			items_added += 1
+
+	if items_added == 0:
+		return None
+
+	name = _finalize_and_save_invoice(
+		invoice, header_cc=header_cc, ref_type=ref_type, ref_name=ref_name
+	)
+	return {
+		"invoice": name,
+		"source": "sales_order",
+		"sales_orders": [so.name for so in sales_orders],
+	}
+
+
+def _create_invoices_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
+	"""Create invoices per Sales Order: stock via DN, services via SO.
+
+	Each Sales Order is processed on its own so a pharmacy SO and a visit SO
+	do not get merged into a single shared service / DN invoice.
+	A single SO that has both DN stock and service lines can still yield two invoices.
+	"""
+	if not sales_orders:
+		frappe.throw(frappe._("Select at least one sales order to invoice."))
+
+	created: list[dict] = []
+	for so in sales_orders:
+		created.extend(
+			_create_invoices_for_one_sales_order(
+				so,
+				reference_type=reference_type,
+				reference_name=reference_name,
+				patient=patient,
+			)
+		)
+
+	if not created:
+		frappe.throw(
+			frappe._(
+				"No items found to invoice. Stock lines need an uninvoiced Delivery Note; "
+				"service lines need remaining unbilled quantity on the Sales Order."
+			)
+		)
+
+	frappe.db.commit()
+	return created
+
+
+def _create_invoices_for_one_sales_order(so, reference_type=None, reference_name=None, patient=None):
+	"""DN invoice and/or service invoice for a single Sales Order."""
+	so_names = [so.name]
+	ref_type = reference_type or so.custom_reference_type
+	ref_name = reference_name or so.custom_reference_name
+	pt = patient or getattr(so, "patient", None)
+	header_cc = cost_center_from_sales_order(so)
+
+	dn_covered = _so_details_covered_by_delivery_note(so_names)
+	pending_dns = _uninvoiced_delivery_notes_for_sales_orders(so_names)
+
+	created: list[dict] = []
+
+	if pending_dns:
+		dn_row = _create_delivery_note_invoice(
+			pending_dns,
+			reference_type=ref_type,
+			reference_name=ref_name,
+			patient=pt,
+			customer=so.customer,
+			company=getattr(so, "company", None),
+			header_cc=header_cc,
+		)
+		if dn_row:
+			dn_row["sales_orders"] = [so.name]
+			created.append(dn_row)
+
+	service_row = _create_service_sales_order_invoice(
+		[so],
+		skip_so_details=dn_covered,
+		reference_type=ref_type,
+		reference_name=ref_name,
+		patient=pt,
+	)
+	if service_row:
+		created.append(service_row)
+
+	if created:
+		from healthcare.controllers.sales_order import ensure_service_sales_order_status
+
+		ensure_service_sales_order_status(so_name=so.name)
+
+	return created
+
+
+# Backwards-compatible alias used by older callers expecting a single invoice name
+def _create_invoice_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
+	details = _create_invoices_from_sales_orders(
+		sales_orders,
+		reference_type=reference_type,
+		reference_name=reference_name,
+		patient=patient,
+	)
+	result = _normalize_invoice_result(details)
+	if isinstance(result, str):
+		return result
+	# Callers that expect a string only will break — prefer returning the first
+	# when used as legacy; _invoice_sales_orders uses _create_invoices_* instead.
+	return result["invoices"][0]
 
 
 @frappe.whitelist()
@@ -662,7 +1037,9 @@ def create_service_order(data):
     so.custom_base_reference = data.get('base_reference')
     so.custom_base_reference_name = data.get('base_reference_name')
     so.transaction_date = data.get('transaction_date', today())
-    
+    # Service orders have nothing physical to deliver (validate also enforces this).
+    so.skip_delivery_note = 1
+
     # Add items
     for item in data.get('items', []):
         so.append('items', {
@@ -685,7 +1062,7 @@ def create_service_order(data):
 
     so.save()
     frappe.db.commit()
-    
+
     return so.name
 
 

@@ -151,6 +151,7 @@ export function ReceptionReports() {
   const [visitOptions, setVisitOptions] = useState<LinkFieldOption[]>([])
   const [visitOpen, setVisitOpen] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [chargingPackage, setChargingPackage] = useState(false)
   const [data, setData] = useState<any>(null)
 
   const needsAdmission = report === 'ip-payments' || report === 'soa'
@@ -282,6 +283,60 @@ export function ReceptionReports() {
       toast.error(err instanceof Error ? err.message : 'Failed to load report')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const chargePackageToToday = async () => {
+    if (report !== 'soa') return
+    if (!resolvedAdmission) {
+      toast.error('Select an admission / case first')
+      return
+    }
+    setChargingPackage(true)
+    try {
+      const preview = await apiRequest<any>(
+        `/api/method/healthcare.api.package_charge_to_today.preview_package_charge_to_today?admission=${encodeURIComponent(resolvedAdmission)}`,
+      )
+      if (!preview?.can_charge) {
+        toast.error(
+          `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${preview?.program_days ?? '—'} days.`,
+        )
+        return
+      }
+      const ok = window.confirm(
+        [
+          `Charge package up to today for ${preview.package_name || preview.package}?`,
+          '',
+          `Package days: ${preview.program_days ?? '—'}`,
+          `Days elapsed: ${preview.days_elapsed}`,
+          `Already billed: ${preview.days_already_billed}`,
+          `Days to charge now: ${preview.days_to_charge}`,
+          `Amount / day: ${fmtAmt(preview.amount_per_day)}`,
+          `Charge amount: ${fmtAmt(preview.amount)}`,
+          `Remaining after charge: ${preview.remaining_days_after ?? '—'}`,
+          '',
+          'This creates a Quotation and submits it to a Sales Order.',
+        ].join('\n'),
+      )
+      if (!ok) return
+
+      const result = await apiRequest<any>(
+        '/api/method/healthcare.api.package_charge_to_today.charge_package_to_today',
+        {
+          method: 'POST',
+          body: JSON.stringify({ admission: resolvedAdmission }),
+        },
+      )
+      toast.success(
+        result?.message ||
+          `Charged ${result?.days_charged || 0} day(s). Remaining ${result?.remaining_days ?? '—'}.`,
+      )
+      // Refresh SOA so the new Sales Order lines appear
+      await run()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to charge package')
+    } finally {
+      setChargingPackage(false)
     }
   }
 
@@ -521,6 +576,17 @@ export function ReceptionReports() {
         >
           {loading ? 'Loading…' : 'Run Report'}
         </button>
+        {report === 'soa' ? (
+          <button
+            type="button"
+            onClick={() => void chargePackageToToday()}
+            disabled={chargingPackage || !resolvedAdmission}
+            className="h-[30px] self-end rounded-md border border-emerald-600 bg-white px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
+            title="Create Quotation / Sales Order for unbilled package days up to today"
+          >
+            {chargingPackage ? 'Charging…' : 'Charge Package to Today'}
+          </button>
+        ) : null}
         <button
           type="button"
           onClick={() => doExport('pdf')}

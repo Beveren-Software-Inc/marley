@@ -21,6 +21,7 @@ import {
 } from '../../services/paymentEntry'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useFormatMoney, useMoneyInputConfig } from '../../hooks/useFormatMoney'
+import { moneyGreaterThan } from '../../utils/currencyFormat'
 import { useAuth } from '../../providers/AuthProvider'
 import { isReceptionRole } from '../../config/permissions'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -612,7 +613,7 @@ export function StandalonePaymentModal({
           toast.error('Please enter the total payment amount received')
           return
         }
-        if (multiTotalAllocated > parsedAmount) {
+        if (moneyGreaterThan(multiTotalAllocated, parsedAmount, moneyInput.currencyCode)) {
           toast.error('Total allocated amount cannot exceed payment amount')
           return
         }
@@ -691,7 +692,7 @@ export function StandalonePaymentModal({
               allocated_amount: pickedInvoices[reference_name].outstanding || 0,
             }))
             const allocatedTotal = allocations.reduce((s, a) => s + a.allocated_amount, 0)
-            if (allocatedTotal > parsedAmount) {
+            if (moneyGreaterThan(allocatedTotal, parsedAmount, moneyInput.currencyCode)) {
               toast.error('Total allocated amount cannot exceed payment amount')
               return
             }
@@ -743,12 +744,14 @@ export function StandalonePaymentModal({
     (paymentMode !== 'single' && !effectivePatient) ||
     parsedAmount <= 0 ||
     (paymentMode === 'multi' && Object.keys(multiSelected).length === 0) ||
-    (paymentMode === 'multi' && multiTotalAllocated > parsedAmount) ||
+    (paymentMode === 'multi' &&
+      moneyGreaterThan(multiTotalAllocated, parsedAmount, moneyInput.currencyCode)) ||
     (paymentMode === 'single' &&
       referenceType === 'Sales Invoice' &&
       pickedInvoiceCount > 1 &&
-      pickedInvoiceTotal > parsedAmount) ||
-    (paymentMode === 'refund' && parsedAmount > creditBalance)
+      moneyGreaterThan(pickedInvoiceTotal, parsedAmount, moneyInput.currencyCode)) ||
+    (paymentMode === 'refund' &&
+      moneyGreaterThan(parsedAmount, creditBalance, moneyInput.currencyCode))
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>

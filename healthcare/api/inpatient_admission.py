@@ -1959,22 +1959,16 @@ def _resolve_discharge_charge_sales_order_link(discharge_doc) -> str | None:
 	return None
 
 
-def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
-	"""Resolve billing Item from Healthcare Service Unit → Healthcare Service Unit Type → Item."""
-	service_unit = (service_unit or "").strip()
-	if not service_unit or not frappe.db.exists("Healthcare Service Unit", service_unit):
-		return None
-
-	service_unit_type = frappe.db.get_value(
-		"Healthcare Service Unit", service_unit, "service_unit_type"
-	)
-	if not service_unit_type:
+def _item_code_from_healthcare_service_unit_type(service_unit_type: str) -> str | None:
+	"""Resolve billing Item from Healthcare Service Unit Type.item / item_code."""
+	service_unit_type = (service_unit_type or "").strip()
+	if not service_unit_type or not frappe.db.exists("Healthcare Service Unit Type", service_unit_type):
 		return None
 
 	row = frappe.db.get_value(
 		"Healthcare Service Unit Type",
 		service_unit_type,
-		["item", "item_code"],
+		["item", "item_code", "service_unit_type"],
 		as_dict=True,
 	)
 	if not row:
@@ -1985,6 +1979,65 @@ def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
 		if item_code and frappe.db.exists("Item", item_code):
 			return item_code
 	return None
+
+
+def _item_code_from_healthcare_service_unit(service_unit: str) -> str | None:
+	"""Resolve billing Item from Healthcare Service Unit → Healthcare Service Unit Type → Item."""
+	service_unit = (service_unit or "").strip()
+	if not service_unit or not frappe.db.exists("Healthcare Service Unit", service_unit):
+		return None
+
+	service_unit_type = frappe.db.get_value(
+		"Healthcare Service Unit", service_unit, "service_unit_type"
+	)
+	return _item_code_from_healthcare_service_unit_type(service_unit_type)
+
+
+def _resolve_package_quotation_item(admission, service_unit: str | None = None) -> dict:
+	"""Item for package quotation lines: Service Unit Type Item (not the room/unit itself)."""
+	service_unit = (service_unit or "").strip() or None
+	service_unit_type = None
+	room_label = None
+
+	if service_unit and frappe.db.exists("Healthcare Service Unit", service_unit):
+		su_row = frappe.db.get_value(
+			"Healthcare Service Unit",
+			service_unit,
+			["healthcare_service_unit_name", "service_unit_type"],
+			as_dict=True,
+		)
+		if su_row:
+			room_label = su_row.healthcare_service_unit_name or service_unit
+			service_unit_type = (su_row.service_unit_type or "").strip() or None
+
+	if not service_unit_type:
+		service_unit_type = (admission.get("admission_service_unit_type") or "").strip() or None
+
+	item_code = None
+	if service_unit:
+		item_code = _item_code_from_healthcare_service_unit(service_unit)
+	if not item_code and service_unit_type:
+		item_code = _item_code_from_healthcare_service_unit_type(service_unit_type)
+
+	if not item_code:
+		type_label = service_unit_type or _("(not set)")
+		frappe.throw(
+			_(
+				"No Item is linked on Healthcare Service Unit Type “{0}”. "
+				"Set the Item on that Service Unit Type — package quotations bill the type item, not the room."
+			).format(type_label)
+		)
+
+	item_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+	type_label = service_unit_type or item_name
+	return {
+		"item_code": item_code,
+		"item_name": item_name,
+		"service_unit_type": service_unit_type,
+		"service_unit": service_unit,
+		"room_label": room_label or type_label,
+		"type_label": type_label,
+	}
 
 
 def _resolve_discharge_room_charge_item_code(
@@ -3161,6 +3214,21 @@ def admit_patient(
 
 
 
+def _inpatient_package_daily_rate(package) -> float:
+	"""Daily rate from Inpatient Package only (no room multiplier).
+
+	Uses package_rate when set; otherwise base_total / no_of_days for fixed programs.
+	"""
+	rate = flt(getattr(package, "package_rate", 0) or 0)
+	if rate > 0:
+		return rate
+	base_total = flt(getattr(package, "base_total", 0) or 0)
+	program_days = cint(getattr(package, "no_of_days", 0) or 0)
+	if base_total > 0 and program_days > 0:
+		return base_total / program_days
+	return 0.0
+
+
 @frappe.whitelist()
 def create_admission_quotation(
 	admission_name,
@@ -3173,6 +3241,10 @@ def create_admission_quotation(
 	case_management_services=None,
 ):
 	"""Create a Draft Quotation for admission with package.
+
+	Package line uses qty = days and rate = Inpatient Package daily rate
+	(package_rate / base_total÷days). Service Unit Type only selects the Item —
+	room multipliers are not applied to the quotation rate.
 
 	When Healthcare Settings ``combine_admission_fee_and_case_management`` is enabled
 	and case management service(s) are provided, each is added as a quotation line.
@@ -3189,12 +3261,19 @@ def create_admission_quotation(
 		frappe.throw(_("Total amount must be greater than 0"))
 
 	service_unit = _resolve_quotation_service_unit(admission_name, explicit_service_unit=service_unit)
+	# Service unit is preferred to resolve the type, but type+Item on admission is enough.
 	if not service_unit:
-		frappe.throw(
-			_(
-				"Could not determine a service unit for the quotation. Select at least one service unit or a hospital bed with a unit."
-			)
+		adm_type = frappe.db.get_value(
+			"Inpatient Admission", admission_name, "admission_service_unit_type"
 		)
+		if not adm_type or not _item_code_from_healthcare_service_unit_type(adm_type):
+			frappe.throw(
+				_(
+					"Could not determine a service unit / room type for the quotation. "
+					"Select a service unit or a hospital bed, or set Admission Service Unit Type "
+					"with an Item on that Healthcare Service Unit Type."
+				)
+			)
 
 	# Get admission record
 	admission = frappe.get_doc('Inpatient Admission', admission_name)
@@ -3215,45 +3294,13 @@ def create_admission_quotation(
 	is_custom = package_name == '__custom__'
 	package = None if is_custom else frappe.get_doc('Inpatient Package', package_name)
 
-	# Get service unit (room) name
-	service_unit_name = frappe.db.get_value(
-		'Healthcare Service Unit',
-		service_unit,
-		'healthcare_service_unit_name'
-	) or service_unit
-	
-	item_code = service_unit_name
-	
-	# Check if item exists
-	if not frappe.db.exists('Item', item_code):
-		
-		item_group = (
-			frappe.db.get_value('Item Group', {'name': 'Services'}) or
-			frappe.db.get_value('Item Group', {'name': 'All Item Groups'}) or
-			frappe.db.get_value('Item Group', {}, 'name')
-		)
-		
-		uom = (
-			frappe.db.exists("UOM", "Unit") or
-			frappe.db.get_single_value("Stock Settings", "stock_uom") or
-			"Unit"
-		)
-		
-		item = frappe.get_doc({
-			"doctype": "Item",
-			"item_code": item_code,
-			"item_name": service_unit_name,
-			"item_group": item_group or "All Item Groups",
-			"description": f"Room: {service_unit_name}",
-			"is_sales_item": 1,
-			"is_service_item": 1,
-			"is_purchase_item": 0,
-			"is_stock_item": 0,
-			"stock_uom": uom,
-			"disabled": 0,
-		})
-		item.insert(ignore_permissions=True, ignore_mandatory=True)
-	
+	# Bill the Service Unit Type Item (not the room / service unit itself)
+	item_info = _resolve_package_quotation_item(admission, service_unit)
+	item_code = item_info["item_code"]
+	item_name = item_info["item_name"]
+	room_label = item_info["room_label"]
+	type_label = item_info["type_label"]
+
 	# ✅ Create Quotation instead of Sales Order
 	quotation = frappe.new_doc("Quotation")
 	quotation.quotation_to = "Customer"
@@ -3267,18 +3314,43 @@ def create_admission_quotation(
 	quotation.custom_reference_type = "Inpatient Admission"
 	quotation.custom_reference_name = admission_name
 	
-	# Add item
+	# Package line: qty = days, rate = package daily rate (not room-multiplied)
+	days_qty = cint(days)
+	if is_custom:
+		daily_rate = flt(total_amount) / days_qty if days_qty else flt(total_amount)
+	else:
+		daily_rate = _inpatient_package_daily_rate(package)
+		if daily_rate <= 0:
+			# Fallback only if package has no rate configured
+			daily_rate = flt(total_amount) / days_qty if days_qty else flt(total_amount)
+		# Optional UI discount: if a lower total was passed, scale the package rate
+		package_total = flt(daily_rate) * days_qty
+		passed_total = flt(total_amount or 0)
+		if (
+			package_total > 0
+			and passed_total > 0
+			and passed_total + 0.0005 < package_total
+			and passed_total <= package_total
+		):
+			# Treat as discount on package amount (ignore room-inflated totals above package)
+			daily_rate = passed_total / days_qty
+
+	if daily_rate <= 0:
+		frappe.throw(_("Package daily rate must be greater than zero."))
+
 	item_row = quotation.append("items", {})
 	item_row.item_code = item_code
-	item_row.item_name = service_unit_name
+	item_row.item_name = item_name
 	package_label = "Custom Package" if is_custom else package.package_name
 	item_row.description = (
 		f"Inpatient Package: {package_label} - "
-		f"Room: {service_unit_name} ({days} days)"
+		f"Room type: {type_label}"
+		+ (f" ({room_label})" if room_label and room_label != type_label else "")
+		+ f" ({days_qty} days @ {daily_rate}/day)"
 	)
-	item_row.qty = 1
-	item_row.rate = flt(total_amount)
-	item_row.amount = flt(total_amount)
+	item_row.qty = days_qty
+	item_row.rate = daily_rate
+	item_row.amount = flt(daily_rate) * days_qty
 	
 	if not is_custom and package.cost_center:
 		item_row.cost_center = package.cost_center

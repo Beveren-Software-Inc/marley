@@ -124,6 +124,8 @@ export const ServiceOrdersList = ({ patient, admission, visit, fromDate, toDate,
       return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700"><CheckCircle className="w-3 h-3" /> Paid</span>
     } else if (order.invoice_status === 'Unpaid' || order.invoice_status === 'Overdue') {
       return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-700"><AlertCircle className="w-3 h-3" /> Invoice Created</span>
+    } else if (order.invoice_status === 'Partial' || order.invoice_status === 'Partially Paid') {
+      return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-orange-100 text-orange-700"><AlertCircle className="w-3 h-3" /> Partial</span>
     } else if (order.invoice_name) {
       return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700"><FileText className="w-3 h-3" /> Invoiced</span>
     } else {

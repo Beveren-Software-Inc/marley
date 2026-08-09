@@ -5,7 +5,7 @@
 """Propagate cost center onto Sales Orders created from clinical documents."""
 
 import frappe
-from frappe.utils import flt
+from frappe.utils import cint, flt
 
 
 def apply_cost_center_to_sales_order(so, cost_center):
@@ -117,6 +117,45 @@ def apply_accounting_dimensions_from_sales_order_to_sales_invoice(so, invoice):
 			invoice.set(fieldname, val)
 
 
+def sync_sales_invoice_uom_from_previous_docs(invoice) -> None:
+	"""Keep UOM / conversion_factor identical to DN or SO (ERPNext validate_with_previous_doc).
+
+	Do not round with default ``flt()`` precision — pharmacy UOMs often need 9 dp
+	(e.g. 0.033333333). ``set_missing_values`` can also reset these from Item master.
+	"""
+	for item in invoice.get("items") or []:
+		prev = None
+		if item.get("dn_detail") and frappe.db.exists("Delivery Note Item", item.dn_detail):
+			prev = frappe.db.get_value(
+				"Delivery Note Item",
+				item.dn_detail,
+				["uom", "conversion_factor", "stock_uom"],
+				as_dict=True,
+			)
+		elif item.get("so_detail") and frappe.db.exists("Sales Order Item", item.so_detail):
+			prev = frappe.db.get_value(
+				"Sales Order Item",
+				item.so_detail,
+				["uom", "conversion_factor", "stock_uom"],
+				as_dict=True,
+			)
+		if not prev:
+			continue
+		if prev.get("uom"):
+			item.uom = prev.uom
+		if prev.get("stock_uom"):
+			item.stock_uom = prev.stock_uom
+		if prev.get("conversion_factor") is not None:
+			try:
+				prec = item.precision("conversion_factor")
+			except Exception:
+				prec = 9
+			if prec is None or cint(prec) < 9:
+				prec = 9
+			item.conversion_factor = flt(prev.conversion_factor, prec)
+			item.stock_qty = flt(flt(item.qty) * flt(item.conversion_factor, prec), item.precision("stock_qty"))
+
+
 def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 	"""Ensure header, item, and tax rows have cost center before save/submit."""
 	cc = cost_center or getattr(invoice, "cost_center", None) or getattr(invoice, "custom_created_at", None)
@@ -132,12 +171,13 @@ def finalize_sales_invoice_cost_centers(invoice, cost_center=None):
 			cc = erpnext.get_default_cost_center(invoice.company)
 		except Exception:
 			cc = None
-	if not cc:
-		return
 
-	invoice.set_missing_values()
-	invoice.run_method("calculate_taxes_and_totals")
-	apply_cost_center_to_sales_invoice(invoice, cc)
+	# set_missing_values can overwrite UOM conversion from Item master — restore after
+	if cc:
+		invoice.set_missing_values()
+		invoice.run_method("calculate_taxes_and_totals")
+		apply_cost_center_to_sales_invoice(invoice, cc)
+	sync_sales_invoice_uom_from_previous_docs(invoice)
 
 
 def sales_invoice_item_from_sales_order_item(so, item):
@@ -145,8 +185,13 @@ def sales_invoice_item_from_sales_order_item(so, item):
 
 	Copies list rate + discount % so insurance discounts survive SO → Invoice.
 	Does not copy margin fields — those can reinflate rate (e.g. 140 → 220).
+
+	Lines already on a submitted Delivery Note are skipped — invoice those from the DN.
 	"""
 	from healthcare.api.pos_dispense_return import get_net_billable_qty_for_so_item
+
+	if _so_item_has_submitted_delivery_note(item.name):
+		return None
 
 	so_cc = cost_center_from_sales_order(so)
 	item_cc = getattr(item, "cost_center", None) or so_cc
@@ -188,12 +233,37 @@ def sales_invoice_item_from_sales_order_item(so, item):
 		line["discount_amount"] = 0
 	if getattr(item, "uom", None):
 		line["uom"] = item.uom
+	if getattr(item, "stock_uom", None):
+		line["stock_uom"] = item.stock_uom
+	cf = getattr(item, "conversion_factor", None)
+	if cf is not None and flt(cf) != 0:
+		line["conversion_factor"] = flt(cf)
+		line["stock_qty"] = flt(net_qty) * flt(cf)
 	if getattr(item, "warehouse", None) and frappe.get_meta("Sales Invoice Item").has_field("warehouse"):
 		line["warehouse"] = item.warehouse
 	if item_cc:
 		line["cost_center"] = item_cc
 	_copy_accounting_dimensions(item, line, fallback_row=so)
 	return line
+
+
+def _so_item_has_submitted_delivery_note(so_detail: str) -> bool:
+	if not so_detail:
+		return False
+	return bool(
+		frappe.db.sql(
+			"""
+			SELECT 1
+			FROM `tabDelivery Note Item` dni
+			INNER JOIN `tabDelivery Note` dn ON dn.name = dni.parent
+			WHERE dni.so_detail = %s
+			  AND dn.docstatus = 1
+			  AND IFNULL(dn.is_return, 0) = 0
+			LIMIT 1
+			""",
+			so_detail,
+		)
+	)
 
 
 def cost_center_from_service_request(sr):

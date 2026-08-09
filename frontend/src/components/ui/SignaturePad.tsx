@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { PenLine, Trash2, Check } from 'lucide-react'
+import { PenLine, Trash2, Check, Upload } from 'lucide-react'
 import { useAuth } from '../../providers/AuthProvider'
 import { isNurseRole, isDoctorRole, isAdmin } from '../../config/permissions'
 
 export function attachFileDisplayUrl(path: string | null | undefined): string | undefined {
   if (!path?.trim()) return undefined
-  if (path.startsWith('http')) return path
+  if (path.startsWith('http') || path.startsWith('blob:') || path.startsWith('data:')) return path
   const origin = typeof window !== 'undefined' ? window.location.origin : ''
   return `${origin}${path.startsWith('/') ? path : `/${path}`}`
 }
+
+const SIGNATURE_ACCEPT = 'image/png,image/jpeg,image/jpg,image/webp,image/gif,.png,.jpg,.jpeg,.webp,.gif'
 
 export interface SignaturePadProps {
   onSave: (file: File) => void
@@ -17,7 +19,7 @@ export interface SignaturePadProps {
   uploading?: boolean
 }
 
-/** Canvas signature capture (admission / discharge / prescription pattern).
+/** Canvas signature capture with optional image upload (phone photo / scanned sign).
  *
  * Nurses cannot create signatures — only doctors sign (nurse-department rule).
  * Existing signatures still display read-only for nurses.
@@ -27,10 +29,12 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
   const authRoles = user?.roles && user.roles.length > 0 ? user.roles : user?.role ? [user.role] : []
   const nurseCannotSign = isNurseRole(authRoles) && !isDoctorRole(authRoles) && !isAdmin(authRoles)
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const isDrawing = useRef(false)
   const dprRef = useRef(1)
   const [hasStrokes, setHasStrokes] = useState(false)
   const [mode, setMode] = useState<'idle' | 'drawing' | 'done'>(existingUrl ? 'done' : 'idle')
+  const [uploadError, setUploadError] = useState<string | null>(null)
 
   useEffect(() => {
     if (existingUrl) setMode('done')
@@ -120,6 +124,19 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
     }, 'image/png')
   }
 
+  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    setUploadError(null)
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setUploadError('Please upload an image file (PNG, JPG, …)')
+      return
+    }
+    onSave(file)
+    setMode('done')
+  }
+
   useEffect(() => {
     if (mode !== 'drawing') return
     const canvas = canvasRef.current
@@ -143,6 +160,16 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
     }
   }, [mode, setupCanvas])
 
+  const fileInput = (
+    <input
+      ref={fileInputRef}
+      type="file"
+      accept={SIGNATURE_ACCEPT}
+      className="hidden"
+      onChange={handleFileSelected}
+    />
+  )
+
   if (nurseCannotSign && mode !== 'done') {
     return (
       <div className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-1 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
@@ -154,44 +181,104 @@ export function SignaturePad({ onSave, onClear, existingUrl, uploading }: Signat
 
   if (mode === 'idle') {
     return (
-      <button
-        type="button"
-        onClick={() => setMode('drawing')}
-        className="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary hover:bg-blue-50/50 transition-all group"
-      >
-        <PenLine className="w-5 h-5 group-hover:scale-110 transition-transform" />
-        <span className="text-xs font-medium">Add signature</span>
-      </button>
+      <div className="w-full min-h-[120px] flex flex-col gap-2">
+        {fileInput}
+        <div className="grid grid-cols-2 gap-2 flex-1 min-h-[120px]">
+          <button
+            type="button"
+            onClick={() => {
+              setUploadError(null)
+              setMode('drawing')
+            }}
+            disabled={uploading}
+            className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary hover:bg-blue-50/50 transition-all group disabled:opacity-50"
+          >
+            <PenLine className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            <span className="text-xs font-medium">Draw</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setUploadError(null)
+              fileInputRef.current?.click()
+            }}
+            disabled={uploading}
+            className="flex flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary hover:bg-blue-50/50 transition-all group disabled:opacity-50"
+          >
+            {uploading ? (
+              <span className="w-5 h-5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+            ) : (
+              <Upload className="w-5 h-5 group-hover:scale-110 transition-transform" />
+            )}
+            <span className="text-xs font-medium">{uploading ? 'Uploading…' : 'Upload'}</span>
+          </button>
+        </div>
+        {uploadError && <p className="text-xs text-red-600 text-center">{uploadError}</p>}
+        <p className="text-[11px] text-slate-400 text-center leading-snug">
+          Draw on screen, or upload a signature image from phone / files
+        </p>
+      </div>
     )
   }
 
   if (mode === 'done' && existingUrl) {
     return (
       <div className="w-full min-h-[120px] flex flex-col items-center justify-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3">
+        {fileInput}
         <img src={existingUrl} alt="Signature" className="max-h-20 object-contain" />
         {!nurseCannotSign && (
-          <button
-            type="button"
-            onClick={() => {
-              setMode('drawing')
-              setHasStrokes(false)
-            }}
-            className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
-          >
-            <Trash2 className="w-3 h-3" /> Re-sign
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setMode('drawing')
+                setHasStrokes(false)
+              }}
+              className="text-xs text-slate-500 hover:text-red-500 flex items-center gap-1 transition-colors"
+            >
+              <Trash2 className="w-3 h-3" /> Re-draw
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="text-xs text-slate-500 hover:text-primary flex items-center gap-1 transition-colors disabled:opacity-50"
+            >
+              <Upload className="w-3 h-3" /> Re-upload
+            </button>
+          </div>
         )}
+      </div>
+    )
+  }
+
+  // Drawing mode (or done without URL yet while upload in flight)
+  if (mode === 'done' && !existingUrl) {
+    return (
+      <div className="w-full min-h-[120px] flex flex-col items-center justify-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-slate-500">
+        {fileInput}
+        <span className="w-5 h-5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
+        <span className="text-xs">{uploading ? 'Uploading signature…' : 'Saving…'}</span>
       </div>
     )
   }
 
   return (
     <div className="w-full rounded-lg border border-slate-300 bg-white overflow-hidden flex flex-col">
+      {fileInput}
       <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-slate-100 bg-slate-50">
         <span className="text-xs font-medium text-slate-500 flex items-center gap-1">
           <PenLine className="w-3 h-3" /> Draw signature
         </span>
         <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="text-xs text-slate-400 hover:text-primary disabled:opacity-30 flex items-center gap-0.5 transition-colors px-1.5 py-0.5 rounded hover:bg-blue-50"
+          >
+            <Upload className="w-3 h-3" /> Upload
+          </button>
           <button
             type="button"
             onClick={clearCanvas}

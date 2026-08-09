@@ -233,3 +233,58 @@ export async function createPatientRefund(data: {
     { data }
   )
 }
+
+export interface ReconciliationAdvanceRow {
+  name: string
+  posting_date?: string | null
+  mode_of_payment?: string
+  paid_amount: number
+  unallocated_amount: number
+  cost_center?: string
+  remarks?: string
+}
+
+export interface ReconciliationInvoiceRow {
+  name: string
+  posting_date?: string | null
+  due_date?: string | null
+  grand_total: number
+  outstanding_amount: number
+  status?: string
+  custom_reference_type?: string
+  custom_reference_name?: string
+}
+
+export interface ReconciliationCandidates {
+  patient: string
+  customer: string
+  company: string
+  advance_total: number
+  invoice_outstanding_total: number
+  can_reconcile: boolean
+  advances: ReconciliationAdvanceRow[]
+  invoices: ReconciliationInvoiceRow[]
+}
+
+export interface ReconciliationAllocationRow {
+  payment_entry: string
+  invoice: string
+  allocated_amount: number
+}
+
+export async function fetchReconciliationCandidates(patient: string): Promise<ReconciliationCandidates> {
+  return paymentApiRequest<ReconciliationCandidates>(
+    'healthcare.api.invoice_reconciliation.get_reconciliation_candidates',
+    { patient }
+  )
+}
+
+export async function reconcileAdvanceToInvoices(
+  patient: string,
+  allocations: ReconciliationAllocationRow[]
+): Promise<{ ok: boolean; total_allocated: number; message?: string; allocations?: ReconciliationAllocationRow[] }> {
+  return paymentApiRequest(
+    'healthcare.api.invoice_reconciliation.reconcile_advance_to_invoices',
+    { patient, allocations }
+  )
+}

@@ -495,6 +495,13 @@ for _dt in ("Sales Invoice", "Sales Order"):
 	_append_event(_dt, "validate",
 	              "healthcare.api.discount_authorisation.validate_discount_authorisation")
 
+# Service-only Sales Orders skip Delivery Note so status is To Bill / Completed, not To Deliver.
+_append_event(
+	"Sales Order",
+	"validate",
+	"healthcare.controllers.sales_order.set_skip_delivery_note_for_services",
+)
+
 # DOC-110: organisational risk register scoring.
 _append_event("Organisational Risk", "validate",
               "healthcare.api.organisational_risk.set_risk_score")
