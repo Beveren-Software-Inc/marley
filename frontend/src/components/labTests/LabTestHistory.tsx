@@ -94,7 +94,9 @@ function buildVerticalHistoryEvents(
 }
 
 const MIN_DATE_COLUMNS = 20
-const TEST_COLUMN_WIDTH_PX = 220
+const TEST_COLUMN_WIDTH_PX = 260
+const DATE_COLUMN_WIDTH_PX = 88
+const DATE_COLUMN_MAX_WIDTH_PX = 110
 
 function padHistoryColumns(columns: LabHistoryMatrixColumn[]): LabHistoryMatrixColumn[] {
   if (columns.length >= MIN_DATE_COLUMNS) return columns
@@ -491,7 +493,7 @@ export const LabTestHistory = ({
             </span>
           </div>
 
-          <div className="overflow-auto max-h-[520px]" style={{ scrollbarWidth: 'thin' }}>
+          <div className="overflow-auto max-h-[min(80vh,880px)] min-h-[480px]" style={{ scrollbarWidth: 'thin' }}>
             {verticalMode ? (
               verticalEvents.length === 0 ? (
                 <div className="px-4 py-8 text-center text-sm text-slate-400">
@@ -545,13 +547,13 @@ export const LabTestHistory = ({
               <colgroup>
                 <col style={{ width: `${TEST_COLUMN_WIDTH_PX}px` }} />
                 {displayColumns.map((col) => (
-                  <col key={col.key} className="w-[58px]" />
+                  <col key={col.key} style={{ width: `${DATE_COLUMN_WIDTH_PX}px` }} />
                 ))}
               </colgroup>
               <thead className="sticky top-0 z-10 bg-slate-50">
                 <tr>
                   <th
-                    className="sticky left-0 z-20 bg-slate-50 border-b border-r border-slate-200 px-2 py-1.5 text-left text-xs font-semibold text-slate-600 uppercase truncate"
+                    className="sticky left-0 z-20 bg-slate-50 border-b border-r border-slate-200 px-3 py-2.5 text-left text-sm font-semibold text-slate-600 uppercase truncate"
                     style={{ width: `${TEST_COLUMN_WIDTH_PX}px`, maxWidth: `${TEST_COLUMN_WIDTH_PX}px` }}
                   >
                     Test
@@ -562,9 +564,14 @@ export const LabTestHistory = ({
                     return (
                       <th
                         key={col.key}
-                        className={`border-b border-slate-200 px-1.5 py-1.5 text-center text-[10px] font-semibold w-[58px] min-w-[58px] max-w-[72px] ${
+                        className={`border-b border-slate-200 px-2 py-2.5 text-center text-xs font-semibold ${
                           isPad ? 'text-slate-300 border-slate-100' : 'text-slate-600'
                         }`}
+                        style={{
+                          width: `${DATE_COLUMN_WIDTH_PX}px`,
+                          minWidth: `${DATE_COLUMN_WIDTH_PX}px`,
+                          maxWidth: `${DATE_COLUMN_MAX_WIDTH_PX}px`,
+                        }}
                         title={isPad ? undefined : col.lab_test_name || col.lab_test}
                       >
                         <div className="leading-tight">{isPad ? '—' : dateLine}</div>
@@ -587,7 +594,7 @@ export const LabTestHistory = ({
                   rows.map((row) => (
                   <tr key={row.key} className="hover:bg-slate-50/50">
                     <td
-                      className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-2 py-1.5 text-xs text-slate-800 font-medium truncate"
+                      className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-3 py-2.5 text-sm text-slate-800 font-medium truncate"
                       style={{ width: `${TEST_COLUMN_WIDTH_PX}px`, maxWidth: `${TEST_COLUMN_WIDTH_PX}px` }}
                       title={row.label}
                     >
@@ -599,11 +606,16 @@ export const LabTestHistory = ({
                       return (
                         <td
                           key={col.key}
-                          className={`px-1.5 py-1 text-center text-xs border-l w-[58px] min-w-[58px] max-w-[72px] ${
+                          className={`px-2 py-2 text-center text-sm border-l ${
                             isPad
                               ? 'border-slate-50 bg-slate-50/30'
                               : `border-slate-100 ${cellClass(cell?.flag, cell?.direction)}`
                           }`}
+                          style={{
+                            width: `${DATE_COLUMN_WIDTH_PX}px`,
+                            minWidth: `${DATE_COLUMN_WIDTH_PX}px`,
+                            maxWidth: `${DATE_COLUMN_MAX_WIDTH_PX}px`,
+                          }}
                           title={
                             cell?.value
                               ? `${cell.value}${cell.direction === 'high' ? ' (High)' : cell.direction === 'low' ? ' (Low)' : ''}`

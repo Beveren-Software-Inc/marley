@@ -239,6 +239,31 @@ export async function fetchLabTechnicianPractitioners(search?: string): Promise<
 }
 
 /**
+ * Current user's linked Healthcare Practitioner when Medical Role is Lab Technician
+ * or Lab Technologist. Used to auto-pick lab technician on result entry.
+ */
+export async function getCurrentUserLabTechnicianOption(): Promise<LinkFieldOption | null> {
+  try {
+    const response = await fetch('/api/method/healthcare.api.common.get_current_user_lab_technician_option', {
+      credentials: 'include',
+    })
+    const resData = await response.json()
+    const msg = resData?.message
+    if (msg && typeof msg === 'object' && typeof msg.name === 'string') {
+      return {
+        name: msg.name,
+        label: msg.label || msg.name,
+        medical_role: typeof msg.medical_role === 'string' ? msg.medical_role : undefined,
+      }
+    }
+    return null
+  } catch (err) {
+    console.error('Failed to fetch current user lab technician:', err)
+    return null
+  }
+}
+
+/**
  * Fetch the current logged-in user's linked Healthcare Practitioner.
  * Returns the practitioner name (string) if found, null otherwise.
  * 

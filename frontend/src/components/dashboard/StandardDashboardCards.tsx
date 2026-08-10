@@ -140,8 +140,11 @@ export function InpatientAdmissionsCard({
   fullScreen = false,
   listingScreen,
   onAdmissionActivate,
+  tall = false,
 }: CommonCardProps & {
   onAdmissionActivate?: (record: InpatientRecord) => void
+  /** Taller listing viewport (e.g. Lab page). */
+  tall?: boolean
 }) {
   const [showCreate, setShowCreate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -151,6 +154,7 @@ export function InpatientAdmissionsCard({
       <DashboardCard
         fixedHeight={!fullScreen}
         noHeightLimit={fullScreen}
+        tall={tall && !fullScreen}
         title="Patient Admissions"
         onAdd={() => setShowCreate(true)}
         addButtonTitle="Create Admission"

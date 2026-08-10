@@ -5,6 +5,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import {
   CardFilterContext,
   CardHeaderSlotContext,
+  CardLeadingSlotContext,
   DashboardCompactClinicalContext,
   DashboardFullListingContext,
 } from '../../contexts/CardFilterContext'
@@ -104,6 +105,8 @@ export const DashboardCard = ({
   addButtonTitle,
   noHeightLimit = false,
   fixedHeight = false,
+  /** Taller fixed-height listing cards (more rows visible before scroll). */
+  tall = false,
   compactClinicalLayout,
   requiresAttention = false,
   attentionLabel = 'Required — not completed',
@@ -111,7 +114,8 @@ export const DashboardCard = ({
   disableCreate = false,
   allowCreateOnClosedEpisode = false,
 }: {
-  title: string
+  /** Section title. Omit or pass empty when the nav tab already names the section. */
+  title?: string
   /** Optional hint beside the title (e.g. Read-only). */
   titleAddon?: ReactNode
   /** Extra controls in the header row (before filter / + / listing). */
@@ -127,24 +131,30 @@ export const DashboardCard = ({
   addButtonTitle?: string
   noHeightLimit?: boolean
   fixedHeight?: boolean
+  /** Use a taller fixed viewport for listing-heavy cards. */
+  tall?: boolean
   /** Brief summary table + ⓘ popover. Defaults to fixed-height dashboard tiles only. */
   compactClinicalLayout?: boolean
   /** Red highlight when a mandatory IP document is missing. */
   requiresAttention?: boolean
   attentionLabel?: string
-  /** When false, hide the filter toggle (e.g. Patient List uses inline search only). */
+  /** When false, hide filters for children (e.g. Patient List uses inline search only). */
   filterable?: boolean
   /** When true, disable + without hiding it (uses active visit/admission closed state by default). */
   disableCreate?: boolean
   /** Allow + even when the active visit/admission is closed (new OP visit / IP admission cards). */
   allowCreateOnClosedEpisode?: boolean
 }) => {
-  // Filters are shown inline on the card (no toggle button) whenever the card is filterable.
+  // Filters are shown inline on the card whenever the card is filterable.
+  // Lists that need a custom filter toggle (e.g. after status tabs) set filterable={false}
+  // and manage their own filter bar.
   const showFilters = filterable
   const { guardClinicalCreate, isActiveCareEpisodeClosed, activeCareBlockReason } = useCareContext()
 
   // ↗ toggles an in-place full-screen expand of this card (no route change); ↙ collapses it.
   const [expanded, setExpanded] = useState(false)
+  // Leading slot — children can portal left-side header content (e.g. status tabs).
+  const [leadingSlot, setLeadingSlot] = useState<HTMLElement | null>(null)
   // Header slot node — children (e.g. list toolbars) portal controls here, left of +/↗.
   const [headerSlot, setHeaderSlot] = useState<HTMLElement | null>(null)
   useEffect(() => {
@@ -160,8 +170,9 @@ export const DashboardCard = ({
   const fullList = noHeightLimit || expanded
   const useFixedHeight = fixedHeight && !fullList
   const compactClinical = compactClinicalLayout ?? useFixedHeight
-  const resolvedAddTitle = addButtonTitle ?? `Add ${title}`
-  const resolvedOpenListingTitle = openListingTitle ?? `Expand ${title}`
+  const sectionLabel = (title || '').trim()
+  const resolvedAddTitle = addButtonTitle ?? (sectionLabel ? `Add ${sectionLabel}` : 'Add')
+  const resolvedOpenListingTitle = openListingTitle ?? (sectionLabel ? `Expand ${sectionLabel}` : 'Expand')
   const createBlocked =
     disableCreate ?? (isActiveCareEpisodeClosed && !allowCreateOnClosedEpisode)
   const handleAdd = onAdd
@@ -184,17 +195,24 @@ export const DashboardCard = ({
           expanded
             ? 'fixed inset-2 sm:inset-4 z-50 max-h-none overflow-auto shadow-2xl'
             : useFixedHeight
-              ? 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
-              : ''
+              ? tall
+                ? 'min-h-[min(420px,55vh)] max-h-[min(640px,75vh)] sm:min-h-[560px] sm:max-h-[640px]'
+                : 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
+              : fullList
+                ? 'flex-1 min-h-0'
+                : ''
         } ${className}`}
         style={{ scrollbarWidth: 'thin' }}
       >
         <div className={`dashboard-card-head font-semibold mb-3 sm:mb-4 flex flex-wrap items-center justify-between flex-shrink-0 gap-x-2 gap-y-1.5 rounded-md px-3 py-2 text-slate-800 ${requiresAttention ? '!bg-red-200/70 !text-red-900' : ''}`}>
           <div className="flex items-center gap-2 min-w-0 flex-1 basis-[min(100%,12rem)]">
-            <span className="truncate text-sm sm:text-base">
-              {title}
-            </span>
+            {sectionLabel ? (
+              <span className="truncate text-sm sm:text-base">
+                {sectionLabel}
+              </span>
+            ) : null}
             {titleAddon}
+            <span ref={setLeadingSlot} className="flex flex-wrap items-center gap-1.5 min-w-0" />
             {requiresAttention && (
               <span
                 className="shrink-0 inline-flex items-center rounded-full bg-red-200/90 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-900"
@@ -204,7 +222,7 @@ export const DashboardCard = ({
               </span>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 shrink-0 ml-auto">
             {headerExtra}
             <span ref={setHeaderSlot} className="contents" />
             <CardHeaderActions
@@ -212,7 +230,7 @@ export const DashboardCard = ({
               addButtonTitle={resolvedAddTitle}
               onOpenListing={() => setExpanded((v) => !v)}
               openListingTitle={resolvedOpenListingTitle}
-              collapseTitle={`Collapse ${title}`}
+              collapseTitle={sectionLabel ? `Collapse ${sectionLabel}` : 'Collapse'}
               expanded={expanded}
               createDisabled={createBlocked}
               createDisabledTitle={activeCareBlockReason}
@@ -227,17 +245,19 @@ export const DashboardCard = ({
           className={
             useFixedHeight
               ? `flex flex-col flex-1 min-h-0 dense-listing ${showFilters ? 'overflow-visible' : 'overflow-hidden'}`
-              : expanded
-                ? 'flex flex-col flex-1 min-h-0 overflow-visible dense-listing'
+              : fullList
+                ? `flex flex-col flex-1 min-h-0 dense-listing ${showFilters ? 'overflow-visible' : 'overflow-hidden'}`
                 : 'overflow-x-auto overflow-visible dense-listing'
           }
           style={{ scrollbarWidth: 'thin' }}
         >
           <DashboardFullListingContext.Provider value={fullList}>
             <DashboardCompactClinicalContext.Provider value={compactClinical}>
-              <CardHeaderSlotContext.Provider value={headerSlot}>
-                <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
-              </CardHeaderSlotContext.Provider>
+              <CardLeadingSlotContext.Provider value={leadingSlot}>
+                <CardHeaderSlotContext.Provider value={headerSlot}>
+                  <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+                </CardHeaderSlotContext.Provider>
+              </CardLeadingSlotContext.Provider>
             </DashboardCompactClinicalContext.Provider>
           </DashboardFullListingContext.Provider>
         </div>

@@ -47,6 +47,12 @@ import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import {
+  admissionListFilterStorageKey,
+  clearPersistedListFilters,
+  readPersistedListFilters,
+  writePersistedListFilters,
+} from '../../utils/persistedListFilters'
 
 const statusColors: Record<string, string> = {
   'Admission Scheduled': 'warning',
@@ -59,6 +65,15 @@ const statusColors: Record<string, string> = {
 
 /** Default status on every inpatient admission list. */
 const DEFAULT_ADMISSION_STATUS = 'Admitted'
+
+type PersistedAdmissionFilters = {
+  status?: string
+  dateFrom?: string
+  dateTo?: string
+  practitionerFilter?: string
+  practitionerLabel?: string
+  filterBranch?: string
+}
 
 function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
   // Patient column shows the name only — no file no / patient id prefix.
@@ -106,9 +121,25 @@ export const AdmissionList = ({
   // unless a patient is in scope (dashboard patient view shows all admissions for that patient).
   const effectiveNameFilter = (mode === 'IP' && activeAdmission && !effectivePatient) ? activeAdmission : undefined
 
-  const [selectedStatus, setSelectedStatus] = useState<string>(defaultStatus)
+  const filterStorageKey = admissionListFilterStorageKey(location.pathname)
+  const restoredFiltersRef = useRef(
+    readPersistedListFilters<PersistedAdmissionFilters>(filterStorageKey),
+  )
+  const restoredFilters = restoredFiltersRef.current
+
+  const [selectedStatus, setSelectedStatus] = useState<string>(
+    () => (restoredFilters && typeof restoredFilters.status === 'string'
+      ? restoredFilters.status
+      : defaultStatus),
+  )
   const cardFilters = useCardFilters()
-  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const [showFiltersInternal, setShowFiltersInternal] = useState(() => {
+    if (!restoredFilters) return false
+    return (
+      (typeof restoredFilters.status === 'string' && restoredFilters.status !== defaultStatus) ||
+      Boolean(restoredFilters.dateFrom || restoredFilters.dateTo)
+    )
+  })
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
   const [selectedRecord, setSelectedRecord] = useState<string | null>(null)
@@ -155,12 +186,23 @@ export const AdmissionList = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
-  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
-  const [practitionerFilter, setPractitionerFilter] = useState('')
+  const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(() => {
+    const name = restoredFilters?.practitionerFilter
+    if (!name) return null
+    return {
+      name,
+      label: restoredFilters?.practitionerLabel || name,
+    }
+  })
+  const [practitionerFilter, setPractitionerFilter] = useState(
+    () => restoredFilters?.practitionerFilter || '',
+  )
 
   // Default the Admission By Doctor filter to the logged-in practitioner — ONLY for doctors.
   // Other roles (nurse, etc.) must not get a self-filter that hides admissions.
+  // Skip when a doctor filter was already restored from session (refresh keeps the choice).
   useEffect(() => {
+    if (restoredFilters?.practitionerFilter) return
     if (effectivePatient || effectiveNameFilter) return
     if (!isDoctorRole(userRole)) return
     let cancelled = false
@@ -174,13 +216,13 @@ export const AdmissionList = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const [dateFrom, setDateFrom] = useState('')
-  const [dateTo, setDateTo] = useState('')
+  const [dateFrom, setDateFrom] = useState(() => restoredFilters?.dateFrom || '')
+  const [dateTo, setDateTo] = useState(() => restoredFilters?.dateTo || '')
 
   const excludeCancelled = Boolean(effectivePatient && !selectedStatus && !effectiveNameFilter)
 
   // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
-  const [filterBranch, setFilterBranch] = useState('')
+  const [filterBranch, setFilterBranch] = useState(() => restoredFilters?.filterBranch || '')
   const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
   useEffect(() => {
     let cancelled = false
@@ -188,13 +230,36 @@ export const AdmissionList = ({
     return () => { cancelled = true }
   }, [])
   // Default the Branch filter to the global (top-bar) branch, once it resolves.
-  const branchDefaultApplied = useRef(false)
+  // If a branch was restored from session (including ""), don't override it.
+  const branchDefaultApplied = useRef(
+    Boolean(restoredFilters && Object.prototype.hasOwnProperty.call(restoredFilters, 'filterBranch')),
+  )
   useEffect(() => {
     if (branchDefaultApplied.current) return
     if (!userCostCenter) return
     branchDefaultApplied.current = true
     setFilterBranch((prev) => prev || userCostCenter)
   }, [userCostCenter])
+
+  // Keep chosen filters across page refresh (status, dates, doctor, branch).
+  useEffect(() => {
+    writePersistedListFilters(filterStorageKey, {
+      status: selectedStatus,
+      dateFrom,
+      dateTo,
+      practitionerFilter,
+      practitionerLabel: selectedPractitioner?.label || '',
+      filterBranch,
+    } satisfies PersistedAdmissionFilters)
+  }, [
+    filterStorageKey,
+    selectedStatus,
+    dateFrom,
+    dateTo,
+    practitionerFilter,
+    selectedPractitioner,
+    filterBranch,
+  ])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -414,6 +479,7 @@ export const AdmissionList = ({
     setDateTo('')
     setSelectedStatus(defaultStatus)
     setFilterBranch('')
+    clearPersistedListFilters(filterStorageKey)
   }
 
   const statuses = [

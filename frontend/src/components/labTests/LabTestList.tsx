@@ -1677,6 +1677,7 @@ import {
   finishGroupLabTests,
   updateLabTestRemarks,
   canEditLabTestSampleCollection,
+  canRecordAdHocSampleCollection,
   isLabTestSampleCollectionDone,
   fetchLabTestTemplateDetails,
   type LabConsumableRow,
@@ -1695,6 +1696,7 @@ import {
   fetchLabTechnicianPractitioners,
   fetchLabTestTemplateList,
   fetchLabTestTemplates,
+  getCurrentUserLabTechnicianOption,
   getCurrentUserPractitioner,
   type LabTestTemplateListRow,
   type LinkFieldOption,
@@ -1715,7 +1717,8 @@ import {
   labResultLockReason,
 } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { createPortal } from 'react-dom'
+import { useCardFilters, useCardLeadingSlot, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable, labTestReportDate } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -2390,6 +2393,12 @@ const LAB_STATUS_TABS: { label: string; status: string }[] = [
   { label: 'All', status: '' },
 ]
 
+/** Distinct listing header type — plain mono, no bold. */
+const LAB_LIST_TH =
+  'px-3 py-2 text-[11px] font-normal uppercase tracking-wide text-black [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace]'
+const LAB_LIST_TH_CENTER = `${LAB_LIST_TH} text-center`
+const LAB_LIST_TH_RIGHT = `${LAB_LIST_TH} text-right`
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export const LabTestList = ({
@@ -2453,9 +2462,16 @@ export const LabTestList = ({
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
 
   const cardFilters = useCardFilters()
+  const leadingSlot = useCardLeadingSlot()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
-  const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
+  // Own the filter icon after status tabs (or when the card opts out of forced filters).
+  const ownsFilterToggle = Boolean(statusTabs) || (inDashboardCard && cardFilters === false)
+  const showFilters = ownsFilterToggle
+    ? showFiltersInternal
+    : cardFilters !== undefined
+      ? cardFilters
+      : showFiltersInternal
   const compactClinical = useDashboardCompactClinical()
   const [defaultPractitionerId, setDefaultPractitionerId] = useState<string | null>(null)
   const [defaultsReady, setDefaultsReady] = useState(!doctorLabDefaults)
@@ -2574,12 +2590,29 @@ export const LabTestList = ({
     })
   }, [labTests, filters.template, filters.templateLabel])
 
+  const [defaultLabTechnician, setDefaultLabTechnician] = useState<LinkFieldOption | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    getCurrentUserLabTechnicianOption()
+      .then((opt) => {
+        if (!cancelled) setDefaultLabTechnician(opt)
+      })
+      .catch(() => {
+        if (!cancelled) setDefaultLabTechnician(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   const batch = useBatchLabTestResults(
     labTests,
     canEditResultRow,
     onPendingCountChange,
     onBatchSavingChange,
-    refetch
+    refetch,
+    defaultLabTechnician
   )
 
   useEffect(() => {
@@ -2658,12 +2691,18 @@ export const LabTestList = ({
   const [sampleModalLabTest, setSampleModalLabTest] = useState<LabTest | null>(null)
   const [sampleModalLoading, setSampleModalLoading] = useState(false)
   const [sampleModalError, setSampleModalError] = useState<string | null>(null)
+  const [sampleModalGroup, setSampleModalGroup] = useState<{
+    children: LabTest[]
+    label: string
+    serviceRequest: string
+  } | null>(null)
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Record<string, boolean>>({})
   const [finishingGroupKey, setFinishingGroupKey] = useState<string | null>(null)
 
   const resetSampleModalState = () => {
     setSampleModalLabTest(null)
     setSampleModalError(null)
+    setSampleModalGroup(null)
   }
 
   useEffect(() => {
@@ -2801,9 +2840,13 @@ export const LabTestList = ({
     }
   }
 
-  const handleOpenSampleCollection = (labTest: LabTest) => {
+  const handleOpenSampleCollection = (
+    labTest: LabTest,
+    group?: { children: LabTest[]; label: string; serviceRequest: string } | null
+  ) => {
     setOpenActionRow(null)
     setSampleModalError(null)
+    setSampleModalGroup(group ?? null)
     setSampleModalLoading(true)
     setSampleModalLabTest(labTest)
     fetchLabTest(labTest.name)
@@ -3014,8 +3057,17 @@ export const LabTestList = ({
         ? (doc as LabTest).documents!.map((d) => ({ file_name: d.file_name || '', document_type: d.document_type || '', transaction_no: d.transaction_no || '', upload_remarks: d.upload_remarks || '', document: d.document || '' }))
         : [{ file_name: '', document_type: '', transaction_no: '', upload_remarks: '' }]
       setResultDocuments(docs)
-      setLabTechnician(doc.lab_technician || '')
-      setLabTechnicianQuery((doc.lab_technician_name || '').trim() || '')
+      const existingTech = (doc.lab_technician || '').trim()
+      if (existingTech) {
+        setLabTechnician(existingTech)
+        setLabTechnicianQuery((doc.lab_technician_name || '').trim() || existingTech)
+      } else if (defaultLabTechnician?.name) {
+        setLabTechnician(defaultLabTechnician.name)
+        setLabTechnicianQuery(defaultLabTechnician.label || defaultLabTechnician.name)
+      } else {
+        setLabTechnician('')
+        setLabTechnicianQuery('')
+      }
       setLabTechnicianOpen(false)
     } catch (e) { setResultDialogError(e instanceof Error ? e.message : 'Failed to load lab test') }
     finally { setResultDialogLoading(false) }
@@ -3392,8 +3444,6 @@ export const LabTestList = ({
             </svg>
           </button>
           <PortalActionsMenu open={openActionRow === labTest.name} onClose={() => setOpenActionRow(null)} triggerRef={actionMenuRef} minWidth={160}>
-            <button type="button" onClick={() => { setOpenActionRow(null); setSelectedLabTestForDetails(resolveLabTestDocName(labTest)) }}
-              className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">View Details</button>
             {!isLegacyHistoryLabRow(labTest) && (
             <button type="button" onClick={() => handleOpenSampleCollection(labTest)}
               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">Sample Collection</button>
@@ -3461,6 +3511,109 @@ export const LabTestList = ({
       </div>
     </td>
   )
+
+  const slideOverActionBtn =
+    'inline-flex items-center rounded-md border border-emerald-200/80 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 shadow-sm hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-50'
+
+  const renderSlideOverActions = (labTest: LabTest) => (
+    <div className="relative flex shrink-0 flex-wrap items-center gap-1.5 border-b border-emerald-100/80 bg-emerald-50/40 px-4 py-2.5">
+      {!isLegacyHistoryLabRow(labTest) && (
+        <button
+          type="button"
+          onClick={() => handleOpenSampleCollection(labTest)}
+          className={slideOverActionBtn}
+        >
+          Sample Collection
+        </button>
+      )}
+      {canCancelSampleHandlingForLabTest(labTest) && (
+        <button
+          type="button"
+          onClick={() => handleCancelSampleHandlingForLabTest(labTest)}
+          className={`${slideOverActionBtn} border-amber-200 text-amber-800 hover:bg-amber-50`}
+        >
+          Cancel Sample Handling
+        </button>
+      )}
+      {canDeleteRequestedLabTest(labTest) && (
+        <button
+          type="button"
+          onClick={() => handleDeleteRequestedLabTest(labTest)}
+          className={`${slideOverActionBtn} border-red-200 text-red-700 hover:bg-red-50`}
+        >
+          Delete Lab Test
+        </button>
+      )}
+      {canEditResults && !resultsReadOnly && (
+        <button
+          type="button"
+          disabled={!canEditResultRow(labTest)}
+          onClick={() => {
+            if (!canEditResultRow(labTest)) return
+            void openResultDialog(labTest.name)
+          }}
+          title={
+            canEditResultRow(labTest)
+              ? 'Enter results'
+              : labResultLockReason(labTest, userRole, { nurseLabContext }) ||
+                'Complete sample collection before entering results.'
+          }
+          className={slideOverActionBtn}
+        >
+          Enter Results
+        </button>
+      )}
+      {labTest.docstatus === 0 && (
+        <button
+          type="button"
+          onClick={() => guardClinicalEdit(() => setEditLabTestName(labTest.name))}
+          className={slideOverActionBtn}
+        >
+          Edit
+        </button>
+      )}
+      {labTest.docstatus === 0 && !labTest.material_request && (
+        <button
+          type="button"
+          onClick={() => void openRequestDialog(labTest)}
+          className={slideOverActionBtn}
+        >
+          Request Consumables
+        </button>
+      )}
+      <button
+        type="button"
+        onClick={() => openRemarksModal(labTest.name)}
+        className={slideOverActionBtn}
+      >
+        Add Remarks
+      </button>
+      {labTest.status === 'Pending Review' && (
+        <>
+          <button
+            type="button"
+            onClick={() => openReviewModal(labTest.name, 'Reviewed')}
+            className={`${slideOverActionBtn} border-emerald-300 text-emerald-800 hover:bg-emerald-100`}
+          >
+            Review result…
+          </button>
+          <button
+            type="button"
+            onClick={() => openReviewModal(labTest.name, 'Rejected')}
+            className={`${slideOverActionBtn} border-red-200 text-red-700 hover:bg-red-50`}
+          >
+            Reject result…
+          </button>
+        </>
+      )}
+    </div>
+  )
+
+  const detailsSlideOverLabTest = selectedLabTestForDetails
+    ? displayLabTests.find((lt) => resolveLabTestDocName(lt) === selectedLabTestForDetails) ||
+      labTests.find((lt) => resolveLabTestDocName(lt) === selectedLabTestForDetails) ||
+      null
+    : null
 
   const handlePrintGroup = async (serviceRequest: string, groupLabel: string, children: LabTest[]) => {
     // The "Lab Test Print" format renders the whole Service Request group when given
@@ -3613,10 +3766,12 @@ export const LabTestList = ({
         <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 py-2.5">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
           <div className="flex shrink-0 items-center gap-2">
-            <FilterToggleButton
-              active={Boolean(showFilters)}
-              onClick={() => setShowFiltersInternal((prev) => !prev)}
-            />
+            {!statusTabs ? (
+              <FilterToggleButton
+                active={Boolean(showFilters)}
+                onClick={() => setShowFiltersInternal((prev) => !prev)}
+              />
+            ) : null}
             {headerExtra}
             {onAdd ? (
               <button
@@ -3632,27 +3787,53 @@ export const LabTestList = ({
         </div>
       )}
 
-      {statusTabs && (
-        <div className="flex flex-wrap gap-1.5 border-b border-slate-200 px-1 pb-2 pt-1">
-          {LAB_STATUS_TABS.map((tab) => {
-            const active = (filters.status || '') === tab.status
-            return (
-              <button
-                key={tab.label}
-                type="button"
-                onClick={() => selectStatusTab(tab.status)}
-                className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
-                  active
-                    ? 'bg-primary text-white'
-                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                {tab.label}
-              </button>
-            )
-          })}
-        </div>
-      )}
+      {statusTabs && (() => {
+        const tabs = (
+          <div
+            className={
+              inDashboardCard
+                ? 'flex flex-wrap items-center gap-1'
+                : 'flex flex-wrap items-center gap-1.5 border-b border-slate-200 px-1 pb-2 pt-1'
+            }
+          >
+            {LAB_STATUS_TABS.map((tab) => {
+              const active = (filters.status || '') === tab.status
+              return (
+                <button
+                  key={tab.label}
+                  type="button"
+                  onClick={() => selectStatusTab(tab.status)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    active
+                      ? 'bg-primary text-white'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {tab.label}
+                </button>
+              )
+            })}
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />
+          </div>
+        )
+        if (inDashboardCard) {
+          return leadingSlot ? createPortal(tabs, leadingSlot) : null
+        }
+        return tabs
+      })()}
+
+      {inDashboardCard && !statusTabs && ownsFilterToggle && leadingSlot
+        ? createPortal(
+            <FilterToggleButton
+              active={Boolean(showFilters)}
+              onClick={() => setShowFiltersInternal((prev) => !prev)}
+            />,
+            leadingSlot
+          )
+        : null}
 
       {showFilters && (
         <FilterBar
@@ -3704,28 +3885,43 @@ export const LabTestList = ({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1300px]">
-            <thead className="bg-slate-50 border-b border-slate-200">
+            <thead className="lab-list-head bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Date</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Date</th>
                 {!patient && (
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">File No.</th>
+                  <th className={`${LAB_LIST_TH} text-left`}>File No.</th>
                 )}
                 {!patient && (
-                  <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Patient Name</th>
+                  <th className={`${LAB_LIST_TH} text-left max-w-[11rem] w-[11rem]`}>Patient Name</th>
                 )}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Test</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Results</th>
-                {rangeHeaders.showFemale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">F-Max</th></>}
-                {rangeHeaders.showMale && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">M-Max</th></>}
-                {rangeHeaders.showGeneric && <><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Min</th><th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Max</th></>}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Result Flag</th>
-                <th className="px-2 py-2 text-center text-xs font-semibold text-slate-600 uppercase w-10" title="Result trend">↑↓</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Lab technician</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Outsourced</th>
-                {!hideAmount && <th className="px-3 py-1.5 text-right text-xs font-semibold text-slate-600 uppercase">Amount</th>}
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Actions</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Test</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Results</th>
+                {rangeHeaders.showFemale && (
+                  <>
+                    <th className={LAB_LIST_TH_CENTER}>F-Min</th>
+                    <th className={LAB_LIST_TH_CENTER}>F-Max</th>
+                  </>
+                )}
+                {rangeHeaders.showMale && (
+                  <>
+                    <th className={LAB_LIST_TH_CENTER}>M-Min</th>
+                    <th className={LAB_LIST_TH_CENTER}>M-Max</th>
+                  </>
+                )}
+                {rangeHeaders.showGeneric && (
+                  <>
+                    <th className={LAB_LIST_TH_CENTER}>Min</th>
+                    <th className={LAB_LIST_TH_CENTER}>Max</th>
+                  </>
+                )}
+                <th className={`${LAB_LIST_TH} text-left`}>Result Flag</th>
+                <th className={`${LAB_LIST_TH_CENTER} px-2 w-10`} title="Result trend">↑↓</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Lab technician</th>
+                <th className={`${LAB_LIST_TH} text-left max-w-[11rem] w-[11rem]`}>Doctor</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Outsourced</th>
+                {!hideAmount && <th className={LAB_LIST_TH_RIGHT}>Amount</th>}
+                <th className={`${LAB_LIST_TH} text-left`}>Status</th>
+                <th className={`${LAB_LIST_TH} text-left`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -3753,7 +3949,28 @@ export const LabTestList = ({
 
                 return (
                   <Fragment key={`group-${serviceRequest}`}>
-                    <tr className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400">
+                    <tr
+                      className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400 cursor-pointer"
+                      title="Click to record sample collection for this group"
+                      onClick={(e) => {
+                        const el = e.target as HTMLElement
+                        if (el.closest('[data-no-row-click]')) return
+                        if (el.closest('button, a, input, select, textarea, label')) return
+                        const sampleTarget =
+                          children.find(
+                            (c) => canRecordAdHocSampleCollection(c) && !isLabTestSampleCollectionDone(c)
+                          ) ||
+                          children.find((c) => canRecordAdHocSampleCollection(c)) ||
+                          representativeChild
+                        if (sampleTarget) {
+                          handleOpenSampleCollection(sampleTarget, {
+                            children,
+                            label: groupLabel,
+                            serviceRequest,
+                          })
+                        }
+                      }}
+                    >
                       {/* Date */}
                       <td className="px-3 py-1.5 text-sm text-slate-700">{latestDate ? new Date(latestDate).toLocaleDateString('en-GB') : '-'}</td>
                       {/* File No */}
@@ -3763,23 +3980,40 @@ export const LabTestList = ({
                       {/* Patient Name */}
                       {!patient && (
                         <td
-                          className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer"
-                          onClick={() => representativeChild.patient && onPatientClick?.(representativeChild.patient)}
+                          className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer max-w-[11rem] w-[11rem]"
+                          data-no-row-click
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            representativeChild.patient && onPatientClick?.(representativeChild.patient)
+                          }}
                         >
-                          <span className="font-medium text-primary hover:underline">{representativeChild.patient_name || '-'}</span>
+                          <span
+                            className="font-medium text-primary hover:underline line-clamp-2 break-words"
+                            title={representativeChild.patient_name || undefined}
+                          >
+                            {representativeChild.patient_name || '-'}
+                          </span>
                         </td>
                       )}
                       {/* Test (group) */}
                       <td className="px-3 py-1.5 text-sm">
                         <div className="flex items-center gap-1.5">
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-200 text-indigo-700 shrink-0">GROUP</span>
-                          <button type="button" data-no-row-click
-                            onClick={(e) => { e.stopPropagation(); setExpandedGroupKeys(prev => ({ ...prev, [serviceRequest]: !isExpanded })) }}
-                            className="flex items-center gap-2 text-indigo-700 font-semibold hover:text-indigo-900">
+                          <button
+                            type="button"
+                            data-no-row-click
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setExpandedGroupKeys((prev) => ({ ...prev, [serviceRequest]: !isExpanded }))
+                            }}
+                            className="inline-flex items-center justify-center p-0.5 rounded text-indigo-700 hover:bg-indigo-200/60"
+                            title={isExpanded ? 'Collapse group' : 'Expand group'}
+                            aria-label={isExpanded ? 'Collapse group' : 'Expand group'}
+                          >
                             {isExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
-                            <span>{groupLabel}</span>
-                            <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700" title={`${children.length} test${children.length === 1 ? '' : 's'}`}>{children.length}</span>
                           </button>
+                          <span className="text-indigo-700 font-semibold">{groupLabel}</span>
+                          <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700" title={`${children.length} test${children.length === 1 ? '' : 's'}`}>{children.length}</span>
                         </div>
                        </td>
                       {/* Results */}
@@ -3795,7 +4029,11 @@ export const LabTestList = ({
                       {/* Lab technician */}
                       <td className="px-3 py-1.5"><span className="text-xs text-slate-400">—</span></td>
                       {/* Doctor */}
-                      <td className="px-3 py-1.5 text-sm text-slate-700">{practitioner}</td>
+                      <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
+                        <span className="line-clamp-2 break-words" title={practitioner !== '-' ? practitioner : undefined}>
+                          {practitioner}
+                        </span>
+                      </td>
                       {/* Outsourced */}
                       <td className="px-3 py-1.5"><span className="text-slate-400 text-xs">—</span></td>
                       {/* Amount */}
@@ -3822,7 +4060,7 @@ export const LabTestList = ({
                         </div>
                        </td>
                       {/* Actions */}
-                      <td className="px-3 py-1.5 text-sm text-slate-700">
+                      <td className="px-3 py-1.5 text-sm text-slate-700" data-no-row-click onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
                             disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === serviceRequest}
@@ -3887,10 +4125,15 @@ export const LabTestList = ({
                         {/* Patient Name */}
                         {!patient && (
                           <td
-                            className="px-3 py-1.5 text-sm text-slate-500 cursor-pointer"
+                            className="px-3 py-1.5 text-sm text-slate-500 cursor-pointer max-w-[11rem] w-[11rem]"
                             onClick={() => child.patient && onPatientClick?.(child.patient)}
                           >
-                            <span className="font-medium text-primary hover:underline">{child.patient_name || child.patient || '-'}</span>
+                            <span
+                              className="font-medium text-primary hover:underline line-clamp-2 break-words"
+                              title={child.patient_name || child.patient || undefined}
+                            >
+                              {child.patient_name || child.patient || '-'}
+                            </span>
                           </td>
                         )}
                         {/* Test */}
@@ -3919,7 +4162,14 @@ export const LabTestList = ({
                         {/* Lab technician */}
                         {renderTechnicianCell(child)}
                         {/* Doctor */}
-                        <td className="px-3 py-1.5 text-sm text-slate-700">{child.practitioner_name || child.practitioner || '-'}</td>
+                        <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
+                          <span
+                            className="line-clamp-2 break-words"
+                            title={child.practitioner_name || child.practitioner || undefined}
+                          >
+                            {child.practitioner_name || child.practitioner || '-'}
+                          </span>
+                        </td>
                         {/* Outsourced */}
                         <td className="px-3 py-1.5">
                           {child.is_outsourced
@@ -3969,10 +4219,15 @@ export const LabTestList = ({
                   {/* Patient Name */}
                   {!patient && (
                     <td
-                      className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer"
+                      className="px-3 py-1.5 text-sm text-slate-700 cursor-pointer max-w-[11rem] w-[11rem]"
                       onClick={() => labTest.patient && onPatientClick?.(labTest.patient)}
                     >
-                      <span className="font-medium text-primary hover:underline">{labTest.patient_name || labTest.patient || '-'}</span>
+                      <span
+                        className="font-medium text-primary hover:underline line-clamp-2 break-words"
+                        title={labTest.patient_name || labTest.patient || undefined}
+                      >
+                        {labTest.patient_name || labTest.patient || '-'}
+                      </span>
                     </td>
                   )}
                   {/* Test */}
@@ -4011,7 +4266,14 @@ export const LabTestList = ({
                   {/* Lab technician */}
                   {renderTechnicianCell(labTest)}
                   {/* Doctor */}
-                  <td className="px-3 py-1.5 text-sm text-slate-700">{labTest.practitioner_name || labTest.practitioner || '-'}</td>
+                  <td className="px-3 py-1.5 text-sm text-slate-700 max-w-[11rem] w-[11rem]">
+                    <span
+                      className="line-clamp-2 break-words"
+                      title={labTest.practitioner_name || labTest.practitioner || undefined}
+                    >
+                      {labTest.practitioner_name || labTest.practitioner || '-'}
+                    </span>
+                  </td>
                   {/* Outsourced */}
                   <td className="px-3 py-1.5">
                     {labTest.is_outsourced
@@ -4059,7 +4321,9 @@ export const LabTestList = ({
               <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.15),transparent_55%)]" />
               <div className="relative min-w-0">
                 <p className="text-xs font-medium uppercase tracking-wide text-emerald-800/70">Lab Test Details</p>
-                <p className="truncate text-sm font-semibold text-emerald-950">{selectedLabTestForDetails}</p>
+                <p className="truncate text-sm font-semibold text-emerald-950">
+                  {detailsSlideOverLabTest?.lab_test_name || selectedLabTestForDetails}
+                </p>
               </div>
               <div className="relative flex items-center gap-2">
                 <PrintFormatDropdown doctype="Lab Test" docName={selectedLabTestForDetails} noLetterhead={0} triggerPrint={1}
@@ -4072,6 +4336,7 @@ export const LabTestList = ({
                 </button>
               </div>
             </div>
+            {detailsSlideOverLabTest ? renderSlideOverActions(detailsSlideOverLabTest) : null}
             <div className="flex-1 overflow-y-auto bg-gradient-to-b from-emerald-50/30 via-white to-teal-50/20 p-6">
               <LabTestDetails labTestName={selectedLabTestForDetails} onUpdate={() => refetch()} />
             </div>
@@ -4083,6 +4348,9 @@ export const LabTestList = ({
       {sampleModalLabTest && (
         <LabTestSampleCollectionModal
           labTest={sampleModalLabTest}
+          groupChildren={sampleModalGroup?.children}
+          groupLabel={sampleModalGroup?.label}
+          groupServiceRequest={sampleModalGroup?.serviceRequest}
           loading={sampleModalLoading}
           error={sampleModalError}
           onClose={resetSampleModalState}

@@ -12,14 +12,21 @@ function YesNoField({
   label,
   value,
   onChange,
+  disableNo = false,
+  required = false,
 }: {
   label: string
   value: 'Yes' | 'No' | ''
   onChange: (v: 'Yes' | 'No') => void
+  disableNo?: boolean
+  required?: boolean
 }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-2">{label}</label>
+      <label className="block text-sm font-medium text-slate-700 mb-2">
+        {label}
+        {required ? <span className="text-red-500"> *</span> : null}
+      </label>
       <div className="flex items-center gap-4">
         <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
           <input
@@ -30,12 +37,19 @@ function YesNoField({
           />
           Yes
         </label>
-        <label className="inline-flex items-center gap-1.5 text-sm text-slate-700">
+        <label
+          className={`inline-flex items-center gap-1.5 text-sm ${
+            disableNo ? 'text-slate-400 cursor-not-allowed' : 'text-slate-700'
+          }`}
+        >
           <input
             type="radio"
-            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary disabled:opacity-50"
             checked={value === 'No'}
-            onChange={() => onChange('No')}
+            disabled={disableNo}
+            onChange={() => {
+              if (!disableNo) onChange('No')
+            }}
           />
           No
         </label>
@@ -374,6 +388,7 @@ export const AdmissionFormModal = ({
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false)
   const serviceDropdownRef = useRef<HTMLDivElement>(null)
   const [combineAdmissionAndCaseManagement, setCombineAdmissionAndCaseManagement] = useState(0)
+  const [mandatoryAdmissionAssessmentFee, setMandatoryAdmissionAssessmentFee] = useState(0)
 
   const caseManagementTotal = useMemo(
     () => caseManagementServices.reduce((sum, s) => sum + (Number(s.amount) || 0), 0),
@@ -643,6 +658,11 @@ export const AdmissionFormModal = ({
         setCombineAdmissionAndCaseManagement(
           Number(billingSettings.combine_admission_fee_and_case_management || 0)
         )
+        const mandatoryFee = Number(billingSettings.mendatory_admission_assessment_fee || 0)
+        setMandatoryAdmissionAssessmentFee(mandatoryFee)
+        if (mandatoryFee) {
+          setFormData((prev) => ({ ...prev, ipCaseManagement: 1 }))
+        }
 
         const existingRelatives = (recordData as any).patient_relatives || []
         if (Array.isArray(existingRelatives) && existingRelatives.length > 0) {
@@ -862,6 +882,11 @@ export const AdmissionFormModal = ({
       setActiveTab('admission')
       return
     }
+    if (mandatoryAdmissionAssessmentFee && formData.ipCaseManagement !== 1) {
+      setError(new Error('Admission Assessment Fee is mandatory. Please select Yes.'))
+      setActiveTab('case_management')
+      return
+    }
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
       setError(new Error('Select at least one Admission Assessment Fee service on the Admission Assessment Fee tab'))
       setActiveTab('case_management')
@@ -931,6 +956,11 @@ export const AdmissionFormModal = ({
       return
     }
 
+    if (mandatoryAdmissionAssessmentFee && formData.ipCaseManagement !== 1) {
+      setError(new Error('Admission Assessment Fee is mandatory. Please select Yes.'))
+      setActiveTab('case_management')
+      return
+    }
     if (formData.ipCaseManagement === 1 && caseManagementServices.length === 0) {
       setError(new Error('Select at least one Admission Assessment Fee service'))
       setActiveTab('case_management')
@@ -1401,7 +1431,10 @@ export const AdmissionFormModal = ({
                 <YesNoField
                   label="Admission Assessment Fee?"
                   value={formData.ipCaseManagement === 1 ? 'Yes' : 'No'}
+                  required={Boolean(mandatoryAdmissionAssessmentFee)}
+                  disableNo={Boolean(mandatoryAdmissionAssessmentFee)}
                   onChange={(v) => {
+                    if (mandatoryAdmissionAssessmentFee && v === 'No') return
                     const enabled = v === 'Yes'
                     setFormData((prev) => ({ ...prev, ipCaseManagement: enabled ? 1 : 0 }))
                     if (!enabled) {

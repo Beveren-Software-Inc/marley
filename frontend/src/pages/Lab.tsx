@@ -705,16 +705,14 @@
 // }
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Navigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, BookOpen, Droplet, History, Clock } from 'lucide-react'
+import { FlaskConical, Droplet, History, Clock } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
-import { MedicalHistoryView } from '../components/medicalHistory/MedicalHistoryView'
-import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
 import { CreateLabTestTemplateModal } from '../components/labTests/CreateLabTestTemplateModal'
 import { LabTestTemplateList } from '../components/labTests/LabTestTemplateList'
 import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSampleModal'
@@ -722,9 +720,6 @@ import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeMo
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
-import { OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
-import type { PatientVisitListRow } from '../services/patientVisits'
-import type { InpatientRecord } from '../services/inpatientRecords'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 
 type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
@@ -772,9 +767,6 @@ export const LabPage = () => {
     selectedPatient: globalPatient,
     setSelectedPatient: setGlobalPatient,
     userRole,
-    setMode,
-    setActiveVisit,
-    setActiveAdmission,
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
@@ -788,7 +780,7 @@ export const LabPage = () => {
   const tabFromUrl: LabTab =
     tabParam && VALID_LAB_TABS.includes(tabParam as LabTab)
       ? (tabParam as LabTab)
-      : 'pending-lab-tests'
+      : 'lab-tests'
 
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
   // 'l-results' (the old "Lab Test & Result" tab) was merged into this dashboard's
@@ -888,21 +880,6 @@ export const LabPage = () => {
     setSearchParams(newSearchParams, { replace: true })
   }
 
-  // Selecting a visit / admission from the dashboard cards sets the care context (same as doctor).
-  const handleVisitActivate = (visit: PatientVisitListRow) => {
-    if (visit.patient) handlePatientSelect(visit.patient)
-    setMode('OP')
-    setActiveAdmission(undefined)
-    setActiveVisit(visit.value)
-  }
-
-  const handleAdmissionActivate = (record: InpatientRecord) => {
-    if (record.patient) handlePatientSelect(record.patient)
-    setMode('IP')
-    setActiveVisit(undefined)
-    setActiveAdmission(record.name)
-  }
-
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
     setSampleCollectionRefreshKey(prev => prev + 1)
@@ -920,7 +897,7 @@ export const LabPage = () => {
   // ─── l-setup ───────────────────────────────────────────
   if (screen === 'l-setup') {
     return (
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4 space-y-4">
@@ -1039,7 +1016,7 @@ export const LabPage = () => {
   if (screen === 'l-out') {
     // Outsourced Tests - show only lab tests where is_outsourced = 1
     return (
-      <div className="flex flex-col min-w-0">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
         <div className="p-4">
@@ -1076,7 +1053,7 @@ export const LabPage = () => {
 
   if (screen === 'l-inventory') {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
           <DashboardCard title="Inventory Dashboard" filterable={false} noHeightLimit>
@@ -1088,76 +1065,8 @@ export const LabPage = () => {
   }
 
   if (screen === 'l-mh') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <DashboardCard title="Past Medical History" filterable={false} noHeightLimit>
-            {selectedPatient ? (
-              <div className="p-1"><MedicalHistoryView patient={selectedPatient} /></div>
-            ) : (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-                <BookOpen className="w-10 h-10 mb-3 opacity-40" />
-                <p className="text-sm font-medium">SEARCH PATIENT TO VIEW PAST MEDICAL HISTORY</p>
-              </div>
-            )}
-          </DashboardCard>
-        </div>
-      </div>
-    )
-  }
-
-  // Full-listing screens for the dashboard cards' ↗ "open full listing" button.
-  // These mirror the Doctor dashboard (screens 'pvh' / 'admission' / 'warn' are URL-reachable
-  // expand targets, not sidebar tabs) so the expand button on the Patient Visits, Inpatient
-  // Admissions and Warnings cards opens a real full-screen listing instead of doing nothing.
-  if (screen === 'pvh') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <OutpatientVisitsCard
-            fullScreen
-            patient={selectedPatient || undefined}
-            onPatientSelect={handlePatientSelect}
-            onVisitActivate={handleVisitActivate}
-          />
-        </div>
-      </div>
-    )
-  }
-
-  if (screen === 'admission') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <InpatientAdmissionsCard
-            fullScreen
-            patient={selectedPatient || undefined}
-            onPatientSelect={handlePatientSelect}
-            onAdmissionActivate={handleAdmissionActivate}
-          />
-        </div>
-      </div>
-    )
-  }
-
-  if (screen === 'warn') {
-    return (
-      <div className="flex flex-col">
-        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
-          <DashboardCard title="Warnings & Messages" noHeightLimit>
-            <WarningMessagesList
-              patient={selectedPatient || undefined}
-              noPatientScope="all"
-              onPatientClick={handlePatientSelect}
-            />
-          </DashboardCard>
-        </div>
-      </div>
-    )
+    // Past Medical History removed for lab technicians — send legacy deep links home.
+    return <Navigate to="/lab" replace />
   }
 
   // Note: the old "Lab Test & Result" screen (screen === 'l-results') was merged into
@@ -1168,16 +1077,16 @@ export const LabPage = () => {
   const resolvedTab = activeTab
   const activeCard =
     labNavCards.find((c) => c.id === resolvedTab) ??
-    labNavCards.find((c) => c.id === 'pending-lab-tests') ??
+    labNavCards.find((c) => c.id === 'lab-tests') ??
     labNavCards[0]
   return (
-    <div className="flex flex-col h-full min-w-0">
+    <div className="flex flex-col flex-1 min-h-0 h-full min-w-0 overflow-hidden">
       <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
-      <div className="flex-1 min-w-0 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden p-4 gap-4">
 
         {/* Navigation cards */}
-        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-1.5">
+        <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-1.5 shrink-0">
           {labNavCards.map((card) => {
             const Icon = card.icon
             const isActive = resolvedTab === card.id
@@ -1195,7 +1104,7 @@ export const LabPage = () => {
                 <div className={`rounded-md p-1 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
                   <Icon className={`h-3.5 w-3.5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
                 </div>
-                <p className={`text-[10px] font-medium leading-tight sm:text-[11px] ${isActive ? '' : 'text-slate-800'}`}>
+                <p className={`text-[10px] leading-tight sm:text-[11px] ${isActive ? 'font-bold' : 'font-medium text-slate-800'}`}>
                   {card.title}
                 </p>
               </button>
@@ -1203,11 +1112,12 @@ export const LabPage = () => {
           })}
         </div>
 
-        {/* Active section — unified DashboardCard (matches the Doctor module) */}
+        {/* Active section — listing card fills remaining page height (nav tabs already name the section) */}
         <DashboardCard
-          title={activeCard.title}
           noHeightLimit
-          filterable={resolvedTab === 'pending-lab-tests' || resolvedTab === 'lab-tests'}
+          className="flex-1 min-h-0"
+          openListingTitle={`Expand ${activeCard.title}`}
+          filterable={false}
           {...(resolvedTab === 'pending-lab-tests' || resolvedTab === 'lab-tests'
             ? {
                 headerExtra: labTestSaveHeader,
@@ -1237,48 +1147,15 @@ export const LabPage = () => {
             />
           )}
           {resolvedTab === 'sample-collection' && (
-            <div className="p-1">
+            <div className="flex flex-col flex-1 min-h-0 p-1">
               <SampleCollectionList patient={selectedPatient} refreshKey={sampleCollectionRefreshKey} />
             </div>
           )}
           {resolvedTab === 'lab-history' && (
-            <div className="p-1">
+            <div className="flex flex-col flex-1 min-h-0 p-1 overflow-auto">
               <LabTestHistory patientId={selectedPatient} onPatientChange={(p) => handlePatientSelect(p)} />
             </div>
           )}
-        </DashboardCard>
-
-        {/* Patient Visits + Inpatient Admissions + Warnings — same as the Doctor dashboard */}
-        <OutpatientVisitsCard
-          listingScreen="pvh"
-          patient={selectedPatient || undefined}
-          onPatientSelect={handlePatientSelect}
-          onVisitActivate={handleVisitActivate}
-        />
-
-        <InpatientAdmissionsCard
-          listingScreen="admission"
-          patient={selectedPatient || undefined}
-          onPatientSelect={handlePatientSelect}
-          onAdmissionActivate={handleAdmissionActivate}
-        />
-
-        <DashboardCard fixedHeight title="Warnings & Messages" listingScreen="warn">
-          <WarningMessagesList
-            patient={selectedPatient || undefined}
-            noPatientScope="all"
-            onPatientClick={handlePatientSelect}
-          />
-        </DashboardCard>
-
-        <DashboardCard fixedHeight title="Sticky Notes" listingScreen="sticky-notes">
-          <WarningMessagesList
-            patient={selectedPatient || undefined}
-            noPatientScope="all"
-            specialPhoneScope="special_only"
-            title="Sticky Notes"
-            onPatientClick={handlePatientSelect}
-          />
         </DashboardCard>
 
       </div>

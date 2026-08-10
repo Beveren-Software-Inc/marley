@@ -693,6 +693,7 @@ export async function fetchCaseManagementTemplates(search?: string): Promise<
 
 export async function fetchAdmissionBillingSettings(): Promise<{
   combine_admission_fee_and_case_management: number
+  mendatory_admission_assessment_fee: number
 }> {
   const response = await fetch(
     '/api/method/healthcare.api.inpatient_admission.get_admission_billing_settings'
@@ -701,6 +702,9 @@ export async function fetchAdmissionBillingSettings(): Promise<{
   return {
     combine_admission_fee_and_case_management: Number(
       resData?.message?.combine_admission_fee_and_case_management || 0
+    ),
+    mendatory_admission_assessment_fee: Number(
+      resData?.message?.mendatory_admission_assessment_fee || 0
     ),
   }
 }

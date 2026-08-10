@@ -16,12 +16,17 @@ export function useBatchLabTestResults(
   canEditRow: (labTest: LabTest) => boolean,
   onPendingCountChange?: (count: number) => void,
   onBatchSavingChange?: (saving: boolean) => void,
-  onAfterSave?: () => void | Promise<void>
+  onAfterSave?: () => void | Promise<void>,
+  /** Auto-fill Lab technician when entering results (current user is Lab Technician). */
+  defaultLabTechnician?: { name: string; label?: string } | null
 ) {
   const [pendingResults, setPendingResults] = useState<Record<string, string>>({})
   const [pendingLabTech, setPendingLabTech] = useState<Record<string, string>>({})
   const [pendingLabTechLabels, setPendingLabTechLabels] = useState<Record<string, string>>({})
   const [batchSaving, setBatchSaving] = useState(false)
+
+  const defaultLabTechId = (defaultLabTechnician?.name || '').trim()
+  const defaultLabTechLabel = (defaultLabTechnician?.label || defaultLabTechnician?.name || '').trim()
 
   const isDirty = useCallback(
     (labTest: LabTest) => {
@@ -54,16 +59,31 @@ export function useBatchLabTestResults(
     [pendingResults]
   )
 
-  const commitEditToPending = useCallback((labTest: LabTest, value: string) => {
-    const trimmed = value.trim()
-    const original = (labTest.custom_result ?? '').trim()
-    setPendingResults((prev) => {
-      const next = { ...prev }
-      if (trimmed === original) delete next[labTest.name]
-      else next[labTest.name] = value
-      return next
-    })
-  }, [])
+  const commitEditToPending = useCallback(
+    (labTest: LabTest, value: string) => {
+      const trimmed = value.trim()
+      const original = (labTest.custom_result ?? '').trim()
+      setPendingResults((prev) => {
+        const next = { ...prev }
+        if (trimmed === original) delete next[labTest.name]
+        else next[labTest.name] = value
+        return next
+      })
+      // When entering a result, auto-pick the signed-in Lab Technician if none is set yet.
+      if (trimmed !== original && defaultLabTechId) {
+        const existing = (labTest.lab_technician || '').trim()
+        setPendingLabTech((prev) => {
+          if (existing || prev[labTest.name]) return prev
+          return { ...prev, [labTest.name]: defaultLabTechId }
+        })
+        setPendingLabTechLabels((prev) => {
+          if (existing || prev[labTest.name]) return prev
+          return { ...prev, [labTest.name]: defaultLabTechLabel || defaultLabTechId }
+        })
+      }
+    },
+    [defaultLabTechId, defaultLabTechLabel]
+  )
 
   const cancelPendingFor = useCallback((labTestName: string) => {
     setPendingResults((prev) => {
@@ -88,15 +108,22 @@ export function useBatchLabTestResults(
       if (pendingLabTech[labTest.name]) {
         return pendingLabTechLabels[labTest.name] || pendingLabTech[labTest.name]
       }
-      return (labTest.lab_technician_name || '').trim() || labTest.lab_technician || ''
+      const existing = (labTest.lab_technician_name || '').trim() || labTest.lab_technician || ''
+      if (existing) return existing
+      // Show default only while this row has a pending result edit.
+      if (labTest.name in pendingResults && defaultLabTechLabel) return defaultLabTechLabel
+      return ''
     },
-    [pendingLabTech, pendingLabTechLabels]
+    [pendingLabTech, pendingLabTechLabels, pendingResults, defaultLabTechLabel]
   )
 
   const resolveLabTechnicianId = useCallback(
     (labTest: LabTest) =>
-      pendingLabTech[labTest.name]?.trim() || (labTest.lab_technician || '').trim(),
-    [pendingLabTech]
+      pendingLabTech[labTest.name]?.trim() ||
+      (labTest.lab_technician || '').trim() ||
+      (labTest.name in pendingResults ? defaultLabTechId : '') ||
+      '',
+    [pendingLabTech, pendingResults, defaultLabTechId]
   )
 
   const savePendingChanges = useCallback(async () => {
@@ -105,16 +132,6 @@ export function useBatchLabTestResults(
       toast.info('No result changes to save.')
       return
     }
-
-    // const missingTech = dirtyTests.filter((lt) => !resolveLabTechnicianId(lt))
-    // if (missingTech.length) {
-    //   toast.error(
-    //     missingTech.length === 1
-    //       ? 'This test has no lab technician. Pick one in the row, then Save.'
-    //       : `${missingTech.length} tests have no lab technician. Pick one on each row, then Save.`
-    //   )
-    //   return
-    // }
 
     setBatchSaving(true)
     const savedNames: string[] = []
@@ -132,7 +149,7 @@ export function useBatchLabTestResults(
 
     for (const lt of dirtyTests) {
       try {
-        const rowLabTech = pendingLabTech[lt.name]?.trim()
+        const rowLabTech = resolveLabTechnicianId(lt)
         const payload: { custom_result: string; lab_technician?: string } = {
           custom_result: pendingResults[lt.name] ?? '',
         }

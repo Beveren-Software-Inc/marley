@@ -709,6 +709,37 @@ export async function createSampleCollectionForLabSample(
   )
 }
 
+/** Apply sample collection to every eligible child Lab Test in a grouped request. */
+export async function createSampleCollectionForLabGroup(
+  serviceRequestName: string,
+  sampleDetails?: string,
+  collectionPoint?: string,
+  referringPractitioner?: string,
+  sampleQty?: number,
+  collectedBy?: string
+): Promise<{
+  updated: string[]
+  skipped: string[]
+  count: number
+  sample_collections: string[]
+}> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest(
+    '/api/method/healthcare.api.lab_test.create_sample_collection_for_lab_group',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        service_request_name: serviceRequestName,
+        sample_details: sampleDetails,
+        collection_point: collectionPoint,
+        referring_practitioner: referringPractitioner,
+        sample_qty: sampleQty,
+        collected_by: collectedBy,
+      }),
+    }
+  )
+}
+
 export async function updateSampleCollectionForLabSample(
   labTestName: string,
   rowIndex: number,
