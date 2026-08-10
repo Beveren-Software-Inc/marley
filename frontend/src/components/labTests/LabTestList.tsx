@@ -2393,9 +2393,9 @@ const LAB_STATUS_TABS: { label: string; status: string }[] = [
   { label: 'All', status: '' },
 ]
 
-/** Distinct listing header type — condensed, high-tracking, separate from body Inter. */
+/** Distinct listing header type — plain mono, no bold. */
 const LAB_LIST_TH =
-  'px-3 py-2.5 text-[10px] font-extrabold uppercase tracking-[0.14em] text-teal-900/80 [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace]'
+  'px-3 py-2 text-[11px] font-normal uppercase tracking-wide text-black [font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace]'
 const LAB_LIST_TH_CENTER = `${LAB_LIST_TH} text-center`
 const LAB_LIST_TH_RIGHT = `${LAB_LIST_TH} text-right`
 
@@ -3885,7 +3885,7 @@ export const LabTestList = ({
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1300px]">
-            <thead className="lab-list-head sticky top-0 z-10 bg-teal-50/90 border-b-2 border-teal-200/80 backdrop-blur-[1px]">
+            <thead className="lab-list-head bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className={`${LAB_LIST_TH} text-left`}>Date</th>
                 {!patient && (
