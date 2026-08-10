@@ -2779,6 +2779,12 @@ def _combine_admission_and_case_management():
 	)
 
 
+def _mandatory_admission_assessment_fee():
+	return cint(
+		frappe.db.get_single_value("Healthcare Settings", "mendatory_admission_assessment_fee")
+	)
+
+
 def _get_case_management_ip_rate(template_name):
 	from healthcare.healthcare.doctype.healthcare_service_template.healthcare_service_template import (
 		get_healthcare_service_template_rate,
@@ -3015,6 +3021,7 @@ def get_admission_billing_settings():
 	"""Settings that affect admission quotation / case management billing."""
 	return {
 		"combine_admission_fee_and_case_management": _combine_admission_and_case_management(),
+		"mendatory_admission_assessment_fee": _mandatory_admission_assessment_fee(),
 	}
 
 
@@ -3073,6 +3080,8 @@ def admit_patient(
 	want_case_mgmt = cint(ip_case_management) if ip_case_management is not None else cint(
 		record.get("ip_case_management")
 	)
+	if _mandatory_admission_assessment_fee() and not want_case_mgmt:
+		frappe.throw(_("Admission Assessment Fee is mandatory. Please select Yes."))
 	cm_services = []
 	cm_amount = None
 	case_management_template = (case_management_template or "").strip() or None

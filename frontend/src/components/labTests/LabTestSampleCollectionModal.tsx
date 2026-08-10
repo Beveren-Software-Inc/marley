@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   canEditLabTestSampleCollection,
   canRecordAdHocSampleCollection,
+  createSampleCollectionForLabGroup,
   createSampleCollectionForLabSample,
   getSampleCollectionForLabSample,
   updateSampleCollectionForLabSample,
@@ -15,6 +16,11 @@ import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 export interface LabTestSampleCollectionModalProps {
   labTest: LabTest
+  /** When set, save applies collection to every child in the group. */
+  groupChildren?: LabTest[]
+  groupLabel?: string
+  /** Service Request for the group (kept separately because get_lab_test may omit it). */
+  groupServiceRequest?: string
   loading?: boolean
   error?: string | null
   onClose: () => void
@@ -213,7 +219,7 @@ function SampleRowForm({
           <div className="flex justify-end pt-1">
             <button
               type="button"
-              disabled={saving || !draft.collected || (minimal && !draft.notes.trim())}
+              disabled={saving || !draft.collected}
               onClick={onSave}
               className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-50"
             >
@@ -232,28 +238,41 @@ const EMPTY_SAMPLE_ROWS: (LabTestSampleInstance | null)[] = [null]
 
 export function LabTestSampleCollectionModal({
   labTest,
+  groupChildren,
+  groupLabel,
+  groupServiceRequest,
   loading = false,
   error = null,
   onClose,
   onSaved,
 }: LabTestSampleCollectionModalProps) {
+  const serviceRequest = (groupServiceRequest || labTest.service_request || '').trim()
+  const isGroupMode = (groupChildren?.length ?? 0) > 0 && Boolean(serviceRequest)
+  const groupCount = groupChildren?.length ?? 0
+
   const sampleInstancesKey = useMemo(
     () => JSON.stringify(labTest.sample_instances ?? []),
     [labTest.sample_instances]
   )
 
+  // Group collection is a single general form that applies to all children.
   const rows = useMemo((): (LabTestSampleInstance | null)[] => {
+    if (isGroupMode) return EMPTY_SAMPLE_ROWS
     if (labTest.sample_instances?.length) return labTest.sample_instances
     return EMPTY_SAMPLE_ROWS
-  }, [sampleInstancesKey, labTest.sample_instances])
+  }, [isGroupMode, sampleInstancesKey, labTest.sample_instances])
 
   const isSimpleCollectionRow = (row: LabTestSampleInstance | null) => {
+    if (isGroupMode) return true
     if (!row?.sample && !instructionPreview(row?.sample_details)) return true
     const qty = row?.sample_qty
     return qty == null || qty === 0
   }
 
   const rowCanEdit = (_row: LabTestSampleInstance | null, draft: RowDraft) => {
+    if (isGroupMode) {
+      return (groupChildren || []).some((c) => canRecordAdHocSampleCollection(c))
+    }
     if (draft.existingCollection) {
       return canEditLabTestSampleCollection(labTest.status)
     }
@@ -280,9 +299,10 @@ export function LabTestSampleCollectionModal({
       next[idx] = initDraftForRow(row)
     })
     setDrafts(next)
-  }, [labTest.name, sampleInstancesKey, initDraftForRow, rows])
+  }, [labTest.name, sampleInstancesKey, initDraftForRow, rows, isGroupMode])
 
   useEffect(() => {
+    if (isGroupMode) return
     rows.forEach((row, idx) => {
       if (!row?.sample_collection) return
       setDrafts((prev) => ({
@@ -313,7 +333,7 @@ export function LabTestSampleCollectionModal({
           }))
         })
     })
-  }, [labTest.name, sampleInstancesKey, rows])
+  }, [labTest.name, sampleInstancesKey, rows, isGroupMode])
 
   useEffect(() => {
     if (userOpenRow === null) return
@@ -340,16 +360,6 @@ export function LabTestSampleCollectionModal({
     }
     const notes = draft.notes.trim()
     const qty = draft.qty.trim() === '' ? undefined : parseFloat(draft.qty)
-    const minimal = isSimpleCollectionRow(row)
-    if (minimal) {
-      if (!notes) {
-        setFormError('Add a note for this collection.')
-        return
-      }
-    } else if (!row?.sample && !notes && qty === undefined) {
-      setFormError('Add a note or quantity for this collection.')
-      return
-    }
 
     const observationRows = row?.sample
       ? [
@@ -367,7 +377,22 @@ export function LabTestSampleCollectionModal({
     try {
       setSavingRow(idx)
       setFormError(null)
-      if (draft.existingCollection) {
+      if (isGroupMode) {
+        if (!serviceRequest) {
+          throw new Error('This group is missing a service request')
+        }
+        const res = await createSampleCollectionForLabGroup(
+          serviceRequest,
+          notes || undefined,
+          draft.collectionPoint.trim() || undefined,
+          undefined,
+          qty,
+          draft.collectedBy || undefined
+        )
+        toast.success(
+          `Sample collection saved for ${res.count} test${res.count === 1 ? '' : 's'} in this group`
+        )
+      } else if (draft.existingCollection) {
         await updateSampleCollectionForLabSample(
           labTest.name,
           idx,
@@ -403,23 +428,29 @@ export function LabTestSampleCollectionModal({
     }
   }
 
-  const subtitle = useMemo(
-    () =>
-      [
+  const subtitle = useMemo(() => {
+    if (isGroupMode) {
+      return [
         labTest.patient_name || labTest.patient,
-        labTest.lab_test_name,
+        groupLabel || labTest.lab_test_group_name || labTest.lab_test_group,
+        `Applies to all ${groupCount} test${groupCount === 1 ? '' : 's'} in this group`,
       ]
         .filter(Boolean)
-        .join(' · '),
-    [labTest]
-  )
+        .join(' · ')
+    }
+    return [labTest.patient_name || labTest.patient, labTest.lab_test_name].filter(Boolean).join(' · ')
+  }, [isGroupMode, labTest, groupLabel, groupCount])
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">Sample Collection — {labTest.name}</h2>
+            <h2 className="text-base font-semibold text-slate-900">
+              {isGroupMode
+                ? `Sample Collection — ${groupLabel || labTest.lab_test_group_name || 'Group'}`
+                : `Sample Collection — ${labTest.name}`}
+            </h2>
             <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
           </div>
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-600 text-lg leading-none">
@@ -435,6 +466,12 @@ export function LabTestSampleCollectionModal({
           {formError ? (
             <div className="bg-amber-50 border border-amber-200 text-amber-900 text-xs rounded-md px-3 py-2">
               {formError}
+            </div>
+          ) : null}
+          {isGroupMode && !loading ? (
+            <div className="rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+              Ticking sample collected here marks sample collection done for every test in this group.
+              Use Sample Collection on an individual row to update one test only.
             </div>
           ) : null}
 

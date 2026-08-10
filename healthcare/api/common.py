@@ -510,6 +510,36 @@ def get_lab_technician_practitioners(search=None):
 
 
 @frappe.whitelist()
+def get_current_user_lab_technician_option():
+	"""Current user's linked Healthcare Practitioner when Medical Role is Lab Technician / Lab Technologist.
+
+	Used to auto-pick Lab technician when entering lab results.
+	"""
+	user = frappe.session.user
+	if user == "Guest":
+		return None
+
+	practitioner = frappe.db.get_value(
+		"Healthcare Practitioner",
+		{"user_id": user, "status": "Active"},
+		["name", "practitioner_name", "medical_role"],
+		as_dict=True,
+	)
+	if not practitioner:
+		return None
+
+	role = (practitioner.medical_role or "").strip()
+	if role not in LAB_TECHNICIAN_MEDICAL_ROLES:
+		return None
+
+	return {
+		"name": practitioner.name,
+		"label": practitioner.practitioner_name or practitioner.name,
+		"medical_role": role,
+	}
+
+
+@frappe.whitelist()
 def get_service_unit_types(search=None):
 	"""Get list of Healthcare Service Unit Types with inpatient occupancy (room types)."""
 	from frappe.utils import flt

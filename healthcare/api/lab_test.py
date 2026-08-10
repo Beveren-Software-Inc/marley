@@ -1801,6 +1801,9 @@ def get_lab_test(name):
 		'approved_date': getattr(lab_test, 'approved_date', None),
 		'invoiced': lab_test.invoiced,
 		'department': lab_test.department,
+		'service_request': getattr(lab_test, 'service_request', None),
+		'lab_test_group': getattr(lab_test, 'lab_test_group', None),
+		'is_group_lab_test': cint(getattr(lab_test, 'is_group_lab_test', 0)),
 		'custom_result': getattr(lab_test, 'custom_result', None),
 		'lab_test_comment': getattr(lab_test, 'lab_test_comment', None),
 		'worksheet_instructions': getattr(lab_test, 'worksheet_instructions', None),
@@ -3109,7 +3112,8 @@ def create_sample_collection_for_lab_sample(
 	doc = frappe.get_doc("Lab Test", lab_test_name)
 	rows = doc.get("sample_instances") or []
 
-	if not rows and (sample_details or sample_qty_value is not None):
+	# Allow recording collection with only “Sample collected” (notes optional).
+	if not rows:
 		child = doc.append("sample_instances", {})
 		if sample_qty_value is not None:
 			child.sample_qty = sample_qty_value
@@ -3133,10 +3137,6 @@ def create_sample_collection_for_lab_sample(
 	if sample_details:
 		sample_details = _plain_sample_details(sample_details)
 		row.sample_details = sample_details
-
-	row_details = sample_details or _plain_sample_details(getattr(row, "sample_details", None))
-	if not getattr(row, "sample", None) and not row_details:
-		frappe.throw(_("Sample or collection details is required on the selected row"))
 
 	if not doc.patient:
 		frappe.throw(_("Patient is required on Lab Test"))
@@ -3187,6 +3187,98 @@ def create_sample_collection_for_lab_sample(
 	doc.save(ignore_permissions=True)
 
 	return {"sample_collection": sample_doc.name}
+
+
+@frappe.whitelist()
+def create_sample_collection_for_lab_group(
+	service_request_name: str,
+	sample_details: str | None = None,
+	collection_point: str | None = None,
+	referring_practitioner: str | None = None,
+	collected_by: str | None = None,
+	sample_qty: float | int | str | None = None,
+):
+	"""Record sample collection for every child Lab Test under a grouped request.
+
+	One group-level collection applies to all eligible siblings (not one-by-one).
+	Individual child collection remains available via create_sample_collection_for_lab_sample.
+	"""
+	assert_editing_allowed()
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters={
+			"service_request": service_request_name,
+			"is_group_lab_test": 1,
+			"docstatus": ["<", 2],
+		},
+		fields=["name", "status"],
+		order_by="creation asc",
+	)
+	if not lab_tests:
+		frappe.throw(_("No grouped lab tests found for this Service Request"))
+
+	eligible_statuses = LAB_PRE_SAMPLE_COLLECTION_STATUSES | SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES
+	updated: list[str] = []
+	skipped: list[str] = []
+	collections: list[str] = []
+
+	for lt in lab_tests:
+		status = (lt.get("status") or "").strip()
+		name = lt.get("name")
+		if not name or status == "Cancelled" or status not in eligible_statuses:
+			if name:
+				skipped.append(name)
+			continue
+
+		doc = frappe.get_doc("Lab Test", name)
+		rows = doc.get("sample_instances") or []
+		indices = list(range(len(rows))) if rows else [0]
+
+		for idx in indices:
+			row = rows[idx] if rows and idx < len(rows) else None
+			existing = (getattr(row, "sample_collection", None) or "").strip() if row else ""
+			if existing and frappe.db.exists("Sample Collection", existing):
+				if status not in SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES:
+					# Linked but still Draft/Requested — treat as already recorded.
+					collections.append(existing)
+					continue
+				res = update_sample_collection_for_lab_sample(
+					lab_test_name=name,
+					row_index=idx,
+					sample_details=sample_details,
+					collection_point=collection_point,
+					referring_practitioner=referring_practitioner,
+					collected_by=collected_by,
+					sample_qty=sample_qty,
+				)
+			else:
+				res = create_sample_collection_for_lab_sample(
+					lab_test_name=name,
+					row_index=idx,
+					sample_details=sample_details,
+					collection_point=collection_point,
+					referring_practitioner=referring_practitioner,
+					collected_by=collected_by,
+					sample_qty=sample_qty,
+				)
+			sc = (res or {}).get("sample_collection")
+			if sc:
+				collections.append(sc)
+
+		updated.append(name)
+
+	if not updated:
+		frappe.throw(_("No lab tests in this group are eligible for sample collection"))
+
+	return {
+		"updated": updated,
+		"skipped": skipped,
+		"count": len(updated),
+		"sample_collections": collections,
+	}
 
 
 # healthcare/api/lab_test.py

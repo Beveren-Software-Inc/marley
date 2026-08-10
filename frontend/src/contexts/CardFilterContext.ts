@@ -23,3 +23,10 @@ export const useDashboardCompactClinical = () => useContext(DashboardCompactClin
  */
 export const CardHeaderSlotContext = createContext<HTMLElement | null>(null)
 export const useCardHeaderSlot = () => useContext(CardHeaderSlotContext)
+
+/**
+ * Leading (left) header slot for a `DashboardCard` — e.g. status filter tabs in place of
+ * a repeated section title. null when not inside a card (or the slot hasn't mounted yet).
+ */
+export const CardLeadingSlotContext = createContext<HTMLElement | null>(null)
+export const useCardLeadingSlot = () => useContext(CardLeadingSlotContext)

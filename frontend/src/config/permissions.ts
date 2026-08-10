@@ -3,7 +3,8 @@ import { SHOW_EMPLOYEE_PORTAL } from './features'
 /**
  * UI permissions: which routes and sidebar links a user can see based on roles.
  *
- * - Patient, Employee (when enabled), Patient History: everyone
+ * - Patient History: everyone except Lab technician-only users
+ * - Edit Patient Details: Receptionist (and admins)
  * - Doctor, Nurse, Lab, Pharmacy, Reception: only that role (and admins)
  * - Administrator, System Manager, Healthcare Administrator, Website Manager: can view everything
  */
@@ -158,11 +159,9 @@ export function labResultLockReason(
   return 'This result cannot be edited at its current status.'
 }
 
-/** Paths that every authenticated user can access */
+/** Paths that every authenticated healthcare user can access (role-specific paths handled below). */
 const PUBLIC_PATHS = [
-  '/patient',
   ...(SHOW_EMPLOYEE_PORTAL ? ['/employee'] : []),
-  '/patient-history',
   '/settings',
   '/patient-visit/',
 ]
@@ -232,6 +231,16 @@ export function canAccessRoute(pathname: string, roles: string[]): boolean {
     return hasHealthcareRole(roles)
   }
 
+  // Edit Patient Details — Receptionist only
+  if (pathname === '/patient' || pathname.startsWith('/patient/')) {
+    return canEditPatientDetails(roles)
+  }
+
+  // Patient History — everyone except Lab technician-only
+  if (pathname === '/patient-history' || pathname.startsWith('/patient-history/')) {
+    return canAccessPatientHistory(roles)
+  }
+
   // Role-specific pages
   const normalizedRoles = roles.map(r => r.trim().toLowerCase())
   if (pathname === '/doctor') return normalizedRoles.some(r => r.includes('doctor') || r.includes('physician') || r.includes('practitioner'))
@@ -274,11 +283,22 @@ export function getVisibleMainLinks(links: MainLinkItem[], roles: string[]): Mai
     : links.filter(link => canAccessRoute(link.to, roles))
 
   // Staff Activity Audit is CEO-only (even system admins without CEO role)
+  let visible = filtered
   if (!isCEO(roles)) {
-    return filtered.filter((link) => link.to !== '/staff-activity-audit' && link.to !== '/ip-quotation')
+    visible = visible.filter((link) => link.to !== '/staff-activity-audit' && link.to !== '/ip-quotation')
   }
 
-  return filtered
+  // Non-admins: Edit Patient Details + Patient History follow dedicated helpers
+  // (canAccessRoute already enforces this; keep filter explicit for nested clarity).
+  if (!isAdmin(roles)) {
+    visible = visible.filter((link) => {
+      if (link.to === '/patient') return canEditPatientDetails(roles)
+      if (link.to === '/patient-history') return canAccessPatientHistory(roles)
+      return true
+    })
+  }
+
+  return visible
 }
 
 /** Discharge patient modal section tabs. */
@@ -348,6 +368,46 @@ export function isDoctorRole(roles: string[] | undefined): boolean {
 export function isNurseRole(roles: string[] | undefined): boolean {
   if (!roles?.length) return false
   return hasExactRole(roles, ['Nurse']) || roleMatches(roles, (r) => r.includes('nurse') || r.includes('nursing'))
+}
+
+/** Laboratory User / Lab Technician / Lab Technologist (and similar). */
+export function isLaboratoryRole(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return (
+    hasExactRole(roles, ['Laboratory User', 'Lab Technician', 'Lab Technologist']) ||
+    roleMatches(roles, (r) => r.includes('laboratory') || r === 'lab' || r.startsWith('lab '))
+  )
+}
+
+/**
+ * Lab technician without other clinical roles that need patient history / registration.
+ * Doctors, nurses, receptionists, etc. who also have a lab role still keep those tools.
+ */
+export function isLabTechnicianOnly(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return false
+  if (!isLaboratoryRole(roles)) return false
+  if (isDoctorRole(roles) || isNurseRole(roles) || isReceptionRole(roles)) return false
+  if (isPsychologistRole(roles) || isTherapistRole(roles)) return false
+  if (roleMatches(roles, (r) => r.includes('nutritionist'))) return false
+  if (roleMatches(roles, (r) => r.includes('anesthesiologist') || r.includes('anaesthesiologist'))) return false
+  if (roleMatches(roles, (r) => r.includes('pharmacist') || r.includes('pharmacy'))) return false
+  return true
+}
+
+/** Sidebar + route: Edit Patient Details — Receptionist only (admins still allowed). */
+export function canEditPatientDetails(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return isReceptionRole(roles)
+}
+
+/** Sidebar + route: Patient History — everyone except Lab technician-only users. */
+export function canAccessPatientHistory(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  if (isLabTechnicianOnly(roles)) return false
+  return hasHealthcareRole(roles)
 }
 
 /** Clinical staff who may see long-acting medicine details (drug/dose/frequency/notes).
@@ -433,5 +493,7 @@ export function getDefaultRouteForUser(roles: string[]): string {
   if (r.some(x => x.includes('psychologist'))) return '/psychologist'
   if (r.some(x => x.includes('anesthesiologist') || x.includes('anaesthesiologist'))) return '/anesthesiologist'
   if (r.some(x => x.includes('insurance'))) return '/insurance'
-  return '/patient'
+  if (canAccessPatientHistory(roles)) return '/patient-history'
+  if (canEditPatientDetails(roles)) return '/patient'
+  return '/settings'
 }

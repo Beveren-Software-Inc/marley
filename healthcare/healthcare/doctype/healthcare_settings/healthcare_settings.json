@@ -27,7 +27,7 @@
   "max_visits",
   "valid_days",
   "block_clinical_records_on_completed_visit",
-  "check_waoz",
+  "mendatory_admission_assessment_fee",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
@@ -981,19 +981,20 @@
   },
   {
    "default": "0",
-   "fieldname": "check_waoz",
-   "fieldtype": "Check"
-  },
-  {
-   "default": "0",
    "fieldname": "create_sales_order_on_quotation_submission",
    "fieldtype": "Check",
    "label": "Create Sales Order on Quotation Submission"
+  },
+  {
+   "default": "0",
+   "fieldname": "mendatory_admission_assessment_fee",
+   "fieldtype": "Check",
+   "label": "Mendatory Admission Assessment Fee"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-09 13:25:25.414018",
+ "modified": "2026-08-10 15:47:10.542555",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

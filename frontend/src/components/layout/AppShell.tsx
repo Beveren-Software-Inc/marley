@@ -128,7 +128,7 @@ const labScreens = [
   // 'l-results' (Lab Test & Result) merged into the Lab Dashboard's "Tests & Results" card.
   // { id: 'l-sample',  title: 'Sample Collection' },
   { id: 'l-out',       title: 'Outsourced Tests' },
-  { id: 'l-mh',        title: 'Past Medical History' },
+  // Past Medical History not needed for lab technicians (use Patient History elsewhere if dual-roled).
   { id: 'l-inventory', title: 'Inventory Dashboard' },
   // { id: 'l-review',  title: 'Lab Test Review' },
 ]
@@ -396,6 +396,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   // Derive the active screen id from the current URL query param
   const activeScreen = urlSearch.get('screen')
   const isNurseRoute = location.pathname.startsWith('/nurse')
+  const isLabRoute = location.pathname.startsWith('/lab')
 
   const roles = user?.roles?.length
     ? user.roles
@@ -696,7 +697,13 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
           className="fixed top-14 left-0 right-0 z-30 md:left-[240px]"
           aria-hidden
         />
-        <div className={`flex-1 min-w-0 overflow-y-auto dense-listing ${isNurseRoute ? 'overscroll-y-contain bg-slate-50' : ''}`}>
+        <div
+          className={`flex-1 min-w-0 dense-listing ${
+            isLabRoute
+              ? 'overflow-hidden flex flex-col'
+              : `overflow-y-auto ${isNurseRoute ? 'overscroll-y-contain bg-slate-50' : ''}`
+          }`}
+        >
           {children}
         </div>
         <footer className="h-9 flex items-center justify-end px-4 text-[11px] text-white bg-gradient-to-r from-primary/70 via-primary to-primary/60">

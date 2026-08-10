@@ -23,6 +23,16 @@
   padding-bottom: 0.5rem;
 }
 
+/* Lab Tests & Results listing — distinct header type from body cells */
+.dense-listing table thead.lab-list-head th {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.14em !important;
+  text-transform: uppercase;
+  color: rgb(19 78 74 / 0.8);
+}
+
 .dense-listing table td {
   font-size: 13px !important;
   padding-top: 0.5rem;
