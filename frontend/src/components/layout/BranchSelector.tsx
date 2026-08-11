@@ -1,9 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Building2, ChevronDown } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Building2, ChevronDown, Lock, LockOpen } from 'lucide-react'
 import { fetchBranchOptions } from '../../services/common'
 import {
-  getUserCostCenterPermission,
-  setUserCostCenterPermission,
+  applyBranchFromIpMapper,
+  getPortalBranch,
+  setIpBranchOverride,
+  setPortalBranch,
 } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useAuth } from '../../providers/AuthProvider'
@@ -14,23 +16,19 @@ type BranchSelectorProps = {
 }
 
 export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
-  const { refreshUserCostCenter } = useCareContext()
+  const { refreshUserCostCenter, setUserCostCenter } = useCareContext()
   const [branches, setBranches] = useState<{ name: string; label: string }[]>([])
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(() => getPortalBranch())
   const [loading, setLoading] = useState(true)
   const { isAuthenticated } = useAuth()
   const [saving, setSaving] = useState(false)
   const [open, setOpen] = useState(false)
+  /** Network-suggested cost center when IP Mapper matched (visual lock cue only). */
+  const [ipMappedCostCenter, setIpMappedCostCenter] = useState('')
   const ref = useRef<HTMLDivElement>(null)
 
-  const loadCurrent = useCallback(async () => {
-    try {
-      const perm = await getUserCostCenterPermission()
-      setSelected(perm.cost_center || '')
-    } catch {
-      /* keep previous value */
-    }
-  }, [])
+  const onIpHomeBranch = Boolean(ipMappedCostCenter && selected === ipMappedCostCenter)
+  const ipOverrideActive = Boolean(ipMappedCostCenter && selected && selected !== ipMappedCostCenter)
 
   useEffect(() => {
     // These APIs 403 for guests — wait for login before loading branches.
@@ -39,13 +37,39 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     const load = async () => {
       setLoading(true)
       try {
-        const [perm, options] = await Promise.all([
-          getUserCostCenterPermission(),
-          fetchBranchOptions(),
-        ])
+        const ipResult = await applyBranchFromIpMapper().catch((err) => {
+          console.warn('IP Mapper apply failed:', err)
+          return null
+        })
         if (cancelled) return
-        setSelected(perm.cost_center || '')
+
+        const mappedCc =
+          (ipResult?.matched && (ipResult.ip_mapped_cost_center || ipResult.cost_center)) || ''
+        setIpMappedCostCenter(mappedCc)
+
+        const options = await fetchBranchOptions()
+        if (cancelled) return
         setBranches(options.map((b) => ({ name: b.name, label: b.label || b.name })))
+
+        const portal = getPortalBranch()
+        const next =
+          ipResult?.matched && mappedCc && !ipResult.overridden
+            ? mappedCc
+            : portal || mappedCc || ''
+        setSelected(next)
+        if (next) {
+          setPortalBranch(next)
+          setUserCostCenter(next)
+        }
+        await refreshUserCostCenter()
+
+        if (ipResult?.activated && !ipResult?.matched) {
+          console.info(
+            'IP Mapper active but no match for client IP:',
+            ipResult.client_ip || '(unknown)',
+            '— add this IP in Healthcare Settings → IP Mapper.',
+          )
+        }
       } catch {
         if (!cancelled) toast.error('Failed to load branches')
       } finally {
@@ -56,7 +80,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, refreshUserCostCenter, setUserCostCenter])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -76,18 +100,25 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     setSaving(true)
     setOpen(false)
     try {
-      const result = await setUserCostCenterPermission(value)
-      setSelected(result.cost_center || '')
+      // UI-only branch filter — never create User Permissions.
+      if (ipMappedCostCenter) {
+        setIpBranchOverride(Boolean(value && value !== ipMappedCostCenter))
+      }
+      setPortalBranch(value)
+      setSelected(value)
+      setUserCostCenter(value || undefined)
       await refreshUserCostCenter()
-      if (result.status === 'cleared') {
+      if (!value) {
         toast.success('Showing all branches')
       } else {
-        toast.success(`Branch set to ${result.cost_center}`)
+        const label = branches.find((b) => b.name === value)?.label || value
+        toast.success(`Branch set to ${label}`)
       }
+      // Reload lists so cost_center query filters pick up the new UI branch.
       window.location.reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to switch branch')
-      await loadCurrent()
+      setSelected(getPortalBranch())
     } finally {
       setSaving(false)
     }
@@ -98,6 +129,22 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     selected
       ? branches.find((b) => b.name === selected)?.label || selected
       : 'Select Branch'
+
+  const title = onIpHomeBranch
+    ? 'Branch set from your network IP — click to change'
+    : ipOverrideActive
+      ? 'Branch manually changed — select network branch to restore lock'
+      : selected
+        ? `Branch: ${activeLabel}`
+        : undefined
+
+  const trailingIcon = onIpHomeBranch ? (
+    <Lock className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+  ) : ipOverrideActive ? (
+    <LockOpen className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+  ) : (
+    <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+  )
 
   if (loading) {
     return (
@@ -121,10 +168,11 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
           disabled={saving}
           className="flex w-full items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-left text-sm text-white hover:bg-white/20 disabled:opacity-60"
           aria-label="Choose branch"
+          title={title}
         >
           <Building2 className="h-4 w-4 shrink-0 opacity-80" />
           <span className={`flex-1 truncate ${selected ? '' : 'text-white/70'}`}>{activeLabel}</span>
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+          {trailingIcon}
         </button>
         {open && (
           <div className="absolute bottom-full left-0 right-0 z-[110] mb-1 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
@@ -134,6 +182,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
                 key={b.name}
                 label={b.label}
                 active={selected === b.name}
+                ipHome={Boolean(ipMappedCostCenter && b.name === ipMappedCostCenter)}
                 onSelect={() => void handleSelect(b.name)}
               />
             ))}
@@ -151,11 +200,13 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
         disabled={saving}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
         aria-label="Choose branch"
-        title={selected ? `Branch: ${activeLabel}` : undefined}
+        title={title}
       >
         <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
-        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400'}`}>{saving ? 'Saving…' : activeLabel}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 opacity-90 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400'}`}>
+          {saving ? 'Saving…' : activeLabel}
+        </span>
+        <span className="text-slate-500">{trailingIcon}</span>
       </button>
       {open && (
         <div className="absolute top-full right-0 z-[110] mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
@@ -165,6 +216,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
               key={b.name}
               label={b.label}
               active={selected === b.name}
+              ipHome={Boolean(ipMappedCostCenter && b.name === ipMappedCostCenter)}
               onSelect={() => void handleSelect(b.name)}
             />
           ))}
@@ -177,21 +229,24 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
 function BranchOption({
   label,
   active,
+  ipHome,
   onSelect,
 }: {
   label: string
   active: boolean
+  ipHome?: boolean
   onSelect: () => void
 }) {
   return (
     <button
       type="button"
       onClick={onSelect}
-      className={`flex min-h-[2.25rem] w-full items-center px-3 py-2 text-left text-sm transition-colors ${
+      className={`flex min-h-[2.25rem] w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
         active ? 'bg-primary/10 text-primary font-medium' : 'text-gray-800 hover:bg-gray-50'
       }`}
     >
-      {label || ' '}
+      <span className="flex-1 truncate">{label || ' '}</span>
+      {ipHome ? <Lock className="h-3.5 w-3.5 shrink-0 opacity-60" aria-hidden /> : null}
     </button>
   )
 }

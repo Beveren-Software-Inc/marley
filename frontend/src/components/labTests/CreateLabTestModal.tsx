@@ -7,7 +7,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { createLabTest } from '../../services/labTests'
 import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { getPortalBranch } from '../../services/costCenterPermission'
 import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
@@ -50,19 +50,15 @@ export const CreateLabTestModal = ({
   const [error, setError] = useState<string | null>(null)
   const [createNurseTaskFlag, setCreateNurseTaskFlag] = useState(false)
 
-  // Global branch auto-applies as the default.
+  // Global portal branch auto-applies as the default (UI filter only).
   useEffect(() => {
-    getUserCostCenterPermission()
-      .then((perm) => {
-        const cc = perm?.cost_center
-        if (!cc) return
-        setFormData((prev) => {
-          if (prev.cost_center) return prev
-          setSelectedCostCenter((s) => s || { name: cc, label: cc })
-          return { ...prev, cost_center: cc }
-        })
-      })
-      .catch(() => {})
+    const cc = getPortalBranch()
+    if (!cc) return
+    setFormData((prev) => {
+      if (prev.cost_center) return prev
+      setSelectedCostCenter((s) => s || { name: cc, label: cc })
+      return { ...prev, cost_center: cc }
+    })
   }, [])
   
   // Patient dropdown state

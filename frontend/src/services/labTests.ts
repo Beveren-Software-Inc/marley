@@ -594,18 +594,31 @@ export async function updateLabTestStatus(
 }
 
 export async function finishGroupLabTests(
-  serviceRequestName: string
-): Promise<{ ok: boolean; service_request: string; finished: boolean }> {
+  serviceRequestName: string,
+  labTestGroup?: string
+): Promise<{
+  ok: boolean
+  service_request: string
+  finished: boolean
+  lab_test_group?: string
+  request_finished?: boolean
+  already_finished?: boolean
+}> {
   const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ ok: boolean; service_request: string; finished: boolean }>(
-    '/api/method/healthcare.api.lab_test.finish_group_lab_tests',
-    {
-      method: 'POST',
-      body: JSON.stringify({
-        service_request_name: serviceRequestName,
-      }),
-    }
-  )
+  return apiRequest<{
+    ok: boolean
+    service_request: string
+    finished: boolean
+    lab_test_group?: string
+    request_finished?: boolean
+    already_finished?: boolean
+  }>('/api/method/healthcare.api.lab_test.finish_group_lab_tests', {
+    method: 'POST',
+    body: JSON.stringify({
+      service_request_name: serviceRequestName,
+      ...(labTestGroup ? { lab_test_group: labTestGroup } : {}),
+    }),
+  })
 }
 
 export const SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES = new Set([

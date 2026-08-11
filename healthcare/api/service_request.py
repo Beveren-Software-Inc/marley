@@ -537,11 +537,13 @@ def get_service_requests(
 	patient_search=None,
 	patient_visit=None,
 	inpatient_record=None,
+	booked=None,
 ):
 	"""Get list of Service Requests.
 
 	Optional ``patient_search``: when ``patient`` is not set, narrows to Service Requests
 	whose patient id or patient_name matches (contains) the search string.
+	Optional ``booked``: when set (0/1/true/false), filter by Service Request.booked.
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {'docstatus': ['!=', 2]}
@@ -575,6 +577,8 @@ def get_service_requests(
 		filters['patient_visit'] = patient_visit
 	if inpatient_record:
 		filters['inpatient_record'] = inpatient_record
+	if booked is not None and str(booked).strip() != '':
+		filters['booked'] = 1 if cint(booked) else 0
 
 	# ── Cost-centre User Permission enforcement ──────────────────────────────
 	# Records with no cost_center are visible regardless (use or_filters).
@@ -692,6 +696,356 @@ def get_service_requests(
 				sr['template_name'] = sr.template_dn
 	
 	return {"data": service_requests, "total_count": total_count}
+
+
+def _parse_normal_range_bounds(normal_range):
+	"""Best-effort min/max from free-text normal range (e.g. ``4.0 - 11.0``)."""
+	import re
+
+	text = (normal_range or "").strip()
+	if not text:
+		return None, None
+	match = re.search(
+		r"(-?\d+(?:\.\d+)?)\s*(?:-|–|to)\s*(-?\d+(?:\.\d+)?)",
+		text,
+		flags=re.IGNORECASE,
+	)
+	if not match:
+		return None, None
+	return match.group(1), match.group(2)
+
+
+def _range_value_or_none(value):
+	"""Normalize template range fields; blank / unset → None (keep ``0`` when intentional)."""
+	if value is None:
+		return None
+	if isinstance(value, str):
+		text = value.strip()
+		return text or None
+	# Numeric 0 on Lab Test Template is often an unset default when sex-specific
+	# ranges are used instead — still allow explicit non-zero generics.
+	try:
+		num = flt(value)
+	except Exception:
+		return str(value).strip() or None
+	if num == 0:
+		return None
+	# Keep integer-looking values clean (2 not 2.0) when possible.
+	if float(num).is_integer():
+		return str(int(num))
+	return str(num)
+
+
+def _pick_template_min_max(row, patient_sex=None):
+	"""Prefer sex-specific template ranges, then generic min/max, then normal_range text."""
+	sex = (patient_sex or "").strip().lower()
+	if sex in ("male", "m"):
+		mn = _range_value_or_none(row.get("male_min_range"))
+		mx = _range_value_or_none(row.get("male_max_range"))
+		if mn is not None or mx is not None:
+			return mn, mx
+	elif sex in ("female", "f"):
+		mn = _range_value_or_none(row.get("female_min_range"))
+		mx = _range_value_or_none(row.get("female_max_range"))
+		if mn is not None or mx is not None:
+			return mn, mx
+
+	mn = _range_value_or_none(row.get("min_range"))
+	mx = _range_value_or_none(row.get("max_range"))
+	if mn is not None or mx is not None:
+		return mn, mx
+
+	return _parse_normal_range_bounds(row.get("lab_test_normal_range"))
+
+
+def _lab_result_type_label(template_type=None, is_multiple=0):
+	if cint(is_multiple):
+		return "Multiple"
+	tt = (template_type or "").strip()
+	if tt in ("Compound", "Descriptive", "Grouped"):
+		return "Multiple"
+	if tt == "Single" or not tt:
+		return "Single"
+	return tt or "Single"
+
+
+def _template_review_fields(template_names, patient_sex=None):
+	"""Map template name → display fields for lab request review modal."""
+	names = [n for n in {(n or "").strip() for n in (template_names or [])} if n]
+	if not names:
+		return {}
+
+	has_included = frappe.db.has_column("Lab Test Template", "price_included_in_group")
+	has_typo_included = frappe.db.has_column("Lab Test Template", "price_incuded_in_group")
+	fields = [
+		"name",
+		"lab_test_code",
+		"lab_test_name",
+		"lab_test_uom",
+		"lab_test_normal_range",
+		"lab_test_template_type",
+		"lab_test_rate",
+		"op_rate",
+		"is_multiple",
+		"min_range",
+		"max_range",
+		"male_min_range",
+		"male_max_range",
+		"female_min_range",
+		"female_max_range",
+	]
+	if has_included:
+		fields.append("price_included_in_group")
+	elif has_typo_included:
+		fields.append("price_incuded_in_group")
+
+	# Only request columns that exist on this site.
+	fields = [f for f in fields if f == "name" or frappe.db.has_column("Lab Test Template", f)]
+
+	rows = frappe.get_all(
+		"Lab Test Template",
+		filters={"name": ["in", names]},
+		fields=fields,
+		ignore_permissions=True,
+	)
+	out = {}
+	for row in rows:
+		included = cint(
+			row.get("price_included_in_group")
+			if row.get("price_included_in_group") is not None
+			else row.get("price_incuded_in_group")
+		)
+		min_v, max_v = _pick_template_min_max(row, patient_sex)
+		out[row.name] = {
+			"template": row.name,
+			# Document name is the stable lab code (LAB-001, LAB-001-014, …).
+			# lab_test_code often mirrors the long display name on this site.
+			"test_code": row.name,
+			"test_name": row.get("lab_test_name") or row.get("lab_test_code") or row.name,
+			"uom": row.get("lab_test_uom") or "",
+			"normal_range": row.get("lab_test_normal_range") or "",
+			"min_value": min_v,
+			"max_value": max_v,
+			"result_type": _lab_result_type_label(
+				row.get("lab_test_template_type"), row.get("is_multiple")
+			),
+			"template_type": row.get("lab_test_template_type") or "",
+			"price_included_in_group": included,
+			"list_rate": flt(row.get("op_rate") or row.get("lab_test_rate") or 0),
+		}
+	return out
+
+
+@frappe.whitelist(allow_guest=False)
+def get_lab_request_review(name):
+	"""Read-only Lab Request review payload for the Lab page modal.
+
+	Returns request header + test groups with child rows (code, name, price, result type, unit, min/max).
+	Only for booked Lab Test Template Service Requests.
+	"""
+	from healthcare.healthcare.lab_request_items import (
+		expand_lab_test_specs,
+		lab_request_items_summary,
+		parse_lab_request_items,
+	)
+
+	if not name:
+		frappe.throw(_("Service Request name is required"))
+	if not frappe.db.exists("Service Request", name):
+		frappe.throw(_("Service Request not found"))
+
+	doc = frappe.get_doc("Service Request", name)
+	if doc.template_dt != "Lab Test Template":
+		frappe.throw(_("This Service Request is not a Lab Request"))
+	if not cint(doc.booked):
+		frappe.throw(_("Only booked Lab Requests can be reviewed here"))
+
+	items = parse_lab_request_items(doc)
+	patient_care_type = getattr(doc, "patient_care_type", None)
+	specs = expand_lab_test_specs(items, doc.patient, patient_care_type=patient_care_type)
+	price_by_template = {s.get("template"): flt(s.get("amount") or 0) for s in specs if s.get("template")}
+
+	# Resolve child lists the same way as list enrichment (legacy groups may omit children).
+	groups = []
+	all_child_names = []
+	for item in items:
+		kind = (item.get("kind") or "").strip().lower()
+		if kind == "group":
+			parent = (item.get("parent") or "").strip()
+			if not parent:
+				continue
+			child_templates = [c for c in (item.get("children") or []) if c]
+			if not child_templates:
+				child_templates = frappe.get_all(
+					"Lab Test Template",
+					filters={"lab_group": parent, "disabled": 0},
+					pluck="name",
+					order_by="lab_test_name asc",
+					ignore_permissions=True,
+				)
+			all_child_names.extend(child_templates)
+			all_child_names.append(parent)
+			groups.append({"kind": "group", "template": parent, "children": child_templates})
+		elif kind == "single":
+			tpl = (item.get("template") or "").strip()
+			if not tpl:
+				continue
+			all_child_names.append(tpl)
+			groups.append({"kind": "single", "template": tpl, "children": [tpl]})
+
+	patient_sex = None
+	if doc.patient and frappe.db.exists("Patient", doc.patient):
+		sex_field = "sex" if frappe.db.has_column("Patient", "sex") else None
+		if not sex_field and frappe.db.has_column("Patient", "gender"):
+			sex_field = "gender"
+		if sex_field:
+			patient_sex = frappe.db.get_value("Patient", doc.patient, sex_field)
+
+	meta = _template_review_fields(all_child_names, patient_sex=patient_sex)
+	group_rows = []
+	for g in groups:
+		parent = g["template"]
+		parent_meta = meta.get(parent) or {
+			"test_code": parent,
+			"test_name": parent,
+		}
+		tests = []
+		for child in g["children"]:
+			cm = meta.get(child) or {
+				"template": child,
+				"test_code": child,
+				"test_name": child,
+				"uom": "",
+				"normal_range": "",
+				"min_value": None,
+				"max_value": None,
+				"result_type": "Single",
+				"price_included_in_group": 0,
+				"list_rate": 0,
+			}
+			price = price_by_template.get(child)
+			if price is None:
+				price = 0.0 if cint(cm.get("price_included_in_group")) else flt(cm.get("list_rate") or 0)
+			tests.append(
+				{
+					"template": child,
+					"test_code": child,
+					"test_name": cm.get("test_name") or child,
+					"price": flt(price),
+					"result_type": cm.get("result_type") or "Single",
+					"uom": cm.get("uom") or "",
+					"min_value": cm.get("min_value"),
+					"max_value": cm.get("max_value"),
+					"normal_range": cm.get("normal_range") or "",
+					"price_included_in_group": cint(cm.get("price_included_in_group")),
+				}
+			)
+		item_finished = 0
+		for raw in items:
+			kind = (raw.get("kind") or "").strip().lower()
+			key = (raw.get("parent") or "").strip() if kind == "group" else (raw.get("template") or "").strip()
+			if key == parent:
+				item_finished = cint(raw.get("finished"))
+				break
+
+		group_rows.append(
+			{
+				"kind": g["kind"],
+				"template": parent,
+				"group_code": parent,
+				"group_name": parent_meta.get("test_name")
+				or frappe.db.get_value("Lab Test Template", parent, "lab_test_name")
+				or parent,
+				"is_group": 1 if g["kind"] == "group" else 0,
+				"finished": item_finished,
+				"tests": tests,
+				"test_count": len(tests),
+				"total_price": flt(sum(flt(t.get("price") or 0) for t in tests)),
+			}
+		)
+
+	# Group price often lives on the parent template (children are 0 / included).
+	for g in group_rows:
+		if cint(g.get("is_group")) and flt(g.get("total_price") or 0) <= 0:
+			parent_meta = meta.get(g["template"]) or {}
+			parent_price = price_by_template.get(g["template"])
+			if parent_price is None:
+				parent_price = flt(parent_meta.get("list_rate") or 0)
+			g["total_price"] = flt(parent_price)
+
+	# Prefer stored billed totals when present.
+	stored_total = flt(doc.get("grand_total") or doc.get("amount") or doc.get("cost") or 0)
+	computed_total = flt(sum(flt(g.get("total_price") or 0) for g in group_rows))
+
+	# Whole request finished → every group is finished.
+	if (doc.status or "").strip() == "completed-Request Status":
+		for g in group_rows:
+			g["finished"] = 1
+
+	# Linked Lab Tests created when this request was booked (for sample / results actions).
+	lab_test_rows = frappe.get_all(
+		"Lab Test",
+		filters={"service_request": doc.name, "docstatus": ["!=", 2]},
+		fields=[
+			"name",
+			"template",
+			"lab_test_name",
+			"status",
+			"docstatus",
+			"is_group_lab_test",
+			"lab_test_group",
+			"result_date",
+			"custom_result",
+			"patient",
+			"patient_name",
+			"practitioner",
+			"practitioner_name",
+		],
+		order_by="creation asc",
+		ignore_permissions=True,
+	)
+	lab_tests_by_template = {}
+	for lt in lab_test_rows:
+		tpl = (lt.get("template") or "").strip()
+		if not tpl:
+			continue
+		lab_tests_by_template.setdefault(tpl, []).append(lt)
+
+	for g in group_rows:
+		for test in g.get("tests") or []:
+			linked = lab_tests_by_template.get(test.get("template") or "", [])
+			# Prefer exact template match; first linked doc is enough for actions.
+			lt = linked[0] if linked else None
+			test["lab_test"] = lt.get("name") if lt else None
+			test["lab_test_status"] = lt.get("status") if lt else None
+			test["lab_test_docstatus"] = cint(lt.get("docstatus")) if lt else None
+			test["sample_collection"] = None
+			test["custom_result"] = (lt.get("custom_result") or "") if lt else ""
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": doc.patient_name,
+		"practitioner": doc.practitioner,
+		"practitioner_name": (
+			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
+			if doc.practitioner
+			else None
+		),
+		# Lab users only care that it is booked — not Service Request workflow status.
+		"status": "Booked",
+		"service_request_status": doc.status,
+		"booked": 1,
+		"order_date": doc.order_date,
+		"order_time": doc.order_time,
+		"template_name": lab_request_items_summary(items) or doc.template_dn,
+		"cost_center": doc.cost_center,
+		"groups": group_rows,
+		"group_count": len(group_rows),
+		"test_count": sum(int(g.get("test_count") or 0) for g in group_rows),
+		"total_price": stored_total or computed_total,
+		"lab_tests": lab_test_rows,
+	}
 
 
 def generate_lab_test_trans_num(format_type="integer", prefix="", suffix="", padding=6):

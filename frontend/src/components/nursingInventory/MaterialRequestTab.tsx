@@ -15,7 +15,7 @@ import {
   matchesTextQuery,
 } from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
-import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package } from 'lucide-react'
+import { Plus, Trash2, Send, Eye, CheckCircle, XCircle, Package, ExternalLink } from 'lucide-react'
 import {
   IsMedicalSelect,
   isMedicalChoiceRequired,
@@ -93,18 +93,23 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     setLoading(true)
     try {
       const data = await fetchMaterialRequests(effectiveCostCenter, undefined, warehouseContext)
-      const names = new Set<string>()
-      const duplicates = data.filter((request) => names.has(request.name) || names.add(request.name))
-      if (duplicates.length > 0) {
-        console.warn('Duplicate material request names detected:', duplicates.map((request) => request.name))
-      }
-      setRequests(data)
+      // Dedupe by name — cost_center on child items can otherwise surface the same MR twice.
+      const seen = new Set<string>()
+      const unique = data.filter((request) => {
+        if (!request?.name || seen.has(request.name)) return false
+        seen.add(request.name)
+        return true
+      })
+      setRequests(unique)
     } catch (error) {
       console.error('Failed to load requests:', error)
     } finally {
       setLoading(false)
     }
   }
+
+  const deskMaterialRequestUrl = (name: string) =>
+    `${window.location.origin}/app/material-request/${encodeURIComponent(name)}`
 
   const searchItems = async (index: number, search: string) => {
     if (!search.trim()) {
@@ -482,8 +487,8 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
             </div>
           ) : (
             <div className="divide-y divide-slate-200">
-              {filteredRequests.map((request, idx) => (
-                <div key={`${request.name}-${idx}`} className="p-4 hover:bg-slate-50 transition">
+              {filteredRequests.map((request) => (
+                <div key={request.name} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>
                       <div className="flex items-center gap-2">
@@ -508,19 +513,32 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                         Requested on: {request.request_date} | Items: {request.items.length}
                       </div>
                     </div>
-                    <button
-                      onClick={() => setSelectedRequest(request)}
-                      className="text-primary hover:text-primary/80 text-sm inline-flex items-center gap-1"
-                    >
-                      <Eye className="w-4 h-4" />
-                      View Details
-                    </button>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedRequest(request)}
+                        className="text-primary hover:text-primary/80 text-sm inline-flex items-center gap-1"
+                      >
+                        <Eye className="w-4 h-4" />
+                        View Details
+                      </button>
+                      <a
+                        href={deskMaterialRequestUrl(request.name)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-slate-600 hover:text-slate-900 text-xs inline-flex items-center gap-1"
+                        title="Open To Review/Approve"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                        Open To Review/Approve
+                      </a>
+                    </div>
                   </div>
                   
                   {request.items.length > 0 && (
                     <div className="mt-2 text-sm text-slate-600">
-                      {request.items.slice(0, 2).map((item, idx) => (
-                        <div key={idx} className="flex justify-between text-xs">
+                      {request.items.slice(0, 2).map((item, itemIdx) => (
+                        <div key={`${request.name}-${item.item_code}-${itemIdx}`} className="flex justify-between text-xs">
                           <span>{item.item_name}</span>
                           <span>Qty: {item.quantity} {item.uom || 'unit'}</span>
                         </div>
@@ -624,6 +642,18 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                     <p className="text-sm">{selectedRequest.approved_by}</p>
                   </div>
                 )}
+
+                <div className="pt-2 border-t border-slate-100">
+                  <a
+                    href={deskMaterialRequestUrl(selectedRequest.name)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90"
+                  >
+                    <ExternalLink className="w-4 h-4" />
+                    Open To Review/Approve
+                  </a>
+                </div>
               </div>
             </div>
           </div>

@@ -4,6 +4,11 @@ import { careScopeFromCostCenterField, type CostCenterCareScope } from '../confi
 import { fetchActiveCareEpisodeStatus, type ActiveCareEpisodeStatus } from '../services/careEpisode'
 import { fetchDefaultCompanyCurrency } from '../services/common'
 import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
+import {
+  applyBranchFromIpMapper,
+  getPortalBranch,
+  setPortalBranch,
+} from '../services/costCenterPermission'
 import { setEditingLockState } from '../services/editingLockStore'
 import { useAuth } from './AuthProvider'
 import {
@@ -69,8 +74,10 @@ interface CareContextValue {
    */
   selectedPatient: string | undefined
   setSelectedPatient: (patient: string | undefined) => void
-  /** Current user's branch */
+  /** Current user's portal branch (UI filter only — localStorage, not User Permission). */
   userCostCenter?: string
+  /** Set portal branch filter (UI only). Pass empty string to clear. */
+  setUserCostCenter: (costCenter: string | undefined) => void
   /** ERPNext Company from the user's working cost centre (Cost Center.company) */
   costCenterCompany?: string
   /**
@@ -167,7 +174,16 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   )
 
   // User context state
-  const [userCostCenter, setUserCostCenter] = useState<string | undefined>(undefined)
+  const [userCostCenter, setUserCostCenterState] = useState<string | undefined>(() => {
+    const stored = getPortalBranch()
+    return stored || undefined
+  })
+
+  const setUserCostCenter = useCallback((costCenter: string | undefined) => {
+    const value = (costCenter || '').trim()
+    setPortalBranch(value)
+    setUserCostCenterState(value || undefined)
+  }, [])
   const [costCenterCompany, setCostCenterCompany] = useState<string | undefined>(undefined)
   const [costCenterPatientCareType, setCostCenterPatientCareType] = useState<string | undefined>(undefined)
 
@@ -260,14 +276,22 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     [lockEditingData, editingLockMessage],
   )
 
-  // Load user branch and roles when component mounts
+  // Load portal branch metadata (company / care type). Branch itself is UI localStorage only.
   const refreshUserCostCenter = useCallback(async () => {
     try {
-      const response = await fetch('/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center')
+      const portal = getPortalBranch()
+      setUserCostCenterState(portal || undefined)
+      const qs = portal ? `?cost_center=${encodeURIComponent(portal)}` : ''
+      const response = await fetch(
+        `/api/method/healthcare.api.nursing_inventory.get_default_warehouse_and_cost_center${qs}`,
+      )
       if (response.ok) {
         const data = await response.json()
         const msg = data.message || {}
-        setUserCostCenter(msg.cost_center || undefined)
+        // Keep portal branch as source of truth; only fill if portal empty and API has employee default.
+        if (!portal && msg.cost_center) {
+          setUserCostCenterState(msg.cost_center)
+        }
         setCostCenterCompany(
           typeof msg.company === 'string' && msg.company.trim()
             ? msg.company.trim()
@@ -289,6 +313,16 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     if (!isAuthenticated) return
     const loadUserContext = async () => {
       try {
+        // Resolve IP → portal branch (localStorage only; no User Permission).
+        const ipResult = await applyBranchFromIpMapper().catch((err) => {
+          console.warn('IP Mapper branch resolve skipped:', err)
+          return null
+        })
+        if (ipResult?.matched && ipResult.cost_center && !ipResult.overridden) {
+          setUserCostCenterState(ipResult.cost_center)
+        } else {
+          setUserCostCenterState(getPortalBranch() || undefined)
+        }
         await refreshUserCostCenter()
         const userResponse = await fetch('/api/method/frappe.auth.get_logged_user', {
           credentials: 'include',
@@ -462,6 +496,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       selectedPatient,
       setSelectedPatient,
       userCostCenter,
+      setUserCostCenter,
       costCenterCompany,
       costCenterPatientCareType,
       costCenterCareScope,
@@ -494,6 +529,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       activeAdmission,
       selectedPatient,
       userCostCenter,
+      setUserCostCenter,
       costCenterCompany,
       costCenterPatientCareType,
       costCenterCareScope,

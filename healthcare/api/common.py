@@ -2540,43 +2540,194 @@ def get_billing_cost_center_scope():
 	return {"restricted": permitted is not None}
 
 
-@frappe.whitelist()
-def get_user_cost_center_permission():
-	"""
-	Return the Cost Center currently restricted to the logged-in user via
-	User Permission, plus whether they are exempt (admin / system manager).
-	"""
-	user = frappe.session.user
-	exempt = _user_is_exempt(user)
+def _normalize_mapper_ip(value):
+	return (value or "").strip()
 
+
+def _client_ip_candidates(primary=None):
+	"""IPs that may identify this client (proxy-aware).
+
+	Local bench often sees ``127.0.0.1`` / ``::1`` even when the laptop's public
+	egress IP is what was entered in IP Mapper — callers should map both when
+	testing locally.
+	"""
+	candidates = []
+	seen = set()
+
+	def _add(raw):
+		ip = _normalize_mapper_ip(raw)
+		if not ip or ip in seen:
+			return
+		seen.add(ip)
+		candidates.append(ip)
+
+	_add(primary if primary is not None else getattr(frappe.local, "request_ip", None))
+
+	try:
+		xff = frappe.get_request_header("X-Forwarded-For")
+	except Exception:
+		xff = None
+	if xff:
+		for part in str(xff).split(","):
+			_add(part)
+
+	try:
+		_add(frappe.get_request_header("X-Real-IP"))
+	except Exception:
+		pass
+
+	# Localhost aliases: if either is present, consider both for mapper matching.
+	if "127.0.0.1" in seen or "::1" in seen:
+		_add("127.0.0.1")
+		_add("::1")
+
+	return candidates
+
+
+def _current_user_cost_center_permission(user=None):
+	user = user or frappe.session.user
 	existing = frappe.get_all(
 		"User Permission",
-		filters={
-			"user": user,
-			"allow": "Cost Center",
-		},
-		fields=["name", "for_value"],
+		filters={"user": user, "allow": "Cost Center"},
+		fields=["for_value"],
 		limit=1,
 	)
+	return existing[0]["for_value"] if existing else ""
 
+
+def _resolve_cost_center_from_ip_mapper(client_ip=None):
+	"""Map client IP → Cost Center using Healthcare Settings IP Mapper rows.
+
+	Returns ``None`` when the feature is off. When on, returns
+	``{client_ip, cost_center}`` (cost_center may be ``None`` if unmatched).
+	"""
+	if not frappe.db.get_single_value("Healthcare Settings", "activate_ip_mapper"):
+		return None
+
+	candidates = _client_ip_candidates(client_ip)
+	if not candidates:
+		return {"client_ip": "", "cost_center": None, "matched_ip": None}
+
+	rows = frappe.get_all(
+		"IP Cost Center Mapper",
+		filters={
+			"parent": "Healthcare Settings",
+			"parenttype": "Healthcare Settings",
+			"parentfield": "ip_mapper",
+		},
+		fields=["cost_center", "ip"],
+		order_by="idx asc",
+	)
+	mapped = {
+		_normalize_mapper_ip(row.get("ip")): row.get("cost_center")
+		for row in rows
+		if _normalize_mapper_ip(row.get("ip")) and row.get("cost_center")
+	}
+	for ip in candidates:
+		cost_center = mapped.get(ip)
+		if cost_center:
+			return {
+				"client_ip": candidates[0],
+				"matched_ip": ip,
+				"cost_center": cost_center,
+			}
 	return {
-		"cost_center": existing[0]["for_value"] if existing else "",
-		"is_exempt": exempt,
+		"client_ip": candidates[0],
+		"matched_ip": None,
+		"cost_center": None,
 	}
 
 
-@frappe.whitelist()
-def set_cost_center_permission(cost_center=None):
-	"""
-	Set (or clear) a Cost Center User Permission for the logged-in user.
+@frappe.whitelist(methods=["GET", "POST"])
+def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
+	"""Resolve portal branch from client IP when IP Mapper is on.
 
-	- Deletes any existing ``Cost Center`` User Permission rows for this user first.
-	- If *cost_center* is a non-empty string, creates a fresh User Permission row.
-	- Clear *cost_center* to remove the restriction and see all branches (when permitted).
-	"""
-	user = frappe.session.user
+	Does **not** create User Permissions. Portal branch filtering is UI-only
+	(localStorage / CareContext). Any leftover Cost Center User Permissions from the
+	old approach are cleared so they do not fight UI filters.
 
-	# ── Remove all existing Cost Center permissions for this user ──────────────
+	``skip_apply`` is kept for API compatibility; the frontend uses it to mean
+	"do not overwrite the browser's selected portal branch" (still no User Permission).
+
+	``reported_public_ip`` is only accepted when the TCP client is localhost (local bench).
+	"""
+	if frappe.session.user in (None, "Guest"):
+		frappe.throw(_("Login required"), frappe.PermissionError)
+
+	# Drop legacy portal Cost Center User Permissions — branch is UI-filtered now.
+	_clear_cost_center_user_permissions()
+
+	activated = bool(frappe.db.get_single_value("Healthcare Settings", "activate_ip_mapper"))
+	candidates = _client_ip_candidates()
+	client_ip = candidates[0] if candidates else ""
+	skip = cint(skip_apply)
+
+	reported = _normalize_mapper_ip(reported_public_ip)
+	if reported and client_ip in ("127.0.0.1", "::1") and reported not in candidates:
+		candidates.append(reported)
+
+	empty = {
+		"activated": activated,
+		"matched": False,
+		"applied": False,
+		"overridden": bool(skip),
+		"client_ip": client_ip,
+		"matched_ip": None,
+		"ip_mapped_cost_center": "",
+		"cost_center": "",
+		"previous_cost_center": "",
+	}
+
+	if not activated:
+		empty["activated"] = False
+		return empty
+
+	rows = frappe.get_all(
+		"IP Cost Center Mapper",
+		filters={
+			"parent": "Healthcare Settings",
+			"parenttype": "Healthcare Settings",
+			"parentfield": "ip_mapper",
+		},
+		fields=["cost_center", "ip"],
+		order_by="idx asc",
+	)
+	mapped = {
+		_normalize_mapper_ip(row.get("ip")): row.get("cost_center")
+		for row in rows
+		if _normalize_mapper_ip(row.get("ip")) and row.get("cost_center")
+	}
+
+	matched_ip = None
+	mapped_cc = None
+	for ip in candidates:
+		if ip in mapped:
+			matched_ip = ip
+			mapped_cc = mapped[ip]
+			break
+
+	if not mapped_cc:
+		return empty
+
+	if not frappe.db.exists("Cost Center", mapped_cc):
+		frappe.throw(_("Mapped Cost Center '{0}' does not exist.").format(mapped_cc))
+
+	return {
+		"activated": True,
+		"matched": True,
+		"applied": not skip,
+		"overridden": bool(skip),
+		"client_ip": client_ip,
+		"matched_ip": matched_ip,
+		"ip_mapped_cost_center": mapped_cc,
+		"cost_center": mapped_cc,
+		"previous_cost_center": "",
+	}
+
+
+def _clear_cost_center_user_permissions(user=None):
+	"""Remove Cost Center User Permission rows for the user (portal no longer uses them)."""
+	user = user or frappe.session.user
 	old_perms = frappe.get_all(
 		"User Permission",
 		filters={"user": user, "allow": "Cost Center"},
@@ -2584,25 +2735,32 @@ def set_cost_center_permission(cost_center=None):
 	)
 	for perm in old_perms:
 		frappe.delete_doc("User Permission", perm["name"], ignore_permissions=True, force=True)
-
-	# ── Create new permission if a cost center was supplied ────────────────────
-	if cost_center and cost_center.strip():
-		# Verify the cost center actually exists
-		if not frappe.db.exists("Cost Center", cost_center.strip()):
-			frappe.throw(f"Cost Center '{cost_center}' does not exist.")
-
-		doc = frappe.get_doc({
-			"doctype": "User Permission",
-			"user": user,
-			"allow": "Cost Center",
-			"for_value": cost_center.strip(),
-			"apply_to_all_doctypes": 1,
-		})
-		doc.insert(ignore_permissions=True)
+	if old_perms:
 		frappe.db.commit()
-		return {"status": "set", "cost_center": cost_center.strip()}
 
-	frappe.db.commit()
+
+@frappe.whitelist()
+def get_user_cost_center_permission():
+	"""
+	Legacy compatibility: portal branch is UI-only now, so this returns empty cost_center.
+	"""
+	user = frappe.session.user
+	exempt = _user_is_exempt(user)
+	return {
+		"cost_center": "",
+		"is_exempt": exempt,
+	}
+
+
+@frappe.whitelist()
+def set_cost_center_permission(cost_center=None):
+	"""
+	Deprecated for portal branch switching.
+
+	Clears any Cost Center User Permission for the logged-in user and does **not**
+	create a new one. Portal branch is filtered in the UI only.
+	"""
+	_clear_cost_center_user_permissions()
 	return {"status": "cleared", "cost_center": ""}
 
 

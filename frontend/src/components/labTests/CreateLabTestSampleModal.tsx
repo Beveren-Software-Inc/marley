@@ -30,6 +30,10 @@ function SelfLink({
   const ref = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    setQuery(value)
+  }, [value])
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
     }

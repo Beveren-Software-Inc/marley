@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom"
 import { useAuth } from "../providers/AuthProvider"
 import { useTheme } from "../hooks/useTheme"
 import { toast } from "../hooks/useToast"
-import { getUserCostCenterPermission } from "../services/costCenterPermission"
+import { getPortalBranch } from "../services/costCenterPermission"
 import { fetchBranchOptions } from "../services/common"
 import { fetchPortalCompany, updateDisplayName, uploadProfilePhoto } from "../services/profile"
 import {
@@ -24,22 +24,17 @@ import {
 
 const PreferencesSection = () => {
   const [costCenter, setCostCenter] = useState("")
-  const [isExempt, setIsExempt] = useState(false)
   const [labels, setLabels] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [perm, options] = await Promise.all([
-          getUserCostCenterPermission(),
-          fetchBranchOptions(),
-        ])
-        setCostCenter(perm.cost_center)
-        setIsExempt(perm.is_exempt)
+        const options = await fetchBranchOptions()
+        setCostCenter(getPortalBranch())
         const map: Record<string, string> = {}
-        options.forEach((o) => {
-          map[o.name] = o.label
+        options.forEach((o: { name: string; label?: string }) => {
+          map[o.name] = o.label || o.name
         })
         setLabels(map)
       } catch {
@@ -71,18 +66,16 @@ const PreferencesSection = () => {
           your choice appears here automatically.
         </p>
 
-        {isExempt && (
-          <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-5">
-            <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-medium text-blue-800 dark:text-blue-300">Elevated privileges</p>
-              <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
-                Your account has <strong>Administrator</strong>, <strong>System Manager</strong>, or <strong>Healthcare Administrator</strong> role.
-                With no branch selected you see all data. Choose a branch from the top navbar to filter your view.
-              </p>
-            </div>
+        <div className="flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg p-4 mb-5">
+          <ShieldCheck className="w-5 h-5 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-300">UI branch filter</p>
+            <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
+              Branch filters portal lists and forms only. It does not create User Permissions.
+              With no branch selected you see all data. Choose a branch from the top navbar to filter your view.
+            </p>
           </div>
-        )}
+        </div>
 
         <div className="max-w-md">
           <label className="mb-1.5 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-300">

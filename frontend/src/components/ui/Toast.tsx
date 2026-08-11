@@ -20,7 +20,7 @@ const ToastComponent = ({ toast, onClose }: ToastProps) => {
     if (toast.duration !== 0) {
       const timer = setTimeout(() => {
         onClose(toast.id)
-      }, toast.duration || 5000)
+      }, toast.duration || 2500)
       return () => clearTimeout(timer)
     }
   }, [toast.id, toast.duration, onClose])
@@ -48,7 +48,7 @@ const ToastComponent = ({ toast, onClose }: ToastProps) => {
 
   return (
     <div
-      className={`flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[300px] max-w-[500px] ${bgColors[toast.type]} transition-all duration-300 ease-in-out`}
+      className={`pointer-events-auto flex items-start gap-3 p-4 rounded-lg border shadow-lg min-w-[300px] max-w-[500px] ${bgColors[toast.type]} transition-all duration-300 ease-in-out`}
       role="alert"
     >
       <div className="flex-shrink-0 mt-0.5">

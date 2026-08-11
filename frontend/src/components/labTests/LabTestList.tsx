@@ -2415,6 +2415,7 @@ export const LabTestList = ({
   focusLabTest,
   focusOpenSampleCollection = false,
   focusOpenReview = false,
+  focusOpenResults = false,
   statusTabs = false,
   onOpenLabTrends,
 }: {
@@ -2437,10 +2438,11 @@ export const LabTestList = ({
   onAdd?: () => void
   addButtonTitle?: string
   headerExtra?: ReactNode
-  /** When set, scroll to this lab test and optionally open sample collection or review. */
+  /** When set, scroll to this lab test and optionally open sample collection, review, or results. */
   focusLabTest?: string
   focusOpenSampleCollection?: boolean
   focusOpenReview?: boolean
+  focusOpenResults?: boolean
   /** Doctor lab: open Lab Trends with this test name prefilled. */
   onOpenLabTrends?: (testName: string) => void
 }) => {
@@ -2870,6 +2872,8 @@ export const LabTestList = ({
         handleOpenSampleCollection(labTest)
       } else if (focusOpenReview) {
         openReviewModal(docName, 'Reviewed')
+      } else if (focusOpenResults) {
+        void openResultDialog(docName)
       } else {
         setSelectedLabTestForDetails(docName)
       }
@@ -2894,6 +2898,8 @@ export const LabTestList = ({
           handleOpenSampleCollection(doc)
         } else if (focusOpenReview) {
           openReviewModal(resolveLabTestDocName(doc), 'Reviewed')
+        } else if (focusOpenResults) {
+          void openResultDialog(resolveLabTestDocName(doc))
         } else {
           setSelectedLabTestForDetails(resolveLabTestDocName(doc))
         }
@@ -2902,7 +2908,7 @@ export const LabTestList = ({
         focusLabTestHandledRef.current = null
         toast.error(e instanceof Error ? e.message : 'Failed to load lab test')
       })
-  }, [focusLabTest, focusOpenSampleCollection, focusOpenReview, loading, displayLabTests, labTests.length])
+  }, [focusLabTest, focusOpenSampleCollection, focusOpenReview, focusOpenResults, loading, displayLabTests, labTests.length])
 
   // ── Remarks modal ──────────────────────────────────────────────────────────
   const [remarksModalOpen, setRemarksModalOpen] = useState(false)

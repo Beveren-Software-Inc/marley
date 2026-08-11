@@ -126,6 +126,9 @@
   "ui_print_formats",
   "section_break_mmer",
   "send_whatsap_notification_on_lab_test_creation",
+  "section_break_pfnl",
+  "activate_ip_mapper",
+  "ip_mapper",
   "pricing_tab",
   "patient_category_pricing",
   "sb_serene_automations",
@@ -990,11 +993,29 @@
    "fieldname": "mendatory_admission_assessment_fee",
    "fieldtype": "Check",
    "label": "Mendatory Admission Assessment Fee"
+  },
+  {
+   "fieldname": "section_break_pfnl",
+   "fieldtype": "Section Break",
+   "label": "Branch IP Mapper"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, portal users at a mapped public IP are auto-assigned that Cost Center (branch).",
+   "fieldname": "activate_ip_mapper",
+   "fieldtype": "Check",
+   "label": "Activate IP Mapper"
+  },
+  {
+   "fieldname": "ip_mapper",
+   "fieldtype": "Table",
+   "label": "IP Mapper",
+   "options": "IP Cost Center Mapper"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-10 15:47:10.542555",
+ "modified": "2026-08-11 13:13:10.925048",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

@@ -59,6 +59,28 @@ def _is_ceo_user() -> bool:
 	return CEO_ROLE in frappe.get_roles(frappe.session.user)
 
 
+def _lab_request_item_key(item: dict) -> str:
+	kind = (item.get("kind") or "").strip().lower()
+	if kind == "group":
+		return (item.get("parent") or "").strip()
+	return (item.get("template") or "").strip()
+
+
+def _finished_lab_request_groups(service_request_name: str) -> set[str]:
+	"""Group/single template codes marked finished on multi-line Lab Requests."""
+	if not service_request_name or not frappe.db.exists("Service Request", service_request_name):
+		return set()
+	from healthcare.healthcare.lab_request_items import parse_lab_request_items
+
+	doc = frappe.get_doc("Service Request", service_request_name)
+	finished: set[str] = set()
+	for item in parse_lab_request_items(doc):
+		key = _lab_request_item_key(item)
+		if key and cint(item.get("finished")):
+			finished.add(key)
+	return finished
+
+
 def _is_group_lab_finished(doc) -> bool:
 	if not cint(getattr(doc, "is_group_lab_test", 0)):
 		return False
@@ -66,7 +88,13 @@ def _is_group_lab_finished(doc) -> bool:
 	if not service_request:
 		return False
 	sr_status = frappe.db.get_value("Service Request", service_request, "status")
-	return sr_status == GROUP_FINISHED_SR_STATUS
+	if sr_status == GROUP_FINISHED_SR_STATUS:
+		return True
+	# Per-group Complete on multi-line Lab Requests (before whole request is finished).
+	group_code = (getattr(doc, "lab_test_group", None) or "").strip()
+	if group_code and group_code in _finished_lab_request_groups(service_request):
+		return True
+	return False
 
 
 def _plain_sample_details(value: str | None) -> str | None:
@@ -1034,6 +1062,89 @@ def _filter_pending_pipeline_lab_tests(lab_tests, selected_status=None):
 	return filtered
 
 
+def _lab_test_display_key(lt):
+	"""UI collapses grouped children under one Service Request into a single row."""
+	if cint(lt.get("is_group_lab_test") or 0) == 1 and lt.get("service_request"):
+		return f"sr:{lt.service_request}"
+	return f"lt:{lt.name}"
+
+
+def _paginate_lab_tests_by_display_unit(filters, or_filters, limit, offset):
+	"""Page by visible list rows (1 group SR = 1 unit), not raw Lab Test child rows.
+
+	Without this, a large recent group (e.g. 36 urine lines) fills the whole first
+	page and the UI shows a single GROUP row even though thousands of tests exist.
+	"""
+	limit = max(cint(limit), 1)
+	offset = max(cint(offset), 0)
+
+	index_rows = frappe.get_all(
+		"Lab Test",
+		filters=filters,
+		or_filters=or_filters or None,
+		fields=["name", "creation", "service_request", "is_group_lab_test"],
+		order_by="creation desc",
+		limit=0,
+	)
+
+	# Preserve newest-first order; first occurrence of each display key wins.
+	ordered_keys = []
+	seen = set()
+	for row in index_rows:
+		key = _lab_test_display_key(row)
+		if key in seen:
+			continue
+		seen.add(key)
+		ordered_keys.append(key)
+
+	total_count = len(ordered_keys)
+	page_keys = ordered_keys[offset : offset + limit]
+	if not page_keys:
+		return [], total_count
+
+	page_srs = [k[3:] for k in page_keys if k.startswith("sr:")]
+	page_names = [k[3:] for k in page_keys if k.startswith("lt:")]
+
+	lab_tests = []
+	if page_srs:
+		group_filters = dict(filters)
+		group_filters["service_request"] = ["in", page_srs]
+		group_filters["is_group_lab_test"] = 1
+		lab_tests.extend(
+			frappe.get_all(
+				"Lab Test",
+				filters=group_filters,
+				or_filters=or_filters or None,
+				fields=_LAB_TEST_LIST_FIELDS,
+				order_by="creation desc",
+			)
+		)
+	if page_names:
+		standalone_filters = dict(filters)
+		standalone_filters["name"] = ["in", page_names]
+		lab_tests.extend(
+			frappe.get_all(
+				"Lab Test",
+				filters=standalone_filters,
+				or_filters=or_filters or None,
+				fields=_LAB_TEST_LIST_FIELDS,
+				order_by="creation desc",
+			)
+		)
+
+	# Keep page order: groups/standalones in the same sequence as page_keys.
+	by_key = {}
+	for lt in lab_tests:
+		key = _lab_test_display_key(lt)
+		by_key.setdefault(key, []).append(lt)
+
+	ordered = []
+	for key in page_keys:
+		ordered.extend(by_key.get(key) or [])
+
+	return ordered, total_count
+
+
 @frappe.whitelist()
 def get_lab_tests(
 	limit=50,
@@ -1126,27 +1237,10 @@ def get_lab_tests(
 		total_count = len(pending_rows)
 		lab_tests = pending_rows[cint(offset) : cint(offset) + cint(limit)]
 	else:
-		total_count = len(
-			frappe.get_all(
-				"Lab Test",
-				filters=filters,
-				or_filters=or_filters or None,
-				fields=["name"],
-				limit=0,
-			)
+		# Page by visible rows (group = 1) so a large group cannot monopolise the page.
+		lab_tests, total_count = _paginate_lab_tests_by_display_unit(
+			filters, or_filters, limit, offset
 		)
-
-		lab_tests = frappe.get_all(
-			"Lab Test",
-			filters=filters,
-			or_filters=or_filters or None,
-			fields=_LAB_TEST_LIST_FIELDS,
-			limit=limit,
-			limit_start=offset,
-			order_by="creation desc",
-		)
-
-		lab_tests = _expand_grouped_lab_test_siblings(lab_tests, filters)
 
 	template_cache = {}
 	_enrich_lab_test_rows(lab_tests, template_cache)
@@ -3438,14 +3532,141 @@ def get_lab_test_by_id(name: str):
 
 
 @frappe.whitelist(allow_guest=False)
-def finish_group_lab_tests(service_request_name: str):
-	"""Mark grouped lab request as finished only if all child tests are completed."""
+def finish_group_lab_tests(service_request_name: str, lab_test_group: str | None = None):
+	"""Mark a lab group finished once all its child tests have results.
+
+	- With ``lab_test_group`` (Lab Request modal): finish that group only. The Service
+	  Request stays open until every line on the request is finished.
+	- Without ``lab_test_group`` (Tests & Results): finish every grouped child and mark
+	  the Service Request completed (legacy one-group-per-request behaviour).
+	"""
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
 
 	if not frappe.db.exists("Service Request", service_request_name):
 		frappe.throw(_("Service Request not found"))
 
+	lab_test_group = (lab_test_group or "").strip() or None
+	current_sr_status = frappe.db.get_value("Service Request", service_request_name, "status")
+
+	done_statuses = {"Completed", "Pending Review", "Reviewed", "Rejected", "Approved"}
+
+	if lab_test_group:
+		# Per-group Complete on multi-line Lab Requests.
+		if current_sr_status == GROUP_FINISHED_SR_STATUS:
+			return {
+				"ok": True,
+				"service_request": service_request_name,
+				"lab_test_group": lab_test_group,
+				"finished": True,
+				"request_finished": True,
+				"already_finished": True,
+			}
+
+		already = _finished_lab_request_groups(service_request_name)
+		if lab_test_group in already:
+			return {
+				"ok": True,
+				"service_request": service_request_name,
+				"lab_test_group": lab_test_group,
+				"finished": True,
+				"request_finished": False,
+				"already_finished": True,
+			}
+
+		from healthcare.healthcare.lab_request_items import parse_lab_request_items
+
+		sr_doc = frappe.get_doc("Service Request", service_request_name)
+		items = parse_lab_request_items(sr_doc)
+		matched_item = None
+		for item in items:
+			if _lab_request_item_key(item) == lab_test_group:
+				matched_item = item
+				break
+		if not matched_item:
+			frappe.throw(_("Lab request line for group {0} was not found").format(lab_test_group))
+
+		child_templates = []
+		kind = (matched_item.get("kind") or "").strip().lower()
+		if kind == "group":
+			child_templates = [c for c in (matched_item.get("children") or []) if c]
+			if not child_templates:
+				child_templates = frappe.get_all(
+					"Lab Test Template",
+					filters={"lab_group": lab_test_group, "disabled": 0},
+					pluck="name",
+					ignore_permissions=True,
+				)
+		else:
+			child_templates = [lab_test_group]
+
+		group_tests = frappe.get_all(
+			"Lab Test",
+			filters={
+				"service_request": service_request_name,
+				"docstatus": ["!=", 2],
+				"lab_test_group": lab_test_group,
+			},
+			fields=["name", "status", "template", "lab_test_group", "custom_result"],
+			order_by="creation asc",
+		)
+		if not group_tests and child_templates:
+			group_tests = frappe.get_all(
+				"Lab Test",
+				filters={
+					"service_request": service_request_name,
+					"docstatus": ["!=", 2],
+					"template": ["in", child_templates],
+				},
+				fields=["name", "status", "template", "lab_test_group", "custom_result"],
+				order_by="creation asc",
+			)
+
+		if not group_tests:
+			frappe.throw(_("No Lab Tests found for group {0}").format(lab_test_group))
+
+		def _line_done(lt) -> bool:
+			status = (lt.get("status") or "").strip()
+			if status in done_statuses:
+				return True
+			# Inline Lab Request saves may leave a result value before status advances.
+			return bool(strip_html(cstr(lt.get("custom_result") or "")).strip())
+
+		incomplete = [lt.get("name") for lt in group_tests if not _line_done(lt)]
+		if incomplete:
+			frappe.throw(_("Cannot finish group. Pending tests: {0}").format(", ".join(incomplete)))
+
+		matched_item["finished"] = 1
+
+		frappe.db.set_value(
+			"Service Request",
+			service_request_name,
+			"lab_request_items",
+			frappe.as_json(items),
+			update_modified=True,
+		)
+
+		all_finished = all(cint(i.get("finished")) for i in items if _lab_request_item_key(i))
+		request_finished = False
+		if all_finished:
+			frappe.db.set_value(
+				"Service Request",
+				service_request_name,
+				"status",
+				GROUP_FINISHED_SR_STATUS,
+				update_modified=True,
+			)
+			request_finished = True
+
+		return {
+			"ok": True,
+			"service_request": service_request_name,
+			"lab_test_group": lab_test_group,
+			"finished": True,
+			"request_finished": request_finished,
+		}
+
+	# Legacy: finish entire Service Request (all grouped children).
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters={"service_request": service_request_name, "docstatus": ["!=", 2]},
@@ -3460,7 +3681,6 @@ def finish_group_lab_tests(service_request_name: str):
 	if not grouped:
 		frappe.throw(_("This Service Request is not a grouped lab request"))
 
-	current_sr_status = frappe.db.get_value("Service Request", service_request_name, "status")
 	if current_sr_status == GROUP_FINISHED_SR_STATUS:
 		return {
 			"ok": True,
@@ -3469,7 +3689,6 @@ def finish_group_lab_tests(service_request_name: str):
 			"already_finished": True,
 		}
 
-	done_statuses = {"Completed", "Pending Review", "Reviewed", "Rejected"}
 	incomplete = [
 		lt.get("name")
 		for lt in grouped
@@ -3483,7 +3702,7 @@ def finish_group_lab_tests(service_request_name: str):
 		"Service Request",
 		service_request_name,
 		"status",
-		"completed-Request Status",
+		GROUP_FINISHED_SR_STATUS,
 		update_modified=True,
 	)
 

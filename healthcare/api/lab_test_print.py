@@ -5,15 +5,20 @@ Results in this install are stored as an HTML table in Lab Test.custom_result
 Test name / unit / reference range come from the sub-template (Lab Test Template),
 and the Low/Normal/High flag is computed from the result vs the gendered range.
 
-Handles both an individual Lab Test and a group (all Lab Tests sharing a Service
-Request are rendered as sections in one report). Registered as a Jinja method in
-hooks.py so the print format can call ``render_lab_test_result_report(doc)``.
+Handles both an individual Lab Test and a full Lab Request. When the Lab Test
+belongs to a Service Request, every Lab Test on that request is included — all
+groups — each rendered as one group header with its child tests underneath.
+Registered as a Jinja method in hooks.py so the print format can call
+``render_lab_test_result_report(doc)``.
 """
 
+from __future__ import annotations
+
 import re
+from collections import OrderedDict
 
 import frappe
-from frappe.utils import flt, formatdate
+from frappe.utils import formatdate, strip_html
 
 
 def _esc(value) -> str:
@@ -21,7 +26,11 @@ def _esc(value) -> str:
 
 
 def _resolve_group_lab_tests(doc):
-	"""Return the list of Lab Tests to print: the whole Service Request group, else just this doc."""
+	"""All Lab Tests on the Service Request (full request report), else just this doc.
+
+	Multi-group Lab Requests print every panel on the request. Layout still groups
+	children under each ``lab_test_group`` / template header.
+	"""
 	service_request = doc.get("service_request")
 	if service_request:
 		names = frappe.get_all(
@@ -30,7 +39,7 @@ def _resolve_group_lab_tests(doc):
 			order_by="creation asc",
 			pluck="name",
 		)
-		if len(names) > 1:
+		if names:
 			return [frappe.get_doc("Lab Test", n) for n in names]
 	return [doc]
 
@@ -81,9 +90,13 @@ def _template_info(code: str, cache: dict):
 def _range_bounds(tpl: dict, sex: str):
 	"""Pick the applicable (min, max) for the patient's sex, falling back to generic ranges."""
 	sex = (sex or "").strip().lower()
-	if sex == "female" and (tpl.get("female_min_range") not in (None, "") or tpl.get("female_max_range") not in (None, "")):
+	if sex == "female" and (
+		tpl.get("female_min_range") not in (None, "") or tpl.get("female_max_range") not in (None, "")
+	):
 		return tpl.get("female_min_range"), tpl.get("female_max_range")
-	if sex == "male" and (tpl.get("male_min_range") not in (None, "") or tpl.get("male_max_range") not in (None, "")):
+	if sex == "male" and (
+		tpl.get("male_min_range") not in (None, "") or tpl.get("male_max_range") not in (None, "")
+	):
 		return tpl.get("male_min_range"), tpl.get("male_max_range")
 	lo = tpl.get("male_min_range") if tpl.get("male_min_range") not in (None, "") else tpl.get("min_range")
 	hi = tpl.get("male_max_range") if tpl.get("male_max_range") not in (None, "") else tpl.get("max_range")
@@ -138,7 +151,7 @@ def _patient_meta(doc):
 		"id_number": id_number,
 		"sex_age": sex_age,
 		"referred_doctor": referred_doctor,
-		"request_no": doc.name,
+		"request_no": doc.get("service_request") or doc.name,
 		"date": formatdate(doc.get("result_date") or doc.get("submitted_date") or doc.get("creation")),
 		"visit_no": doc.get("patient_visit") or "",
 		"ip_case_no": doc.get("inpatient_admission") or "",
@@ -208,6 +221,7 @@ def _rows_from_normal_items(lt, cache) -> list[str]:
 		uom = getattr(item, "lab_test_uom", None) or ""
 		range_text = getattr(item, "normal_range", None) or ""
 		lo = hi = None
+		tpl = {}
 		if code:
 			tpl = _template_info(code, cache)
 			if not name:
@@ -217,37 +231,77 @@ def _rows_from_normal_items(lt, cache) -> list[str]:
 			lo, hi = _range_bounds(tpl, sex)
 			if not range_text:
 				range_text = _range_text(lo, hi)
+		if lo is None and hi is None:
+			parent_code = (lt.get("template") or "").strip()
+			if parent_code:
+				tpl = _template_info(parent_code, cache)
+				lo, hi = _range_bounds(tpl, sex)
+				if not range_text:
+					range_text = _range_text(lo, hi)
 		flag = ""
-		if str(result).strip() and (lo not in (None, "") or hi not in (None, "")):
+		# Prefer explicit status band (Vitamin D Deficiency / …) when present.
+		status_mark = (getattr(item, "result_status", None) or "").strip()
+		if status_mark:
+			flag = status_mark
+		elif str(result).strip() and (lo not in (None, "") or hi not in (None, "")):
 			flag = _flag(result, lo, hi)
 		body_rows.append(_result_row_html(name or "—", result, uom, flag, range_text))
 	return body_rows
 
 
-def _rows_from_template(lt, cache) -> list[str]:
-	"""Single placeholder row from the Lab Test template when no result lines exist yet."""
+def _rows_from_single_result(lt, cache) -> list[str]:
+	"""One row from custom_result / template for a simple (non-table) Lab Test line."""
 	code = (lt.get("template") or "").strip()
-	if not code:
-		name = lt.get("lab_test_name") or lt.name
-		return [_result_row_html(name, "", "", "", "")]
+	result = ""
+	raw = (lt.get("custom_result") or "").strip()
+	if raw:
+		# Plain value (not an HTML table of sub-tests).
+		plain = strip_html(raw).strip()
+		if plain and not _parse_custom_result(raw):
+			result = plain
 
-	tpl = _template_info(code, cache)
-	name = tpl.get("lab_test_name") or lt.get("lab_test_name") or code
-	uom = tpl.get("lab_test_uom") or ""
-	lo, hi = _range_bounds(tpl, lt.get("patient_sex"))
-	return [_result_row_html(name, "", uom, "", _range_text(lo, hi))]
+	if code:
+		tpl = _template_info(code, cache)
+		name = tpl.get("lab_test_name") or lt.get("lab_test_name") or code
+		uom = tpl.get("lab_test_uom") or ""
+		lo, hi = _range_bounds(tpl, lt.get("patient_sex"))
+		flag = _flag(result, lo, hi) if result else ""
+		return [_result_row_html(name, result, uom, flag, _range_text(lo, hi))]
+
+	name = lt.get("lab_test_name") or lt.name
+	return [_result_row_html(name, result, "", "", "")]
 
 
-def _section_html(lt, cache):
-	# Prefer parsed custom_result (includes blank result cells if present in HTML).
-	# If none yet, still show the ordered test via normal items or the template itself.
+def _body_rows_for_lab_test(lt, cache) -> list[str]:
+	"""Collect result rows for one Lab Test document (sub-units or a single line)."""
 	body_rows = _rows_from_custom_result(lt, cache)
 	if not body_rows:
 		body_rows = _rows_from_normal_items(lt, cache)
 	if not body_rows:
-		body_rows = _rows_from_template(lt, cache)
+		body_rows = _rows_from_single_result(lt, cache)
+	return body_rows
 
-	group_name = lt.get("lab_test_name") or lt.get("template") or lt.name
+
+def _group_display_name(group_key: str, tests: list) -> str:
+	"""Human label for a panel / single: prefer group template name, else first child name."""
+	if group_key:
+		name = frappe.db.get_value("Lab Test Template", group_key, "lab_test_name")
+		if name:
+			return name
+	first = tests[0] if tests else None
+	if first:
+		return first.get("lab_test_name") or first.get("template") or first.name
+	return group_key or "Lab Test"
+
+
+def _bucket_key(lt) -> str:
+	group = (lt.get("lab_test_group") or "").strip()
+	if group:
+		return group
+	return (lt.get("template") or "").strip() or lt.name
+
+
+def _section_html_from_rows(group_name: str, body_rows: list[str]) -> str:
 	return f"""
 	<div class="lr-group">{_esc(group_name)}</div>
 	<table class="lr-results">
@@ -265,6 +319,23 @@ def _section_html(lt, cache):
 	"""
 
 
+def _sections_html(lab_tests, cache) -> str:
+	"""One section per group (or standalone template), with all child tests as rows."""
+	buckets: OrderedDict[str, list] = OrderedDict()
+	for lt in lab_tests:
+		buckets.setdefault(_bucket_key(lt), []).append(lt)
+
+	parts: list[str] = []
+	for key, tests in buckets.items():
+		body_rows: list[str] = []
+		for lt in tests:
+			body_rows.extend(_body_rows_for_lab_test(lt, cache))
+		if not body_rows:
+			body_rows = [_result_row_html("—", "", "", "", "")]
+		parts.append(_section_html_from_rows(_group_display_name(key, tests), body_rows))
+	return "".join(parts)
+
+
 @frappe.whitelist()
 def render_lab_test_result_report(doc):
 	"""Jinja method + whitelisted: full body HTML for the Laboratory Report."""
@@ -273,7 +344,7 @@ def render_lab_test_result_report(doc):
 
 	lab_tests = _resolve_group_lab_tests(doc)
 	cache: dict = {}
-	sections = "".join(_section_html(lt, cache) for lt in lab_tests)
+	sections = _sections_html(lab_tests, cache)
 
 	note = (doc.get("lab_test_comment") or "").strip()
 
