@@ -9,10 +9,34 @@ export interface IpMapperBranchResult {
   activated: boolean
   matched: boolean
   applied: boolean
+  overridden?: boolean
   client_ip: string
   matched_ip?: string | null
+  /** Cost center suggested by the network IP (may differ from current selection). */
+  ip_mapped_cost_center?: string
   cost_center: string
   previous_cost_center: string
+}
+
+/** Session flag: user manually picked a branch other than the IP-mapped one. */
+export const IP_BRANCH_OVERRIDE_KEY = 'healthcare_ip_branch_override'
+
+export function hasIpBranchOverride(): boolean {
+  try {
+    return typeof sessionStorage !== 'undefined' && sessionStorage.getItem(IP_BRANCH_OVERRIDE_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setIpBranchOverride(active: boolean) {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    if (active) sessionStorage.setItem(IP_BRANCH_OVERRIDE_KEY, '1')
+    else sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
+  } catch {
+    /* ignore */
+  }
 }
 
 export async function getUserCostCenterPermission(): Promise<CostCenterPermissionState> {
@@ -48,8 +72,13 @@ async function detectPublicEgressIp(): Promise<string | null> {
  * Auto-set Cost Center from Healthcare Settings IP Mapper when Activate IP Mapper is on.
  * Uses GET to avoid CSRF races right after login.
  */
-export async function applyBranchFromIpMapper(): Promise<IpMapperBranchResult> {
+export async function applyBranchFromIpMapper(opts?: {
+  skipApply?: boolean
+}): Promise<IpMapperBranchResult> {
   const params = new URLSearchParams()
+  if (opts?.skipApply || hasIpBranchOverride()) {
+    params.set('skip_apply', '1')
+  }
   if (isLocalBenchHost()) {
     const publicIp = await detectPublicEgressIp()
     if (publicIp) params.set('reported_public_ip', publicIp)

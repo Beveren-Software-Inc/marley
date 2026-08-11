@@ -2639,15 +2639,16 @@ def _resolve_cost_center_from_ip_mapper(client_ip=None):
 
 
 @frappe.whitelist(methods=["GET", "POST"])
-def apply_branch_from_ip_mapper(reported_public_ip=None):
+def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
 	"""Auto-select portal branch (Cost Center) from the client IP when IP Mapper is on.
 
 	Only runs when Healthcare Settings → Activate IP Mapper is checked and the request
 	IP matches a row in IP Mapper. Sets the user's Cost Center User Permission to the
 	mapped branch (same mechanism as BranchSelector).
 
-	Re-applies on every call when the IP matches so each login/session picks the branch
-	even if a previous User Permission was cleared.
+	``skip_apply``: when truthy, only resolve the mapped branch and do not change the
+	user's Cost Center permission (used when the user has manually overridden the
+	IP-suggested branch for this browser session).
 
 	``reported_public_ip`` is only accepted when the TCP client is localhost (local bench),
 	so developers can map their real public egress IP while browsing via 127.0.0.1.
@@ -2659,22 +2660,28 @@ def apply_branch_from_ip_mapper(reported_public_ip=None):
 	previous = _current_user_cost_center_permission()
 	candidates = _client_ip_candidates()
 	client_ip = candidates[0] if candidates else ""
+	skip = cint(skip_apply)
 
 	# Dev-only: when browsing local bench, also try the browser's public egress IP.
 	reported = _normalize_mapper_ip(reported_public_ip)
 	if reported and client_ip in ("127.0.0.1", "::1") and reported not in candidates:
 		candidates.append(reported)
 
+	empty = {
+		"activated": activated,
+		"matched": False,
+		"applied": False,
+		"overridden": False,
+		"client_ip": client_ip,
+		"matched_ip": None,
+		"ip_mapped_cost_center": "",
+		"cost_center": previous,
+		"previous_cost_center": previous,
+	}
+
 	if not activated:
-		return {
-			"activated": False,
-			"matched": False,
-			"applied": False,
-			"client_ip": client_ip,
-			"matched_ip": None,
-			"cost_center": previous,
-			"previous_cost_center": previous,
-		}
+		empty["activated"] = False
+		return empty
 
 	rows = frappe.get_all(
 		"IP Cost Center Mapper",
@@ -2701,30 +2708,30 @@ def apply_branch_from_ip_mapper(reported_public_ip=None):
 			break
 
 	if not mapped_cc:
-		return {
-			"activated": True,
-			"matched": False,
-			"applied": False,
-			"client_ip": client_ip,
-			"matched_ip": None,
-			"cost_center": previous,
-			"previous_cost_center": previous,
-		}
+		return empty
 
 	if not frappe.db.exists("Cost Center", mapped_cc):
 		frappe.throw(_("Mapped Cost Center '{0}' does not exist.").format(mapped_cc))
 
-	# Always (re)write when IP matches so each login picks the branch even if cleared.
-	applied = previous != mapped_cc
-	set_cost_center_permission(mapped_cc)
+	applied = False
+	current = previous
+	if skip:
+		# Manual override for this session — keep whatever branch the user chose.
+		current = previous
+	else:
+		applied = previous != mapped_cc
+		set_cost_center_permission(mapped_cc)
+		current = mapped_cc
 
 	return {
 		"activated": True,
 		"matched": True,
 		"applied": applied,
+		"overridden": bool(skip and previous and previous != mapped_cc),
 		"client_ip": client_ip,
 		"matched_ip": matched_ip,
-		"cost_center": mapped_cc,
+		"ip_mapped_cost_center": mapped_cc,
+		"cost_center": current,
 		"previous_cost_center": previous,
 	}
 
