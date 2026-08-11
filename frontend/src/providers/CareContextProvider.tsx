@@ -4,6 +4,7 @@ import { careScopeFromCostCenterField, type CostCenterCareScope } from '../confi
 import { fetchActiveCareEpisodeStatus, type ActiveCareEpisodeStatus } from '../services/careEpisode'
 import { fetchDefaultCompanyCurrency } from '../services/common'
 import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
+import { applyBranchFromIpMapper } from '../services/costCenterPermission'
 import { setEditingLockState } from '../services/editingLockStore'
 import { useAuth } from './AuthProvider'
 import {
@@ -289,6 +290,10 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
     if (!isAuthenticated) return
     const loadUserContext = async () => {
       try {
+        // When IP Mapper is active, set Cost Center User Permission from client IP first.
+        await applyBranchFromIpMapper().catch((err) => {
+          console.warn('IP Mapper branch resolve skipped:', err)
+        })
         await refreshUserCostCenter()
         const userResponse = await fetch('/api/method/frappe.auth.get_logged_user', {
           credentials: 'include',

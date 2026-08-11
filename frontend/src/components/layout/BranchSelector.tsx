@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Building2, ChevronDown } from 'lucide-react'
+import { Building2, ChevronDown, Lock } from 'lucide-react'
 import { fetchBranchOptions } from '../../services/common'
 import {
+  applyBranchFromIpMapper,
   getUserCostCenterPermission,
   setUserCostCenterPermission,
 } from '../../services/costCenterPermission'
@@ -21,6 +22,8 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   const { isAuthenticated } = useAuth()
   const [saving, setSaving] = useState(false)
   const [open, setOpen] = useState(false)
+  /** When IP Mapper matched this session, branch is locked to the mapped cost center. */
+  const [ipLocked, setIpLocked] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
   const loadCurrent = useCallback(async () => {
@@ -39,13 +42,52 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     const load = async () => {
       setLoading(true)
       try {
+        const ipResult = await applyBranchFromIpMapper().catch((err) => {
+          console.warn('IP Mapper apply failed:', err)
+          return null
+        })
+        if (cancelled) return
+
+        const locked = Boolean(ipResult?.activated && ipResult?.matched && ipResult.cost_center)
+        setIpLocked(locked)
+
+        // When IP just (re)wrote the permission, reload once so CareContext / lists
+        // pick up the new User Permission — same pattern as manual branch switch.
+        if (ipResult?.matched && ipResult?.applied && ipResult.cost_center) {
+          const reloadKey = `healthcare_ip_branch_reload:${ipResult.cost_center}`
+          try {
+            if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(reloadKey)) {
+              sessionStorage.setItem(reloadKey, '1')
+              window.location.reload()
+              return
+            }
+          } catch {
+            /* ignore storage errors; fall through to in-page update */
+          }
+        }
+
         const [perm, options] = await Promise.all([
           getUserCostCenterPermission(),
           fetchBranchOptions(),
         ])
         if (cancelled) return
-        setSelected(perm.cost_center || '')
+
+        const nextSelected =
+          (locked && ipResult?.cost_center) || perm.cost_center || ''
+        setSelected(nextSelected)
         setBranches(options.map((b) => ({ name: b.name, label: b.label || b.name })))
+
+        if (locked && ipResult?.cost_center) {
+          await refreshUserCostCenter()
+        }
+
+        if (ipResult?.activated && !ipResult?.matched) {
+          console.info(
+            'IP Mapper active but no match for client IP:',
+            ipResult.client_ip || '(unknown)',
+            '— add this IP in Healthcare Settings → IP Mapper (use 127.0.0.1 for local bench).',
+          )
+        }
       } catch {
         if (!cancelled) toast.error('Failed to load branches')
       } finally {
@@ -56,7 +98,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated])
+  }, [isAuthenticated, refreshUserCostCenter])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -69,7 +111,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
   }, [open])
 
   const handleSelect = async (value: string) => {
-    if (saving || value === selected) {
+    if (ipLocked || saving || value === selected) {
       setOpen(false)
       return
     }
@@ -117,16 +159,24 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
       <div ref={ref} className="relative w-full">
         <button
           type="button"
-          onClick={() => setOpen(!open)}
-          disabled={saving}
+          onClick={() => {
+            if (ipLocked) return
+            setOpen(!open)
+          }}
+          disabled={saving || ipLocked}
           className="flex w-full items-center gap-2 rounded-md bg-white/10 px-3 py-2 text-left text-sm text-white hover:bg-white/20 disabled:opacity-60"
           aria-label="Choose branch"
+          title={ipLocked ? 'Branch set from your network IP' : undefined}
         >
           <Building2 className="h-4 w-4 shrink-0 opacity-80" />
           <span className={`flex-1 truncate ${selected ? '' : 'text-white/70'}`}>{activeLabel}</span>
-          <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+          {ipLocked ? (
+            <Lock className="h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+          ) : (
+            <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+          )}
         </button>
-        {open && (
+        {open && !ipLocked && (
           <div className="absolute bottom-full left-0 right-0 z-[110] mb-1 max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
             <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
             {branches.map((b) => (
@@ -147,17 +197,32 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     <div ref={ref} className="relative flex-shrink-0 w-56 mr-2">
       <button
         type="button"
-        onClick={() => setOpen(!open)}
-        disabled={saving}
+        onClick={() => {
+          if (ipLocked) return
+          setOpen(!open)
+        }}
+        disabled={saving || ipLocked}
         className="flex w-full items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 hover:bg-slate-50 transition-colors focus:outline-none focus:ring-2 focus:ring-primary/40 disabled:opacity-60"
         aria-label="Choose branch"
-        title={selected ? `Branch: ${activeLabel}` : undefined}
+        title={
+          ipLocked
+            ? 'Branch set from your network IP'
+            : selected
+              ? `Branch: ${activeLabel}`
+              : undefined
+        }
       >
         <Building2 className="h-4 w-4 shrink-0 text-slate-500" />
-        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400'}`}>{saving ? 'Saving…' : activeLabel}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 opacity-90 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className={`flex-1 truncate text-left ${selected ? '' : 'text-slate-400'}`}>
+          {saving ? 'Saving…' : activeLabel}
+        </span>
+        {ipLocked ? (
+          <Lock className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+        ) : (
+          <ChevronDown className={`h-4 w-4 shrink-0 opacity-90 transition-transform ${open ? 'rotate-180' : ''}`} />
+        )}
       </button>
-      {open && (
+      {open && !ipLocked && (
         <div className="absolute top-full right-0 z-[110] mt-1 w-full max-h-60 overflow-y-auto rounded-lg border border-gray-200 bg-white shadow-xl">
           <BranchOption label="Select Branch" active={!selected} onSelect={() => void handleSelect('')} />
           {branches.map((b) => (

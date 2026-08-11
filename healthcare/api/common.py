@@ -2540,6 +2540,195 @@ def get_billing_cost_center_scope():
 	return {"restricted": permitted is not None}
 
 
+def _normalize_mapper_ip(value):
+	return (value or "").strip()
+
+
+def _client_ip_candidates(primary=None):
+	"""IPs that may identify this client (proxy-aware).
+
+	Local bench often sees ``127.0.0.1`` / ``::1`` even when the laptop's public
+	egress IP is what was entered in IP Mapper — callers should map both when
+	testing locally.
+	"""
+	candidates = []
+	seen = set()
+
+	def _add(raw):
+		ip = _normalize_mapper_ip(raw)
+		if not ip or ip in seen:
+			return
+		seen.add(ip)
+		candidates.append(ip)
+
+	_add(primary if primary is not None else getattr(frappe.local, "request_ip", None))
+
+	try:
+		xff = frappe.get_request_header("X-Forwarded-For")
+	except Exception:
+		xff = None
+	if xff:
+		for part in str(xff).split(","):
+			_add(part)
+
+	try:
+		_add(frappe.get_request_header("X-Real-IP"))
+	except Exception:
+		pass
+
+	# Localhost aliases: if either is present, consider both for mapper matching.
+	if "127.0.0.1" in seen or "::1" in seen:
+		_add("127.0.0.1")
+		_add("::1")
+
+	return candidates
+
+
+def _current_user_cost_center_permission(user=None):
+	user = user or frappe.session.user
+	existing = frappe.get_all(
+		"User Permission",
+		filters={"user": user, "allow": "Cost Center"},
+		fields=["for_value"],
+		limit=1,
+	)
+	return existing[0]["for_value"] if existing else ""
+
+
+def _resolve_cost_center_from_ip_mapper(client_ip=None):
+	"""Map client IP → Cost Center using Healthcare Settings IP Mapper rows.
+
+	Returns ``None`` when the feature is off. When on, returns
+	``{client_ip, cost_center}`` (cost_center may be ``None`` if unmatched).
+	"""
+	if not frappe.db.get_single_value("Healthcare Settings", "activate_ip_mapper"):
+		return None
+
+	candidates = _client_ip_candidates(client_ip)
+	if not candidates:
+		return {"client_ip": "", "cost_center": None, "matched_ip": None}
+
+	rows = frappe.get_all(
+		"IP Cost Center Mapper",
+		filters={
+			"parent": "Healthcare Settings",
+			"parenttype": "Healthcare Settings",
+			"parentfield": "ip_mapper",
+		},
+		fields=["cost_center", "ip"],
+		order_by="idx asc",
+	)
+	mapped = {
+		_normalize_mapper_ip(row.get("ip")): row.get("cost_center")
+		for row in rows
+		if _normalize_mapper_ip(row.get("ip")) and row.get("cost_center")
+	}
+	for ip in candidates:
+		cost_center = mapped.get(ip)
+		if cost_center:
+			return {
+				"client_ip": candidates[0],
+				"matched_ip": ip,
+				"cost_center": cost_center,
+			}
+	return {
+		"client_ip": candidates[0],
+		"matched_ip": None,
+		"cost_center": None,
+	}
+
+
+@frappe.whitelist(methods=["GET", "POST"])
+def apply_branch_from_ip_mapper(reported_public_ip=None):
+	"""Auto-select portal branch (Cost Center) from the client IP when IP Mapper is on.
+
+	Only runs when Healthcare Settings → Activate IP Mapper is checked and the request
+	IP matches a row in IP Mapper. Sets the user's Cost Center User Permission to the
+	mapped branch (same mechanism as BranchSelector).
+
+	Re-applies on every call when the IP matches so each login/session picks the branch
+	even if a previous User Permission was cleared.
+
+	``reported_public_ip`` is only accepted when the TCP client is localhost (local bench),
+	so developers can map their real public egress IP while browsing via 127.0.0.1.
+	"""
+	if frappe.session.user in (None, "Guest"):
+		frappe.throw(_("Login required"), frappe.PermissionError)
+
+	activated = bool(frappe.db.get_single_value("Healthcare Settings", "activate_ip_mapper"))
+	previous = _current_user_cost_center_permission()
+	candidates = _client_ip_candidates()
+	client_ip = candidates[0] if candidates else ""
+
+	# Dev-only: when browsing local bench, also try the browser's public egress IP.
+	reported = _normalize_mapper_ip(reported_public_ip)
+	if reported and client_ip in ("127.0.0.1", "::1") and reported not in candidates:
+		candidates.append(reported)
+
+	if not activated:
+		return {
+			"activated": False,
+			"matched": False,
+			"applied": False,
+			"client_ip": client_ip,
+			"matched_ip": None,
+			"cost_center": previous,
+			"previous_cost_center": previous,
+		}
+
+	rows = frappe.get_all(
+		"IP Cost Center Mapper",
+		filters={
+			"parent": "Healthcare Settings",
+			"parenttype": "Healthcare Settings",
+			"parentfield": "ip_mapper",
+		},
+		fields=["cost_center", "ip"],
+		order_by="idx asc",
+	)
+	mapped = {
+		_normalize_mapper_ip(row.get("ip")): row.get("cost_center")
+		for row in rows
+		if _normalize_mapper_ip(row.get("ip")) and row.get("cost_center")
+	}
+
+	matched_ip = None
+	mapped_cc = None
+	for ip in candidates:
+		if ip in mapped:
+			matched_ip = ip
+			mapped_cc = mapped[ip]
+			break
+
+	if not mapped_cc:
+		return {
+			"activated": True,
+			"matched": False,
+			"applied": False,
+			"client_ip": client_ip,
+			"matched_ip": None,
+			"cost_center": previous,
+			"previous_cost_center": previous,
+		}
+
+	if not frappe.db.exists("Cost Center", mapped_cc):
+		frappe.throw(_("Mapped Cost Center '{0}' does not exist.").format(mapped_cc))
+
+	# Always (re)write when IP matches so each login picks the branch even if cleared.
+	applied = previous != mapped_cc
+	set_cost_center_permission(mapped_cc)
+
+	return {
+		"activated": True,
+		"matched": True,
+		"applied": applied,
+		"client_ip": client_ip,
+		"matched_ip": matched_ip,
+		"cost_center": mapped_cc,
+		"previous_cost_center": previous,
+	}
+
+
 @frappe.whitelist()
 def get_user_cost_center_permission():
 	"""
@@ -2549,18 +2738,8 @@ def get_user_cost_center_permission():
 	user = frappe.session.user
 	exempt = _user_is_exempt(user)
 
-	existing = frappe.get_all(
-		"User Permission",
-		filters={
-			"user": user,
-			"allow": "Cost Center",
-		},
-		fields=["name", "for_value"],
-		limit=1,
-	)
-
 	return {
-		"cost_center": existing[0]["for_value"] if existing else "",
+		"cost_center": _current_user_cost_center_permission(user),
 		"is_exempt": exempt,
 	}
 
