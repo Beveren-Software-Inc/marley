@@ -753,45 +753,32 @@ def get_item_groups(search=None, warehouse_context=None):
     return item_groups
 
 @frappe.whitelist()
-def get_default_warehouse_and_cost_center():
+def get_default_warehouse_and_cost_center(cost_center=None):
     """
-    Get the default warehouse and cost center for the current user from Healthcare Settings.
-    
-    Returns:
-        dict: {
-            "warehouse": warehouse_name,
-            "cost_center": cost_center_name,
-            "company": company linked to the resolved cost_center (ERPNext Cost Center.company), or "",
-            "can_change_warehouse": bool (True only for admin/system manager)
-        }
+    Get warehouse / company / care-type metadata for a cost center.
+
+    Portal branch is UI-selected (localStorage). Pass ``cost_center`` from the portal
+    branch picker. When omitted, falls back to Employee.cost_center only (no User Permission).
     """
     user = frappe.session.user
     
     try:
-        # Get user's permitted cost centers
-        from healthcare.api.common import get_permitted_cost_centers
-        permitted_cc = get_permitted_cost_centers()
-        
-        # Get the first permitted cost center if any
-        cost_center = None
-        if permitted_cc is None:
-            # User is exempt (admin/system manager) - no restriction
-            # Try to get from their employee record or return empty
+        requested = (cost_center or "").strip() or None
+        resolved = requested
+        if not resolved:
             employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
             if employee:
-                cost_center = frappe.db.get_value("Employee", employee, "cost_center")
-        elif permitted_cc:
-            cost_center = permitted_cc[0]
+                resolved = frappe.db.get_value("Employee", employee, "cost_center")
         
         warehouse = None
-        if cost_center:
-            warehouse = _warehouse_for_cost_center(cost_center)
+        if resolved:
+            warehouse = _warehouse_for_cost_center(resolved)
 
         can_change = _user_is_exempt(user)
 
         patient_care_type = ""
         company_from_cc = ""
-        if cost_center:
+        if resolved:
             try:
                 cc_meta = frappe.get_meta("Cost Center")
                 cc_fields = ["company"]
@@ -799,7 +786,7 @@ def get_default_warehouse_and_cost_center():
                     cc_fields.append("custom_patient_care_type")
                 rows = frappe.get_all(
                     "Cost Center",
-                    filters={"name": cost_center},
+                    filters={"name": resolved},
                     fields=cc_fields,
                     limit=1,
                     ignore_permissions=True,
@@ -813,7 +800,7 @@ def get_default_warehouse_and_cost_center():
                 company_from_cc = ""
         return {
             "warehouse": warehouse or "",
-            "cost_center": cost_center or "",
+            "cost_center": resolved or "",
             "can_change_warehouse": can_change,
             "cost_center_patient_care_type": patient_care_type,
             "company": company_from_cc or "",
@@ -952,11 +939,39 @@ def create_material_request():
 
 @frappe.whitelist()
 def get_material_requests(cost_center, status=None, warehouse_context=None):
-    """Get material requests for a cost center and mini-warehouse dashboard."""
+    """Get material requests for a cost center and mini-warehouse dashboard.
+
+    ``cost_center`` lives on Material Request Item (child), not always on the parent.
+    Filtering the parent by that field joins children and can return the same MR once
+    per item — so we resolve distinct parent names first.
+    """
     if not cost_center:
         frappe.throw(_("Cost Center is required"))
 
-    filters = {"cost_center": cost_center, **_inventory_context_filters("Material Request", warehouse_context)}
+    ctx_filters = _inventory_context_filters("Material Request", warehouse_context)
+
+    # Distinct parents that have at least one item for this cost center.
+    item_filters = {"cost_center": cost_center, "docstatus": ["<", 2]}
+    parent_names = frappe.get_all(
+        "Material Request Item",
+        filters=item_filters,
+        pluck="parent",
+        distinct=True,
+    )
+    # Also include parents that store cost_center on the header (if the field exists).
+    mr_meta = frappe.get_meta("Material Request")
+    if mr_meta.has_field("cost_center"):
+        header_names = frappe.get_all(
+            "Material Request",
+            filters={"cost_center": cost_center, **ctx_filters},
+            pluck="name",
+        )
+        parent_names = list({*(parent_names or []), *(header_names or [])})
+
+    if not parent_names:
+        return []
+
+    filters = {"name": ["in", parent_names], **ctx_filters}
     if status:
         filters["status"] = status
 
@@ -969,7 +984,7 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         "per_ordered",
         "per_received",
     ]
-    if frappe.get_meta("Material Request").has_field("custom_is_medical"):
+    if mr_meta.has_field("custom_is_medical"):
         fields.append("custom_is_medical as is_medical")
 
     requests = frappe.get_all(
@@ -978,8 +993,18 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         fields=fields,
         order_by="creation desc",
     )
-    
-    # Get items for each request
+
+    # Safety: never return the same MR twice.
+    seen = set()
+    unique_requests = []
+    for req in requests:
+        name = req.get("name")
+        if not name or name in seen:
+            continue
+        seen.add(name)
+        unique_requests.append(req)
+    requests = unique_requests
+
     for req in requests:
         req["items"] = _filter_rows_by_nhra_item(
             frappe.get_all(
@@ -992,7 +1017,7 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         req["requested_by"] = frappe.db.get_value("Material Request", req["name"], "owner")
         if "is_medical" in req:
             req["is_medical"] = 1 if cint(req.get("is_medical")) else 0
-    
+
     return requests
 
 # @frappe.whitelist()

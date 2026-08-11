@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Building2, ChevronDown, Lock, LockOpen } from 'lucide-react'
 import { fetchBranchOptions } from '../../services/common'
 import {
   applyBranchFromIpMapper,
-  getUserCostCenterPermission,
+  getPortalBranch,
   setIpBranchOverride,
-  setUserCostCenterPermission,
+  setPortalBranch,
 } from '../../services/costCenterPermission'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useAuth } from '../../providers/AuthProvider'
@@ -16,9 +16,9 @@ type BranchSelectorProps = {
 }
 
 export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
-  const { refreshUserCostCenter } = useCareContext()
+  const { refreshUserCostCenter, setUserCostCenter } = useCareContext()
   const [branches, setBranches] = useState<{ name: string; label: string }[]>([])
-  const [selected, setSelected] = useState('')
+  const [selected, setSelected] = useState(() => getPortalBranch())
   const [loading, setLoading] = useState(true)
   const { isAuthenticated } = useAuth()
   const [saving, setSaving] = useState(false)
@@ -29,15 +29,6 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
 
   const onIpHomeBranch = Boolean(ipMappedCostCenter && selected === ipMappedCostCenter)
   const ipOverrideActive = Boolean(ipMappedCostCenter && selected && selected !== ipMappedCostCenter)
-
-  const loadCurrent = useCallback(async () => {
-    try {
-      const perm = await getUserCostCenterPermission()
-      setSelected(perm.cost_center || '')
-    } catch {
-      /* keep previous value */
-    }
-  }, [])
 
   useEffect(() => {
     // These APIs 403 for guests — wait for login before loading branches.
@@ -56,38 +47,27 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
           (ipResult?.matched && (ipResult.ip_mapped_cost_center || ipResult.cost_center)) || ''
         setIpMappedCostCenter(mappedCc)
 
-        // When IP just wrote the permission, reload once so CareContext / lists sync.
-        if (ipResult?.matched && ipResult?.applied && mappedCc) {
-          const reloadKey = `healthcare_ip_branch_reload:${mappedCc}`
-          try {
-            if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(reloadKey)) {
-              sessionStorage.setItem(reloadKey, '1')
-              window.location.reload()
-              return
-            }
-          } catch {
-            /* ignore storage errors; fall through to in-page update */
-          }
-        }
-
-        const [perm, options] = await Promise.all([
-          getUserCostCenterPermission(),
-          fetchBranchOptions(),
-        ])
+        const options = await fetchBranchOptions()
         if (cancelled) return
-
-        setSelected(perm.cost_center || ipResult?.cost_center || '')
         setBranches(options.map((b) => ({ name: b.name, label: b.label || b.name })))
 
-        if (ipResult?.matched) {
-          await refreshUserCostCenter()
+        const portal = getPortalBranch()
+        const next =
+          ipResult?.matched && mappedCc && !ipResult.overridden
+            ? mappedCc
+            : portal || mappedCc || ''
+        setSelected(next)
+        if (next) {
+          setPortalBranch(next)
+          setUserCostCenter(next)
         }
+        await refreshUserCostCenter()
 
         if (ipResult?.activated && !ipResult?.matched) {
           console.info(
             'IP Mapper active but no match for client IP:',
             ipResult.client_ip || '(unknown)',
-            '— add this IP in Healthcare Settings → IP Mapper (use 127.0.0.1 for local bench).',
+            '— add this IP in Healthcare Settings → IP Mapper.',
           )
         }
       } catch {
@@ -100,7 +80,7 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     return () => {
       cancelled = true
     }
-  }, [isAuthenticated, refreshUserCostCenter])
+  }, [isAuthenticated, refreshUserCostCenter, setUserCostCenter])
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -120,22 +100,25 @@ export function BranchSelector({ placement = 'header' }: BranchSelectorProps) {
     setSaving(true)
     setOpen(false)
     try {
-      // Visual lock follows the IP-mapped branch; override is session-only.
+      // UI-only branch filter — never create User Permissions.
       if (ipMappedCostCenter) {
         setIpBranchOverride(Boolean(value && value !== ipMappedCostCenter))
       }
-      const result = await setUserCostCenterPermission(value)
-      setSelected(result.cost_center || '')
+      setPortalBranch(value)
+      setSelected(value)
+      setUserCostCenter(value || undefined)
       await refreshUserCostCenter()
-      if (result.status === 'cleared') {
+      if (!value) {
         toast.success('Showing all branches')
       } else {
-        toast.success(`Branch set to ${result.cost_center}`)
+        const label = branches.find((b) => b.name === value)?.label || value
+        toast.success(`Branch set to ${label}`)
       }
+      // Reload lists so cost_center query filters pick up the new UI branch.
       window.location.reload()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to switch branch')
-      await loadCurrent()
+      setSelected(getPortalBranch())
     } finally {
       setSaving(false)
     }

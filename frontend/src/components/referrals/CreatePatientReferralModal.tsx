@@ -7,7 +7,7 @@ import {
 import { createPatientReferral, searchReferralSourceDocs, type ReferralSourceDoc } from '../../services/patientReferral'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { fetchCostCenters, fetchDoctorPractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { getPortalBranch } from '../../services/costCenterPermission'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
 
@@ -73,16 +73,11 @@ export const CreatePatientReferralModal = ({
   const [submitting, setSubmitting] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
 
-  // ── load option lists ───────────────────────────────────────────
+  // Global portal branch auto-applies as the default (UI filter only).
   useEffect(() => {
     fetchCostCenters().then(setCostCenters).catch(() => {})
-    // Global branch auto-applies as the default.
-    getUserCostCenterPermission()
-      .then((perm) => {
-        const cc = perm?.cost_center
-        if (cc) setCostCenter((prev) => prev || cc)
-      })
-      .catch(() => {})
+    const cc = getPortalBranch()
+    if (cc) setCostCenter((prev) => prev || cc)
   }, [])
 
   // ── patient search ──────────────────────────────────────────────

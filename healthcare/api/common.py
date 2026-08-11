@@ -2640,29 +2640,28 @@ def _resolve_cost_center_from_ip_mapper(client_ip=None):
 
 @frappe.whitelist(methods=["GET", "POST"])
 def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
-	"""Auto-select portal branch (Cost Center) from the client IP when IP Mapper is on.
+	"""Resolve portal branch from client IP when IP Mapper is on.
 
-	Only runs when Healthcare Settings → Activate IP Mapper is checked and the request
-	IP matches a row in IP Mapper. Sets the user's Cost Center User Permission to the
-	mapped branch (same mechanism as BranchSelector).
+	Does **not** create User Permissions. Portal branch filtering is UI-only
+	(localStorage / CareContext). Any leftover Cost Center User Permissions from the
+	old approach are cleared so they do not fight UI filters.
 
-	``skip_apply``: when truthy, only resolve the mapped branch and do not change the
-	user's Cost Center permission (used when the user has manually overridden the
-	IP-suggested branch for this browser session).
+	``skip_apply`` is kept for API compatibility; the frontend uses it to mean
+	"do not overwrite the browser's selected portal branch" (still no User Permission).
 
-	``reported_public_ip`` is only accepted when the TCP client is localhost (local bench),
-	so developers can map their real public egress IP while browsing via 127.0.0.1.
+	``reported_public_ip`` is only accepted when the TCP client is localhost (local bench).
 	"""
 	if frappe.session.user in (None, "Guest"):
 		frappe.throw(_("Login required"), frappe.PermissionError)
 
+	# Drop legacy portal Cost Center User Permissions — branch is UI-filtered now.
+	_clear_cost_center_user_permissions()
+
 	activated = bool(frappe.db.get_single_value("Healthcare Settings", "activate_ip_mapper"))
-	previous = _current_user_cost_center_permission()
 	candidates = _client_ip_candidates()
 	client_ip = candidates[0] if candidates else ""
 	skip = cint(skip_apply)
 
-	# Dev-only: when browsing local bench, also try the browser's public egress IP.
 	reported = _normalize_mapper_ip(reported_public_ip)
 	if reported and client_ip in ("127.0.0.1", "::1") and reported not in candidates:
 		candidates.append(reported)
@@ -2671,12 +2670,12 @@ def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
 		"activated": activated,
 		"matched": False,
 		"applied": False,
-		"overridden": False,
+		"overridden": bool(skip),
 		"client_ip": client_ip,
 		"matched_ip": None,
 		"ip_mapped_cost_center": "",
-		"cost_center": previous,
-		"previous_cost_center": previous,
+		"cost_center": "",
+		"previous_cost_center": "",
 	}
 
 	if not activated:
@@ -2713,57 +2712,22 @@ def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
 	if not frappe.db.exists("Cost Center", mapped_cc):
 		frappe.throw(_("Mapped Cost Center '{0}' does not exist.").format(mapped_cc))
 
-	applied = False
-	current = previous
-	if skip:
-		# Mid-session manual override — keep whatever branch the user chose.
-		current = previous
-	else:
-		# Every normal auth load / login: IP wins over any existing Cost Center permission.
-		applied = previous != mapped_cc
-		set_cost_center_permission(mapped_cc)
-		current = mapped_cc
-
 	return {
 		"activated": True,
 		"matched": True,
-		"applied": applied,
-		"overridden": bool(skip and previous and previous != mapped_cc),
+		"applied": not skip,
+		"overridden": bool(skip),
 		"client_ip": client_ip,
 		"matched_ip": matched_ip,
 		"ip_mapped_cost_center": mapped_cc,
-		"cost_center": current,
-		"previous_cost_center": previous,
+		"cost_center": mapped_cc,
+		"previous_cost_center": "",
 	}
 
 
-@frappe.whitelist()
-def get_user_cost_center_permission():
-	"""
-	Return the Cost Center currently restricted to the logged-in user via
-	User Permission, plus whether they are exempt (admin / system manager).
-	"""
-	user = frappe.session.user
-	exempt = _user_is_exempt(user)
-
-	return {
-		"cost_center": _current_user_cost_center_permission(user),
-		"is_exempt": exempt,
-	}
-
-
-@frappe.whitelist()
-def set_cost_center_permission(cost_center=None):
-	"""
-	Set (or clear) a Cost Center User Permission for the logged-in user.
-
-	- Deletes any existing ``Cost Center`` User Permission rows for this user first.
-	- If *cost_center* is a non-empty string, creates a fresh User Permission row.
-	- Clear *cost_center* to remove the restriction and see all branches (when permitted).
-	"""
-	user = frappe.session.user
-
-	# ── Remove all existing Cost Center permissions for this user ──────────────
+def _clear_cost_center_user_permissions(user=None):
+	"""Remove Cost Center User Permission rows for the user (portal no longer uses them)."""
+	user = user or frappe.session.user
 	old_perms = frappe.get_all(
 		"User Permission",
 		filters={"user": user, "allow": "Cost Center"},
@@ -2771,25 +2735,32 @@ def set_cost_center_permission(cost_center=None):
 	)
 	for perm in old_perms:
 		frappe.delete_doc("User Permission", perm["name"], ignore_permissions=True, force=True)
-
-	# ── Create new permission if a cost center was supplied ────────────────────
-	if cost_center and cost_center.strip():
-		# Verify the cost center actually exists
-		if not frappe.db.exists("Cost Center", cost_center.strip()):
-			frappe.throw(f"Cost Center '{cost_center}' does not exist.")
-
-		doc = frappe.get_doc({
-			"doctype": "User Permission",
-			"user": user,
-			"allow": "Cost Center",
-			"for_value": cost_center.strip(),
-			"apply_to_all_doctypes": 1,
-		})
-		doc.insert(ignore_permissions=True)
+	if old_perms:
 		frappe.db.commit()
-		return {"status": "set", "cost_center": cost_center.strip()}
 
-	frappe.db.commit()
+
+@frappe.whitelist()
+def get_user_cost_center_permission():
+	"""
+	Legacy compatibility: portal branch is UI-only now, so this returns empty cost_center.
+	"""
+	user = frappe.session.user
+	exempt = _user_is_exempt(user)
+	return {
+		"cost_center": "",
+		"is_exempt": exempt,
+	}
+
+
+@frappe.whitelist()
+def set_cost_center_permission(cost_center=None):
+	"""
+	Deprecated for portal branch switching.
+
+	Clears any Cost Center User Permission for the logged-in user and does **not**
+	create a new one. Portal branch is filtered in the UI only.
+	"""
+	_clear_cost_center_user_permissions()
 	return {"status": "cleared", "cost_center": ""}
 
 

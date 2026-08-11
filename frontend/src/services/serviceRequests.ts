@@ -24,11 +24,56 @@ export interface ServiceRequest {
   amount?: number
   grand_total?: number
   discount?: number
+  /** Raw JSON / parsed basket; may include per-line ``finished`` from Complete. */
+  lab_request_items?: string | Array<Record<string, unknown>>
   lab_request_groups?: Array<{
     template: string
     label: string
     children: Array<{ template: string; label: string }>
   }>
+}
+
+const GROUP_FINISHED_SR_STATUS = 'completed-Request Status'
+
+function parseLabRequestItemsRaw(raw: unknown): Array<Record<string, unknown>> {
+  if (!raw) return []
+  if (Array.isArray(raw)) {
+    return raw.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+  }
+  if (typeof raw === 'string' && raw.trim()) {
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object')
+        : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
+function labRequestItemKey(item: Record<string, unknown>): string {
+  const kind = String(item.kind || '')
+    .trim()
+    .toLowerCase()
+  if (kind === 'group') return String(item.parent || '').trim()
+  return String(item.template || '').trim()
+}
+
+/**
+ * UI-only: all lines on a booked Lab Request were marked Complete (or SR already finished).
+ * Does not change backend status — list still treats the request as Booked.
+ */
+export function isLabRequestTestsCompletedUi(sr: {
+  status?: string
+  lab_request_items?: unknown
+}): boolean {
+  if ((sr.status || '').trim() === GROUP_FINISHED_SR_STATUS) return true
+  const items = parseLabRequestItemsRaw(sr.lab_request_items)
+  const lines = items.filter((item) => labRequestItemKey(item))
+  if (!lines.length) return false
+  return lines.every((item) => Number(item.finished) === 1)
 }
 
 export interface PaginatedServiceRequests {
@@ -47,6 +92,7 @@ export async function fetchServiceRequests(
   patientSearch?: string,
   patientVisit?: string,
   inpatientRecord?: string,
+  booked?: boolean | number,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -59,6 +105,9 @@ export async function fetchServiceRequests(
   if (patientSearch?.trim()) params.append('patient_search', patientSearch.trim())
   if (patientVisit) params.append('patient_visit', patientVisit)
   if (inpatientRecord) params.append('inpatient_record', inpatientRecord)
+  if (booked !== undefined && booked !== null) {
+    params.append('booked', Number(booked) ? '1' : '0')
+  }
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`
@@ -87,6 +136,87 @@ export async function fetchServiceRequest(name: string): Promise<Record<string, 
     throw new Error(resData?.message || resData?.exc || 'Failed to fetch service request')
   }
   throw new Error('Failed to fetch service request')
+}
+
+export interface LabRequestReviewTest {
+  template: string
+  test_code: string
+  test_name: string
+  price: number
+  result_type: string
+  uom: string
+  min_value?: string | null
+  max_value?: string | null
+  normal_range?: string
+  price_included_in_group?: number
+  lab_test?: string | null
+  lab_test_status?: string | null
+  lab_test_docstatus?: number | null
+  sample_collection?: string | null
+  custom_result?: string | null
+}
+
+export interface LabRequestReviewGroup {
+  kind: 'group' | 'single' | string
+  template: string
+  group_code: string
+  group_name: string
+  is_group?: number
+  /** Set when this group was marked Complete (per-group; request may still be Booked). */
+  finished?: number
+  tests: LabRequestReviewTest[]
+  test_count: number
+  total_price: number
+}
+
+export interface LabRequestReview {
+  name: string
+  patient: string
+  patient_name?: string
+  practitioner?: string
+  practitioner_name?: string
+  status?: string
+  /** Raw Service Request.status (for Finish Group / finished tracking). */
+  service_request_status?: string
+  booked?: number
+  order_date?: string
+  order_time?: string
+  template_name?: string
+  cost_center?: string
+  groups: LabRequestReviewGroup[]
+  group_count: number
+  test_count: number
+  total_price: number
+  lab_tests?: Array<{
+    name: string
+    template?: string
+    lab_test_name?: string
+    status?: string
+    docstatus?: number
+    sample_collection?: string
+    is_group_lab_test?: number
+    lab_test_group?: string
+    patient?: string
+    patient_name?: string
+    practitioner?: string
+    practitioner_name?: string
+  }>
+}
+
+/** Lab page only: booked Lab Request review (groups + child tests). */
+export async function fetchLabRequestReview(name: string): Promise<LabRequestReview> {
+  const response = await fetch(
+    `/api/method/healthcare.api.service_request.get_lab_request_review?name=${encodeURIComponent(name)}`
+  )
+  const resData = await response.json()
+  if (resData?.message && typeof resData.message === 'object') {
+    return resData.message as LabRequestReview
+  }
+  const msg =
+    (typeof resData?.message === 'string' && resData.message) ||
+    resData?._server_messages ||
+    'Failed to load Lab Request'
+  throw new Error(typeof msg === 'string' ? msg : 'Failed to load Lab Request')
 }
 
 export interface UpdateServiceRequestData {

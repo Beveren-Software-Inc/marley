@@ -1,9 +1,4 @@
-import { ensureCSRF } from './apiClient'
-
-export interface CostCenterPermissionState {
-  cost_center: string
-  is_exempt: boolean
-}
+/** Portal branch is UI-only (localStorage). Do not create Cost Center User Permissions. */
 
 export interface IpMapperBranchResult {
   activated: boolean
@@ -18,10 +13,31 @@ export interface IpMapperBranchResult {
   previous_cost_center: string
 }
 
+export const PORTAL_BRANCH_STORAGE_KEY = 'healthcare_portal_branch'
 /** Session flag: user manually picked a branch other than the IP-mapped one. */
 export const IP_BRANCH_OVERRIDE_KEY = 'healthcare_ip_branch_override'
-/** Set on login so the next apply ignores any leftover override and forces IP branch. */
+/** Set on login so the next resolve ignores override and uses IP branch. */
 export const IP_BRANCH_FORCE_ON_AUTH_KEY = 'healthcare_force_ip_on_auth'
+
+export function getPortalBranch(): string {
+  try {
+    if (typeof localStorage === 'undefined') return ''
+    return (localStorage.getItem(PORTAL_BRANCH_STORAGE_KEY) || '').trim()
+  } catch {
+    return ''
+  }
+}
+
+export function setPortalBranch(costCenter: string) {
+  try {
+    if (typeof localStorage === 'undefined') return
+    const value = (costCenter || '').trim()
+    if (value) localStorage.setItem(PORTAL_BRANCH_STORAGE_KEY, value)
+    else localStorage.removeItem(PORTAL_BRANCH_STORAGE_KEY)
+  } catch {
+    /* ignore */
+  }
+}
 
 export function hasIpBranchOverride(): boolean {
   try {
@@ -41,7 +57,7 @@ export function setIpBranchOverride(active: boolean) {
   }
 }
 
-/** Call on login/logout: next authenticated load must follow network IP, not an old branch permission. */
+/** Call on login: next resolve must follow network IP, not a mid-session override. */
 export function markForceIpBranchOnAuth() {
   try {
     if (typeof sessionStorage === 'undefined') return
@@ -74,16 +90,6 @@ function consumeForceIpBranchOnAuth(): boolean {
   }
 }
 
-export async function getUserCostCenterPermission(): Promise<CostCenterPermissionState> {
-  const res = await fetch('/api/method/healthcare.api.common.get_user_cost_center_permission', {
-    credentials: 'include',
-    headers: { Accept: 'application/json' },
-  })
-  const data = await res.json()
-  if (data?.message) return data.message
-  throw new Error('Failed to load branch preference')
-}
-
 function isLocalBenchHost(): boolean {
   if (typeof window === 'undefined') return false
   const host = (window.location.hostname || '').toLowerCase()
@@ -104,19 +110,14 @@ async function detectPublicEgressIp(): Promise<string | null> {
 }
 
 /**
- * Auto-set Cost Center from Healthcare Settings IP Mapper when Activate IP Mapper is on.
- * Uses GET to avoid CSRF races right after login.
- *
- * On login (`markForceIpBranchOnAuth`), always applies the IP-mapped branch even if the
- * user still has a User Permission for another cost center. Mid-session manual overrides
- * are respected until the next login.
+ * Resolve IP → branch. Never creates User Permissions.
+ * On login force, writes the mapped branch into localStorage (UI filter only).
  */
 export async function applyBranchFromIpMapper(opts?: {
   skipApply?: boolean
 }): Promise<IpMapperBranchResult> {
   const forceOnAuth = consumeForceIpBranchOnAuth()
   const params = new URLSearchParams()
-  // Never skip after a fresh login; otherwise skip only for an explicit mid-session override.
   const skipApply = !forceOnAuth && (opts?.skipApply || hasIpBranchOverride())
   if (skipApply) {
     params.set('skip_apply', '1')
@@ -135,35 +136,22 @@ export async function applyBranchFromIpMapper(opts?: {
     headers: { Accept: 'application/json' },
   })
   const data = await res.json()
-  if (data?.message) return data.message as IpMapperBranchResult
-  const exc = data?._server_messages || data?.exc
-  throw new Error(
-    exc
-      ? JSON.parse(JSON.parse(exc)?.[0])?.message ?? 'Failed to resolve branch from IP'
-      : 'Failed to resolve branch from IP',
-  )
-}
+  if (!data?.message) {
+    const exc = data?._server_messages || data?.exc
+    throw new Error(
+      exc
+        ? JSON.parse(JSON.parse(exc)?.[0])?.message ?? 'Failed to resolve branch from IP'
+        : 'Failed to resolve branch from IP',
+    )
+  }
 
-export async function setUserCostCenterPermission(
-  cost_center: string,
-): Promise<{ status: string; cost_center: string; message?: string }> {
-  const csrf = (await ensureCSRF()) ?? ''
-  const body = new URLSearchParams()
-  body.set('cost_center', cost_center)
-  const res = await fetch('/api/method/healthcare.api.common.set_cost_center_permission', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'X-Frappe-CSRF-Token': csrf,
-      Accept: 'application/json',
-    },
-    body: body.toString(),
-  })
-  const data = await res.json()
-  if (data?.message) return data.message
-  const exc = data?._server_messages || data?.exc
-  throw new Error(
-    exc ? JSON.parse(JSON.parse(exc)?.[0])?.message ?? 'Failed to save branch' : 'Failed to save branch',
-  )
+  const result = data.message as IpMapperBranchResult
+  const mapped = (result.ip_mapped_cost_center || result.cost_center || '').trim()
+
+  // UI-only: persist portal branch in localStorage when IP applies (not during override).
+  if (result.matched && mapped && !skipApply) {
+    setPortalBranch(mapped)
+  }
+
+  return result
 }

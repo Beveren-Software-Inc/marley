@@ -710,6 +710,7 @@ import { useCareContext } from '../providers/CareContextProvider'
 import { FlaskConical, Droplet, History, Clock } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
+import { LabBookedRequestList } from '../components/labTests/LabBookedRequestList'
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
@@ -1118,7 +1119,7 @@ export const LabPage = () => {
           className="flex-1 min-h-0"
           openListingTitle={`Expand ${activeCard.title}`}
           filterable={false}
-          {...(resolvedTab === 'pending-lab-tests' || resolvedTab === 'lab-tests'
+          {...(resolvedTab === 'lab-tests'
             ? {
                 headerExtra: labTestSaveHeader,
                 onAdd: () => setShowLabTestModal(true),
@@ -1127,13 +1128,11 @@ export const LabPage = () => {
             : {})}
         >
           {resolvedTab === 'pending-lab-tests' && (
-            <LabTestList
+            <LabBookedRequestList
               patient={selectedPatient}
-              key={labTestRefreshKey}
+              refreshKey={labTestRefreshKey}
               onPatientClick={handlePatientSelect}
               hideAmount={isLabTechnologist}
-              pipelinePending
-              {...batchListProps}
             />
           )}
           {resolvedTab === 'lab-tests' && (

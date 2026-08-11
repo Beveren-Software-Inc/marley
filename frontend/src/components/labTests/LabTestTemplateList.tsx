@@ -21,6 +21,8 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
   const [searchQuery, setSearchQuery] = useState('')
   const [dropdownOpen, setDropdownOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  /** Active = not disabled; Inactive = disabled. Default Active only. */
+  const [statusFilter, setStatusFilter] = useState<'Active' | 'Inactive'>('Active')
 
   // 3-dot action menu
   const [openMenuRow, setOpenMenuRow] = useState<string | null>(null)
@@ -38,7 +40,6 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
     try {
       const data = await fetchLabTestTemplateList()
       setAllRows(data)
-      setRows(data)
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to load templates')
     } finally {
@@ -48,21 +49,33 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
 
   useEffect(() => { load() }, [load])
 
-  // Filter rows when search query changes
+  const statusMatched = useCallback(
+    (r: LabTestTemplateListRow) => {
+      const isDisabled = Boolean(r.disabled)
+      return statusFilter === 'Inactive' ? isDisabled : !isDisabled
+    },
+    [statusFilter]
+  )
+
+  // Filter rows when search / status changes
   useEffect(() => {
+    const byStatus = allRows.filter(statusMatched)
     if (!searchQuery.trim()) {
-      setRows(allRows)
+      setRows(byStatus)
     } else {
       const q = searchQuery.toLowerCase()
-      setRows(allRows.filter(r =>
-        r.name.toLowerCase().includes(q) ||
-        (r.lab_test_name || '').toLowerCase().includes(q) ||
-        (r.lab_test_code || '').toLowerCase().includes(q) ||
-        (r.department || '').toLowerCase().includes(q) ||
-        (r.lab_test_template_type || '').toLowerCase().includes(q)
-      ))
+      setRows(
+        byStatus.filter(
+          (r) =>
+            r.name.toLowerCase().includes(q) ||
+            (r.lab_test_name || '').toLowerCase().includes(q) ||
+            (r.lab_test_code || '').toLowerCase().includes(q) ||
+            (r.department || '').toLowerCase().includes(q) ||
+            (r.lab_test_template_type || '').toLowerCase().includes(q)
+        )
+      )
     }
-  }, [searchQuery, allRows])
+  }, [searchQuery, allRows, statusMatched])
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -78,17 +91,20 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Suggestions shown in the dropdown (max 8)
-  const suggestions = searchQuery.trim()
-    ? allRows.filter((r) => {
-        const q = searchQuery.toLowerCase()
-        return (
+  // Suggestions shown in the dropdown (max 8) — respect status filter
+  const suggestions = (() => {
+    const pool = allRows.filter(statusMatched)
+    if (!searchQuery.trim()) return pool.slice(0, 8)
+    const q = searchQuery.toLowerCase()
+    return pool
+      .filter(
+        (r) =>
           r.name.toLowerCase().includes(q) ||
           (r.lab_test_name || '').toLowerCase().includes(q) ||
           (r.lab_test_code || '').toLowerCase().includes(q)
-        )
-      }).slice(0, 8)
-    : allRows.slice(0, 8)
+      )
+      .slice(0, 8)
+  })()
 
   const handleSuggestionClick = (row: LabTestTemplateListRow) => {
     setSearchQuery(row.lab_test_name || row.name)
@@ -98,46 +114,56 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
 
   const handleSearchClear = () => {
     setSearchQuery('')
-    setRows(allRows)
     setDropdownOpen(false)
   }
 
   return (
     <div className="flex flex-col gap-3">
-      {/* Dropdown search */}
-      <div ref={searchRef} className="relative w-full max-w-xs">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => { setSearchQuery(e.target.value); setDropdownOpen(true) }}
-          onFocus={() => setDropdownOpen(true)}
-          placeholder="Search templates…"
-          className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-7"
-        />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={handleSearchClear}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
-          >
-            ✕
-          </button>
-        )}
-        {dropdownOpen && suggestions.length > 0 && (
-          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-52 overflow-y-auto">
-            {suggestions.map(s => (
-              <button
-                key={s.name}
-                type="button"
-                onClick={() => handleSuggestionClick(s)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2"
-              >
-                <span className="font-medium text-slate-800">{s.lab_test_name || s.name}</span>
-                {s.department && <span className="text-xs text-slate-400 shrink-0">{s.department}</span>}
-              </button>
-            ))}
-          </div>
-        )}
+      {/* Search + status filter */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div ref={searchRef} className="relative w-full max-w-xs">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => { setSearchQuery(e.target.value); setDropdownOpen(true) }}
+            onFocus={() => setDropdownOpen(true)}
+            placeholder="Search templates…"
+            className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary pr-7"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={handleSearchClear}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs"
+            >
+              ✕
+            </button>
+          )}
+          {dropdownOpen && suggestions.length > 0 && (
+            <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-52 overflow-y-auto">
+              {suggestions.map(s => (
+                <button
+                  key={s.name}
+                  type="button"
+                  onClick={() => handleSuggestionClick(s)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2"
+                >
+                  <span className="font-medium text-slate-800">{s.lab_test_name || s.name}</span>
+                  {s.department && <span className="text-xs text-slate-400 shrink-0">{s.department}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <select
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as 'Active' | 'Inactive')}
+          className="rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary"
+          aria-label="Status"
+        >
+          <option value="Active">Active</option>
+          <option value="Inactive">Inactive</option>
+        </select>
       </div>
 
       {loading && <div className="text-center text-sm text-slate-400 py-4">Loading…</div>}
@@ -160,16 +186,18 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">G-Max</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Rate</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Group</th>
-                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Billable</th>
-                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Status</th>
                 <th className="px-2 py-2 w-8">Actions</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={16} className="text-center text-slate-400 py-6">
-                    {searchQuery ? 'No templates match your search' : 'NO LAB TEST TEMPLATES FOUND'}
+                  <td colSpan={14} className="text-center text-slate-400 py-6">
+                    {searchQuery
+                      ? 'No templates match your search'
+                      : statusFilter === 'Inactive'
+                        ? 'No inactive templates'
+                        : 'NO LAB TEST TEMPLATES FOUND'}
                   </td>
                 </tr>
               )}
@@ -204,20 +232,6 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                       <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-violet-100 text-violet-700 font-medium">Group</span>
                     ) : (
                       <span className="text-slate-400 text-xs">—</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.is_billable ? (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-green-100 text-green-700">Yes</span>
-                    ) : (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-slate-100 text-slate-500">No</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2">
-                    {row.disabled ? (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-600">Disabled</span>
-                    ) : (
-                      <span className="inline-block px-1.5 py-0.5 rounded text-xs bg-emerald-100 text-emerald-700">Active</span>
                     )}
                   </td>
 

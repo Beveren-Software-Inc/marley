@@ -12,7 +12,7 @@ import {
   type HealthcareServiceTemplateOption,
 } from '../../services/sessionSchedule'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
-import { getUserCostCenterPermission } from '../../services/costCenterPermission'
+import { getPortalBranch } from '../../services/costCenterPermission'
 import { fetchInpatientRecords, type InpatientRecord } from '../../services/inpatientRecords'
 import { toast } from '../../hooks/useToast'
 import { X, ChevronDown } from 'lucide-react'
@@ -170,15 +170,11 @@ export const CreateSessionScheduleModal = ({
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
 
-  // Global branch auto-applies as the default.
+  // Global portal branch auto-applies as the default (UI filter only).
   useEffect(() => {
-    getUserCostCenterPermission()
-      .then((perm) => {
-        const cc = perm?.cost_center
-        if (!cc) return
-        setFormData((prev) => (prev.cost_center ? prev : { ...prev, cost_center: cc }))
-      })
-      .catch(() => {})
+    const cc = getPortalBranch()
+    if (!cc) return
+    setFormData((prev) => (prev.cost_center ? prev : { ...prev, cost_center: cc }))
   }, [])
 
   // Admissions (IP)
