@@ -1,5 +1,6 @@
 import { useState, useEffect, createContext, useContext, type ReactNode } from 'react'
 import healthcareAuth from '../services/auth'
+import { clearIpBranchSessionFlags, markForceIpBranchOnAuth } from '../services/costCenterPermission'
 
 interface User {
   name: string
@@ -169,6 +170,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           roles: Array.isArray((result.user as any).roles) ? (result.user as any).roles : undefined
         }
 
+        // Always pick branch from client IP on login, even if another Cost Center permission exists.
+        markForceIpBranchOnAuth()
         setUser(userData)
         localStorage.setItem('healthcare_token', 'authenticated')
         localStorage.setItem('user_data', JSON.stringify(userData))
@@ -189,6 +192,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       // Clear user state first to prevent any re-authentication
       setUser(null)
+      clearIpBranchSessionFlags()
       localStorage.removeItem('healthcare_token')
       localStorage.removeItem('user_data')
       localStorage.removeItem('healthcare_sid')
@@ -199,6 +203,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('Logout error:', error)
       // Even if logout fails, ensure state is cleared
       setUser(null)
+      clearIpBranchSessionFlags()
       localStorage.removeItem('healthcare_token')
       localStorage.removeItem('user_data')
       localStorage.removeItem('healthcare_sid')

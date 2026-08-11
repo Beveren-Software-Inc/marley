@@ -20,6 +20,8 @@ export interface IpMapperBranchResult {
 
 /** Session flag: user manually picked a branch other than the IP-mapped one. */
 export const IP_BRANCH_OVERRIDE_KEY = 'healthcare_ip_branch_override'
+/** Set on login so the next apply ignores any leftover override and forces IP branch. */
+export const IP_BRANCH_FORCE_ON_AUTH_KEY = 'healthcare_force_ip_on_auth'
 
 export function hasIpBranchOverride(): boolean {
   try {
@@ -36,6 +38,39 @@ export function setIpBranchOverride(active: boolean) {
     else sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
   } catch {
     /* ignore */
+  }
+}
+
+/** Call on login/logout: next authenticated load must follow network IP, not an old branch permission. */
+export function markForceIpBranchOnAuth() {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
+    sessionStorage.setItem(IP_BRANCH_FORCE_ON_AUTH_KEY, '1')
+  } catch {
+    /* ignore */
+  }
+}
+
+export function clearIpBranchSessionFlags() {
+  try {
+    if (typeof sessionStorage === 'undefined') return
+    sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
+    sessionStorage.removeItem(IP_BRANCH_FORCE_ON_AUTH_KEY)
+  } catch {
+    /* ignore */
+  }
+}
+
+function consumeForceIpBranchOnAuth(): boolean {
+  try {
+    if (typeof sessionStorage === 'undefined') return false
+    if (sessionStorage.getItem(IP_BRANCH_FORCE_ON_AUTH_KEY) !== '1') return false
+    sessionStorage.removeItem(IP_BRANCH_FORCE_ON_AUTH_KEY)
+    sessionStorage.removeItem(IP_BRANCH_OVERRIDE_KEY)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -71,12 +106,19 @@ async function detectPublicEgressIp(): Promise<string | null> {
 /**
  * Auto-set Cost Center from Healthcare Settings IP Mapper when Activate IP Mapper is on.
  * Uses GET to avoid CSRF races right after login.
+ *
+ * On login (`markForceIpBranchOnAuth`), always applies the IP-mapped branch even if the
+ * user still has a User Permission for another cost center. Mid-session manual overrides
+ * are respected until the next login.
  */
 export async function applyBranchFromIpMapper(opts?: {
   skipApply?: boolean
 }): Promise<IpMapperBranchResult> {
+  const forceOnAuth = consumeForceIpBranchOnAuth()
   const params = new URLSearchParams()
-  if (opts?.skipApply || hasIpBranchOverride()) {
+  // Never skip after a fresh login; otherwise skip only for an explicit mid-session override.
+  const skipApply = !forceOnAuth && (opts?.skipApply || hasIpBranchOverride())
+  if (skipApply) {
     params.set('skip_apply', '1')
   }
   if (isLocalBenchHost()) {

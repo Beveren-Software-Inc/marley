@@ -2716,9 +2716,10 @@ def apply_branch_from_ip_mapper(reported_public_ip=None, skip_apply=0):
 	applied = False
 	current = previous
 	if skip:
-		# Manual override for this session — keep whatever branch the user chose.
+		# Mid-session manual override — keep whatever branch the user chose.
 		current = previous
 	else:
+		# Every normal auth load / login: IP wins over any existing Cost Center permission.
 		applied = previous != mapped_cc
 		set_cost_center_permission(mapped_cc)
 		current = mapped_cc
