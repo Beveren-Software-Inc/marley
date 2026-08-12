@@ -15,8 +15,14 @@ def create_sales_order_from_package_quotation(doc, method=None):
 
 	Controlled by Healthcare Settings → Create Sales Order on Quotation Submission.
 	When that checkbox is off, the quotation submits without creating a Sales Order.
+
+	Skipped when ``frappe.flags.healthcare_skip_package_auto_so`` is set (Charge Package
+	to Today submits a draft Quotation then creates a **partial** Sales Order itself).
 	"""
 	if doc.doctype != "Quotation" or doc.docstatus != 1:
+		return
+
+	if getattr(frappe.flags, "healthcare_skip_package_auto_so", False):
 		return
 
 	if not frappe.db.get_single_value(

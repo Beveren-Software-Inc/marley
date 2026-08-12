@@ -193,6 +193,9 @@ def _admission_sales_orders(admission):
 	Billing lists use ``custom_reference_type/name`` = Inpatient Admission.
 	``custom_base_reference`` is the underlying source doc (Lab Test, Service Request,
 	Discharge, etc.) — not the admission — so SOA must not filter on base alone.
+
+	Package mid-stay charges may only be linked via Package Detail / Quotation
+	(when SO references were not copied) — those are included too.
 	"""
 	fields = [
 		"name",
@@ -227,7 +230,118 @@ def _admission_sales_orders(admission):
 			limit_page_length=0,
 		):
 			by_name[row.name] = row
+
+	# Package Detail → Sales Order (Charge Package to Today / admit package)
+	if frappe.db.has_column("Package Detail", "sales_order"):
+		pd_sos = frappe.get_all(
+			"Package Detail",
+			filters={"admission_no": admission, "sales_order": ["is", "set"]},
+			pluck="sales_order",
+			limit_page_length=0,
+		)
+		missing = [n for n in set(pd_sos or []) if n and n not in by_name]
+		if missing:
+			for row in frappe.get_all(
+				"Sales Order",
+				filters={"name": ["in", missing], "docstatus": ["<", 2]},
+				fields=fields,
+				limit_page_length=0,
+			):
+				by_name[row.name] = row
+
+	# Package Quotation → Sales Order Item.prevdoc_docname
+	quote_names = frappe.get_all(
+		"Quotation",
+		filters={
+			"custom_inpatient_admission": admission,
+			"docstatus": 1,
+			"custom_package": ["is", "set"],
+		},
+		pluck="name",
+		limit_page_length=0,
+	)
+	if quote_names:
+		so_from_q = frappe.get_all(
+			"Sales Order Item",
+			filters={"prevdoc_docname": ["in", quote_names], "docstatus": ["<", 2]},
+			pluck="parent",
+			limit_page_length=0,
+		)
+		missing = [n for n in set(so_from_q or []) if n and n not in by_name]
+		if missing:
+			for row in frappe.get_all(
+				"Sales Order",
+				filters={"name": ["in", missing], "docstatus": ["<", 2]},
+				fields=fields,
+				limit_page_length=0,
+			):
+				by_name[row.name] = row
+
 	return sorted(by_name.values(), key=lambda r: (str(r.transaction_date or ""), str(r.creation or "")))
+
+
+def _admission_package_quotation_lines(admission):
+	"""Package Quotation item lines not yet covered by a Sales Order (SOA fallback).
+
+	When 'Create Sales Order on Quotation Submission' is off, Package Detail still
+	marks days billed but SOA would otherwise miss the charge.
+	"""
+	quotes = frappe.get_all(
+		"Quotation",
+		filters={
+			"custom_inpatient_admission": admission,
+			"docstatus": 1,
+			"custom_package": ["is", "set"],
+		},
+		fields=["name", "transaction_date"],
+		limit_page_length=0,
+	)
+	if not quotes:
+		return []
+
+	qnames = [q.name for q in quotes]
+	linked = set(
+		frappe.get_all(
+			"Sales Order Item",
+			filters={"prevdoc_docname": ["in", qnames], "docstatus": ["<", 2]},
+			pluck="prevdoc_docname",
+			limit_page_length=0,
+		)
+		or []
+	)
+
+	lines = []
+	for q in quotes:
+		if q.name in linked:
+			continue
+		items = frappe.get_all(
+			"Quotation Item",
+			filters={"parent": q.name},
+			fields=[
+				"item_code",
+				"item_name",
+				"item_group",
+				"qty",
+				"rate",
+				"amount",
+				"price_list_rate",
+				"discount_amount",
+				"discount_percentage",
+			],
+			limit_page_length=0,
+		)
+		for it in items:
+			list_rate = flt(it.price_list_rate) or flt(it.rate) + flt(it.discount_amount)
+			lines.append(
+				_soa_line_from_item(
+					it,
+					rate=list_rate,
+					amount=flt(it.amount),
+					discount_amount=flt(it.discount_amount),
+					discount_percentage=it.discount_percentage,
+				)
+			)
+	return lines
 
 
 def _admission_payments(admission, from_date=None, to_date=None):
@@ -478,6 +592,9 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 				)
 			)
 
+	# Package quotations with no Sales Order (settings off / mapping failed)
+	raw_lines.extend(_admission_package_quotation_lines(admission))
+
 	# Aggregate identical services: same item + display rate
 	lines = {}
 	for it in raw_lines:
@@ -536,8 +653,10 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	discount_total = round(discount_total + unbilled_so_header_disc, 3)
 	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
-	paid_total = round(sum(flt(e.paid_amount) for e in _admission_payments(admission)), 3)
+	paid_entries = _admission_payments(admission)
+	paid_total = round(sum(flt(e.paid_amount) for e in paid_entries), 3)
 	net_total = round(bill_total - discount_total, 3)
+	pay_block = _soa_payment_payload(paid_entries, adm.patient, case_no=adm.name)
 
 	return {
 		"admission": adm.name,
@@ -556,6 +675,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		"paid_total": paid_total,
 		"net_total": net_total,
 		"balance": round(net_total - paid_total, 3),
+		**pay_block,
 	}
 
 
@@ -674,6 +794,111 @@ def _visit_payments(visit: str, from_date=None, to_date=None):
 		order_by="posting_date, creation",
 		limit_page_length=0,
 	)
+
+
+def _payments_by_mode(entries):
+	"""Aggregate Payment Entries into [{mode, amount}, ...] + detail rows."""
+	by_mode = {}
+	details = []
+	for e in entries or []:
+		mode = (e.get("mode_of_payment") or "Other").strip() or "Other"
+		amt = flt(e.get("paid_amount"))
+		by_mode[mode] = by_mode.get(mode, 0.0) + amt
+		details.append(
+			{
+				"rv_no": e.get("name"),
+				"rv_date": str(e.get("posting_date") or ""),
+				"mode_of_payment": mode,
+				"amount": round(amt, 3),
+				"status": "Paid",
+			}
+		)
+	modes = [
+		{"mode": m, "amount": round(a, 3)}
+		for m, a in sorted(by_mode.items(), key=lambda x: (-x[1], x[0]))
+	]
+	return modes, details
+
+
+def _soa_patient_advances(patient, case_no=None):
+	"""Unallocated Receive payments = patient advance credit still held on account.
+	Shown on SOA as Paid (not yet applied to invoices).
+	"""
+	if not patient:
+		return [], 0.0
+	customer = frappe.db.get_value("Patient", patient, "customer")
+	if not customer:
+		return [], 0.0
+
+	pe_meta = frappe.get_meta("Payment Entry")
+	fields = [
+		"name",
+		"posting_date",
+		"mode_of_payment",
+		"paid_amount",
+		"unallocated_amount",
+	]
+	has_case = pe_meta.has_field("custom_case_no")
+	if has_case:
+		fields.append("custom_case_no")
+
+	rows = frappe.get_all(
+		"Payment Entry",
+		filters={
+			"docstatus": 1,
+			"payment_type": "Receive",
+			"party_type": "Customer",
+			"party": customer,
+			"unallocated_amount": [">", 0],
+		},
+		fields=fields,
+		order_by="posting_date, creation",
+		limit_page_length=0,
+	)
+
+	advances = []
+	total = 0.0
+	case_no = (case_no or "").strip() or None
+	for r in rows:
+		pe_case = (r.get("custom_case_no") or "").strip() if has_case else ""
+		if case_no and pe_case and pe_case != case_no:
+			continue
+		unalloc = flt(r.get("unallocated_amount"))
+		if unalloc <= 0:
+			continue
+		mode = (r.get("mode_of_payment") or "Other").strip() or "Other"
+		advances.append(
+			{
+				"rv_no": r.get("name"),
+				"rv_date": str(r.get("posting_date") or ""),
+				"mode_of_payment": mode,
+				"amount": round(unalloc, 3),
+				"paid_amount": round(flt(r.get("paid_amount")), 3),
+				"status": "Paid",
+			}
+		)
+		total += unalloc
+	return advances, round(total, 3)
+
+
+def _soa_payment_payload(payment_entries, patient, case_no=None):
+	"""Shared payment + advance block for IP/OP Statement of Account."""
+	modes, details = _payments_by_mode(payment_entries)
+	advances, advance_total = _soa_patient_advances(patient, case_no=case_no)
+	advance_by_mode = {}
+	for a in advances:
+		m = a["mode_of_payment"]
+		advance_by_mode[m] = advance_by_mode.get(m, 0.0) + flt(a["amount"])
+	return {
+		"payments_by_mode": modes,
+		"payments": details,
+		"advances": advances,
+		"advance_total": advance_total,
+		"advances_by_mode": [
+			{"mode": m, "amount": round(a, 3)}
+			for m, a in sorted(advance_by_mode.items(), key=lambda x: (-x[1], x[0]))
+		],
+	}
 
 
 def _soa_aggregate_lines(sos, invoices):
@@ -938,11 +1163,21 @@ def _build_op_soa(
 
 	by_category, bill_total, discount_total = _soa_aggregate_lines(sos, invoices)
 
-	paid_total = 0.0
+	paid_entries = []
+	seen_pe = set()
 	for v in visits:
-		paid_total += sum(flt(e.paid_amount) for e in _visit_payments(v, from_date, to_date))
-	paid_total = round(paid_total, 3)
+		for e in _visit_payments(v, from_date, to_date):
+			if e.name in seen_pe:
+				continue
+			seen_pe.add(e.name)
+			paid_entries.append(e)
+	paid_total = round(sum(flt(e.paid_amount) for e in paid_entries), 3)
 	net_total = round(bill_total - discount_total, 3)
+	pay_block = _soa_payment_payload(
+		paid_entries,
+		patient,
+		case_no=header_visit or None,
+	)
 
 	doctor_name = None
 	visit_date = None
@@ -990,4 +1225,5 @@ def _build_op_soa(
 		"from_date": from_date,
 		"to_date": to_date,
 		"visit_count": len(visits),
+		**pay_block,
 	}
