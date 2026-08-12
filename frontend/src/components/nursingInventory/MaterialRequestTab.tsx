@@ -271,6 +271,52 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
     }
   }
 
+  /** Fulfillment label — avoid bare "Pending" colliding with approval "Pending". */
+  const supplyStatusLabel = (status: string) => {
+    if (status === 'Pending') return 'Awaiting stock'
+    return status
+  }
+
+  const getWorkflowColor = (state: string) => {
+    const s = state.toLowerCase()
+    if (s.includes('approv') && !s.includes('pending') && !s.includes('await')) {
+      return 'bg-emerald-50 text-emerald-800 ring-1 ring-emerald-200'
+    }
+    if (s.includes('reject') || s.includes('cancel')) {
+      return 'bg-red-50 text-red-800 ring-1 ring-red-200'
+    }
+    if (s.includes('pending') || s.includes('review') || s.includes('draft')) {
+      return 'bg-violet-50 text-violet-800 ring-1 ring-violet-200'
+    }
+    return 'bg-slate-50 text-slate-700 ring-1 ring-slate-200'
+  }
+
+  const renderStatusPair = (status: string, workflowState?: string | null, size: 'sm' | 'md' = 'md') => {
+    const pad = size === 'sm' ? 'px-1.5 py-0.5 text-[10px]' : 'px-2 py-0.5 text-xs'
+    const wf = (workflowState || '').trim()
+    return (
+      <span className="inline-flex flex-wrap items-center gap-1.5">
+        {wf ? (
+          <span
+            className={`inline-flex items-center gap-1 rounded-full font-medium ${pad} ${getWorkflowColor(wf)}`}
+            title="Workflow approval"
+          >
+            <span className="opacity-70 font-normal">Approval</span>
+            {wf}
+          </span>
+        ) : null}
+        <span
+          className={`inline-flex items-center gap-1 rounded-full font-medium ${pad} ${getStatusColor(status)}`}
+          title="Stock / supply progress"
+        >
+          {getStatusIcon(status)}
+          <span className="opacity-70 font-normal">Supply</span>
+          {supplyStatusLabel(status)}
+        </span>
+      </span>
+    )
+  }
+
   return (
     <div className="space-y-6">
       {/* Header Actions */}
@@ -491,12 +537,9 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                 <div key={request.name} className="p-4 hover:bg-slate-50 transition">
                   <div className="flex justify-between items-start mb-2">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium text-slate-900">{request.name}</span>
-                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(request.status)}`}>
-                          {getStatusIcon(request.status)}
-                          {request.status}
-                        </span>
+                        {renderStatusPair(request.status, request.workflow_state)}
                         {request.is_medical != null ? (
                           <span
                             className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -574,9 +617,11 @@ export const MaterialRequestTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                   </div>
                   <div>
                     <label className="text-xs text-slate-500">Status</label>
-                    <p className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${getStatusColor(selectedRequest.status)}`}>
-                      {getStatusIcon(selectedRequest.status)}
-                      {selectedRequest.status}
+                    <div className="mt-1">
+                      {renderStatusPair(selectedRequest.status, selectedRequest.workflow_state)}
+                    </div>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      Approval = workflow · Supply = transfer / purchase progress
                     </p>
                   </div>
                   {selectedRequest.is_medical != null ? (

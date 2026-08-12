@@ -983,9 +983,12 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         "material_request_type",
         "per_ordered",
         "per_received",
+        "docstatus",
     ]
     if mr_meta.has_field("custom_is_medical"):
         fields.append("custom_is_medical as is_medical")
+    if mr_meta.has_field("workflow_state"):
+        fields.append("workflow_state")
 
     requests = frappe.get_all(
         "Material Request",
@@ -1017,6 +1020,8 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         req["requested_by"] = frappe.db.get_value("Material Request", req["name"], "owner")
         if "is_medical" in req:
             req["is_medical"] = 1 if cint(req.get("is_medical")) else 0
+        # Normalize for portal UI (approval vs supply/fulfillment).
+        req["workflow_state"] = (req.get("workflow_state") or "").strip() or None
 
     return requests
 
