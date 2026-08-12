@@ -345,6 +345,8 @@ export interface CreateServiceRequestData {
   practitioner?: string
   patient_visit?: string
   inpatient_record?: string
+  /** OP or IP — selects Lab Test Template op_rate vs lab_test_rate (IP Rate). */
+  patient_care_type?: string
   order_date?: string
   order_time?: string
   department?: string

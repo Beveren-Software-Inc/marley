@@ -67,6 +67,7 @@ def _get_template_base_rate(template_dt: str, template_dn: str, patient_care_typ
     Healthcare Service Template (OP): ``op_rate`` when > 0, else ``rate``.
     Healthcare Service Template (IP): ``rate``.
     Lab Test Template (OP): ``op_rate`` when > 0, else ``lab_test_rate`` / ``rate`` / ``amount``.
+    Lab Test Template (IP): ``lab_test_rate`` / ``rate`` / ``amount``.
     """
 
     if template_dt == "Healthcare Service Template":
@@ -113,6 +114,32 @@ def _get_template_base_rate(template_dt: str, template_dn: str, patient_care_typ
         return float(first_pricing[0]["price"])
 
     return 0.0
+
+
+def _resolve_patient_care_type(
+	patient_care_type: str | None = None,
+	patient_visit: str | None = None,
+	inpatient_record: str | None = None,
+) -> str | None:
+	"""Normalize OP/IP from explicit care type or visit/admission context."""
+	explicit = (patient_care_type or "").strip().upper()
+	if explicit in ("OP", "IP"):
+		return explicit
+	if patient_visit:
+		return "OP"
+	if inpatient_record:
+		return "IP"
+	return None
+
+
+def _lab_template_list_rate(row: dict, patient_care_type: str | None = None) -> float:
+	"""Pick OP (op_rate) or IP (lab_test_rate) list price for a Lab Test Template row."""
+	care = (patient_care_type or "").strip().upper()
+	op = flt(row.get("op_rate") or 0)
+	ip = flt(row.get("lab_test_rate") or 0)
+	if care == "OP":
+		return op if op > 0 else ip
+	return ip if ip > 0 else op
 # def _get_template_base_rate(template_dt: str, template_dn: str) -> float:
 # 	"""Resolve base rate from template document."""
 # 	base = frappe.db.get_value(
@@ -769,7 +796,7 @@ def _lab_result_type_label(template_type=None, is_multiple=0):
 	return tt or "Single"
 
 
-def _template_review_fields(template_names, patient_sex=None):
+def _template_review_fields(template_names, patient_sex=None, patient_care_type=None):
 	"""Map template name → display fields for lab request review modal."""
 	names = [n for n in {(n or "").strip() for n in (template_names or [])} if n]
 	if not names:
@@ -831,7 +858,7 @@ def _template_review_fields(template_names, patient_sex=None):
 			),
 			"template_type": row.get("lab_test_template_type") or "",
 			"price_included_in_group": included,
-			"list_rate": flt(row.get("op_rate") or row.get("lab_test_rate") or 0),
+			"list_rate": _lab_template_list_rate(row, patient_care_type),
 		}
 	return out
 
@@ -861,7 +888,11 @@ def get_lab_request_review(name):
 		frappe.throw(_("Only booked Lab Requests can be reviewed here"))
 
 	items = parse_lab_request_items(doc)
-	patient_care_type = getattr(doc, "patient_care_type", None)
+	patient_care_type = _resolve_patient_care_type(
+		getattr(doc, "patient_care_type", None),
+		getattr(doc, "patient_visit", None),
+		getattr(doc, "inpatient_record", None),
+	)
 	specs = expand_lab_test_specs(items, doc.patient, patient_care_type=patient_care_type)
 	price_by_template = {s.get("template"): flt(s.get("amount") or 0) for s in specs if s.get("template")}
 
@@ -901,7 +932,9 @@ def get_lab_request_review(name):
 		if sex_field:
 			patient_sex = frappe.db.get_value("Patient", doc.patient, sex_field)
 
-	meta = _template_review_fields(all_child_names, patient_sex=patient_sex)
+	meta = _template_review_fields(
+		all_child_names, patient_sex=patient_sex, patient_care_type=patient_care_type
+	)
 	group_rows = []
 	for g in groups:
 		parent = g["template"]
@@ -1188,9 +1221,13 @@ def create_service_request(data):
 	if not isinstance(lab_request_items, list):
 		lab_request_items = []
 
-	patient_care_type = (
-		"OP" if data.get("patient_visit") else "IP" if data.get("inpatient_record") else None
+	patient_care_type = _resolve_patient_care_type(
+		data.get("patient_care_type"),
+		data.get("patient_visit"),
+		data.get("inpatient_record"),
 	)
+	if patient_care_type:
+		data["patient_care_type"] = patient_care_type
 
 	if lab_request_items and data.get("template_dt") == "Lab Test Template":
 		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
@@ -1338,6 +1375,7 @@ def create_service_request(data):
 		'patient': data.get('patient'),
 		'patient_visit': data.get('patient_visit'),
 		'inpatient_record': data.get('inpatient_record'),
+		'patient_care_type': data.get('patient_care_type') or patient_care_type,
 		'template_dt': data.get('template_dt'),
 		'template_dn': data.get('template_dn'),
 		'lab_request_items': frappe.as_json(lab_request_items) if lab_request_items else None,
@@ -1425,8 +1463,10 @@ def _get_general_lab_discount(doc, request_items=None):
 	items = request_items if request_items is not None else parse_lab_request_items(doc)
 	if not items:
 		return flt(doc.discount_amount)
-	patient_care_type = (
-		"OP" if doc.patient_visit else "IP" if doc.inpatient_record else None
+	patient_care_type = _resolve_patient_care_type(
+		getattr(doc, "patient_care_type", None),
+		getattr(doc, "patient_visit", None),
+		getattr(doc, "inpatient_record", None),
 	)
 	specs = expand_lab_test_specs(items, doc.patient, patient_care_type=patient_care_type)
 	specs = apply_discounts_to_specs(specs, items)
@@ -1535,8 +1575,10 @@ def update_service_request(name, data):
 		)
 
 		request_items = parse_lab_request_items(doc)
-		patient_care_type = (
-			"OP" if doc.patient_visit else "IP" if doc.inpatient_record else None
+		patient_care_type = _resolve_patient_care_type(
+			getattr(doc, "patient_care_type", None),
+			getattr(doc, "patient_visit", None),
+			getattr(doc, "inpatient_record", None),
 		)
 		specs = expand_lab_test_specs(request_items, doc.patient, patient_care_type=patient_care_type)
 		specs = apply_discounts_to_specs(specs, request_items)
@@ -1641,8 +1683,10 @@ def _lab_request_sales_order_specs(sr):
 	if not request_items or sr.template_dt != "Lab Test Template":
 		return [], 0.0
 
-	patient_care_type = (
-		"OP" if sr.patient_visit else "IP" if sr.inpatient_record else None
+	patient_care_type = _resolve_patient_care_type(
+		getattr(sr, "patient_care_type", None),
+		getattr(sr, "patient_visit", None),
+		getattr(sr, "inpatient_record", None),
 	)
 	specs = expand_lab_test_specs(
 		request_items, sr.patient, patient_care_type=patient_care_type

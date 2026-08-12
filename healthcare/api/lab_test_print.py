@@ -103,26 +103,47 @@ def _range_bounds(tpl: dict, sex: str):
 	return lo, hi
 
 
+def _parse_num(value):
+	"""Parse min/max/result numbers; tolerate commas (e.g. ``1,100``) and blanks."""
+	if value in (None, ""):
+		return None
+	try:
+		s = str(value).strip().replace(",", "")
+		if not s:
+			return None
+		return float(s)
+	except (TypeError, ValueError):
+		return None
+
+
+def _format_num(value) -> str:
+	"""Display a numeric range bound without trailing ``.0`` when whole."""
+	num = _parse_num(value)
+	if num is None:
+		return "" if value in (None, "") else str(value).strip()
+	if num == int(num):
+		return str(int(num))
+	return str(num)
+
+
 def _flag(result: str, lo, hi) -> str:
-	try:
-		val = float(str(result).strip())
-	except (TypeError, ValueError):
+	val = _parse_num(result)
+	if val is None:
 		return ""
-	try:
-		if lo not in (None, "") and val < float(lo):
-			return "Low"
-		if hi not in (None, "") and val > float(hi):
-			return "High"
-	except (TypeError, ValueError):
-		return ""
-	if lo in (None, "") and hi in (None, ""):
+	lo_n = _parse_num(lo)
+	hi_n = _parse_num(hi)
+	if lo_n is not None and val < lo_n:
+		return "Low"
+	if hi_n is not None and val > hi_n:
+		return "High"
+	if lo_n is None and hi_n is None:
 		return ""
 	return "Normal"
 
 
 def _range_text(lo, hi) -> str:
-	lo_s = "" if lo in (None, "") else (str(int(lo)) if float(lo) == int(float(lo)) else str(lo))
-	hi_s = "" if hi in (None, "") else (str(int(hi)) if float(hi) == int(float(hi)) else str(hi))
+	lo_s = _format_num(lo)
+	hi_s = _format_num(hi)
 	if lo_s and hi_s:
 		return f"{lo_s} - {hi_s}"
 	return lo_s or hi_s or ""

@@ -792,8 +792,8 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			"name",
 			"lab_test_name",
 			"department",
-			"outpatient_rate",
-			"inpatient_rate",
+			"lab_test_rate",
+			"op_rate",
 			"female_min_range",
 			"female_max_range",
 			"male_min_range",
@@ -815,8 +815,11 @@ def get_lab_test_templates(search=None, department=None, by_nurse=None):
 			'name': t.name,
 			'label': t.lab_test_name or t.name,
 			'department': t.department,
-			'outpatient_rate': t.outpatient_rate,
-			'inpatient_rate': getattr(t, 'inpatient_rate', None),
+			# OP Rate → outpatient_rate; IP Rate (lab_test_rate) → inpatient_rate
+			'outpatient_rate': flt(getattr(t, 'op_rate', None) or 0),
+			'inpatient_rate': flt(getattr(t, 'lab_test_rate', None) or 0),
+			'op_rate': flt(getattr(t, 'op_rate', None) or 0),
+			'lab_test_rate': flt(getattr(t, 'lab_test_rate', None) or 0),
 			'female_min_range': t.female_min_range,
 			'female_max_range': t.female_max_range,
 			'male_min_range': t.male_min_range,
@@ -2882,8 +2885,9 @@ def get_lab_test_templates_admin_list(search=None):
 		"fields": [
 			"name", "lab_test_name", "lab_test_code", "department",
 			"lab_test_template_type", "is_group", "is_billable", "disabled",
-			"outpatient_rate", "inpatient_rate", "female_min_range", "female_max_range", "male_min_range", "male_max_range", "min_range", "max_range", "lab_test_uom",
-			"lab_test_rate",
+			"lab_test_rate", "op_rate",
+			"female_min_range", "female_max_range", "male_min_range", "male_max_range",
+			"min_range", "max_range", "lab_test_uom",
 		],
 		"limit": 500,
 		"order_by": "lab_test_name asc",
@@ -2892,6 +2896,10 @@ def get_lab_test_templates_admin_list(search=None):
 		query_kwargs["or_filters"] = or_filters
 
 	templates = frappe.get_all(**query_kwargs)
+	# Expose OP/IP aliases used by older list UIs.
+	for t in templates:
+		t["outpatient_rate"] = flt(t.get("op_rate") or 0)
+		t["inpatient_rate"] = flt(t.get("lab_test_rate") or 0)
 	return templates
 
 
