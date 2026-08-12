@@ -565,12 +565,15 @@ def get_service_requests(
 	patient_visit=None,
 	inpatient_record=None,
 	booked=None,
+	patient_care_type=None,
 ):
 	"""Get list of Service Requests.
 
 	Optional ``patient_search``: when ``patient`` is not set, narrows to Service Requests
 	whose patient id or patient_name matches (contains) the search string.
 	Optional ``booked``: when set (0/1/true/false), filter by Service Request.booked.
+	Optional ``patient_care_type`` (OP/IP): when no specific visit/admission is passed,
+	hide the other care type (OP → no inpatient_record; IP → inpatient_record set).
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
 	filters = {'docstatus': ['!=', 2]}
@@ -604,6 +607,14 @@ def get_service_requests(
 		filters['patient_visit'] = patient_visit
 	if inpatient_record:
 		filters['inpatient_record'] = inpatient_record
+	else:
+		# Care-mode filter only when not already scoped to a specific admission.
+		# Specific OP visit already excludes other visits; still hide IP rows in OP mode.
+		care = (patient_care_type or "").strip().upper()
+		if care == "OP":
+			filters['inpatient_record'] = ['is', 'not set']
+		elif care == "IP" and not patient_visit:
+			filters['inpatient_record'] = ['is', 'set']
 	if booked is not None and str(booked).strip() != '':
 		filters['booked'] = 1 if cint(booked) else 0
 

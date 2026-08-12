@@ -93,6 +93,7 @@ export async function fetchServiceRequests(
   patientVisit?: string,
   inpatientRecord?: string,
   booked?: boolean | number,
+  patientCareType?: string,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -108,6 +109,7 @@ export async function fetchServiceRequests(
   if (booked !== undefined && booked !== null) {
     params.append('booked', Number(booked) ? '1' : '0')
   }
+  if (patientCareType?.trim()) params.append('patient_care_type', patientCareType.trim().toUpperCase())
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`

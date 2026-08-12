@@ -180,17 +180,25 @@ def _patient_meta(doc):
 	}
 
 
+# Maroon / navy — inline so print/PDF does not strip class-only colors.
+_LR_MAROON = "#800000"
+_LR_NAVY = "#000080"
+_LR_TH_BG = "#e8eaf0"
+
+
 def _header_html(doc):
 	m = _patient_meta(doc)
 
 	def cell(label, value):
 		return (
-			f'<td class="lr-lbl">{_esc(label)}</td>'
-			f'<td class="lr-val">{_esc(value)}</td>'
+			f'<td class="lr-lbl" style="width:18%;font-weight:bold;color:{_LR_MAROON} !important;'
+			f'border:1px solid #000;padding:4px 6px;vertical-align:top;">{_esc(label)}</td>'
+			f'<td class="lr-val" style="width:32%;color:#000;border:1px solid #000;'
+			f'padding:4px 6px;vertical-align:top;">{_esc(value)}</td>'
 		)
 
 	return f"""
-	<table class="lr-info">
+	<table class="lr-info" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
 		<tr>{cell("Patient Name:", m["patient_name"])}{cell("Request No.", m["request_no"])}</tr>
 		<tr>{cell("Patient File No.", m["file_no"])}{cell("Date:", m["date"])}</tr>
 		<tr>{cell("CPR / ID No.", m["id_number"])}{cell("Visit No.", m["visit_no"])}</tr>
@@ -201,14 +209,27 @@ def _header_html(doc):
 
 
 def _result_row_html(name, result, uom, flag, range_text) -> str:
-	flag_cls = {"Low": "lr-low", "High": "lr-high", "Normal": "lr-normal"}.get(flag or "", "")
+	# High = red, Low = orange (portal + print agreement)
+	flag_l = (flag or "").strip()
+	flag_l_lower = flag_l.lower()
+	if "high" in flag_l_lower:
+		flag_color, flag_weight = "#dc2626", "bold"  # red
+	elif "low" in flag_l_lower:
+		flag_color, flag_weight = "#ea580c", "bold"  # orange
+	else:
+		flag_color, flag_weight = "#000", "normal"
 	return (
 		f"<tr>"
-		f'<td class="lr-tname">{_esc(name)}</td>'
-		f'<td class="lr-c">{_esc(result)}</td>'
-		f'<td class="lr-c">{_esc(uom)}</td>'
-		f'<td class="lr-c {flag_cls}">{_esc(flag)}</td>'
-		f'<td class="lr-c">{_esc(range_text)}</td>'
+		f'<td class="lr-tname" style="width:40%;text-align:left;color:#000;'
+		f'border:1px solid #000;padding:4px 6px;">{_esc(name)}</td>'
+		f'<td class="lr-c" style="text-align:center;color:#000;border:1px solid #000;'
+		f'padding:4px 6px;">{_esc(result)}</td>'
+		f'<td class="lr-c" style="text-align:center;color:#000;border:1px solid #000;'
+		f'padding:4px 6px;">{_esc(uom)}</td>'
+		f'<td class="lr-c" style="text-align:center;color:{flag_color};font-weight:{flag_weight};'
+		f'border:1px solid #000;padding:4px 6px;">{_esc(flag)}</td>'
+		f'<td class="lr-c" style="text-align:center;color:#000;border:1px solid #000;'
+		f'padding:4px 6px;">{_esc(range_text)}</td>'
 		f"</tr>"
 	)
 
@@ -323,16 +344,22 @@ def _bucket_key(lt) -> str:
 
 
 def _section_html_from_rows(group_name: str, body_rows: list[str]) -> str:
+	th = (
+		f"border:1px solid #000;padding:4px 6px;background:{_LR_TH_BG};"
+		f"color:{_LR_NAVY} !important;font-weight:bold;text-align:center;"
+	)
 	return f"""
-	<div class="lr-group">{_esc(group_name)}</div>
-	<table class="lr-results">
+	<div class="lr-group" style="font-weight:bold;color:{_LR_MAROON} !important;padding:6px 2px 4px;margin-top:6px;">
+		{_esc(group_name)}
+	</div>
+	<table class="lr-results" style="width:100%;border-collapse:collapse;margin-bottom:10px;">
 		<thead>
 			<tr>
-				<th class="lr-tname">Test Name</th>
-				<th class="lr-c">Result</th>
-				<th class="lr-c">Unit</th>
-				<th class="lr-c">Flag</th>
-				<th class="lr-c">Normal Range</th>
+				<th class="lr-tname" style="{th}width:40%;text-align:left;">Test Name</th>
+				<th class="lr-c" style="{th}">Result</th>
+				<th class="lr-c" style="{th}">Unit</th>
+				<th class="lr-c" style="{th}">Flag</th>
+				<th class="lr-c" style="{th}">Normal Range</th>
 			</tr>
 		</thead>
 		<tbody>{''.join(body_rows)}</tbody>
@@ -371,36 +398,55 @@ def render_lab_test_result_report(doc):
 
 	return f"""
 	<style>
-		.lr-report {{ font-family: Arial, sans-serif; color: #000; font-size: 12px; }}
-		.lr-title {{ text-align: center; font-size: 18px; font-weight: bold; text-decoration: underline; margin: 4px 0 10px; }}
-		.lr-info {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; }}
-		.lr-info td {{ border: 1px solid #000; padding: 3px 6px; vertical-align: top; }}
-		.lr-info .lr-lbl {{ width: 18%; font-weight: bold; }}
-		.lr-info .lr-val {{ width: 32%; }}
-		.lr-details {{ text-align: center; font-weight: bold; margin: 8px 0 4px; }}
-		.lr-group {{ font-weight: bold; padding: 4px 6px; border: 1px solid #000; border-bottom: none; background: #f2f2f2; }}
-		.lr-results {{ width: 100%; border-collapse: collapse; margin-bottom: 10px; }}
-		.lr-results th, .lr-results td {{ border: 1px solid #000; padding: 4px 6px; }}
-		.lr-results th {{ background: #f2f2f2; text-align: left; }}
-		.lr-results .lr-c {{ text-align: center; }}
-		.lr-results .lr-tname {{ width: 40%; }}
-		.lr-low {{ color: #b00020; font-weight: bold; }}
-		.lr-high {{ color: #b00020; font-weight: bold; }}
-		.lr-normal {{ color: #000; }}
-		.lr-note {{ border: 1px solid #000; padding: 4px 6px; margin-bottom: 24px; min-height: 20px; }}
-		.lr-sign {{ width: 100%; margin-top: 40px; }}
-		.lr-sign td {{ width: 50%; text-align: center; font-size: 11px; padding-top: 24px; }}
+		/* Force colors in browser print + PDF (class CSS alone is often overridden). */
+		.lr-report {{ font-family: Arial, Helvetica, sans-serif; color: #000; font-size: 12px; }}
+		.lr-report .lr-title,
+		.lr-report .lr-details,
+		.lr-report .lr-group,
+		.lr-report .lr-info .lr-lbl,
+		.lr-report .lr-note b {{
+			color: {_LR_MAROON} !important;
+			-webkit-print-color-adjust: exact !important;
+			print-color-adjust: exact !important;
+		}}
+		.lr-report .lr-results th {{
+			color: {_LR_NAVY} !important;
+			background-color: {_LR_TH_BG} !important;
+			-webkit-print-color-adjust: exact !important;
+			print-color-adjust: exact !important;
+		}}
+		@media print {{
+			.lr-report .lr-title,
+			.lr-report .lr-details,
+			.lr-report .lr-group,
+			.lr-report .lr-info .lr-lbl,
+			.lr-report .lr-note b {{ color: {_LR_MAROON} !important; }}
+			.lr-report .lr-results th {{
+				color: {_LR_NAVY} !important;
+				background-color: {_LR_TH_BG} !important;
+			}}
+		}}
 	</style>
 	<div class="lr-report">
-		<div class="lr-title">Laboratory Report</div>
+		<div class="lr-title" style="text-align:center;font-size:20px;font-weight:bold;color:{_LR_MAROON} !important;margin:4px 0 12px;">
+			Laboratory Report
+		</div>
 		{_header_html(doc)}
-		<div class="lr-details">Test Result Details</div>
+		<div class="lr-details" style="text-align:center;font-weight:bold;color:{_LR_MAROON} !important;font-size:14px;margin:10px 0 8px;">
+			Test Result Details
+		</div>
 		{sections}
-		<div class="lr-note"><b>Note:</b> {_esc(note)}</div>
-		<table class="lr-sign">
+		<div class="lr-note" style="border:1px solid #000;padding:4px 6px;margin-bottom:24px;min-height:20px;">
+			<b style="color:{_LR_MAROON} !important;">Note:</b> {_esc(note)}
+		</div>
+		<table class="lr-sign" style="width:100%;margin-top:40px;">
 			<tr>
-				<td><b>{_esc(doc.get('lab_technician_name') or '')}</b><br>LAB TECHNOLOGIST</td>
-				<td><b>{_esc(doc.get('approved_by_name') or '')}</b><br>LAB Technician</td>
+				<td style="width:50%;text-align:center;font-size:11px;padding-top:24px;color:#000;">
+					<b>{_esc(doc.get('lab_technician_name') or '')}</b><br>LAB TECHNOLOGIST
+				</td>
+				<td style="width:50%;text-align:center;font-size:11px;padding-top:24px;color:#000;">
+					<b>{_esc(doc.get('approved_by_name') or '')}</b><br>LAB Technician
+				</td>
 			</tr>
 		</table>
 	</div>
