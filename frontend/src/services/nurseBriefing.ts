@@ -42,6 +42,10 @@ export interface NurseBriefingLabTest {
   inpatient_record?: string
   department?: string
   creation?: string
+  is_group_lab_test?: number
+  lab_test_group?: string
+  lab_test_group_name?: string
+  service_request?: string
 }
 
 export interface NurseBriefingLowStockItem {

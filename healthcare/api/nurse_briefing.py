@@ -40,7 +40,24 @@ _LAB_TEST_BRIEFING_FIELDS = [
 	"inpatient_record",
 	"department",
 	"creation",
+	"is_group_lab_test",
+	"lab_test_group",
+	"service_request",
 ]
+
+
+def _attach_lab_test_group_names(lab_tests: list[dict]) -> None:
+	"""Resolve Lab Test Template names for group codes (e.g. LAB-004 → Lipid Profile)."""
+	group_name_cache: dict[str, str] = {}
+	for lab_test in lab_tests:
+		group_code = (lab_test.get("lab_test_group") or "").strip()
+		if not group_code:
+			continue
+		if group_code not in group_name_cache:
+			group_name_cache[group_code] = (
+				frappe.db.get_value("Lab Test Template", group_code, "lab_test_name") or group_code
+			)
+		lab_test["lab_test_group_name"] = group_name_cache[group_code]
 
 
 def _require_nurse_briefing_access() -> None:
@@ -207,13 +224,15 @@ def _pending_sample_lab_tests(cost_center: str | None) -> list[dict]:
 		**cc_filters,
 	}
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Lab Test",
 		filters=filters,
 		fields=_LAB_TEST_BRIEFING_FIELDS,
 		order_by="creation desc",
 		limit_page_length=150,
 	)
+	_attach_lab_test_group_names(rows)
+	return rows
 
 
 def _low_stock_items(cost_center: str | None) -> list[dict]:
