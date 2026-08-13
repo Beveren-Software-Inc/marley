@@ -254,7 +254,7 @@ export const EnvironmentalChecklistList = ({
                 )}
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Admission</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Visit</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Username</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Branch</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Template</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Progress</th>

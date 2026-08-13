@@ -99,7 +99,7 @@ export function NurseAdmissionsBriefingModal({
           Loading admissions…
         </div>
       ) : admissions.length === 0 ? (
-        <EmptyState message="No admitted patients with warnings for your branch." />
+        <EmptyState message="No admitted patients with allergies or clinical warnings for your branch." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {admissions.map((admission) => {

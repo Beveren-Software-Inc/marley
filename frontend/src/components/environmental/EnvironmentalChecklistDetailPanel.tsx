@@ -269,7 +269,7 @@ export function EnvironmentalChecklistDetailPanel({
               />
               <InfoTile
                 icon={<Stethoscope className="h-4 w-4" strokeWidth={2} />}
-                label="Doctor Name"
+                label="Username"
                 value={displayValue(
                   doc?.practitioner_name || doc?.practitioner || preview?.practitioner_name || preview?.practitioner
                 )}
