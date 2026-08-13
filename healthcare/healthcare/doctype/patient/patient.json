@@ -36,6 +36,7 @@
   "email_2",
   "invite_user",
   "is_black_list",
+  "blacklist_reason",
   "user_id",
   "source",
   "customer_details_section",
@@ -807,6 +808,12 @@
    "fieldname": "is_black_list",
    "fieldtype": "Check",
    "label": "Is Black List?"
+  },
+  {
+   "depends_on": "eval:doc.is_black_list",
+   "fieldname": "blacklist_reason",
+   "fieldtype": "Small Text",
+   "label": "Blacklist Reason"
   },
   {
    "fieldname": "alter_mobile_no",

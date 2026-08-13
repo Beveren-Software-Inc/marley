@@ -312,14 +312,31 @@ healthcare.discharge_finance_checklist.Page = class DischargeFinanceChecklistPag
 			</div>
 		`);
 
+		const can_uncheck =
+			frappe.user.has_role('Administrator') || frappe.user.has_role('System Manager');
+		if (checked && !can_uncheck) {
+			row.find('input[type="checkbox"]').prop('disabled', true);
+		}
+
 		row.find('input[type="checkbox"]').on('change', (e) => {
 			const is_checked = e.target.checked;
+			if (!is_checked && !can_uncheck) {
+				e.target.checked = true;
+				frappe.show_alert({
+					message: __('Completed checklist items cannot be unchecked.'),
+					indicator: 'orange',
+				});
+				return;
+			}
 			item.click = is_checked ? 1 : 0;
 			if (is_checked) {
 				item.date_time = frappe.datetime.now_datetime();
 				item.user = frappe.session.user;
 				item.name1 = frappe.session.user_fullname || frappe.session.user;
 				row.addClass('done');
+				if (!can_uncheck) {
+					$(e.target).prop('disabled', true);
+				}
 			} else {
 				item.date_time = '';
 				item.user = '';

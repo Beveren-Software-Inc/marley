@@ -13,6 +13,8 @@ ADMIN_ROLES = frozenset(
 	}
 )
 
+CHECKLIST_UNCHECK_ROLES = frozenset({"Administrator", "System Manager"})
+
 RECEPTION_ROLE_HINTS = ("reception",)
 
 
@@ -21,6 +23,16 @@ def _is_admin_user(user: str | None = None) -> bool:
 	if not user or user == "Guest":
 		return False
 	return bool(ADMIN_ROLES.intersection(frappe.get_roles(user)))
+
+
+def _can_uncheck_checklist_item(user: str | None = None) -> bool:
+	"""Only System Manager and Administrator may reverse a completed checklist tick."""
+	user = user or frappe.session.user
+	if not user or user == "Guest":
+		return False
+	if user == "Administrator":
+		return True
+	return bool(CHECKLIST_UNCHECK_ROLES.intersection(frappe.get_roles(user)))
 
 
 def _is_reception_user(user: str | None = None) -> bool:
@@ -216,50 +228,45 @@ def _checklist_row_is_complete(row) -> bool:
 	return bool(getattr(row, "click", 0))
 
 
-def assert_checklist_sequential_order(rows) -> None:
-	"""Block completing a row before every earlier row in template order is complete."""
+def _checklist_row_action_label(row) -> str:
+	if isinstance(row, dict):
+		return (row.get("action_required") or "").strip()
+	return (getattr(row, "action_required", None) or "").strip()
+
+
+def assert_checklist_first_item_gate(rows) -> None:
+	"""Later items may be completed in any order, but only after the first item is complete."""
 	sorted_rows = sort_checklist_rows(rows)
-	for index, row in enumerate(sorted_rows):
-		if not _checklist_row_is_complete(row):
-			continue
-		for previous in sorted_rows[:index]:
-			if not _checklist_row_is_complete(previous):
-				action = ""
-				if isinstance(previous, dict):
-					action = (previous.get("action_required") or "").strip()
-				else:
-					action = (getattr(previous, "action_required", None) or "").strip()
-				frappe.throw(
-					_("Complete checklist items in order. Finish “{0}” before this step.").format(
-						action or _("the previous item")
-					)
+	if len(sorted_rows) < 2:
+		return
+	first = sorted_rows[0]
+	if _checklist_row_is_complete(first):
+		return
+	for row in sorted_rows[1:]:
+		if _checklist_row_is_complete(row):
+			frappe.throw(
+				_("Complete the first checklist item before other items. Finish “{0}” first.").format(
+					_checklist_row_action_label(first) or _("the first item")
 				)
+			)
+
+
+def assert_checklist_sequential_order(rows) -> None:
+	"""Deprecated alias: first item must be complete before any later item."""
+	assert_checklist_first_item_gate(rows)
 
 
 def can_complete_checklist_row(rows, row, user: str | None = None, reference_row=None) -> bool:
-	"""Department permission plus sequential order for marking a row complete."""
+	"""Department permission plus first-item gate for marking a row complete."""
 	if not user_can_edit_checklist_row(row, user, reference_row=reference_row):
 		return False
 
 	sorted_rows = sort_checklist_rows(rows)
-	target_key = _checklist_row_key(row)
-	for previous in sorted_rows:
-		if _checklist_row_key(previous) == target_key:
-			break
-		if not _checklist_row_is_complete(previous):
-			return False
-	return True
-	if isinstance(row, dict):
-		return (
-			(row.get("action_required") or "").strip(),
-			(row.get("sr_num") or "").strip(),
-			(row.get("name") or "").strip(),
-		)
-	return (
-		(getattr(row, "action_required", None) or "").strip(),
-		(getattr(row, "sr_num", None) or "").strip(),
-		(getattr(row, "name", None) or "").strip(),
-	)
+	if not sorted_rows:
+		return True
+	if _checklist_row_key(row) == _checklist_row_key(sorted_rows[0]):
+		return True
+	return _checklist_row_is_complete(sorted_rows[0])
 
 
 def _row_as_dict(row) -> dict:
@@ -346,6 +353,13 @@ def merge_checklist_rows_with_department_permissions(incoming_rows, existing_row
 		key = _checklist_row_key(row)
 		reference_row = existing_map.get(key)
 		if user_can_edit_checklist_row(row, user, reference_row=reference_row):
+			if (
+				reference_row
+				and _checklist_row_is_complete(reference_row)
+				and not _checklist_row_is_complete(row)
+				and not _can_uncheck_checklist_item(user)
+			):
+				frappe.throw(_("Completed checklist items cannot be unchecked."))
 			merged.append(row)
 			continue
 
@@ -354,7 +368,7 @@ def merge_checklist_rows_with_department_permissions(incoming_rows, existing_row
 		else:
 			merged.append(row)
 
-	assert_checklist_sequential_order(merged)
+	assert_checklist_first_item_gate(merged)
 	return merged
 
 

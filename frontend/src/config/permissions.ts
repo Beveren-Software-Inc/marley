@@ -402,6 +402,13 @@ export function canEditPatientDetails(roles: string[] | undefined): boolean {
   return isReceptionRole(roles)
 }
 
+/** Doctors and receptionists may blacklist a patient from demographics / history. */
+export function canManagePatientBlacklist(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  if (isAdmin(roles)) return true
+  return isDoctorRole(roles) || isReceptionRole(roles)
+}
+
 /** Sidebar + route: Patient History — everyone except Lab technician-only users. */
 export function canAccessPatientHistory(roles: string[] | undefined): boolean {
   if (!roles?.length) return false

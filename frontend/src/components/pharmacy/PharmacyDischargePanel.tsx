@@ -11,6 +11,7 @@ import {
 import { useAuth } from '../../providers/AuthProvider'
 import { getPatientActiveAdmission } from '../../services/inpatientRecords'
 import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { canUncheckDischargeChecklistItem } from '../../utils/dischargeChecklistPermissions'
 
 function toFrappeDateTime(value?: string): string {
   if (!value) return ''
@@ -31,6 +32,7 @@ interface PharmacyDischargePanelProps {
 export function PharmacyDischargePanel({ patient }: PharmacyDischargePanelProps) {
   const { user } = useAuth()
   const loggedInUser = typeof user?.name === 'string' ? user.name : ''
+  const canUncheck = canUncheckDischargeChecklistItem(user?.roles)
 
   const [pendingQueue, setPendingQueue] = useState<PharmacyDischargePendingRow[]>([])
   const [queueLoading, setQueueLoading] = useState(true)
@@ -108,6 +110,13 @@ export function PharmacyDischargePanel({ patient }: PharmacyDischargePanelProps)
   }, [pendingQueue, patient])
 
   const toggleItem = (itemName: string) => {
+    const item = items.find((row) => row.name === itemName)
+    if (item?.click && !canUncheck) {
+      toast.error(
+        'Completed checklist items cannot be unchecked. Ask a System Manager or Administrator if this needs to be reversed.',
+      )
+      return
+    }
     setItems((prev) =>
       prev.map((row) => {
         if (row.name !== itemName) return row
@@ -250,14 +259,21 @@ export function PharmacyDischargePanel({ patient }: PharmacyDischargePanelProps)
               <ul className="divide-y divide-slate-100">
                 {items.map((item) => {
                   const done = Boolean(item.click)
+                  const locked = done && !canUncheck
                   return (
                     <li key={item.name}>
                       <button
                         type="button"
                         onClick={() => toggleItem(item.name)}
+                        disabled={locked}
+                        title={
+                          locked
+                            ? 'Completed checklist items cannot be unchecked. Ask a System Manager or Administrator if this needs to be reversed.'
+                            : undefined
+                        }
                         className={`w-full flex items-start gap-3 px-4 py-3 text-left transition-colors ${
                           done ? 'bg-green-50/60' : 'hover:bg-slate-50'
-                        }`}
+                        } ${locked ? 'cursor-not-allowed' : ''}`}
                       >
                         {done ? (
                           <CheckCircle2 className="w-5 h-5 text-green-500 shrink-0 mt-0.5" />

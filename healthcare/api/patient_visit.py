@@ -4,7 +4,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import nowdate, now_datetime, flt
+from frappe.utils import nowdate, now_datetime, flt, cint
 import json
 
 from healthcare.api.patient_visit_practitioner import (
@@ -955,6 +955,12 @@ def create_patient_visit(data):
 			)
 
 	case_no = get_next_transaction_number('Patient Visit', fieldname='case_no')
+	patient_blacklist = frappe.db.get_value(
+		"Patient",
+		data.get("patient"),
+		["is_black_list", "blacklist_reason"],
+		as_dict=True,
+	)
 	visit_doc = frappe.get_doc({
 		"doctype": "Patient Visit",
 		"patient": data.get("patient"),
@@ -967,6 +973,7 @@ def create_patient_visit(data):
 		"iop_enrollment": data.get("iop_enrollment"),
 		"status": data.get("status") or "Open",
 		"visit_owner": data.get("visit_owner") or frappe.session.user,
+		"is_blacklist": cint((patient_blacklist or {}).get("is_black_list")),
 	})
 
 	# Optional child table rows (Patient Upload Document table on Patient Visit).

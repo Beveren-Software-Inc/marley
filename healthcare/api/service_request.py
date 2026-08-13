@@ -121,7 +121,7 @@ def _resolve_patient_care_type(
 	patient_visit: str | None = None,
 	inpatient_record: str | None = None,
 ) -> str | None:
-	"""Normalize OP/IP from explicit care type or visit/admission context."""
+	"""Normalize OP/IP from explicit care type or visit/admission context (pricing only)."""
 	explicit = (patient_care_type or "").strip().upper()
 	if explicit in ("OP", "IP"):
 		return explicit
@@ -129,6 +129,16 @@ def _resolve_patient_care_type(
 		return "OP"
 	if inpatient_record:
 		return "IP"
+	return None
+
+
+def _service_request_care_type_link(value) -> str | None:
+	"""Service Request.patient_care_type is a Link to Patient Care Type (not OP/IP)."""
+	text = (value or "").strip()
+	if not text or text.upper() in ("OP", "IP"):
+		return None
+	if frappe.db.exists("Patient Care Type", text):
+		return text
 	return None
 
 
@@ -1237,8 +1247,7 @@ def create_service_request(data):
 		data.get("patient_visit"),
 		data.get("inpatient_record"),
 	)
-	if patient_care_type:
-		data["patient_care_type"] = patient_care_type
+	# OP/IP is used for lab pricing only. Do not write it onto the Link field.
 
 	if lab_request_items and data.get("template_dt") == "Lab Test Template":
 		data["template_dn"] = primary_template_dn_for_items(lab_request_items) or data.get("template_dn")
@@ -1386,7 +1395,7 @@ def create_service_request(data):
 		'patient': data.get('patient'),
 		'patient_visit': data.get('patient_visit'),
 		'inpatient_record': data.get('inpatient_record'),
-		'patient_care_type': data.get('patient_care_type') or patient_care_type,
+		'patient_care_type': _service_request_care_type_link(data.get('patient_care_type')),
 		'template_dt': data.get('template_dt'),
 		'template_dn': data.get('template_dn'),
 		'lab_request_items': frappe.as_json(lab_request_items) if lab_request_items else None,
@@ -1574,6 +1583,10 @@ def update_service_request(name, data):
 				doc.lab_request_items = frappe.as_json(value) if value else None
 			else:
 				doc.lab_request_items = value
+		elif key == "patient_care_type":
+			link = _service_request_care_type_link(value)
+			if link:
+				doc.set(key, link)
 		elif key in allowed and hasattr(doc, key):
 			doc.set(key, value)
 

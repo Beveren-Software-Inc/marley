@@ -29,7 +29,7 @@ import { fetchIOPEnrollment } from '../../services/iop'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
-import { PenLine } from 'lucide-react'
+import { PenLine, Ban } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 
 interface SignaturePadProps {
@@ -199,6 +199,10 @@ const SignaturePad = ({ onSave, onClear, existingUrl, uploading }: SignaturePadP
       </div>
     </div>
   )
+}
+
+function isBlacklistedPatient(patient?: Pick<PatientListItem, 'is_black_list'> | null): boolean {
+  return Boolean(patient && (patient.is_black_list === 1 || patient.is_black_list === true))
 }
 
 interface CreatePatientVisitModalProps {
@@ -766,6 +770,20 @@ export const CreatePatientVisitModal = ({
           </div>
         )}
 
+        {isBlacklistedPatient(selectedPatient) && (
+          <div className="shrink-0 px-6 py-3 border-b border-red-200 bg-red-50" role="alert">
+            <p className="flex items-center gap-2 text-sm font-semibold text-red-800">
+              <Ban className="h-4 w-4 shrink-0" />
+              This patient is blacklisted
+            </p>
+            {selectedPatient?.blacklist_reason ? (
+              <p className="mt-1 text-xs text-red-700">{selectedPatient.blacklist_reason}</p>
+            ) : (
+              <p className="mt-1 text-xs text-red-700">Reception: confirm before creating this visit.</p>
+            )}
+          </div>
+        )}
+
         {error && !createBlocked && (
           <div className="shrink-0 px-6 py-3 bg-red-50 border-b border-red-200" role="alert">
             <p className="text-sm font-medium text-red-800">{error}</p>
@@ -808,7 +826,11 @@ export const CreatePatientVisitModal = ({
                 }}
                 onFocus={() => setPatientOpen(true)}
                 placeholder="Search patient..."
-                className="w-full rounded-md border border-slate-300 pr-16 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                className={`w-full rounded-md border pr-16 px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                  isBlacklistedPatient(selectedPatient)
+                    ? 'border-red-400 bg-red-50/40 focus:ring-red-400 focus:border-red-400'
+                    : 'border-slate-300 focus:ring-emerald-500 focus:border-emerald-500'
+                }`}
               />
               <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1">
                 {selectedPatient && (
@@ -844,14 +866,23 @@ export const CreatePatientVisitModal = ({
                       <button
                         key={patient.name}
                         type="button"
-                        className="w-full text-left px-[11px] py-2 text-sm hover:bg-blue-50"
+                        className={`w-full text-left px-[11px] py-2 text-sm hover:bg-blue-50 ${
+                          isBlacklistedPatient(patient) ? 'bg-red-50/70' : ''
+                        }`}
                         onClick={() => {
                           setSelectedPatient(patient)
                           setPatientQuery(patient.patient_name || patient.name)
                           setPatientOpen(false)
                         }}
                       >
-                        <div className="font-medium">{patient.patient_name || patient.name}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          <span>{patient.patient_name || patient.name}</span>
+                          {isBlacklistedPatient(patient) ? (
+                            <span className="inline-flex items-center rounded-full border border-red-200 bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-red-800">
+                              Blacklisted
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-0.5 mt-0.5">
                           {patient.file_number && <span>File: {patient.file_number}</span>}
                           {patient.id_number && <span>ID: {patient.id_number}</span>}

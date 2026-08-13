@@ -12,6 +12,8 @@ export interface PatientListItem {
   blood_group?: string
   nationality?: string
   has_insurance?: number | boolean
+  is_black_list?: number | boolean
+  blacklist_reason?: string | null
 }
 
 export interface PatientMedicalHistoryRow {
@@ -58,6 +60,8 @@ export interface PatientSummary {
   mobile?: string
   category?: string
   is_blacklist?: number
+  is_black_list?: number
+  blacklist_reason?: string | null
   remarks?: string
   /** Patient Upload Document child table on Patient */
   documents?: (PatientDocumentRow & { name?: string; document_name?: string })[]
@@ -191,6 +195,7 @@ export interface CreatePatientData {
   source?: string
   marital_status?: string
   is_black_list?: boolean
+  blacklist_reason?: string
   remarks?: string
   address_line1?: string
   address_line2?: string
@@ -658,6 +663,7 @@ export interface PatientDoc {
   source?: string
   marital_status?: string
   is_black_list?: number
+  blacklist_reason?: string | null
   remarks?: string
   patient_primary_address?: string
   address?: string
@@ -783,6 +789,7 @@ export interface UpdatePatientData {
   source?: string
   marital_status?: string
   is_black_list?: number
+  blacklist_reason?: string | null
   remarks?: string
   title?: string
     insurance_policy?: string
@@ -831,6 +838,38 @@ export async function updatePatientDoc(patientName: string, data: UpdatePatientD
   }
   const message = typeof (out as { message?: string }).message === 'string' ? (out as { message: string }).message : undefined
   return { message }
+}
+
+export async function setPatientBlacklist(
+  patientName: string,
+  isBlackList: boolean,
+  reason?: string,
+): Promise<{ is_black_list: number; blacklist_reason?: string | null }> {
+  const csrf = (window as any).csrf_token || (await (await import('./apiClient')).ensureCSRF())
+  const res = await fetch('/api/method/healthcare.api.patient.set_patient_blacklist', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({
+      patient: patientName,
+      is_black_list: isBlackList ? 1 : 0,
+      blacklist_reason: reason || '',
+    }),
+    credentials: 'include',
+  })
+  const out = await res.json().catch(() => ({}))
+  if (!res.ok || out?.exc) {
+    const msg = messageFromFrappeResponse(out as Record<string, unknown>)
+    throw new Error(msg || `Failed to update blacklist (${res.status})`)
+  }
+  const message = (out as { message?: { is_black_list?: number; blacklist_reason?: string | null } }).message
+  return {
+    is_black_list: message?.is_black_list ? 1 : 0,
+    blacklist_reason: message?.blacklist_reason ?? null,
+  }
 }
 
 export async function updateAddressDoc(addressName: string, data: Partial<AddressDoc>): Promise<void> {
