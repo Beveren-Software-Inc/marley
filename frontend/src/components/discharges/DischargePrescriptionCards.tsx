@@ -69,35 +69,6 @@ function mapTransferRowToMedication(row: DischargeTransferRow): MedicationOrderR
   }
 }
 
-function mapStoppedMedToMedication(med: DischargePrescriptionMedication): MedicationOrderRow {
-  const start = (med.start_date || '').toString().slice(0, 10) || new Date().toISOString().split('T')[0]
-  return {
-    drug: med.mapped_drug || med.drug || '',
-    drug_name:
-      med.mapped_drug_name ||
-      med.drug_name ||
-      med.old_medicine_name ||
-      med.medication ||
-      '',
-    dosage: med.dosage && med.dosage !== '—' ? med.dosage : '',
-    dosage_form: '',
-    date: start,
-    time: '08:00:00',
-    patient_frequency: med.frequency || '',
-    reason_stopped: med.reason_stopped || 'Stopped',
-    is_pink: false,
-    is_prn: false,
-    is_long_acting: false,
-    long_acting_frequency: 'Weekly',
-    medication_type: '',
-    reference_no: '',
-    old_medicine_code: med.old_medicine_code || '',
-    old_medicine_name: med.old_medicine_name || '',
-    medicine_no: med.medicine_no || '',
-    medication: med.medication || '',
-  }
-}
-
 function dischargeMedicationTitle(med: DischargePrescriptionMedication): string {
   const mapped = (med.mapped_drug_name || '').trim()
   const current = (med.drug_name || '').trim()
@@ -729,13 +700,10 @@ export function DischargePrescriptionCardsEditable({
   )
   const transferableIds = new Set(transferRows.map((r) => r.name).filter((n): n is string => Boolean(n)))
   const dischargeInitialMedications = useMemo(
-    () => [
-      ...selectedTransferRows.map(mapTransferRowToMedication),
-      ...sections.stopped_medications.map(mapStoppedMedToMedication),
-    ],
+    () => selectedTransferRows.map(mapTransferRowToMedication),
     // selectedTransferRows identity changes each render; depend on selection + source data
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedCurrent, transferRows, sections.stopped_medications],
+    [selectedCurrent, transferRows],
   )
 
   if (loading) {

@@ -9,7 +9,7 @@ Payment Only).
 
 import frappe
 from frappe import _
-from frappe.utils import flt, getdate
+from frappe.utils import cint, flt, getdate
 
 
 def _so_for_reference(reference_doctype, reference_name, cache):
@@ -344,38 +344,85 @@ def _admission_package_quotation_lines(admission):
 	return lines
 
 
-def _admission_payments(admission, from_date=None, to_date=None):
-	"""Submitted receive Payment Entries allocated against the admission's SOs/SIs."""
-	sos = [s.name for s in _admission_sales_orders(admission)]
-	if not sos:
+def _case_tagged_payments(case_no, from_date=None, to_date=None):
+	"""Receive Payment Entries tagged to a visit/admission (advance or history)."""
+	case_no = (case_no or "").strip()
+	if not case_no:
 		return []
-	sis = frappe.get_all(
-		"Sales Invoice Item", filters={"sales_order": ["in", sos]}, pluck="parent", limit_page_length=0
-	)
-	ref_names = list(set(sos) | set(sis))
-	if not ref_names:
+	if not frappe.get_meta("Payment Entry").has_field("custom_case_no"):
 		return []
-	pe_names = frappe.get_all(
-		"Payment Entry Reference",
-		filters={"reference_name": ["in", ref_names]},
-		pluck="parent",
-		limit_page_length=0,
-	)
-	if not pe_names:
-		return []
-	filters = {"name": ["in", list(set(pe_names))], "docstatus": 1, "payment_type": "Receive"}
+	filters = {
+		"docstatus": 1,
+		"payment_type": "Receive",
+		"custom_case_no": case_no,
+	}
 	if from_date and to_date:
 		filters["posting_date"] = ["between", [from_date, to_date]]
 	return frappe.get_all(
 		"Payment Entry",
 		filters=filters,
 		fields=[
-			"name", "posting_date", "mode_of_payment", "paid_amount",
-			"reference_no", "reference_date", "owner", "creation",
+			"name",
+			"posting_date",
+			"mode_of_payment",
+			"paid_amount",
+			"unallocated_amount",
+			"reference_no",
+			"reference_date",
+			"owner",
+			"creation",
 		],
 		order_by="posting_date, creation",
 		limit_page_length=0,
 	)
+
+
+def _merge_payment_entries(*groups):
+	"""Dedupe Payment Entry rows by name (keep first)."""
+	seen = set()
+	out = []
+	for group in groups:
+		for e in group or []:
+			name = e.get("name") if hasattr(e, "get") else getattr(e, "name", None)
+			if not name or name in seen:
+				continue
+			seen.add(name)
+			out.append(e)
+	return out
+
+
+def _admission_payments(admission, from_date=None, to_date=None):
+	"""Submitted receive Payment Entries for an admission (allocated + case-tagged)."""
+	sos = [s.name for s in _admission_sales_orders(admission)]
+	allocated = []
+	if sos:
+		sis = frappe.get_all(
+			"Sales Invoice Item", filters={"sales_order": ["in", sos]}, pluck="parent", limit_page_length=0
+		)
+		ref_names = list(set(sos) | set(sis))
+		if ref_names:
+			pe_names = frappe.get_all(
+				"Payment Entry Reference",
+				filters={"reference_name": ["in", ref_names]},
+				pluck="parent",
+				limit_page_length=0,
+			)
+			if pe_names:
+				filters = {"name": ["in", list(set(pe_names))], "docstatus": 1, "payment_type": "Receive"}
+				if from_date and to_date:
+					filters["posting_date"] = ["between", [from_date, to_date]]
+				allocated = frappe.get_all(
+					"Payment Entry",
+					filters=filters,
+					fields=[
+						"name", "posting_date", "mode_of_payment", "paid_amount",
+						"reference_no", "reference_date", "owner", "creation",
+					],
+					order_by="posting_date, creation",
+					limit_page_length=0,
+				)
+	tagged = _case_tagged_payments(admission, from_date, to_date)
+	return _merge_payment_entries(allocated, tagged)
 
 
 @frappe.whitelist()
@@ -469,17 +516,130 @@ def _admission_sales_invoices(admission, so_names=None):
 	)
 
 
-def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentage=0):
+def _soa_is_lab_item(item_code, item_group=None, base_reference=None):
+	"""Lab billing lines collapse to a single 'Lab test' SOA row."""
+	br = (base_reference or "").strip()
+	if br in ("Lab Test", "Lab Test Template"):
+		return True
+	ig = (item_group or "").strip().lower()
+	if not ig and item_code:
+		ig = (frappe.db.get_value("Item", item_code, "item_group") or "").strip().lower()
+	if ig in ("lab test", "lab tests", "laboratory") or "lab test" in ig:
+		return True
+	if item_code and frappe.db.exists("Lab Test Template", {"item": item_code}):
+		return True
+	return False
+
+
+def _soa_is_medicine_item(item_code, item_group=None, base_reference=None):
+	"""
+	Medicine / pharmacy stock on SOA → single 'Medicine' row.
+
+	Primary source: Sales Orders from Patient Medication Order (stock drugs).
+	Fallback: stock items in a pharmacy / medicine item group.
+	"""
+	br = (base_reference or "").strip()
+	if br == "Patient Medication Order":
+		return True
+	if not item_code or _soa_is_lab_item(item_code, item_group=item_group, base_reference=base_reference):
+		return False
+	row = frappe.db.get_value("Item", item_code, ["is_stock_item", "item_group"], as_dict=True)
+	if not row or not cint(row.is_stock_item):
+		return False
+	ig = (row.item_group or item_group or "").strip().lower()
+	return any(h in ig for h in ("medic", "pharma", "drug", "pharmacy"))
+
+
+def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentage=0, base_reference=None):
+	"""One SOA raw line. Labs → Lab test; PMO/stock meds → Medicine (print summary)."""
+	code = getattr(it, "item_code", None) or (it.get("item_code") if isinstance(it, dict) else None)
+	name = getattr(it, "item_name", None) or (it.get("item_name") if isinstance(it, dict) else None)
+	group = getattr(it, "item_group", None) or (it.get("item_group") if isinstance(it, dict) else None)
+	qty = getattr(it, "qty", None)
+	if qty is None and isinstance(it, dict):
+		qty = it.get("qty")
+
+	if _soa_is_lab_item(code, item_group=group, base_reference=base_reference):
+		code, name, group = "Lab test", "Lab test", "Lab test"
+		rate = None
+	elif _soa_is_medicine_item(code, item_group=group, base_reference=base_reference):
+		code, name, group = "Medicine", "Medicine", "Medicine"
+		rate = None
+
 	return {
-		"item_code": it.item_code,
-		"item_name": it.item_name,
-		"category": it.item_group or "Other Services",
-		"rate": flt(rate),
+		"item_code": code,
+		"item_name": name,
+		"category": group or "Other Services",
+		"rate": None if rate is None else flt(rate),
 		"discount_amount": flt(discount_amount),
 		"discount_percentage": flt(discount_percentage),
-		"qty": flt(it.qty),
+		"qty": flt(qty),
 		"amount": flt(amount),
 	}
+
+
+def _soa_bucket_raw_lines(raw_lines):
+	"""Aggregate SOA lines: Lab test / Medicine collapse to one row each; else by item+rate."""
+	lines = {}
+	for it in raw_lines or []:
+		code = it.get("item_code")
+		if code in ("Lab test", "Medicine", "Lab Tests", "Medicines"):
+			# Normalize legacy labels from any leftover callers
+			if code in ("Lab Tests", "Lab test"):
+				code = "Lab test"
+				it = {**it, "item_code": code, "item_name": code, "category": code}
+			else:
+				code = "Medicine"
+				it = {**it, "item_code": code, "item_name": code, "category": code}
+			key = (code,)
+			display_rate = None
+		else:
+			key = (code, round(flt(it["rate"]), 6))
+			display_rate = flt(it["rate"])
+		row = lines.setdefault(
+			key,
+			{
+				"item_code": code,
+				"item_name": it["item_name"],
+				"category": it["category"],
+				"rate": display_rate,
+				"discount_amount": 0.0,
+				"discount_percentage": flt(it["discount_percentage"]),
+				"qty": 0.0,
+				"frequency": 0,
+				"amount": 0.0,
+			},
+		)
+		row["qty"] += flt(it["qty"])
+		row["frequency"] += 1
+		row["amount"] += flt(it["amount"])
+		row["discount_amount"] += flt(it["discount_amount"])
+	return lines
+
+
+def _soa_so_base_map(sos):
+	return {
+		s.name: getattr(s, "custom_base_reference", None)
+		for s in (sos or [])
+		if getattr(s, "name", None)
+	}
+
+
+def _soa_base_for_si_item(it, so_base_map, so_detail_parent=None):
+	"""Resolve Patient Medication Order / Lab Test base ref from linked Sales Order."""
+	so = getattr(it, "sales_order", None)
+	if so:
+		if so in so_base_map:
+			return so_base_map[so]
+		return frappe.db.get_value("Sales Order", so, "custom_base_reference")
+	detail = getattr(it, "so_detail", None)
+	if detail and so_detail_parent:
+		parent = so_detail_parent.get(detail)
+		if parent:
+			if parent in so_base_map:
+				return so_base_map[parent]
+			return frappe.db.get_value("Sales Order", parent, "custom_base_reference")
+	return None
 
 
 @frappe.whitelist()
@@ -509,6 +669,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 
 	sos = _admission_sales_orders(admission)
 	so_names = [s.name for s in sos]
+	so_base_map = _soa_so_base_map(sos)
 	invoices = _admission_sales_invoices(admission, so_names)
 	si_names = [i.name for i in invoices]
 
@@ -532,6 +693,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 				"discount_percentage",
 				"distributed_discount_amount",
 				"so_detail",
+				"sales_order",
 			],
 			limit_page_length=0,
 		)
@@ -557,6 +719,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 					amount=net_amt,
 					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
+					base_reference=_soa_base_for_si_item(it, so_base_map),
 				)
 			)
 
@@ -566,6 +729,7 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 			filters={"parent": ["in", so_names]},
 			fields=[
 				"name",
+				"parent",
 				"item_code",
 				"item_name",
 				"item_group",
@@ -589,35 +753,15 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 					amount=flt(it.amount),
 					discount_amount=flt(it.discount_amount),
 					discount_percentage=it.discount_percentage,
+					base_reference=so_base_map.get(it.parent),
 				)
 			)
 
 	# Package quotations with no Sales Order (settings off / mapping failed)
 	raw_lines.extend(_admission_package_quotation_lines(admission))
 
-	# Aggregate identical services: same item + display rate
-	lines = {}
-	for it in raw_lines:
-		key = (it["item_code"], round(flt(it["rate"]), 6))
-		row = lines.setdefault(
-			key,
-			{
-				"item_code": it["item_code"],
-				"item_name": it["item_name"],
-				"category": it["category"],
-				"rate": flt(it["rate"]),
-				"discount_amount": 0.0,
-				"discount_percentage": flt(it["discount_percentage"]),
-				"qty": 0.0,
-				"frequency": 0,
-				"amount": 0.0,
-			},
-		)
-		row["qty"] += flt(it["qty"])
-		row["frequency"] += 1
-		row["amount"] += flt(it["amount"])
-		row["discount_amount"] += flt(it["discount_amount"])
-
+	# Aggregate: Lab test / Medicine one line each; other services by item + rate
+	lines = _soa_bucket_raw_lines(raw_lines)
 	by_category = {}
 	for row in lines.values():
 		row["qty"] = round(row["qty"], 2)
@@ -654,9 +798,9 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
 	paid_entries = _admission_payments(admission)
-	paid_total = round(sum(flt(e.paid_amount) for e in paid_entries), 3)
 	net_total = round(bill_total - discount_total, 3)
 	pay_block = _soa_payment_payload(paid_entries, adm.patient, case_no=adm.name)
+	paid_total = flt(pay_block.get("paid_total"))
 
 	return {
 		"admission": adm.name,
@@ -763,37 +907,37 @@ def _visit_sales_invoices(visit: str, so_names=None):
 
 
 def _visit_payments(visit: str, from_date=None, to_date=None):
-	"""Submitted receive Payment Entries allocated against the visit's SOs/SIs."""
+	"""Submitted receive Payment Entries for a visit (allocated + case-tagged)."""
 	sos = [s.name for s in _visit_sales_orders(visit)]
-	if not sos:
-		return []
-	sis = frappe.get_all(
-		"Sales Invoice Item", filters={"sales_order": ["in", sos]}, pluck="parent", limit_page_length=0
-	)
-	ref_names = list(set(sos) | set(sis))
-	if not ref_names:
-		return []
-	pe_names = frappe.get_all(
-		"Payment Entry Reference",
-		filters={"reference_name": ["in", ref_names]},
-		pluck="parent",
-		limit_page_length=0,
-	)
-	if not pe_names:
-		return []
-	filters = {"name": ["in", list(set(pe_names))], "docstatus": 1, "payment_type": "Receive"}
-	if from_date and to_date:
-		filters["posting_date"] = ["between", [from_date, to_date]]
-	return frappe.get_all(
-		"Payment Entry",
-		filters=filters,
-		fields=[
-			"name", "posting_date", "mode_of_payment", "paid_amount",
-			"reference_no", "reference_date", "owner", "creation",
-		],
-		order_by="posting_date, creation",
-		limit_page_length=0,
-	)
+	allocated = []
+	if sos:
+		sis = frappe.get_all(
+			"Sales Invoice Item", filters={"sales_order": ["in", sos]}, pluck="parent", limit_page_length=0
+		)
+		ref_names = list(set(sos) | set(sis))
+		if ref_names:
+			pe_names = frappe.get_all(
+				"Payment Entry Reference",
+				filters={"reference_name": ["in", ref_names]},
+				pluck="parent",
+				limit_page_length=0,
+			)
+			if pe_names:
+				filters = {"name": ["in", list(set(pe_names))], "docstatus": 1, "payment_type": "Receive"}
+				if from_date and to_date:
+					filters["posting_date"] = ["between", [from_date, to_date]]
+				allocated = frappe.get_all(
+					"Payment Entry",
+					filters=filters,
+					fields=[
+						"name", "posting_date", "mode_of_payment", "paid_amount",
+						"reference_no", "reference_date", "owner", "creation",
+					],
+					order_by="posting_date, creation",
+					limit_page_length=0,
+				)
+	tagged = _case_tagged_payments(visit, from_date, to_date)
+	return _merge_payment_entries(allocated, tagged)
 
 
 def _payments_by_mode(entries):
@@ -882,18 +1026,52 @@ def _soa_patient_advances(patient, case_no=None):
 
 
 def _soa_payment_payload(payment_entries, patient, case_no=None):
-	"""Shared payment + advance block for IP/OP Statement of Account."""
+	"""Shared payment + advance block for IP/OP Statement of Account.
+
+	``paid_total`` includes allocated / case-tagged payments **and** unallocated
+	patient advances (money received even when invoices are still unpaid).
+	"""
 	modes, details = _payments_by_mode(payment_entries)
-	advances, advance_total = _soa_patient_advances(patient, case_no=case_no)
+	advances, _advance_raw = _soa_patient_advances(patient, case_no=case_no)
+
+	pe_names = set()
+	allocated_total = 0.0
+	for e in payment_entries or []:
+		name = e.get("name") if hasattr(e, "get") else getattr(e, "name", None)
+		if name:
+			pe_names.add(name)
+		allocated_total += flt(e.get("paid_amount") if hasattr(e, "get") else getattr(e, "paid_amount", 0))
+
+	# Extra credit not already covered by a Payment Entry in payment_entries
+	extra_advances = [a for a in advances if a.get("rv_no") not in pe_names]
+	advance_extra = round(sum(flt(a.get("amount")) for a in extra_advances), 3)
+	allocated_total = round(allocated_total, 3)
+	paid_total = round(allocated_total + advance_extra, 3)
+
+	# Fold only not-yet-counted advances into mode totals
+	mode_map = {m["mode"]: flt(m["amount"]) for m in modes}
 	advance_by_mode = {}
 	for a in advances:
-		m = a["mode_of_payment"]
-		advance_by_mode[m] = advance_by_mode.get(m, 0.0) + flt(a["amount"])
+		m = (a.get("mode_of_payment") or "Other").strip() or "Other"
+		amt = flt(a.get("amount"))
+		advance_by_mode[m] = advance_by_mode.get(m, 0.0) + amt
+	for a in extra_advances:
+		m = (a.get("mode_of_payment") or "Other").strip() or "Other"
+		mode_map[m] = mode_map.get(m, 0.0) + flt(a.get("amount"))
+
+	modes = [
+		{"mode": m, "amount": round(a, 3)}
+		for m, a in sorted(mode_map.items(), key=lambda x: (-x[1], x[0]))
+	]
+
 	return {
 		"payments_by_mode": modes,
 		"payments": details,
+		# Full unallocated list for the Paid detail table (invoice may still be unpaid)
 		"advances": advances,
-		"advance_total": advance_total,
+		"advance_total": round(sum(flt(a.get("amount")) for a in advances), 3),
+		"allocated_total": allocated_total,
+		"paid_total": paid_total,
 		"advances_by_mode": [
 			{"mode": m, "amount": round(a, 3)}
 			for m, a in sorted(advance_by_mode.items(), key=lambda x: (-x[1], x[0]))
@@ -905,6 +1083,7 @@ def _soa_aggregate_lines(sos, invoices):
 	"""Build category-grouped SOA lines + totals from Sales Orders / Invoices."""
 	so_names = [s.name for s in sos]
 	si_names = [i.name for i in invoices]
+	so_base_map = _soa_so_base_map(sos)
 
 	raw_lines = []
 	invoiced_so_details = set()
@@ -926,6 +1105,7 @@ def _soa_aggregate_lines(sos, invoices):
 				"discount_percentage",
 				"distributed_discount_amount",
 				"so_detail",
+				"sales_order",
 			],
 			limit_page_length=0,
 		)
@@ -950,6 +1130,7 @@ def _soa_aggregate_lines(sos, invoices):
 					amount=net_amt,
 					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
+					base_reference=_soa_base_for_si_item(it, so_base_map),
 				)
 			)
 
@@ -959,6 +1140,7 @@ def _soa_aggregate_lines(sos, invoices):
 			filters={"parent": ["in", so_names]},
 			fields=[
 				"name",
+				"parent",
 				"item_code",
 				"item_name",
 				"item_group",
@@ -982,30 +1164,11 @@ def _soa_aggregate_lines(sos, invoices):
 					amount=flt(it.amount),
 					discount_amount=flt(it.discount_amount),
 					discount_percentage=it.discount_percentage,
+					base_reference=so_base_map.get(it.parent),
 				)
 			)
 
-	lines = {}
-	for it in raw_lines:
-		key = (it["item_code"], round(flt(it["rate"]), 6))
-		row = lines.setdefault(
-			key,
-			{
-				"item_code": it["item_code"],
-				"item_name": it["item_name"],
-				"category": it["category"],
-				"rate": flt(it["rate"]),
-				"discount_amount": 0.0,
-				"discount_percentage": flt(it["discount_percentage"]),
-				"qty": 0.0,
-				"frequency": 0,
-				"amount": 0.0,
-			},
-		)
-		row["qty"] += flt(it["qty"])
-		row["frequency"] += 1
-		row["amount"] += flt(it["amount"])
-		row["discount_amount"] += flt(it["discount_amount"])
+	lines = _soa_bucket_raw_lines(raw_lines)
 
 	by_category = {}
 	for row in lines.values():
@@ -1041,7 +1204,6 @@ def _soa_aggregate_lines(sos, invoices):
 	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
 	return by_category, bill_total, discount_total
-
 
 @frappe.whitelist()
 def get_op_statement_of_account(visit=None, from_date=None, to_date=None, patient=None):
@@ -1171,13 +1333,13 @@ def _build_op_soa(
 				continue
 			seen_pe.add(e.name)
 			paid_entries.append(e)
-	paid_total = round(sum(flt(e.paid_amount) for e in paid_entries), 3)
 	net_total = round(bill_total - discount_total, 3)
 	pay_block = _soa_payment_payload(
 		paid_entries,
 		patient,
 		case_no=header_visit or None,
 	)
+	paid_total = flt(pay_block.get("paid_total"))
 
 	doctor_name = None
 	visit_date = None

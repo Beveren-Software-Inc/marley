@@ -87,8 +87,11 @@ export function matchesPrescriptionTypeFilter(
   filterKey: string,
   asOf: Date = new Date()
 ): boolean {
+  const isStopped = Boolean(String(order.reason_stopped || '').trim())
+  // Stopped lines belong only under the Stopped tab — not All / Reg Psy / etc.
+  if (filterKey === '__stopped__') return isStopped
+  if (isStopped) return false
   if (filterKey === 'All') return true
-  if (filterKey === '__stopped__') return Boolean(String(order.reason_stopped || '').trim())
   const future = isFuturePlanByStartDate(order, asOf)
   if (filterKey === 'Future Plan') return future
   // Real types only include lines that have started (not future-dated)

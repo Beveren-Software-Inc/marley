@@ -1554,8 +1554,8 @@ export const CreatePrescriptionModal = ({
                             {row.reason_stopped}
                           </p>
                           <p className="text-[11px] font-medium text-rose-700">
-                            Warning: this medicine was stopped/discontinued. It will be included on this discharge
-                            prescription unless you remove it.
+                            Warning: this medicine was stopped/discontinued. Remove this row if it should not be on
+                            the discharge prescription.
                           </p>
                         </div>
                       ) : null}

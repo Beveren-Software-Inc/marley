@@ -115,7 +115,12 @@ function soaCategoryRows(cats: Record<string, any[]>) {
             lineDisc > 0
               ? `${fmtAmt(lineDisc)}${discPct > 0 ? ` (${discPct}%)` : ''}`
               : ''
-          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+          // Combined Medicine / Lab test lines have no single rate — show dash, keep amount
+          const isSummary =
+            r.rate == null ||
+            ['Medicine', 'Lab test', 'Medicines', 'Lab Tests'].includes(String(r.item_code || ''))
+          const rateCell = isSummary ? '—' : fmtAmt(r.rate)
+          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${rateCell}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
         })
         .join(''),
     )
@@ -130,9 +135,15 @@ function soaTotalsFooter(data: any) {
       <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
 }
 
-/** Payment mode totals + advance (paid, yet to distribute) blocks for SOA. */
+/** Single Paid table for SOA (mode is a column — no separate Payments-by-Mode table). */
 function soaPaymentsHtml(data: any) {
-  const modes = (data.payments_by_mode || []) as Array<{ mode: string; amount: number }>
+  const payments = (data.payments || []) as Array<{
+    rv_no: string
+    rv_date: string
+    mode_of_payment: string
+    amount: number
+    status: string
+  }>
   const advances = (data.advances || []) as Array<{
     rv_no: string
     rv_date: string
@@ -140,44 +151,30 @@ function soaPaymentsHtml(data: any) {
     amount: number
     status: string
   }>
-  const advanceTotal = Number(data.advance_total || 0)
-  let html = ''
 
-  if (modes.length) {
-    const rows = modes
-      .map(
-        (m) =>
-          `<tr><td>${m.mode}</td><td class="num">${fmtAmt(m.amount)}</td></tr>`,
-      )
-      .join('')
-    html += `<h3 class="soa-h3">Payments by Mode</h3>
-      <table class="soa-pay"><thead><tr><th>Payment Mode</th><th class="num">Amount (BHD)</th></tr></thead>
-      <tbody>${rows}
-      <tr class="total"><td>Total Paid</td><td class="num">${fmtAmt(data.paid_total)}</td></tr>
+  const byRv = new Map<string, (typeof payments)[0]>()
+  for (const row of [...payments, ...advances]) {
+    const key = row.rv_no || `${row.rv_date}-${row.mode_of_payment}-${row.amount}`
+    if (!byRv.has(key)) byRv.set(key, row)
+  }
+  const rows = Array.from(byRv.values())
+  const total = Number(data.paid_total || 0)
+  if (!rows.length && total <= 0) return ''
+
+  const detailRows = rows
+    .map(
+      (a) =>
+        `<tr><td>${a.rv_no ?? ''}</td><td>${a.rv_date ?? ''}</td><td>${a.mode_of_payment ?? ''}</td>
+         <td class="num">${fmtAmt(a.amount)}</td>
+         <td class="soa-paid">${a.status || 'Paid'}</td></tr>`,
+    )
+    .join('')
+
+  return `<h3 class="soa-h3">Paid</h3>
+    <table class="soa-pay"><thead><tr><th>RV No.</th><th>Date</th><th>Mode</th><th class="num">Amount (BHD)</th><th>Status</th></tr></thead>
+      <tbody>${detailRows}
+      <tr class="total"><td colspan="3">Total</td><td class="num">${fmtAmt(total)}</td><td></td></tr>
       </tbody></table>`
-  } else if (Number(data.paid_total || 0) > 0) {
-    html += `<h3 class="soa-h3">Payments by Mode</h3>
-      <p class="soa-note">Paid ${fmtAmt(data.paid_total)} BHD (mode not recorded).</p>`
-  }
-
-  if (advances.length || advanceTotal > 0) {
-    const detailRows = advances
-      .map(
-        (a) =>
-          `<tr><td>${a.rv_no ?? ''}</td><td>${a.rv_date ?? ''}</td><td>${a.mode_of_payment ?? ''}</td>
-           <td class="num">${fmtAmt(a.amount)}</td>
-           <td class="soa-paid">${a.status || 'Paid'}</td></tr>`,
-      )
-      .join('')
-    html += `<h3 class="soa-h3">Paid</h3>`
-    if (detailRows) {
-      html += `<table class="soa-pay"><thead><tr><th>RV No.</th><th>Date</th><th>Mode</th><th class="num">Amount (BHD)</th><th>Status</th></tr></thead>
-        <tbody>${detailRows}
-        <tr class="total"><td colspan="3">Total</td><td class="num">${fmtAmt(advanceTotal)}</td><td></td></tr>
-        </tbody></table>`
-    }
-  }
-  return html
 }
 
 function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false) {
