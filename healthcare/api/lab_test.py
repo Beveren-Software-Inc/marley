@@ -66,6 +66,75 @@ def _lab_request_item_key(item: dict) -> str:
 	return (item.get("template") or "").strip()
 
 
+def _get_lab_tests_for_request_group(service_request_name: str, lab_test_group: str | None = None):
+	"""Lab Tests on a Service Request, optionally limited to one lab-request group.
+
+	When ``lab_test_group`` is set, match ``Lab Test.lab_test_group`` first, then
+	fall back to child templates on that lab-request line (same as finish_group_lab_tests).
+	Without it, return every grouped child on the request (legacy one-group behaviour).
+	"""
+	base_filters = {
+		"service_request": service_request_name,
+		"docstatus": ["<", 2],
+	}
+	fields = ["name", "status", "template", "lab_test_group", "is_group_lab_test"]
+	lab_test_group = (lab_test_group or "").strip() or None
+
+	if not lab_test_group:
+		return frappe.get_all(
+			"Lab Test",
+			filters={**base_filters, "is_group_lab_test": 1},
+			fields=fields,
+			order_by="creation asc",
+		)
+
+	group_tests = frappe.get_all(
+		"Lab Test",
+		filters={**base_filters, "lab_test_group": lab_test_group},
+		fields=fields,
+		order_by="creation asc",
+	)
+	if group_tests:
+		return group_tests
+
+	from healthcare.healthcare.lab_request_items import parse_lab_request_items
+
+	if not frappe.db.exists("Service Request", service_request_name):
+		return []
+
+	sr_doc = frappe.get_doc("Service Request", service_request_name)
+	matched_item = None
+	for item in parse_lab_request_items(sr_doc):
+		if _lab_request_item_key(item) == lab_test_group:
+			matched_item = item
+			break
+	if not matched_item:
+		return []
+
+	kind = (matched_item.get("kind") or "").strip().lower()
+	if kind == "group":
+		child_templates = [c for c in (matched_item.get("children") or []) if c]
+		if not child_templates:
+			child_templates = frappe.get_all(
+				"Lab Test Template",
+				filters={"lab_group": lab_test_group, "disabled": 0},
+				pluck="name",
+				ignore_permissions=True,
+			)
+	else:
+		child_templates = [lab_test_group]
+
+	if not child_templates:
+		return []
+
+	return frappe.get_all(
+		"Lab Test",
+		filters={**base_filters, "template": ["in", child_templates]},
+		fields=fields,
+		order_by="creation asc",
+	)
+
+
 def _finished_lab_request_groups(service_request_name: str) -> set[str]:
 	"""Group/single template codes marked finished on multi-line Lab Requests."""
 	if not service_request_name or not frappe.db.exists("Service Request", service_request_name):
@@ -3291,27 +3360,23 @@ def create_sample_collection_for_lab_group(
 	referring_practitioner: str | None = None,
 	collected_by: str | None = None,
 	sample_qty: float | int | str | None = None,
+	lab_test_group: str | None = None,
 ):
-	"""Record sample collection for every child Lab Test under a grouped request.
+	"""Record sample collection for child Lab Tests of one grouped request line.
 
-	One group-level collection applies to all eligible siblings (not one-by-one).
+	When ``lab_test_group`` is set, only that group's children are collected.
+	Without it, every grouped child on the Service Request is collected (legacy).
 	Individual child collection remains available via create_sample_collection_for_lab_sample.
 	"""
 	assert_editing_allowed()
 	if not service_request_name:
 		frappe.throw(_("Service Request name is required"))
 
-	lab_tests = frappe.get_all(
-		"Lab Test",
-		filters={
-			"service_request": service_request_name,
-			"is_group_lab_test": 1,
-			"docstatus": ["<", 2],
-		},
-		fields=["name", "status"],
-		order_by="creation asc",
-	)
+	lab_test_group = (lab_test_group or "").strip() or None
+	lab_tests = _get_lab_tests_for_request_group(service_request_name, lab_test_group)
 	if not lab_tests:
+		if lab_test_group:
+			frappe.throw(_("No lab tests found for group {0}").format(lab_test_group))
 		frappe.throw(_("No grouped lab tests found for this Service Request"))
 
 	eligible_statuses = LAB_PRE_SAMPLE_COLLECTION_STATUSES | SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES
@@ -3365,6 +3430,8 @@ def create_sample_collection_for_lab_group(
 		updated.append(name)
 
 	if not updated:
+		if lab_test_group:
+			frappe.throw(_("No lab tests in group {0} are eligible for sample collection").format(lab_test_group))
 		frappe.throw(_("No lab tests in this group are eligible for sample collection"))
 
 	return {
@@ -3372,6 +3439,7 @@ def create_sample_collection_for_lab_group(
 		"skipped": skipped,
 		"count": len(updated),
 		"sample_collections": collections,
+		"lab_test_group": lab_test_group,
 	}
 
 

@@ -16,11 +16,13 @@ import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
 
 export interface LabTestSampleCollectionModalProps {
   labTest: LabTest
-  /** When set, save applies collection to every child in the group. */
+  /** When set, save applies collection to every child in this group only. */
   groupChildren?: LabTest[]
   groupLabel?: string
   /** Service Request for the group (kept separately because get_lab_test may omit it). */
   groupServiceRequest?: string
+  /** Lab request group template/code — collect this group only, not siblings on the same request. */
+  groupLabTestGroup?: string
   loading?: boolean
   error?: string | null
   onClose: () => void
@@ -241,6 +243,7 @@ export function LabTestSampleCollectionModal({
   groupChildren,
   groupLabel,
   groupServiceRequest,
+  groupLabTestGroup,
   loading = false,
   error = null,
   onClose,
@@ -381,13 +384,17 @@ export function LabTestSampleCollectionModal({
         if (!serviceRequest) {
           throw new Error('This group is missing a service request')
         }
+        const labTestGroup =
+          (groupLabTestGroup || groupChildren?.find((c) => c.lab_test_group)?.lab_test_group || '').trim() ||
+          undefined
         const res = await createSampleCollectionForLabGroup(
           serviceRequest,
           notes || undefined,
           draft.collectionPoint.trim() || undefined,
           undefined,
           qty,
-          draft.collectedBy || undefined
+          draft.collectedBy || undefined,
+          labTestGroup
         )
         toast.success(
           `Sample collection saved for ${res.count} test${res.count === 1 ? '' : 's'} in this group`

@@ -722,19 +722,21 @@ export async function createSampleCollectionForLabSample(
   )
 }
 
-/** Apply sample collection to every eligible child Lab Test in a grouped request. */
+/** Apply sample collection to eligible child Lab Tests in one lab-request group. */
 export async function createSampleCollectionForLabGroup(
   serviceRequestName: string,
   sampleDetails?: string,
   collectionPoint?: string,
   referringPractitioner?: string,
   sampleQty?: number,
-  collectedBy?: string
+  collectedBy?: string,
+  labTestGroup?: string
 ): Promise<{
   updated: string[]
   skipped: string[]
   count: number
   sample_collections: string[]
+  lab_test_group?: string | null
 }> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest(
@@ -748,6 +750,7 @@ export async function createSampleCollectionForLabGroup(
         referring_practitioner: referringPractitioner,
         sample_qty: sampleQty,
         collected_by: collectedBy,
+        ...(labTestGroup ? { lab_test_group: labTestGroup } : {}),
       }),
     }
   )
