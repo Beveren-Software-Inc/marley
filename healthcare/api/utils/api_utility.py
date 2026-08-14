@@ -57,6 +57,31 @@ def get_next_transaction_number(doctype: str, fieldname: str = 'trans_no', prefi
     return _get_next_auto_detected_number(existing_numbers, padding)
 
 
+def get_next_inpatient_case_number() -> str:
+    """Next Inpatient Admission case_no: largest existing 4-digit number + 1.
+
+    Only 1–4 digit numeric case numbers are considered (e.g. 2345 → 2346).
+    Prefixed or longer IDs are ignored so they do not jump the sequence.
+    """
+    row = frappe.db.sql(
+        """
+        SELECT MAX(CAST(case_no AS UNSIGNED)) AS max_no
+        FROM `tabInpatient Admission`
+        WHERE case_no REGEXP '^[0-9]{1,4}$'
+        """,
+        as_dict=True,
+    )
+    max_no = 0
+    if row and row[0].get("max_no") is not None:
+        max_no = int(row[0]["max_no"])
+    next_no = max_no + 1
+    while frappe.db.exists("Inpatient Admission", str(next_no)) or frappe.db.exists(
+        "Inpatient Admission", {"case_no": str(next_no)}
+    ):
+        next_no += 1
+    return str(next_no)
+
+
 def get_next_integer(doctype: str, fieldname: str = 'trans_no') -> int:
     """
     Simplified: Get next integer only (no prefix)

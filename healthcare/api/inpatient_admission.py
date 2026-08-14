@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate
 from healthcare.api.patient_visit import create_invoice
-from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.utils.api_utility import get_next_inpatient_case_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
 from healthcare.healthcare.doctype.observation.observation import vacate_active_observation_rooms_for_patient
 from healthcare.healthcare.editing_lock import assert_editing_allowed
@@ -26,7 +26,7 @@ except ImportError:
 @frappe.whitelist()
 def get_next_case_number():
 	"""Get the next case number for a new Inpatient Admission."""
-	return get_next_transaction_number('Inpatient Admission', fieldname='case_no')
+	return get_next_inpatient_case_number()
 
 
 @frappe.whitelist()
