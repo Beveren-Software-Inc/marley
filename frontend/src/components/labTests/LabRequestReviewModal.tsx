@@ -664,9 +664,7 @@ export function LabRequestReviewModal({
                                   const progress = getGroupResultProgress(group)
                                   const needsSample = groupNeedsSample(group)
                                   const groupFinished = isGroupFinished(group)
-                                  const canPrint =
-                                    groupFinished ||
-                                    (!needsSample && progress.status === 'Complete')
+                                  const canPrint = groupFinished || !needsSample
                                   const progressClass =
                                     progress.status === 'Complete'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -723,19 +721,19 @@ export function LabRequestReviewModal({
                                             </span>
                                           </span>
                                         )}
-                                        {canPrint ? (
-                                          <>
-                                            <button
-                                              type="button"
-                                              title="Print results"
-                                              onClick={() => printGroup(group)}
-                                              className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                            >
-                                              <Printer className="h-3.5 w-3.5" />
-                                            </button>
-                                            <PrintBarcodeBtn onClick={() => printBarcode()} />
-                                          </>
-                                        ) : null}
+                                    {canPrint ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Print"
+                                          onClick={() => printGroup(group)}
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
+                                        >
+                                          <Printer className="h-3.5 w-3.5" />
+                                        </button>
+                                        <PrintBarcodeBtn onClick={() => printBarcode()} />
+                                      </>
+                                    ) : null}
                                       </div>
                                     )
                                   }
