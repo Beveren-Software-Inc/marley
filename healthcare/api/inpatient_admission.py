@@ -10,7 +10,7 @@ from datetime import timedelta
 
 from frappe.utils import cint, cstr, flt, format_timedelta, get_datetime, getdate
 from healthcare.api.patient_visit import create_invoice
-from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.utils.api_utility import get_next_inpatient_case_number
 from healthcare.controllers.discount_validation import apply_insurance_discounts
 from healthcare.healthcare.doctype.observation.observation import vacate_active_observation_rooms_for_patient
 from healthcare.healthcare.editing_lock import assert_editing_allowed
@@ -26,7 +26,7 @@ except ImportError:
 @frappe.whitelist()
 def get_next_case_number():
 	"""Get the next case number for a new Inpatient Admission."""
-	return get_next_transaction_number('Inpatient Admission', fieldname='case_no')
+	return get_next_inpatient_case_number()
 
 
 @frappe.whitelist()
@@ -1632,11 +1632,143 @@ def get_discharge_draft_for_admission(admission_name):
 	return _serialize_discharge_draft_for_portal(discharge_doc)
 
 
+def _bill_pending_given_medicine_on_discharge_start(
+	admission_name: str,
+	*,
+	first_item_is_complete: bool,
+	force: bool = False,
+):
+	"""Charge unbilled given medicine once discharge has started.
+
+	The first checklist item being checked means the patient will be discharged today,
+	so remaining Medicine Given cannot wait for the daily/weekly consumption job.
+	Later saves (and submit) retry any rows still missing a Sales Order / Delivery Note.
+
+	Requires Healthcare Settings → Create Pending Given Medicine on Discharge.
+	"""
+	if not cint(
+		frappe.db.get_single_value("Healthcare Settings", "create_pending_given_medicine_on_discharge")
+	):
+		return None
+
+	if not force and not first_item_is_complete:
+		return None
+
+	from healthcare.api.nursing_inventory import create_pending_medicine_sales_orders_for_admission
+
+	try:
+		return create_pending_medicine_sales_orders_for_admission(admission_name)
+	except Exception:
+		frappe.log_error(
+			title=f"Failed to bill pending given medicine for admission {admission_name}",
+			message=frappe.get_traceback(),
+		)
+		raise
+
+
+def _apply_medicine_billing_to_discharge_response(response: dict, medicine_result) -> None:
+	if not medicine_result:
+		return
+	so_name = medicine_result.get("sales_order")
+	dn_name = medicine_result.get("delivery_note")
+	if so_name:
+		response["medicine_sales_order"] = so_name
+	if dn_name:
+		response["medicine_delivery_note"] = dn_name
+	linked = medicine_result.get("linked_rows")
+	if linked:
+		response["medicine_linked_rows"] = linked
+	if so_name:
+		if dn_name:
+			med_msg = _("Given medicine Sales Order {0} and Delivery Note {1} created.").format(
+				so_name, dn_name
+			)
+		else:
+			med_msg = _("Given medicine Sales Order {0} created.").format(so_name)
+		base = (response.get("message") or "").rstrip(".")
+		response["message"] = f"{base}. {med_msg}" if base else med_msg
+
+
+def _discharge_stay_charge_as_of(discharge_doc):
+	"""End date for remaining stay days: later of draft dates and today.
+
+	A stale or wrong draft discharge_date (this admission had 4 Aug, before
+	admission) must not zero out the charge window while the patient is still in.
+	"""
+	candidates = [getdate(frappe.utils.today())]
+	for field in ("discharge_date", "final_discharge_date"):
+		val = discharge_doc.get(field)
+		if val:
+			candidates.append(getdate(val))
+	return max(candidates)
+
+
+def _bill_pending_package_on_discharge_start(
+	admission_name: str,
+	discharge_doc,
+	*,
+	first_item_is_complete: bool,
+	force: bool = False,
+):
+	"""Charge remaining package/room days through the discharge date.
+
+	Family may already have paid some stay days mid-admission. Once discharge has
+	started (first checklist item ticked + discharge date), bill from the last
+	charged day through that final date so the stay is fully covered.
+
+	Requires Healthcare Settings → Create Pending Room Charges on Discharge.
+	"""
+	if not cint(
+		frappe.db.get_single_value("Healthcare Settings", "create_pending_room_charges_on_discharge")
+	):
+		return None
+
+	if not force and not first_item_is_complete:
+		return None
+
+	as_of = _discharge_stay_charge_as_of(discharge_doc)
+	from healthcare.api.package_charge_to_today import charge_pending_package_days_for_admission
+
+	try:
+		return charge_pending_package_days_for_admission(admission_name, as_of=as_of)
+	except Exception:
+		frappe.log_error(
+			title=f"Failed to bill pending package days for admission {admission_name}",
+			message=frappe.get_traceback(),
+		)
+		raise
+
+
+def _apply_package_billing_to_discharge_response(response: dict, package_result) -> None:
+	if not package_result:
+		return
+	so_name = package_result.get("sales_order")
+	if so_name:
+		response["package_sales_order"] = so_name
+	days = package_result.get("days_charged")
+	if days:
+		response["package_days_charged"] = days
+	if package_result.get("from_date"):
+		response["package_from_date"] = package_result.get("from_date")
+	if package_result.get("to_date"):
+		response["package_to_date"] = package_result.get("to_date")
+	if so_name:
+		from_date = package_result.get("from_date") or ""
+		to_date = package_result.get("to_date") or ""
+		pkg_msg = _("Package/room Sales Order {0} created for {1} day(s) ({2} to {3}).").format(
+			so_name, days or 0, from_date, to_date
+		)
+		base = (response.get("message") or "").rstrip(".")
+		response["message"] = f"{base}. {pkg_msg}" if base else pkg_msg
+
+
 @frappe.whitelist()
 def save_discharge_draft(admission_name, discharge_data, sync_observation=None, sync_charge_types=None):
 	"""Create or update a draft Discharge without submitting."""
 	if not admission_name:
 		frappe.throw(_("Admission is required"))
+
+	from healthcare.healthcare.discharge_checklist_permissions import is_first_checklist_item_complete
 
 	discharge_data = frappe.parse_json(discharge_data or {})
 	sync_observation = cint(sync_observation)
@@ -1667,6 +1799,17 @@ def save_discharge_draft(admission_name, discharge_data, sync_observation=None, 
 		for charge_type, so_name in charge_result["sales_orders"].items():
 			if charge_type == "Room Charges":
 				_persist_discharge_charge_sales_order_link(discharge_doc, so_name)
+
+	first_item_complete = is_first_checklist_item_complete(discharge_doc.get("discharge_checklist"))
+	medicine_result = _bill_pending_given_medicine_on_discharge_start(
+		admission_name,
+		first_item_is_complete=first_item_complete,
+	)
+	package_result = _bill_pending_package_on_discharge_start(
+		admission_name,
+		discharge_doc,
+		first_item_is_complete=first_item_complete,
+	)
 
 	frappe.db.commit()
 
@@ -1715,6 +1858,9 @@ def save_discharge_draft(admission_name, discharge_data, sync_observation=None, 
 				)
 			elif charge_result.get("existing"):
 				response["message"] = _("Discharge draft saved. Linked Sales Orders updated.")
+
+	_apply_medicine_billing_to_discharge_response(response, medicine_result)
+	_apply_package_billing_to_discharge_response(response, package_result)
 
 	return response
 
@@ -2732,6 +2878,8 @@ def create_and_submit_discharge(admission_name, discharge_data):
 		frappe.logger().info(f"Creating discharge for admission {admission_name}")
 
 		discharge_doc = _get_or_create_draft_discharge(admission_name)
+		from healthcare.healthcare.discharge_checklist_permissions import is_first_checklist_item_complete
+
 		_apply_discharge_payload(discharge_doc, discharge_data)
 		discharge_doc.flags.ignore_links = True
 		discharge_doc.save(ignore_permissions=True)
@@ -2742,6 +2890,19 @@ def create_and_submit_discharge(admission_name, discharge_data):
 
 		charge_result = _create_discharge_today_charge_sales_order_if_needed(discharge_doc, admission_name)
 		discharge_doc.reload()
+
+		first_item_complete = is_first_checklist_item_complete(discharge_doc.get("discharge_checklist"))
+		medicine_result = _bill_pending_given_medicine_on_discharge_start(
+			admission_name,
+			first_item_is_complete=first_item_complete,
+			force=True,
+		)
+		package_result = _bill_pending_package_on_discharge_start(
+			admission_name,
+			discharge_doc,
+			first_item_is_complete=first_item_complete,
+			force=True,
+		)
 
 		if cint(discharge_doc.docstatus) == 0:
 			discharge_doc.flags.ignore_permissions = True
@@ -2759,6 +2920,9 @@ def create_and_submit_discharge(admission_name, discharge_data):
 				response["message"] = _(
 					"Discharge submitted. Observation {0} and Sales Order {1} created."
 				).format(observation_result.get("name"), observation_result.get("sales_order"))
+
+		_apply_medicine_billing_to_discharge_response(response, medicine_result)
+		_apply_package_billing_to_discharge_response(response, package_result)
 
 		return response
 

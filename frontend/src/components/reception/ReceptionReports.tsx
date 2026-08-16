@@ -30,6 +30,11 @@ const LETTERHEAD = {
   web: 'www.serenehospital.com',
 }
 
+/** Lab-report palette (maroon labels / navy table headers). */
+const SOA_MAROON = '#800000'
+const SOA_NAVY = '#000080'
+const SOA_TH_BG = '#e8eaf0'
+
 const fmtAmt = (v: number | null | undefined) =>
   Number(v || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })
 
@@ -63,7 +68,23 @@ function sectionTable(title: string, rows: any[], cols: readonly (readonly [stri
   return `<h3>${title}</h3><table><thead><tr>${head}</tr></thead><tbody>${body}${totalRow}</tbody></table>`
 }
 
-function buildLetterhead(reportTitle: string, meta: string) {
+function buildLetterhead(reportTitle: string, meta: string, opts?: { soa?: boolean }) {
+  if (opts?.soa) {
+    return `
+    <div class="lh soa-lh">
+      <div class="lh-box">
+        <div class="lh-name">${LETTERHEAD.name}</div>
+        <div>${LETTERHEAD.address}</div>
+        <div>${LETTERHEAD.contact}</div>
+        <div>${LETTERHEAD.web}</div>
+      </div>
+      <div class="lh-title">
+        <h1>${reportTitle}</h1>
+        <div class="lh-meta">${meta}</div>
+        <div class="lh-meta">Printed on: ${new Date().toLocaleString('en-GB')}</div>
+      </div>
+    </div>`
+  }
   return `
     <div class="lh">
       <div>
@@ -79,6 +100,10 @@ function buildLetterhead(reportTitle: string, meta: string) {
     </div><hr/>`
 }
 
+function soaInfoCell(label: string, value: string | number | null | undefined) {
+  return `<td class="soa-lbl">${label}</td><td class="soa-val">${value ?? ''}</td>`
+}
+
 function soaCategoryRows(cats: Record<string, any[]>) {
   return Object.entries(cats)
     .map(([cat, rows]) =>
@@ -90,7 +115,12 @@ function soaCategoryRows(cats: Record<string, any[]>) {
             lineDisc > 0
               ? `${fmtAmt(lineDisc)}${discPct > 0 ? ` (${discPct}%)` : ''}`
               : ''
-          return `<tr>${i === 0 ? `<td rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${fmtAmt(r.rate)}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+          // Combined Medicine / Lab test lines have no single rate — show dash, keep amount
+          const isSummary =
+            r.rate == null ||
+            ['Medicine', 'Lab test', 'Medicines', 'Lab Tests'].includes(String(r.item_code || ''))
+          const rateCell = isSummary ? '—' : fmtAmt(r.rate)
+          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${rateCell}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
         })
         .join(''),
     )
@@ -105,7 +135,75 @@ function soaTotalsFooter(data: any) {
       <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
 }
 
-function docCss(orientation: 'portrait' | 'landscape' = 'landscape') {
+/** Single Paid table for SOA (mode is a column — no separate Payments-by-Mode table). */
+function soaPaymentsHtml(data: any) {
+  const payments = (data.payments || []) as Array<{
+    rv_no: string
+    rv_date: string
+    mode_of_payment: string
+    amount: number
+    status: string
+  }>
+  const advances = (data.advances || []) as Array<{
+    rv_no: string
+    rv_date: string
+    mode_of_payment: string
+    amount: number
+    status: string
+  }>
+
+  const byRv = new Map<string, (typeof payments)[0]>()
+  for (const row of [...payments, ...advances]) {
+    const key = row.rv_no || `${row.rv_date}-${row.mode_of_payment}-${row.amount}`
+    if (!byRv.has(key)) byRv.set(key, row)
+  }
+  const rows = Array.from(byRv.values())
+  const total = Number(data.paid_total || 0)
+  if (!rows.length && total <= 0) return ''
+
+  const detailRows = rows
+    .map(
+      (a) =>
+        `<tr><td>${a.rv_no ?? ''}</td><td>${a.rv_date ?? ''}</td><td>${a.mode_of_payment ?? ''}</td>
+         <td class="num">${fmtAmt(a.amount)}</td>
+         <td class="soa-paid">${a.status || 'Paid'}</td></tr>`,
+    )
+    .join('')
+
+  return `<h3 class="soa-h3">Paid</h3>
+    <table class="soa-pay"><thead><tr><th>RV No.</th><th>Date</th><th>Mode</th><th class="num">Amount (BHD)</th><th>Status</th></tr></thead>
+      <tbody>${detailRows}
+      <tr class="total"><td colspan="3">Total</td><td class="num">${fmtAmt(total)}</td><td></td></tr>
+      </tbody></table>`
+}
+
+function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false) {
+  if (soa) {
+    return `
+  body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; margin: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .soa-lh { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+  .lh-box { border: 1px solid #888; padding: 6px 8px; max-width: 48%; }
+  .lh-name { font-size: 13px; font-weight: bold; color: #000; }
+  .lh-title { text-align: center; flex: 1; }
+  .lh-title h1 { font-size: 18px; margin: 0 0 4px; color: ${SOA_MAROON}; text-decoration: underline; font-weight: bold; }
+  .lh-meta { color: ${SOA_MAROON}; font-size: 10px; }
+  .soa-h3 { margin: 12px 0 4px; font-size: 13px; color: ${SOA_MAROON}; font-weight: bold; text-align: center; }
+  .soa-note { margin: 2px 0 6px; font-size: 10px; color: #444; }
+  .soa-info { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
+  .soa-info td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
+  .soa-lbl { width: 18%; font-weight: bold; color: ${SOA_MAROON}; }
+  .soa-val { width: 32%; color: #000; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
+  th, td { border: 1px solid #000; padding: 3px 5px; text-align: left; }
+  th { background: ${SOA_TH_BG}; color: ${SOA_NAVY}; font-weight: bold; }
+  td.num, th.num { text-align: right; }
+  td.soa-cat { color: ${SOA_MAROON}; font-weight: bold; vertical-align: top; }
+  tr.total td { font-weight: bold; background: #f8fafc; }
+  .soa-pay { width: 100%; max-width: 640px; }
+  .soa-paid { color: ${SOA_MAROON}; font-weight: bold; }
+  @page { size: A4 ${orientation}; margin: 10mm; }
+`
+  }
   return `
   body { font-family: Arial, sans-serif; font-size: 11px; color: #111; margin: 16px; }
   .lh { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; }
@@ -127,8 +225,9 @@ function openDocument(
   mode: 'pdf' | 'excel',
   filename: string,
   orientation: 'portrait' | 'landscape' = 'landscape',
+  soa = false,
 ) {
-  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>${docCss(orientation)}</style></head><body>${html}</body></html>`
+  const doc = `<!doctype html><html><head><meta charset="utf-8"><style>${docCss(orientation, soa)}</style></head><body>${html}</body></html>`
   if (mode === 'pdf') {
     const win = window.open('', '_blank')
     if (!win) return
@@ -306,7 +405,9 @@ export function ReceptionReports() {
       )
       if (!preview?.can_charge) {
         toast.error(
-          `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${preview?.program_days ?? '—'} days.`,
+          preview?.quotation
+            ? `No unbilled package days. Elapsed ${preview?.days_elapsed ?? 0}, already billed ${preview?.days_already_billed ?? 0}, package ${preview?.program_days ?? '—'} days (Quotation ${preview.quotation}).`
+            : 'No package Quotation found for this admission. Create the admission package Quotation first.',
         )
         return
       }
@@ -314,6 +415,7 @@ export function ReceptionReports() {
         [
           `Charge package up to today for ${preview.package_name || preview.package}?`,
           '',
+          `Existing Quotation: ${preview.quotation}`,
           `Package days: ${preview.program_days ?? '—'}`,
           `Days elapsed: ${preview.days_elapsed}`,
           `Already billed: ${preview.days_already_billed}`,
@@ -322,7 +424,7 @@ export function ReceptionReports() {
           `Charge amount: ${fmtAmt(preview.amount)}`,
           `Remaining after charge: ${preview.remaining_days_after ?? '—'}`,
           '',
-          'This creates a Quotation and submits it to a Sales Order.',
+          'Creates a partial Sales Order from the existing Quotation (does not create a new Quotation).',
         ].join('\n'),
       )
       if (!ok) return
@@ -372,31 +474,39 @@ export function ReceptionReports() {
       const visitMeta = resolvedVisit
         ? `Visit No. ${data.case_no || data.visit}`
         : `Patient ${data.patient_name || selectedPatient || ''} · All OP visits`
-      let html = buildLetterhead('Statement of Account (OP)', `${visitMeta}${range ? ` · ${range}` : ''}`)
-      html += `<table style="margin-bottom:10px"><tbody>
-        <tr><td><b>Visit No.</b></td><td>${data.visit ?? (resolvedVisit ? resolvedVisit : 'Multiple visits')}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
-        <tr><td><b>Visit Date</b></td><td>${data.visit_date ?? ''}</td><td><b>Patient Name</b></td><td>${data.patient_name ?? ''}</td></tr>
-        <tr><td><b>Visit Type</b></td><td>${data.visit_type ?? (resolvedVisit ? '' : 'All OP')}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
-        <tr><td><b>Status</b></td><td>${data.status ?? ''}</td><td><b>Branch</b></td><td>${data.branch ?? ''}</td></tr>
+      let html = buildLetterhead('Statement of Account (OP)', `${visitMeta}${range ? ` · ${range}` : ''}`, {
+        soa: true,
+      })
+      html += `<table class="soa-info"><tbody>
+        <tr>${soaInfoCell('Visit No.', data.visit ?? (resolvedVisit ? resolvedVisit : 'Multiple visits'))}${soaInfoCell('Patient File No.', data.file_no)}</tr>
+        <tr>${soaInfoCell('Visit Date', data.visit_date)}${soaInfoCell('Patient Name', data.patient_name)}</tr>
+        <tr>${soaInfoCell('Visit Type', data.visit_type ?? (resolvedVisit ? '' : 'All OP'))}${soaInfoCell('Doctor Name', data.doctor_name)}</tr>
+        <tr>${soaInfoCell('Status', data.status)}${soaInfoCell('Branch', data.branch)}</tr>
       </tbody></table>`
+      html += `<h3 class="soa-h3">Service Details</h3>`
       html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
         ${soaTotalsFooter(data)}
-      </tbody></table>
-      <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+      </tbody></table>`
+      html += soaPaymentsHtml(data)
+      html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
       return { html, filename: `soa-op-${data.case_no || data.visit || selectedPatient || 'patient'}` }
     }
     // SOA IP
-    let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`)
-    html += `<table style="margin-bottom:10px"><tbody>
-      <tr><td><b>Admission No.</b></td><td>${data.admission}</td><td><b>Patient File No.</b></td><td>${data.file_no ?? ''}</td></tr>
-      <tr><td><b>Admission Date</b></td><td>${data.admission_date ?? ''}</td><td><b>Patient Name</b></td><td>${data.patient_name ?? ''}</td></tr>
-      <tr><td><b>Discharge Date</b></td><td>${data.discharge_date ?? ''}</td><td><b>Doctor Name</b></td><td>${data.doctor_name ?? ''}</td></tr>
-      <tr><td><b>Days Charged</b></td><td>${data.days_charged ?? ''}</td><td><b>Case Branch</b></td><td>${data.branch ?? ''}</td></tr>
+    let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`, {
+      soa: true,
+    })
+    html += `<table class="soa-info"><tbody>
+      <tr>${soaInfoCell('Admission No.', data.admission)}${soaInfoCell('Patient File No.', data.file_no)}</tr>
+      <tr>${soaInfoCell('Admission Date', data.admission_date)}${soaInfoCell('Patient Name', data.patient_name)}</tr>
+      <tr>${soaInfoCell('Discharge Date', data.discharge_date)}${soaInfoCell('Doctor Name', data.doctor_name)}</tr>
+      <tr>${soaInfoCell('Days Charged', data.days_charged)}${soaInfoCell('Case Branch', data.branch)}</tr>
     </tbody></table>`
+    html += `<h3 class="soa-h3">Service Details</h3>`
     html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
       ${soaTotalsFooter(data)}
-    </tbody></table>
-    <p style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+    </tbody></table>`
+    html += soaPaymentsHtml(data)
+    html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
     return { html, filename: `soa-${data.case_no || resolvedAdmission}` }
   }
 
@@ -406,8 +516,9 @@ export function ReceptionReports() {
       toast.error('Run the report first')
       return
     }
-    const orientation = report === 'soa' || report === 'soa-op' ? 'portrait' : 'landscape'
-    openDocument(built.html, mode, built.filename, orientation)
+    const isSoa = report === 'soa' || report === 'soa-op'
+    const orientation = isSoa ? 'portrait' : 'landscape'
+    openDocument(built.html, mode, built.filename, orientation, isSoa)
   }
 
   const searchAdmissions = async (q: string) => {
@@ -590,7 +701,7 @@ export function ReceptionReports() {
             onClick={() => void chargePackageToToday()}
             disabled={chargingPackage || !resolvedAdmission}
             className="h-[30px] self-end rounded-md border border-emerald-600 bg-white px-3 text-sm font-medium text-emerald-700 hover:bg-emerald-50 disabled:opacity-40"
-            title="Create Quotation / Sales Order for unbilled package days up to today"
+            title="Partial Sales Order from existing package Quotation for unbilled days up to today"
           >
             {chargingPackage ? 'Charging…' : 'Charge Package to Today'}
           </button>

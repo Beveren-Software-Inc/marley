@@ -3,12 +3,25 @@
 
 from __future__ import annotations
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt
 
 from healthcare.api.common import get_permitted_cost_centers
 from healthcare.api.nursing_inventory import get_stock_ledger
+from healthcare.api.allergy_registry import is_negative_allergy_text
+
+# Negative history notes that are not a clinical warning (e.g. "No known surgeries").
+_NON_ACTIONABLE_HISTORY_NOTE = re.compile(
+	r"""
+	^
+	(?:no\s+known\s+surger(?:y|ies)|no\s+known\s+surgical\s+history)
+	$
+	""",
+	re.I | re.X,
+)
 
 NURSE_BRIEFING_ROLES = frozenset(
 	{
@@ -40,7 +53,24 @@ _LAB_TEST_BRIEFING_FIELDS = [
 	"inpatient_record",
 	"department",
 	"creation",
+	"is_group_lab_test",
+	"lab_test_group",
+	"service_request",
 ]
+
+
+def _attach_lab_test_group_names(lab_tests: list[dict]) -> None:
+	"""Resolve Lab Test Template names for group codes (e.g. LAB-004 → Lipid Profile)."""
+	group_name_cache: dict[str, str] = {}
+	for lab_test in lab_tests:
+		group_code = (lab_test.get("lab_test_group") or "").strip()
+		if not group_code:
+			continue
+		if group_code not in group_name_cache:
+			group_name_cache[group_code] = (
+				frappe.db.get_value("Lab Test Template", group_code, "lab_test_name") or group_code
+			)
+		lab_test["lab_test_group_name"] = group_name_cache[group_code]
 
 
 def _require_nurse_briefing_access() -> None:
@@ -75,6 +105,28 @@ def _cost_center_filters(cost_center: str | None) -> dict | None:
 	if cost_center:
 		return {"cost_center": cost_center}
 	return {}
+
+
+def _is_non_actionable_briefing_text(value: str | None) -> bool:
+	"""True for NKDA/MKFDA notes and empty history denials like 'No known surgeries'."""
+	if not (value or "").strip():
+		return False
+	if is_negative_allergy_text(value):
+		return True
+	cleaned = " ".join((value or "").split()).strip().strip(".-")
+	return bool(_NON_ACTIONABLE_HISTORY_NOTE.match(cleaned))
+
+
+def _warning_text(row: dict) -> str:
+	return (row.get("high_risk_text") or row.get("warning") or "").strip()
+
+
+def _is_actionable_admission_warning(row: dict) -> bool:
+	"""Keep clinical warnings; drop NKDA/MKFDA-style notes and empty history denials."""
+	body = _warning_text(row)
+	if not body:
+		return True
+	return not _is_non_actionable_briefing_text(body)
 
 
 def _beds_for_admissions(admission_names: list[str]) -> dict[str, str | None]:
@@ -181,10 +233,18 @@ def _active_admissions(cost_center: str | None) -> list[dict]:
 			record["primary_practitioner_name"] = practitioner_names.get(
 				record["primary_practitioner"], record["primary_practitioner"]
 			)
-		record["allergy_summary"] = (record.get("allergies") or "").strip()
-		record["warnings"] = warnings_by_patient.get(patient or "", [])
+		allergy_summary = (record.get("allergies") or "").strip()
+		has_real_allergy = bool(allergy_summary) and not _is_non_actionable_briefing_text(allergy_summary)
+		record["allergy_summary"] = allergy_summary if has_real_allergy else ""
+		record["warnings"] = [
+			row for row in warnings_by_patient.get(patient or "", []) if _is_actionable_admission_warning(row)
+		]
 
-	return [record for record in records if record.get("warnings")]
+	return [
+		record
+		for record in records
+		if record.get("warnings") or record.get("allergy_summary")
+	]
 
 
 def _pending_sample_lab_tests(cost_center: str | None) -> list[dict]:
@@ -207,13 +267,15 @@ def _pending_sample_lab_tests(cost_center: str | None) -> list[dict]:
 		**cc_filters,
 	}
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Lab Test",
 		filters=filters,
 		fields=_LAB_TEST_BRIEFING_FIELDS,
 		order_by="creation desc",
 		limit_page_length=150,
 	)
+	_attach_lab_test_group_names(rows)
+	return rows
 
 
 def _low_stock_items(cost_center: str | None) -> list[dict]:

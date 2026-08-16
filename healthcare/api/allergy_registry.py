@@ -27,15 +27,34 @@ import frappe
 from frappe.utils import strip_html
 
 # Text that means "asked, nothing found" rather than a real allergy. Kept
-# deliberately tight - anything not matched is treated as a real allergy,
-# because a false negative here is a patient-safety event.
-_NEGATIVE = re.compile(
-	r"""^(
-		n\.?k\.?d\.?a\.?|nka|nil|none|no|not\ known|unknown|not\ reported|
-		(no|not)\ (known\ )?(any\ )?(drug\ |food\ )*allerg(y|ies|ic).*|
-		not\ known\ (to\ have\ )?(any\ )?allerg(y|ies).*|
-		not\ allergic.*|no\ known.*|denies.*
-	)$""",
+# deliberately tight - leftover clinical text after these phrases is treated as
+# a real allergy, because a false negative here is a patient-safety event.
+#
+# "No known allergies As per pt:-Allergic to spicy food" must stay positive:
+# the doctor recorded NKDA first, then added a real allergy.
+_NEGATIVE_PHRASE = re.compile(
+	r"""
+	(?<![A-Za-z0-9])
+	(?:
+		[mn]\.?\s*k\.?\s*f\.?\s*d\.?\s*a\.?|
+		[mn]\.?\s*k\.?\s*d\.?\s*a\.?|
+		n\.?\s*f\.?\s*d\.?\s*a\.?|
+		mkfda|nkfda|mkda|nkda|nfda|nka|
+		not\s+known\s+(?:to\s+have\s+)?(?:any\s+)?(?:drug\s+|food\s+)*(?:allerg\w*|alerg\w*)|
+		(?:no|not)\s+(?:known\s+)?(?:any\s+)?(?:drug\s+|food\s+)*(?:allerg\w*|alerg\w*)|
+		no\s+known|
+		not\s+allergic|
+		denies(?:\s+any)?(?:\s+known)?(?:\s+drug)?\s+(?:allerg\w*|alerg\w*)|
+		not\s+known|
+		unknown|
+		not\s+reported|
+		none|
+		nil|
+		no|
+		na
+	)
+	(?![A-Za-z0-9])
+	""",
 	re.I | re.X,
 )
 
@@ -47,17 +66,36 @@ _QUALIFIER = re.compile(
 	re.I,
 )
 
+_TRAILING_PUNCT = re.compile(r"^[\s,;:./\\-]+|[\s,;:./\\-]+$")
+
 
 def _clean(value: str | None) -> str:
 	return " ".join(strip_html(value or "").split()).strip()
 
 
+def _strip_negative_allergy_phrases(text: str) -> str:
+	remainder = text
+	prev = None
+	while remainder and remainder != prev:
+		prev = remainder
+		remainder = _NEGATIVE_PHRASE.sub(" ", remainder)
+		remainder = _TRAILING_PUNCT.sub("", " ".join(remainder.split()))
+	return remainder
+
+
 def is_negative_allergy_text(value: str | None) -> bool:
-	"""True when free text records the absence of allergies."""
+	"""True when free text records the absence of allergies.
+
+	NKDA / NKFDA / MKFDA / NFDA / "no known allergies" (including typos like
+	"no allergfy") count as negative. If a real allergy was added later in the
+	same note, the leftover text keeps this as a real allergy.
+	"""
 	text = _clean(value)
-	if not text or _QUALIFIER.search(text):
+	if not text:
 		return False
-	return bool(_NEGATIVE.match(text.rstrip(".")))
+	if _QUALIFIER.search(text):
+		return False
+	return _strip_negative_allergy_phrases(text) == ""
 
 
 def _entry(source: str, text: str, recorded_on=None, **extra) -> dict:

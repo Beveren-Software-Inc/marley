@@ -66,6 +66,11 @@ export function parseFrappeErrorPayload(data: unknown): string {
     return withoutHtml
   }
 
+  const isBenignServerMessage = (message: string) => {
+    const lower = message.toLowerCase()
+    return lower.includes('item price added') || lower.includes('item price updated')
+  }
+
   const stockPhrases = [
     'negative stock',
     'not enough stock',
@@ -81,17 +86,27 @@ export function parseFrappeErrorPayload(data: unknown): string {
     return message
   }
 
+  // Prefer real exceptions over alert msgprints (e.g. "Item Price added…").
+  if (typeof record.exception === 'string' && record.exception.trim()) {
+    const fromExc = normalized(pickFromText(record.exception))
+    if (fromExc && !isBenignServerMessage(fromExc)) return fromExc
+  }
+
   try {
     const rawMsgs = record._server_messages
     if (rawMsgs) {
       const msgs =
         typeof rawMsgs === 'string' ? (JSON.parse(rawMsgs) as unknown[]) : rawMsgs
       if (Array.isArray(msgs) && msgs.length) {
-        const first = msgs[0]
-        const parsed =
-          typeof first === 'string' ? (JSON.parse(first) as { message?: string }) : first
-        if (parsed && typeof parsed === 'object' && parsed.message) {
-          return normalized(String(parsed.message).trim())
+        for (const first of msgs) {
+          const parsed =
+            typeof first === 'string' ? (JSON.parse(first) as { message?: string }) : first
+          if (parsed && typeof parsed === 'object' && parsed.message) {
+            const text = normalized(
+              String(parsed.message).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+            )
+            if (text && !isBenignServerMessage(text)) return text
+          }
         }
       }
     }
@@ -100,7 +115,8 @@ export function parseFrappeErrorPayload(data: unknown): string {
   }
 
   if (typeof record.message === 'string' && record.message.trim()) {
-    return normalized(pickFromText(record.message))
+    const fromMsg = normalized(pickFromText(record.message))
+    if (fromMsg && !isBenignServerMessage(fromMsg)) return fromMsg
   }
   if (typeof record.exception === 'string' && record.exception.trim()) {
     return normalized(pickFromText(record.exception))

@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { AlertTriangle, Beaker, Loader2, Package, X } from 'lucide-react'
 import type {
   NurseBriefingAdmission,
@@ -8,6 +8,7 @@ import type {
 } from '../../services/nurseBriefing'
 import { StatusPill } from '../ui/StatusPill'
 import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
+import { labBriefingChildPreview, labBriefingDisplayRows } from '../../utils/labBriefingGroups'
 
 function stripHtml(html: string | undefined): string {
   if (!html) return ''
@@ -98,7 +99,7 @@ export function NurseAdmissionsBriefingModal({
           Loading admissions…
         </div>
       ) : admissions.length === 0 ? (
-        <EmptyState message="No admitted patients with warnings for your branch." />
+        <EmptyState message="No admitted patients with allergies or clinical warnings for your branch." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {admissions.map((admission) => {
@@ -187,10 +188,12 @@ export function NurseLabSampleBriefingModal({
   onClose: () => void
   onLabTestSelect?: (labTest: NurseBriefingLabTest) => void
 }) {
+  const rows = useMemo(() => labBriefingDisplayRows(labTests), [labTests])
+
   return (
     <BriefingModalShell
       title="Lab Tests — Sample Collection"
-      subtitle="Requested tests that need sample collection."
+      subtitle="Grouped lab requests and individual tests that need sample collection."
       onClose={onClose}
       closeLabel="Next: Low stock"
     >
@@ -203,38 +206,83 @@ export function NurseLabSampleBriefingModal({
         <EmptyState message="No lab tests pending sample collection." />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {labTests.map((test) => (
-            <button
-              key={test.name}
-              type="button"
-              onClick={() => onLabTestSelect?.(test)}
-              className={`rounded-lg border border-slate-200 p-4 text-left ${
-                onLabTestSelect ? 'cursor-pointer hover:border-sky-300 hover:bg-sky-50/60' : ''
-              }`}
-            >
-              <div className="flex items-start gap-2">
-                <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-slate-900">
-                    {test.lab_test_name || test.template || test.name}
-                  </p>
-                  <p className="text-xs text-slate-600">
-                    {test.patient_name || test.patient}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-500">{test.name}</p>
+          {rows.map((row) => {
+            if (row.kind === 'group') {
+              const { representative, tests, label, key } = row
+              const preview = labBriefingChildPreview(tests)
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => onLabTestSelect?.(representative)}
+                  className={`rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 text-left ${
+                    onLabTestSelect ? 'cursor-pointer hover:border-sky-300 hover:bg-sky-50/60' : ''
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-flex items-center rounded bg-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
+                          GROUP
+                        </span>
+                        <p className="truncate font-semibold text-slate-900">{label}</p>
+                      </div>
+                      <p className="mt-0.5 text-xs text-slate-600">
+                        {representative.patient_name || representative.patient}
+                      </p>
+                      {preview ? (
+                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{preview}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <StatusPill
+                      status={representative.status || 'Requested'}
+                      color={labTestStatusColor(representative.status)}
+                    />
+                    <span className="text-xs font-medium text-indigo-700">
+                      {tests.length} test{tests.length === 1 ? '' : 's'} pending
+                    </span>
+                  </div>
+                </button>
+              )
+            }
+
+            const test = row.test
+            return (
+              <button
+                key={test.name}
+                type="button"
+                onClick={() => onLabTestSelect?.(test)}
+                className={`rounded-lg border border-slate-200 p-4 text-left ${
+                  onLabTestSelect ? 'cursor-pointer hover:border-sky-300 hover:bg-sky-50/60' : ''
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-semibold text-slate-900">
+                      {test.lab_test_name || test.template || test.name}
+                    </p>
+                    <p className="text-xs text-slate-600">
+                      {test.patient_name || test.patient}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">{test.name}</p>
+                  </div>
                 </div>
-              </div>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <StatusPill
-                  status={test.status || 'Requested'}
-                  color={labTestStatusColor(test.status)}
-                />
-                {test.department ? (
-                  <span className="text-xs text-slate-500">{test.department}</span>
-                ) : null}
-              </div>
-            </button>
-          ))}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <StatusPill
+                    status={test.status || 'Requested'}
+                    color={labTestStatusColor(test.status)}
+                  />
+                  {test.department ? (
+                    <span className="text-xs text-slate-500">{test.department}</span>
+                  ) : null}
+                </div>
+              </button>
+            )
+          })}
         </div>
       )}
     </BriefingModalShell>

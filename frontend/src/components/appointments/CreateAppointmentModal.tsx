@@ -31,6 +31,7 @@ import { CalendarOff, X } from 'lucide-react'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 function getTimePart(t: string | number | null | undefined): string {
   const s = String(t ?? '').trim()
@@ -126,6 +127,7 @@ interface CreateAppointmentModalProps {
 
 export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, initialPractitioner }: CreateAppointmentModalProps) => {
   const blockIfActiveCareClosed = useBlockIfActiveCareClosed()
+  const { userCostCenter } = useCareContext()
   const [formData, setFormData] = useState({
     patient: initialPatient || '',
     appointment_type: '',
@@ -199,16 +201,29 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     return `This doctor is on leave${leaveType}${range}. You cannot book an appointment for this date.`
   })()
 
-  const [costCenter, setCostCenter] = useState('')
+  const [costCenter, setCostCenter] = useState(userCostCenter || '')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
   /** True when user has exactly one permitted branch (User Permission). */
   const [costCenterLocked, setCostCenterLocked] = useState(false)
 
-  // Doctor roster: the practitioner's HR Shift Assignment location on the chosen
-  // date auto-sets the branch (reception request). Manual choice still possible.
+  // Keep in sync when header branch changes while the modal is open
+  useEffect(() => {
+    if (!userCostCenter || costCenterLocked) return
+    setCostCenter((prev) => {
+      if (prev === userCostCenter) return prev
+      if (costCenterOptions.length && !costCenterOptions.some((o) => o.name === userCostCenter)) {
+        return prev
+      }
+      return userCostCenter
+    })
+  }, [userCostCenter, costCenterLocked, costCenterOptions])
+
+  // Doctor roster: only fill branch from shift location when none is set yet
+  // (header / permitted default already wins).
   useEffect(() => {
     if (!formData.practitioner || !formData.appointment_date || costCenterLocked) return
+    if (costCenter) return
     let cancelled = false
     const params = new URLSearchParams()
     params.append('practitioner', formData.practitioner)
@@ -220,15 +235,13 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
       .then((d) => {
         if (cancelled) return
         const cc = d?.message
-        // Only auto-set a branch the user is actually permitted to book in; otherwise leave
-        // the selection unset so the Branch <select> doesn't render blank with a hidden value.
         if (cc && typeof cc === 'string' && costCenterOptions.some((o) => o.name === cc)) setCostCenter(cc)
       })
       .catch(() => {})
     return () => {
       cancelled = true
     }
-  }, [formData.practitioner, formData.appointment_date, costCenterLocked, costCenterOptions])
+  }, [formData.practitioner, formData.appointment_date, costCenterLocked, costCenterOptions, costCenter])
 
   const parseCustomDurationMinutes = (raw: string, fallback = 30): number => {
     const n = parseInt(raw.trim(), 10)
@@ -452,8 +465,11 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
         setCostCenterLocked(Boolean(opts.locked))
 
         const defaultCc = opts.default_cost_center || ''
+        const headerCc =
+          userCostCenter && centers.some((c) => c.name === userCostCenter) ? userCostCenter : ''
         setCostCenter((prev) => {
           if (prev && centers.some((c) => c.name === prev)) return prev
+          if (headerCc) return headerCc
           return defaultCc
         })
       } catch (err) {
@@ -470,7 +486,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [userCostCenter])
 
   // Check leave / Practitioner Unavailability when doctor + date are set
   useEffect(() => {

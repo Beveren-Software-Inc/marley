@@ -226,6 +226,7 @@ export function LabRequestReviewModal({
     children: LabTest[]
     label: string
     serviceRequest: string
+    labTestGroup?: string
   } | null>(null)
   const [sampleModalLoading, setSampleModalLoading] = useState(false)
   const [sampleModalError, setSampleModalError] = useState<string | null>(null)
@@ -403,30 +404,32 @@ export function LabRequestReviewModal({
     return map
   }, [review])
 
-  const groupLinkedTests = useMemo(() => {
-    if (!selectedGroup) return [] as LabTest[]
-    return (selectedGroup.tests || [])
-      .map((t) => {
-        const name = t.lab_test
-        if (!name) return null
-        const row = labTestsByName.get(name)
-        return {
-          name,
-          template: t.template,
-          lab_test_name: t.test_name,
-          status: t.lab_test_status || row?.status || '',
-          docstatus: t.lab_test_docstatus ?? row?.docstatus ?? 0,
-          patient: review?.patient,
-          patient_name: review?.patient_name,
-          practitioner: review?.practitioner,
-          practitioner_name: review?.practitioner_name,
-          service_request: serviceRequestName,
-          is_group_lab_test: selectedGroup.kind === 'group' ? 1 : 0,
-          lab_test_group: selectedGroup.kind === 'group' ? selectedGroup.template : undefined,
-        } as LabTest
-      })
-      .filter(Boolean) as LabTest[]
-  }, [selectedGroup, labTestsByName, review, serviceRequestName])
+  const linkedTestsForGroup = useCallback(
+    (group: LabRequestReviewGroup): LabTest[] => {
+      return (group.tests || [])
+        .map((t) => {
+          const name = t.lab_test
+          if (!name) return null
+          const row = labTestsByName.get(name)
+          return {
+            name,
+            template: t.template,
+            lab_test_name: t.test_name,
+            status: t.lab_test_status || row?.status || '',
+            docstatus: t.lab_test_docstatus ?? row?.docstatus ?? 0,
+            patient: review?.patient,
+            patient_name: review?.patient_name,
+            practitioner: review?.practitioner,
+            practitioner_name: review?.practitioner_name,
+            service_request: serviceRequestName,
+            is_group_lab_test: group.kind === 'group' ? 1 : 0,
+            lab_test_group: group.kind === 'group' ? group.template : undefined,
+          } as LabTest
+        })
+        .filter(Boolean) as LabTest[]
+    },
+    [labTestsByName, review, serviceRequestName]
+  )
 
   const groupNeedsSample = useCallback((group: LabRequestReviewGroup) => {
     const tests = group.tests || []
@@ -438,7 +441,7 @@ export function LabRequestReviewModal({
     })
   }, [])
 
-  const openSampleForTest = async (test: LabRequestReviewTest, asGroup: boolean) => {
+  const openSampleForTest = async (test: LabRequestReviewTest) => {
     if (!test.lab_test) {
       toast.error('No Lab Test found for this line yet. Book the request first.')
       return
@@ -453,25 +456,7 @@ export function LabRequestReviewModal({
     try {
       const doc = await fetchLabTest(test.lab_test)
       setSampleModalLabTest(doc)
-      if (asGroup && selectedGroup && (selectedGroup.kind === 'group' || Number(selectedGroup.is_group) === 1)) {
-        // Load full child docs when possible; fall back to summary rows.
-        const children = await Promise.all(
-          groupLinkedTests.map(async (lt) => {
-            try {
-              return await fetchLabTest(lt.name)
-            } catch {
-              return lt
-            }
-          })
-        )
-        setSampleModalGroup({
-          children: children.length ? children : groupLinkedTests,
-          label: selectedGroup.group_name,
-          serviceRequest: serviceRequestName,
-        })
-      } else {
-        setSampleModalGroup(null)
-      }
+      setSampleModalGroup(null)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load lab test'
       setSampleModalError(msg)
@@ -481,29 +466,49 @@ export function LabRequestReviewModal({
     }
   }
 
-  const openGroupSample = async () => {
-    if (!selectedGroup) return
+  const openGroupSample = async (group: LabRequestReviewGroup) => {
+    setSelectedTemplate(group.template)
+    const linked = linkedTestsForGroup(group)
     const target =
-      groupLinkedTests.find((c) => canRecordAdHocSampleCollection(c) && !isLabTestSampleCollectionDone(c)) ||
-      groupLinkedTests.find((c) => canRecordAdHocSampleCollection(c)) ||
-      groupLinkedTests[0]
+      linked.find((c) => canRecordAdHocSampleCollection(c) && !isLabTestSampleCollectionDone(c)) ||
+      linked.find((c) => canRecordAdHocSampleCollection(c)) ||
+      linked[0]
     if (!target) {
       toast.error('No Lab Tests linked to this group yet.')
       return
     }
-    const fakeTest: LabRequestReviewTest = {
-      template: target.template || selectedGroup.template,
-      test_code: selectedGroup.group_code,
-      test_name: selectedGroup.group_name,
-      price: 0,
-      result_type: 'Single',
-      uom: '',
-      lab_test: target.name,
-      lab_test_status: target.status,
-      lab_test_docstatus: target.docstatus,
-      sample_collection: undefined,
+    setSampleModalError(null)
+    setSampleModalLoading(true)
+    setSampleModalLabTest({
+      name: target.name,
+      patient: review?.patient || '',
+      status: target.status || '',
+    } as LabTest)
+    try {
+      const doc = await fetchLabTest(target.name)
+      setSampleModalLabTest(doc)
+      const children = await Promise.all(
+        linked.map(async (lt) => {
+          try {
+            return await fetchLabTest(lt.name)
+          } catch {
+            return lt
+          }
+        })
+      )
+      setSampleModalGroup({
+        children: children.length ? children : linked,
+        label: group.group_name,
+        serviceRequest: serviceRequestName,
+        labTestGroup: group.template,
+      })
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Failed to load lab test'
+      setSampleModalError(msg)
+      toast.error(msg)
+    } finally {
+      setSampleModalLoading(false)
     }
-    await openSampleForTest(fakeTest, true)
   }
 
   const handleEnterResults = (test: LabRequestReviewTest) => {
@@ -644,6 +649,28 @@ export function LabRequestReviewModal({
                                         : 'bg-slate-50 text-slate-600 border-slate-200'
 
                                   if (!active) {
+                                    // Collect Sample stays available on every group row so the
+                                    // clicked group is collected — not only the selected one.
+                                    if (needsSample && !groupFinished) {
+                                      return (
+                                        <ActionBtn
+                                          variant="sample"
+                                          title={
+                                            isGroup
+                                              ? 'Collect sample for this group'
+                                              : 'Collect sample'
+                                          }
+                                          onClick={() =>
+                                            isGroup
+                                              ? void openGroupSample(group)
+                                              : void openSampleForTest(group.tests[0])
+                                          }
+                                        >
+                                          <Droplet className="h-3 w-3" />
+                                          Collect Sample
+                                        </ActionBtn>
+                                      )
+                                    }
                                     // Keep Finished + Print visible on completed groups anytime.
                                     if (!groupFinished && !canPrint) {
                                       return (
@@ -704,8 +731,8 @@ export function LabRequestReviewModal({
                                           }
                                           onClick={() =>
                                             isGroup
-                                              ? void openGroupSample()
-                                              : void openSampleForTest(group.tests[0], false)
+                                              ? void openGroupSample(group)
+                                              : void openSampleForTest(group.tests[0])
                                           }
                                         >
                                           <Droplet className="h-3 w-3" />
@@ -836,7 +863,7 @@ export function LabRequestReviewModal({
                                           ? 'Collect sample for this test'
                                           : 'Open sample collection'
                                     }
-                                    onClick={() => void openSampleForTest(test, false)}
+                                    onClick={() => void openSampleForTest(test)}
                                   >
                                     <Droplet className="h-3 w-3" />
                                     Collect Sample
@@ -961,6 +988,7 @@ export function LabRequestReviewModal({
           groupChildren={sampleModalGroup?.children}
           groupLabel={sampleModalGroup?.label}
           groupServiceRequest={sampleModalGroup?.serviceRequest}
+          groupLabTestGroup={sampleModalGroup?.labTestGroup}
           loading={sampleModalLoading}
           error={sampleModalError}
           onClose={() => {

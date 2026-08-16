@@ -914,6 +914,13 @@ export async function saveDischargeDraftToServer(
   today_charge_sales_order?: string
   charge_sales_order?: string
   charge_sales_orders?: Record<string, string>
+  medicine_sales_order?: string
+  medicine_delivery_note?: string
+  medicine_linked_rows?: number
+  package_sales_order?: string
+  package_days_charged?: number
+  package_from_date?: string
+  package_to_date?: string
 }> {
   return apiRequest(
     '/api/method/healthcare.api.inpatient_admission.save_discharge_draft',

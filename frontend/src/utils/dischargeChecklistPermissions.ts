@@ -56,14 +56,26 @@ export function sortChecklistByOrder<T extends { sr_num?: string; name: string }
     .map(({ item }) => item)
 }
 
-export function arePreviousChecklistItemsComplete<T extends DischargeChecklistToggleRow>(
+const CHECKLIST_UNCHECK_ROLES = ['administrator', 'system manager']
+
+/** Only System Manager and Administrator may reverse a completed checklist tick. */
+export function canUncheckDischargeChecklistItem(roles: string[] | undefined): boolean {
+  if (!roles?.length) return false
+  return roles.some((role) => CHECKLIST_UNCHECK_ROLES.includes(role.trim().toLowerCase()))
+}
+
+export function isFirstChecklistItem<T extends { name: string; sr_num?: string }>(
   items: T[],
   target: T,
 ): boolean {
   const sorted = sortChecklistByOrder(items)
-  const index = sorted.findIndex((row) => row.name === target.name)
-  if (index <= 0) return true
-  return sorted.slice(0, index).every((row) => isChecklistRowComplete(row.click))
+  return sorted[0]?.name === target.name
+}
+
+export function isFirstChecklistItemComplete<T extends DischargeChecklistToggleRow>(items: T[]): boolean {
+  const sorted = sortChecklistByOrder(items)
+  if (!sorted.length) return true
+  return isChecklistRowComplete(sorted[0].click)
 }
 
 export function hasLaterCompletedChecklistItems<T extends DischargeChecklistToggleRow>(
@@ -112,19 +124,25 @@ export function canToggleDischargeChecklistItem(
   }
 
   if (isChecklistRowComplete(item.click)) {
-    if (hasLaterCompletedChecklistItems(items, item)) {
+    if (!canUncheckDischargeChecklistItem(roles)) {
       return {
         allowed: false,
-        reason: 'Uncheck later checklist items first (items must stay in template order).',
+        reason: 'Completed checklist items cannot be unchecked. Ask a System Manager or Administrator if this needs to be reversed.',
+      }
+    }
+    if (isFirstChecklistItem(items, item) && hasLaterCompletedChecklistItems(items, item)) {
+      return {
+        allowed: false,
+        reason: 'Uncheck other completed items before unchecking the first checklist item.',
       }
     }
     return { allowed: true }
   }
 
-  if (!arePreviousChecklistItemsComplete(items, item)) {
+  if (!isFirstChecklistItem(items, item) && !isFirstChecklistItemComplete(items)) {
     return {
       allowed: false,
-      reason: 'Complete earlier checklist items first (items must follow template order).',
+      reason: 'Complete the first checklist item before other items can be checked.',
     }
   }
 

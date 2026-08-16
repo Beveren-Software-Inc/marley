@@ -28,7 +28,11 @@ import { PatientDocumentAttachmentPreview, printImagesInPlace } from '../ui/Pati
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
-import { PenLine, Trash2, Check, X, Upload, Download, Printer, RefreshCw, Loader2 } from 'lucide-react'
+import { PenLine, Trash2, Check, X, Upload, Download, Printer, RefreshCw, Loader2, Ban } from 'lucide-react'
+import { useAuth } from '../../providers/AuthProvider'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { canManagePatientBlacklist } from '../../config/permissions'
+import { BlacklistPatientModal } from './BlacklistPatientModal'
 
 // ─── Signature Pad Component (same as CreatePatientModal) ───────────────────
 
@@ -246,12 +250,22 @@ const SELECT_CHEVRON_STYLE: React.CSSProperties = {
 }
 
 export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatientModalProps) => {
+  const { user } = useAuth()
+  const { userRole } = useCareContext()
   const blockIfEditingLocked = useBlockIfEditingLocked()
   useRejectEditModeWhenLocked(true, onClose)
   const [activeTab, setActiveTab] = useState<Tab>('details')
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blacklistOpen, setBlacklistOpen] = useState(false)
+  const canBlacklist = canManagePatientBlacklist(
+    userRole?.length
+      ? userRole
+      : user?.roles?.length
+        ? user.roles
+        : ([user?.role, user?.role_profile_name].filter(Boolean) as string[]),
+  )
 
   // Form data state
   const [formData, setFormData] = useState({
@@ -272,6 +286,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     source: '',
     marital_status: '',
     is_black_list: false,
+    blacklist_reason: '',
     remarks: '',
     address_line1: '',
     address_line2: '',
@@ -391,6 +406,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           source: patient.source ?? '',
           marital_status: patient.marital_status ?? '',
           is_black_list: !!(patient.is_black_list && patient.is_black_list !== 0),
+          blacklist_reason: patient.blacklist_reason ?? '',
           remarks: patient.remarks ?? '',
           address_line1: addressInfo.address_line1 ?? patient.address ?? '',
           address_line2: addressInfo.address_line2 ?? '',
@@ -646,6 +662,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         source: formData.source,
         marital_status: formData.marital_status || undefined,
         is_black_list: formData.is_black_list ? 1 : 0,
+        blacklist_reason: formData.is_black_list ? formData.blacklist_reason || undefined : undefined,
         remarks: formData.remarks || undefined,
         job_title: formData.job_title || undefined,
         job_company: formData.job_company || undefined,
@@ -863,13 +880,33 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
             {/* ── TAB: Patient Details ── */}
             {activeTab === 'details' && (
               <>
-                {/* Is Black List — pinned top-right */}
+                {/* Blacklist — pinned top-right for doctors and reception */}
                 <div className="flex justify-end">
-                  <label htmlFor="edit_is_black_list" className="inline-flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-1.5 cursor-pointer select-none">
-                    <input type="checkbox" id="edit_is_black_list" checked={formData.is_black_list} onChange={(e) => handleChange('is_black_list', e.target.checked)} className="rounded border-slate-300 text-primary focus:ring-primary" />
-                    <span className="text-sm font-medium text-slate-700">Is Black List ?</span>
-                  </label>
+                  {canBlacklist ? (
+                    <button
+                      type="button"
+                      onClick={() => setBlacklistOpen(true)}
+                      className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-semibold ${
+                        formData.is_black_list
+                          ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
+                          : 'border-slate-300 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Ban className="h-4 w-4" />
+                      Blacklist
+                    </button>
+                  ) : formData.is_black_list ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-800">
+                      <Ban className="h-4 w-4" />
+                      Blacklisted
+                    </span>
+                  ) : null}
                 </div>
+                {formData.is_black_list && formData.blacklist_reason ? (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+                    {formData.blacklist_reason}
+                  </div>
+                ) : null}
 
                 {/* Basic details */}
                 <div>
@@ -1573,6 +1610,22 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           }}
         />
       )}
+
+      <BlacklistPatientModal
+        open={blacklistOpen}
+        patientName={patientName}
+        patientLabel={formData.patient_name}
+        initialBlacklisted={formData.is_black_list}
+        initialReason={formData.blacklist_reason}
+        onClose={() => setBlacklistOpen(false)}
+        onSaved={(nextFlag, nextReason) => {
+          setFormData((prev) => ({
+            ...prev,
+            is_black_list: nextFlag,
+            blacklist_reason: nextReason || '',
+          }))
+        }}
+      />
     </div>
   )
 }

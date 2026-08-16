@@ -38,7 +38,7 @@ import { usePatientHistoryListingOpener } from '../utils/patientHistoryListingNa
 export const PatientHistoryPage = () => {
   const formatCurrency = useFormatMoney()
   const { user } = useAuth()
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, mode } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, mode, userRole } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const patientFromUrl = searchParams.get('patient')
   const [selectedPatient, setSelectedPatient] = useState<string | undefined>(() => patientFromUrl || globalPatient || undefined)
@@ -47,12 +47,13 @@ export const PatientHistoryPage = () => {
   const [activeTab, setActiveTab] = useState<'general' | 'admission' | 'op'>('general')
   const [legacyDocsExpanded, setLegacyDocsExpanded] = useState(false)
 
-  const canViewClinical = useMemo(() => {
-    const roles = user?.roles?.length
-      ? user.roles
-      : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
-    return canViewClinicalPatientHistory(roles)
-  }, [user])
+  const historyRoles = useMemo(() => {
+    if (userRole?.length) return userRole
+    if (user?.roles?.length) return user.roles
+    return [user?.role, user?.role_profile_name].filter(Boolean) as string[]
+  }, [userRole, user])
+
+  const canViewClinical = useMemo(() => canViewClinicalPatientHistory(historyRoles), [historyRoles])
 
   useEffect(() => {
     setLegacyDocsExpanded(false)

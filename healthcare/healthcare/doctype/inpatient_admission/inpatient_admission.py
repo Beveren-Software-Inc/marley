@@ -12,10 +12,12 @@ from frappe.model.document import Document
 from frappe.model.mapper import get_mapped_doc
 from frappe.utils import cint, cstr, get_datetime, get_link_to_form, getdate, now_datetime, today
 
-from healthcare.api.utils.api_utility import get_next_transaction_number
+from healthcare.api.utils.api_utility import (
+	get_next_inpatient_case_number,
+	get_next_transaction_number,
+)
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.utils import validate_nursing_tasks
-from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
 def resolve_admission_datetime(
@@ -272,7 +274,7 @@ def schedule_inpatient(args):
 	inpatient_record.patient = patient.name
 	# Prefer case_no from the UI (user may override); otherwise auto-generate
 	if not inpatient_record.case_no:
-		inpatient_record.case_no = get_next_transaction_number('Inpatient Admission', fieldname='case_no')
+		inpatient_record.case_no = get_next_inpatient_case_number()
 	inpatient_record.patient_name = patient.patient_name
 	inpatient_record.gender = patient.sex
 	inpatient_record.blood_group = patient.blood_group

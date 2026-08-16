@@ -3708,8 +3708,8 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                     const assignedDeptLabel = checklistItemDepartmentLabel(item)
                     const waitingLabel = !rowEditable
                       ? `Waiting for ${assignedDeptLabel}`
-                      : toggleState.reason?.includes('earlier')
-                        ? 'Complete earlier checklist items first'
+                      : toggleState.reason?.toLowerCase().includes('first checklist item')
+                        ? 'Complete the first checklist item first'
                         : null
                     return (
                       <div

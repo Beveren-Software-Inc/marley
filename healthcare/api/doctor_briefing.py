@@ -9,6 +9,7 @@ from frappe import _
 from healthcare.api.nurse_briefing import (
 	_LAB_TEST_BRIEFING_FIELDS,
 	_active_admissions,
+	_attach_lab_test_group_names,
 	_cost_center_filters,
 	_resolve_cost_center,
 )
@@ -45,13 +46,15 @@ def _pending_review_lab_tests(cost_center: str | None) -> list[dict]:
 		**cc_filters,
 	}
 
-	return frappe.get_all(
+	rows = frappe.get_all(
 		"Lab Test",
 		filters=filters,
 		fields=_LAB_TEST_BRIEFING_FIELDS,
 		order_by="creation desc",
 		limit_page_length=150,
 	)
+	_attach_lab_test_group_names(rows)
+	return rows
 
 
 @frappe.whitelist()

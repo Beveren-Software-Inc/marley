@@ -271,7 +271,7 @@ export const CreateServiceRequestModal = ({
       setBasketPricing({ lines: [], subtotal: 0 })
       return
     }
-    getMultiLabRequestPricing(basketWithDiscounts, form.patient, mode === 'OP' ? 'OP' : 'IP')
+    getMultiLabRequestPricing(basketWithDiscounts, form.patient, mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined)
       .then((pricing) => {
         setBasketPricing(pricing)
         // Prefill per-test discount amounts from insurance so they are visible/editable.
@@ -475,12 +475,14 @@ export const CreateServiceRequestModal = ({
       }
       return
     }
-    const careType = mode === 'OP' ? 'OP' : 'IP'
+    const careType = mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined
     const params = new URLSearchParams({
       template_dt: form.template_dt,
       template_dn: templateDn,
-      patient_care_type: careType,
     })
+    if (careType) {
+      params.set('patient_care_type', careType)
+    }
     if (form.patient) {
       params.set('patient', form.patient)
     }
@@ -610,6 +612,7 @@ export const CreateServiceRequestModal = ({
           practitioner: form.practitioner || undefined,
           patient_visit: form.patient_visit || undefined,
           inpatient_record: form.inpatient_record || undefined,
+          patient_care_type: mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined,
           order_date: form.order_date,
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,
@@ -641,6 +644,7 @@ export const CreateServiceRequestModal = ({
           practitioner: form.practitioner || undefined,
           patient_visit: form.patient_visit || undefined,
           inpatient_record: form.inpatient_record || undefined,
+          patient_care_type: mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined,
           order_date: form.order_date,
           order_time: form.order_time,
           cost_center: form.cost_center || undefined,

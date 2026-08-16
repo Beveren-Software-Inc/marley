@@ -1,14 +1,34 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { Ban } from 'lucide-react'
 import { fetchPatientSummary, type PatientSummary } from '../../services/patients'
+import { useAuth } from '../../providers/AuthProvider'
+import { useCareContext } from '../../providers/CareContextProvider'
+import { canManagePatientBlacklist } from '../../config/permissions'
+import { BlacklistPatientModal } from './BlacklistPatientModal'
 
 interface PatientSummaryCardProps {
   patient?: string
+  refreshKey?: number
 }
 
-export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
+export const PatientSummaryCard = ({ patient, refreshKey = 0 }: PatientSummaryCardProps) => {
+  const { user } = useAuth()
+  const { userRole } = useCareContext()
   const [summary, setSummary] = useState<PatientSummary | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [blacklistOpen, setBlacklistOpen] = useState(false)
+
+  const canBlacklist = useMemo(() => {
+    const roles = userRole?.length
+      ? userRole
+      : user?.roles?.length
+        ? user.roles
+        : ([user?.role, user?.role_profile_name].filter(Boolean) as string[])
+    return canManagePatientBlacklist(roles)
+  }, [user, userRole])
+
+  const isBlacklisted = Boolean(summary?.is_blacklist || summary?.is_black_list)
 
   useEffect(() => {
     if (!patient) {
@@ -30,10 +50,14 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
     }
 
     load()
-  }, [patient])
+  }, [patient, refreshKey])
 
   return (
-    <section className="bg-white border border-slate-200 rounded-lg p-3 sm:p-4 shadow-sm h-full min-w-0">
+    <section
+      className={`bg-white border rounded-lg p-3 sm:p-4 shadow-sm h-full min-w-0 ${
+        isBlacklisted ? 'border-red-300 ring-1 ring-red-100' : 'border-slate-200'
+      }`}
+    >
       <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
         <div className="font-semibold text-slate-900 text-sm sm:text-base">Patient Information</div>
         <div className="flex flex-wrap items-center gap-2">
@@ -47,8 +71,30 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
               File: {summary.file_no}
             </span>
           )}
+          {canBlacklist && patient && (
+            <button
+              type="button"
+              onClick={() => setBlacklistOpen(true)}
+              className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-semibold ${
+                isBlacklisted
+                  ? 'border-red-300 bg-red-50 text-red-800 hover:bg-red-100'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <Ban className="h-3.5 w-3.5" />
+              Blacklist
+            </button>
+          )}
         </div>
       </div>
+      {isBlacklisted && (
+        <div className="mb-3 rounded-md border border-red-200 bg-red-50 px-3 py-2" role="alert">
+          <p className="text-sm font-semibold text-red-800">This patient is blacklisted</p>
+          {summary?.blacklist_reason ? (
+            <p className="mt-0.5 text-xs text-red-700">{summary.blacklist_reason}</p>
+          ) : null}
+        </div>
+      )}
       {loading && (
         <div className="text-sm text-slate-500">Loading patient information...</div>
       )}
@@ -90,10 +136,16 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
             </div>
             <div>
               <div className="text-xs font-medium text-slate-500">Blacklist</div>
-              <div className={summary.is_blacklist ? 'text-red-600 font-semibold' : 'text-slate-900'}>
-                {summary.is_blacklist ? 'Yes' : 'No'}
+              <div className={isBlacklisted ? 'text-red-600 font-semibold' : 'text-slate-900'}>
+                {isBlacklisted ? 'Yes' : 'No'}
               </div>
             </div>
+            {isBlacklisted && summary.blacklist_reason ? (
+              <div className="sm:col-span-2">
+                <div className="text-xs font-medium text-slate-500">Blacklist reason</div>
+                <div className="text-red-800">{summary.blacklist_reason}</div>
+              </div>
+            ) : null}
             <div>
               <div className="text-xs font-medium text-slate-500">Remarks</div>
               <div className="text-slate-900">{summary.remarks || '-'}</div>
@@ -150,7 +202,28 @@ export const PatientSummaryCard = ({ patient }: PatientSummaryCardProps) => {
           Select a patient to view information.
         </div>
       )}
+      {patient ? (
+        <BlacklistPatientModal
+          open={blacklistOpen}
+          patientName={patient}
+          patientLabel={summary?.patient_name || summary?.name}
+          initialBlacklisted={isBlacklisted}
+          initialReason={summary?.blacklist_reason}
+          onClose={() => setBlacklistOpen(false)}
+          onSaved={(nextFlag, nextReason) => {
+            setSummary((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    is_blacklist: nextFlag ? 1 : 0,
+                    is_black_list: nextFlag ? 1 : 0,
+                    blacklist_reason: nextReason,
+                  }
+                : prev,
+            )
+          }}
+        />
+      ) : null}
     </section>
   )
 }
-

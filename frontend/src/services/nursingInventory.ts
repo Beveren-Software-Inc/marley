@@ -45,7 +45,10 @@ export interface MaterialRequest {
   cost_center: string
   warehouse?: string
   request_date: string
+  /** ERPNext fulfillment status: Pending / Ordered / Transferred / … */
   status: string
+  /** Workflow approval state when a Material Request workflow is active */
+  workflow_state?: string | null
   items: MaterialRequestItem[]
   requested_by: string
   approved_by?: string

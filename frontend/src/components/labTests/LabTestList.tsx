@@ -2697,6 +2697,7 @@ export const LabTestList = ({
     children: LabTest[]
     label: string
     serviceRequest: string
+    labTestGroup?: string
   } | null>(null)
   const [expandedGroupKeys, setExpandedGroupKeys] = useState<Record<string, boolean>>({})
   const [finishingGroupKey, setFinishingGroupKey] = useState<string | null>(null)
@@ -2782,10 +2783,10 @@ export const LabTestList = ({
     })
   }
 
-  const handleFinishGroup = async (serviceRequest: string, groupKey: string) => {
+  const handleFinishGroup = async (serviceRequest: string, groupKey: string, labTestGroup?: string) => {
     try {
       setFinishingGroupKey(groupKey)
-      await finishGroupLabTests(serviceRequest)
+      await finishGroupLabTests(serviceRequest, labTestGroup)
       toast.success('Grouped lab request finished')
       await refetch()
     } catch (e) {
@@ -2844,7 +2845,7 @@ export const LabTestList = ({
 
   const handleOpenSampleCollection = (
     labTest: LabTest,
-    group?: { children: LabTest[]; label: string; serviceRequest: string } | null
+    group?: { children: LabTest[]; label: string; serviceRequest: string; labTestGroup?: string } | null
   ) => {
     setOpenActionRow(null)
     setSampleModalError(null)
@@ -3127,7 +3128,7 @@ export const LabTestList = ({
 
   // ── Group + standalone rows in creation order (not groups-first) ───────────
   type LabTestDisplayRow =
-    | { kind: 'group'; serviceRequest: string; children: LabTest[]; sortMs: number }
+    | { kind: 'group'; serviceRequest: string; labTestGroup?: string; groupKey: string; children: LabTest[]; sortMs: number }
     | { kind: 'standalone'; labTest: LabTest; sortMs: number }
 
   const labTestCreationMs = (lt: LabTest) => {
@@ -3138,15 +3139,22 @@ export const LabTestList = ({
     return 0
   }
 
+  const labRequestDisplayGroupKey = (lt: Pick<LabTest, 'service_request' | 'lab_test_group'>) => {
+    const sr = (lt.service_request || '').trim()
+    const group = (lt.lab_test_group || '').trim()
+    return group ? `${sr}::${group}` : sr
+  }
+
   const displayRows = useMemo((): LabTestDisplayRow[] => {
     const groups = new Map<string, LabTest[]>()
     const standalone: LabTest[] = []
 
     for (const lt of displayLabTests) {
       if (lt.is_group_lab_test && lt.service_request) {
-        const arr = groups.get(lt.service_request) || []
+        const key = labRequestDisplayGroupKey(lt)
+        const arr = groups.get(key) || []
         arr.push(lt)
-        groups.set(lt.service_request, arr)
+        groups.set(key, arr)
       } else {
         standalone.push(lt)
       }
@@ -3154,20 +3162,28 @@ export const LabTestList = ({
 
     const rows: LabTestDisplayRow[] = []
 
-    for (const [serviceRequest, children] of groups.entries()) {
+    for (const [groupKey, children] of groups.entries()) {
       const sortedChildren = [...children].sort(
         (a, b) => labTestCreationMs(b) - labTestCreationMs(a) || a.name.localeCompare(b.name)
       )
       const sortMs = Math.max(...sortedChildren.map(labTestCreationMs), 0)
-      rows.push({ kind: 'group', serviceRequest, children: sortedChildren, sortMs })
+      const representative = sortedChildren[0]
+      rows.push({
+        kind: 'group',
+        serviceRequest: representative.service_request || groupKey,
+        labTestGroup: (representative.lab_test_group || '').trim() || undefined,
+        groupKey,
+        children: sortedChildren,
+        sortMs,
+      })
     }
 
     for (const lt of standalone) {
       rows.push({ kind: 'standalone', labTest: lt, sortMs: labTestCreationMs(lt) })
     }
 
-    return rows.sort((a, b) => b.sortMs - a.sortMs || (a.kind === 'group' ? a.serviceRequest : a.labTest.name).localeCompare(
-      b.kind === 'group' ? b.serviceRequest : b.labTest.name
+    return rows.sort((a, b) => b.sortMs - a.sortMs || (a.kind === 'group' ? a.groupKey : a.labTest.name).localeCompare(
+      b.kind === 'group' ? b.groupKey : b.labTest.name
     ))
   }, [displayLabTests])
 
@@ -3186,15 +3202,16 @@ export const LabTestList = ({
     const groups = new Map<string, LabTest[]>()
     for (const lt of displayLabTests) {
       if (lt.is_group_lab_test && lt.service_request) {
-        const arr = groups.get(lt.service_request) || []
+        const key = labRequestDisplayGroupKey(lt)
+        const arr = groups.get(key) || []
         arr.push(lt)
-        groups.set(lt.service_request, arr)
+        groups.set(key, arr)
       }
     }
     const toExpand: Record<string, boolean> = {}
-    for (const [serviceRequest, children] of groups.entries()) {
+    for (const [groupKey, children] of groups.entries()) {
       if (getGroupCompletionStatus(children).status === 'Partially Complete') {
-        toExpand[serviceRequest] = true
+        toExpand[groupKey] = true
       }
     }
     if (Object.keys(toExpand).length) {
@@ -3430,12 +3447,19 @@ export const LabTestList = ({
       <div className="flex items-center gap-1 flex-wrap">
         {isGroupRow && labTest.service_request && (
           <button type="button" data-no-row-click
-            disabled={isGroupedLabRequestFinished(labTest) || finishingGroupKey === labTest.service_request}
-            onClick={(e) => { e.stopPropagation(); handleFinishGroup(labTest.service_request!, labTest.service_request!) }}
+            disabled={isGroupedLabRequestFinished(labTest) || finishingGroupKey === labRequestDisplayGroupKey(labTest)}
+            onClick={(e) => {
+              e.stopPropagation()
+              handleFinishGroup(
+                labTest.service_request!,
+                labRequestDisplayGroupKey(labTest),
+                (labTest.lab_test_group || '').trim() || undefined
+              )
+            }}
             className="px-2 py-1 text-xs rounded-md border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 disabled:cursor-not-allowed">
             {isGroupedLabRequestFinished(labTest)
               ? 'Finished'
-              : finishingGroupKey === labTest.service_request
+              : finishingGroupKey === labRequestDisplayGroupKey(labTest)
                 ? 'Finishing…'
                 : 'Finish Group'}
           </button>
@@ -3934,8 +3958,8 @@ export const LabTestList = ({
 
               {displayRows.map((row) => {
                 if (row.kind === 'group') {
-                const { serviceRequest, children } = row
-                const isExpanded = !!expandedGroupKeys[serviceRequest]
+                const { serviceRequest, children, groupKey, labTestGroup } = row
+                const isExpanded = !!expandedGroupKeys[groupKey]
                 const representativeChild = children[0]
                 // Show the test group's NAME (e.g. "Lipid Profile"), resolved from the
                 // group code (lab_test_group like LAB-004) by the backend — not the child test names.
@@ -3954,7 +3978,7 @@ export const LabTestList = ({
                 const groupFinished = isGroupedLabRequestFinished(representativeChild)
 
                 return (
-                  <Fragment key={`group-${serviceRequest}`}>
+                  <Fragment key={`group-${groupKey}`}>
                     <tr
                       className="bg-indigo-50 hover:bg-indigo-100 border-l-4 border-indigo-400 cursor-pointer"
                       title="Click to record sample collection for this group"
@@ -3973,6 +3997,7 @@ export const LabTestList = ({
                             children,
                             label: groupLabel,
                             serviceRequest,
+                            labTestGroup,
                           })
                         }
                       }}
@@ -4010,7 +4035,7 @@ export const LabTestList = ({
                             data-no-row-click
                             onClick={(e) => {
                               e.stopPropagation()
-                              setExpandedGroupKeys((prev) => ({ ...prev, [serviceRequest]: !isExpanded }))
+                              setExpandedGroupKeys((prev) => ({ ...prev, [groupKey]: !isExpanded }))
                             }}
                             className="inline-flex items-center justify-center p-0.5 rounded text-indigo-700 hover:bg-indigo-200/60"
                             title={isExpanded ? 'Collapse group' : 'Expand group'}
@@ -4069,8 +4094,8 @@ export const LabTestList = ({
                       <td className="px-3 py-1.5 text-sm text-slate-700" data-no-row-click onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
                           <button type="button" data-no-row-click
-                            disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === serviceRequest}
-                            onClick={(e) => { e.stopPropagation(); handleFinishGroup(serviceRequest, serviceRequest) }}
+                            disabled={groupFinished || groupStatus.status !== 'Complete' || finishingGroupKey === groupKey}
+                            onClick={(e) => { e.stopPropagation(); handleFinishGroup(serviceRequest, groupKey, labTestGroup) }}
                             className={`px-2 py-1 text-xs rounded-md border transition-colors ${
                               !groupFinished && groupStatus.status === 'Complete'
                                 ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
@@ -4083,7 +4108,7 @@ export const LabTestList = ({
                                   ? 'Finish this grouped request'
                                   : 'All tests must have results entered first'
                             }>
-                            {groupFinished ? 'Finished' : finishingGroupKey === serviceRequest ? 'Finishing…' : 'Finish Group'}
+                            {groupFinished ? 'Finished' : finishingGroupKey === groupKey ? 'Finishing…' : 'Finish Group'}
                           </button>
                           <button
                             type="button"
@@ -4357,6 +4382,7 @@ export const LabTestList = ({
           groupChildren={sampleModalGroup?.children}
           groupLabel={sampleModalGroup?.label}
           groupServiceRequest={sampleModalGroup?.serviceRequest}
+          groupLabTestGroup={sampleModalGroup?.labTestGroup}
           loading={sampleModalLoading}
           error={sampleModalError}
           onClose={resetSampleModalState}

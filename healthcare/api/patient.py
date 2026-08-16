@@ -28,6 +28,33 @@ def user_can_browse_full_patient_directory() -> bool:
 	return DATA_OFFICER_ROLE in frappe.get_roles(frappe.session.user)
 
 
+def _user_can_manage_patient_blacklist(user: str | None = None) -> bool:
+	"""Doctors, receptionists, and admins may set or clear patient blacklist."""
+	roles = [r.strip().lower() for r in frappe.get_roles(user or frappe.session.user)]
+	if not roles:
+		return False
+	admin = {"administrator", "system manager", "healthcare administrator", "website manager"}
+	if admin.intersection(roles):
+		return True
+	if any(r == "reception" or "reception" in r for r in roles):
+		return True
+	return any("doctor" in r or "physician" in r or "practitioner" in r for r in roles)
+
+
+def _blacklist_list_fields(row) -> dict:
+	if isinstance(row, dict):
+		reason = (row.get("blacklist_reason") or "").strip()
+		return {
+			"is_black_list": cint(row.get("is_black_list")),
+			"blacklist_reason": reason or None,
+		}
+	reason = (getattr(row, "blacklist_reason", None) or "").strip()
+	return {
+		"is_black_list": cint(getattr(row, "is_black_list", 0)),
+		"blacklist_reason": reason or None,
+	}
+
+
 @frappe.whitelist()
 def search_patients(search=None, limit=20):
 	"""Search patients by name, patient ID, file number, CPR/ID number, or mobile."""
@@ -55,7 +82,9 @@ def search_patients(search=None, limit=20):
 			p.email,
 			p.sex,
 			p.id_number,
-			p.category
+			p.category,
+			p.is_black_list,
+			p.blacklist_reason
 		FROM `tabPatient` p
 		WHERE 
 			p.patient_name LIKE %(search)s
@@ -70,7 +99,20 @@ def search_patients(search=None, limit=20):
 		'limit': limit
 	}, as_dict=True)
 	
-	return [{'name': p.name, 'patient_name': p.patient_name or p.name, 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email, 'sex': p.sex, 'id_number': p.id_number, 'category': p.category} for p in patients]
+	return [
+		{
+			"name": p.name,
+			"patient_name": p.patient_name or p.name,
+			"file_number": p.file_number,
+			"mobile": p.mobile,
+			"email": p.email,
+			"sex": p.sex,
+			"id_number": p.id_number,
+			"category": p.category,
+			**_blacklist_list_fields(p),
+		}
+		for p in patients
+	]
 
 
 @frappe.whitelist()
@@ -105,7 +147,8 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 		rows = frappe.db.sql(
 			"""SELECT p.name, p.patient_name, p.file_no as file_number,
 				p.mobile, p.email, p.sex, p.id_number, p.category,
-				p.blood_group, p.nationality, p.is_insurance, p.insurance
+				p.blood_group, p.nationality, p.is_insurance, p.insurance,
+				p.is_black_list, p.blacklist_reason
 			FROM `tabPatient` p WHERE p.name = %(patient)s""",
 			{'patient': patient},
 			as_dict=True,
@@ -120,7 +163,8 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 			 'blood_group': p.blood_group, 'nationality': p.nationality,
 			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0,
 			 'appointment_status': appointment_map.get(p.name),
-			 'inpatient_status': inpatient_map.get(p.name)}
+			 'inpatient_status': inpatient_map.get(p.name),
+			 **_blacklist_list_fields(p)}
 			for p in rows
 		]
 		return {"data": data, "total_count": len(data)}
@@ -144,7 +188,8 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 		patients = frappe.db.sql(
 			f"""SELECT p.name, p.patient_name, p.file_no as file_number,
 				p.mobile, p.email, p.sex, p.id_number, p.category,
-				p.blood_group, p.nationality, p.is_insurance, p.insurance
+				p.blood_group, p.nationality, p.is_insurance, p.insurance,
+				p.is_black_list, p.blacklist_reason
 			FROM `tabPatient` p {where_clause}
 			ORDER BY p.patient_name
 			LIMIT %(limit)s OFFSET %(offset)s""",
@@ -157,7 +202,8 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 			 'file_number': p.file_number, 'mobile': p.mobile, 'email': p.email,
 			 'sex': p.sex, 'id_number': p.id_number, 'category': p.category,
 			 'blood_group': p.blood_group, 'nationality': p.nationality,
-			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0}
+			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0,
+			 **_blacklist_list_fields(p)}
 			for p in patients
 		]
 		return {"data": data, "total_count": total_count}
@@ -170,7 +216,7 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 		patients = frappe.get_all(
 			'Patient',
 			fields=['name', 'patient_name', 'file_no', 'mobile', 'email', 'sex', 'id_number', 'category',
-				'blood_group', 'nationality', 'is_insurance', 'insurance'],
+				'blood_group', 'nationality', 'is_insurance', 'insurance', 'is_black_list', 'blacklist_reason'],
 			limit=limit,
 			limit_start=offset,
 			order_by='patient_name',
@@ -187,7 +233,8 @@ def get_patients(limit=20, offset=0, search=None, patient=None):
 			 'blood_group': p.blood_group, 'nationality': p.nationality,
 			 'has_insurance': 1 if (p.is_insurance or p.insurance) else 0,
 			 'appointment_status': appointment_map.get(p.name),
-			 'inpatient_status': inpatient_map.get(p.name)}
+			 'inpatient_status': inpatient_map.get(p.name),
+			 **_blacklist_list_fields(p)}
 			for p in patients
 		]
 		return {"data": data, "total_count": total_count}
@@ -334,6 +381,7 @@ def _serialize_patient_for_portal(patient_doc):
 		"source": getattr(patient_doc, "source", None),
 		"marital_status": getattr(patient_doc, "marital_status", None),
 		"is_black_list": cint(getattr(patient_doc, "is_black_list", 0)),
+		"blacklist_reason": (getattr(patient_doc, "blacklist_reason", None) or "").strip() or None,
 		"remarks": getattr(patient_doc, "patient_details", None),
 		"address": getattr(patient_doc, "address", None),
 		"city": getattr(patient_doc, "city", None),
@@ -454,6 +502,7 @@ def create_patient(data):
 		"emergency_contact_relation": data.get("emergency_contact_relation") or None,
 		"emergency_contact_phone": data.get("emergency_contact_phone") or None,
 		"is_black_list": 1 if data.get("is_black_list") else 0,
+		"blacklist_reason": (data.get("blacklist_reason") or "").strip() or None if data.get("is_black_list") else None,
 		"patient_details": data.get("remarks") or None,
 		"alter_mobile_no": data.get("alternative_mobile_no_1") or None,
 		"alter_2_mobile_no": data.get("alternative_mobile_no_2") or None,
@@ -979,6 +1028,11 @@ def _apply_patient_scalar_fields(patient, data):
 		patient.insurance_policy_no = data.get("insurance_policy") or None
 	if "is_black_list" in data:
 		patient.is_black_list = 1 if data.get("is_black_list") else 0
+		if not patient.is_black_list:
+			patient.blacklist_reason = None
+	if "blacklist_reason" in data:
+		reason = (data.get("blacklist_reason") or "").strip() or None
+		patient.blacklist_reason = reason if cint(getattr(patient, "is_black_list", 0)) else None
 	if "cpr_photo" in data:
 		patient.cprigama_front_photo = data.get("cpr_photo") or None
 	if "cpr_photo_back" in data:
@@ -1029,6 +1083,34 @@ def update_patient(patient, data):
 		"file_no": getattr(doc, "file_no", None) or doc.name,
 	}
 
+
+@frappe.whitelist()
+def set_patient_blacklist(patient, is_black_list=0, blacklist_reason=None):
+	"""Doctors and receptionists can blacklist or unblacklist a patient with a reason."""
+	assert_editing_allowed()
+	if not _user_can_manage_patient_blacklist():
+		frappe.throw(_("Only doctors and receptionists can blacklist a patient."), frappe.PermissionError)
+
+	patient = (patient or "").strip()
+	if not patient or not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient not found"))
+
+	flag = cint(is_black_list)
+	reason = (blacklist_reason or "").strip() or None
+	if flag and not reason:
+		frappe.throw(_("Enter a reason when blacklisting a patient."))
+
+	doc = frappe.get_doc("Patient", patient)
+	doc.is_black_list = 1 if flag else 0
+	doc.blacklist_reason = reason if flag else None
+	doc.save(ignore_permissions=True)
+
+	return {
+		"name": doc.name,
+		"is_black_list": cint(doc.is_black_list),
+		"is_blacklist": cint(doc.is_black_list),
+		"blacklist_reason": (doc.blacklist_reason or "").strip() or None,
+	}
 
 
 @frappe.whitelist()
@@ -1222,17 +1304,8 @@ def get_patient_summary(patient):
 
 	patient_doc = frappe.get_doc('Patient', patient)
 
-	# Try to get blacklist info from the latest Patient Visit
-	is_blacklist = 0
-	last_visit = frappe.db.get_value(
-		'Patient Visit',
-		{'patient': patient},
-		['is_blacklist'],
-		as_dict=True,
-		order_by='creation desc'
-	)
-	if last_visit and 'is_blacklist' in last_visit:
-		is_blacklist = last_visit.get('is_blacklist') or 0
+	is_blacklist = cint(getattr(patient_doc, "is_black_list", 0))
+	blacklist_reason = (getattr(patient_doc, "blacklist_reason", None) or "").strip() or None
 
 	id_number = getattr(patient_doc, "id_number", None) or getattr(patient_doc, "national_id", None)
 
@@ -1247,6 +1320,8 @@ def get_patient_summary(patient):
 		'mobile': getattr(patient_doc, 'mobile', None),
 		'category': getattr(patient_doc, 'category', None),
 		'is_blacklist': is_blacklist,
+		'is_black_list': is_blacklist,
+		'blacklist_reason': blacklist_reason,
 		"remarks": getattr(patient_doc, 'patient_details', None),
 	}
 

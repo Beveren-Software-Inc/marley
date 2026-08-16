@@ -4,6 +4,7 @@ import {
   isLabRequestTestsCompletedUi,
   type ServiceRequest,
 } from '../../services/serviceRequests'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { StatusPill } from '../ui/StatusPill'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
@@ -25,6 +26,7 @@ interface LabBookedRequestListProps {
  * Lab page → Lab Request tab only.
  * Lists booked Lab Test Template Service Requests (one row per request).
  * Click opens a read-only review modal (no edit).
+ * Scoped by header OP/IP: OP hides inpatient requests; active visit/admission narrows further.
  */
 export function LabBookedRequestList({
   patient,
@@ -32,6 +34,7 @@ export function LabBookedRequestList({
   onPatientClick,
   hideAmount = false,
 }: LabBookedRequestListProps) {
+  const { mode, activeVisit, activeAdmission } = useCareContext()
   const formatMoney = useFormatMoney()
   const [rows, setRows] = useState<ServiceRequest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -42,9 +45,13 @@ export function LabBookedRequestList({
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
 
+  const careType = mode === 'OP' || mode === 'IP' ? mode : undefined
+  const patientVisit = mode === 'OP' ? activeVisit || undefined : undefined
+  const inpatientRecord = mode === 'IP' ? activeAdmission || undefined : undefined
+
   useEffect(() => {
     setPage(1)
-  }, [patient, refreshKey])
+  }, [patient, refreshKey, careType, patientVisit, inpatientRecord])
 
   useEffect(() => {
     let cancelled = false
@@ -59,9 +66,10 @@ export function LabBookedRequestList({
       undefined,
       undefined,
       undefined,
-      undefined,
-      undefined,
+      patientVisit,
+      inpatientRecord,
       1, // booked only
+      careType,
     )
       .then((res) => {
         if (cancelled) return
@@ -80,7 +88,7 @@ export function LabBookedRequestList({
     return () => {
       cancelled = true
     }
-  }, [patient, page, pageSize, refreshKey, listTick])
+  }, [patient, page, pageSize, refreshKey, listTick, careType, patientVisit, inpatientRecord])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -95,7 +103,18 @@ export function LabBookedRequestList({
         )}
         {!loading && !error && rows.length === 0 && (
           <div className="px-3 py-8 text-center text-sm text-slate-500">
-            No booked Lab Requests{patient ? ' for this patient' : ''}.
+            No booked Lab Requests
+            {patient ? ' for this patient' : ''}
+            {careType === 'OP' && patientVisit
+              ? ' for this OP visit'
+              : careType === 'OP'
+                ? ' (OP only)'
+                : careType === 'IP' && inpatientRecord
+                  ? ' for this admission'
+                  : careType === 'IP'
+                    ? ' (IP only)'
+                    : ''}
+            .
           </div>
         )}
         <ul className="space-y-2">

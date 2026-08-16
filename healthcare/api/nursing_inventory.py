@@ -983,9 +983,12 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         "material_request_type",
         "per_ordered",
         "per_received",
+        "docstatus",
     ]
     if mr_meta.has_field("custom_is_medical"):
         fields.append("custom_is_medical as is_medical")
+    if mr_meta.has_field("workflow_state"):
+        fields.append("workflow_state")
 
     requests = frappe.get_all(
         "Material Request",
@@ -1017,6 +1020,8 @@ def get_material_requests(cost_center, status=None, warehouse_context=None):
         req["requested_by"] = frappe.db.get_value("Material Request", req["name"], "owner")
         if "is_medical" in req:
             req["is_medical"] = 1 if cint(req.get("is_medical")) else 0
+        # Normalize for portal UI (approval vs supply/fulfillment).
+        req["workflow_state"] = (req.get("workflow_state") or "").strip() or None
 
     return requests
 
@@ -2346,6 +2351,112 @@ def _apply_medicine_tracking_to_delivery_note(dn, billing_groups):
             dn_row.custom_dispensing_lot = group["dispensing_lot"]
 
 
+def _needed_stock_qty_for_dn_row(row) -> float:
+    stock_qty = flt(getattr(row, "stock_qty", None) or 0)
+    if stock_qty > 0:
+        return stock_qty
+    qty = flt(getattr(row, "qty", 0))
+    conversion = flt(getattr(row, "conversion_factor", None) or 0) or 1
+    return qty * conversion
+
+
+def _pick_random_batch_for_warehouse(item_code, warehouse, needed_qty):
+    """Pick a random in-stock batch at the warehouse, preferring enough qty."""
+    import random
+
+    batches = get_item_batches(item_code, warehouse) or []
+    enough = [b for b in batches if flt(b.get("qty")) + 1e-9 >= flt(needed_qty)]
+    pool = enough or [b for b in batches if flt(b.get("qty")) > 0]
+    if not pool:
+        return None
+    chosen = random.choice(pool)
+    return (chosen.get("batch_name") or chosen.get("batch_id") or "").strip() or None
+
+
+def _pick_random_serials_for_warehouse(item_code, warehouse, qty, batch_no=None):
+    """Pick random available serials covering qty (one serial per stock unit)."""
+    import random
+
+    needed = max(cint(round(flt(qty))), 1)
+    serials: list[str] = []
+    if batch_no:
+        rows = get_batch_details_with_serials(batch_no, warehouse) or []
+        serials = [(r.get("serial_no") or "").strip() for r in rows if r.get("serial_no")]
+    if not serials:
+        serials = [(s or "").strip() for s in (get_item_serials(item_code, warehouse) or []) if s]
+    if not serials and frappe.db.exists("DocType", "Serial No"):
+        serials = frappe.get_all(
+            "Serial No",
+            filters={"item_code": item_code, "warehouse": warehouse},
+            pluck="name",
+            limit_page_length=500,
+        )
+    serials = [s for s in serials if s]
+    if len(serials) < needed:
+        return None
+    picked = random.sample(serials, needed)
+    return "\n".join(picked)
+
+
+def _fill_missing_delivery_note_batch_serial(dn):
+    """Auto-assign warehouse batch/serial when given-medicine rows did not record one."""
+    dn_item_meta = frappe.get_meta("Delivery Note Item")
+    has_batch_field = dn_item_meta.has_field("batch_no")
+    has_serial_field = dn_item_meta.has_field("serial_no")
+    has_use_fields = dn_item_meta.has_field("use_serial_batch_fields")
+
+    for row in dn.get("items") or []:
+        item_code = (getattr(row, "item_code", None) or "").strip()
+        warehouse = (getattr(row, "warehouse", None) or getattr(dn, "set_warehouse", None) or "").strip()
+        if not item_code or not warehouse or flt(getattr(row, "qty", 0)) <= 0:
+            continue
+        if not cint(frappe.get_cached_value("Item", item_code, "is_stock_item")):
+            continue
+
+        has_batch, has_serial = False, False
+        flags = frappe.db.get_value("Item", item_code, ["has_batch_no", "has_serial_no"], as_dict=True)
+        if flags:
+            has_batch = bool(cint(flags.has_batch_no))
+            has_serial = bool(cint(flags.has_serial_no))
+        if not has_batch and not has_serial:
+            continue
+
+        if has_use_fields:
+            row.use_serial_batch_fields = 1
+            if hasattr(row, "serial_and_batch_bundle"):
+                row.serial_and_batch_bundle = None
+
+        needed = _needed_stock_qty_for_dn_row(row)
+        if has_batch and has_batch_field and not (getattr(row, "batch_no", None) or "").strip():
+            picked_batch = _pick_random_batch_for_warehouse(item_code, warehouse, needed)
+            if picked_batch:
+                row.batch_no = picked_batch
+
+        if has_serial and has_serial_field and not (getattr(row, "serial_no", None) or "").strip():
+            picked_serials = _pick_random_serials_for_warehouse(
+                item_code,
+                warehouse,
+                needed,
+                batch_no=(getattr(row, "batch_no", None) or "").strip() or None,
+            )
+            if picked_serials:
+                row.serial_no = picked_serials
+
+        missing = []
+        if has_batch and has_batch_field and not (getattr(row, "batch_no", None) or "").strip():
+            missing.append(_("batch"))
+        if has_serial and has_serial_field and not (getattr(row, "serial_no", None) or "").strip():
+            missing.append(_("serial no"))
+        if missing:
+            frappe.throw(
+                _("No {0} in stock for {1} at warehouse {2}. Add stock or record batch/serial on Given Medicine.").format(
+                    " / ".join(missing),
+                    item_code,
+                    warehouse,
+                )
+            )
+
+
 def _validate_delivery_note_dispensing_lots(dn):
     """Validate dispensing lots on DN using beveren_health rules when installed."""
     try:
@@ -2543,6 +2654,7 @@ def _create_delivery_note_for_sales_order(
 		)
 
 	_apply_medicine_tracking_to_delivery_note(dn, billing_groups or [])
+	_fill_missing_delivery_note_batch_serial(dn)
 	_set_delivery_note_allow_zero_valuation_rate(dn)
 	_validate_delivery_note_dispensing_lots(dn)
 	_validate_delivery_note_batch_stock(dn)
@@ -2555,7 +2667,12 @@ def _create_delivery_note_for_sales_order(
 
 
 def _create_medicine_sales_order_for_admission(admission, consumption_date):
-    """Create a draft Sales Order for medicine given on one admission for a date."""
+    """Create and submit a Sales Order + Delivery Note for unbilled Medicine Given.
+
+    When ``consumption_date`` is set, only that day's rows are billed. When it is
+    omitted, all unbilled rows for the admission are billed with today's date
+    (mid-week discharge catch-up).
+    """
     from healthcare.api.medicine_given import _get_or_create_admission_detail
     from healthcare.api.patient_medication_order import get_item_rate_for_uom, get_item_tax, get_tax_account
     from healthcare.api.sales_order_cost_center import apply_cost_center_to_sales_order
@@ -2608,7 +2725,7 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
     )
     # Given Medicine used to default date via UTC (toISOString), so near midnight Bahrain
     # rows land on "yesterday" while Service Bill looks at local today — fall back one day.
-    if not given_rows:
+    if consumption_date and not given_rows:
         other_dates = _unbilled_medicine_given_dates(admission_detail.name)
         if other_dates:
             requested = getdate(consumption_date)
@@ -2631,6 +2748,12 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
                 )
     billing_groups = _group_medicine_given_for_billing(given_rows)
     if not billing_groups:
+        if not consumption_date:
+            frappe.throw(
+                _("No unbilled medicine given records found for admission {0}. Rows may already be linked to a Sales Order.").format(
+                    admission
+                )
+            )
         other_dates = _unbilled_medicine_given_dates(admission_detail.name)
         if other_dates:
             frappe.throw(
@@ -2657,12 +2780,14 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
             )
         )
 
+    billing_date = getdate(consumption_date) if consumption_date else getdate()
+
     so = frappe.new_doc("Sales Order")
     so.company = company
     so.patient = patient
     so.customer = customer
-    so.transaction_date = getdate(consumption_date)
-    so.delivery_date = getdate(consumption_date)
+    so.transaction_date = billing_date
+    so.delivery_date = billing_date
 
     if hasattr(so, "custom_patient_name") and admission_doc.patient_name:
         so.custom_patient_name = admission_doc.patient_name
@@ -2671,8 +2796,10 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
 
     so.custom_reference_type = "Inpatient Admission"
     so.custom_reference_name = admission
-    # Distinct from package / room admission charges — used by billing order_kind_label.
-    so.custom_base_reference = "Medicine Given"
+    # Admission Detail is the parent of Medicine Given (autoname = admission).
+    # Do not use "Medicine Given" here — it is a child table, so a Dynamic Link
+    # to that DocType cannot resolve admission_detail.name.
+    so.custom_base_reference = "Admission Detail"
     so.custom_base_reference_name = admission_detail.name
 
     if warehouse and hasattr(so, "set_warehouse"):
@@ -2731,7 +2858,7 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
         dn = _create_delivery_note_for_sales_order(
             so.name,
             patient,
-            consumption_date,
+            billing_date,
             billing_groups,
             warehouse=warehouse,
             cost_center=cost_center,
@@ -2761,6 +2888,35 @@ def _create_medicine_sales_order_for_admission(admission, consumption_date):
         "admission": admission,
         "linked_rows": linked_count,
     }
+
+
+def admission_has_unbilled_medicine_given(admission):
+    """True when the admission has Medicine Given rows not yet linked to a Sales Order."""
+    admission = (admission or "").strip()
+    if not admission:
+        return False
+    admission_detail = frappe.db.get_value("Admission Detail", {"admission": admission}, "name")
+    if not admission_detail:
+        return False
+    return bool(
+        frappe.get_all(
+            "Medicine Given",
+            filters=_unbilled_medicine_given_filters(admission_detail),
+            limit_page_length=1,
+        )
+    )
+
+
+def create_pending_medicine_sales_orders_for_admission(admission):
+    """Create Sales Order + Delivery Note for all unbilled Medicine Given on an admission.
+
+    Used when discharge starts mid-week so remaining given medicine is charged immediately
+    instead of waiting for the daily/weekly consumption scheduler.
+    """
+    admission = (admission or "").strip()
+    if not admission or not admission_has_unbilled_medicine_given(admission):
+        return None
+    return _create_medicine_sales_order_for_admission(admission, None)
 
 
 @frappe.whitelist()

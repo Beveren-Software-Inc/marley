@@ -263,6 +263,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     emergency_contact_relation: '',
     emergency_contact_phone: '',
     is_black_list: false,
+    blacklist_reason: '',
     remarks: '',
     address_line1: '',
     address_line2: '',
@@ -473,6 +474,11 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
       setActiveTab('details')
       return
     }
+    if (formData.is_black_list && !(formData.blacklist_reason || '').trim()) {
+      setError('Enter a reason when blacklisting a patient')
+      setActiveTab('details')
+      return
+    }
 
     // Require explicit Yes/No selection for Has Insurance
     if (!hasInsuranceChoice) {
@@ -517,6 +523,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
         middle_name: undefined,
         last_name: undefined,
         is_black_list: formData.is_black_list,
+        blacklist_reason: formData.is_black_list ? formData.blacklist_reason || undefined : undefined,
         remarks: formData.remarks || undefined,
         insurance_register: formData.insurance_register || undefined,
         patient_relation: relations
@@ -1146,6 +1153,20 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                         className="rounded border-slate-300 text-primary focus:ring-primary" />
                       <label htmlFor="is_black_list" className="text-sm font-medium text-slate-700">Is Black List?</label>
                     </div>
+                    {formData.is_black_list && (
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-slate-700 mb-1">
+                          Blacklist reason <span className="text-red-500">*</span>
+                        </label>
+                        <textarea
+                          value={formData.blacklist_reason}
+                          onChange={(e) => handleChange('blacklist_reason', e.target.value)}
+                          rows={2}
+                          placeholder="Why is this patient being blacklisted?"
+                          className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                        />
+                      </div>
+                    )}
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-slate-700 mb-1">Any Other Information / Remarks</label>
                       <textarea value={formData.remarks} onChange={(e) => handleChange('remarks', e.target.value)} rows={2}
