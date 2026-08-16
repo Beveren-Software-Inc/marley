@@ -591,7 +591,11 @@ def _invoice_sales_orders(
 	reference_name=None,
 	patient=None,
 ):
-	"""Create invoice(s): services from SO, stock from Delivery Note; optional CC split."""
+	"""Create invoice(s): all service SO lines on one invoice; stock from Delivery Note.
+
+	When Close All Cost Before Patient Transfer is on, service invoices are still
+	split by cost center.
+	"""
 	if not sales_orders:
 		frappe.throw(frappe._("Select at least one sales order to invoice."))
 
@@ -844,21 +848,29 @@ def _create_service_sales_order_invoice(
 	}
 
 
-def _create_invoices_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
-	"""Create invoices per Sales Order: stock via DN, services via SO.
+def _group_sales_orders_by_customer_company(sales_orders):
+	groups: dict[tuple[str, str], list] = {}
+	for so in sales_orders:
+		key = (so.customer or "", getattr(so, "company", None) or "")
+		groups.setdefault(key, []).append(so)
+	return groups
 
-	Each Sales Order is processed on its own so a pharmacy SO and a visit SO
-	do not get merged into a single shared service / DN invoice.
-	A single SO that has both DN stock and service lines can still yield two invoices.
+
+def _create_invoices_from_sales_orders(sales_orders, reference_type=None, reference_name=None, patient=None):
+	"""Create invoices: one service SI for all service SO lines; stock via DN.
+
+	Multiple service Sales Orders (room stay charges, labs, etc.) share one invoice
+	with one line per SO item. Delivery Notes stay on a separate stock invoice.
+	Orders with different customer/company are still invoiced separately.
 	"""
 	if not sales_orders:
 		frappe.throw(frappe._("Select at least one sales order to invoice."))
 
 	created: list[dict] = []
-	for so in sales_orders:
+	for group in _group_sales_orders_by_customer_company(sales_orders).values():
 		created.extend(
-			_create_invoices_for_one_sales_order(
-				so,
+			_create_invoices_for_sales_order_group(
+				group,
 				reference_type=reference_type,
 				reference_name=reference_name,
 				patient=patient,
@@ -877,13 +889,19 @@ def _create_invoices_from_sales_orders(sales_orders, reference_type=None, refere
 	return created
 
 
-def _create_invoices_for_one_sales_order(so, reference_type=None, reference_name=None, patient=None):
-	"""DN invoice and/or service invoice for a single Sales Order."""
-	so_names = [so.name]
-	ref_type = reference_type or so.custom_reference_type
-	ref_name = reference_name or so.custom_reference_name
-	pt = patient or getattr(so, "patient", None)
-	header_cc = cost_center_from_sales_order(so)
+def _create_invoices_for_sales_order_group(sales_orders, reference_type=None, reference_name=None, patient=None):
+	"""One DN invoice and/or one service invoice for a customer/company group."""
+	so_names = [so.name for so in sales_orders]
+	first = sales_orders[0]
+	ref_type = reference_type or first.custom_reference_type
+	ref_name = reference_name or first.custom_reference_name
+	pt = patient or getattr(first, "patient", None)
+	header_cc = None
+	for so in sales_orders:
+		so_cc = cost_center_from_sales_order(so)
+		if so_cc:
+			header_cc = so_cc
+			break
 
 	dn_covered = _so_details_covered_by_delivery_note(so_names)
 	pending_dns = _uninvoiced_delivery_notes_for_sales_orders(so_names)
@@ -896,16 +914,16 @@ def _create_invoices_for_one_sales_order(so, reference_type=None, reference_name
 			reference_type=ref_type,
 			reference_name=ref_name,
 			patient=pt,
-			customer=so.customer,
-			company=getattr(so, "company", None),
+			customer=first.customer,
+			company=getattr(first, "company", None),
 			header_cc=header_cc,
 		)
 		if dn_row:
-			dn_row["sales_orders"] = [so.name]
+			dn_row["sales_orders"] = so_names
 			created.append(dn_row)
 
 	service_row = _create_service_sales_order_invoice(
-		[so],
+		sales_orders,
 		skip_so_details=dn_covered,
 		reference_type=ref_type,
 		reference_name=ref_name,
@@ -917,9 +935,20 @@ def _create_invoices_for_one_sales_order(so, reference_type=None, reference_name
 	if created:
 		from healthcare.controllers.sales_order import ensure_service_sales_order_status
 
-		ensure_service_sales_order_status(so_name=so.name)
+		for so in sales_orders:
+			ensure_service_sales_order_status(so_name=so.name)
 
 	return created
+
+
+def _create_invoices_for_one_sales_order(so, reference_type=None, reference_name=None, patient=None):
+	"""DN invoice and/or service invoice for a single Sales Order."""
+	return _create_invoices_for_sales_order_group(
+		[so],
+		reference_type=reference_type,
+		reference_name=reference_name,
+		patient=patient,
+	)
 
 
 # Backwards-compatible alias used by older callers expecting a single invoice name

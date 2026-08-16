@@ -72,6 +72,11 @@ function pickInitialOrderEntry(
   return orders.length > 0 ? orders[0].name : ''
 }
 
+function prescriptionNameFromOrder(order?: MedicationOrderEntry | null, fallback = ''): string {
+  if (!order) return fallback
+  return (order.parent || order._prescription_name || fallback).trim()
+}
+
 interface ComboboxProps {
   value: string
   displayValue: string
@@ -215,6 +220,7 @@ export const CreateMedicineGivenModal = ({
   const [dispensingLot, setDispensingLot] = useState('')
   const [dispensingLots, setDispensingLots] = useState<MedicineGivenDispensingLotOption[]>([])
   const [loadingDispensingLots, setLoadingDispensingLots] = useState(false)
+  const [mergedCurrentRx, setMergedCurrentRx] = useState(false)
 
   const prescriptionOrders = isPrn
     ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN')
@@ -287,6 +293,7 @@ export const CreateMedicineGivenModal = ({
           setPrescriptions([])
           setOrders([])
           setSelectedOrder('')
+          setMergedCurrentRx(false)
           setLoadingStock(true)
           try {
             const stock = await fetchMedicineGivenStockOptions(adm.name, editRow.medicine_code)
@@ -297,87 +304,90 @@ export const CreateMedicineGivenModal = ({
           return
         }
 
-        if (initialPrescription) {
-          const list = await fetchPrescriptions(50, 0, {
-            patient: initialPatient,
-            careContext: 'Inpatient Admission',
-            inpatientRecord: propInpatientRecord || adm.name,
-          })
-          const signedList = list.filter((p) => prescriptionAllowsMedicineGiving(p))
-          const match = list.find((p) => p.name === initialPrescription)
-          if (match && prescriptionAllowsMedicineGiving(match)) {
-            setPrescriptions(signedList)
-            setSelectedPrescription(initialPrescription)
-            await loadPrescriptionOrders(initialPrescription)
-          } else if (match) {
+        const applyMergedCurrentRx = async (currentRx: Prescription) => {
+          setMergedCurrentRx(true)
+          const actives = (currentRx.active_prescriptions || []).filter((p) => p?.name)
+          const byName = new Map(actives.map((p) => [p.name, p]))
+          for (const line of currentRx.medication_orders || []) {
+            const pmo = (line.parent || line._prescription_name || '').trim()
+            if (pmo && !byName.has(pmo)) {
+              byName.set(pmo, { name: pmo })
+            }
+          }
+          if (!byName.size && currentRx.name) {
+            byName.set(currentRx.name, { name: currentRx.name })
+          }
+          setPrescriptions(
+            Array.from(byName.values()).map((p) => ({
+              name: p.name,
+              patient: currentRx.patient,
+              patient_name: currentRx.patient_name,
+              inpatient_record: currentRx.inpatient_record,
+              status: p.status,
+              practitioner: p.practitioner,
+              healthcare_practitioner: p.healthcare_practitioner,
+              healthcare_practitioner_name: p.healthcare_practitioner_name,
+              user_name: p.user_name,
+              start_date: p.start_date,
+              end_date: p.end_date,
+              creation: p.creation,
+            }))
+          )
+          await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders)
+        }
+
+        const admissionId = propInpatientRecord || adm.name
+        try {
+          const currentRx = await fetchPrescriptionByInpatientOrEncounter(
+            admissionId,
+            propPatientEncounter
+          )
+          if (currentRx && prescriptionAllowsMedicineGiving(currentRx)) {
+            await applyMergedCurrentRx(currentRx)
+            return
+          }
+          if (currentRx) {
+            setMergedCurrentRx(false)
             setPrescriptions([])
             setSelectedPrescription('')
             setOrders([])
             setSelectedOrder('')
-            setError('This prescription must be signed before medicine can be given.')
-          } else {
-            setPrescriptions(signedList)
-            setSelectedPrescription(initialPrescription)
-            await loadPrescriptionOrders(initialPrescription)
+            setError('The current prescription must be signed before medicine can be given.')
+            return
           }
+        } catch {
+          // Fall through to listing signed prescriptions
+        }
+
+        setMergedCurrentRx(false)
+        const list = await fetchPrescriptions(50, 0, {
+          patient: initialPatient,
+          careContext: 'Inpatient Admission',
+          inpatientRecord: admissionId,
+        })
+        const signedList = list.filter((p) => prescriptionAllowsMedicineGiving(p))
+        if (signedList.length > 0) {
+          setPrescriptions(signedList)
+          const preferred =
+            initialPrescription && signedList.some((p) => p.name === initialPrescription)
+              ? initialPrescription
+              : signedList[0].name
+          setSelectedPrescription(preferred)
+          await loadPrescriptionOrders(preferred)
+        } else if (list.length > 0) {
+          setPrescriptions([])
+          setSelectedPrescription('')
+          setOrders([])
+          setSelectedOrder('')
+          setError('No signed prescription found for this admission. Sign the prescription first.')
         } else {
-          const hasContext = propInpatientRecord || propPatientEncounter
-          if (hasContext) {
-            try {
-              const currentRx = await fetchPrescriptionByInpatientOrEncounter(
-                propInpatientRecord,
-                propPatientEncounter
-              )
-              if (currentRx && prescriptionAllowsMedicineGiving(currentRx)) {
-                setPrescriptions([currentRx])
-                setSelectedPrescription(currentRx.name)
-                await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders)
-              } else if (currentRx) {
-                setPrescriptions([])
-                setSelectedPrescription('')
-                setOrders([])
-                setSelectedOrder('')
-                setError('The current prescription must be signed before medicine can be given.')
-              } else {
-                setPrescriptions([])
-                setSelectedPrescription('')
-                setOrders([])
-                setSelectedOrder('')
-                setError('No current prescription found. Create a prescription first.')
-              }
-            } catch {
-              setPrescriptions([])
-              setSelectedPrescription('')
-              setOrders([])
-              setSelectedOrder('')
-              setError('Failed to load current prescription.')
-            }
-          } else {
-            const list = await fetchPrescriptions(50, 0, {
-              patient: initialPatient,
-              careContext: 'Inpatient Admission',
-              inpatientRecord: adm.name,
-            })
-            const signedList = list.filter((p) => prescriptionAllowsMedicineGiving(p))
-            setPrescriptions(signedList)
-            if (signedList.length > 0) {
-              const first = signedList[0].name
-              setSelectedPrescription(first)
-              await loadPrescriptionOrders(first)
-            } else if (list.length > 0) {
-              setSelectedPrescription('')
-              setOrders([])
-              setSelectedOrder('')
-              setError('No signed prescription found for this admission. Sign the prescription first.')
-            } else {
-              setSelectedPrescription('')
-              setOrders([])
-              setSelectedOrder('')
-              setError(
-                `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Add a prescription for this admission first.`
-              )
-            }
-          }
+          setPrescriptions([])
+          setSelectedPrescription('')
+          setOrders([])
+          setSelectedOrder('')
+          setError(
+            `No submitted prescription (Patient Medication Order) for admission ${adm.name}. Add a prescription first.`
+          )
         }
       } catch (e) {
         const msg = e instanceof Error ? e.message : 'Failed to load data'
@@ -406,6 +416,8 @@ export const CreateMedicineGivenModal = ({
     // Dose = clinical amount from the prescription line; quantity given is always units dispensed
     setDose((selected?.dosage || '').trim())
     setQty('1')
+    const pmo = prescriptionNameFromOrder(selected, '')
+    if (pmo) setSelectedPrescription(pmo)
   }, [selectedOrder, prescriptionOrders, isEdit])
 
   useEffect(() => {
@@ -650,9 +662,11 @@ export const CreateMedicineGivenModal = ({
 
   const handleChangePrescription = async (name: string) => {
     setSelectedPrescription(name)
+    // When all current signed PMOs are already in the medicine list, keep that list
+    // and only update the displayed prescription id. Auto-select still follows the medicine.
+    if (mergedCurrentRx || !name) return
     setOrders([])
     setSelectedOrder('')
-    if (!name) return
     try {
       const ords = await fetchMedicationOrders(name)
       setOrders(ords)
@@ -675,12 +689,8 @@ export const CreateMedicineGivenModal = ({
       return
     }
     if (!isEdit) {
-      if (!selectedPrescription) {
-        toast.error('Select a prescription')
-        return
-      }
       if (!selectedOrder) {
-        toast.error('Select a medicine from the prescription')
+        toast.error('Select a medicine from the current prescriptions')
         return
       }
     }
@@ -736,12 +746,19 @@ export const CreateMedicineGivenModal = ({
         })
         toast.success(overrideChecked ? 'Given medicine updated with override' : 'Given medicine updated')
       } else {
-        const selectedRx = prescriptions.find(p => p.name === selectedPrescription)
+        const selectedLine = orders.find((o) => o.name === selectedOrder)
+        const selectedRx = prescriptions.find((p) => p.name === selectedPrescription)
+        const medicationOrder = prescriptionNameFromOrder(selectedLine, selectedPrescription)
         const admissionName = selectedRx?.inpatient_record || propInpatientRecord || admission.name
+
+        if (!medicationOrder) {
+          toast.error('Could not determine which prescription this medicine belongs to')
+          return
+        }
 
         await createMedicineGiven({
           admission: admissionName,
-          medication_order: selectedPrescription,
+          medication_order: medicationOrder,
           order_entry: selectedOrder,
           unit: uom || undefined,
           allow_override: overrideChecked || undefined,
@@ -888,7 +905,7 @@ export const CreateMedicineGivenModal = ({
               <svg className="h-3.5 w-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                 <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Showing only PRN (as-needed) medications from this prescription.
+              Showing only PRN (as-needed) medications from current prescriptions.
             </div>
           )}
 
@@ -923,15 +940,17 @@ export const CreateMedicineGivenModal = ({
               >
                 <option value="">
                   {isPrn && orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN').length === 0
-                    ? 'No PRN medicines on this prescription'
+                    ? 'No PRN medicines on current prescriptions'
                     : 'Select medicine...'}
                 </option>
                 {prescriptionOrders.map((o) => {
                   const held = o.medication_status === 'On Hold'
                   const discontinued = o.medication_status === 'Discontinued'
+                  const pmo = prescriptionNameFromOrder(o, '')
                   return (
                     <option key={o.name} value={o.name} disabled={held || discontinued}>
                       {o.drug_name || o.drug} – {o.dosage}
+                      {pmo ? ` · ${pmo}` : ''}
                       {o.is_prn === 1 ? ' (PRN)' : ''}
                       {held ? ' — On Hold (cannot give)' : discontinued ? ' — Discontinued (cannot give)' : ''}
                     </option>

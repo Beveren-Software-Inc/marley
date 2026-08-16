@@ -228,6 +228,14 @@ def _checklist_row_is_complete(row) -> bool:
 	return bool(getattr(row, "click", 0))
 
 
+def is_first_checklist_item_complete(rows) -> bool:
+	"""True when the first discharge checklist item (by sr_num/idx) is checked."""
+	sorted_rows = sort_checklist_rows(rows)
+	if not sorted_rows:
+		return False
+	return _checklist_row_is_complete(sorted_rows[0])
+
+
 def _checklist_row_action_label(row) -> str:
 	if isinstance(row, dict):
 		return (row.get("action_required") or "").strip()

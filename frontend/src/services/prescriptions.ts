@@ -426,6 +426,10 @@ export interface MedicationOrderEntry {
   /** Doctor who prescribed / added this medication line */
   healthcare_practitioner?: string
   healthcare_practitioner_name?: string
+  /** Parent Patient Medication Order when Current Prescription merges several active PMOs */
+  parent?: string
+  _prescription_name?: string
+  _prescription_status?: string
 }
 
 export async function resolveMedicationsForDuplicate(

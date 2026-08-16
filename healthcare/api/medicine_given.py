@@ -1074,8 +1074,16 @@ def create_medicine_given(
 
 	assert_inpatient_admission_open_for_create(admission)
 
-	if not medication_order and not item_code:
-		frappe.throw(_("Either Patient Medication Order or Item Code is required"))
+	if not medication_order and not item_code and not order_entry:
+		frappe.throw(_("Either Patient Medication Order, medication line, or Item Code is required"))
+
+	# Multiple current signed PMOs can exist on one admission. The UI lists all their
+	# lines together, so always trust the selected line's parent prescription.
+	if order_entry:
+		child_parent = frappe.db.get_value("Inpatient Medication Order Entry", order_entry, "parent")
+		if not child_parent:
+			frappe.throw(_("Medication line {0} was not found.").format(frappe.bold(order_entry)))
+		medication_order = child_parent
 
 	pmo = None
 	if medication_order:
@@ -1164,14 +1172,6 @@ def create_medicine_given(
 			drug_code = item_code
 			drug_name = frappe.db.get_value("Item", item_code, "item_name")
 		elif order_entry and pmo:
-			# Validate that the child row belongs to this Patient Medication Order
-			child_parent = frappe.db.get_value("Inpatient Medication Order Entry", order_entry, "parent")
-			if child_parent != pmo.name:
-				frappe.throw(
-					_(
-						"Selected medication row {0} does not belong to Patient Medication Order {1}."
-					).format(frappe.bold(order_entry), frappe.bold(pmo.name))
-				)
 			child = frappe.get_doc("Inpatient Medication Order Entry", order_entry)
 			drug_code = child.drug
 			drug_name = child.drug_name

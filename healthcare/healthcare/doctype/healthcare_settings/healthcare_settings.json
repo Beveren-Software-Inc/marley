@@ -28,6 +28,8 @@
   "valid_days",
   "block_clinical_records_on_completed_visit",
   "mendatory_admission_assessment_fee",
+  "create_pending_given_medicine_on_discharge",
+  "create_pending_room_charges_on_discharge",
   "inpatient_settings_section",
   "allow_discharge_despite_unbilled_services",
   "block_clinical_records_on_discharged_ip",
@@ -1011,11 +1013,25 @@
    "fieldtype": "Table",
    "label": "IP Mapper",
    "options": "IP Cost Center Mapper"
+  },
+	{
+   "default": "0",
+   "description": "When enabled, saving a discharge draft after the first checklist item is ticked creates Sales Order and Delivery Note for unbilled Given Medicine (batch/serial auto-picked from the nurse warehouse).",
+   "fieldname": "create_pending_given_medicine_on_discharge",
+   "fieldtype": "Check",
+   "label": "Create Pending Given Medicine on Discharge"
+  },
+  {
+   "default": "0",
+   "description": "When enabled, saving a discharge draft after the first checklist item is ticked creates a package/room Sales Order from the last billed day through the discharge date.",
+   "fieldname": "create_pending_room_charges_on_discharge",
+   "fieldtype": "Check",
+   "label": "Create Pending Room Charges on Discharge"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-11 13:13:10.925048",
+ "modified": "2026-08-16 11:55:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

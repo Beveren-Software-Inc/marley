@@ -72,7 +72,6 @@ type PersistedAdmissionFilters = {
   dateTo?: string
   practitionerFilter?: string
   practitionerLabel?: string
-  filterBranch?: string
 }
 
 function formatAdmissionPatientLabel(record: { patient_name?: string; patient?: string; file_no?: string | null }): string {
@@ -221,27 +220,16 @@ export const AdmissionList = ({
 
   const excludeCancelled = Boolean(effectivePatient && !selectedStatus && !effectiveNameFilter)
 
-  // Branch filter — options + friendly label; defaults to the global (top-bar) branch.
-  const [filterBranch, setFilterBranch] = useState(() => restoredFilters?.filterBranch || '')
+  // Branch options — used to show a friendly label in the Branch column of the table.
+  // The list itself always follows the global (navbar) branch via userCostCenter.
   const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
   useEffect(() => {
     let cancelled = false
     fetchBranchOptions().then((opts) => { if (!cancelled) setBranchOptions(opts) }).catch(() => {})
     return () => { cancelled = true }
   }, [])
-  // Default the Branch filter to the global (top-bar) branch, once it resolves.
-  // If a branch was restored from session (including ""), don't override it.
-  const branchDefaultApplied = useRef(
-    Boolean(restoredFilters && Object.prototype.hasOwnProperty.call(restoredFilters, 'filterBranch')),
-  )
-  useEffect(() => {
-    if (branchDefaultApplied.current) return
-    if (!userCostCenter) return
-    branchDefaultApplied.current = true
-    setFilterBranch((prev) => prev || userCostCenter)
-  }, [userCostCenter])
 
-  // Keep chosen filters across page refresh (status, dates, doctor, branch).
+  // Keep chosen filters across page refresh (status, dates, doctor).
   useEffect(() => {
     writePersistedListFilters(filterStorageKey, {
       status: selectedStatus,
@@ -249,7 +237,6 @@ export const AdmissionList = ({
       dateTo,
       practitionerFilter,
       practitionerLabel: selectedPractitioner?.label || '',
-      filterBranch,
     } satisfies PersistedAdmissionFilters)
   }, [
     filterStorageKey,
@@ -258,7 +245,6 @@ export const AdmissionList = ({
     dateTo,
     practitionerFilter,
     selectedPractitioner,
-    filterBranch,
   ])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
@@ -325,13 +311,13 @@ export const AdmissionList = ({
     pageSize,
     (page - 1) * pageSize,
     excludeCancelled,
-    filterBranch || undefined
+    userCostCenter || undefined
   )
 
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [selectedStatus, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled, filterBranch])
+  }, [selectedStatus, externalSearchQuery, effectivePatient, practitionerFilter, dateFrom, dateTo, effectiveNameFilter, excludeCancelled])
 
   // --- Practitioner: debounced search when dropdown is open ---
   useEffect(() => {
@@ -478,7 +464,6 @@ export const AdmissionList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus(defaultStatus)
-    setFilterBranch('')
     clearPersistedListFilters(filterStorageKey)
   }
 
@@ -491,7 +476,7 @@ export const AdmissionList = ({
     'Cancelled',
   ]
   const hasActiveFilters =
-    Boolean(practitionerFilter || dateFrom || dateTo || filterBranch) ||
+    Boolean(practitionerFilter || dateFrom || dateTo) ||
     selectedStatus !== defaultStatus
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
@@ -638,19 +623,6 @@ export const AdmissionList = ({
                 ))}
               </div>
             )}
-          </div>
-
-          {/* Branch — dropdown (defaults to global branch) */}
-          <div>
-            <label className="block text-xs font-medium text-slate-600 mb-1">Branch</label>
-            <select
-              value={filterBranch}
-              onChange={e => setFilterBranch(e.target.value)}
-              className={inputClass}
-            >
-              <option value="">Select All</option>
-              {branchOptions.map(b => <option key={b.name} value={b.name}>{b.label}</option>)}
-            </select>
           </div>
 
           {/* Status — dropdown */}
