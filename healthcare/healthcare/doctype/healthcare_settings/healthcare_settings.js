@@ -138,6 +138,49 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Update Patient Nationality'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_nationality_sync.preview_patient_nationality_sync',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map((row) => `${row.patient}: code "${row.code}" → nationality "${row.to}"${row.from ? ` (was "${row.from}")` : ''}`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Run in background: for each Patient with a pat_nationality code, match it against the Nationality doctype code and set the Patient nationality (link) field.\n\n'
+							+ 'Patients with a code: {0}\nTo update: {1}\nAlready correct: {2}\nCode not found in Nationality: {3}\nNationality records with a code: {4}\n\n'
+							+ 'Sample:\n{5}\n\nContinue?',
+							[
+								counts.patients_with_code || 0,
+								counts.needs_update || 0,
+								counts.skipped_already_ok || 0,
+								counts.skipped_unmatched || 0,
+								counts.nationality_count || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_nationality_sync.start_patient_nationality_sync',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_nationality_sync');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Delete Duplicate Unlinked Customers'), () => {
 			frappe.call({
 				method: 'healthcare.api.patient_customer_dedupe.preview_patient_customer_dedupe',
