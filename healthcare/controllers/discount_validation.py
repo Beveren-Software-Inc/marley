@@ -173,6 +173,12 @@ def apply_insurance_discounts(doc):
 		if not item_code:
 			continue
 
+		# User manually overrode this line (price / discount) — never re-apply
+		# insurance discounts on top of a manual edit. update_sales_invoice_items
+		# sets ignore_pricing_rule=1 when the user edits a line in the slide-over.
+		if cint(getattr(item, "ignore_pricing_rule", 0)):
+			continue
+
 		if item_code in exclusive_items:
 			continue
 

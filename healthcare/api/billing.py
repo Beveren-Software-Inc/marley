@@ -1203,21 +1203,33 @@ def get_invoice_details(invoice_name):
 
 
 def _apply_sales_invoice_item_discount(line, discount_amount=None, discount_percentage=None):
-	"""Set per-line discount only. List rate stays unchanged; totals recalc on save."""
+	"""Set per-line discount. Gross unit rate stays in price_list_rate; net rate is saved to line.rate.
+
+	ERPNext calculate_item_rate compares item.rate to (rate_with_margin - discount_amount) and
+	*wipes the discount* when they don't match — so we must set line.rate to the discounted
+	(net) rate here, otherwise the discount is lost on save.
+	"""
 	if hasattr(line, "pricing_rules"):
 		line.pricing_rules = None
 	if hasattr(line, "ignore_pricing_rule"):
 		line.ignore_pricing_rule = 1
 
+	gross = flt(getattr(line, "price_list_rate", 0)) or flt(getattr(line, "rate", 0))
+
 	if discount_amount is not None:
-		line.discount_amount = flt(discount_amount)
-		line.discount_percentage = 0
+		disc_amt = flt(discount_amount)
+		pct = (disc_amt / gross * 100.0) if gross > 0 else 0.0
+		line.discount_amount = disc_amt
+		line.discount_percentage = pct
+		line.rate = flt(gross - disc_amt)
 		return
 
 	if discount_percentage is not None:
 		pct = flt(discount_percentage)
+		disc_amt = (gross * pct / 100.0) if gross > 0 else 0.0
 		line.discount_percentage = pct
-		line.discount_amount = 0
+		line.discount_amount = disc_amt
+		line.rate = flt(gross - disc_amt)
 
 
 def _set_line_gross_rate(line, gross_rate):

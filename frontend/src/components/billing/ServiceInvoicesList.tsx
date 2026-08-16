@@ -7,7 +7,7 @@ import {
   type InvoiceSummary,
 } from '../../services/serviceOrders'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { RefreshCw, FileText } from 'lucide-react'
+import { RefreshCw, FileText, ExternalLink } from 'lucide-react'
 import { toast } from '../../hooks/useToast'
 import { createCreditNote } from '../../services/serviceOrders'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -543,16 +543,16 @@ export const ServiceInvoicesList = ({
                             triggerRef={actionMenuRef}
                             minWidth={180}
                           >
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionRow(null)
-                                onOpenInvoiceDetail(invoice.name)
-                              }}
+                            <a
+                              href={`/app/sales-invoice/${encodeURIComponent(invoice.name)}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={() => setOpenActionRow(null)}
                               className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                             >
-                              View details
-                            </button>
+                              <ExternalLink className="w-4 h-4" />
+                              Open in Desk
+                            </a>
                             {isDraftSalesInvoice(invoice.docstatus) && (
                               <>
                                 <button

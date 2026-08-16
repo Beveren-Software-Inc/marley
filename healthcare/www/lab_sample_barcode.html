@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8">
+	<title>Sample Label</title>
+	<style>
+		html, body {
+			margin: 0 !important;
+			padding: 0 !important;
+			width: 2.299in;
+			height: 1.5in;
+			overflow: hidden;
+			background: #fff;
+		}
+		@page { size: 2.299in 1.5in; margin: 0; }
+		@media print {
+			html, body { margin: 0 !important; padding: 0 !important; }
+			@page { size: 2.299in 1.5in; margin: 0; }
+		}
+		.lab-sample-label {
+			width: 2.299in;
+			height: 1.5in;
+			box-sizing: border-box;
+			padding: 3px;
+			overflow: hidden;
+		}
+		table {
+			width: 100%;
+			border-collapse: collapse;
+			table-layout: fixed;
+			font-family: "Times New Roman", Times, serif;
+			color: #000;
+		}
+		td {
+			border: 1px solid #000;
+			padding: 0 3px;
+			vertical-align: middle;
+			font-size: 7px;
+			line-height: 1;
+			height: 0.16in;
+		}
+		td.lbl { width: 34%; font-weight: 700; white-space: nowrap; }
+		td.val { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+		tr.file td {
+			height: 0.28in;
+			font-size: 8px;
+		}
+		tr.file td.val { font-size: 12px; font-weight: 700; }
+	</style>
+</head>
+<body>
+	{% set file_no = label.file_no or "—" %}
+	<div class="lab-sample-label">
+		<table>
+			<tr class="file">
+				<td class="lbl">File No.</td>
+				<td class="val">{{ file_no }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">Name</td>
+				<td class="val">{{ label.patient_name or "—" }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">Sex</td>
+				<td class="val">{{ label.sex or "—" }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">Age</td>
+				<td class="val">{{ label.age or "—" }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">CPR/ ID No.</td>
+				<td class="val">{{ label.id_number or "—" }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">Nationality</td>
+				<td class="val">{{ label.nationality or "—" }}</td>
+			</tr>
+			<tr>
+				<td class="lbl">Printed On</td>
+				<td class="val">{{ label.printed_on or "—" }}</td>
+			</tr>
+		</table>
+	</div>
+	{% if trigger_print %}
+	<script>
+		window.addEventListener("load", function () {
+			setTimeout(function () { window.focus(); window.print(); }, 50);
+		});
+	</script>
+	{% endif %}
+</body>
+</html>

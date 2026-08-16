@@ -175,6 +175,11 @@ export interface LabRequestReview {
   name: string
   patient: string
   patient_name?: string
+  file_no?: string
+  sex?: string
+  age?: string
+  id_number?: string
+  nationality?: string
   practitioner?: string
   practitioner_name?: string
   status?: string
