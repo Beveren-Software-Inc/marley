@@ -4455,6 +4455,102 @@ def process_patient_allergy_warning_import_batch(offset: int = 0) -> None:
 		raise
 
 
+# ── Patient blacklist sync from PATIENT_INFO_01 (1 = yes, 2 = no) ─────────────
+
+
+@frappe.whitelist()
+def start_patient_blacklist_sync_migration(file_url: str) -> dict:
+	_require_admin()
+	from healthcare.api.patient_blacklist_sync import parse_and_cache_excel
+
+	if not (file_url or "").strip():
+		frappe.throw(_("Please upload an Excel file first."))
+
+	job = "patient_blacklist_sync"
+	_acquire_lock(job)
+	summary = parse_and_cache_excel(file_url)
+	_set_progress(
+		job,
+		0,
+		total_patients=summary.get("patients"),
+		excel_rows=summary.get("excel_rows"),
+		excel_blacklisted=summary.get("excel_blacklisted"),
+		excel_not_blacklisted=summary.get("excel_not_blacklisted"),
+		patients_found=summary.get("patients_found"),
+		patients_missing=summary.get("patients_missing"),
+		needs_update=summary.get("needs_update"),
+	)
+	frappe.enqueue(
+		"healthcare.api.data_migration_jobs.process_patient_blacklist_sync_batch",
+		offset=0,
+		queue="long",
+		timeout=3600,
+		job_name="healthcare_patient_blacklist_sync",
+	)
+	return {
+		"ok": True,
+		"message": _(
+			"Patient blacklist sync started ({0} Excel rows, {1} need update: "
+			"{2} blacklisted / {3} not blacklisted in file)."
+		).format(
+			summary.get("excel_rows") or 0,
+			summary.get("needs_update") or 0,
+			summary.get("excel_blacklisted") or 0,
+			summary.get("excel_not_blacklisted") or 0,
+		),
+	}
+
+
+def process_patient_blacklist_sync_batch(offset: int = 0) -> None:
+	from healthcare.api.patient_blacklist_sync import run_patient_blacklist_sync_batch
+
+	job = "patient_blacklist_sync"
+	try:
+		result = run_patient_blacklist_sync_batch(offset=offset)
+		prev = frappe.cache().get_value(_job_progress_key(job)) or {}
+		processed = result.get("processed", offset)
+		_set_progress(
+			job,
+			processed,
+			set_blacklisted=cint(prev.get("set_blacklisted", 0))
+			+ cint(result.get("set_blacklisted", 0)),
+			cleared=cint(prev.get("cleared", 0)) + cint(result.get("cleared", 0)),
+			skip_no_patient=cint(prev.get("skip_no_patient", 0))
+			+ cint(result.get("skip_no_patient", 0)),
+			skip_unchanged=cint(prev.get("skip_unchanged", 0))
+			+ cint(result.get("skip_unchanged", 0)),
+			errors=cint(prev.get("errors", 0)) + cint(result.get("errors", 0)),
+			total_patients=prev.get("total_patients"),
+			excel_rows=prev.get("excel_rows"),
+			excel_blacklisted=prev.get("excel_blacklisted"),
+			excel_not_blacklisted=prev.get("excel_not_blacklisted"),
+			patients_found=prev.get("patients_found"),
+			patients_missing=prev.get("patients_missing"),
+			needs_update=prev.get("needs_update"),
+		)
+
+		if not result.get("done"):
+			frappe.enqueue(
+				"healthcare.api.data_migration_jobs.process_patient_blacklist_sync_batch",
+				offset=processed,
+				queue="long",
+				timeout=3600,
+				job_name=f"healthcare_patient_blacklist_sync_{processed}",
+			)
+		else:
+			_set_progress(job, processed, done=True)
+			_release_lock(job)
+			frappe.log_error(
+				title="Patient blacklist sync (PATIENT_INFO_01) complete",
+				message=frappe.as_json(frappe.cache().get_value(_job_progress_key(job)) or {}),
+			)
+	except Exception:
+		frappe.db.rollback()
+		_set_progress(job, cint(offset), done=True, error=frappe.get_traceback())
+		_release_lock(job)
+		raise
+
+
 # ── IP Admission + Discharge Excel import (Oracle IP_ADMISSION_01) ────────────
 
 

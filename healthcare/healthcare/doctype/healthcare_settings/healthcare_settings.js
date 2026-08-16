@@ -1328,6 +1328,44 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Update Patient Blacklist — PATIENT_INFO_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Update Patient Blacklist (PATIENT_INFO_01)'),
+				preview_method: 'healthcare.api.patient_blacklist_sync.preview_patient_blacklist_sync',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_blacklist_sync_migration',
+				job_key: 'patient_blacklist_sync',
+				build_confirm_message: (counts) => {
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.file_no}: ${row.from} → ${row.to} (Excel ${row.excel})`
+						)
+						.join('\n');
+					return __(
+						'Update Patient is_black_list from PATIENT_INFO_01?\n\n'
+							+ 'Oracle mapping: 1 = blacklisted, 2 = not blacklisted.\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Blacklisted in Excel (1): {1}\n'
+							+ 'Not blacklisted in Excel (2): {2}\n'
+							+ 'Patients found: {3}\n'
+							+ 'Patients missing: {4}\n'
+							+ 'Need update: {5}\n\n'
+							+ 'Sample changes:\n{6}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.excel_blacklisted || 0,
+							counts.excel_not_blacklisted || 0,
+							counts.patients_found || 0,
+							counts.patients_missing || 0,
+							counts.needs_update || 0,
+							sample || __('(none)'),
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Warning Message — PATIENT_WARNING_MESSAGES'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Warning Message (PATIENT_WARNING_MESSAGES)'),
@@ -6424,6 +6462,18 @@ function poll_migration_status(jobKey) {
 								s.skip_unchanged || 0,
 								s.skip_no_patient || 0,
 								s.skip_empty_allergy || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'patient_blacklist_sync') {
+						msg = __(
+							'{0} finished: {1} set blacklisted, {2} cleared, {3} unchanged, {4} skipped (no patient), {5} errors.',
+							[
+								jobKey,
+								s.set_blacklisted || 0,
+								s.cleared || 0,
+								s.skip_unchanged || 0,
+								s.skip_no_patient || 0,
 								errN,
 							]
 						);
