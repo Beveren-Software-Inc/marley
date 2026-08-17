@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient'
+import { type LinkFieldOption } from './common'
 
 export interface PatientSafetyEvent {
   name: string
@@ -9,6 +10,33 @@ export interface PatientSafetyEvent {
   patient?: string
   department?: string
   status?: string
+}
+
+export async function fetchPatientSafetyEventTypes(search?: string): Promise<LinkFieldOption[]> {
+  const params = new URLSearchParams()
+  if (search) params.append('search', search)
+
+  const res = await fetch(
+    `/api/method/healthcare.api.common.get_patient_safety_event_types${
+      params.toString() ? `?${params.toString()}` : ''
+    }`
+  )
+  const data = await res.json()
+
+  if (data?.message && Array.isArray(data.message)) {
+    return data.message as LinkFieldOption[]
+  }
+  return []
+}
+
+export async function createPatientSafetyEventType(eventType: string): Promise<{ name: string; event_type: string }> {
+  return apiRequest<{ name: string; event_type: string }>(
+    '/api/resource/Patient%20Safety%20Event%20Type',
+    {
+      method: 'POST',
+      body: JSON.stringify({ event_type: eventType.trim() }),
+    }
+  )
 }
 
 export interface CreatePatientSafetyEventInput {
@@ -79,6 +107,30 @@ export async function fetchPatientSafetyEvents(
   }
 
   return []
+}
+
+export interface PatientSafetyEventDetail extends PatientSafetyEvent {
+  description?: string
+  immediate_action?: string
+  contributing_factors?: string
+  is_anonymous?: number
+  reported_by?: string
+  creation?: string
+  modified?: string
+  owner?: string
+}
+
+export async function fetchPatientSafetyEventDetail(name: string): Promise<PatientSafetyEventDetail> {
+  const res = await fetch(`/api/resource/Patient%20Safety%20Event/${encodeURIComponent(name)}`)
+  const data = await res.json()
+
+  if (data?.data) {
+    return data.data as PatientSafetyEventDetail
+  }
+  if (data?.exception) {
+    throw new Error(data.message || 'Failed to fetch event details')
+  }
+  throw new Error('Invalid response format')
 }
 
 // ── OVR & CAPA (Phase 2) ─────────────────────────────────────────────────────
