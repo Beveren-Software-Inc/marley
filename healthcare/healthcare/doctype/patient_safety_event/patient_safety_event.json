@@ -39,9 +39,10 @@
   },
   {
    "fieldname": "event_type",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Event Type",
+   "label": "Patient Safety Event Type",
+   "options": "Patient Safety Event Type",
    "reqd": 1
   },
   {
@@ -82,8 +83,9 @@
   },
   {
    "fieldname": "department",
-   "fieldtype": "Data",
-   "label": "Department / Service"
+   "fieldtype": "Link",
+   "label": "Department / Service",
+   "options": "Medical Department"
   },
   {
    "default": "Open",

@@ -53,6 +53,7 @@ const OP_ONLY_NURSE_SCREEN_IDS = new Set([
   'admission',
   'n-discharge',
   'n-package',
+  'n-medical-record',
   // Daily Routine Care folder
   'n-assess',
   'n-groom',
@@ -67,7 +68,7 @@ const OP_ONLY_NURSE_GROUP_TITLES = new Set(['Daily Routine Care', 'Admission & D
 
 /** Nurse screens hidden when the active mode is OP (regardless of branch scope).
     Pharmacy Give Out is NOT here — it works for both OP (visit) and IP (admission). */
-const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-reg', 'n-discharge', 'n-package', 'n-ob'])
+const OP_MODE_NURSE_SCREEN_IDS = new Set(['n-given', 'n-reg', 'n-discharge', 'n-package', 'n-ob', 'n-medical-record'])
 const OP_MODE_NURSE_GROUP_TITLES = new Set(['Admission & Discharge', 'Observation & Monitoring'])
 
 const IP_ONLY_NURSE_SCREEN_IDS = new Set(['n-op'])

@@ -562,6 +562,88 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 
+def _compute_lab_request_virtual_status(sr) -> str:
+	"""Compute UI-only virtual status for a Lab Test Service Request.
+
+	Statuses (computed from linked Lab Test records + basket finished flags):
+	  - ``Booked``                    — no Lab Tests linked yet (or pre-sample)
+	  - ``Sample Collected``          — all linked Lab Tests have samples collected
+	  - ``Partial Sample Collected``  — some samples collected, none have results
+	  - ``Partial Results``           — at least one test has results entered, not all
+	  - ``Completed tests``           — all tests have results and/or request finished
+	"""
+	import json
+
+	if (sr.get("status") or "").strip() == "completed-Request Status":
+		return "completed-request"
+
+	# Basket items with per-line finished flag (from Finish Group flows)
+	raw = sr.get("lab_request_items") or ""
+	items: list[dict] = []
+	if isinstance(raw, str) and raw.strip():
+		try:
+			parsed = json.loads(raw)
+			if isinstance(parsed, list):
+				items = [i for i in parsed if isinstance(i, dict)]
+		except Exception:
+			items = []
+	if items:
+		lines = [i for i in items if (i.get("template") or i.get("parent") or "").strip()]
+		if lines and all(cint(i.get("finished")) == 1 for i in lines):
+			return "completed-request"
+
+	# Query Lab Tests linked to this Service Request for sample/result progress
+	lab_tests = frappe.get_all(
+		"Lab Test",
+		filters={"service_request": sr.get("name")},
+		fields=["name", "status", "docstatus", "custom_result", "sample"],
+		ignore_permissions=True,
+	)
+	if not lab_tests:
+		return "booked"
+
+	total = len(lab_tests)
+	sample_done = 0
+	result_done = 0
+	for lt in lab_tests:
+		status_str = (lt.get("status") or "").strip()
+		# Sample considered done when linked to a Sample Collection OR status progressed past pre-sample
+		if lt.get("sample") or status_str in (
+			"Sample Collected",
+			"Sample collection in progress",
+			"Testing in Progress",
+			"Testing in progress",
+			"Pending Review",
+			"Reviewed",
+			"Rejected",
+			"Completed",
+			"Approved",
+			"Partial Result Enter",
+		):
+			sample_done += 1
+		# Result entered when status moved past testing, or custom_result has a value
+		has_result = status_str in (
+			"Pending Review",
+			"Reviewed",
+			"Rejected",
+			"Completed",
+			"Approved",
+			"Partial Result Enter",
+		) or bool((lt.get("custom_result") or "").strip())
+		if has_result:
+			result_done += 1
+
+	if result_done == total:
+		return "completed-tests"
+	if result_done > 0:
+		return "partial-results"
+	if sample_done == total:
+		return "sample-collected"
+	if sample_done > 0:
+		return "partial-sample-collected"
+	return "booked"
+
+
 @frappe.whitelist()
 def get_service_requests(
 	limit=50,
@@ -576,6 +658,7 @@ def get_service_requests(
 	inpatient_record=None,
 	booked=None,
 	patient_care_type=None,
+	virtual_status=None,
 ):
 	"""Get list of Service Requests.
 
@@ -688,6 +771,10 @@ def get_service_requests(
 				or sr.practitioner
 			)
 
+		# Compute UI-only virtual status (sample progress / result progress) for Lab Requests
+		if sr.template_dt == 'Lab Test Template':
+			sr['virtual_status'] = _compute_lab_request_virtual_status(sr)
+
 		items = parse_lab_request_items(sr)
 		if items and sr.template_dt == 'Lab Test Template':
 			sr['template_name'] = lab_request_items_summary(items) or sr.template_dn
@@ -742,7 +829,16 @@ def get_service_requests(
 				sr['template_name'] = resolved or sr.template_dn
 			else:
 				sr['template_name'] = sr.template_dn
-	
+
+	# Client-side virtual status filter — applies after computing virtual_status per row.
+	if virtual_status and str(virtual_status).strip().lower() != 'all':
+		vs = str(virtual_status).strip().lower()
+		service_requests = [
+			sr
+			for sr in service_requests
+			if (sr.get('virtual_status') or 'booked') == vs
+		]
+
 	return {"data": service_requests, "total_count": total_count}
 
 

@@ -19,6 +19,7 @@ import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
+import { MedicalRecordChecklistReport } from '../components/nursing/MedicalRecordChecklistReport'
 import { CreateMainNursingNoteModal } from '../components/nursing/CreateMainNursingNoteModal'
 import { DoctorOrderList } from '../components/doctorOrder/DoctorOrderList'
 import { getPatientActiveAdmission, type InpatientRecord } from '../services/inpatientRecords'
@@ -1335,6 +1336,21 @@ export const NursePage = () => {
             hidePricing
           />
         )}
+      </div>
+    )
+  }
+
+  // Medical Record — nursing checklist report for active admitted patients
+  if (screen === 'n-medical-record') {
+    return (
+      <div className="flex min-h-full flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4 flex-1 min-h-0 flex flex-col">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0 flex-1">
+            <div className="font-semibold mb-2 flex-shrink-0">Medical Record</div>
+            <MedicalRecordChecklistReport />
+          </section>
+        </div>
       </div>
     )
   }

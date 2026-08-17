@@ -8,6 +8,8 @@ export interface ServiceRequest {
   template_dn?: string
   template_name?: string
   status?: string
+  /** UI-only virtual status for Lab Requests (booked / sample-collected / partial-sample-collected / partial-results / completed-tests / completed-request) */
+  virtual_status?: string
   order_date?: string
   order_time?: string
   occurrence_date?: string
@@ -94,6 +96,7 @@ export async function fetchServiceRequests(
   inpatientRecord?: string,
   booked?: boolean | number,
   patientCareType?: string,
+  virtualStatus?: string,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -110,6 +113,7 @@ export async function fetchServiceRequests(
     params.append('booked', Number(booked) ? '1' : '0')
   }
   if (patientCareType?.trim()) params.append('patient_care_type', patientCareType.trim().toUpperCase())
+  if (virtualStatus?.trim()) params.append('virtual_status', virtualStatus.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`

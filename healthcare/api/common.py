@@ -207,6 +207,64 @@ def get_medical_departments(search=None):
 	
 	return [{'name': d.name, 'label': d.department or d.name} for d in departments]
 
+
+@frappe.whitelist()
+def get_patient_safety_event_types(search=None):
+	"""Get list of Patient Safety Event Types"""
+	filters = {}
+	if search:
+		filters['event_type'] = ['like', f'%{search}%']
+
+	types = frappe.get_all(
+		'Patient Safety Event Type',
+		filters=filters,
+		fields=['name', 'event_type'],
+		limit=50,
+		order_by='event_type'
+	)
+
+	return [{'name': t.name, 'label': t.event_type or t.name} for t in types]
+
+
+@frappe.whitelist()
+def get_portal_doctypes(search=None):
+	"""Get list of DocTypes for QMPS Quality Indicator numerator/denominator dropdowns.
+
+	Returns DocTypes that have a creation/modified date field usable for period counting,
+	excluding internal Frappe system doctypes.
+	"""
+	EXCLUDE_PREFIXES = ("__", "DocType", "DocField", "DocPerm", "Custom Field", "Property Setter", "Workflow", "Workflow State", "Server Script", "Client Script")
+	EXCLUDE_NAMES = {
+		"DocType", "DocField", "DocPerm", "Custom Field", "Property Setter",
+		"Workflow", "Workflow State", "Server Script", "Client Script",
+		"Module Def", "Installed Application", "User", "Role", "Email Account",
+		"File", "Comment", "Version", "Communication", "Activity Log", "Error Log",
+	}
+
+	filters = [["istable", "=", 0]]
+	if search and str(search).strip():
+		filters.append(["name", "like", f"%{search.strip()}%"])
+
+	doctypes = frappe.get_all(
+		"DocType",
+		filters=filters,
+		fields=["name"],
+		order_by="name asc",
+		limit=100,
+	)
+
+	result = []
+	for d in doctypes:
+		name = d.name
+		if name in EXCLUDE_NAMES:
+			continue
+		if name.startswith(EXCLUDE_PREFIXES):
+			continue
+		result.append({"name": name, "label": name})
+
+	return result
+
+
 @frappe.whitelist()
 def get_company_departments(search=None):
 	"""Get list of Medical Departments"""
