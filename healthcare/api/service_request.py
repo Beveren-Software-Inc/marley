@@ -953,6 +953,8 @@ def get_lab_request_review(name):
 		if sex_field:
 			patient_sex = frappe.db.get_value("Patient", doc.patient, sex_field)
 
+	patient_label = _lab_sample_patient_label_fields(doc.patient, patient_sex)
+
 	meta = _template_review_fields(
 		all_child_names, patient_sex=patient_sex, patient_care_type=patient_care_type
 	)
@@ -1080,6 +1082,11 @@ def get_lab_request_review(name):
 		"name": doc.name,
 		"patient": doc.patient,
 		"patient_name": doc.patient_name,
+		"file_no": patient_label.get("file_no"),
+		"sex": patient_label.get("sex"),
+		"age": patient_label.get("age"),
+		"id_number": patient_label.get("id_number"),
+		"nationality": patient_label.get("nationality"),
 		"practitioner": doc.practitioner,
 		"practitioner_name": (
 			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
@@ -1099,6 +1106,66 @@ def get_lab_request_review(name):
 		"test_count": sum(int(g.get("test_count") or 0) for g in group_rows),
 		"total_price": stored_total or computed_total,
 		"lab_tests": lab_test_rows,
+	}
+
+
+def _lab_sample_patient_label_fields(patient: str | None, sex: str | None = None) -> dict:
+	"""Demographics for the lab sample barcode label."""
+	from frappe.utils import getdate
+
+	out = {
+		"file_no": patient or "",
+		"patient_name": "",
+		"sex": sex or "",
+		"age": "",
+		"id_number": "",
+		"nationality": "",
+	}
+	if not patient or not frappe.db.exists("Patient", patient):
+		return out
+
+	fields = ["name", "patient_name", "file_no", "dob"]
+	for fname in ("sex", "gender", "id_number", "national_id", "nationality", "pat_nationality"):
+		if frappe.db.has_column("Patient", fname):
+			fields.append(fname)
+	row = frappe.db.get_value("Patient", patient, fields, as_dict=True) or {}
+	out["file_no"] = (row.get("file_no") or row.get("name") or patient or "").strip()
+	out["patient_name"] = (row.get("patient_name") or "").strip()
+	out["sex"] = (row.get("sex") or row.get("gender") or sex or "").strip()
+	out["id_number"] = (row.get("id_number") or row.get("national_id") or "").strip()
+	out["nationality"] = (row.get("nationality") or row.get("pat_nationality") or "").strip()
+	dob = row.get("dob")
+	if dob:
+		try:
+			from dateutil.relativedelta import relativedelta
+
+			years = relativedelta(getdate(), getdate(dob)).years
+			out["age"] = f"{years} Years" if years is not None else ""
+		except Exception:
+			out["age"] = ""
+	return out
+
+
+@frappe.whitelist()
+def get_lab_sample_barcode_label(name):
+	"""Patient barcode label data for a booked Lab Request (sample collector print)."""
+	if not name:
+		frappe.throw(_("Service Request name is required"))
+	if not frappe.db.exists("Service Request", name):
+		frappe.throw(_("Service Request not found"))
+
+	doc = frappe.get_doc("Service Request", name)
+	fields = _lab_sample_patient_label_fields(doc.patient)
+	file_no = fields.get("file_no") or doc.patient or name
+	from frappe.utils import now_datetime
+
+	printed_on = now_datetime().strftime("%d-%b-%Y %H:%M %p").upper()
+	return {
+		**fields,
+		"patient": doc.patient,
+		"patient_name": fields.get("patient_name") or doc.patient_name,
+		"service_request": doc.name,
+		"printed_on": printed_on,
 	}
 
 

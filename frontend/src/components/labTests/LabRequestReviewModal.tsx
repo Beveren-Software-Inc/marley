@@ -24,6 +24,7 @@ import { formatDashboardDate } from '../ui/dashboardCardListing'
 import { StatusPill } from '../ui/StatusPill'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { LabTestEnterResultsModal } from './LabTestEnterResultsModal'
+import { openLabSampleBarcodePrint } from '../../utils/printLabSampleBarcodeLabel'
 
 const LAB_LINE_STATUS_LABELS: Record<string, string> = {
   'Testing in progress': 'Test In-Progress',
@@ -206,6 +207,23 @@ function ActionBtn({
   )
 }
 
+function PrintBarcodeBtn({ onClick, disabled }: { onClick: () => void; disabled?: boolean }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      title="Print barcode"
+      onClick={(e) => {
+        e.stopPropagation()
+        onClick()
+      }}
+      className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-slate-400 bg-white px-1.5 text-[10px] font-bold tracking-wide text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      PB
+    </button>
+  )
+}
+
 export function LabRequestReviewModal({
   serviceRequestName,
   onClose,
@@ -261,6 +279,14 @@ export function LabRequestReviewModal({
     const base = typeof window !== 'undefined' ? window.location.origin : ''
     window.open(`${base}/printview?${params.toString()}`, '_blank', 'noopener,noreferrer')
   }, [])
+
+  const printBarcode = useCallback(() => {
+    if (!review?.name) {
+      toast.error('Lab Request is not loaded.')
+      return
+    }
+    openLabSampleBarcodePrint(review.name)
+  }, [review?.name])
 
   const handleCompleteGroup = useCallback(
     async (group: LabRequestReviewGroup) => {
@@ -638,9 +664,7 @@ export function LabRequestReviewModal({
                                   const progress = getGroupResultProgress(group)
                                   const needsSample = groupNeedsSample(group)
                                   const groupFinished = isGroupFinished(group)
-                                  const canPrint =
-                                    groupFinished ||
-                                    (!needsSample && progress.status === 'Complete')
+                                  const canPrint = groupFinished || !needsSample
                                   const progressClass =
                                     progress.status === 'Complete'
                                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
@@ -653,22 +677,25 @@ export function LabRequestReviewModal({
                                     // clicked group is collected — not only the selected one.
                                     if (needsSample && !groupFinished) {
                                       return (
-                                        <ActionBtn
-                                          variant="sample"
-                                          title={
-                                            isGroup
-                                              ? 'Collect sample for this group'
-                                              : 'Collect sample'
-                                          }
-                                          onClick={() =>
-                                            isGroup
-                                              ? void openGroupSample(group)
-                                              : void openSampleForTest(group.tests[0])
-                                          }
-                                        >
-                                          <Droplet className="h-3 w-3" />
-                                          Collect Sample
-                                        </ActionBtn>
+                                        <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                                          <ActionBtn
+                                            variant="sample"
+                                            title={
+                                              isGroup
+                                                ? 'Collect sample for this group'
+                                                : 'Collect sample'
+                                            }
+                                            onClick={() =>
+                                              isGroup
+                                                ? void openGroupSample(group)
+                                                : void openSampleForTest(group.tests[0])
+                                            }
+                                          >
+                                            <Droplet className="h-3 w-3" />
+                                            Collect Sample
+                                          </ActionBtn>
+                                          <PrintBarcodeBtn onClick={() => printBarcode()} />
+                                        </div>
                                       )
                                     }
                                     // Keep Finished + Print visible on completed groups anytime.
@@ -694,16 +721,19 @@ export function LabRequestReviewModal({
                                             </span>
                                           </span>
                                         )}
-                                        {canPrint ? (
-                                          <button
-                                            type="button"
-                                            title="Print results"
-                                            onClick={() => printGroup(group)}
-                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                          >
-                                            <Printer className="h-3.5 w-3.5" />
-                                          </button>
-                                        ) : null}
+                                    {canPrint ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Print"
+                                          onClick={() => printGroup(group)}
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
+                                        >
+                                          <Printer className="h-3.5 w-3.5" />
+                                        </button>
+                                        <PrintBarcodeBtn onClick={() => printBarcode()} />
+                                      </>
+                                    ) : null}
                                       </div>
                                     )
                                   }
@@ -766,6 +796,7 @@ export function LabRequestReviewModal({
                                           <Printer className="h-3.5 w-3.5" />
                                         </button>
                                       ) : null}
+                                      <PrintBarcodeBtn onClick={() => printBarcode()} />
                                       {!needsSample &&
                                       progress.status !== 'Complete' &&
                                       !groupFinished ? (
@@ -935,17 +966,20 @@ export function LabRequestReviewModal({
                                       Results
                                     </ActionBtn>
                                     {sampleDone && labTestLineHasResult(test) && test.lab_test ? (
-                                      <button
-                                        type="button"
-                                        title="Print results"
-                                        onClick={() => {
-                                          if (!selectedGroup) return
-                                          printGroup(selectedGroup)
-                                        }}
-                                        className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
-                                      >
-                                        <Printer className="h-3.5 w-3.5" />
-                                      </button>
+                                      <>
+                                        <button
+                                          type="button"
+                                          title="Print results"
+                                          onClick={() => {
+                                            if (!selectedGroup) return
+                                            printGroup(selectedGroup)
+                                          }}
+                                          className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-teal-300 bg-white text-teal-700 hover:bg-teal-50"
+                                        >
+                                          <Printer className="h-3.5 w-3.5" />
+                                        </button>
+                                        <PrintBarcodeBtn onClick={() => printBarcode()} />
+                                      </>
                                     ) : null}
                                   </div>
                                 )}

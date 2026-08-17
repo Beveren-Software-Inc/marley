@@ -138,6 +138,49 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Update Patient Nationality'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_nationality_sync.preview_patient_nationality_sync',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map((row) => `${row.patient}: code "${row.code}" → nationality "${row.to}"${row.from ? ` (was "${row.from}")` : ''}`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Run in background: for each Patient with a pat_nationality code, match it against the Nationality doctype code and set the Patient nationality (link) field.\n\n'
+							+ 'Patients with a code: {0}\nTo update: {1}\nAlready correct: {2}\nCode not found in Nationality: {3}\nNationality records with a code: {4}\n\n'
+							+ 'Sample:\n{5}\n\nContinue?',
+							[
+								counts.patients_with_code || 0,
+								counts.needs_update || 0,
+								counts.skipped_already_ok || 0,
+								counts.skipped_unmatched || 0,
+								counts.nationality_count || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_nationality_sync.start_patient_nationality_sync',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_nationality_sync');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Delete Duplicate Unlinked Customers'), () => {
 			frappe.call({
 				method: 'healthcare.api.patient_customer_dedupe.preview_patient_customer_dedupe',
@@ -1282,6 +1325,44 @@ frappe.ui.form.on('Healthcare Settings', {
 							(counts.sample_file_nos || []).join(', ') || __('(none)'),
 						]
 					),
+			});
+		}, __('Direct Upload'));
+
+		frm.add_custom_button(__('Update Patient Blacklist — PATIENT_INFO_01'), () => {
+			open_direct_excel_upload({
+				dialog_title: __('Update Patient Blacklist (PATIENT_INFO_01)'),
+				preview_method: 'healthcare.api.patient_blacklist_sync.preview_patient_blacklist_sync',
+				start_method:
+					'healthcare.api.data_migration_jobs.start_patient_blacklist_sync_migration',
+				job_key: 'patient_blacklist_sync',
+				build_confirm_message: (counts) => {
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.file_no}: ${row.from} → ${row.to} (Excel ${row.excel})`
+						)
+						.join('\n');
+					return __(
+						'Update Patient is_black_list from PATIENT_INFO_01?\n\n'
+							+ 'Oracle mapping: 1 = blacklisted, 2 = not blacklisted.\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Blacklisted in Excel (1): {1}\n'
+							+ 'Not blacklisted in Excel (2): {2}\n'
+							+ 'Patients found: {3}\n'
+							+ 'Patients missing: {4}\n'
+							+ 'Need update: {5}\n\n'
+							+ 'Sample changes:\n{6}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.excel_blacklisted || 0,
+							counts.excel_not_blacklisted || 0,
+							counts.patients_found || 0,
+							counts.patients_missing || 0,
+							counts.needs_update || 0,
+							sample || __('(none)'),
+						]
+					);
+				},
 			});
 		}, __('Direct Upload'));
 
@@ -6381,6 +6462,18 @@ function poll_migration_status(jobKey) {
 								s.skip_unchanged || 0,
 								s.skip_no_patient || 0,
 								s.skip_empty_allergy || 0,
+								errN,
+							]
+						);
+					} else if (jobKey === 'patient_blacklist_sync') {
+						msg = __(
+							'{0} finished: {1} set blacklisted, {2} cleared, {3} unchanged, {4} skipped (no patient), {5} errors.',
+							[
+								jobKey,
+								s.set_blacklisted || 0,
+								s.cleared || 0,
+								s.skip_unchanged || 0,
+								s.skip_no_patient || 0,
 								errN,
 							]
 						);

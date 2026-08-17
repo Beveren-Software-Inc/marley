@@ -137,6 +137,18 @@ def _yn_to_check(value: Any) -> int:
 	return 1 if text in ("Y", "YES", "1", "TRUE", "T") else 0
 
 
+def _blacklist_to_check(value: Any) -> int:
+	"""Oracle PATIENT_INFO_01: IS_BLACK_LIST 1 = blacklisted, 2 = not blacklisted."""
+	if value is None or value == "":
+		return 0
+	if isinstance(value, (int, float)):
+		return 1 if int(value) == 1 else 0
+	text = str(value).strip().upper()
+	if text in ("2", "N", "NO", "FALSE", "F", "0"):
+		return 0
+	return 1 if text in ("Y", "YES", "1", "TRUE", "T") else 0
+
+
 def _excel_serial_to_datetime(value: Any, datemode: int = 0) -> datetime | None:
 	if not isinstance(value, (int, float)) or isinstance(value, bool):
 		return None
@@ -334,7 +346,7 @@ def _build_patient_fields(row: dict) -> dict:
 		"pat_blood_group": _cell_text(row.get("pat_blood_group")),
 		"job_title": _cell_text(row.get("job_title")),
 		"job_location": _cell_text(row.get("job_location")),
-		"is_black_list": _yn_to_check(row.get("is_black_list")),
+		"is_black_list": _blacklist_to_check(row.get("is_black_list")),
 		"flat_num": _cell_text(row.get("flat_num")),
 		"bldg_num": _cell_text(row.get("bldg_num")),
 		"road_num": _cell_text(row.get("road_num")),
