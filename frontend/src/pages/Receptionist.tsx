@@ -40,6 +40,7 @@ import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionB
 import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
 import { PromotionAnalysis } from '../components/reception/PromotionAnalysis'
 import { AdmissionSignatures } from '../components/admissions/AdmissionSignatures'
+import { CreatePatientMedicalConsentModal } from '../components/reception/CreatePatientMedicalConsentModal'
 import { InternalEmployeeBillingPage } from './billing/InternalEmployeeBillingPage'
 import { isReceptionScreenBlocked, observationsAllowedForMode } from '../config/costCenterCareScope'
 import { isDataOfficer } from '../config/permissions'
@@ -113,6 +114,8 @@ export const ReceptionistPage = () => {
   const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
   const [showStickyNoteModal, setShowStickyNoteModal] = useState(false)
   const [stickyNoteRefreshKey, setStickyNoteRefreshKey] = useState(0)
+  const [showMedicalConsentModal, setShowMedicalConsentModal] = useState(false)
+  const [medicalConsentRefreshKey, setMedicalConsentRefreshKey] = useState(0)
   const [showPatientVisitModal, setShowPatientVisitModal] = useState(false)
   const [patientVisitRefreshKey, setPatientVisitRefreshKey] = useState(0)
   const [showCreateServiceRequest, setShowCreateServiceRequest] = useState(false)
@@ -702,9 +705,15 @@ export const ReceptionistPage = () => {
         {(currentView === 'medical-consent' || currentView === 'financial-consent') && (
           <div className="p-4">
             {currentView === 'medical-consent' ? (
-              <DashboardCard title="Patient Medical Consent">
+              <DashboardCard
+                title="Patient Medical Consent"
+                onAdd={() => guardClinicalCreate(() => setShowMedicalConsentModal(true))}
+                addButtonTitle="New Patient Medical Consent"
+                noHeightLimit
+              >
                 <DoctypeListPanel
                   doctype="Patient Medical Consent"
+                  refreshKey={medicalConsentRefreshKey}
                   columns={[
                     { fieldname: 'name', label: 'Consent' },
                     { fieldname: 'patient_name', label: 'Patient' },
@@ -712,20 +721,6 @@ export const ReceptionistPage = () => {
                     { fieldname: 'procedure_or_treatment', label: 'Procedure' },
                     { fieldname: 'consent_date', label: 'Consent Date' },
                     { fieldname: 'status', label: 'Status' },
-                  ]}
-                  createFields={[
-                    { fieldname: 'patient', label: 'Patient', fieldtype: 'Link', options: 'Patient', reqd: true },
-                    { fieldname: 'inpatient_admission', label: 'Admission', fieldtype: 'Link', options: 'Inpatient Admission' },
-                    { fieldname: 'procedure_or_treatment', label: 'Procedure / Treatment', fieldtype: 'Data' },
-                    { fieldname: 'practitioner', label: 'Explaining Practitioner', fieldtype: 'Link', options: 'Healthcare Practitioner' },
-                    { fieldname: 'guardian_name', label: 'Legal Guardian Name', fieldtype: 'Data' },
-                    { fieldname: 'guardian_relationship', label: 'Guardian Relationship', fieldtype: 'Data' },
-                    { fieldname: 'witness_name', label: 'Witness Name', fieldtype: 'Data' },
-                    { fieldname: 'procedures_explained', label: 'Procedure Explained', fieldtype: 'Check' },
-                    { fieldname: 'risks_explained', label: 'Risks Explained', fieldtype: 'Check' },
-                    { fieldname: 'alternatives_explained', label: 'Alternatives Explained', fieldtype: 'Check' },
-                    { fieldname: 'questions_answered', label: 'Questions Answered', fieldtype: 'Check' },
-                    { fieldname: 'status', label: 'Status', fieldtype: 'Select', options: 'Draft\nSigned\nDeclined', default: 'Draft' },
                   ]}
                   emptyMessage="No medical consent recorded yet."
                 />
@@ -1221,6 +1216,18 @@ export const ReceptionistPage = () => {
           defaultSpecialPhoneWarning
           title="Create Sticky Note"
           submitLabel="Create Sticky Note"
+        />
+      )}
+
+      {showMedicalConsentModal && (
+        <CreatePatientMedicalConsentModal
+          initialPatient={selectedPatient || undefined}
+          initialAdmission={activeAdmission || undefined}
+          onClose={() => setShowMedicalConsentModal(false)}
+          onSuccess={() => {
+            setShowMedicalConsentModal(false)
+            setMedicalConsentRefreshKey((k) => k + 1)
+          }}
         />
       )}
     </div>
