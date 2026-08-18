@@ -16,13 +16,17 @@
 		@media print {
 			html, body { margin: 0 !important; padding: 0 !important; }
 			@page { size: 2.299in 1.5in; margin: 0; }
+			* { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
 		}
 		.lab-sample-label {
 			width: 2.299in;
 			height: 1.5in;
 			box-sizing: border-box;
-			padding: 3px;
+			padding: 4px;
 			overflow: hidden;
+			background: #FFFF00;
+			-webkit-print-color-adjust: exact;
+			print-color-adjust: exact;
 		}
 		table {
 			width: 100%;
@@ -30,6 +34,7 @@
 			table-layout: fixed;
 			font-family: "Times New Roman", Times, serif;
 			color: #000;
+			background: #FFFFFF;
 		}
 		td {
 			border: 1px solid #000;
@@ -38,6 +43,7 @@
 			font-size: 7px;
 			line-height: 1;
 			height: 0.16in;
+			background: #FFFFFF;
 		}
 		td.lbl { width: 34%; font-weight: 700; white-space: nowrap; }
 		td.val { font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
