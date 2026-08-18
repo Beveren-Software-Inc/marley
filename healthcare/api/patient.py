@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+hy do we have delete option on the items in pat# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 import frappe
