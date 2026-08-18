@@ -324,15 +324,24 @@ def _format_doa(row: dict) -> str:
 
 
 @frappe.whitelist()
-def get_medical_record_checklist(from_date=None, to_date=None, cost_center=None):
+def get_medical_record_checklist(
+	from_date=None, to_date=None, cost_center=None, include_discharge_started=0
+):
 	"""Checklist of clinical documents for currently admitted patients.
 
 	Only includes Inpatient Admissions in Admitted or Discharge Scheduled status.
 	Ticks are derived from existing records — this is a report, not a doctype.
+
+	``include_discharge_started`` (checkbox, default OFF): when falsy, patients who
+	have a draft Discharge (docstatus = 0) are excluded from the report — they have
+	physically left the hospital even though the admission still reads "Admitted"
+	until financial completion. Tick the box to include those patients.
 	"""
 	resolved = resolve_cost_center_filter(cost_center)
 	if resolved is False:
 		return _empty_payload(from_date, to_date, cost_center)
+
+	include_discharge_started = frappe.utils.cint(include_discharge_started)
 
 	filters: dict = {"status": ["in", list(ACTIVE_STATUSES)]}
 	if isinstance(resolved, list):
@@ -358,6 +367,21 @@ def get_medical_record_checklist(from_date=None, to_date=None, cost_center=None)
 		order_by="admitted_datetime asc, admission_date asc, patient_name asc",
 	)
 
+	# Remove patients who have a draft discharge (docstatus = 0) unless the
+	# "Include discharge started" checkbox is ticked. A draft discharge means the
+	# patient has physically left the hospital but the admission stays "Admitted"
+	# until the financial/administrative discharge completes.
+	if not include_discharge_started and admissions:
+		draft_discharge_admissions = set(
+			frappe.get_all(
+				"Discharge",
+				filters={"docstatus": 0, "admission": ["in", [r.name for r in admissions]]},
+				pluck="admission",
+			)
+		)
+		if draft_discharge_admissions:
+			admissions = [r for r in admissions if r.name not in draft_discharge_admissions]
+
 	from_d = getdate(from_date) if from_date else None
 	to_d = getdate(to_date) if to_date else getdate(today())
 
@@ -374,6 +398,7 @@ def get_medical_record_checklist(from_date=None, to_date=None, cost_center=None)
 			"prepared_by": get_fullname(frappe.session.user) or frappe.session.user,
 			"columns": [{"key": key, "label": label} for key, label in CHECK_COLUMNS],
 			"rows": [],
+			"include_discharge_started": bool(include_discharge_started),
 		}
 
 	file_no_by_patient: dict[str, str] = {}
@@ -470,6 +495,7 @@ def get_medical_record_checklist(from_date=None, to_date=None, cost_center=None)
 		"prepared_by": get_fullname(frappe.session.user) or frappe.session.user,
 		"columns": [{"key": key, "label": label} for key, label in CHECK_COLUMNS],
 		"rows": rows,
+		"include_discharge_started": bool(include_discharge_started),
 	}
 
 
@@ -482,4 +508,5 @@ def _empty_payload(from_date, to_date, cost_center):
 		"prepared_by": get_fullname(frappe.session.user) or frappe.session.user,
 		"columns": [{"key": key, "label": label} for key, label in CHECK_COLUMNS],
 		"rows": [],
+		"include_discharge_started": False,
 	}

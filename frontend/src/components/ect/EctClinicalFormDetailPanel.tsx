@@ -14,6 +14,7 @@ import {
   VitalTile,
   checkedLabels,
   displayValue,
+  isChecked,
   formatDate,
   formatDateTime,
   formatTime,
@@ -254,6 +255,184 @@ function TimeOutBody({ doc }: { doc: DocRecord }) {
   )
 }
 
+function ECTProcedureConsentBody({ doc }: { doc: DocRecord }) {
+  const signatureRows = asRows(doc.signature)
+  const childGuardian = signatureRows.length > 0 ? signatureRows[0] : null
+
+  return (
+    <>
+      <section className={MODAL_SECTION_CLASS}>
+        <h3 className={MODAL_SECTION_TITLE_CLASS}><ClipboardList className="h-4 w-4 text-indigo-600" strokeWidth={2} /> Patient</h3>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <DataTile label="Patient" value={displayValue(doc.patient_name || doc.patient)} />
+          {hasValue(doc.inpatient_admission) ? <DataTile label="Admission" value={displayValue(doc.inpatient_admission)} /> : null}
+          {hasValue(doc.patient_visit) ? <DataTile label="Visit" value={displayValue(doc.patient_visit)} /> : null}
+          {hasValue(doc.terms) ? <DataTile label="Terms" value={displayValue(doc.terms)} /> : null}
+        </div>
+      </section>
+
+      {hasValue(doc.terms_and_conditions) ? (
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}><Stethoscope className="h-4 w-4 text-indigo-600" strokeWidth={2} /> Terms & Conditions</h3>
+          <NoteBlock label="English" value={String(doc.terms_and_conditions)} />
+          {hasValue(doc.terms_and_conditionsarabic) ? <div className="mt-2.5"><NoteBlock label="Arabic" value={String(doc.terms_and_conditionsarabic)} /></div> : null}
+          {hasValue(doc.terms_accepted) ? (
+            <div className="mt-2.5">
+              <span className="inline-flex items-center rounded-md bg-green-50 border border-green-200 px-2.5 py-1 text-xs font-semibold text-green-700">
+                {isChecked(doc.terms_accepted) ? 'Terms Accepted' : 'Terms Not Accepted'}
+              </span>
+            </div>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className={MODAL_SECTION_CLASS}>
+        <h3 className={MODAL_SECTION_TITLE_CLASS}><Activity className="h-4 w-4 text-indigo-600" strokeWidth={2} /> Signatures</h3>
+
+        <div className="mb-4">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Patient Signature</p>
+          <AttachBlock label="Patient Signature" path={doc.signature_of_patient} />
+        </div>
+
+        {(hasValue(doc.patients_legal_guardian) || hasValue(doc.relation_to_patient) || hasValue(doc.guardian_cpr) || hasValue(doc.guardian_signature) || childGuardian) ? (
+          <div className="mb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Guardian</p>
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              {hasValue(doc.patients_legal_guardian) ? <DataTile label="Guardian" value={displayValue(doc.patients_legal_guardian)} /> : null}
+              {childGuardian && hasValue(childGuardian.relative_name) ? <DataTile label="Guardian" value={displayValue(childGuardian.relative_name)} /> : null}
+              {hasValue(doc.relation_to_patient) ? <DataTile label="Relation" value={displayValue(doc.relation_to_patient)} /> : null}
+              {childGuardian && hasValue(childGuardian.relationship_with_patient) ? <DataTile label="Relation" value={displayValue(childGuardian.relationship_with_patient)} /> : null}
+              {hasValue(doc.guardian_cpr) ? <DataTile label="CPR" value={displayValue(doc.guardian_cpr)} /> : null}
+              {childGuardian && hasValue(childGuardian.cpr__id_no) ? <DataTile label="CPR" value={displayValue(childGuardian.cpr__id_no)} /> : null}
+            </div>
+            <div className="mt-2"><AttachBlock label="Guardian Signature" path={doc.guardian_signature} /></div>
+            {childGuardian && hasValue(childGuardian.signature) ? <div className="mt-2"><AttachBlock label="Guardian Signature" path={childGuardian.signature} /></div> : null}
+            {(hasValue(doc.guardian_sign_date) || hasValue(doc.guardian_sign_time)) ? (
+              <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {hasValue(doc.guardian_sign_date) ? <DataTile label="Sign Date" value={formatDate(doc.guardian_sign_date)} /> : null}
+                {hasValue(doc.guardian_sign_time) ? <DataTile label="Sign Time" value={formatTime(doc.guardian_sign_time)} /> : null}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        {(hasValue(doc.witness_name) || hasValue(doc.witness_signature)) ? (
+          <div className="mb-4">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Witness</p>
+            {(hasValue(doc.witness_name) || hasValue(doc.witness_cpr)) ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {hasValue(doc.witness_name) ? <DataTile label="Name" value={displayValue(doc.witness_name)} /> : null}
+                {hasValue(doc.witness_cpr) ? <DataTile label="CPR" value={displayValue(doc.witness_cpr)} /> : null}
+              </div>
+            ) : null}
+            <div className="mt-2"><AttachBlock label="Witness Signature" path={doc.witness_signature} /></div>
+          </div>
+        ) : null}
+
+        {(hasValue(doc.psychiatrist_name) || hasValue(doc.psychiatrist_signature)) ? (
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-1">Psychiatrist</p>
+            {(hasValue(doc.psychiatrist_name) || hasValue(doc.psychiatrist)) ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                {hasValue(doc.psychiatrist_name) ? <DataTile label="Name" value={displayValue(doc.psychiatrist_name)} /> : null}
+                {hasValue(doc.psychiatrist) ? <DataTile label="Practitioner ID" value={displayValue(doc.psychiatrist)} /> : null}
+              </div>
+            ) : null}
+            <div className="mt-2"><AttachBlock label="Psychiatrist Signature" path={doc.psychiatrist_signature} /></div>
+          </div>
+        ) : null}
+      </section>
+    </>
+  )
+}
+
+function PatientHealthHistoryBody({ doc }: { doc: DocRecord }) {
+  const rows = asRows(doc.template_feedback)
+
+  return (
+    <>
+      {/* Top: Patient info */}
+      <section className={MODAL_SECTION_CLASS}>
+        <h3 className={MODAL_SECTION_TITLE_CLASS}>
+          <ClipboardList className="h-4 w-4 text-rose-600" strokeWidth={2} />
+          Patient
+        </h3>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          <DataTile label="Patient" value={displayValue(doc.patient_name || doc.patient)} />
+          {hasValue(doc.inpatient_admission) ? (
+            <DataTile label="Admission / Patient Visit" value={displayValue(doc.inpatient_admission)} />
+          ) : null}
+          {hasValue(doc.patient_visit) ? (
+            <DataTile label="Visit" value={displayValue(doc.patient_visit)} />
+          ) : null}
+          {hasValue(doc.template) ? <DataTile label="Template" value={displayValue(doc.template)} /> : null}
+        </div>
+      </section>
+
+      {/* Middle: History items — type/specify shown under each item, not as columns */}
+      <section className={MODAL_SECTION_CLASS}>
+        <h3 className={MODAL_SECTION_TITLE_CLASS}>
+          <Activity className="h-4 w-4 text-rose-600" strokeWidth={2} />
+          Health History Items
+        </h3>
+        {rows.length > 0 ? (
+          <div className="space-y-2">
+            {rows.map((row, idx) => (
+              <div key={idx} className="rounded-md border border-slate-200 bg-white p-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-50 text-[10px] font-semibold text-rose-600">
+                    {idx + 1}
+                  </span>
+                  <span className="flex-1 text-sm font-medium text-slate-900">{displayValue(row.history)}</span>
+                  {isChecked(row.yes) ? (
+                    <span className="inline-flex items-center rounded-md bg-green-50 border border-green-200 px-2 py-0.5 text-[10px] font-semibold text-green-700">
+                      Yes
+                    </span>
+                  ) : null}
+                </div>
+                {hasValue(row.type) ? (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-24">Diabetic Type</span>
+                    <span className="text-xs font-medium text-slate-800">{displayValue(row.type)}</span>
+                  </div>
+                ) : null}
+                {hasValue(row.speficication) ? (
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-24">Specification</span>
+                    <span className="text-xs font-medium text-slate-800">{displayValue(row.speficication)}</span>
+                  </div>
+                ) : null}
+                {hasValue(row.remarks) ? (
+                  <div className="mt-1.5">
+                    <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">Remarks</span>
+                    <p className="mt-0.5 text-xs text-slate-700">{displayValue(row.remarks)}</p>
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No history items</p>
+        )}
+      </section>
+
+      {/* Bottom: Date/Time/Height/Weight */}
+      <section className={MODAL_SECTION_CLASS}>
+        <h3 className={MODAL_SECTION_TITLE_CLASS}>
+          <Stethoscope className="h-4 w-4 text-rose-600" strokeWidth={2} />
+          Measurements
+        </h3>
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {hasValue(doc.date) ? <DataTile label="Date" value={formatDate(doc.date)} /> : null}
+          {hasValue(doc.time) ? <DataTile label="Time" value={formatTime(doc.time)} /> : null}
+          {hasValue(doc.height) ? <DataTile label="Height" value={displayValue(doc.height)} /> : null}
+          {hasValue(doc.weight) ? <DataTile label="Weight" value={displayValue(doc.weight)} /> : null}
+        </div>
+      </section>
+    </>
+  )
+}
+
 function PreEctBody({ doc }: { doc: DocRecord }) {
   const rows = asRows(doc.checklist)
   return (
@@ -356,6 +535,8 @@ export function EctClinicalFormDetailPanel({
           {doctype === 'Modified Alderete Score' ? <AldereteBody doc={doc} /> : null}
           {doctype === 'Time Out Procedure' ? <TimeOutBody doc={doc} /> : null}
           {doctype === 'Pre-ECT Checklist' ? <PreEctBody doc={doc} /> : null}
+          {doctype === 'Patient Health History' ? <PatientHealthHistoryBody doc={doc} /> : null}
+          {doctype === 'ECT Procedure Consent' ? <ECTProcedureConsentBody doc={doc} /> : null}
 
           <MetaFooter>
             <DataTile label="Patient" value={displayValue(doc.patient_name || doc.patient)} />

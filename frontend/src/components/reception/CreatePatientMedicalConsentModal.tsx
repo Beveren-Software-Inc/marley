@@ -11,13 +11,17 @@ import {
 } from '../ui/CreateModalChrome'
 import { fetchPatients, type PatientListItem } from '../../services/patients'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import {
+  fetchPatientHealthHistoryTemplate2Details,
+  fetchPatientHealthHistoryTemplate2Options,
+} from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import {
   linkComboboxDropdownClassShort,
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
-import { X } from 'lucide-react'
+import { X, ChevronDown, Plus, Trash2 } from 'lucide-react'
 import { apiRequest } from '../../services/apiClient'
 
 interface CreatePatientMedicalConsentModalProps {
@@ -27,6 +31,16 @@ interface CreatePatientMedicalConsentModalProps {
   initialPatient?: string
   /** Prefill admission from context */
   initialAdmission?: string
+}
+
+interface HealthHistoryRow {
+  _key: string
+  history: string
+  yes: boolean
+  remarks: string
+  no_format: number
+  is_diabetic: boolean
+  type: string
 }
 
 export const CreatePatientMedicalConsentModal = ({
@@ -74,6 +88,15 @@ export const CreatePatientMedicalConsentModal = ({
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
   const practitionerRef = useRef<HTMLDivElement>(null)
+
+  // Health History Template 2
+  const [template2Options, setTemplate2Options] = useState<LinkFieldOption[]>([])
+  const [template2Open, setTemplate2Open] = useState(false)
+  const [template2Query, setTemplate2Query] = useState('')
+  const [template2Selected, setTemplate2Selected] = useState<LinkFieldOption | null>(null)
+  const [template2Loading, setTemplate2Loading] = useState(false)
+  const [healthRows, setHealthRows] = useState<HealthHistoryRow[]>([])
+  const template2Ref = useRef<HTMLDivElement>(null)
 
   // Load initial patient if provided
   useEffect(() => {
@@ -139,12 +162,25 @@ export const CreatePatientMedicalConsentModal = ({
     return () => clearTimeout(id)
   }, [practitionerOpen, practitionerQuery])
 
+  // Template 2 options search
+  useEffect(() => {
+    if (!template2Open) return
+    const id = setTimeout(async () => {
+      try {
+        const list = await fetchPatientHealthHistoryTemplate2Options(template2Query.trim() || undefined)
+        setTemplate2Options(list)
+      } catch { setTemplate2Options([]) }
+    }, template2Query.trim() ? 300 : 0)
+    return () => clearTimeout(id)
+  }, [template2Open, template2Query])
+
   // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (patientRef.current && !patientRef.current.contains(e.target as Node)) setPatientOpen(false)
       if (admissionRef.current && !admissionRef.current.contains(e.target as Node)) setAdmissionOpen(false)
       if (practitionerRef.current && !practitionerRef.current.contains(e.target as Node)) setPractitionerOpen(false)
+      if (template2Ref.current && !template2Ref.current.contains(e.target as Node)) setTemplate2Open(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -192,6 +228,55 @@ export const CreatePatientMedicalConsentModal = ({
     setPractitionerOpen(false)
   }
 
+  const handleTemplate2Select = async (opt: LinkFieldOption) => {
+    setTemplate2Selected(opt)
+    setTemplate2Query(opt.label)
+    setTemplate2Open(false)
+    setTemplate2Loading(true)
+    try {
+      const details = await fetchPatientHealthHistoryTemplate2Details(opt.name)
+      const items = details?.templates || []
+      if (items.length > 0) {
+        setHealthRows(
+          items.map((r, idx) => ({
+            _key: Math.random().toString(36).slice(2),
+            history: r.history || '',
+            yes: Boolean(r.yes),
+            remarks: r.remarks || '',
+            no_format: r.no_format || idx + 1,
+            is_diabetic: Boolean(r.is_diabetic),
+            type: r.type || '',
+          }))
+        )
+        toast.success(`Loaded ${items.length} item${items.length !== 1 ? 's' : ''} from template.`)
+      } else {
+        toast.error('Template has no items.')
+      }
+    } catch {
+      toast.error('Failed to load template.')
+    } finally {
+      setTemplate2Loading(false)
+    }
+  }
+
+  const clearTemplate2 = () => {
+    setTemplate2Selected(null)
+    setTemplate2Query('')
+    setTemplate2Open(false)
+  }
+
+  const addHealthRow = () =>
+    setHealthRows((prev) => [
+      ...prev,
+      { _key: Math.random().toString(36).slice(2), history: '', yes: false, remarks: '', no_format: prev.length + 1, is_diabetic: false, type: '' },
+    ])
+
+  const removeHealthRow = (key: string) =>
+    setHealthRows((prev) => prev.filter((r) => r._key !== key))
+
+  const updateHealthRow = (key: string, field: keyof Omit<HealthHistoryRow, '_key'>, value: string | boolean | number) =>
+    setHealthRows((prev) => prev.map((r) => (r._key === key ? { ...r, [field]: value } : r)))
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.patient) {
@@ -217,6 +302,14 @@ export const CreatePatientMedicalConsentModal = ({
         witness_name: form.witness_name || undefined,
         practitioner: form.practitioner || undefined,
         status: form.status || 'Draft',
+        health_history: healthRows.map((r) => ({
+          history: r.history,
+          yes: r.yes ? 1 : 0,
+          remarks: r.remarks,
+          no_format: r.no_format,
+          is_diabetic: r.is_diabetic ? 1 : 0,
+          type: r.type,
+        })),
       }
       await apiRequest<{ name: string }>('/api/resource/Patient%20Medical%20Consent', {
         method: 'POST',
@@ -458,6 +551,174 @@ export const CreatePatientMedicalConsentModal = ({
                 <option value="Declined">Declined</option>
                 <option value="Cancelled">Cancelled</option>
               </select>
+            </div>
+
+            {/* Patient Health History */}
+            <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50/50 p-4">
+              <div className="mb-3 flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-800">Patient Health History</h3>
+                  <p className="text-xs text-slate-500">Load a template to populate the numbered history items.</p>
+                </div>
+              </div>
+
+              {/* Template 2 dropdown */}
+              <div ref={template2Ref} className="mb-3">
+                <label className={MODAL_LABEL_CLASS}>Health History Template 2</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={template2Selected ? template2Selected.label : template2Query}
+                    onChange={(e) => {
+                      setTemplate2Query(e.target.value)
+                      setTemplate2Open(true)
+                      if (template2Selected) clearTemplate2()
+                    }}
+                    onFocus={() => setTemplate2Open(true)}
+                    placeholder="Search template..."
+                    className={`${linkComboboxInputWithClearClass} pr-9`}
+                  />
+                  {template2Selected ? (
+                    <button
+                      type="button"
+                      onClick={clearTemplate2}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      title="Clear"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : (
+                    <ChevronDown className="absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                  )}
+                  {template2Open && template2Options.length > 0 && (
+                    <div className={linkComboboxDropdownClassShort}>
+                      {template2Options.map((opt) => (
+                        <button
+                          key={opt.name}
+                          type="button"
+                          onClick={() => handleTemplate2Select(opt)}
+                          className={`${linkComboboxOptionClassCompact} text-slate-900`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {template2Loading && (
+                  <p className="mt-1.5 text-xs text-slate-500">Loading template items…</p>
+                )}
+              </div>
+
+              {/* Add row */}
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-xs font-medium text-slate-600">
+                  {healthRows.length} item{healthRows.length !== 1 ? 's' : ''}
+                </p>
+                <button
+                  type="button"
+                  onClick={addHealthRow}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Item
+                </button>
+              </div>
+
+              {/* Rows */}
+              {healthRows.length === 0 ? (
+                <p className="rounded-md border border-dashed border-slate-300 bg-white px-3 py-6 text-center text-sm text-slate-400">
+                  No history items yet — select a template or add manually.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {healthRows.map((row) => (
+                    <div key={row._key} className="rounded-md border border-slate-200 bg-white p-3">
+                      <div className="flex items-start gap-2">
+                        {/* No Format */}
+                        <div className="w-16 shrink-0">
+                          <label className={`${MODAL_LABEL_CLASS} text-[10px]`}>No.</label>
+                          <input
+                            type="number"
+                            value={row.no_format}
+                            onChange={(e) => updateHealthRow(row._key, 'no_format', Number(e.target.value))}
+                            className={`${MODAL_FIELD_CLASS} px-2 py-1 text-sm`}
+                            min={0}
+                          />
+                        </div>
+                        {/* History */}
+                        <div className="flex-1">
+                          <label className={`${MODAL_LABEL_CLASS} text-[10px]`}>History</label>
+                          <input
+                            type="text"
+                            value={row.history}
+                            onChange={(e) => updateHealthRow(row._key, 'history', e.target.value)}
+                            className={`${MODAL_FIELD_CLASS} px-2 py-1 text-sm`}
+                            placeholder="e.g. Diabetic, Hypertension…"
+                          />
+                        </div>
+                        {/* Yes */}
+                        <label className="mt-5 flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={row.yes}
+                            onChange={(e) => updateHealthRow(row._key, 'yes', e.target.checked)}
+                            className="h-4 w-4"
+                          />
+                          Yes
+                        </label>
+                        {/* Remove */}
+                        <button
+                          type="button"
+                          onClick={() => removeHealthRow(row._key)}
+                          className="mt-4 inline-flex h-6 w-6 items-center justify-center rounded text-slate-400 hover:text-red-500 hover:bg-red-50"
+                          title="Remove item"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+
+                      {/* Diabetic conditional */}
+                      <div className="mt-2 flex items-center gap-3">
+                        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                          <input
+                            type="checkbox"
+                            checked={row.is_diabetic}
+                            onChange={(e) => {
+                              updateHealthRow(row._key, 'is_diabetic', e.target.checked)
+                              if (!e.target.checked) updateHealthRow(row._key, 'type', '')
+                            }}
+                            className="h-4 w-4"
+                          />
+                          Diabetic
+                        </label>
+                        {row.is_diabetic && (
+                          <select
+                            value={row.type}
+                            onChange={(e) => updateHealthRow(row._key, 'type', e.target.value)}
+                            className={`${MODAL_FIELD_CLASS} w-32 px-2 py-1 text-xs`}
+                          >
+                            <option value="">Select Type</option>
+                            <option value="Type 1">Type 1</option>
+                            <option value="Type 2">Type 2</option>
+                          </select>
+                        )}
+                      </div>
+
+                      {/* Remarks */}
+                      <div className="mt-2">
+                        <label className={`${MODAL_LABEL_CLASS} text-[10px]`}>Remarks</label>
+                        <textarea
+                          rows={1}
+                          value={row.remarks}
+                          onChange={(e) => updateHealthRow(row._key, 'remarks', e.target.value)}
+                          className={`${MODAL_FIELD_CLASS} resize-y px-2 py-1 text-sm`}
+                          placeholder="Optional remarks…"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {error && (

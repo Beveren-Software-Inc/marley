@@ -1130,6 +1130,54 @@ def get_patient_health_history_templates(search=None):
 
 
 @frappe.whitelist()
+def get_patient_health_history_template_2_options(search=None):
+	"""Return Patient Health History Template 2 options for dropdown (name + label + default)."""
+	filters = {}
+	if search and str(search).strip():
+		filters["name"] = ["like", f"%{search.strip()}%"]
+	templates = frappe.get_all(
+		"Patient Health History Template 2",
+		filters=filters,
+		fields=["name", "default"],
+		limit=50,
+		order_by="name asc",
+	)
+	return [{"name": t.name, "label": t.name, "default": cint(t.default)} for t in templates]
+
+
+@frappe.whitelist()
+def get_patient_health_history_template_2_details(template_name: str):
+	"""Return Patient Health History Template 2 doc with its templates table rows.
+
+	Each row maps to the Patient Health History Detail child table shape:
+	history, yes, remarks, no_format, is_diabetic, type.
+	"""
+	if not template_name:
+		frappe.throw(_("Template is required"))
+	if not frappe.db.exists("Patient Health History Template 2", template_name):
+		frappe.throw(_("Patient Health History Template 2 {0} not found").format(template_name))
+
+	doc = frappe.get_doc("Patient Health History Template 2", template_name)
+	rows = []
+	for row in doc.get("templates") or []:
+		rows.append({
+			"history": getattr(row, "history", None) or "",
+			"yes": cint(getattr(row, "yes", 0)),
+			"remarks": getattr(row, "remarks", None) or "",
+			"no_format": cint(getattr(row, "no_format", 0) or 0),
+			"is_diabetic": cint(getattr(row, "is_diabetic", 0)),
+			"type": getattr(row, "type", None) or "",
+			"specify": cint(getattr(row, "specify", 0)),
+			"speficication": getattr(row, "speficication", None) or "",
+		})
+
+	return {
+		"name": doc.name,
+		"templates": rows,
+	}
+
+
+@frappe.whitelist()
 def get_patient_health_history_template_details(template_name: str):
 	"""Return template doc with patient_history_details for creating PMH from template."""
 	if not template_name:

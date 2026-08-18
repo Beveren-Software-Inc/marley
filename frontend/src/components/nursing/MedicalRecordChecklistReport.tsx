@@ -58,6 +58,7 @@ export function MedicalRecordChecklistReport() {
   })
   const [toDate, setToDate] = useState(() => toInputDate(new Date()))
   const [reportedTo, setReportedTo] = useState('')
+  const [includeDischargeStarted, setIncludeDischargeStarted] = useState(false)
   const [data, setData] = useState<MedicalRecordChecklistReport | null>(null)
   const [loading, setLoading] = useState(false)
 
@@ -68,6 +69,7 @@ export function MedicalRecordChecklistReport() {
         fromDate,
         toDate,
         costCenter: userCostCenter,
+        includeDischargeStarted,
       })
       setData(report)
     } catch (err) {
@@ -76,7 +78,7 @@ export function MedicalRecordChecklistReport() {
     } finally {
       setLoading(false)
     }
-  }, [fromDate, toDate, userCostCenter])
+  }, [fromDate, toDate, userCostCenter, includeDischargeStarted])
 
   useEffect(() => {
     void load()
@@ -239,6 +241,15 @@ export function MedicalRecordChecklistReport() {
             className={`${inputClass} w-48`}
           />
         </div>
+        <label className="flex h-[38px] items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            checked={includeDischargeStarted}
+            onChange={(e) => setIncludeDischargeStarted(e.target.checked)}
+            className="h-4 w-4"
+          />
+          Include discharge started
+        </label>
         <button
           type="button"
           onClick={() => void load()}
@@ -270,7 +281,8 @@ export function MedicalRecordChecklistReport() {
       </div>
 
       <p className="text-xs text-slate-500 flex-shrink-0">
-        Active admitted patients only. Ticks are filled automatically from records already in the system.
+        Active admitted patients only. Patients with a started discharge are hidden unless
+        “Include discharge started” is ticked.
       </p>
 
       {loading && !data ? (
