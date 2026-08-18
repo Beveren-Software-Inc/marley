@@ -4,12 +4,14 @@ import {
   fetchPatientMedicalHistories,
   fetchPatientMedicalHistoryDetail,
   setPatientMedicalHistoryStatus,
+  type PatientLegacyMedicalHistory,
   type PatientMedicalHistory,
 } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { CreatePatientMedicalHistoryModal } from './CreatePatientMedicalHistoryModal'
 import { EditPatientMedicalHistoryModal } from './EditPatientMedicalHistoryModal'
 import { PastMedicalHistoryDisplay } from './PastMedicalHistoryDisplay'
+import { LegacyPatientMedicalHistoryPanel, hasLegacyPatientHistory } from './LegacyPatientMedicalHistoryPanel'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { ILLNESS_FIELDS, illnessIsChecked, yesNoBadgeClass, pmhClinicalBlurb } from './pastMedicalHistoryUtils'
@@ -138,6 +140,7 @@ function MedicalHistoryDetailPanel({
           {!ILLNESS_FIELDS.some(({ key }) => illnessIsChecked(detail[key])) &&
             !detail.no_known_allergies &&
             !detail.allergies?.trim() &&
+            !detail.family_history?.trim() &&
             !detail.previous_surgical_history?.trim() &&
             !detail.current_and_past_medications?.trim() &&
             !detail.social_history?.trim() &&
@@ -206,6 +209,7 @@ function creationDay(iso?: string | null): string {
 export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: Props) {
   const { guardClinicalEdit } = useCareContext()
   const [items, setItems] = useState<PatientMedicalHistory[]>([])
+  const [legacyFromPatient, setLegacyFromPatient] = useState<PatientLegacyMedicalHistory | null>(null)
   const [loading, setLoading] = useState(false)
   const [internalRefresh, setInternalRefresh] = useState(0)
   const [showCreate, setShowCreate] = useState(false)
@@ -251,8 +255,14 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
     if (!patient) return
     setLoading(true)
     fetchPatientMedicalHistories(patient)
-      .then(setItems)
-      .catch(() => setItems([]))
+      .then((result) => {
+        setItems(result.records)
+        setLegacyFromPatient(result.legacy_from_patient)
+      })
+      .catch(() => {
+        setItems([])
+        setLegacyFromPatient(null)
+      })
       .finally(() => setLoading(false))
   }, [patient])
 
@@ -347,10 +357,17 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
 
       {/* table */}
       <div className="flex-1 min-h-0 overflow-y-auto">
+        {!loading && hasLegacyPatientHistory(legacyFromPatient) && (
+          <LegacyPatientMedicalHistoryPanel
+            legacy={legacyFromPatient}
+            compact={compactClinical}
+            defaultOpen={items.length === 0}
+          />
+        )}
         {loading && (
           <div className="flex items-center justify-center py-10 text-sm text-slate-400">Loading…</div>
         )}
-        {!loading && items.length === 0 && (
+        {!loading && items.length === 0 && !hasLegacyPatientHistory(legacyFromPatient) && (
           <div className="flex flex-col items-center justify-center py-10 gap-3">
             <p className="text-sm text-slate-500">NO PAST MEDICAL HISTORY HAS BEEN RECORDED YET.</p>
             {!inDashboardCard && (
@@ -363,6 +380,21 @@ export function PatientMedicalHistoryList({ patient, patientName, refreshKey }: 
                 Add Past Medical History
               </button>
             )}
+          </div>
+        )}
+        {!loading && items.length === 0 && hasLegacyPatientHistory(legacyFromPatient) && !inDashboardCard && (
+          <div className="flex flex-col items-center justify-center py-6 gap-3">
+            <p className="text-sm text-slate-500">
+              No standalone past medical history yet. Legacy patient-file history is shown above.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowCreate(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-primary text-white text-xs font-medium hover:bg-primary/90 transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add Past Medical History
+            </button>
           </div>
         )}
         {!loading && items.length > 0 && filteredItems.length === 0 && (

@@ -250,7 +250,7 @@ def get_medication_orders(
 			'name', 'parent', 'drug', 'drug_name', 'dosage', 'dosage_form',
 			'route_of_administration', 'patient_frequency', 'date', 'end_date',
 			'instructions', 'medication_status', 'is_prn', 'medication_type',
-			'reason_stopped', 'quantity', 'uom', 'medication', 'medicine_no',
+			'reason_stopped', 'stopped', 'quantity', 'uom', 'medication', 'medicine_no',
 			'written_frequency', 'old_medicine_code', 'old_medicine_name',
 			'no_of_days', 'time', 'is_pink', 'reference_no',
 			'is_long_acting_medicine',

@@ -5,6 +5,7 @@ import { fetchPatientMedicalHistory, type PatientMedicalHistory } from '../../se
 import { fetchPatientAllergies, type PatientAllergies } from '../../services/allergyRegistry'
 import { CreateWarningMessageModal } from '../warnings/CreateWarningMessageModal'
 import { CreatePatientMedicalHistoryModal } from '../medicalHistory/CreatePatientMedicalHistoryModal'
+import { LegacyPatientMedicalHistoryPanel, hasLegacyPatientHistory } from '../medicalHistory/LegacyPatientMedicalHistoryPanel'
 import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHistoryUtils'
 import { toast } from '../../hooks/useToast'
 import { useAuth } from '../../providers/AuthProvider'
@@ -257,62 +258,76 @@ export const PatientAlertsBanner = ({
               )}
               {medicalLoading ? (
                 <p className="text-xs text-slate-500">Loading…</p>
-              ) : hasMedicalHistory && medicalHistory ? (
-                <ul className="max-h-28 space-y-1.5 overflow-y-auto text-sm text-slate-700">
-                  {ILLNESS_FIELDS.filter(({ key }) => medicalHistory[key]).map(({ key, label }) => (
-                    <li key={key} className="flex gap-2 items-center">
-                      <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-                      <span className="font-medium text-slate-700">{label}</span>
-                      <span
-                        className={`inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass(medicalHistory[key])}`}
-                      >
-                        {medicalHistory[key]}
-                      </span>
-                    </li>
-                  ))}
-                  {medicalHistory.allergies?.trim() && (
-                    <li className="flex gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
-                      <span className="min-w-0">
-                        <span className="font-semibold text-amber-800">Allergies</span>
-                        <span className="block truncate text-xs text-amber-900">
-                          {medicalHistory.allergies}
-                        </span>
-                      </span>
-                    </li>
-                  )}
-                  {(medicalHistory.addiction || medicalHistory.smoking) && (
-                    <li className="flex flex-wrap gap-1">
-                      {medicalHistory.addiction ? (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
-                          Addiction
-                        </span>
-                      ) : null}
-                      {medicalHistory.smoking ? (
-                        <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
-                          Smoking
-                        </span>
-                      ) : null}
-                    </li>
-                  )}
-                  {medicalHistory.patient_history_details?.slice(0, 3).map((row, idx) => (
-                    <li key={`legacy-${idx}`} className="flex gap-2">
-                      <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
-                      <span className="min-w-0">
-                        <span className="font-medium text-slate-700">{row.attributes || '—'}</span>
-                        {row.yesno === 'Yes' ? (
-                          <span className={`ml-1 inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass('Yes')}`}>
-                            Yes
-                          </span>
-                        ) : row.yesno ? (
-                          <span className="text-slate-600"> · {row.yesno}</span>
-                        ) : null}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
               ) : (
-                <p className="text-sm text-slate-500">NO PAST MEDICAL HISTORY RECORDED.</p>
+                <>
+                  {hasMedicalHistory && medicalHistory ? (
+                    <ul className="max-h-28 space-y-1.5 overflow-y-auto text-sm text-slate-700">
+                      {ILLNESS_FIELDS.filter(({ key }) => medicalHistory[key]).map(({ key, label }) => (
+                        <li key={key} className="flex gap-2 items-center">
+                          <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+                          <span className="font-medium text-slate-700">{label}</span>
+                          <span
+                            className={`inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass(medicalHistory[key])}`}
+                          >
+                            {medicalHistory[key]}
+                          </span>
+                        </li>
+                      ))}
+                      {medicalHistory.allergies?.trim() && (
+                        <li className="flex gap-2">
+                          <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
+                          <span className="min-w-0">
+                            <span className="font-semibold text-amber-800">Allergies</span>
+                            <span className="block truncate text-xs text-amber-900">
+                              {medicalHistory.allergies}
+                            </span>
+                          </span>
+                        </li>
+                      )}
+                      {(medicalHistory.addiction || medicalHistory.smoking) && (
+                        <li className="flex flex-wrap gap-1">
+                          {medicalHistory.addiction ? (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                              Addiction
+                            </span>
+                          ) : null}
+                          {medicalHistory.smoking ? (
+                            <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 text-amber-800">
+                              Smoking
+                            </span>
+                          ) : null}
+                        </li>
+                      )}
+                      {medicalHistory.patient_history_details?.slice(0, 3).map((row, idx) => (
+                        <li key={`legacy-${idx}`} className="flex gap-2">
+                          <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+                          <span className="min-w-0">
+                            <span className="font-medium text-slate-700">{row.attributes || '—'}</span>
+                            {row.yesno === 'Yes' ? (
+                              <span className={`ml-1 inline-flex px-1.5 py-0.5 rounded text-[10px] ${yesNoBadgeClass('Yes')}`}>
+                                Yes
+                              </span>
+                            ) : row.yesno ? (
+                              <span className="text-slate-600"> · {row.yesno}</span>
+                            ) : null}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {hasLegacyPatientHistory(medicalHistory?.legacy_from_patient) ? (
+                    <div className={hasMedicalHistory ? 'mt-2 overflow-hidden rounded-md border border-amber-200' : ''}>
+                      <LegacyPatientMedicalHistoryPanel
+                        legacy={medicalHistory?.legacy_from_patient}
+                        compact
+                        defaultOpen={!hasMedicalHistory}
+                      />
+                    </div>
+                  ) : null}
+                  {!hasMedicalHistory && !hasLegacyPatientHistory(medicalHistory?.legacy_from_patient) ? (
+                    <p className="text-sm text-slate-500">NO PAST MEDICAL HISTORY RECORDED.</p>
+                  ) : null}
+                </>
               )}
             </div>
             )}

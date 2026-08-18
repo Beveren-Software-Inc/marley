@@ -24,7 +24,7 @@ SORT_COLUMNS = {
 
 
 def _employee_department_by_user(user_ids=None):
-	"""Map User → Employee.department for active employees with a linked user."""
+	"""Map User → Department for active employees, falling back to User Department Link."""
 	params = {}
 	user_clause = ""
 	if user_ids is not None:
@@ -34,6 +34,9 @@ def _employee_department_by_user(user_ids=None):
 		user_clause = "AND e.user_id IN %(users)s"
 		params["users"] = user_ids
 
+	result = {}
+
+	# Primary: active Employee linked to a User with a Department.
 	rows = frappe.db.sql(
 		f"""
 		SELECT e.user_id, e.department
@@ -54,21 +57,66 @@ def _employee_department_by_user(user_ids=None):
 		params or None,
 		as_dict=True,
 	)
-	return {r.user_id: r.department for r in rows}
+
+	result = {r.user_id: r.department for r in rows}
+
+	# Fallback: users without an Employee department but linked via User Department Link.
+	if frappe.db.exists("DocType", "User Department Link"):
+		link_params = {}
+		link_user_clause = ""
+		if user_ids is not None:
+			link_user_clause = "AND udl.user IN %(link_users)s"
+			link_params["link_users"] = user_ids
+
+		link_rows = frappe.db.sql(
+			f"""
+			SELECT udl.user AS user_id, udl.link AS department
+			FROM `tabUser Department Link` udl
+			WHERE IFNULL(udl.user, '') != ''
+			  AND IFNULL(udl.link, '') != ''
+			  {link_user_clause}
+			""",
+			link_params or None,
+			as_dict=True,
+		)
+
+		for r in link_rows:
+			u = r.get("user_id")
+			if u and u not in result:
+				result[u] = r.get("department")
+
+	return result
 
 
 def _department_user_filter(department, params, alias="src.user"):
-	"""SQL fragment restricting users to those whose Employee belongs to department."""
+	"""SQL fragment restricting users to those in the department via Employee or User Department Link."""
 	if not department or department in ("", "all"):
 		return ""
 	params["department"] = department
+
+	employee_users = """
+		SELECT e.user_id
+		FROM `tabEmployee` e
+		WHERE e.department = %(department)s
+		  AND e.status = 'Active'
+		  AND IFNULL(e.user_id, '') != ''
+	"""
+
+	link_union = ""
+	if frappe.db.exists("DocType", "User Department Link"):
+		link_users = """
+		UNION
+		SELECT udl.user
+		FROM `tabUser Department Link` udl
+		WHERE udl.link = %(department)s
+		  AND IFNULL(udl.user, '') != ''
+		"""
+		link_union = link_users
+
 	return f"""
 		AND {alias} IN (
-			SELECT e.user_id
-			FROM `tabEmployee` e
-			WHERE e.department = %(department)s
-			  AND e.status = 'Active'
-			  AND IFNULL(e.user_id, '') != ''
+			{employee_users}
+			{link_union}
 		)
 	"""
 
@@ -195,6 +243,7 @@ def get_user_activity_filter_options(from_date=None, to_date=None, period_days=7
 		as_dict=True,
 	)
 
+	# Department options from Employee departments
 	departments = frappe.db.sql(
 		"""
 		SELECT DISTINCT e.department AS department
@@ -217,11 +266,40 @@ def get_user_activity_filter_options(from_date=None, to_date=None, period_days=7
 		{"f": from_dt, "t": to_dt},
 		as_dict=True,
 	)
+	dept_list = [r.department for r in departments]
+
+	# Additional departments from User Department Link for users without Employee
+	if frappe.db.exists("DocType", "User Department Link"):
+		link_depts = frappe.db.sql(
+			"""
+			SELECT DISTINCT udl.link AS department
+			FROM `tabUser Department Link` udl
+			WHERE IFNULL(udl.user, '') != ''
+			  AND IFNULL(udl.link, '') != ''
+			  AND udl.user IN (
+				SELECT user AS name FROM `tabActivity Log`
+				WHERE creation BETWEEN %(f)s AND %(t)s AND user NOT IN ('Guest', 'Administrator')
+				UNION
+				SELECT user AS name FROM `tabRoute History`
+				WHERE creation BETWEEN %(f)s AND %(t)s AND user NOT IN ('Guest', 'Administrator')
+				UNION
+				SELECT owner AS name FROM `tabVersion`
+				WHERE creation BETWEEN %(f)s AND %(t)s AND owner NOT IN ('Guest', 'Administrator')
+			  )
+			ORDER BY udl.link ASC
+			""",
+			{"f": from_dt, "t": to_dt},
+			as_dict=True,
+		)
+		for r in link_depts:
+			d = r.get("department")
+			if d and d not in dept_list:
+				dept_list.append(d)
 
 	return {
 		"users": users,
 		"doctypes": [r.doctype for r in doctypes],
-		"departments": [r.department for r in departments],
+		"departments": dept_list,
 	}
 
 

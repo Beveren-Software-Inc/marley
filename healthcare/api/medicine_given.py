@@ -1,7 +1,7 @@
 import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime, now_datetime, cint, flt, getdate
+from frappe.utils import nowdate, nowtime, now_datetime, cint, cstr, flt, getdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 from healthcare.healthcare.editing_lock import assert_editing_allowed
@@ -1116,16 +1116,22 @@ def create_medicine_given(
 				).format(frappe.bold(pmo.name))
 			)
 
-		# Block giving a drug the doctor has put On Hold or Discontinued (per-drug status).
+		# Block giving a drug the doctor has put On Hold, Discontinued, or Stopped (per-drug status).
 		_entry_status = None
+		_entry = None
 		for _e in pmo.get("medication_orders") or []:
 			if (order_entry and _e.name == order_entry) or (not order_entry and item_code and _e.drug == item_code):
 				_entry_status = (_e.get("medication_status") or "").strip()
+				_entry = _e
 				break
 		if _entry_status == "On Hold":
 			frappe.throw(_("This medicine is On Hold by the doctor and cannot be given until it is continued."))
 		if _entry_status == "Discontinued":
 			frappe.throw(_("This medicine has been discontinued by the doctor and cannot be given."))
+		if _entry is not None and (
+			cint(_entry.get("stopped")) or (cstr(_entry.get("reason_stopped") or "").strip())
+		):
+			frappe.throw(_("This medicine has been stopped and cannot be given."))
 
 	# Derive defaults: quantity is units given; dose is the clinical amount (e.g. 50mg).
 	if qty is None:

@@ -1,9 +1,9 @@
-hy do we have delete option on the items in pat# -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 import frappe
 from frappe import _
-from frappe.utils import cint
+from frappe.utils import cint, strip_html
 
 # Patient History page: invoice / billing figures only for these roles
 PATIENT_HISTORY_BILLING_ROLES = frozenset(
@@ -1216,6 +1216,7 @@ def _serialize_patient_medical_history(doc):
 		"current_and_past_medications": doc.get("current_and_past_medications") or "",
 		"no_known_allergies": cint(doc.get("no_known_allergies")),
 		"allergies": doc.get("allergies") or "",
+		"family_history": doc.get("family_history") or "",
 		"patient_visit": doc.get("patient_visit"),
 		"social_history": doc.get("social_history") or "",
 		"addiction": cint(doc.get("addiction")),
@@ -1256,35 +1257,102 @@ def _patient_medical_history_summary(doc) -> str:
 	return ", ".join(parts) if parts else "Past medical history"
 
 
+# Legacy Oracle/import fields stored on Patient — read in place, do not copy into PMH.
+_LEGACY_PATIENT_HISTORY_FIELDS = (
+	("family_history", "Family History"),
+	("allergies", "Allergies History"),
+	("previous_disease_history", "Previous Disease History"),
+	("medical_history", "Medical History"),
+	("medication", "Medication"),
+)
+
+
+def _clean_legacy_history_text(value) -> str:
+	return " ".join(strip_html(value or "").split()).strip()
+
+
+def _patient_legacy_medical_history(patient: str | None) -> dict | None:
+	"""Read family / allergy / previous-disease text from the Patient row.
+
+	These fields pre-date standalone Patient Medical History. Display them
+	read-only wherever PMH is shown; do not insert a PMH document from them.
+	"""
+	if not patient or not frappe.db.exists("Patient", patient):
+		return None
+
+	fields = ["name", "patient_name"]
+	for fieldname, _label in _LEGACY_PATIENT_HISTORY_FIELDS:
+		if frappe.db.has_column("Patient", fieldname):
+			fields.append(fieldname)
+
+	row = frappe.db.get_value("Patient", patient, fields, as_dict=True)
+	if not row:
+		return None
+
+	entries = []
+	payload = {
+		"patient": row.name,
+		"patient_name": row.patient_name,
+		"family_history": "",
+		"allergies": "",
+		"previous_disease_history": "",
+		"medical_history": "",
+		"medication": "",
+		"has_data": False,
+		"entries": entries,
+	}
+	for fieldname, label in _LEGACY_PATIENT_HISTORY_FIELDS:
+		text = _clean_legacy_history_text(row.get(fieldname))
+		payload[fieldname] = text
+		if text:
+			entries.append({"key": fieldname, "label": label, "text": text})
+	payload["has_data"] = bool(entries)
+	return payload if payload["has_data"] else None
+
+
+@frappe.whitelist()
+def get_patient_legacy_medical_history(patient: str):
+	"""Legacy family / allergy / previous-disease history stored on Patient."""
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	return _patient_legacy_medical_history(patient)
+
+
 @frappe.whitelist()
 def get_patient_medical_histories(patient):
-	"""Return list of all Patient Medical History records for a patient."""
+	"""Return Patient Medical History records plus any Patient-table legacy text."""
 	if not patient:
-		return []
+		return {"records": [], "legacy_from_patient": None}
+	fields = [
+		"name",
+		"patient",
+		"patient_name",
+		"template",
+		"inpatient_admission",
+		"status",
+		"creation",
+		"heart_disease",
+		"diabetes",
+		"asthma",
+		"strokes",
+		"allergies",
+		"addiction",
+		"smoking",
+	]
+	if frappe.db.has_column("Patient Medical History", "family_history"):
+		fields.append("family_history")
 	records = frappe.get_all(
 		"Patient Medical History",
 		filters={"patient": patient},
-		fields=[
-			"name",
-			"patient",
-			"patient_name",
-			"template",
-			"inpatient_admission",
-			"status",
-			"creation",
-			"heart_disease",
-			"diabetes",
-			"asthma",
-			"strokes",
-			"allergies",
-			"addiction",
-			"smoking",
-		],
+		fields=fields,
 		order_by="creation desc",
 	)
 	for row in records:
 		row["summary"] = _patient_medical_history_summary(row)
-	return records
+	return {
+		"records": records,
+		"legacy_from_patient": _patient_legacy_medical_history(patient),
+	}
 
 
 @frappe.whitelist()
@@ -1330,17 +1398,20 @@ def get_patient_medical_history(patient: str):
 			"current_and_past_medications": "",
 			"no_known_allergies": 0,
 			"allergies": "",
+			"family_history": "",
 			"patient_visit": None,
 			"social_history": "",
 			"addiction": 0,
 			"smoking": 0,
 			"patient_history_details": [],
 			"summary": "",
+			"legacy_from_patient": _patient_legacy_medical_history(patient),
 		}
 
 	doc = frappe.get_doc("Patient Medical History", records[0].name)
 	payload = _serialize_patient_medical_history(doc)
 	payload["summary"] = _patient_medical_history_summary(doc)
+	payload["legacy_from_patient"] = _patient_legacy_medical_history(patient)
 	return payload
 
 
