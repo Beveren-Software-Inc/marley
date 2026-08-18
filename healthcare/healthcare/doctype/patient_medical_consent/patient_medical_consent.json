@@ -37,10 +37,12 @@
   "practitioner_signature",
   "sec_upload",
   "signed_document",
-  "sec_status",
-  "status",
-  "amended_from"
- ],
+   "sec_status",
+   "status",
+   "sec_health_history",
+   "health_history",
+   "amended_from"
+  ],
  "fields": [
   {
    "fieldname": "naming_series",
@@ -219,16 +221,27 @@
    "label": "Status",
    "options": "Draft\nSigned\nDeclined\nCancelled"
   },
-  {
-   "fieldname": "amended_from",
-   "fieldtype": "Link",
-   "label": "Amended From",
-   "no_copy": 1,
-   "options": "Patient Medical Consent",
-   "print_hide": 1,
-   "read_only": 1
-  }
- ],
+   {
+    "fieldname": "amended_from",
+    "fieldtype": "Link",
+    "label": "Amended From",
+    "no_copy": 1,
+    "options": "Patient Medical Consent",
+    "print_hide": 1,
+    "read_only": 1
+   },
+   {
+    "fieldname": "sec_health_history",
+    "fieldtype": "Section Break",
+    "label": "Patient Health History"
+   },
+   {
+    "fieldname": "health_history",
+    "fieldtype": "Table",
+    "label": "Health History",
+    "options": "Patient Health History Detail"
+   }
+  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "is_submittable": 1,

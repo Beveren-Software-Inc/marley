@@ -24,11 +24,13 @@ import { PhysicalExaminationList } from '../physicalExam/PhysicalExaminationList
 import { PhysicalExaminationModal } from '../physicalExam/PhysicalExaminationModal'
 import { PatientHistoryList } from '../patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
+import { ECTProcedureConsentModal } from './ECTProcedureConsentModal'
+import { ECTPatientHealthHistoryModal } from './ECTPatientHealthHistoryModal'
 
 type EctTab =
   | 'anesthesia-consent' | 'pre-anesthesia' | 'anesthesia-record'
   | 'recovery-room' | 'alderete' | 'timeout' | 'pre-ect' | 'suicidal'
-  | 'ect-admission' | 'ect-procedure' | 'ect-details' | 'consolidated-ect-details' | 'ect-chart' | 'physical' | 'patient-history'
+  | 'ect-admission' | 'ect-procedure' | 'ect-procedure-consent' | 'ect-patient-health-history' | 'ect-details' | 'consolidated-ect-details' | 'ect-chart' | 'physical' | 'patient-history'
 
 interface CardDef {
   id: EctTab
@@ -63,6 +65,10 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [ectRefreshKey, setEctRefreshKey] = useState(0)
   const [showECTAdmissionModal, setShowECTAdmissionModal] = useState(false)
   const [showECTProcedureModal, setShowECTProcedureModal] = useState(false)
+  const [showECTProcedureConsentModal, setShowECTProcedureConsentModal] = useState(false)
+  const [ectProcedureConsentRefreshKey, setEctProcedureConsentRefreshKey] = useState(0)
+  const [showECTPatientHealthHistoryModal, setShowECTPatientHealthHistoryModal] = useState(false)
+  const [ectPatientHealthHistoryRefreshKey, setEctPatientHealthHistoryRefreshKey] = useState(0)
   const [showECTAnesthesiaConsentModal, setShowECTAnesthesiaConsentModal] = useState(false)
   const [ectConsentRefreshKey, setEctConsentRefreshKey] = useState(0)
   const [showPreAnesthesiaModal, setShowPreAnesthesiaModal] = useState(false)
@@ -94,6 +100,8 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
     { id: 'pre-ect',            title: 'Pre-ECT Checklist',   desc: 'Requirements before ECT',        color: 'bg-orange-50 text-orange-700 border-orange-200',    dot: 'bg-orange-500',   onAdd: () => setShowPreEctModal(true) },
     // { id: 'suicidal',           title: 'Suicidal Assessment', desc: 'Risk factors & ideation',        color: 'bg-rose-50 text-rose-700 border-rose-200',          dot: 'bg-rose-500',     onAdd: () => setShowSuicidalModal(true) },
     { id: 'ect-admission',      title: 'ECT Admission',       desc: 'Admission for ECT patients',     color: 'bg-cyan-50 text-cyan-700 border-cyan-200',          dot: 'bg-cyan-500',     onAdd: () => setShowECTAdmissionModal(true) },
+    { id: 'ect-procedure-consent', title: 'ECT Procedure Consent', desc: 'ECT consent with terms',   color: 'bg-indigo-50 text-indigo-700 border-indigo-200',     dot: 'bg-indigo-500',   onAdd: () => setShowECTProcedureConsentModal(true) },
+    { id: 'ect-patient-health-history', title: 'Patient Health History', desc: 'Health history items', color: 'bg-rose-50 text-rose-700 border-rose-200',           dot: 'bg-rose-500',     onAdd: () => setShowECTPatientHealthHistoryModal(true) },
     { id: 'ect-procedure',      title: 'ECT Procedure',       desc: 'Session details & vitals',       color: 'bg-sky-50 text-sky-700 border-sky-200',             dot: 'bg-sky-500',      onAdd: () => setShowECTProcedureModal(true) },
     { id: 'ect-details',        title: 'ECT Details',         desc: 'ECT detail records',             color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-500',     onAdd: () => setShowECTModal(true) },
     { id: 'consolidated-ect-details', title: 'Consolidated ECT Details', desc: 'Patient ECT session counts', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
@@ -120,6 +128,8 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       case 'pre-ect':            return <AdmissionAssessmentList doctype="Pre-ECT Checklist" doctypeLabel="Pre-ECT Checklist" patient={selectedPatient} refreshKey={preEctRefreshKey} />
       case 'suicidal':           return <AdmissionAssessmentList doctype="Suicidal Patient Assessment" doctypeLabel="Suicidal Patient Assessment" patient={selectedPatient} refreshKey={0} />
       case 'ect-admission':      return <ECTAdmissionList patient={selectedPatient} />
+      case 'ect-procedure-consent': return <AdmissionAssessmentList doctype="ECT Procedure Consent" doctypeLabel="ECT Procedure Consent" patient={selectedPatient} refreshKey={ectProcedureConsentRefreshKey} />
+      case 'ect-patient-health-history': return <AdmissionAssessmentList doctype="Patient Health History" doctypeLabel="Patient Health History" patient={selectedPatient} refreshKey={ectPatientHealthHistoryRefreshKey} />
       case 'ect-procedure':      return <ECTProcedureList patient={selectedPatient} />
       case 'ect-details':        return <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
       case 'consolidated-ect-details':
@@ -190,6 +200,24 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
           onClose={() => setShowECTProcedureModal(false)}
           onSuccess={() => setShowECTProcedureModal(false)}
           initialPatient={selectedPatient}
+        />
+      )}
+      {showECTProcedureConsentModal && (
+        <ECTProcedureConsentModal
+          admissionNo={activeAdmission || ''}
+          patient={selectedPatient || ''}
+          patientName=""
+          onClose={() => setShowECTProcedureConsentModal(false)}
+          onSuccess={() => { setEctProcedureConsentRefreshKey(p => p + 1); setShowECTProcedureConsentModal(false) }}
+        />
+      )}
+      {showECTPatientHealthHistoryModal && (
+        <ECTPatientHealthHistoryModal
+          admissionNo={activeAdmission || ''}
+          patient={selectedPatient || ''}
+          patientName=""
+          onClose={() => setShowECTPatientHealthHistoryModal(false)}
+          onSuccess={() => { setEctPatientHealthHistoryRefreshKey(p => p + 1); setShowECTPatientHealthHistoryModal(false) }}
         />
       )}
       {showECTModal && (

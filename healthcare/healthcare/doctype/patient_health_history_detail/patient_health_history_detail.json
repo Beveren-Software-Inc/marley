@@ -1,0 +1,89 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "creation": "2026-08-18 11:32:26.464787",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "history",
+  "yes",
+  "remarks",
+  "no_format",
+  "is_diabetic",
+  "type",
+  "specify",
+  "speficication"
+ ],
+ "fields": [
+  {
+   "fieldname": "history",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "History"
+  },
+  {
+   "default": "0",
+   "fieldname": "yes",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Yes"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Text Editor",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "no_format",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "No Format"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_diabetic",
+   "fieldtype": "Check",
+   "label": "Is Diabetic"
+  },
+  {
+   "depends_on": "is_diabetic",
+   "fieldname": "type",
+   "fieldtype": "Select",
+   "label": "Type",
+   "options": "\nType 1\nType 2"
+  },
+  {
+   "default": "0",
+   "fieldname": "specify",
+   "fieldtype": "Check",
+   "label": "Specify"
+  },
+  {
+   "fieldname": "speficication",
+   "fieldtype": "Data",
+   "label": "Speficication"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-18 13:23:01.484856",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Patient Health History Detail",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -1,0 +1,171 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "ECTPC-.####",
+ "creation": "2026-08-18 11:59:07.324209",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "patient",
+  "patient_name",
+  "column_break_bgdi",
+  "patient_visit",
+  "inpatient_admission",
+  "section_break_jwcz",
+  "terms",
+  "terms_and_conditions",
+  "terms_and_conditionsarabic",
+  "section_break_fdwv",
+  "signature_of_patient",
+  "signature",
+  "section_break_pcsq",
+  "witness_name",
+  "witness_signature",
+  "column_break_eexo",
+  "witness_cpr",
+  "section_break_bfsw",
+  "psychiatrist",
+  "psychiatrist_name",
+  "psychiatrist_signature"
+ ],
+ "fields": [
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fieldname": "patient_visit",
+   "fieldtype": "Link",
+   "label": "Patient Visit",
+   "options": "Patient Visit"
+  },
+  {
+   "fieldname": "inpatient_admission",
+   "fieldtype": "Link",
+   "label": "Inpatient Admission",
+   "options": "Inpatient Admission"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name"
+  },
+  {
+   "fieldname": "section_break_jwcz",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "terms",
+   "fieldtype": "Link",
+   "label": "Terms",
+   "options": "ECT Procedure Consent Terms"
+  },
+  {
+   "fetch_from": "terms.terms_and_conditions",
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions"
+  },
+  {
+   "fetch_from": "terms.terms_and_conditions_arabic",
+   "fieldname": "terms_and_conditionsarabic",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions(Arabic)"
+  },
+  {
+   "fieldname": "section_break_fdwv",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "signature_of_patient",
+   "fieldtype": "Attach",
+   "label": "Signature of Patient"
+  },
+  {
+   "fieldname": "signature",
+   "fieldtype": "Table",
+   "label": "Signature",
+   "options": "IP Patient Relative"
+  },
+  {
+   "fieldname": "section_break_pcsq",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "witness_name",
+   "fieldtype": "Data",
+   "label": "Witness Name"
+  },
+  {
+   "fieldname": "witness_signature",
+   "fieldtype": "Attach",
+   "label": "Witness Signature"
+  },
+  {
+   "fieldname": "column_break_eexo",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "witness_cpr",
+   "fieldtype": "Data",
+   "label": "Witness CPR"
+  },
+  {
+   "fieldname": "section_break_bfsw",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "psychiatrist",
+   "fieldtype": "Link",
+   "label": "Psychiatrist",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fetch_from": "psychiatrist.practitioner_name",
+   "fieldname": "psychiatrist_name",
+   "fieldtype": "Data",
+   "label": "Psychiatrist Name"
+  },
+  {
+   "fieldname": "psychiatrist_signature",
+   "fieldtype": "Attach",
+   "label": "Psychiatrist Signature"
+  },
+  {
+   "fieldname": "column_break_bgdi",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-18 15:14:18.065700",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Procedure Consent",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

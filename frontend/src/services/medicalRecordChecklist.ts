@@ -25,17 +25,20 @@ export type MedicalRecordChecklistReport = {
   prepared_by: string
   columns: MedicalRecordCheckColumn[]
   rows: MedicalRecordChecklistRow[]
+  include_discharge_started?: boolean
 }
 
 export async function fetchMedicalRecordChecklist(filters: {
   fromDate?: string
   toDate?: string
   costCenter?: string
+  includeDischargeStarted?: boolean
 }): Promise<MedicalRecordChecklistReport> {
   const params = new URLSearchParams()
   if (filters.fromDate) params.set('from_date', filters.fromDate)
   if (filters.toDate) params.set('to_date', filters.toDate)
   if (filters.costCenter) params.set('cost_center', filters.costCenter)
+  if (filters.includeDischargeStarted) params.set('include_discharge_started', '1')
   const qs = params.toString()
   return apiRequest<MedicalRecordChecklistReport>(
     `/api/method/healthcare.api.medical_record_checklist.get_medical_record_checklist${qs ? `?${qs}` : ''}`

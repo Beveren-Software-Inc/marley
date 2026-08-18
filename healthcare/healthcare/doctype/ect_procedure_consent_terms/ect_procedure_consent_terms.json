@@ -1,0 +1,67 @@
+{
+ "actions": [],
+ "allow_bulk_edit": 1,
+ "allow_rename": 1,
+ "autoname": "field:terms",
+ "creation": "2026-08-18 12:00:44.270803",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "terms",
+  "terms_and_conditions",
+  "terms_and_conditions_arabic",
+  "default"
+ ],
+ "fields": [
+  {
+   "fieldname": "terms",
+   "fieldtype": "Data",
+   "label": "Terms",
+   "unique": 1
+  },
+  {
+   "fieldname": "terms_and_conditions",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions"
+  },
+  {
+   "fieldname": "terms_and_conditions_arabic",
+   "fieldtype": "Text Editor",
+   "label": "Terms and Conditions(Arabic)"
+  },
+  {
+   "default": "0",
+   "fieldname": "default",
+   "fieldtype": "Check",
+   "label": "Default"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-18 13:04:17.540413",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "ECT Procedure Consent Terms",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

@@ -146,6 +146,12 @@ fixtures = [
 		"doctype": "Patient Assessment Parameter"
 	},
     {
+		"doctype":"Patient Health History Template 2"	
+	},
+    {
+		"doctype": "ECT Procedure Consent Terms"
+	},
+    {
 		"doctype": "Environmental Checklist Template"
 	},
     {
@@ -253,7 +259,8 @@ app_include_js = "healthcare.bundle.js"
 doctype_js = {"Sales Invoice": "public/js/sales_invoice.js",
               
               "Sales Order": "public/js/sales_order.js",
-              "Quotation": "public/js/quotation.js",}
+              "Quotation": "public/js/quotation.js",
+              "Item Group": "public/js/item_group.js",}
 # doctype_list_js = {"doctype" : "public/js/doctype_list.js"}
 # doctype_tree_js = {"doctype" : "public/js/doctype_tree.js"}
 # doctype_calendar_js = {"doctype" : "public/js/doctype_calendar.js"}

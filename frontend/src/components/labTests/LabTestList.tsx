@@ -3986,6 +3986,8 @@ export const LabTestList = ({
                         const el = e.target as HTMLElement
                         if (el.closest('[data-no-row-click]')) return
                         if (el.closest('button, a, input, select, textarea, label')) return
+                        const allCollected = children.every((c) => isLabTestSampleCollectionDone(c))
+                        if (allCollected) return
                         const sampleTarget =
                           children.find(
                             (c) => canRecordAdHocSampleCollection(c) && !isLabTestSampleCollectionDone(c)
