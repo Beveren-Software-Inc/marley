@@ -421,6 +421,8 @@ export interface MedicationOrderEntry {
   amount?: number
   /** When set, this line is treated as stopped (no longer given) */
   reason_stopped?: string
+  /** 1 if this medication line/strip has been stopped (no longer given) */
+  stopped?: 0 | 1 | boolean
   stopped_date?: string
   stop_by?: string
   /** Doctor who prescribed / added this medication line */

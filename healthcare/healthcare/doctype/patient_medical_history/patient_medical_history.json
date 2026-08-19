@@ -26,6 +26,8 @@
   "allergies_section",
   "no_known_allergies",
   "allergies",
+  "section_break_neks",
+  "family_history",
   "social_section",
   "social_history",
   "addiction",
@@ -186,12 +188,21 @@
    "fieldtype": "Link",
    "label": "Patient Visit",
    "options": "Patient Visit"
+  },
+  {
+   "fieldname": "section_break_neks",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "family_history",
+   "fieldtype": "Small Text",
+   "label": "Family History"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-06-08 12:15:47.865977",
+ "modified": "2026-08-19 02:30:09.081002",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Medical History",

@@ -24,6 +24,7 @@ export function PastMedicalHistoryDisplay({ history }: Props) {
     history.current_and_past_medications?.trim() ||
     history.no_known_allergies ||
     history.allergies?.trim() ||
+    history.family_history?.trim() ||
     history.addiction ||
     history.smoking
 
@@ -69,6 +70,8 @@ export function PastMedicalHistoryDisplay({ history }: Props) {
           <p className="text-sm text-amber-900 whitespace-pre-wrap">{history.allergies}</p>
         </div>
       ) : null}
+
+      <TextBlock label="Family history" text={history.family_history} />
 
       {(history.addiction || history.smoking) && (
         <section>

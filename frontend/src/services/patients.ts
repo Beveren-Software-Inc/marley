@@ -22,6 +22,24 @@ export interface PatientMedicalHistoryRow {
   description?: string
 }
 
+export type PatientLegacyHistoryEntry = {
+  key: string
+  label: string
+  text: string
+}
+
+export type PatientLegacyMedicalHistory = {
+  patient: string
+  patient_name?: string
+  has_data: boolean
+  family_history?: string
+  allergies?: string
+  previous_disease_history?: string
+  medical_history?: string
+  medication?: string
+  entries: PatientLegacyHistoryEntry[]
+}
+
 export interface PatientMedicalHistory {
   name?: string | null
   patient?: string
@@ -42,10 +60,12 @@ export interface PatientMedicalHistory {
   current_and_past_medications?: string
   no_known_allergies?: number
   allergies?: string
+  family_history?: string
   social_history?: string
   addiction?: number
   smoking?: number
   patient_history_details?: PatientMedicalHistoryRow[]
+  legacy_from_patient?: PatientLegacyMedicalHistory | null
 }
 
 export interface PatientSummary {
@@ -500,12 +520,25 @@ export async function fetchPatientMedicalHistory(patient: string): Promise<Patie
   }
 }
 
-export async function fetchPatientMedicalHistories(patient: string): Promise<PatientMedicalHistory[]> {
+export async function fetchPatientMedicalHistories(patient: string): Promise<{
+  records: PatientMedicalHistory[]
+  legacy_from_patient: PatientLegacyMedicalHistory | null
+}> {
   const res = await fetch(
     `/api/method/healthcare.api.patient.get_patient_medical_histories?patient=${encodeURIComponent(patient)}`
   )
   const data = await res.json()
-  return Array.isArray(data?.message) ? (data.message as PatientMedicalHistory[]) : []
+  const message = data?.message
+  if (Array.isArray(message)) {
+    return { records: message as PatientMedicalHistory[], legacy_from_patient: null }
+  }
+  if (message && typeof message === 'object') {
+    return {
+      records: Array.isArray(message.records) ? (message.records as PatientMedicalHistory[]) : [],
+      legacy_from_patient: (message.legacy_from_patient as PatientLegacyMedicalHistory | null) || null,
+    }
+  }
+  return { records: [], legacy_from_patient: null }
 }
 
 /** Mark a past medical history record Active / Inactive (allowed even on closed visits). */

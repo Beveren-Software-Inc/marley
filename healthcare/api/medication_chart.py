@@ -116,6 +116,7 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 			"end_date",
 			"medication_status",
 			"stopped",
+			"reason_stopped",
 			"is_prn",
 			"medication_type",
 			"instructions",
@@ -172,7 +173,11 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		drug = entry.get("drug")
 		if not drug:
 			continue
-		if cint(entry.get("stopped")) or (entry.get("medication_status") or "").strip() == "Discontinued":
+		if (
+			cint(entry.get("stopped"))
+			or (entry.get("reason_stopped") or "").strip()
+			or (entry.get("medication_status") or "").strip() == "Discontinued"
+		):
 			continue
 
 		pmo = pmo_by_name.get(entry.parent) or {}
@@ -416,6 +421,7 @@ def get_medication_sheet_detail(
 		"end_date",
 		"time",
 		"stopped",
+		"reason_stopped",
 	]
 	order_entries = frappe.get_all(
 		"Inpatient Medication Order Entry",
@@ -529,7 +535,7 @@ def get_medication_sheet_detail(
 	seen_drugs: set[tuple[str, str]] = set()
 
 	for entry in order_entries:
-		if cint(entry.get("stopped")):
+		if cint(entry.get("stopped")) or (entry.get("reason_stopped") or "").strip():
 			continue
 		drug_key = medication_entry_drug_key(entry)
 		if not drug_key:

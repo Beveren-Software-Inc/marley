@@ -946,13 +946,20 @@ export const CreateMedicineGivenModal = ({
                 {prescriptionOrders.map((o) => {
                   const held = o.medication_status === 'On Hold'
                   const discontinued = o.medication_status === 'Discontinued'
+                  const stopped = Boolean(o.stopped) || Boolean(o.reason_stopped)
                   const pmo = prescriptionNameFromOrder(o, '')
                   return (
-                    <option key={o.name} value={o.name} disabled={held || discontinued}>
+                    <option key={o.name} value={o.name} disabled={held || discontinued || stopped}>
                       {o.drug_name || o.drug} – {o.dosage}
                       {pmo ? ` · ${pmo}` : ''}
                       {o.is_prn === 1 ? ' (PRN)' : ''}
-                      {held ? ' — On Hold (cannot give)' : discontinued ? ' — Discontinued (cannot give)' : ''}
+                      {held
+                        ? ' — On Hold (cannot give)'
+                        : discontinued
+                          ? ' — Discontinued (cannot give)'
+                          : stopped
+                            ? ' — Stopped (cannot give)'
+                            : ''}
                     </option>
                   )
                 })}
