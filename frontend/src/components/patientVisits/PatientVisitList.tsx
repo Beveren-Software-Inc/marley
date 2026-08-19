@@ -71,6 +71,9 @@ interface PatientVisitListProps {
   detailedColumns?: boolean
   /** Default the Doctor filter to the logged-in user's Healthcare Practitioner (any specialty). */
   defaultToCurrentPractitioner?: boolean
+  /** Always keep the Branch filter synced to the top-navbar branch, even when a patient is scoped
+   * (e.g. Daily Auto Visits tab must filter by branch regardless of the selected patient). */
+  forceBranchFilter?: boolean
 }
 
 function visitPatientDisplayName(visit: PatientVisitListRow): string {
@@ -102,6 +105,7 @@ export const PatientVisitList = ({
   hideLabPharmacyAmounts = false,
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
+  forceBranchFilter = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole, applyOpCareContext } = useCareContext()
   const formatMoney = useFormatMoney()
@@ -121,7 +125,7 @@ export const PatientVisitList = ({
   const cardFilters = useCardFilters()
   const cardCompactLayout = useDashboardCompactClinical()
   const headerSlot = useCardHeaderSlot()
-  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const [showFiltersInternal, setShowFiltersInternal] = useState(forceBranchFilter)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
@@ -183,11 +187,13 @@ export const PatientVisitList = ({
   }, [])
 
   // Keep the Branch filter in sync with the global (top-bar) navbar branch — not on patient-scoped history.
+  // When forceBranchFilter is true (e.g. Daily Auto Visits), the navbar branch is applied even
+  // when a patient is scoped so the list stays confined to the current branch.
   useEffect(() => {
-    if (patient) return
+    if (!forceBranchFilter && patient) return
     if (!userCostCenter) return
     setFilterBranch(userCostCenter)
-  }, [userCostCenter, patient])
+  }, [userCostCenter, patient, forceBranchFilter])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -344,7 +350,7 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
-    setFilterBranch(patient ? '' : userCostCenter || '')
+    setFilterBranch(forceBranchFilter ? userCostCenter || '' : patient ? '' : userCostCenter || '')
     setVisitTypeFilter('')
     setReceptionistFilter('')
   }

@@ -1,4 +1,3 @@
-# Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and contributors
 # For license information, please see license.txt
 
 """Temporary CEO-only unified staff activity audit (Activity Log + Route History + Version)."""

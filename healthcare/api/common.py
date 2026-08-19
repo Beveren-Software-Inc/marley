@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
@@ -4847,12 +4846,22 @@ def get_sick_leaves(
 	page=1,
 	page_size=20,
 ):
-	"""Fetch Sick Leave records."""
+	"""Fetch Sick Leave records from the Patient Sick Leave doctype.
+
+	UI-facing fields are remapped to the legacy Sick Leave names so the
+	frontend continues to work unchanged:
+	  admission      -> admission_no
+	  start_date     -> from_date
+	  end_date       -> to_date
+	  practitioner   -> doctor
+	  practitioner_name -> doctor (display name fallback)
+	  trans_source   -> source
+	"""
 	try:
 		page = frappe.utils.cint(page) or 1
 		page_size = frappe.utils.cint(page_size) or 20
 		portal_reader = _user_can_read_nursing_portal()
-		has_read = frappe.has_permission("Sick Leave", "read")
+		has_read = frappe.has_permission("Patient Sick Leave", "read")
 
 		filters = {}
 		if patient:
@@ -4860,30 +4869,59 @@ def get_sick_leaves(
 		if search:
 			filters["patient_name"] = ["like", f"%{search}%"]
 		if date_from and date_to:
-			filters["from_date"] = ["between", [date_from, date_to]]
+			filters["start_date"] = ["between", [date_from, date_to]]
 		elif date_from:
-			filters["from_date"] = [">=", date_from]
+			filters["start_date"] = [">=", date_from]
 		elif date_to:
-			filters["from_date"] = ["<=", date_to]
+			filters["start_date"] = ["<=", date_to]
 		if doctor:
-			filters["doctor"] = doctor
+			filters["practitioner"] = doctor
 
 		list_kwargs = {
 			"filters": filters,
 			"fields": [
-				"name", "admission_no", "patient", "patient_name",
-				"from_date", "to_date", "days", "diagnosis", "doctor", "source",
+				"name", "admission", "patient", "patient_name",
+				"start_date", "end_date", "diagnosis",
+				"practitioner", "practitioner_name", "trans_source",
+				"sick_flag", "fit_flag", "unfit_flag", "light_duty",
+				"needs_flag", "acc_patient",
 				"creation",
 			],
 			"order_by": "creation desc",
-			"limit_page_length": page_size,
-			"limit_start": (page - 1) * page_size,
+			"page": page,
+			"page_length": page_size,
 		}
 		if portal_reader and not has_read:
 			list_kwargs["ignore_permissions"] = True
 
-		records = frappe.get_all("Sick Leave", **list_kwargs)
-		total = frappe.db.count("Sick Leave", filters=filters)
+		records = frappe.get_all("Patient Sick Leave", **list_kwargs)
+		# Remap Patient Sick Leave fields to the UI's SickLeaveRow shape.
+		for r in records:
+			r["admission_no"] = r.pop("admission", None) or None
+			r["from_date"] = r.pop("start_date", None) or None
+			r["to_date"] = r.pop("end_date", None) or None
+			r["source"] = r.pop("trans_source", None) or None
+			# days is not a stored field on Patient Sick Leave — compute from dates.
+			from_d = r.get("from_date")
+			to_d = r.get("to_date")
+			if from_d and to_d:
+				try:
+					from_obj = frappe.utils.getdate(from_d)
+					to_obj = frappe.utils.getdate(to_d)
+					r["days"] = str((to_obj - from_obj).days + 1)
+				except Exception:
+					r["days"] = None
+			else:
+				r["days"] = None
+			practitioner_name = r.pop("practitioner_name", None) or None
+			r["doctor"] = r.pop("practitioner", None) or None
+			# Keep the display name for doctor when the raw practitioner id is used in UI.
+			if r["doctor"] and practitioner_name:
+				r["doctor"] = practitioner_name
+			# Remove any leftover fields the UI doesn't consume.
+			r.pop("practitioner_name", None)
+
+		total = frappe.db.count("Patient Sick Leave", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
 		frappe.logger().error(f"Error in get_sick_leaves: {str(e)}")
@@ -4892,40 +4930,93 @@ def get_sick_leaves(
 
 @frappe.whitelist()
 def create_sick_leave(data):
-	"""Create a new Sick Leave record."""
+	"""Create a new record in the Patient Sick Leave doctype.
+
+	Frontend payload uses legacy Sick Leave field names; they are mapped
+	to Patient Sick Leave fields here:
+	  admission_no  -> admission
+	  from_date     -> start_date
+	  to_date       -> end_date
+	  doctor        -> practitioner
+	  doctor_name   -> practitioner_name
+	  source        -> trans_source
+	  days          -> derived end_date when to_date is not provided
+	"""
 	try:
 		if isinstance(data, str):
 			data = frappe.parse_json(data)
+		data = data or {}
 
-		doc = frappe.new_doc("Sick Leave")
-		allowed_fields = [
-			"admission_no",
-			"patient",
-			"patient_name",
-			"from_date",
-			"to_date",
-			"days",
-			"diagnosis",
-			"doctor",
-			"doctor_name",
-			"source",
-			"sr_no",
-		]
-		for field in allowed_fields:
-			if field in data and data.get(field) not in (None, ""):
-				setattr(doc, field, data[field])
+		doc = frappe.new_doc("Patient Sick Leave")
+
+		# Patient / admission
+		if data.get("admission_no"):
+			doc.admission = data["admission_no"]
+		if data.get("patient"):
+			doc.patient = data["patient"]
+			doc.patient_name = (
+				data.get("patient_name")
+				or frappe.db.get_value("Patient", doc.patient, "patient_name")
+			)
+
+		# Dates
+		from_date = data.get("from_date") or data.get("start_date")
+		to_date = data.get("to_date") or data.get("end_date")
+		days = data.get("days")
+		if from_date:
+			doc.start_date = from_date
+		# If to_date is missing but days is given, derive end_date inclusive.
+		if not to_date and from_date and days:
+			try:
+				d_start = frappe.utils.getdate(from_date)
+				to_date = str(frappe.utils.add_days(d_start, (frappe.utils.cint(days) or 1) - 1))
+			except Exception:
+				pass
+		if to_date:
+			doc.end_date = to_date
+
+		# Practitioner
+		if data.get("doctor") or data.get("practitioner"):
+			doc.practitioner = data.get("doctor") or data.get("practitioner")
+			doc.practitioner_name = (
+				data.get("doctor_name")
+				or data.get("practitioner_name")
+				or frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
+			)
+
+		# Clinical
+		if data.get("diagnosis"):
+			doc.diagnosis = data["diagnosis"]
+
+		# Source
+		if data.get("source") or data.get("trans_source"):
+			doc.trans_source = data.get("source") or data.get("trans_source")
+
+		# Patient Visit (OP)
+		if data.get("patient_visit"):
+			doc.patient_visit = data["patient_visit"]
+
+		# Branch / cost center
+		if data.get("branch") or data.get("cost_center"):
+			doc.branch = data.get("branch") or data.get("cost_center")
+
+		# Flag fields — the Patient Sick Leave doctype uses Check (boolean 0/1)
+		for flag_field in (
+			"sick_flag",
+			"fit_flag",
+			"unfit_flag",
+			"light_duty",
+			"needs_flag",
+			"acc_patient",
+			"patient_needs",
+			"employees_care",
+		):
+			if flag_field in data and data.get(flag_field) not in (None, ""):
+				doc.set(flag_field, frappe.utils.cint(data.get(flag_field)))
 
 		# autoname is field:trans_no — always assign server-side
 		if not (getattr(doc, "trans_no", None) or "").strip():
-			doc.trans_no = get_next_transaction_number("Sick Leave", fieldname="trans_no")
-
-		if doc.doctor and not (getattr(doc, "doctor_name", None) or "").strip():
-			doc.doctor_name = frappe.db.get_value(
-				"Healthcare Practitioner", doc.doctor, "practitioner_name"
-			)
-
-		if doc.patient and not (getattr(doc, "patient_name", None) or "").strip():
-			doc.patient_name = frappe.db.get_value("Patient", doc.patient, "patient_name")
+			doc.trans_no = get_next_transaction_number("Patient Sick Leave", fieldname="trans_no")
 
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()

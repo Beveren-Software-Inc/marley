@@ -79,6 +79,7 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'nut', title: 'Nutrition Notes' },
       { id: 'ther', title: 'Occupational Therapy Notes' },
       { id: 'nurse', title: 'Nursing Notes' },
+      { id: 'tpr', title: 'Vital Sign' },
     ],
   },
   {

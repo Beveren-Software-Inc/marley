@@ -9,6 +9,15 @@ export interface SickLeaveRow {
   diagnosis: string | null
   doctor: string | null
   source: string | null
+  /** Flag fields — Check (0/1) on Patient Sick Leave */
+  sick_flag?: number
+  fit_flag?: number
+  unfit_flag?: number
+  light_duty?: number
+  needs_flag?: number
+  acc_patient?: number
+  patient_needs?: number
+  employees_care?: number
   creation: string
 }
 
@@ -24,6 +33,15 @@ export interface CreateSickLeaveInput {
   doctor_name?: string
   source?: string
   sr_no?: string
+  branch?: string
+  patient_visit?: string
+  /** Flag fields — Patient Sick Leave stores as Check (1/0) */
+  sick_flag?: number
+  fit_flag?: number
+  unfit_flag?: number
+  light_duty?: number
+  needs_flag?: number
+  acc_patient?: number
 }
 
 export interface SickLeaveFilters {
