@@ -4888,8 +4888,8 @@ def get_sick_leaves(
 				"creation",
 			],
 			"order_by": "creation desc",
-			"page": page,
-			"page_length": page_size,
+			"limit_page_length": page_size,
+			"limit_start": (page - 1) * page_size,
 		}
 		if portal_reader and not has_read:
 			list_kwargs["ignore_permissions"] = True

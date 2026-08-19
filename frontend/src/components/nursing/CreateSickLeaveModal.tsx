@@ -416,7 +416,9 @@ import {
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
   fetchPatientVisits,
+  fetchCostCenters,
   getCurrentUserPractitioner,
+  syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -430,7 +432,7 @@ interface CreateSickLeaveModalProps {
 
 export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSickLeaveModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -538,6 +540,23 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   const [doctorQuery, setDoctorQuery] = useState('')
   const [selectedDoctor, setSelectedDoctor] = useState<LinkFieldOption | null>(null)
 
+  // Branch — Cost Center dropdown
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  const [branchOpen, setBranchOpen] = useState(false)
+  const [branchQuery, setBranchQuery] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState<LinkFieldOption | null>(null)
+
+  // Global branch is the default; care-episode sync overrides it when set.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setBranch((prev) => {
+      if (prev) return prev
+      setBranchQuery((q) => q || userCostCenter)
+      setSelectedBranch((s) => s || { name: userCostCenter, label: userCostCenter })
+      return userCostCenter
+    })
+  }, [userCostCenter])
+
   // Load initial patient label
   useEffect(() => {
     const patientToLoad = patient || contextPatient
@@ -627,6 +646,46 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   }, [visitQuery, visitOpen, patientId, isOPMode])
 
   useEffect(() => {
+    const patientVisit = isOPMode ? patientVisitNo : undefined
+    const inpatientRecord = isIPMode ? admissionNo : undefined
+    if (!patientVisit && !inpatientRecord) return
+
+    let cancelled = false
+    void syncCostCenterFromCareEpisode(isIPMode ? 'IP' : 'OP', {
+      patientVisit,
+      inpatientRecord,
+      visits: visitOptions,
+      admissions: admissionOptions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setBranch(cc)
+      setBranchQuery(cc)
+      setSelectedBranch({ name: cc, label: cc })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isIPMode, isOPMode, patientVisitNo, admissionNo, visitOptions, admissionOptions])
+
+  useEffect(() => {
+    if (!branchOpen) return
+    let cancelled = false
+    const run = async () => {
+      try {
+        const res = await fetchCostCenters(undefined, branchQuery || undefined)
+        if (!cancelled) setBranchOptions(res)
+      } catch {
+        if (!cancelled) setBranchOptions([])
+      }
+    }
+    const t = setTimeout(run, branchQuery.trim() ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [branchQuery, branchOpen])
+
+  useEffect(() => {
     if (!doctorOpen) return
     let cancelled = false
     const run = async () => {
@@ -665,6 +724,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     setAdmissionOpen(false)
     setVisitOpen(false)
     setDoctorOpen(false)
+    setBranchOpen(false)
   }
 
   // Get mode-specific help text
@@ -999,17 +1059,35 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 placeholder="Search doctor…"
               />
 
-              {/* Branch — same line as Doctor */}
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Branch</label>
-                <input
-                  type="text"
-                  value={branch}
-                  onChange={(e) => setBranch(e.target.value)}
-                  placeholder="Enter branch / cost center"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
+              {/* Branch — Cost Center dropdown */}
+              <LinkField
+                label="Branch"
+                isOpen={branchOpen}
+                query={branchQuery}
+                selectedLabel={selectedBranch?.label}
+                options={branchOptions}
+                onFocus={() => setBranchOpen(true)}
+                onChange={(v) => {
+                  setBranchQuery(v)
+                  if (!v) {
+                    setBranch('')
+                    setSelectedBranch(null)
+                  }
+                }}
+                onSelect={(cc) => {
+                  setBranch(cc.name)
+                  setSelectedBranch(cc)
+                  setBranchQuery(cc.label)
+                  setBranchOpen(false)
+                }}
+                onClear={() => {
+                  setBranch('')
+                  setSelectedBranch(null)
+                  setBranchQuery('')
+                  setBranchOpen(false)
+                }}
+                placeholder="Search cost center…"
+              />
 
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Sr No</label>
