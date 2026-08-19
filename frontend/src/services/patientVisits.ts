@@ -87,7 +87,8 @@ export async function fetchPatientVisitsFull(
   limit?: number,
   offset?: number,
   costCenter?: string,
-  visitOwner?: string
+  visitOwner?: string,
+  visitName?: string,
 ): Promise<PatientVisitsPaginatedResponse> {
   const params = new URLSearchParams()
   if (patient) params.append('patient', patient)
@@ -99,6 +100,7 @@ export async function fetchPatientVisitsFull(
   if (visitType) params.append('visit_type', visitType)
   if (costCenter) params.append('cost_center', costCenter)
   if (visitOwner) params.append('visit_owner', visitOwner)
+  if (visitName) params.append('visit_name', visitName)
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
   try {

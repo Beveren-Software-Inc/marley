@@ -259,12 +259,13 @@ def get_patient_visit(name):
 # healthcare/api/common.py
 
 @frappe.whitelist()
-def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, visit_owner=None, limit=20, offset=0):
+def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, visit_owner=None, limit=20, offset=0, visit_name=None):
 	"""
 	Fetch patient visits with all filters and pagination.
 	Returns { data: [...], total_count: N }
 
 	visit_owner filters by credited receptionist (visit_owner, falling back to owner).
+	visit_name filters to one Patient Visit (header / active OP visit).
 	"""
 	from frappe.utils import cint
 	from healthcare.api.common import apply_cost_center_scope_to_list_filters
@@ -279,7 +280,9 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 	if patient:
 		filters.append(["patient", "=", patient])
 
-	if search:
+	if visit_name:
+		filters.append(["name", "=", visit_name])
+	elif search:
 		filters.append(["name", "like", f"%{search}%"])
 
 	if practitioner:

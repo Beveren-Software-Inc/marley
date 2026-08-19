@@ -74,6 +74,8 @@ interface PatientVisitListProps {
   /** Always keep the Branch filter synced to the top-navbar branch, even when a patient is scoped
    * (e.g. Daily Auto Visits tab must filter by branch regardless of the selected patient). */
   forceBranchFilter?: boolean
+  /** Patient History: show every visit for the patient, even when a visit is selected in the header. */
+  showAllPatientVisits?: boolean
 }
 
 function visitPatientDisplayName(visit: PatientVisitListRow): string {
@@ -106,16 +108,20 @@ export const PatientVisitList = ({
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
   forceBranchFilter = false,
+  showAllPatientVisits = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole, applyOpCareContext } = useCareContext()
   const formatMoney = useFormatMoney()
   const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
-  // When OP mode has a specific visit selected globally, lock the list to that visit.
-  // Fall back to the patient prop, then context patient, for broader filtering.
-  // Patient History (explicit `patient`) must show all visits — no active-visit lock.
+  // When OP mode has a specific visit selected in the header (including IOP), lock the
+  // list to that visit. Patient History and typed sub-lists (e.g. Daily Auto Visit) opt out.
   const effectiveVisitFilter =
-    !patient && mode === 'OP' && activeVisit ? activeVisit : undefined
+    showAllPatientVisits || visitType
+      ? undefined
+      : mode === 'OP' && activeVisit
+        ? activeVisit
+        : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** OP browse (no patient scope, no active visit, not a typed sub-list): default From/To to today. */
   const shouldUseOpDefaults = !patient && !effectiveVisitFilter && !visitType
@@ -254,11 +260,9 @@ export const PatientVisitList = ({
     }
     setError(null)
     try {
-      const visitSearch =
-        externalSearchQuery || effectiveVisitFilter || undefined
       const response = await fetchPatientVisitsFull(
         effectivePatient,
-        visitSearch,
+        externalSearchQuery || undefined,
         practitionerFilter || undefined,
         dateFrom || undefined,
         dateTo || undefined,
@@ -268,6 +272,7 @@ export const PatientVisitList = ({
         (page - 1) * pageSize,
         filterBranch || undefined,
         receptionistFilter || undefined,
+        effectiveVisitFilter,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)

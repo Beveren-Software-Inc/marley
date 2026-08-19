@@ -290,7 +290,11 @@ export const PatientHistoryPage = () => {
 
           {/* Major sections — full width, first after Summary */}
           <DashboardCard fixedHeight title="Patient Visits" {...listingProps('patient-visits')}>
-            <PatientVisitList patient={selectedPatient} onPatientFromVisit={handlePatientSelect} />
+            <PatientVisitList
+              patient={selectedPatient}
+              onPatientFromVisit={handlePatientSelect}
+              showAllPatientVisits
+            />
           </DashboardCard>
 
           <DashboardCard fixedHeight title="Admissions" {...listingProps('admissions')}>
