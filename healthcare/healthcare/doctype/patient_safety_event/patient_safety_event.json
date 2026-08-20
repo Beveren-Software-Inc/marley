@@ -7,85 +7,119 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "section_basic",
+  "section_report",
+  "report_type",
+  "harm_evidence",
+  "event_category",
+  "column_break_report",
+  "event_discovery_date",
+  "event_discovery_time",
   "event_datetime",
-  "event_type",
-  "location",
-  "severity",
-  "patient",
-  "column_break_user",
-  "is_anonymous",
-  "reported_by",
-  "department",
+  "report_date",
   "status",
-  "section_details",
+  "section_classification",
+  "clinical_event_type",
+  "non_clinical_event_type",
+  "sentinel_event_type",
+  "other_event_specify",
+  "event_type",
+  "column_break_class",
+  "affected_person",
+  "severity",
+  "section_location",
+  "location",
+  "department",
+  "section_description",
   "description",
   "immediate_action",
+  "section_reporter",
+  "is_anonymous",
+  "reporter_first_name",
+  "reporter_middle_name",
+  "reporter_last_name",
+  "column_break_reporter",
+  "reporter_mobile",
+  "reporter_email",
+  "reporter_position",
+  "reported_by",
+  "section_patient",
+  "patients_reached",
+  "patient",
+  "patient_name",
+  "column_break_patient",
+  "patient_cpr",
+  "patient_file_no",
+  "patient_gender",
+  "section_risk",
+  "risk_probability",
+  "risk_impact",
+  "column_break_risk",
+  "risk_score",
+  "risk_rate",
+  "section_management",
+  "analysis_possible_causes",
+  "corrective_action",
   "contributing_factors"
  ],
  "fields": [
   {
-   "fieldname": "section_basic",
+   "fieldname": "section_report",
    "fieldtype": "Section Break",
-   "label": "Basic Information"
+   "label": "1. What is being reported?"
+  },
+  {
+   "fieldname": "report_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "What is being reported?",
+   "options": "\nAn Incident\nNear Miss\nSentinel Event\nOther Events",
+   "reqd": 1
+  },
+  {
+   "depends_on": "eval:doc.report_type==\"An Incident\"",
+   "description": "Was there any evidence of harm to the patient at time of this report?",
+   "fieldname": "harm_evidence",
+   "fieldtype": "Select",
+   "label": "Evidence of harm?",
+   "options": "\nYes\nNo\nUnknown"
+  },
+  {
+   "fieldname": "event_category",
+   "fieldtype": "Select",
+   "label": "Event Category",
+   "options": "\nClinical\nNon Clinical\nSentinel Events\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_report",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "Today",
+   "fieldname": "event_discovery_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Event Discovery Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "event_discovery_time",
+   "fieldtype": "Time",
+   "label": "Event Discovery Time"
   },
   {
    "default": "Now",
    "fieldname": "event_datetime",
    "fieldtype": "Datetime",
-   "in_list_view": 1,
-   "label": "Event Date & Time",
+   "hidden": 1,
+   "label": "Event Date & Time"
+  },
+  {
+   "default": "Today",
+   "fieldname": "report_date",
+   "fieldtype": "Date",
+   "label": "Report Date",
    "reqd": 1
-  },
-  {
-   "fieldname": "event_type",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "label": "Patient Safety Event Type",
-   "options": "Patient Safety Event Type",
-   "reqd": 1
-  },
-  {
-   "fieldname": "location",
-   "fieldtype": "Data",
-   "label": "Location / Unit"
-  },
-  {
-   "fieldname": "severity",
-   "fieldtype": "Select",
-   "in_list_view": 1,
-   "label": "Severity",
-   "options": "\nNear Miss\nNo Harm\nMild\nModerate\nSevere\nSentinel"
-  },
-  {
-   "fieldname": "patient",
-   "fieldtype": "Link",
-   "label": "Patient (optional)",
-   "options": "Patient"
-  },
-  {
-   "fieldname": "column_break_user",
-   "fieldtype": "Column Break"
-  },
-  {
-   "default": "1",
-   "fieldname": "is_anonymous",
-   "fieldtype": "Check",
-   "label": "Report Anonymously"
-  },
-  {
-   "fetch_from": "owner",
-   "fieldname": "reported_by",
-   "fieldtype": "Link",
-   "label": "Reported By",
-   "options": "User",
-   "read_only": 1
-  },
-  {
-   "fieldname": "department",
-   "fieldtype": "Link",
-   "label": "Department / Service",
-   "options": "Medical Department"
   },
   {
    "default": "Open",
@@ -96,20 +130,255 @@
    "options": "\nOpen\nIn Review\nClosed"
   },
   {
-   "fieldname": "section_details",
+   "fieldname": "section_classification",
    "fieldtype": "Section Break",
-   "label": "Event Details"
+   "label": "7. Event Classification"
+  },
+  {
+   "depends_on": "eval:doc.event_category==\"Clinical\"",
+   "fieldname": "clinical_event_type",
+   "fieldtype": "Select",
+   "label": "Clinical Event",
+   "options": "\nPatient identification error\nDevice and Medical\nAnesthesia\nFall\nBlood, blood products\nClinical Practice / Procedure\nOther"
+  },
+  {
+   "depends_on": "eval:doc.event_category==\"Non Clinical\"",
+   "fieldname": "non_clinical_event_type",
+   "fieldtype": "Select",
+   "label": "Non Clinical Event",
+   "options": "\nBuilding safety event\nAbsconded\nFire Events\nSecurity Events\nMedical Record Related Event\nHazard Material Events\nOther"
+  },
+  {
+   "depends_on": "eval:doc.event_category==\"Sentinel Events\"",
+   "fieldname": "sentinel_event_type",
+   "fieldtype": "Select",
+   "label": "Sentinel Event",
+   "options": "\nWrong Patient\nUnexpected Death\nSuicide in an inpatient unit\nRetained instruments or a sponge\nUnexpected loss of a limb or a function\nPatient Escaped\nPatient Escaped and got harm\nMajor Medication Error Leading to Death or Major Morbidity\nAny Harm to Patient While Shifting Patient From Home to Hospital"
+  },
+  {
+   "depends_on": "eval:doc.event_category==\"Other\" || doc.clinical_event_type==\"Other\" || doc.non_clinical_event_type==\"Other\"",
+   "fieldname": "other_event_specify",
+   "fieldtype": "Data",
+   "label": "Other (Specify)"
+  },
+  {
+   "description": "Kept for list filters / legacy; auto-filled from classification.",
+   "fieldname": "event_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Patient Safety Event Type",
+   "options": "Patient Safety Event Type"
+  },
+  {
+   "fieldname": "column_break_class",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "affected_person",
+   "fieldtype": "Select",
+   "label": "Affected Person",
+   "options": "\nPatient\nFamily / Visitor\nStaff / Employee"
+  },
+  {
+   "fieldname": "severity",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Severity (legacy)",
+   "options": "\nNear Miss\nNo Harm\nMild\nModerate\nSevere\nSentinel"
+  },
+  {
+   "fieldname": "section_location",
+   "fieldtype": "Section Break",
+   "label": "5. Location"
+  },
+  {
+   "fieldname": "location",
+   "fieldtype": "Data",
+   "label": "Where did the event occur / unsafe condition exist?"
+  },
+  {
+   "fieldname": "department",
+   "fieldtype": "Link",
+   "label": "Department / Section Responsible",
+   "options": "Medical Department"
+  },
+  {
+   "fieldname": "section_description",
+   "fieldtype": "Section Break",
+   "label": "6. Event Description"
   },
   {
    "fieldname": "description",
    "fieldtype": "Text Editor",
-   "label": "What Happened?",
+   "label": "Briefly describe the event or unsafe condition",
    "reqd": 1
   },
   {
    "fieldname": "immediate_action",
-   "fieldtype": "Small Text",
+   "fieldtype": "Text Editor",
    "label": "Immediate Action Taken"
+  },
+  {
+   "fieldname": "section_reporter",
+   "fieldtype": "Section Break",
+   "label": "Report and Event Reporter Information"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_anonymous",
+   "fieldtype": "Check",
+   "label": "Anonymous Reporter"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_first_name",
+   "fieldtype": "Data",
+   "label": "Reporter First Name"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_middle_name",
+   "fieldtype": "Data",
+   "label": "Reporter Middle Name"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_last_name",
+   "fieldtype": "Data",
+   "label": "Reporter Last Name"
+  },
+  {
+   "fieldname": "column_break_reporter",
+   "fieldtype": "Column Break"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_mobile",
+   "fieldtype": "Data",
+   "label": "Mobile No"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_email",
+   "fieldtype": "Data",
+   "label": "E-mail Address",
+   "options": "Email"
+  },
+  {
+   "depends_on": "eval:!doc.is_anonymous",
+   "fieldname": "reporter_position",
+   "fieldtype": "Data",
+   "label": "Reporter's Position Title"
+  },
+  {
+   "fieldname": "reported_by",
+   "fieldtype": "Link",
+   "label": "Reported By (User)",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "collapsible_depends_on": "eval:doc.affected_person==\"Patient\" || doc.patient",
+   "fieldname": "section_patient",
+   "fieldtype": "Section Break",
+   "label": "Patient Information (if patient involved)"
+  },
+  {
+   "fieldname": "patients_reached",
+   "fieldtype": "Int",
+   "label": "How many patients did the incident reach?"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "label": "Patient",
+   "options": "Patient"
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_patient",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "patient.id_number",
+   "fieldname": "patient_cpr",
+   "fieldtype": "Data",
+   "label": "CPR",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "patient.file_no",
+   "fieldname": "patient_file_no",
+   "fieldtype": "Data",
+   "label": "File No",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "patient.sex",
+   "fieldname": "patient_gender",
+   "fieldtype": "Data",
+   "label": "Patient Gender",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_risk",
+   "fieldtype": "Section Break",
+   "label": "18. Risk Score"
+  },
+  {
+   "description": "1 Never (~5+ yrs) · 2 Every 2-5 yrs · 3 Every 1-2 yrs · 4 More than once/year · 5 Monthly",
+   "fieldname": "risk_probability",
+   "fieldtype": "Select",
+   "label": "Probability",
+   "options": "\n1\n2\n3\n4\n5"
+  },
+  {
+   "description": "1 Negligible · 2 Minor · 3 Moderate · 4 Major · 5 Extreme (Death / complete loss)",
+   "fieldname": "risk_impact",
+   "fieldtype": "Select",
+   "label": "Severity of Impact",
+   "options": "\n1\n2\n3\n4\n5"
+  },
+  {
+   "fieldname": "column_break_risk",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "Probability × Severity of Impact",
+   "fieldname": "risk_score",
+   "fieldtype": "Int",
+   "label": "Risk Score",
+   "read_only": 1
+  },
+  {
+   "description": "1-8 Low · 9-15 Medium · 16-25 High",
+   "fieldname": "risk_rate",
+   "fieldtype": "Select",
+   "label": "Risk Rate",
+   "options": "\nLow Risk\nMedium Risk\nHigh Risk",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_management",
+   "fieldtype": "Section Break",
+   "label": "To be filled by the management"
+  },
+  {
+   "fieldname": "analysis_possible_causes",
+   "fieldtype": "Text Editor",
+   "label": "Analysis / Possible Causes"
+  },
+  {
+   "fieldname": "corrective_action",
+   "fieldtype": "Text Editor",
+   "label": "Corrective Action"
   },
   {
    "fieldname": "contributing_factors",
@@ -120,7 +389,7 @@
  "index_web_pages_for_search": 1,
  "is_submittable": 0,
  "links": [],
- "modified": "2026-03-09 00:00:00.000000",
+ "modified": "2026-08-20 18:40:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Safety Event",
@@ -146,4 +415,3 @@
  "states": [],
  "track_changes": 1
 }
-

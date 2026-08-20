@@ -271,9 +271,9 @@ export const QMPSPage = () => {
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 sticky top-0">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Date / Time</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Event</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Severity</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Discovery</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Report / Category</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-600">Risk</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">Location</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">Department</th>
                       <th className="px-3 py-2 text-left font-semibold text-slate-600">Status</th>
@@ -287,15 +287,26 @@ export const QMPSPage = () => {
                         onClick={() => openEventDetail(e)}
                       >
                         <td className="px-3 py-2 text-slate-700">
-                          {e.event_datetime ? new Date(e.event_datetime).toLocaleString('en-GB') : '-'}
+                          {e.event_discovery_date
+                            ? `${e.event_discovery_date}${e.event_discovery_time ? ` ${String(e.event_discovery_time).slice(0, 5)}` : ''}`
+                            : e.event_datetime
+                              ? new Date(e.event_datetime).toLocaleString('en-GB')
+                              : '-'}
                         </td>
                         <td className="px-3 py-2 text-slate-800">
-                          <div className="font-medium">{e.event_type}</div>
-                          {e.patient && (
-                            <div className="text-[11px] text-slate-500 mt-0.5">Patient: {e.patient}</div>
-                          )}
+                          <div className="font-medium">{e.event_type || e.report_type || '-'}</div>
+                          <div className="text-[11px] text-slate-500 mt-0.5">
+                            {[e.report_type, e.event_category].filter(Boolean).join(' · ')}
+                          </div>
+                          {e.patient_name || e.patient ? (
+                            <div className="text-[11px] text-slate-500 mt-0.5">
+                              Patient: {e.patient_name || e.patient}
+                            </div>
+                          ) : null}
                         </td>
-                        <td className="px-3 py-2 text-slate-700">{e.severity || '-'}</td>
+                        <td className="px-3 py-2 text-slate-700">
+                          {e.risk_score != null ? `${e.risk_score} (${e.risk_rate || '-'})` : '-'}
+                        </td>
                         <td className="px-3 py-2 text-slate-700">{e.location || '-'}</td>
                         <td className="px-3 py-2 text-slate-700">{e.department || '-'}</td>
                         <td className="px-3 py-2 text-slate-700">{e.status || 'Open'}</td>
@@ -449,11 +460,10 @@ export const QMPSPage = () => {
             <div className="py-12 text-center text-sm text-slate-500">Loading event details…</div>
           ) : (
             <div className="space-y-5">
-              {/* Event type & status */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Event Type</p>
-                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.event_type || '-'}</p>
+                  <p className="text-xs font-semibold text-slate-500">What is being reported?</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.report_type || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Status</p>
@@ -471,54 +481,152 @@ export const QMPSPage = () => {
                 </div>
               </div>
 
-              {/* Date & time */}
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Event Date & Time</p>
-                <p className="text-sm font-medium text-slate-900 mt-0.5">
-                  {detailEvent.event_datetime ? new Date(detailEvent.event_datetime).toLocaleString('en-GB') : '-'}
-                </p>
-              </div>
-
-              {/* Location, Severity, Department */}
-              <div className="grid grid-cols-3 gap-4">
+              {detailEvent.harm_evidence ? (
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Location / Unit</p>
-                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.location || '-'}</p>
+                  <p className="text-xs font-semibold text-slate-500">Evidence of harm</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.harm_evidence}</p>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Discovery Date / Time</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">
+                    {detailEvent.event_discovery_date
+                      ? `${detailEvent.event_discovery_date}${
+                          detailEvent.event_discovery_time
+                            ? ` ${String(detailEvent.event_discovery_time).slice(0, 5)}`
+                            : ''
+                        }`
+                      : detailEvent.event_datetime
+                        ? new Date(detailEvent.event_datetime).toLocaleString('en-GB')
+                        : '-'}
+                  </p>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-slate-500">Severity</p>
-                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.severity || '-'}</p>
+                  <p className="text-xs font-semibold text-slate-500">Report Date</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.report_date || '-'}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Category</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.event_category || '-'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Event Type</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">
+                    {detailEvent.clinical_event_type ||
+                      detailEvent.non_clinical_event_type ||
+                      detailEvent.sentinel_event_type ||
+                      detailEvent.other_event_specify ||
+                      detailEvent.event_type ||
+                      '-'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Location</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.location || '-'}</p>
                 </div>
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Department</p>
                   <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.department || '-'}</p>
                 </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Affected Person</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.affected_person || '-'}</p>
+                </div>
               </div>
 
-              {/* Patient */}
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Patient</p>
-                <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.patient || 'N/A'}</p>
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <p className="text-xs font-semibold text-slate-500 mb-2">Event description</p>
+                <div
+                  className="text-sm text-slate-800 prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{
+                    __html: detailEvent.description || '-',
+                  }}
+                />
               </div>
 
-              {/* Anonymous */}
+              {(detailEvent.patient || detailEvent.patient_name) && (
+                <div className="grid grid-cols-2 gap-4 rounded-lg border border-slate-200 p-3">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">Patient</p>
+                    <p className="text-sm font-medium text-slate-900 mt-0.5">
+                      {detailEvent.patient_name || detailEvent.patient}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">CPR / File / Gender</p>
+                    <p className="text-sm font-medium text-slate-900 mt-0.5">
+                      {[detailEvent.patient_cpr, detailEvent.patient_file_no, detailEvent.patient_gender]
+                        .filter(Boolean)
+                        .join(' · ') || '-'}
+                    </p>
+                  </div>
+                  {detailEvent.patients_reached != null ? (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500">Patients reached</p>
+                      <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.patients_reached}</p>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Risk Score</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">
+                    {detailEvent.risk_score != null
+                      ? `${detailEvent.risk_score} (${detailEvent.risk_probability || '?'} × ${detailEvent.risk_impact || '?'})`
+                      : '-'}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Risk Rate</p>
+                  <p className="text-sm font-medium text-slate-900 mt-0.5">{detailEvent.risk_rate || '-'}</p>
+                </div>
+              </div>
+
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium ${
                   Number(detailEvent.is_anonymous) === 1
                     ? 'border-purple-200 bg-purple-100 text-purple-800'
                     : 'border-slate-200 bg-slate-100 text-slate-600'
                 }`}>
-                  {Number(detailEvent.is_anonymous) === 1 ? 'Reported Anonymously' : 'Identified Reporter'}
+                  {Number(detailEvent.is_anonymous) === 1 ? 'Anonymous Reporter' : 'Identified Reporter'}
                 </span>
               </div>
 
-              {/* Description */}
-              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
-                <p className="text-xs font-semibold text-slate-500 mb-2">What Happened?</p>
-                <p className="text-sm text-slate-800 whitespace-pre-wrap">{detailEvent.description || '-'}</p>
-              </div>
+              {Number(detailEvent.is_anonymous) !== 1 && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">Reporter</p>
+                    <p className="text-sm font-medium text-slate-900 mt-0.5">
+                      {[
+                        detailEvent.reporter_first_name,
+                        detailEvent.reporter_middle_name,
+                        detailEvent.reporter_last_name,
+                      ]
+                        .filter(Boolean)
+                        .join(' ') || detailEvent.reported_by || detailEvent.owner || '-'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">Contact / Position</p>
+                    <p className="text-sm font-medium text-slate-900 mt-0.5">
+                      {[detailEvent.reporter_mobile, detailEvent.reporter_email, detailEvent.reporter_position]
+                        .filter(Boolean)
+                        .join(' · ') || '-'}
+                    </p>
+                  </div>
+                </div>
+              )}
 
-              {/* Immediate action */}
               {detailEvent.immediate_action && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-500 mb-2">Immediate Action Taken</p>
@@ -526,21 +634,32 @@ export const QMPSPage = () => {
                 </div>
               )}
 
-              {/* Contributing factors */}
+              {detailEvent.analysis_possible_causes && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500 mb-2">Analysis / Possible Causes</p>
+                  <div
+                    className="text-sm text-slate-800 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: detailEvent.analysis_possible_causes }}
+                  />
+                </div>
+              )}
+
+              {detailEvent.corrective_action && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-xs font-semibold text-slate-500 mb-2">Corrective Action</p>
+                  <div
+                    className="text-sm text-slate-800 prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: detailEvent.corrective_action }}
+                  />
+                </div>
+              )}
+
               {detailEvent.contributing_factors && (
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
                   <p className="text-xs font-semibold text-slate-500 mb-2">Contributing Factors</p>
                   <p className="text-sm text-slate-800 whitespace-pre-wrap">{detailEvent.contributing_factors}</p>
                 </div>
               )}
-
-              {/* Reported by */}
-              <div>
-                <p className="text-xs font-semibold text-slate-500">Reported By</p>
-                <p className="text-sm font-medium text-slate-900 mt-0.5">
-                  {detailEvent.reported_by || detailEvent.owner || '-'}
-                </p>
-              </div>
             </div>
           )}
         </DetailSlideOver>

@@ -3,13 +3,21 @@ import { type LinkFieldOption } from './common'
 
 export interface PatientSafetyEvent {
   name: string
-  event_datetime: string
-  event_type: string
+  event_datetime?: string
+  event_discovery_date?: string
+  event_discovery_time?: string
+  report_type?: string
+  event_category?: string
+  event_type?: string
   location?: string
   severity?: string
   patient?: string
+  patient_name?: string
   department?: string
   status?: string
+  risk_score?: number
+  risk_rate?: string
+  affected_person?: string
 }
 
 export async function fetchPatientSafetyEventTypes(search?: string): Promise<LinkFieldOption[]> {
@@ -40,16 +48,35 @@ export async function createPatientSafetyEventType(eventType: string): Promise<{
 }
 
 export interface CreatePatientSafetyEventInput {
-  event_datetime?: string
-  event_type: string
+  report_type: string
+  harm_evidence?: string
+  event_category: string
+  clinical_event_type?: string
+  non_clinical_event_type?: string
+  sentinel_event_type?: string
+  other_event_specify?: string
+  event_discovery_date: string
+  event_discovery_time?: string
+  report_date?: string
   location?: string
-  severity?: string
-  patient?: string
   department?: string
   description: string
   immediate_action?: string
-  contributing_factors?: string
+  affected_person?: string
   is_anonymous?: 0 | 1 | boolean
+  reporter_first_name?: string
+  reporter_middle_name?: string
+  reporter_last_name?: string
+  reporter_mobile?: string
+  reporter_email?: string
+  reporter_position?: string
+  patients_reached?: number
+  patient?: string
+  risk_probability?: string
+  risk_impact?: string
+  contributing_factors?: string
+  analysis_possible_causes?: string
+  corrective_action?: string
 }
 
 export async function createPatientSafetyEvent(
@@ -57,16 +84,8 @@ export async function createPatientSafetyEvent(
 ): Promise<{ name: string }> {
   const body = {
     doctype: 'Patient Safety Event',
+    ...data,
     is_anonymous: data.is_anonymous ? 1 : 0,
-    event_datetime: data.event_datetime,
-    event_type: data.event_type,
-    location: data.location,
-    severity: data.severity,
-    patient: data.patient,
-    department: data.department,
-    description: data.description,
-    immediate_action: data.immediate_action,
-    contributing_factors: data.contributing_factors,
   }
 
   return apiRequest<{ name: string }>('/api/resource/Patient%20Safety%20Event', {
@@ -87,17 +106,25 @@ export async function fetchPatientSafetyEvents(
     JSON.stringify([
       'name',
       'event_datetime',
+      'event_discovery_date',
+      'event_discovery_time',
+      'report_type',
+      'event_category',
       'event_type',
       'location',
       'severity',
       'patient',
+      'patient_name',
       'department',
       'status',
+      'risk_score',
+      'risk_rate',
+      'affected_person',
       'is_anonymous',
       'reported_by',
     ])
   )
-  params.append('order_by', 'event_datetime desc')
+  params.append('order_by', 'event_discovery_date desc, modified desc')
 
   const res = await fetch(`/api/resource/Patient%20Safety%20Event?${params.toString()}`)
   const data = await res.json()
@@ -115,6 +142,26 @@ export interface PatientSafetyEventDetail extends PatientSafetyEvent {
   contributing_factors?: string
   is_anonymous?: number
   reported_by?: string
+  harm_evidence?: string
+  clinical_event_type?: string
+  non_clinical_event_type?: string
+  sentinel_event_type?: string
+  other_event_specify?: string
+  report_date?: string
+  reporter_first_name?: string
+  reporter_middle_name?: string
+  reporter_last_name?: string
+  reporter_mobile?: string
+  reporter_email?: string
+  reporter_position?: string
+  patients_reached?: number
+  patient_cpr?: string
+  patient_file_no?: string
+  patient_gender?: string
+  risk_probability?: string
+  risk_impact?: string
+  analysis_possible_causes?: string
+  corrective_action?: string
   creation?: string
   modified?: string
   owner?: string
