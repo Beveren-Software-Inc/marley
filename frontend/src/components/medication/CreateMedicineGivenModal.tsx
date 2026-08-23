@@ -237,7 +237,7 @@ export const CreateMedicineGivenModal = ({
   const medicineToDate = (selectedOrderLine?.end_date || selectedRx?.end_date || '').trim()
   const medicineFieldLabel =
     selectedOrderLine && medicineFromDate && medicineToDate
-      ? `From ${formatDate(medicineFromDate)} to ${formatDate(medicineToDate)}`
+      ? `${formatDate(medicineFromDate)} → ${formatDate(medicineToDate)}`
       : isPrn
         ? 'PRN Medicine'
         : 'Medicine'
