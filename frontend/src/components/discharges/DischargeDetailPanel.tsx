@@ -31,6 +31,11 @@ interface DischargeDetailPanelProps {
   onClose: () => void
   preview?: Discharge
   onPatientClick?: (patient: string) => void
+  onPrev?: () => void
+  onNext?: () => void
+  hasPrev?: boolean
+  hasNext?: boolean
+  navLabel?: string
 }
 
 function displayValue(value: unknown): string {
@@ -212,6 +217,11 @@ export function DischargeDetailPanel({
   onClose,
   preview,
   onPatientClick,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+  navLabel,
 }: DischargeDetailPanelProps) {
   const [doc, setDoc] = useState<DischargeDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
@@ -301,6 +311,11 @@ export function DischargeDetailPanel({
       icon={<LogOut className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
+      onPrev={onPrev}
+      onNext={onNext}
+      hasPrev={hasPrev}
+      hasNext={hasNext}
+      navLabel={navLabel}
       headerActions={
         <PrintFormatDropdown
           doctype="Discharge"

@@ -679,6 +679,7 @@ import {
 } from '../../services/common'
 import { formatDate, localDateInputValue } from '../../utils/formatDate'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
 
 const statusColors: Record<string, string> = {
   'Scheduled': 'info',
@@ -1209,6 +1210,19 @@ export const AppointmentList = ({
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
     filterBranch,
   ])
+
+  const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
+    items: appointments,
+    loading,
+    refreshing,
+    getKey: (apt) => apt.name,
+    selectedKey: detailApt?.name ?? null,
+    onSelect: setDetailApt,
+    page,
+    setPage,
+    pageSize,
+    totalCount,
+  })
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -2393,8 +2407,14 @@ export const AppointmentList = ({
           title={detailApt.temporary_patient_name && !detailApt.patient ? '⚡ Walk-in Appointment' : 'Appointment'}
           subtitle={detailApt.patient_name || detailApt.temporary_patient_name || detailApt.name}
           onClose={() => setDetailApt(null)}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          navLabel={navLabel}
         >
           <AppointmentDetailPanel
+            key={detailApt.name}
             name={detailApt.name}
             refreshKey={refreshTrigger}
             onPatientSelect={onPatientClick}

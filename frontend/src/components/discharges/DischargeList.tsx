@@ -14,6 +14,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
 import {
   CHECKLIST_STATUS_COLORS,
   CHECKLIST_STATUS_LABELS,
@@ -129,6 +130,19 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   useEffect(() => {
     setPage(1)
   }, [effectivePatient, effectiveAdmission, admissionFilter, dischargeIdFilter, fromDate, toDate, statusFilter, typeFilter, excludeCancelled])
+
+  const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
+    items: discharges,
+    loading,
+    refreshing,
+    getKey: (row) => row.name,
+    selectedKey: detailRow?.name ?? null,
+    onSelect: setDetailRow,
+    page,
+    setPage,
+    pageSize,
+    totalCount,
+  })
 
   // Load discharge ID options when dropdown is open (searchable list of discharges)
   useEffect(() => {
@@ -669,10 +683,16 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
 
       {detailRow ? (
         <DischargeDetailPanel
+          key={detailRow.name}
           name={detailRow.name}
           preview={detailRow}
           onClose={() => setDetailRow(null)}
           onPatientClick={onPatientClick}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          navLabel={navLabel}
         />
       ) : null}
     </div>

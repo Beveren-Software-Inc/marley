@@ -47,6 +47,7 @@ import { formatAdmissionDate } from '../../utils/admissionDateTime'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
 import {
   admissionListFilterStorageKey,
   clearPersistedListFilters,
@@ -313,6 +314,19 @@ export const AdmissionList = ({
     excludeCancelled,
     userCostCenter || undefined
   )
+
+  const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
+    items: records,
+    loading,
+    refreshing,
+    getKey: (record) => record.name,
+    selectedKey: detailAdmission,
+    onSelect: (record) => setDetailAdmission(record.name),
+    page,
+    setPage,
+    pageSize,
+    totalCount,
+  })
 
   // Reset page when filters change
   useEffect(() => {
@@ -1045,6 +1059,11 @@ export const AdmissionList = ({
           title="Inpatient Admission"
           subtitle={detailAdmission}
           onClose={() => setDetailAdmission(null)}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          navLabel={navLabel}
           headerActions={
             <PrintFormatDropdown
               doctype="Inpatient Admission"
@@ -1056,7 +1075,11 @@ export const AdmissionList = ({
           }
         >
           <div className="p-2">
-            <InpatientAdmissionDetails admissionName={detailAdmission} onUpdate={() => refetch()} />
+            <InpatientAdmissionDetails
+              key={detailAdmission}
+              admissionName={detailAdmission}
+              onUpdate={() => refetch()}
+            />
           </div>
         </DetailSlideOver>
       )}

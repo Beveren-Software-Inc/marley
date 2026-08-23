@@ -1,18 +1,24 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import {
+  deleteMedicalDiagnosisEntry,
   getAllMedicalDiagnosisEntries,
   getMedicalDiagnosisForContext,
   getMedicalDiagnosisForPatient,
   type MedicalDiagnosisEntryAggRow,
   type MedicalDiagnosisEntryRow,
 } from '../../services/medicalDiagnosisEntry'
-import { Plus } from 'lucide-react'
+import { MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { PatientDiagnosisModal } from './PatientDiagnosisModal'
 import { MedicalDiagnosisDetailPanel } from './MedicalDiagnosisDetailPanel'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { toast } from '../../hooks/useToast'
+import { PortalActionsMenu, PORTAL_ACTIONS_MENU_ATTR } from '../ui/PortalActionsMenu'
+import {
+  DAILY_ROUTINE_EDIT_LOCKED_MESSAGE,
+  isEditableWithin24hFromCreation,
+} from '../../constants/nursingShift'
 
 function formatDate(val?: string): string {
   if (!val) return '—'
@@ -63,7 +69,15 @@ function toAggRow(row: MedicalDiagnosisEntryRow): MedicalDiagnosisEntryAggRow {
 }
 
 export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: boolean } = {}) {
-  const { mode, activeVisit, activeAdmission, selectedPatient, guardClinicalCreate } = useCareContext()
+  const {
+    mode,
+    activeVisit,
+    activeAdmission,
+    selectedPatient,
+    guardClinicalCreate,
+    guardClinicalEdit,
+    uneditWithin24Hour,
+  } = useCareContext()
 
   const [rows, setRows] = useState<MedicalDiagnosisEntryAggRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,6 +87,9 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
   const [search, setSearch] = useState('')
   const [detailName, setDetailName] = useState<string | null>(null)
   const [showFilters, setShowFilters] = useState(false)
+  const [editRow, setEditRow] = useState<MedicalDiagnosisEntryAggRow | null>(null)
+  const [openActionRow, setOpenActionRow] = useState<string | null>(null)
+  const actionMenuRef = useRef<HTMLDivElement>(null)
 
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
@@ -142,6 +159,48 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
     }, practitionerQuery.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [practitionerOpen, practitionerQuery])
+
+  // Close action menus on outside click. The menu is portaled to document.body,
+  // so ignore clicks inside it or the ⋮ trigger.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const el = e.target as HTMLElement
+      if (el.closest(`[${PORTAL_ACTIONS_MENU_ATTR}]`)) return
+      if (el.closest('[data-diagnosis-actions-menu]')) return
+      if (el.closest('button[aria-label="Diagnosis actions"]')) return
+      setOpenActionRow(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const canModifyRow = (row: MedicalDiagnosisEntryAggRow): boolean =>
+    isEditableWithin24hFromCreation(row.creation, uneditWithin24Hour)
+
+  const openEdit = (row: MedicalDiagnosisEntryAggRow) => {
+    if (!canModifyRow(row)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    guardClinicalEdit(() => setEditRow(row))
+  }
+
+  const handleDelete = async (row: MedicalDiagnosisEntryAggRow) => {
+    if (!row.name) return
+    if (!canModifyRow(row)) {
+      toast.error(DAILY_ROUTINE_EDIT_LOCKED_MESSAGE)
+      return
+    }
+    if (!window.confirm(`Delete diagnosis entry ${row.name}?`)) return
+    setOpenActionRow(null)
+    try {
+      await deleteMedicalDiagnosisEntry(row.name)
+      toast.success('Diagnosis deleted')
+      setRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete diagnosis')
+    }
+  }
 
   const hasActiveFilters = Boolean(fromDate || toDate || practitionerFilter)
 
@@ -368,6 +427,9 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                     <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600">
                       Posting date
                     </th>
+                    <th className="whitespace-nowrap px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 w-[90px]">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -422,6 +484,63 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                       <td className="whitespace-nowrap px-3 py-2.5 align-top text-slate-500">
                         {formatDate(row.posting_date)}
                       </td>
+                      <td className="whitespace-nowrap px-2 py-2.5 align-top" onClick={(e) => e.stopPropagation()}>
+                        {row.name ? (
+                          <div className="flex items-center justify-end gap-1.5">
+                            <div
+                              className="relative inline-block"
+                              data-diagnosis-actions-menu
+                              ref={openActionRow === row.name ? actionMenuRef : undefined}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => setOpenActionRow((prev) => (prev === row.name ? null : (row.name ?? null)))}
+                                className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                                aria-label="Diagnosis actions"
+                              >
+                                <MoreHorizontal className="h-4 w-4" aria-hidden />
+                              </button>
+                              <PortalActionsMenu
+                                open={openActionRow === row.name}
+                                onClose={() => setOpenActionRow(null)}
+                                triggerRef={actionMenuRef}
+                                minWidth={160}
+                              >
+                                {canModifyRow(row) ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenActionRow(null)
+                                        openEdit(row)
+                                      }}
+                                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                      Edit
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDelete(row)}
+                                      className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                                      Delete
+                                    </button>
+                                  </>
+                                ) : (
+                                  <div
+                                    className="px-3 py-2 text-xs text-slate-500"
+                                    title={DAILY_ROUTINE_EDIT_LOCKED_MESSAGE}
+                                  >
+                                    {uneditWithin24Hour ? 'Edit locked (24h)' : 'Edit unavailable'}
+                                  </div>
+                                )}
+                              </PortalActionsMenu>
+                            </div>
+                          </div>
+                        ) : null}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -445,6 +564,29 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
           onClose={() => setShowAddModal(false)}
           onSuccess={() => {
             setShowAddModal(false)
+            setRefreshKey((k) => k + 1)
+          }}
+        />
+      ) : null}
+
+      {editRow ? (
+        <PatientDiagnosisModal
+          parentDoctype={
+            editRow.parent_type === 'Patient Visit' || editRow.parent_type === 'Inpatient Admission'
+              ? editRow.parent_type
+              : editRow.visit_num
+                ? 'Patient Visit'
+                : 'Inpatient Admission'
+          }
+          parentName={
+            editRow.parent || editRow.visit_num || editRow.inpatient_admission || undefined
+          }
+          patient={editRow.patient || selectedPatient}
+          patientName={editRow.patient_name}
+          mode="manage"
+          onClose={() => setEditRow(null)}
+          onSuccess={() => {
+            setEditRow(null)
             setRefreshKey((k) => k + 1)
           }}
         />
