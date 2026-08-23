@@ -1824,6 +1824,7 @@ export const NursePage = () => {
         />
 
         <InpatientAdmissionsCard
+          listingScreen="admission"
           patient={selectedPatient || undefined}
           onPatientSelect={handlePatientSelect}
           onAdmissionActivate={handleAdmissionActivate}

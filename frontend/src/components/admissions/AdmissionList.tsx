@@ -95,7 +95,6 @@ interface AdmissionListProps {
 }
 
 export const AdmissionList = ({
-  onAdmissionSelect,
   onAdmissionActivate,
   onPatientFromAdmission,
   searchQuery: externalSearchQuery = '',
@@ -677,15 +676,13 @@ export const AdmissionList = ({
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Psychologist</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Room No.</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Days</th>
-                {onAdmissionSelect && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Actions</th>
-                )}
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={(patient ? 10 : 11) + (onAdmissionSelect ? 1 : 0)} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={patient ? 11 : 12} className="px-4 py-8 text-center text-slate-500">
                     {hasActiveFilters ? 'NO ADMISSIONS MATCH YOUR FILTERS.' : 'NO ADMISSIONS FOUND'}
                   </td>
                 </tr>
@@ -741,8 +738,7 @@ export const AdmissionList = ({
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.room_service_no || record.bed_no || '-'}</td>
                     <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap text-center">{record.expected_length_of_stay ?? '-'}</td>
 
-                    {onAdmissionSelect && (
-                      <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
+                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-1.5">
                           <div className="relative inline-block" ref={openActionRow === record.name ? menuRef : undefined}>
                             <button
@@ -1035,7 +1031,6 @@ export const AdmissionList = ({
                           />
                         </div>
                       </td>
-                    )}
                   </tr>
                 ))
               )}

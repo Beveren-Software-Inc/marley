@@ -250,6 +250,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     dob: '',
     blood_group: '',
     mobile: initialMobile || '',
+    mobile_no_owner: '',
     alternative_mobile_no_1: '',
     alternative_mobile_no_2: '',
     phone: '',
@@ -900,8 +901,18 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number Owner</label>
+                      <input type="text" value={formData.mobile_no_owner} onChange={(e) => handleChange('mobile_no_owner', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                       <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)}
+                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                      <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
@@ -912,11 +923,6 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No 2</label>
                       <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
-                        className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
