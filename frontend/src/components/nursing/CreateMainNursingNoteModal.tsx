@@ -9,6 +9,7 @@ import { createMainNursingNote, fetchNextMainNursingNoteTransNo } from '../../se
 import { fetchInpatientAdmissions, type LinkFieldOption } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { toast } from '../../hooks/useToast'
 import { NURSING_SHIFTS, getCurrentNursingShift, getNursingShiftFromTime, type NursingShift } from '../../constants/nursingShift'
 
 interface CreateMainNursingNoteModalProps {
@@ -154,6 +155,11 @@ export const CreateMainNursingNoteModal = ({
       if (!result.success) {
         throw new Error(result.message || 'Failed to save nursing note')
       }
+      toast.success(
+        result.appended
+          ? `Appended to this ${shift} shift note`
+          : 'Nursing note saved'
+      )
       onSuccess()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Failed to save nursing note')
@@ -168,7 +174,7 @@ export const CreateMainNursingNoteModal = ({
         <div className="px-5 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">Add Nursing Note</h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Saved to Main Nursing Note
+            Saved to Main Nursing Note for this shift. If a note already exists for the same shift, your text is appended and stamped with your name.
             {transNoLoading ? (
               <span className="ml-1 text-slate-400">· assigning trans no…</span>
             ) : nextTransNo ? (

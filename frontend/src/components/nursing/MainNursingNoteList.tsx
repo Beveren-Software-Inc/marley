@@ -62,6 +62,26 @@ const formatNursingNoteDate = (val: string | null | undefined) => {
   }
 }
 
+function nursingNoteAuthorsLabel(row: MainNursingNoteRow): string {
+  const authors = (row.authors || []).filter(Boolean)
+  if (authors.length > 0) return authors.join(' · ')
+  const created = row.user_name || row.user
+  const last = row.last_appended_by_name || row.last_appended_by
+  if (created && last && last !== created && last !== row.user) {
+    return `${created} · ${last}`
+  }
+  return created || last || '—'
+}
+
+function formatEntryTime(value?: string | null): string {
+  if (!value) return ''
+  const text = String(value)
+  const clock = text.includes(' ') ? text.split(' ').pop() || text : text
+  const parts = clock.split(':')
+  if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+  return text
+}
+
 export const MainNursingNoteList = ({
   patient,
   admission,
@@ -320,7 +340,7 @@ export const MainNursingNoteList = ({
                 )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Notes</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">By</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Created / appended by</th>
                 {manageRows ? (
                   <th className="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
                 ) : null}
@@ -357,8 +377,18 @@ export const MainNursingNoteList = ({
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <CardRowTextHint text={row.nursing_notes} title="Nursing notes" />
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-600">
-                    {row.user_name || row.user || '—'}
+                  <td
+                    className="px-3 py-2 text-slate-600"
+                    title={nursingNoteAuthorsLabel(row)}
+                  >
+                    <div>{row.user_name || row.user || '—'}</div>
+                    {row.last_appended_by_name &&
+                    row.last_appended_by &&
+                    row.last_appended_by !== row.user ? (
+                      <div className="text-[10px] text-slate-500">
+                        Last: {row.last_appended_by_name}
+                      </div>
+                    ) : null}
                   </td>
                   {manageRows ? (
                     <td className="px-3 py-2 text-right">
@@ -477,14 +507,41 @@ export const MainNursingNoteList = ({
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase font-semibold">Nursing notes</div>
-                <p className="mt-1 whitespace-pre-wrap text-slate-800 rounded-md bg-slate-50 border border-slate-200 p-3">
-                  {selected.nursing_notes || '—'}
-                </p>
+                {selected.entries && selected.entries.length > 0 ? (
+                  <div className="mt-1 space-y-2">
+                    {selected.entries.map((entry, index) => (
+                      <div
+                        key={entry.name || `${entry.authored_by}-${index}`}
+                        className="rounded-md bg-slate-50 border border-slate-200 p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
+                          <span className="font-medium text-slate-700">
+                            {entry.authored_by_name || entry.authored_by || 'Unknown'}
+                          </span>
+                          <span>{formatEntryTime(entry.note_time)}</span>
+                        </div>
+                        <p className="mt-1 whitespace-pre-wrap text-slate-800">{entry.note}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 whitespace-pre-wrap text-slate-800 rounded-md bg-slate-50 border border-slate-200 p-3">
+                    {selected.nursing_notes || '—'}
+                  </p>
+                )}
               </div>
               <div>
-                <div className="text-xs text-slate-500 uppercase font-semibold">Recorded by</div>
+                <div className="text-xs text-slate-500 uppercase font-semibold">Created by</div>
                 <div>{selected.user_name || selected.user || '—'}</div>
               </div>
+              {selected.last_appended_by_name &&
+              selected.last_appended_by &&
+              selected.last_appended_by !== selected.user ? (
+                <div>
+                  <div className="text-xs text-slate-500 uppercase font-semibold">Last appended by</div>
+                  <div>{selected.last_appended_by_name}</div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>

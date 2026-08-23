@@ -1,3 +1,13 @@
+export interface MainNursingNoteEntryRow {
+  name?: string
+  note?: string | null
+  note_time?: string | null
+  authored_by?: string | null
+  authored_by_name?: string | null
+  creation?: string
+  idx?: number
+}
+
 export interface MainNursingNoteRow {
   name: string
   trans_no: string | null
@@ -10,6 +20,10 @@ export interface MainNursingNoteRow {
   nursing_notes: string | null
   user: string | null
   user_name: string | null
+  last_appended_by?: string | null
+  last_appended_by_name?: string | null
+  authors?: string[]
+  entries?: MainNursingNoteEntryRow[]
   cost_center: string | null
   creation: string
   modified?: string
@@ -85,7 +99,7 @@ export async function fetchNextMainNursingNoteTransNo(): Promise<string> {
 
 export async function createMainNursingNote(
   input: CreateMainNursingNoteInput
-): Promise<{ success: boolean; name?: string; trans_no?: string; message?: string }> {
+): Promise<{ success: boolean; name?: string; trans_no?: string; appended?: boolean; message?: string }> {
   const csrfToken = (window as unknown as Record<string, string>).csrf_token || ''
   const res = await fetch('/api/method/healthcare.api.common.create_main_nursing_note', {
     method: 'POST',
@@ -102,11 +116,7 @@ export async function createMainNursingNote(
 
 export type UpdateMainNursingNoteInput = {
   name: string
-  /** Full replacement text for nursing_notes */
-  nursing_notes?: string
-  /** Append-only text (legacy); ignored when replace_notes is true */
-  append_notes?: string
-  replace_notes?: boolean
+  append_notes: string
   time?: string
 }
 

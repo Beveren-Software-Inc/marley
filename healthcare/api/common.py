@@ -4527,6 +4527,8 @@ def get_main_nursing_notes(
 				"nursing_notes",
 				"user",
 				"user_name",
+				"last_appended_by",
+				"last_appended_by_name",
 				"cost_center",
 				"creation",
 				"modified",
@@ -4535,6 +4537,39 @@ def get_main_nursing_notes(
 			limit_page_length=page_size,
 			limit_start=(page - 1) * page_size,
 		)
+		names = [row.name for row in records]
+		entry_map = {}
+		if names:
+			for entry in frappe.get_all(
+				"Main Nursing Note Entry",
+				filters={"parent": ["in", names], "parenttype": "Main Nursing Note"},
+				fields=[
+					"name",
+					"parent",
+					"idx",
+					"note",
+					"note_time",
+					"authored_by",
+					"authored_by_name",
+					"creation",
+				],
+				order_by="parent asc, idx asc",
+			):
+				entry_map.setdefault(entry.parent, []).append(entry)
+		for row in records:
+			entries = entry_map.get(row.name, [])
+			row["entries"] = entries
+			authors = []
+			seen = set()
+			for entry in entries:
+				label = entry.get("authored_by_name") or entry.get("authored_by")
+				key = entry.get("authored_by") or label
+				if key and key not in seen:
+					seen.add(key)
+					authors.append(label)
+			if not authors and row.get("user_name"):
+				authors.append(row.user_name)
+			row["authors"] = authors
 		total = frappe.db.count("Main Nursing Note", filters=filters)
 		return {"success": True, "data": records, "page": page, "page_size": page_size, "total": total}
 	except Exception as e:
@@ -4587,11 +4622,33 @@ def create_main_nursing_note(data):
 		if shift not in ("Morning", "Evening", "Night"):
 			return {"success": False, "message": "Nursing shift is required (Morning, Evening, or Night)"}
 
-		trans_no = get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
+		nursing_notes = (data.get("nursing_notes") or "").strip()
+		if not nursing_notes:
+			return {"success": False, "message": "Nursing notes are required"}
 
-		nursing_notes = data.get("nursing_notes")
-		if nursing_notes:
-			nursing_notes = _append_nursing_note_line("", nursing_notes, data.get("data"))
+		from healthcare.healthcare.doctype.main_nursing_note.main_nursing_note import (
+			append_nursing_note_entry,
+			find_open_shift_nursing_note,
+		)
+
+		existing = find_open_shift_nursing_note(
+			file_no=data.get("file_no"),
+			admission=data.get("admission"),
+			date=data.get("date"),
+			shift=shift,
+		)
+		if existing:
+			append_nursing_note_entry(existing, nursing_notes, data.get("data"))
+			existing.save(ignore_permissions=True)
+			frappe.db.commit()
+			return {
+				"success": True,
+				"name": existing.name,
+				"trans_no": existing.trans_no,
+				"appended": True,
+			}
+
+		trans_no = get_next_transaction_number("Main Nursing Note", fieldname="trans_no")
 
 		doc = frappe.get_doc(
 			{
@@ -4610,6 +4667,7 @@ def create_main_nursing_note(data):
 				"admission_old_no": data.get("admission_old_no"),
 			}
 		)
+		append_nursing_note_entry(doc, nursing_notes, data.get("data"), doc.user)
 
 		if not doc.get("user_name") and doc.user:
 			doc.user_name = frappe.db.get_value("User", doc.user, "full_name") or doc.user
@@ -4634,7 +4692,7 @@ def create_main_nursing_note(data):
 
 		doc.insert(ignore_permissions=True)
 		frappe.db.commit()
-		return {"success": True, "name": doc.name, "trans_no": doc.trans_no}
+		return {"success": True, "name": doc.name, "trans_no": doc.trans_no, "appended": False}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "create_main_nursing_note")
 		return {"success": False, "message": str(e)}
@@ -4660,25 +4718,25 @@ def update_main_nursing_note(data):
 
 		assert_main_nursing_note_editable(doc)
 		append_notes = (data.get("append_notes") or "").strip()
-		replace_notes = frappe.utils.cint(data.get("replace_notes"))
+		if not append_notes:
+			return {"success": False, "message": "Enter a note to append"}
 
-		if replace_notes or (data.get("nursing_notes") is not None and not append_notes):
-			doc.nursing_notes = (data.get("nursing_notes") or "").strip()
-		elif append_notes:
-			doc.nursing_notes = _append_nursing_note_line(
-				doc.nursing_notes,
-				append_notes,
-				data.get("time") or data.get("data"),
-			)
-		else:
-			return {"success": False, "message": "Enter nursing notes to save"}
+		from healthcare.healthcare.doctype.main_nursing_note.main_nursing_note import (
+			append_nursing_note_entry,
+		)
 
+		append_nursing_note_entry(
+			doc,
+			append_notes,
+			data.get("time") or data.get("data"),
+		)
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
 		return {
 			"success": True,
 			"name": doc.name,
 			"nursing_notes": doc.nursing_notes,
+			"appended": True,
 		}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "update_main_nursing_note")

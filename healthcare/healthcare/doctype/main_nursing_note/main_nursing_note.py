@@ -6,7 +6,7 @@ from datetime import timedelta
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_datetime, now_datetime
+from frappe.utils import get_datetime, now_datetime, nowtime
 
 NURSING_NOTE_EDIT_WINDOW_HOURS = 24
 
@@ -43,6 +43,139 @@ def assert_main_nursing_note_editable(doc) -> None:
 		)
 
 
+def nursing_user_display(user=None):
+	user = user or frappe.session.user
+	return user, frappe.db.get_value("User", user, "full_name") or user
+
+
+def format_nursing_note_time(time_value=None):
+	if time_value:
+		value = str(time_value).strip()
+		if " " in value:
+			value = value.split(" ")[-1]
+		if "." in value:
+			value = value.split(".")[0]
+		parts = value.split(":")
+		if len(parts) >= 2:
+			return f"{parts[0].zfill(2)}:{parts[1].zfill(2)}"
+	return now_datetime().strftime("%H:%M")
+
+
+def ensure_legacy_nursing_note_entries(doc):
+	"""Turn an old single-blob note into a created-by entry before anyone appends."""
+	if doc.get("entries"):
+		return
+	text = (doc.nursing_notes or "").strip()
+	if not text:
+		return
+	user, user_name = nursing_user_display(doc.user)
+	doc.append(
+		"entries",
+		{
+			"note": text,
+			"note_time": doc.data or nowtime(),
+			"authored_by": user,
+			"authored_by_name": doc.user_name or user_name,
+		},
+	)
+
+
+def append_nursing_note_entry(doc, note_text, note_time=None, user=None):
+	"""Add one attributed line to a shift note. Two nurses can append the same shift."""
+	ensure_legacy_nursing_note_entries(doc)
+	note_text = (note_text or "").strip()
+	if not note_text:
+		frappe.throw(_("Enter nursing notes to save"))
+
+	user, user_name = nursing_user_display(user)
+	if not doc.get("user"):
+		doc.user = user
+		doc.user_name = user_name
+
+	doc.append(
+		"entries",
+		{
+			"note": note_text,
+			"note_time": note_time or nowtime(),
+			"authored_by": user,
+			"authored_by_name": user_name,
+		},
+	)
+	return doc
+
+
+def find_open_shift_nursing_note(file_no=None, admission=None, date=None, shift=None):
+	"""Return the editable Main Nursing Note for this patient/date/shift, if any."""
+	if not date or not shift:
+		return None
+
+	filters = {"date": date, "shift": shift}
+	if admission:
+		filters["admission"] = admission
+	elif file_no:
+		filters["file_no"] = file_no
+	else:
+		return None
+
+	names = frappe.get_all(
+		"Main Nursing Note",
+		filters=filters,
+		pluck="name",
+		order_by="modified desc",
+		limit=1,
+	)
+	if not names:
+		return None
+
+	frappe.db.sql("select name from `tabMain Nursing Note` where name=%s for update", names[0])
+	doc = frappe.get_doc("Main Nursing Note", names[0])
+	if nursing_note_edit_window_expired(doc.modified):
+		return None
+	return doc
+
+
 class MainNursingNote(Document):
 	def validate(self):
 		assert_main_nursing_note_editable(self)
+
+	def before_save(self):
+		self.sync_entries_and_authors()
+
+	def sync_entries_and_authors(self):
+		ensure_legacy_nursing_note_entries(self)
+
+		if not self.user:
+			user, user_name = nursing_user_display()
+			self.user = user
+			self.user_name = user_name
+		elif not self.user_name:
+			self.user_name = frappe.db.get_value("User", self.user, "full_name") or self.user
+
+		lines = []
+		last = None
+		for row in self.get("entries") or []:
+			note = (row.note or "").strip()
+			if not note:
+				continue
+			if not row.authored_by_name and row.authored_by:
+				row.authored_by_name = (
+					frappe.db.get_value("User", row.authored_by, "full_name") or row.authored_by
+				)
+			label = format_nursing_note_time(row.note_time)
+			author = row.authored_by_name or row.authored_by or ""
+			lines.append(f"[{label}] {author}: {note}" if author else f"[{label}] {note}")
+			last = row
+
+		if lines:
+			self.nursing_notes = "\n".join(lines)
+		if last:
+			self.last_appended_by = last.authored_by
+			self.last_appended_by_name = last.authored_by_name
+		elif not self.last_appended_by:
+			self.last_appended_by = self.user
+			self.last_appended_by_name = self.user_name
+
+
+# Names used by healthcare.api.common
+append_nursing_note_entry = append_nursing_note_entry
+find_open_shift_nursing_note = find_open_shift_nursing_note
