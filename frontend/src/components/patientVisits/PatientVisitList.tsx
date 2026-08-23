@@ -71,6 +71,11 @@ interface PatientVisitListProps {
   detailedColumns?: boolean
   /** Default the Doctor filter to the logged-in user's Healthcare Practitioner (any specialty). */
   defaultToCurrentPractitioner?: boolean
+  /** Always keep the Branch filter synced to the top-navbar branch, even when a patient is scoped
+   * (e.g. Daily Auto Visits tab must filter by branch regardless of the selected patient). */
+  forceBranchFilter?: boolean
+  /** Patient History: show every visit for the patient, even when a visit is selected in the header. */
+  showAllPatientVisits?: boolean
 }
 
 function visitPatientDisplayName(visit: PatientVisitListRow): string {
@@ -102,16 +107,21 @@ export const PatientVisitList = ({
   hideLabPharmacyAmounts = false,
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
+  forceBranchFilter = false,
+  showAllPatientVisits = false,
 }: PatientVisitListProps = {}) => {
   const { mode, activeVisit, selectedPatient: contextPatient, userCostCenter, userRole, applyOpCareContext } = useCareContext()
   const formatMoney = useFormatMoney()
   const formatAmount = (value?: number) => formatMoney(Number(value ?? 0))
 
-  // When OP mode has a specific visit selected globally, lock the list to that visit.
-  // Fall back to the patient prop, then context patient, for broader filtering.
-  // Patient History (explicit `patient`) must show all visits — no active-visit lock.
+  // When OP mode has a specific visit selected in the header (including IOP), lock the
+  // list to that visit. Patient History and typed sub-lists (e.g. Daily Auto Visit) opt out.
   const effectiveVisitFilter =
-    !patient && mode === 'OP' && activeVisit ? activeVisit : undefined
+    showAllPatientVisits || visitType
+      ? undefined
+      : mode === 'OP' && activeVisit
+        ? activeVisit
+        : undefined
   const effectivePatient = patient ?? (contextPatient || undefined)
   /** OP browse (no patient scope, no active visit, not a typed sub-list): default From/To to today. */
   const shouldUseOpDefaults = !patient && !effectiveVisitFilter && !visitType
@@ -121,7 +131,7 @@ export const PatientVisitList = ({
   const cardFilters = useCardFilters()
   const cardCompactLayout = useDashboardCompactClinical()
   const headerSlot = useCardHeaderSlot()
-  const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const [showFiltersInternal, setShowFiltersInternal] = useState(forceBranchFilter)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
   const [detailVisit, setDetailVisit] = useState<string | null>(null)
@@ -183,11 +193,13 @@ export const PatientVisitList = ({
   }, [])
 
   // Keep the Branch filter in sync with the global (top-bar) navbar branch — not on patient-scoped history.
+  // When forceBranchFilter is true (e.g. Daily Auto Visits), the navbar branch is applied even
+  // when a patient is scoped so the list stays confined to the current branch.
   useEffect(() => {
-    if (patient) return
+    if (!forceBranchFilter && patient) return
     if (!userCostCenter) return
     setFilterBranch(userCostCenter)
-  }, [userCostCenter, patient])
+  }, [userCostCenter, patient, forceBranchFilter])
   const branchLabel = (cc?: string) => {
     if (!cc) return '-'
     return branchOptions.find((o) => o.name === cc)?.label || cc.replace(/\s*-\s*[^-]+$/, '') || cc
@@ -248,11 +260,9 @@ export const PatientVisitList = ({
     }
     setError(null)
     try {
-      const visitSearch =
-        externalSearchQuery || effectiveVisitFilter || undefined
       const response = await fetchPatientVisitsFull(
         effectivePatient,
-        visitSearch,
+        externalSearchQuery || undefined,
         practitionerFilter || undefined,
         dateFrom || undefined,
         dateTo || undefined,
@@ -262,6 +272,7 @@ export const PatientVisitList = ({
         (page - 1) * pageSize,
         filterBranch || undefined,
         receptionistFilter || undefined,
+        effectiveVisitFilter,
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
@@ -344,7 +355,7 @@ export const PatientVisitList = ({
     setDateFrom('')
     setDateTo('')
     setSelectedStatus('')
-    setFilterBranch(patient ? '' : userCostCenter || '')
+    setFilterBranch(forceBranchFilter ? userCostCenter || '' : patient ? '' : userCostCenter || '')
     setVisitTypeFilter('')
     setReceptionistFilter('')
   }

@@ -535,9 +535,30 @@ const CreateSetupModal = ({
   )
 }
 
+const DAILY_AUTO_VISIT_TAB_KEY = 'healthcare:daily_auto_visit:active_tab'
+
+function readSavedTab(): TabId {
+  try {
+    const saved = localStorage.getItem(DAILY_AUTO_VISIT_TAB_KEY)
+    if (saved === 'setups' || saved === 'visits') return saved
+  } catch {
+    // localStorage unavailable (privacy mode / SSR) — fall through to default.
+  }
+  return 'setups'
+}
+
 export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
   const { userCostCenter } = useCareContext()
-  const [activeTab, setActiveTab] = useState<TabId>('setups')
+  const [activeTab, setActiveTab] = useState<TabId>(readSavedTab)
+
+  // Persist the active tab so a page refresh keeps the user on the same tab.
+  useEffect(() => {
+    try {
+      localStorage.setItem(DAILY_AUTO_VISIT_TAB_KEY, activeTab)
+    } catch {
+      // Ignore write failures (private mode / storage full).
+    }
+  }, [activeTab])
   const [setups, setSetups] = useState<DailyPatientVisitSetup[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -921,6 +942,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
             refreshKey={refreshKey}
             visitType="Daily Auto Visit"
             hideLabPharmacyAmounts
+            forceBranchFilter
           />
         </section>
       )}

@@ -168,18 +168,37 @@ export const SickLeaveList = ({
           </div>
           <div data-sl-doctor-filter className="relative flex min-w-[200px] flex-col gap-1">
             <label className="text-xs font-medium text-slate-500">Doctor</label>
-            <input
-              type="text"
-              value={doctorOpen ? doctorQuery : selectedDoctorLabel}
-              onChange={(e) => {
-                setDoctorQuery(e.target.value)
-                setDoctorOpen(true)
-                if (!e.target.value) setDoctorFilter('')
-              }}
-              onFocus={() => setDoctorOpen(true)}
-              placeholder="Search doctor…"
-              className="w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm"
-            />
+            <div className="relative">
+              <input
+                type="text"
+                value={doctorOpen ? doctorQuery : selectedDoctorLabel}
+                onChange={(e) => {
+                  setDoctorQuery(e.target.value)
+                  setDoctorOpen(true)
+                  if (!e.target.value) setDoctorFilter('')
+                }}
+                onFocus={() => setDoctorOpen(true)}
+                placeholder="Search doctor…"
+                className={`w-full rounded-md border border-slate-300 bg-white px-2 py-1.5 text-sm ${doctorFilter ? 'pr-7' : ''}`}
+              />
+              {doctorFilter ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDoctorFilter('')
+                    setDoctorQuery('')
+                    setDoctorOpen(false)
+                  }}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+                  title="Clear doctor filter"
+                  aria-label="Clear doctor filter"
+                >
+                  <svg className="h-2.5 w-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              ) : null}
+            </div>
             {doctorOpen && doctorOptions.length > 0 ? (
               <ul className="absolute top-full left-0 right-0 z-20 mt-1 max-h-48 overflow-y-auto rounded-md border border-slate-200 bg-white text-sm shadow-lg">
                 {doctorOptions.map((opt) => (
@@ -267,7 +286,7 @@ export const SickLeaveList = ({
                   </td>
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <PrintFormatDropdown
-                      doctype="Sick Leave"
+                      doctype="Patient Sick Leave"
                       docName={r.name}
                       noLetterhead={0}
                       triggerPrint={1}

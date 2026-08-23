@@ -11,6 +11,7 @@
   "no_charges",
   "lab_visit",
   "disabled",
+  "display_on_pharmacy_pos",
   "services_section",
   "service_charge",
   "services"
@@ -70,12 +71,18 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled"
+  },
+  {
+   "default": "0",
+   "fieldname": "display_on_pharmacy_pos",
+   "fieldtype": "Check",
+   "label": "Display On Pharmacy POS"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-08-04 00:20:55.619582",
+ "modified": "2026-08-19 20:20:18.870339",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient Visit Type",

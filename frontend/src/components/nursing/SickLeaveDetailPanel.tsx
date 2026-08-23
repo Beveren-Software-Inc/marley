@@ -91,7 +91,7 @@ export function SickLeaveDetailPanel({ row, onClose, onPatientClick }: SickLeave
       headerActions={
         <div className="flex items-center gap-2">
           <a
-            href={`/app/sick-leave/${encodeURIComponent(row.name)}`}
+            href={`/app/patient-sick-leave/${encodeURIComponent(row.name)}`}
             target="_blank"
             rel="noopener noreferrer"
             className="rounded-lg border border-emerald-200/80 bg-white/80 px-2.5 py-1.5 text-xs font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-50"
@@ -99,7 +99,7 @@ export function SickLeaveDetailPanel({ row, onClose, onPatientClick }: SickLeave
             Open in Frappe ↗
           </a>
           <PrintFormatDropdown
-            doctype="Sick Leave"
+            doctype="Patient Sick Leave"
             docName={row.name}
             noLetterhead={0}
             triggerPrint={1}
@@ -141,10 +141,6 @@ export function SickLeaveDetailPanel({ row, onClose, onPatientClick }: SickLeave
             <div>
               <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Doctor</div>
               <div className="text-sm font-semibold text-slate-800">{row.doctor || '—'}</div>
-            </div>
-            <div>
-              <div className="mb-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">Source</div>
-              <div className="text-sm font-semibold text-slate-800">{row.source || '—'}</div>
             </div>
           </div>
           {row.diagnosis ? (
@@ -189,6 +185,69 @@ export function SickLeaveDetailPanel({ row, onClose, onPatientClick }: SickLeave
               label="Record ID"
               value={displayValue(row.name)}
             />
+          </div>
+        </section>
+
+        <section className={MODAL_SECTION_CLASS}>
+          <h3 className={MODAL_SECTION_TITLE_CLASS}>
+            <FileText className="h-4 w-4 text-emerald-600" strokeWidth={2} />
+            Flags
+          </h3>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.sick_flag)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Sick Flag
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.fit_flag)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Fit Flag
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.unfit_flag)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Unfit Flag
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.light_duty)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Light Duty
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.needs_flag)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Needs Flag
+            </label>
+            <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white/70 px-3 py-2 text-sm text-slate-700">
+              <input
+                type="checkbox"
+                checked={Boolean(row.acc_patient)}
+                readOnly
+                className="h-4 w-4 rounded border-slate-300 text-emerald-600"
+              />
+              Accompanying Patient
+            </label>
           </div>
         </section>
 

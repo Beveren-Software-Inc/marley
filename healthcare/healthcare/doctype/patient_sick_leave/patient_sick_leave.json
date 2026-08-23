@@ -206,18 +206,21 @@
    "label": "Flags"
   },
   {
+   "default": "0",
    "fieldname": "sick_flag",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Sick Flag"
   },
   {
+   "default": "0",
    "fieldname": "fit_flag",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Fit Flag"
   },
   {
+   "default": "0",
    "fieldname": "unfit_flag",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Unfit Flag"
   },
   {
@@ -225,19 +228,22 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "0",
    "fieldname": "light_duty",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Light Duty"
   },
   {
+   "default": "0",
    "fieldname": "needs_flag",
-   "fieldtype": "Data",
+   "fieldtype": "Check",
    "label": "Needs Flag"
   },
   {
+   "default": "0",
    "fieldname": "acc_patient",
-   "fieldtype": "Data",
-   "label": "Accompanying  Patient"
+   "fieldtype": "Check",
+   "label": "Accompanying Patient"
   },
   {
    "fieldname": "section_break_clinical",

@@ -416,8 +416,9 @@ import {
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
   fetchPatientVisits,
-  fetchLeadSources,
+  fetchCostCenters,
   getCurrentUserPractitioner,
+  syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -431,7 +432,7 @@ interface CreateSickLeaveModalProps {
 
 export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSickLeaveModalProps) => {
   // Get context from CareContextProvider
-  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient } = useCareContext()
+  const { mode, activeVisit, activeAdmission, selectedPatient: contextPatient, userCostCenter } = useCareContext()
   
   // Determine if we're in IP or OP mode based on context
   const isIPMode = mode === 'IP'
@@ -457,8 +458,16 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   const [diagnosis, setDiagnosis] = useState('')
   const [doctorId, setDoctorId] = useState('')
   const [doctorName, setDoctorName] = useState('')
-  const [sourceId, setSourceId] = useState('')
+  const [branch, setBranch] = useState('')
   const [srNo, setSrNo] = useState('')
+
+  // Flag fields — Patient Sick Leave doctype uses Check (boolean 0/1)
+  const [sickFlag, setSickFlag] = useState(false)
+  const [fitFlag, setFitFlag] = useState(false)
+  const [unfitFlag, setUnfitFlag] = useState(false)
+  const [lightDuty, setLightDuty] = useState(false)
+  const [needsFlag, setNeedsFlag] = useState(false)
+  const [accPatient, setAccPatient] = useState(false)
 
   const addDaysToDate = (dateStr: string, dayCount: number) => {
     const d = new Date(`${dateStr}T00:00:00`)
@@ -531,11 +540,22 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   const [doctorQuery, setDoctorQuery] = useState('')
   const [selectedDoctor, setSelectedDoctor] = useState<LinkFieldOption | null>(null)
 
-  // Source dropdown
-  const [sourceOptions, setSourceOptions] = useState<LinkFieldOption[]>([])
-  const [sourceOpen, setSourceOpen] = useState(false)
-  const [sourceQuery, setSourceQuery] = useState('')
-  const [selectedSource, setSelectedSource] = useState<LinkFieldOption | null>(null)
+  // Branch — Cost Center dropdown
+  const [branchOptions, setBranchOptions] = useState<LinkFieldOption[]>([])
+  const [branchOpen, setBranchOpen] = useState(false)
+  const [branchQuery, setBranchQuery] = useState('')
+  const [selectedBranch, setSelectedBranch] = useState<LinkFieldOption | null>(null)
+
+  // Global branch is the default; care-episode sync overrides it when set.
+  useEffect(() => {
+    if (!userCostCenter) return
+    setBranch((prev) => {
+      if (prev) return prev
+      setBranchQuery((q) => q || userCostCenter)
+      setSelectedBranch((s) => s || { name: userCostCenter, label: userCostCenter })
+      return userCostCenter
+    })
+  }, [userCostCenter])
 
   // Load initial patient label
   useEffect(() => {
@@ -626,6 +646,46 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   }, [visitQuery, visitOpen, patientId, isOPMode])
 
   useEffect(() => {
+    const patientVisit = isOPMode ? patientVisitNo : undefined
+    const inpatientRecord = isIPMode ? admissionNo : undefined
+    if (!patientVisit && !inpatientRecord) return
+
+    let cancelled = false
+    void syncCostCenterFromCareEpisode(isIPMode ? 'IP' : 'OP', {
+      patientVisit,
+      inpatientRecord,
+      visits: visitOptions,
+      admissions: admissionOptions,
+    }).then((cc) => {
+      if (cancelled || !cc) return
+      setBranch(cc)
+      setBranchQuery(cc)
+      setSelectedBranch({ name: cc, label: cc })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [isIPMode, isOPMode, patientVisitNo, admissionNo, visitOptions, admissionOptions])
+
+  useEffect(() => {
+    if (!branchOpen) return
+    let cancelled = false
+    const run = async () => {
+      try {
+        const res = await fetchCostCenters(undefined, branchQuery || undefined)
+        if (!cancelled) setBranchOptions(res)
+      } catch {
+        if (!cancelled) setBranchOptions([])
+      }
+    }
+    const t = setTimeout(run, branchQuery.trim() ? 300 : 0)
+    return () => {
+      cancelled = true
+      clearTimeout(t)
+    }
+  }, [branchQuery, branchOpen])
+
+  useEffect(() => {
     if (!doctorOpen) return
     let cancelled = false
     const run = async () => {
@@ -659,25 +719,12 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     })
   }, [])
 
-  useEffect(() => {
-    if (!sourceOpen) return
-    let cancelled = false
-    const run = async () => {
-      try {
-        const res = await fetchLeadSources(sourceQuery || undefined)
-        if (!cancelled) setSourceOptions(res)
-      } catch { if (!cancelled) setSourceOptions([]) }
-    }
-    const t = setTimeout(run, sourceQuery.trim() ? 300 : 0)
-    return () => { cancelled = true; clearTimeout(t) }
-  }, [sourceQuery, sourceOpen])
-
   const closeAllDropdowns = () => {
     setPatientOpen(false)
     setAdmissionOpen(false)
     setVisitOpen(false)
     setDoctorOpen(false)
-    setSourceOpen(false)
+    setBranchOpen(false)
   }
 
   // Get mode-specific help text
@@ -706,11 +753,18 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
         diagnosis: diagnosis || undefined,
         doctor: doctorId || undefined,
         doctor_name: doctorName || selectedDoctor?.label || undefined,
-        source: sourceId || undefined,
+        branch: branch || undefined,
         admission_no: admissionNo || undefined,
         patient: patientId || undefined,
         patient_name: patientName || patientQuery || undefined,
         sr_no: srNo || undefined,
+        // Flag fields stored as Check (0/1) on Patient Sick Leave
+        sick_flag: sickFlag ? 1 : 0,
+        fit_flag: fitFlag ? 1 : 0,
+        unfit_flag: unfitFlag ? 1 : 0,
+        light_duty: lightDuty ? 1 : 0,
+        needs_flag: needsFlag ? 1 : 0,
+        acc_patient: accPatient ? 1 : 0,
       }
       const result = await createSickLeave(payload)
       if (result.success) {
@@ -737,6 +791,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     onFocus,
     onChange,
     onSelect,
+    onClear,
     placeholder,
     disabled,
   }: {
@@ -750,41 +805,62 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     onFocus: () => void
     onChange: (v: string) => void
     onSelect: (o: LinkFieldOption) => void
+    onClear?: () => void
     placeholder: string
     disabled?: boolean
-  }) => (
-    <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-        {label} {required && <span className="text-red-500">*</span>}
-      </label>
-      <div className="relative">
-        <input
-          type="text"
-          value={isOpen ? query : (selectedLabel ?? query)}
-          onChange={(e) => { onChange(e.target.value); onFocus() }}
-          onFocus={onFocus}
-          placeholder={placeholder}
-          disabled={disabled}
-          className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
-        />
-        {fieldLoading && <span className="absolute right-3 top-2.5 text-xs text-slate-400">Loading…</span>}
-        {isOpen && !disabled && options.length > 0 && (
-          <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
-            {options.map((o) => (
-              <button
-                key={o.name}
-                type="button"
-                onClick={() => onSelect(o)}
-                className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
-              >
-                {o.label}
-              </button>
-            ))}
-          </div>
-        )}
+  }) => {
+    const showClear = Boolean(!disabled && onClear && (selectedLabel || query))
+    return (
+      <div>
+        <label className="block text-sm font-medium text-slate-700 mb-1">
+          {label} {required && <span className="text-red-500">*</span>}
+        </label>
+        <div className="relative">
+          <input
+            type="text"
+            value={isOpen ? query : (selectedLabel ?? query)}
+            onChange={(e) => {
+              onChange(e.target.value)
+              if (e.target.value) onFocus()
+            }}
+            onFocus={onFocus}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${showClear ? 'pr-8' : ''} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+          />
+          {showClear ? (
+            <button
+              type="button"
+              onClick={() => { onClear?.(); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700"
+              title={`Clear ${label}`}
+              aria-label={`Clear ${label}`}
+            >
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          ) : fieldLoading ? (
+            <span className="absolute right-3 top-2.5 text-xs text-slate-400">Loading…</span>
+          ) : null}
+          {isOpen && !disabled && options.length > 0 && (
+            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
+              {options.map((o) => (
+                <button
+                  key={o.name}
+                  type="button"
+                  onClick={() => onSelect(o)}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-slate-100"
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
-  )
+    )
+  }
 
   return (
     <div className={CREATE_MODAL_OVERLAY}>
@@ -838,7 +914,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
             <h3 className="text-sm font-semibold text-slate-700 mb-3">Patient & Admission</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Patient */}
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Patient <span className="text-red-500">*</span>
                 </label>
@@ -871,9 +947,9 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 </div>
               </div>
 
-              {/* Admission No (IP mode) — optional */}
+              {/* Admission No (IP mode) — side-by-side with Patient */}
               {isIPMode && (
-                <div className="md:col-span-2">
+                <div>
                   <LinkField
                     label="Admission No"
                     isOpen={admissionOpen}
@@ -883,6 +959,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                     onFocus={() => setAdmissionOpen(true)}
                     onChange={(v) => { setAdmissionQuery(v); if (!v) { setAdmissionNo(''); setSelectedAdmission(null) } }}
                     onSelect={(a) => { setAdmissionNo(a.name); setSelectedAdmission(a); setAdmissionQuery(a.label); setAdmissionOpen(false) }}
+                    onClear={() => { setAdmissionNo(''); setSelectedAdmission(null); setAdmissionQuery(''); setAdmissionOpen(false) }}
                     placeholder="Search admission (optional)…"
                     disabled={!!activeAdmission}
                   />
@@ -892,9 +969,9 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 </div>
               )}
 
-              {/* Patient Visit (OP mode) — optional, not stored on Sick Leave doctype */}
+              {/* Patient Visit (OP mode) — side-by-side with Patient */}
               {isOPMode && (
-                <div className="md:col-span-2">
+                <div>
                   <LinkField
                     label="Patient Visit"
                     isOpen={visitOpen}
@@ -904,6 +981,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                     onFocus={() => setVisitOpen(true)}
                     onChange={(v) => { setVisitQuery(v); if (!v) { setPatientVisitNo(''); setSelectedVisit(null) } }}
                     onSelect={(v) => { setPatientVisitNo(v.name); setSelectedVisit(v); setVisitQuery(v.label); setVisitOpen(false) }}
+                    onClear={() => { setPatientVisitNo(''); setSelectedVisit(null); setVisitQuery(''); setVisitOpen(false) }}
                     placeholder="Search visit (optional)…"
                   />
                   <p className="text-xs text-slate-400 mt-1">Optional — visit is not required to create sick leave</p>
@@ -977,31 +1055,38 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                   setDoctorName(d.label)
                   setDoctorOpen(false)
                 }}
+                onClear={() => { setDoctorId(''); setDoctorName(''); setSelectedDoctor(null); setDoctorQuery(''); setDoctorOpen(false) }}
                 placeholder="Search doctor…"
               />
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Doctor Name</label>
-                <input
-                  type="text"
-                  value={doctorName}
-                  onChange={(e) => setDoctorName(e.target.value)}
-                  placeholder="Auto-filled from doctor"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                />
-              </div>
-
-              {/* Source */}
+              {/* Branch — Cost Center dropdown */}
               <LinkField
-                label="Source"
-                isOpen={sourceOpen}
-                query={sourceQuery}
-                selectedLabel={selectedSource?.label}
-                options={sourceOptions}
-                onFocus={() => setSourceOpen(true)}
-                onChange={(v) => { setSourceQuery(v); if (!v) { setSourceId(''); setSelectedSource(null) } }}
-                onSelect={(s) => { setSourceId(s.name); setSelectedSource(s); setSourceQuery(s.label); setSourceOpen(false) }}
-                placeholder="Search source…"
+                label="Branch"
+                isOpen={branchOpen}
+                query={branchQuery}
+                selectedLabel={selectedBranch?.label}
+                options={branchOptions}
+                onFocus={() => setBranchOpen(true)}
+                onChange={(v) => {
+                  setBranchQuery(v)
+                  if (!v) {
+                    setBranch('')
+                    setSelectedBranch(null)
+                  }
+                }}
+                onSelect={(cc) => {
+                  setBranch(cc.name)
+                  setSelectedBranch(cc)
+                  setBranchQuery(cc.label)
+                  setBranchOpen(false)
+                }}
+                onClear={() => {
+                  setBranch('')
+                  setSelectedBranch(null)
+                  setBranchQuery('')
+                  setBranchOpen(false)
+                }}
+                placeholder="Search cost center…"
               />
 
               <div>
@@ -1026,6 +1111,67 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary resize-none"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* Flags */}
+          <div>
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Flags</h3>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={sickFlag}
+                  onChange={(e) => setSickFlag(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Sick Flag
+              </label>
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={fitFlag}
+                  onChange={(e) => setFitFlag(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Fit Flag
+              </label>
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={unfitFlag}
+                  onChange={(e) => setUnfitFlag(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Unfit Flag
+              </label>
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={lightDuty}
+                  onChange={(e) => setLightDuty(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Light Duty
+              </label>
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={needsFlag}
+                  onChange={(e) => setNeedsFlag(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Needs Flag
+              </label>
+              <label className="inline-flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white/70 px-3 py-2.5 text-sm text-slate-700 cursor-pointer hover:bg-slate-50">
+                <input
+                  type="checkbox"
+                  checked={accPatient}
+                  onChange={(e) => setAccPatient(e.target.checked)}
+                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                />
+                Accompanying Patient
+              </label>
             </div>
           </div>
 
