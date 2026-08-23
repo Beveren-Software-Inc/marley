@@ -175,7 +175,7 @@ def _patient_meta(doc):
 		"request_no": doc.get("service_request") or doc.name,
 		"date": formatdate(doc.get("result_date") or doc.get("submitted_date") or doc.get("creation")),
 		"visit_no": doc.get("patient_visit") or "",
-		"ip_case_no": doc.get("inpatient_admission") or "",
+		"ip_case_no": doc.get("inpatient_admission") or doc.get("inpatient_record") or "",
 		"user": user_name,
 	}
 

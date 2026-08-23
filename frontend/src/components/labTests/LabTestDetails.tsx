@@ -628,8 +628,11 @@ export const LabTestDetails = ({ labTestName, onUpdate }: LabTestDetailsProps) =
               <Field label="Email" value={labTest.email} />
               <Field label="Mobile" value={labTest.mobile} />
               <Field label="Report Preference" value={labTest.report_preference} />
-              {labTest.inpatient_record && (
-                <Field label="Inpatient Admission" value={labTest.inpatient_record} />
+              {(labTest.inpatient_admission || labTest.inpatient_record) && (
+                <Field
+                  label="Inpatient Admission"
+                  value={labTest.inpatient_admission || labTest.inpatient_record}
+                />
               )}
             </div>
           </div>

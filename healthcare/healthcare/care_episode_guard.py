@@ -63,6 +63,71 @@ def _admission_status(admission_name: str) -> str | None:
 	return frappe.db.get_value("Inpatient Admission", admission_name, "status")
 
 
+def _strip_admission_name(value) -> str:
+	if value is None:
+		return ""
+	return str(value).strip()
+
+
+def resolve_inpatient_admission_name(value, patient=None) -> str | None:
+	"""Return a real Inpatient Admission name (case no).
+
+	`inpatient_record` and `inpatient_admission` are the same link. Values may be
+	the current case no or a legacy `admission_no_old`. Invalid ids are ignored.
+	"""
+	name = _strip_admission_name(value)
+	if not name:
+		return None
+	if frappe.db.exists("Inpatient Admission", name):
+		return name
+
+	for field in ("case_no", "admission_no_old"):
+		found = frappe.db.get_value("Inpatient Admission", {field: name}, "name")
+		if found:
+			return found
+
+	if patient and frappe.db.exists("Patient", patient):
+		for field in ("case_no", "admission_no_old"):
+			found = frappe.db.get_value(
+				"Inpatient Admission", {"patient": patient, field: name}, "name"
+			)
+			if found:
+				return found
+
+	return None
+
+
+def sync_inpatient_admission_fields(doc) -> str | None:
+	"""Keep `inpatient_record` and `inpatient_admission` on the same admission.
+
+	Clears either field when the value is not a real Inpatient Admission, so
+	link validation does not fail on stale Patient master ids.
+	"""
+	has_record = bool(doc.meta.has_field("inpatient_record"))
+	has_admission = bool(doc.meta.has_field("inpatient_admission"))
+	if not has_record and not has_admission:
+		return None
+
+	patient = doc.get("patient")
+	candidates = []
+	if has_admission:
+		candidates.append(doc.get("inpatient_admission"))
+	if has_record:
+		candidates.append(doc.get("inpatient_record"))
+
+	admission = None
+	for value in candidates:
+		admission = resolve_inpatient_admission_name(value, patient)
+		if admission:
+			break
+
+	if has_record:
+		doc.inpatient_record = admission
+	if has_admission:
+		doc.inpatient_admission = admission
+	return admission
+
+
 def assert_patient_visit_open_for_create(visit_name: str) -> None:
 	if not block_clinical_records_on_completed_visit():
 		return
@@ -101,10 +166,12 @@ def _resolve_visit_ref(doc) -> str | None:
 
 
 def _resolve_admission_ref(doc) -> str | None:
+	patient = doc.get("patient")
 	for fieldname in ADMISSION_LINK_FIELDNAMES:
 		value = doc.get(fieldname)
-		if value and frappe.db.exists("Inpatient Admission", value):
-			return value
+		resolved = resolve_inpatient_admission_name(value, patient)
+		if resolved:
+			return resolved
 	return None
 
 

@@ -178,9 +178,10 @@
  ],
  "fields": [
   {
-   "fetch_from": "patient.inpatient_record",
+   "description": "Same Inpatient Admission as inpatient_admission. Kept as a legacy alias.",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
+   "hidden": 1,
    "label": "Inpatient Admission",
    "options": "Inpatient Admission",
    "read_only": 1
@@ -939,6 +940,7 @@
    "options": "Cost Center"
   },
   {
+   "description": "Same Inpatient Admission as inpatient_record.",
    "fieldname": "inpatient_admission",
    "fieldtype": "Link",
    "label": "Inpatient Admission",

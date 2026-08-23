@@ -7,6 +7,7 @@ from frappe import _
 from frappe.utils import cint, cstr, flt, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
+from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
 
 
@@ -612,6 +613,8 @@ _LAB_TEST_LIST_FIELDS = [
 	"date",
 	"sample",
 	"sample_collected_date",
+	"inpatient_record",
+	"inpatient_admission",
 ]
 
 
@@ -2867,7 +2870,7 @@ def create_lab_test(data):
 
 	# Optional but recommended clinical context: either inpatient admission or patient visit
 	# (only enforce when the fields exist in payload, so older callers are not broken)
-	if not data.get('inpatient_record') and not data.get('patient_visit'):
+	if not data.get('inpatient_record') and not data.get('inpatient_admission') and not data.get('patient_visit'):
 		frappe.msgprint(
 			_("It is recommended to link a Lab Test to either a Patient Visit or an Inpatient Admission for better context."),
 			title=_("Missing Clinical Context"),
@@ -2894,6 +2897,11 @@ def create_lab_test(data):
 	trans_num = (data.get("trans_num") or "").strip() or generate_lab_test_trans_num(
 		format_type="prefixed", prefix="LT-", padding=6
 	)
+
+	admission = resolve_inpatient_admission_name(
+		data.get("inpatient_admission") or data.get("inpatient_record"),
+		data.get("patient"),
+	)
 	
 	# Create the lab test
 	lab_test = frappe.get_doc({
@@ -2912,7 +2920,8 @@ def create_lab_test(data):
 		'repeat_daily': 1 if str(data.get('repeat_daily') or '').lower() in ('1', 'true', 'yes') else 0,
 		'repeat_until': data.get('repeat_until') or None,
 		'naming_series': naming_series,
-		'inpatient_record': data.get('inpatient_record') or None,
+		'inpatient_record': admission,
+		'inpatient_admission': admission,
 		'patient_visit': data.get('patient_visit') or None,
 	})
 	
@@ -3310,6 +3319,10 @@ def create_sample_collection_for_lab_sample(
 	sample_doc.patient = patient.name
 	sample_doc.patient_age = patient.get_age()
 	sample_doc.patient_sex = patient.sex
+	sample_doc.inpatient_record = resolve_inpatient_admission_name(
+		doc.get("inpatient_admission") or doc.get("inpatient_record"),
+		doc.patient,
+	)
 	if getattr(row, "sample", None):
 		sample_doc.sample = row.sample
 		# UOM from Lab Test Sample
@@ -3460,8 +3473,11 @@ def get_lab_tests_by_inpatient_record(inpatient_record: str):
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters={
-			"inpatient_record": inpatient_record,
 			"docstatus": ("!=", 2),  # Not cancelled
+		},
+		or_filters={
+			"inpatient_record": inpatient_record,
+			"inpatient_admission": inpatient_record,
 		},
 		fields=[
 			"name",
@@ -3584,7 +3600,8 @@ def get_lab_test_by_id(name: str):
 		"practitioner_name": doc.practitioner_name,
 		"doc_no": getattr(doc, "doc_no", None),
 		"department": doc.department,
-		"inpatient_record": doc.inpatient_record,
+		"inpatient_record": doc.inpatient_record or doc.inpatient_admission,
+		"inpatient_admission": doc.inpatient_admission or doc.inpatient_record,
 		"service_unit": doc.service_unit,
 		"invoiced": doc.invoiced,
 		"amount": doc.amount,

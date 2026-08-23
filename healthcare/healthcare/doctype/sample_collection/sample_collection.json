@@ -42,7 +42,7 @@
  ],
  "fields": [
   {
-   "fetch_from": "patient.inpatient_record",
+   "description": "Same Inpatient Admission as on the Lab Test / Service Request. Not fetched from Patient (Patient.inpatient_record can hold a stale id).",
    "fieldname": "inpatient_record",
    "fieldtype": "Link",
    "hide_days": 1,

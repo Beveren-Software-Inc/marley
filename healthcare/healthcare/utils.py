@@ -17,6 +17,7 @@ from frappe.utils.formatters import format_value
 from erpnext.setup.utils import insert_record
 from healthcare.api.patient_visit import update_patient_visit_status
 
+from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
 from healthcare.healthcare.doctype.healthcare_settings.healthcare_settings import (
 	get_income_account,
 )
@@ -1271,6 +1272,10 @@ def create_sample_collection(doc, patient):
 	sample_collection.patient = patient.name
 	sample_collection.patient_age = patient.get_age()
 	sample_collection.patient_sex = patient.sex
+	sample_collection.inpatient_record = resolve_inpatient_admission_name(
+		doc.get("inpatient_admission") or doc.get("inpatient_record"),
+		patient.name,
+	)
 	sample_collection.company = doc.company
 	sample_collection.referring_practitioner = doc.ref_practitioner
 	sample_collection.reference_doc = doc.doctype

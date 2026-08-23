@@ -26,6 +26,7 @@ from healthcare.healthcare.lab_request_items import (
 	expand_lab_test_specs,
 	parse_lab_request_items,
 )
+from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
 
 
 def _get_lab_template_base_rate(template_name, patient_care_type=None):
@@ -298,7 +299,12 @@ def make_lab_test(service_request):
 	doc.patient_name = service_request.patient_name
 	doc.patient_sex = service_request.patient_gender
 	doc.patient_age = service_request.patient_age_data
-	doc.inpatient_record = service_request.inpatient_record
+	admission = resolve_inpatient_admission_name(
+		service_request.inpatient_record or service_request.get("inpatient_admission"),
+		service_request.patient,
+	)
+	doc.inpatient_record = admission
+	doc.inpatient_admission = admission
 	doc.email = service_request.patient_email
 	doc.mobile = service_request.patient_mobile
 	doc.practitioner = service_request.practitioner
@@ -642,6 +648,11 @@ def book_lab_and_forward(service_request_name):
 	if not specs:
 		frappe.throw(_("No lab tests are selected on this service request."))
 
+	admission = resolve_inpatient_admission_name(
+		sr.inpatient_record or sr.get("inpatient_admission"),
+		sr.patient,
+	)
+
 	def _build_lab_test(template_dn, amount=None, parent_group=None, spec=None):
 		"""Helper: create (but don't insert) a Lab Test for the given template."""
 		spec = spec or {}
@@ -655,10 +666,9 @@ def book_lab_and_forward(service_request_name):
 		lt.patient_sex = sr.patient_gender
 		lt.patient_age = sr.patient_age_data
 		lt.patient_visit = sr.patient_visit
-		lt.inpatient_record = sr.inpatient_record
-		# Lab Test has both the legacy inpatient_record and the newer visible
-		# inpatient_admission link; keep both aligned with the Service Request.
-		lt.inpatient_admission = sr.inpatient_record
+		# inpatient_record and inpatient_admission are the same Inpatient Admission.
+		lt.inpatient_record = admission
+		lt.inpatient_admission = admission
 		lt.email = sr.patient_email
 		lt.mobile = sr.patient_mobile
 		
@@ -943,6 +953,10 @@ def create_sample_collection(patient, service_request, template=None):
 	sample_collection.patient = patient.name
 	sample_collection.patient_age = patient.get_age()
 	sample_collection.patient_sex = patient.sex
+	sample_collection.inpatient_record = resolve_inpatient_admission_name(
+		service_request.inpatient_record or service_request.get("inpatient_admission"),
+		patient.name,
+	)
 	sample_collection.company = service_request.company
 	sample_collection.reference_doc = service_request.source_doc
 	sample_collection.reference_name = service_request.order_group

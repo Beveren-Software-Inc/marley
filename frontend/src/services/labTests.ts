@@ -74,6 +74,8 @@ export interface LabTest {
   mobile?: string
   report_preference?: string
   inpatient_record?: string
+  /** Same admission as inpatient_record (Lab Test alias). */
+  inpatient_admission?: string
   service_unit?: string
   company?: string
   requesting_department?: string
