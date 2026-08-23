@@ -404,6 +404,8 @@ export interface MedicationOrderEntry {
   dosage_form: string
   route_of_administration?: string
   patient_frequency?: string
+  written_frequency?: string
+  frequency?: string
   /** Start date of this medication line */
   date?: string
   end_date?: string

@@ -15,6 +15,30 @@ interface ExamRecord {
   inpatient_admission?: string
   patient_visit?: string
   creation: string
+  owner?: string
+  owner_username?: string
+}
+
+async function resolveUserLabels(userIds: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(userIds.map((id) => id.trim()).filter(Boolean))]
+  if (!unique.length) return {}
+  try {
+    const params = new URLSearchParams({
+      doctype: 'User',
+      fields: JSON.stringify(['name', 'full_name', 'username']),
+      filters: JSON.stringify([['name', 'in', unique]]),
+      limit_page_length: String(unique.length),
+    })
+    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+    const data = await res.json()
+    const map: Record<string, string> = {}
+    for (const user of Array.isArray(data?.message) ? data.message : []) {
+      map[user.name] = user.username || user.full_name || user.name
+    }
+    return map
+  } catch {
+    return {}
+  }
 }
 
 interface PhysicalExaminationListProps {
@@ -67,14 +91,21 @@ export const PhysicalExaminationList = ({
         if (scopedAdmission) filters.push(['inpatient_admission', '=', scopedAdmission])
         const params = new URLSearchParams({
           doctype: 'Physical Examination',
-          fields: JSON.stringify(['name', 'trans_no', 'patient', 'patient_name', 'inpatient_admission', 'patient_visit', 'creation']),
+          fields: JSON.stringify(['name', 'trans_no', 'patient', 'patient_name', 'inpatient_admission', 'patient_visit', 'creation', 'owner']),
           filters: JSON.stringify(filters),
           order_by: 'creation desc',
           limit: '50',
         })
         const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
         const data = await res.json()
-        setItems(Array.isArray(data?.message) ? data.message : [])
+        const rows: ExamRecord[] = Array.isArray(data?.message) ? data.message : []
+        const labels = await resolveUserLabels(rows.map((r) => r.owner || ''))
+        setItems(
+          rows.map((row) => ({
+            ...row,
+            owner_username: labels[row.owner || ''] || row.owner || '',
+          })),
+        )
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to load records'))
       } finally {
@@ -206,6 +237,7 @@ export const PhysicalExaminationList = ({
                   )}
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Admission</th>
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Date</th>
+                  <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Username</th>
                   <th className="px-3 py-2 text-left text-[11px] font-semibold uppercase text-slate-600">Actions</th>
                 </tr>
               </thead>
@@ -234,6 +266,9 @@ export const PhysicalExaminationList = ({
                     <td className="px-3 py-2 text-xs text-slate-500">{row.inpatient_admission || '—'}</td>
                     <td className="px-3 py-2 text-xs text-slate-500">
                       {row.creation ? new Date(row.creation).toLocaleDateString('en-GB') : '—'}
+                    </td>
+                    <td className="px-3 py-2 text-xs text-slate-700">
+                      {row.owner_username || row.owner || '—'}
                     </td>
                     <td className="px-3 py-2 text-xs text-slate-500">
                       <PrintFormatDropdown

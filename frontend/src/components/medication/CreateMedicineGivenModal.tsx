@@ -23,7 +23,7 @@ import {
 } from '../../services/medicineGiven'
 import { toast } from '../../hooks/useToast'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
-import { localDateInputValue } from '../../utils/formatDate'
+import { formatDate, localDateInputValue } from '../../utils/formatDate'
 import { fetchStandardUoms, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClass,
@@ -225,6 +225,22 @@ export const CreateMedicineGivenModal = ({
   const prescriptionOrders = isPrn
     ? orders.filter((o) => o.is_prn === 1 || o.medication_type === 'PRN')
     : orders
+  const selectedOrderLine = prescriptionOrders.find((o) => o.name === selectedOrder)
+  const prescribedFrequency = (
+    selectedOrderLine?.patient_frequency ||
+    selectedOrderLine?.written_frequency ||
+    selectedOrderLine?.frequency ||
+    ''
+  ).trim()
+  const selectedRx = prescriptions.find((p) => p.name === selectedPrescription)
+  const medicineFromDate = (selectedOrderLine?.date || selectedRx?.start_date || '').trim()
+  const medicineToDate = (selectedOrderLine?.end_date || selectedRx?.end_date || '').trim()
+  const medicineFieldLabel =
+    selectedOrderLine && medicineFromDate && medicineToDate
+      ? `From ${formatDate(medicineFromDate)} to ${formatDate(medicineToDate)}`
+      : isPrn
+        ? 'PRN Medicine'
+        : 'Medicine'
 
   useEffect(() => {
     const now = new Date()
@@ -930,7 +946,7 @@ export const CreateMedicineGivenModal = ({
 
             <div className="space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                {isPrn ? 'PRN Medicine' : 'Medicine'}
+                {medicineFieldLabel}
               </label>
               <select
                 value={selectedOrder}
@@ -951,6 +967,9 @@ export const CreateMedicineGivenModal = ({
                   return (
                     <option key={o.name} value={o.name} disabled={held || discontinued || stopped}>
                       {o.drug_name || o.drug} – {o.dosage}
+                      {o.patient_frequency || o.written_frequency || o.frequency
+                        ? ` · ${o.patient_frequency || o.written_frequency || o.frequency}`
+                        : ''}
                       {pmo ? ` · ${pmo}` : ''}
                       {o.is_prn === 1 ? ' (PRN)' : ''}
                       {held
@@ -969,7 +988,15 @@ export const CreateMedicineGivenModal = ({
           </>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Frequency
+              </label>
+              <div className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm text-slate-800">
+                {prescribedFrequency || (selectedOrder ? '—' : 'Select a medicine')}
+              </div>
+            </div>
             <div className="space-y-2">
               <label className="block text-xs font-semibold uppercase tracking-wide text-slate-500">Dose</label>
               <input
