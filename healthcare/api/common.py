@@ -4718,25 +4718,38 @@ def update_main_nursing_note(data):
 
 		assert_main_nursing_note_editable(doc)
 		append_notes = (data.get("append_notes") or "").strip()
-		if not append_notes:
-			return {"success": False, "message": "Enter a note to append"}
+		entry_name = (data.get("entry_name") or "").strip()
+		note = (data.get("note") or "").strip()
+		stamp = data.get("time") or data.get("data")
 
 		from healthcare.healthcare.doctype.main_nursing_note.main_nursing_note import (
 			append_nursing_note_entry,
+			update_nursing_note_entry,
 		)
 
-		append_nursing_note_entry(
-			doc,
-			append_notes,
-			data.get("time") or data.get("data"),
-		)
+		edited = False
+		appended = False
+		if entry_name or (note and not append_notes):
+			update_nursing_note_entry(
+				doc,
+				entry_name=entry_name or None,
+				note_text=note,
+			)
+			edited = True
+		elif append_notes:
+			append_nursing_note_entry(doc, append_notes, stamp)
+			appended = True
+		else:
+			return {"success": False, "message": "Enter a note to save"}
+
 		doc.save(ignore_permissions=True)
 		frappe.db.commit()
 		return {
 			"success": True,
 			"name": doc.name,
 			"nursing_notes": doc.nursing_notes,
-			"appended": True,
+			"appended": appended,
+			"edited": edited,
 		}
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "update_main_nursing_note")

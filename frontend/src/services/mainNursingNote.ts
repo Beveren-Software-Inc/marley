@@ -116,7 +116,9 @@ export async function createMainNursingNote(
 
 export type UpdateMainNursingNoteInput = {
   name: string
-  append_notes: string
+  append_notes?: string
+  entry_name?: string
+  note?: string
   time?: string
 }
 

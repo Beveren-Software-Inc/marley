@@ -80,8 +80,37 @@ def ensure_legacy_nursing_note_entries(doc):
 	)
 
 
+def update_nursing_note_entry(doc, entry_name=None, note_text=None, note_time=None):
+	"""Change an existing attributed line (or the original parent note if there are no rows)."""
+	ensure_legacy_nursing_note_entries(doc)
+	note_text = (note_text or "").strip()
+	if not note_text:
+		frappe.throw(_("Enter nursing notes to save"))
+
+	rows = doc.get("entries") or []
+	target = None
+	if entry_name:
+		for row in rows:
+			if row.name == entry_name:
+				target = row
+				break
+		if not target:
+			frappe.throw(_("This nursing note line was not found"))
+	elif rows:
+		target = rows[0]
+
+	if target:
+		target.note = note_text
+		if note_time:
+			target.note_time = note_time
+	else:
+		doc.nursing_notes = note_text
+	return doc
+
+
 def append_nursing_note_entry(doc, note_text, note_time=None, user=None):
 	"""Add one attributed line to a shift note. Two nurses can append the same shift."""
+	had_entries = bool(doc.get("entries"))
 	ensure_legacy_nursing_note_entries(doc)
 	note_text = (note_text or "").strip()
 	if not note_text:
@@ -91,6 +120,18 @@ def append_nursing_note_entry(doc, note_text, note_time=None, user=None):
 	if not doc.get("user"):
 		doc.user = user
 		doc.user_name = user_name
+
+	# Creating a note sets nursing_notes and then appends; legacy copy already
+	# put that same text in the first child row — do not insert it twice.
+	if not had_entries and doc.get("entries"):
+		first = doc.entries[0]
+		if (first.note or "").strip() == note_text:
+			if not first.note_time and note_time:
+				first.note_time = note_time
+			if not first.authored_by:
+				first.authored_by = user
+				first.authored_by_name = user_name
+			return doc
 
 	doc.append(
 		"entries",
@@ -178,4 +219,5 @@ class MainNursingNote(Document):
 
 # Names used by healthcare.api.common
 append_nursing_note_entry = append_nursing_note_entry
+update_nursing_note_entry = update_nursing_note_entry
 find_open_shift_nursing_note = find_open_shift_nursing_note

@@ -18,6 +18,7 @@ import {
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { toast } from '../../hooks/useToast'
+import { NursingNoteEditableCard } from './NursingNoteEditableCard'
 
 interface EditMainNursingNoteModalProps {
   row: MainNursingNoteRow
@@ -61,6 +62,23 @@ export const EditMainNursingNoteModal = ({
     return () => clearInterval(tick)
   }, [])
 
+  const saveExistingNote = async (next: string, entryName?: string) => {
+    if (!editWindowOpen) {
+      throw new Error(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
+    }
+    blockIfEditingLocked()
+    const result = await updateMainNursingNote({
+      name: row.name,
+      note: next,
+      entry_name: entryName,
+    })
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to update nursing note')
+    }
+    toast.success('Note updated')
+    onSuccess()
+  }
+
   const handleSave = async () => {
     if (!appendNote.trim()) {
       setError('Enter a note to append')
@@ -92,10 +110,19 @@ export const EditMainNursingNoteModal = ({
   }
 
   return (
-    <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-lg')}>
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className={createModalShellClass('max-w-lg')}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="px-5 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Append Nursing Note</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Edit Nursing Note</h2>
           <p className="text-xs text-slate-500 mt-0.5">
             {row.shift || 'Shift'} · {row.date || '—'}
             {row.trans_no ? ` · Trans ${row.trans_no}` : ''}
@@ -123,27 +150,28 @@ export const EditMainNursingNoteModal = ({
             {existingEntries.length > 0 ? (
               <div className="space-y-2">
                 {existingEntries.map((entry, index) => (
-                  <div
+                  <NursingNoteEditableCard
                     key={entry.name || `${entry.authored_by}-${index}`}
-                    className="rounded-md border border-slate-200 bg-slate-50 px-3 py-2"
-                  >
-                    <div className="flex items-center justify-between gap-2 text-[11px] text-slate-500">
-                      <span className="font-medium text-slate-700">
-                        {entry.authored_by_name || entry.authored_by || 'Unknown'}
-                      </span>
-                      <span>{entryTimeLabel(entry)}</span>
-                    </div>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-800">{entry.note}</p>
-                  </div>
+                    note={entry.note || ''}
+                    authorLabel={entry.authored_by_name || entry.authored_by || 'Unknown'}
+                    timeLabel={entryTimeLabel(entry)}
+                    canEdit={editWindowOpen}
+                    disabled={saving}
+                    onSave={(next) => saveExistingNote(next, entry.name)}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="whitespace-pre-wrap rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-800">
-                {row.nursing_notes || 'No notes yet.'}
-              </p>
+              <NursingNoteEditableCard
+                note={row.nursing_notes || ''}
+                authorLabel={row.user_name || row.user || 'Note'}
+                canEdit={editWindowOpen && Boolean((row.nursing_notes || '').trim())}
+                disabled={saving}
+                onSave={(next) => saveExistingNote(next)}
+              />
             )}
             <p className="mt-2 text-[11px] text-slate-500">
-              Previous lines stay as they were. Your new text is saved under your name.
+              Use the pencil to change a saved line. Append below to add a new line under your name.
             </p>
           </div>
 
