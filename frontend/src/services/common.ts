@@ -483,6 +483,32 @@ export async function fetchDoc(doctype: string, name: string): Promise<Record<st
   return data.data as Record<string, unknown>
 }
 
+/** Login username (or full name) for a User document name / owner. */
+export async function resolveOwnerUsername(owner?: string | null): Promise<string> {
+  const id = (owner || '').trim()
+  if (!id) return ''
+  try {
+    const params = new URLSearchParams({
+      doctype: 'User',
+      fields: JSON.stringify(['name', 'full_name', 'username']),
+      filters: JSON.stringify([['name', '=', id]]),
+      limit_page_length: '1',
+    })
+    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+    const payload = await res.json()
+    const user = Array.isArray(payload?.message) ? payload.message[0] : null
+    if (user) {
+      const fullName = String(user.full_name || '').trim()
+      if (fullName) return fullName
+      const username = String(user.username || '').trim()
+      if (username && !username.includes('@')) return username
+    }
+  } catch {
+    /* leave blank rather than showing an email / user id */
+  }
+  return ''
+}
+
 export interface CreateLeadSourceData {
   source: string
 }

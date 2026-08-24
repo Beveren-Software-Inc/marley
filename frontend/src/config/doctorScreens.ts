@@ -61,13 +61,13 @@ export const doctorScreenGroups: ScreenGroup[] = [
   {
     groupTitle: 'Patient Overview',
     screens: [
-      { id: 'mh', title: 'Past Medical History' },
-      { id: 'physical-exam', title: 'Physical Examination' },
-      { id: 'clinical-suicide-risk', title: 'Suicide Risk Assessment' },
       { id: 'patient-history', title: 'Patient History Form' },
+      { id: 'homicide-risk', title: 'Risk Assessment' },
+      { id: 'clinical-suicide-risk', title: 'Suicidal Risk Assessment' },
+      { id: 'physical-exam', title: 'Physical Examination' },
+      { id: 'mh', title: 'Past Medical History' },
     ],
   },
-
   {
     groupTitle: 'Documentation',
     screens: [
@@ -78,8 +78,6 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'psy-o', title: 'Psychology Orders' },
       { id: 'nut', title: 'Nutrition Notes' },
       { id: 'ther', title: 'Occupational Therapy Notes' },
-      { id: 'nurse', title: 'Nursing Notes' },
-      { id: 'tpr', title: 'Vital Sign' },
     ],
   },
   {
@@ -88,29 +86,42 @@ export const doctorScreenGroups: ScreenGroup[] = [
       { id: 'single-prescription', title: 'Prescription' },
       { id: 'd-daily-med', title: 'Daily Medication Chart' },
       { id: 'd-med-sheet', title: 'Medication Sheet' },
-      { id: 'd-long-acting-meds', title: 'Long Acting Medicines' },
+      { id: 'd-long-acting-meds', title: 'Long-Acting Medicine' },
+      { id: 'gm', title: 'Given Medicine' },
+    ],
+  },
+  {
+    groupTitle: 'Nursing',
+    screens: [
+      { id: 'nurse', title: 'Nurses Notes' },
+      { id: 'fall', title: 'Morse Fall Scale' },
+      { id: 'd-nursing-assess', title: 'Nursing Assessment' },
+      { id: 'env', title: 'Environmental Checklist' },
+      { id: 'd-grooming', title: 'Grooming' },
+      { id: 'd-mse', title: 'Mental State' },
+      { id: 'sleep', title: 'Sleeping Pattern' },
+    ],
+  },
+  {
+    groupTitle: 'Scales',
+    screens: [
+      { id: 'adhd', title: 'ADHD Assessment' },
+      { id: 'depression', title: 'Depression Assessment' },
+      { id: 'mood', title: 'Mood Disorder Assessment' },
+      { id: 'gad7', title: 'GAD7 Assessment' },
+      { id: 'phq9', title: 'PHQ9 Assessment' },
+      { id: 'ybocs', title: 'YBOCS Assessment' },
+      { id: 'ymrs', title: 'YMRS Assessment' },
+      { id: 'panss', title: 'PANSS Assessment' },
     ],
   },
   {
     groupTitle: '',
-    screens: [{ id: 'gm', title: 'Given Medicines' }],
+    screens: [{ id: 'tpr', title: 'Vital Sign' }],
   },
   {
-    // 'lab-req' tab removed — Lab Requests now lives inside the Laboratory screen.
     groupTitle: '',
     screens: [{ id: 'lab', title: 'Laboratory' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'iop', title: 'IOP Dashboard' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'df', title: 'Discharge Form' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'ect', title: 'ECT Forms' }],
   },
   {
     groupTitle: '',
@@ -118,31 +129,11 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'fall', title: 'Morse Fall Scale' }],
+    screens: [{ id: 'd-ect-service', title: 'ECT' }],
   },
   {
     groupTitle: '',
-    screens: [{ id: 'd-sick-leave', title: 'Sick Leave' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-ip-medical-report', title: 'IP Medical Report' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'env', title: 'Environmental Checklist' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-other-services', title: 'Other Services' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-followups', title: 'Follow Ups' }],
-  },
-  {
-    groupTitle: '',
-    screens: [{ id: 'd-discharge-procedure', title: 'Discharge Procedure' }],
+    screens: [{ id: 'df', title: 'Discharge Form' }],
   },
   {
     groupTitle: '',
@@ -150,14 +141,31 @@ export const doctorScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'd-risk-register', title: 'Risk Register' }],
+    screens: [{ id: 'pvh', title: 'Patients History' }],
   },
   {
     groupTitle: '',
-    screens: [
-      { id: 'd-ledger', title: 'Patient Invoice' },
-      { id: 'sticky-notes', title: 'Sticky Notes' },
-    ],
+    screens: [{ id: 'd-ip-medical-report', title: 'Medical Report' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-sick-leave', title: 'Sick Leave' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'iop', title: 'IOP Dashboard' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-session', title: 'Session Scheduler' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'sticky-notes', title: 'Sticky Notes' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'ect', title: 'ECT Forms' }],
   },
 ]
 

@@ -5,6 +5,7 @@ import {
   type SleepingPattern,
   type SleepingPatternDoc,
 } from '../../services/sleepingPattern'
+import { resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
@@ -131,14 +132,19 @@ export function SleepingPatternDetailPanel({
   const [doc, setDoc] = useState<SleepingPatternDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [createdBy, setCreatedBy] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     fetchSleepingPattern(name)
-      .then((data) => {
-        if (!cancelled) setDoc(data)
+      .then(async (data) => {
+        const username = await resolveOwnerUsername(data.user)
+        if (!cancelled) {
+          setDoc(data)
+          setCreatedBy(username)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -320,19 +326,14 @@ export function SleepingPatternDetailPanel({
                 value={formatDate(doc?.date || preview?.date)}
               />
               <InfoTile
-                icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                label="Recorded by"
-                value={displayValue(doc?.user || preview?.user)}
+                icon={<User className="h-4 w-4" strokeWidth={2} />}
+                label="Username"
+                value={displayValue(createdBy)}
               />
               <InfoTile
                 icon={<FileText className="h-4 w-4" strokeWidth={2} />}
                 label="Branch"
                 value={displayValue(doc?.branch || preview?.branch)}
-              />
-              <InfoTile
-                icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                label="Record ID"
-                value={displayValue(doc?.name || preview?.name || name)}
               />
             </div>
           </section>
