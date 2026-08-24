@@ -1,6 +1,7 @@
 // IPServiceDetailView.tsx
 import { useState, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
+import { resolveOwnerUsername } from '../../services/common'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 
 interface IPServiceDetailViewProps {
@@ -22,6 +23,7 @@ interface IPServiceDetail {
   total_amount: number
   creation: string
   modified: string
+  owner?: string
   services: Array<{
     date: string
     service_code: string
@@ -43,16 +45,20 @@ export const IPServiceDetailView = ({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [data, setData] = useState<IPServiceDetail | null>(null)
+  const [createdBy, setCreatedBy] = useState('')
 
   useEffect(() => {
     const fetchDetail = async () => {
       setLoading(true)
       setError(null)
+      setCreatedBy('')
       try {
         const response = await apiRequest<IPServiceDetail>(
           `/api/resource/IP Service/${encodeURIComponent(name)}`
         )
         setData(response)
+        const username = await resolveOwnerUsername(response?.owner)
+        setCreatedBy(username)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load IP Service details')
       } finally {
@@ -98,9 +104,17 @@ export const IPServiceDetailView = ({
   const therapyLabel = (service: IPServiceDetail['services'][number]) =>
     service.service_name || service.service_type || service.service_code || '—'
 
+  const usernameTile = createdBy ? (
+    <div className="rounded-lg border border-emerald-100/80 bg-white/90 px-3 py-2.5 shadow-sm ring-1 ring-emerald-50/80">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800/60">Username</p>
+      <p className="mt-1 text-sm font-medium leading-snug text-emerald-950 break-words">{createdBy}</p>
+    </div>
+  ) : null
+
   if (hidePricing) {
     return (
       <div className="space-y-4">
+        {usernameTile}
         {data.services && data.services.length > 0 ? (
           <ul className="space-y-2">
             {data.services.map((service, idx) => (
@@ -132,6 +146,11 @@ export const IPServiceDetailView = ({
             <p className="text-xs text-slate-500 mt-1">
               Created: {formatDate(data.creation)} | Modified: {formatDate(data.modified)}
             </p>
+            {createdBy ? (
+              <p className="text-xs text-slate-600 mt-1">
+                Username: <span className="font-medium text-slate-800">{createdBy}</span>
+              </p>
+            ) : null}
           </div>
           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
             data.type === 'External Service' 

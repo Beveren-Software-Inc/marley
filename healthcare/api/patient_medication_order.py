@@ -2390,7 +2390,7 @@ def _pharmacy_giveout_billing_groups_from_pmo(pmo):
 
 
 def _delivery_notes_for_sales_order(sales_order):
-	"""Submitted Delivery Notes linked to a Sales Order."""
+	"""Draft or submitted Delivery Notes linked to a Sales Order."""
 	if not sales_order:
 		return []
 	return frappe.db.sql_list(
@@ -2398,20 +2398,165 @@ def _delivery_notes_for_sales_order(sales_order):
 		SELECT DISTINCT dn.name
 		FROM `tabDelivery Note` dn
 		INNER JOIN `tabDelivery Note Item` dni ON dni.parent = dn.name
-		WHERE dni.against_sales_order = %s AND dn.docstatus = 1
+		WHERE dni.against_sales_order = %s AND dn.docstatus < 2
 		ORDER BY dn.creation DESC
 		""",
 		sales_order,
 	)
 
 
+def _cancel_submitted_or_delete_draft(doctype, name):
+	"""Cancel a submitted document or delete a draft. Returns the name if handled."""
+	if not name or not frappe.db.exists(doctype, name):
+		return None
+	doc = frappe.get_doc(doctype, name)
+	if doc.docstatus == 2:
+		return None
+	doc.flags.ignore_permissions = True
+	if doc.docstatus == 1:
+		doc.cancel()
+		return name
+	frappe.delete_doc(doctype, name, ignore_permissions=True, force=True)
+	return name
+
+
 def _cancel_delivery_notes_for_sales_order(sales_order):
 	cancelled = []
 	for dn_name in _delivery_notes_for_sales_order(sales_order):
-		dn = frappe.get_doc("Delivery Note", dn_name)
-		if dn.docstatus == 1:
-			dn.cancel()
-			cancelled.append(dn_name)
+		handled = _cancel_submitted_or_delete_draft("Delivery Note", dn_name)
+		if handled:
+			cancelled.append(handled)
+	return cancelled
+
+
+def _sales_orders_for_pharmacy_giveout(pmo_name, pmo_doc=None):
+	"""Sales Orders for a give-out: PMO reference and/or SO custom_base_reference."""
+	names = []
+	seen = set()
+
+	def _add(name):
+		name = (name or "").strip()
+		if not name or name in seen:
+			return
+		if frappe.db.exists("Sales Order", name):
+			seen.add(name)
+			names.append(name)
+
+	if pmo_doc is not None:
+		if pmo_doc.get("reference_doctype") == "Sales Order":
+			_add(pmo_doc.get("reference_document_name"))
+
+	so_meta = frappe.get_meta("Sales Order")
+	if so_meta.has_field("custom_base_reference_name"):
+		filters = {"custom_base_reference_name": pmo_name, "docstatus": ["<", 2]}
+		if so_meta.has_field("custom_base_reference"):
+			filters["custom_base_reference"] = "Patient Medication Order"
+		for so_name in frappe.get_all("Sales Order", filters=filters, pluck="name"):
+			_add(so_name)
+
+	return names
+
+
+def _names_from_optional_doctype(doctype, sales_order, pmo_name=None):
+	"""Find Selling Note / Sales Invoice / similar docs linked to this give-out SO."""
+	if not doctype or not frappe.db.exists("DocType", doctype):
+		return []
+	meta = frappe.get_meta(doctype)
+	found = set()
+
+	def _add_parents(child_dt, fieldname, value):
+		if not value or not frappe.db.exists("DocType", child_dt):
+			return
+		child_meta = frappe.get_meta(child_dt)
+		if not child_meta.has_field(fieldname):
+			return
+		for parent in frappe.get_all(
+			child_dt,
+			filters={fieldname: value},
+			pluck="parent",
+		):
+			if parent:
+				found.add(parent)
+
+	for df in meta.get_table_fields() or []:
+		_add_parents(df.options, "against_sales_order", sales_order)
+		_add_parents(df.options, "sales_order", sales_order)
+
+	filters_candidates = []
+	if meta.has_field("sales_order"):
+		filters_candidates.append({"sales_order": sales_order, "docstatus": ["<", 2]})
+	if meta.has_field("against_sales_order"):
+		filters_candidates.append({"against_sales_order": sales_order, "docstatus": ["<", 2]})
+	if pmo_name and meta.has_field("custom_base_reference_name"):
+		ref_filters = {"custom_base_reference_name": pmo_name, "docstatus": ["<", 2]}
+		if meta.has_field("custom_base_reference"):
+			ref_filters["custom_base_reference"] = "Patient Medication Order"
+		filters_candidates.append(ref_filters)
+
+	for filters in filters_candidates:
+		for name in frappe.get_all(doctype, filters=filters, pluck="name"):
+			found.add(name)
+
+	# Keep only live (draft/submitted) documents.
+	live = []
+	for name in found:
+		if frappe.db.exists(doctype, name) and frappe.db.get_value(doctype, name, "docstatus") != 2:
+			live.append(name)
+	return live
+
+
+def _sales_invoices_for_sales_order(sales_order):
+	if not sales_order:
+		return []
+	parents = frappe.get_all(
+		"Sales Invoice Item",
+		filters={"sales_order": sales_order},
+		pluck="parent",
+	)
+	names = []
+	seen = set()
+	for parent in parents:
+		if parent in seen:
+			continue
+		seen.add(parent)
+		if frappe.db.exists("Sales Invoice", parent) and frappe.db.get_value(
+			"Sales Invoice", parent, "docstatus"
+		) != 2:
+			names.append(parent)
+	return names
+
+
+def _cancel_selling_documents_for_sales_order(sales_order, pmo_name=None):
+	"""Cancel Selling Note (if present) and linked Sales Invoices for the SO."""
+	cancelled = {"selling_notes": [], "sales_invoices": []}
+	for sn_name in _names_from_optional_doctype("Selling Note", sales_order, pmo_name):
+		handled = _cancel_submitted_or_delete_draft("Selling Note", sn_name)
+		if handled:
+			cancelled["selling_notes"].append(handled)
+	for si_name in _sales_invoices_for_sales_order(sales_order):
+		handled = _cancel_submitted_or_delete_draft("Sales Invoice", si_name)
+		if handled:
+			cancelled["sales_invoices"].append(handled)
+	return cancelled
+
+
+def _cancel_service_requests_for_sales_order(sales_order):
+	cancelled = []
+	if not sales_order or not frappe.db.exists("DocType", "Service Request"):
+		return cancelled
+	names = frappe.get_all(
+		"Service Request",
+		filters={
+			"reference_document_type": "Sales Order",
+			"reference_document_name": sales_order,
+			"docstatus": ["<", 2],
+		},
+		pluck="name",
+	)
+	for sr_name in names:
+		handled = _cancel_submitted_or_delete_draft("Service Request", sr_name)
+		if handled:
+			cancelled.append(handled)
 	return cancelled
 
 
@@ -2746,9 +2891,11 @@ def _create_submitted_sales_order_for_pmo(pmo, cost_center=None, warehouse=None,
 		so.save(ignore_permissions=True)
 	so.submit()
 
+	# PMO is already submitted — persist the SO link without a full save.
+	pmo.db_set("reference_doctype", "Sales Order", update_modified=False)
+	pmo.db_set("reference_document_name", so.name, update_modified=False)
 	pmo.reference_doctype = "Sales Order"
 	pmo.reference_document_name = so.name
-	pmo.save(ignore_permissions=True)
 
 	return so
 
@@ -3602,16 +3749,9 @@ def get_nursing_pharmacy_giveouts(
 	return orders
 
 
-def _sales_order_has_invoice(sales_order):
-	"""True when a Sales Invoice is linked to the Sales Order."""
-	if not sales_order:
-		return False
-	return bool(frappe.db.exists("Sales Invoice Item", {"sales_order": sales_order}))
-
-
 @frappe.whitelist()
 def cancel_nursing_pharmacy_giveout(name):
-	"""Cancel a nursing pharmacy give-out PMO and its linked Sales Order when not invoiced."""
+	"""Cancel a nursing pharmacy give-out and its Sales Order, Delivery Note, and selling docs."""
 	if not name:
 		frappe.throw(_("Give-out record name is required"))
 	if not _user_can_access_patient_medication_order_portal():
@@ -3642,43 +3782,53 @@ def cancel_nursing_pharmacy_giveout(name):
 		if cc and cc not in permitted_cc:
 			frappe.throw(_("Not permitted for this cost center"), frappe.PermissionError)
 
-	sales_order = None
-	if doc.get("reference_doctype") == "Sales Order" and doc.get("reference_document_name"):
-		sales_order = doc.reference_document_name
+	sales_orders = _sales_orders_for_pharmacy_giveout(doc.name, doc)
+	cancelled_sales_orders = []
+	cancelled_delivery_notes = []
+	cancelled_selling_notes = []
+	cancelled_invoices = []
+	cancelled_service_requests = []
 
-	if sales_order and frappe.db.exists("Sales Order", sales_order):
-		if _sales_order_has_invoice(sales_order):
-			invoice = frappe.db.get_value(
-				"Sales Invoice Item", {"sales_order": sales_order}, "parent"
+	for sales_order in sales_orders:
+		selling = _cancel_selling_documents_for_sales_order(sales_order, doc.name)
+		cancelled_selling_notes.extend(selling.get("selling_notes") or [])
+		cancelled_invoices.extend(selling.get("sales_invoices") or [])
+		cancelled_delivery_notes.extend(_cancel_delivery_notes_for_sales_order(sales_order))
+		cancelled_service_requests.extend(_cancel_service_requests_for_sales_order(sales_order))
+
+		# Unlink PMO from SO so ERPNext can cancel the order.
+		if (
+			doc.get("reference_doctype") == "Sales Order"
+			and doc.get("reference_document_name") == sales_order
+		):
+			frappe.db.set_value(
+				"Patient Medication Order",
+				doc.name,
+				{"reference_doctype": None, "reference_document_name": None},
+				update_modified=False,
 			)
-			frappe.throw(
-				_(
-					"This give-out is linked to Sales Invoice {0} and cannot be cancelled."
-				).format(frappe.bold(invoice))
-			)
+			doc.reference_doctype = None
+			doc.reference_document_name = None
 
-		# Unlink PMO from SO before cancelling — Frappe blocks SO cancel while referenced.
-		frappe.db.set_value(
-			"Patient Medication Order",
-			doc.name,
-			{"reference_doctype": None, "reference_document_name": None},
-			update_modified=False,
-		)
-		doc.reference_doctype = None
-		doc.reference_document_name = None
-
-		_cancel_delivery_notes_for_sales_order(sales_order)
-
-		so = frappe.get_doc("Sales Order", sales_order)
-		if so.docstatus == 1:
-			so.cancel()
+		handled = _cancel_submitted_or_delete_draft("Sales Order", sales_order)
+		if handled:
+			cancelled_sales_orders.append(handled)
 
 	if doc.docstatus == 1:
 		doc.reload()
+		doc.flags.ignore_permissions = True
 		doc.cancel()
 
 	frappe.db.commit()
-	return {"cancelled": name, "sales_order": sales_order}
+	return {
+		"cancelled": name,
+		"sales_order": cancelled_sales_orders[0] if cancelled_sales_orders else None,
+		"sales_orders": cancelled_sales_orders,
+		"delivery_notes": cancelled_delivery_notes,
+		"selling_notes": cancelled_selling_notes,
+		"sales_invoices": cancelled_invoices,
+		"service_requests": cancelled_service_requests,
+	}
 
 
 @frappe.whitelist()

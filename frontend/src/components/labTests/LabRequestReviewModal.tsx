@@ -579,16 +579,16 @@ export function LabRequestReviewModal({
               )}
             </div>
             <div className="flex shrink-0 items-center gap-3">
-              {review?.practitioner_name || review?.practitioner ? (
+              {review?.practitioner_name ? (
                 <div className="hidden max-w-[14rem] text-right sm:block">
                   <p className="text-[10px] font-medium uppercase tracking-wide text-teal-100/80">
-                    Practitioner
+                    Username
                   </p>
                   <p
                     className="truncate text-sm font-medium text-white"
-                    title={review.practitioner_name || review.practitioner || undefined}
+                    title={review.practitioner_name}
                   >
-                    {review.practitioner_name || review.practitioner}
+                    {review.practitioner_name}
                   </p>
                 </div>
               ) : null}

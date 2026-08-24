@@ -255,7 +255,7 @@ export function LabBookedRequestList({
               ['Request', sr.name],
               ['Patient', sr.patient_name || sr.patient],
               ['Ordered', formatDashboardDate(sr.order_date)],
-              ['Practitioner', sr.practitioner_name || sr.practitioner],
+              ['Username', sr.practitioner_name],
               ['Status', vLabel],
               ['Tests', childCount || groupCount || '—'],
               !hideAmount ? (['Total', formatMoney(amount)] as const) : null,

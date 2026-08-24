@@ -1,6 +1,70 @@
+from datetime import datetime, time
+
 import frappe
 from frappe import _
-from frappe.utils import add_days, get_datetime, getdate, now_datetime
+from frappe.utils import add_days, get_datetime, get_time, getdate, now_datetime
+
+# 06:00–13:59 Morning, 14:00–21:59 Evening, 22:00–05:59 Night
+NURSING_SHIFT_WINDOWS = (
+	("Morning", 6, 14),
+	("Evening", 14, 22),
+	("Night", 22, 6),
+)
+
+
+def _hour_in_window(hour: int, start_h: int, end_h: int) -> bool:
+	if start_h < end_h:
+		return start_h <= hour < end_h
+	return hour >= start_h or hour < end_h
+
+
+def get_nursing_shift_for_time(value: time | str | None) -> str:
+	"""Return Morning, Evening, or Night for a time value."""
+	if value is None:
+		value = datetime.now().time()
+	elif isinstance(value, str):
+		value = get_time(value) or datetime.now().time()
+
+	hour = value.hour
+	for label, start_h, end_h in NURSING_SHIFT_WINDOWS:
+		if _hour_in_window(hour, start_h, end_h):
+			return label
+	return "Morning"
+
+
+def get_nursing_shift_for_datetime(value: datetime | str | None = None) -> str:
+	if value is None:
+		value = datetime.now()
+	elif isinstance(value, str):
+		value = get_datetime(value) or datetime.now()
+	return get_nursing_shift_for_time(value.time())
+
+
+def get_nursing_shift_window(at=None) -> tuple[str, datetime, datetime]:
+	"""Return (Morning|Evening|Night, window_start, window_end) for today at ``at``.
+
+	Night spans midnight: 22:00 → next day 06:00.
+	"""
+	at = get_datetime(at or now_datetime())
+	label = get_nursing_shift_for_datetime(at)
+	base = getdate(at)
+	hour = at.hour
+
+	if label == "Morning":
+		start_dt = get_datetime(f"{base} 06:00:00")
+		end_dt = get_datetime(f"{base} 13:59:59")
+	elif label == "Evening":
+		start_dt = get_datetime(f"{base} 14:00:00")
+		end_dt = get_datetime(f"{base} 21:59:59")
+	elif hour >= 22:
+		start_dt = get_datetime(f"{base} 22:00:00")
+		end_dt = get_datetime(f"{add_days(base, 1)} 05:59:59")
+	else:
+		start_dt = get_datetime(f"{add_days(base, -1)} 22:00:00")
+		end_dt = get_datetime(f"{base} 05:59:59")
+
+	return label, start_dt, end_dt
+
 
 
 def _time_to_seconds(value) -> int:
@@ -76,20 +140,12 @@ def get_current_shift_window(at=None):
 
 
 def task_belongs_to_shift(task_row, shift_row=None, window_start=None, window_end=None, at=None):
-	"""True when a Nurse Task belongs to the given/current shift."""
+	"""True when a Nurse Task falls in today's Morning / Evening / Night window."""
 	if not task_row:
 		return False
 
-	shift_row = shift_row or get_current_nurse_shift(at)
-	if not shift_row:
-		return True
-
-	task_shift = (task_row.get("shift") if isinstance(task_row, dict) else getattr(task_row, "shift", None)) or ""
-	if task_shift:
-		return task_shift == shift_row.name
-
 	if window_start is None or window_end is None:
-		_, window_start, window_end = get_current_shift_window(at)
+		_, window_start, window_end = get_nursing_shift_window(at)
 	if not window_start or not window_end:
 		return True
 
@@ -103,17 +159,25 @@ def task_belongs_to_shift(task_row, shift_row=None, window_start=None, window_en
 
 @frappe.whitelist()
 def get_current_nurse_shift_info():
-	"""Portal helper: active Nurse Shift and its datetime window."""
-	shift, window_start, window_end = get_current_shift_window()
-	if not shift:
-		return {"shift": None, "window_start": None, "window_end": None}
+	"""Portal helper: today's Morning / Evening / Night window (same as nursing notes)."""
+	label, window_start, window_end = get_nursing_shift_window()
+	from_time = {
+		"Morning": "06:00:00",
+		"Evening": "14:00:00",
+		"Night": "22:00:00",
+	}.get(label, "")
+	to_time = {
+		"Morning": "14:00:00",
+		"Evening": "22:00:00",
+		"Night": "06:00:00",
+	}.get(label, "")
 
 	return {
 		"shift": {
-			"name": shift.name,
-			"label": shift.nurse_shift or shift.name,
-			"from_time": str(shift.from_time or ""),
-			"to_time": str(shift.to_time or ""),
+			"name": label,
+			"label": label,
+			"from_time": from_time,
+			"to_time": to_time,
 		},
 		"window_start": str(window_start) if window_start else None,
 		"window_end": str(window_end) if window_end else None,

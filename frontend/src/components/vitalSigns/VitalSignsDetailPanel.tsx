@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Activity, ClipboardList, HeartPulse, Scale } from 'lucide-react'
-import { fetchDoc } from '../../services/common'
+import { fetchDoc, resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
@@ -93,14 +93,21 @@ export function VitalSignsDetailPanel({ name, subtitle: subtitleProp, onClose }:
   const [doc, setDoc] = useState<VitalSignDoc | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [createdBy, setCreatedBy] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     fetchDoc('Vital Signs', name)
-      .then((data) => {
-        if (!cancelled) setDoc(data)
+      .then(async (data) => {
+        const username = await resolveOwnerUsername(
+          typeof data.owner === 'string' ? data.owner : null
+        )
+        if (!cancelled) {
+          setDoc(data)
+          setCreatedBy(username)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -181,8 +188,9 @@ export function VitalSignsDetailPanel({ name, subtitle: subtitleProp, onClose }:
               <ClipboardList className="h-4 w-4 text-emerald-600" strokeWidth={2} />
               Patient & visit
             </h3>
-            <div className="mb-2.5">
+            <div className="mb-2.5 grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               <DataTile label="Recorded" value={formatSignsDateTime(doc)} />
+              <DataTile label="Username" value={displayValue(createdBy)} />
             </div>
             <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
               {VS_VISIT_FIELDS.map((field) => (

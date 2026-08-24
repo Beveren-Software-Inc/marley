@@ -680,7 +680,7 @@ export const ServiceRequestList = ({
             const metaPractitionerLabel = serviceRequestPractitionerLabel(sr.template_dt)
             const metaFields = [
               [isLabRequestList ? 'Lab Request' : 'Service Request', sr.name],
-              [metaPractitionerLabel, sr.practitioner_name || sr.practitioner],
+              [metaPractitionerLabel, sr.practitioner_name],
               ['Template type', sr.template_dt],
               ['Price', displayedPrice(sr) != null ? formatMoney(displayedPrice(sr)!) : ''],
             ] as const
@@ -773,7 +773,7 @@ export const ServiceRequestList = ({
                   {sr.template_name || sr.template_dn || '-'}
                 </td>
                 <td className="px-4 py-3 text-sm text-slate-700">
-                  {sr.practitioner_name || sr.practitioner || '-'}
+                  {sr.practitioner_name || '-'}
                 </td>
                 <td className="px-4 py-3">
                   {sr.status ? (

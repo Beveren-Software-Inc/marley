@@ -1,6 +1,7 @@
 [
  {
   "date": "2026-03-17",
+  "default": 0,
   "docstatus": 0,
   "doctype": "Time Out Procedure Template",
   "modified": "2026-03-17 17:27:59.331559",
@@ -23,9 +24,10 @@
  },
  {
   "date": "2026-03-17",
+  "default": 1,
   "docstatus": 0,
   "doctype": "Time Out Procedure Template",
-  "modified": "2026-03-17 17:36:52.401343",
+  "modified": "2026-08-24 14:58:21.145854",
   "name": "Default Procedure Template",
   "procedures": [
    {

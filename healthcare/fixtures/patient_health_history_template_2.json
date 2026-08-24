@@ -1,0 +1,212 @@
+[
+ {
+  "default": 1,
+  "docstatus": 0,
+  "doctype": "Patient Health History Template 2",
+  "modified": "2026-08-19 14:19:25.427258",
+  "name": "Default Health History",
+  "template": "Default Health History",
+  "templates": [
+   {
+    "history": "CARDIAC PROBLEM",
+    "is_diabetic": 0,
+    "no_format": 1,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "HYPERTENSION",
+    "is_diabetic": 0,
+    "no_format": 2,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "DIABETES",
+    "is_diabetic": 1,
+    "no_format": 3,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "4 RENAL PROBLEM",
+    "is_diabetic": 0,
+    "no_format": 4,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "SICKLE CELL ANEMIA",
+    "is_diabetic": 0,
+    "no_format": 5,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "G6PD",
+    "is_diabetic": 0,
+    "no_format": 6,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "ASTHMA",
+    "is_diabetic": 0,
+    "no_format": 7,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "EPILEPSY",
+    "is_diabetic": 0,
+    "no_format": 8,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "HEPATITIS",
+    "is_diabetic": 0,
+    "no_format": 9,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "CANCER",
+    "is_diabetic": 0,
+    "no_format": 10,
+    "remarks": null,
+    "specify": 1,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "EYE DISORDER",
+    "is_diabetic": 0,
+    "no_format": 11,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "BACK PROBLEM",
+    "is_diabetic": 0,
+    "no_format": 12,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "THYROID DISEASE",
+    "is_diabetic": 0,
+    "no_format": 13,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "HIGH CHOLESTEROL/HYPERLIPIDEMIA",
+    "is_diabetic": 0,
+    "no_format": 14,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "PSYCHOLOGICAL STATUS / MENTAL STATUS",
+    "is_diabetic": 0,
+    "no_format": 15,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "SKIN INTERGRITY",
+    "is_diabetic": 0,
+    "no_format": 16,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "H/O FALL",
+    "is_diabetic": 0,
+    "no_format": 17,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "ALCOHOLIC",
+    "is_diabetic": 0,
+    "no_format": 18,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "SMOKER",
+    "is_diabetic": 0,
+    "no_format": 19,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   },
+   {
+    "history": "OTHERS:",
+    "is_diabetic": 0,
+    "no_format": 20,
+    "remarks": null,
+    "specify": 0,
+    "speficication": null,
+    "type": "",
+    "yes": 0
+   }
+  ]
+ }
+]

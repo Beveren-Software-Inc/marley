@@ -357,21 +357,30 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
     [currentPatient]
   )
 
-  // Fetch template options from the API
   const fetchTemplates = useCallback(async (search: string): Promise<LinkFieldOption[]> => {
     try {
-      const params = new URLSearchParams({ doctype: 'Time Out Procedure Template', txt: search || '', page_length: '20' })
+      const params = new URLSearchParams({
+        doctype: 'Time Out Procedure Template',
+        fields: JSON.stringify(['name', 'template_name', 'default']),
+        filters: search.trim()
+          ? JSON.stringify([['template_name', 'like', `%${search.trim()}%`]])
+          : JSON.stringify([]),
+        limit_page_length: '20',
+        order_by: 'modified desc',
+      })
       const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
       const data = await res.json()
       const rows = Array.isArray(data?.message) ? data.message : []
-      return rows.map((r: any) => ({ name: r.name, label: r.template_name || r.name }))
+      return rows.map((r: { name: string; template_name?: string }) => ({
+        name: r.name,
+        label: r.template_name || r.name,
+      }))
     } catch {
       return []
     }
   }, [])
 
-  // When a template is selected, fetch its procedures and populate the child table
-  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+  const applyTemplate = useCallback(async (opt: LinkFieldOption, { silent = false } = {}) => {
     setTemplateName(opt.name)
     setTemplateLabel(opt.label)
     setTemplateLoading(true)
@@ -379,19 +388,54 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
       const res = await fetch(`/api/resource/Time%20Out%20Procedure%20Template/${encodeURIComponent(opt.name)}`)
       const data = await res.json()
       const doc = data?.data ?? data?.message
-      const rows: any[] = Array.isArray(doc?.procedures) ? doc.procedures : []
-      setProcedures(rows.map(r => ({
+      const rows: { criteria?: string }[] = Array.isArray(doc?.procedures) ? doc.procedures : []
+      setProcedures(rows.map((r) => ({
         _key: Math.random().toString(36).slice(2),
         criteria: r.criteria ?? '',
-        selection: '',
+        selection: '' as const,
       })))
-      toast.success(`Loaded ${rows.length} item${rows.length !== 1 ? 's' : ''} from template.`)
+      if (!silent) {
+        toast.success(`Loaded ${rows.length} item${rows.length !== 1 ? 's' : ''} from template.`)
+      }
     } catch {
       toast.error('Failed to load template procedures.')
     } finally {
       setTemplateLoading(false)
     }
+  }, [])
+
+  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+    await applyTemplate(opt)
   }
+
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const params = new URLSearchParams({
+          doctype: 'Time Out Procedure Template',
+          fields: JSON.stringify(['name', 'template_name', 'default']),
+          filters: JSON.stringify([['default', '=', 1]]),
+          limit_page_length: '1',
+          order_by: 'modified desc',
+        })
+        const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+        const data = await res.json()
+        const rows = Array.isArray(data?.message) ? data.message : []
+        const tpl = rows[0] as { name?: string; template_name?: string } | undefined
+        if (cancelled || !tpl?.name) return
+        await applyTemplate(
+          { name: tpl.name, label: tpl.template_name || tpl.name },
+          { silent: true }
+        )
+      } catch {
+        /* no default template */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [applyTemplate])
 
   const addRow = () => setProcedures(prev => [...prev, { _key: Math.random().toString(36).slice(2), criteria: '', selection: '' }])
   const removeRow = (key: string) => setProcedures(prev => prev.filter(r => r._key !== key))
@@ -538,7 +582,7 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
                 <div>
                   <h3 className={sectionTitleClass}>Template</h3>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                    Select a template to automatically populate the procedure checklist. You can then review and change each item's selection.
+                    Select a template to automatically populate the procedure checklist. If a template is marked Default, it is loaded when you open this form.
                   </p>
                   <div className="relative">
                     <LinkCombobox

@@ -126,7 +126,8 @@ fixtures = [
                    "Material Request-custom_is_medical",
                    "Sales Order-custom_no_charges",
                    "Payment Entry-custom_case_no",
-                   "Payment Entry-custom_op_or_ip"
+                   "Payment Entry-custom_op_or_ip",
+                   "Item Group-custom_tracked_by_nhra"
 
                 ),
             ]
