@@ -126,7 +126,7 @@ export function PharmacyGiveOutDetails({ giveOutName }: PharmacyGiveOutDetailsPr
           />
           <DetailField label="Invoice" value={invoiceForPrescription(prescription)} />
           <DetailField
-            label="Doctor Name"
+            label="Username"
             value={prescription.healthcare_practitioner_name || prescription.practitioner}
           />
         </div>

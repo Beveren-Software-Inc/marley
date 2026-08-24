@@ -212,7 +212,7 @@ export function ServiceRequestDetailPanel({
   const patientLabel =
     (doc?.patient_name as string) || (doc?.patient as string) || '—'
   const practitionerLabel =
-    (doc?.practitioner_name as string) || (doc?.practitioner as string) || '—'
+    ((doc?.practitioner_name as string) || '').trim() || '—'
   const templateLabel =
     (doc?.template_name as string) ||
     (doc?.template_dn as string) ||

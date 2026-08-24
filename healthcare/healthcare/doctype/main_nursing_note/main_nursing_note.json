@@ -21,6 +21,8 @@
   "column_break_whup",
   "user",
   "user_name",
+  "last_appended_by",
+  "last_appended_by_name",
   "cost_center",
   "admission_old_no",
   "section_break_dfou",
@@ -28,7 +30,9 @@
   "cr_date",
   "column_break_bgjx",
   "up_id",
-  "up_date"
+  "up_date",
+  "section_break_entries",
+  "entries"
  ],
  "fields": [
   {
@@ -88,13 +92,26 @@
    "fieldname": "user",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "User",
+   "label": "Created By",
    "options": "User"
   },
   {
    "fieldname": "user_name",
    "fieldtype": "Data",
-   "label": "User Name"
+   "label": "Created By Name"
+  },
+  {
+   "fieldname": "last_appended_by",
+   "fieldtype": "Link",
+   "label": "Last Appended By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "last_appended_by_name",
+   "fieldtype": "Data",
+   "label": "Last Appended By Name",
+   "read_only": 1
   },
   {
    "fieldname": "cost_center",
@@ -147,12 +164,23 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Start Time"
+  },
+  {
+   "fieldname": "section_break_entries",
+   "fieldtype": "Section Break",
+   "label": "Shift Entries"
+  },
+  {
+   "fieldname": "entries",
+   "fieldtype": "Table",
+   "label": "Entries",
+   "options": "Main Nursing Note Entry"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-02 01:43:36.957915",
+ "modified": "2026-08-23 18:35:00.000000",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Main Nursing Note",

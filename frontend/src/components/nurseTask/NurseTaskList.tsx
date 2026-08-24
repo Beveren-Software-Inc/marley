@@ -172,7 +172,7 @@ interface NurseTaskListProps {
   title?: string
   onAdd?: () => void
   addButtonTitle?: string
-  /** When true (default), only tasks for the active Nurse Shift are shown. */
+  /** When true (default), only tasks for today's Morning / Evening / Night window are shown. */
   currentShiftOnly?: boolean
 }
 
@@ -317,14 +317,14 @@ export const NurseTaskList = ({
       {restrictToCurrentShift ? (
         <div className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-slate-700">
           <span className="font-medium text-primary">Current shift:</span>{' '}
-          {shiftLoading ? 'Loading…' : (currentShiftInfo?.shift?.label || 'No active shift assigned')}
+          {shiftLoading ? 'Loading…' : (currentShiftInfo?.shift?.label || 'Morning / Evening / Night')}
           {currentShiftInfo?.shift?.from_time && currentShiftInfo?.shift?.to_time ? (
             <span className="text-slate-500">
               {' '}
               ({currentShiftInfo.shift.from_time.slice(0, 5)}–{currentShiftInfo.shift.to_time.slice(0, 5)})
             </span>
           ) : null}
-          <span className="text-slate-500"> · Showing tasks for this shift only</span>
+          <span className="text-slate-500"> · Today’s tasks for this shift only</span>
         </div>
       ) : null}
 

@@ -8,6 +8,10 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_link_to_form, getdate, now_datetime
 
+from healthcare.healthcare.care_episode_guard import (
+	resolve_inpatient_admission_name,
+	sync_inpatient_admission_fields,
+)
 from healthcare.healthcare.doctype.nursing_task.nursing_task import NursingTask
 from healthcare.healthcare.doctype.service_request.service_request import (
 	update_service_request_status,
@@ -38,7 +42,14 @@ def _inherit_lab_technician_from_group(doc):
 class LabTest(Document):
 	_lab_technician_allowed_roles = ("Lab Technologist", "Lab Technician")
 
+	def _validate_links(self):
+		# Must run before Frappe link checks: insert/save validate links first,
+		# and inpatient_record / inpatient_admission are the same admission.
+		sync_inpatient_admission_fields(self)
+		return super()._validate_links()
+
 	def validate(self):
+		sync_inpatient_admission_fields(self)
 		if self.template and not self.get("sample_instances"):
 			populate_sample_instances_from_template(self)
 		# if not self.is_new():
@@ -631,6 +642,10 @@ def create_sample_doc(template, patient, invoice, company=None):
 			sample_collection.patient = patient.name
 			sample_collection.patient_age = patient.get_age()
 			sample_collection.patient_sex = patient.sex
+			sample_collection.inpatient_record = resolve_inpatient_admission_name(
+				patient.get("inpatient_record"),
+				patient.name,
+			)
 			sample_collection.sample = template.sample
 			sample_collection.sample_uom = template.sample_uom
 			sample_collection.sample_qty = template.sample_qty

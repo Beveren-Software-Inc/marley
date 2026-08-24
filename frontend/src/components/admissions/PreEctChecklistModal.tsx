@@ -357,13 +357,17 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
     try {
       const params = new URLSearchParams({
         doctype: 'Pre-ECT Checklist Template',
-        txt: search || '',
-        page_length: '20',
+        fields: JSON.stringify(['name', 'template_name', 'default']),
+        filters: search.trim()
+          ? JSON.stringify([['template_name', 'like', `%${search.trim()}%`]])
+          : JSON.stringify([]),
+        limit_page_length: '20',
+        order_by: 'modified desc',
       })
       const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
       const data = await res.json()
       const rows = Array.isArray(data?.message) ? data.message : []
-      return rows.map((r: any) => ({
+      return rows.map((r: { name: string; template_name?: string; default?: number }) => ({
         name: r.name,
         label: r.template_name || r.name,
       }))
@@ -372,8 +376,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
     }
   }, [])
 
-  // On template select: fetch its checklist rows and populate child table
-  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+  const applyTemplate = useCallback(async (opt: LinkFieldOption, { silent = false } = {}) => {
     setTemplateName(opt.name)
     setTemplateLabel(opt.label)
     setTemplateLoading(true)
@@ -383,22 +386,61 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
       )
       const data = await res.json()
       const doc = data?.data ?? data?.message
-      const rows: any[] = Array.isArray(doc?.checklist) ? doc.checklist : []
+      const rows: { checklist?: string; remarks?: string }[] = Array.isArray(doc?.checklist)
+        ? doc.checklist
+        : []
       setChecklist(
-        rows.map(r => ({
+        rows.map((r) => ({
           _key: Math.random().toString(36).slice(2),
           checklist: r.checklist ?? '',
-          answer: '',
+          answer: '' as const,
           remarks: r.remarks ?? '',
         }))
       )
-      toast.success(`Loaded ${rows.length} item${rows.length !== 1 ? 's' : ''} from template.`)
+      if (!silent) {
+        toast.success(`Loaded ${rows.length} item${rows.length !== 1 ? 's' : ''} from template.`)
+      }
     } catch {
       toast.error('Failed to load template checklist.')
     } finally {
       setTemplateLoading(false)
     }
+  }, [])
+
+  // On template select: fetch its checklist rows and populate child table
+  const handleTemplateSelect = async (opt: LinkFieldOption) => {
+    await applyTemplate(opt)
   }
+
+  // If a template is marked Default, load it when creating a new checklist.
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const params = new URLSearchParams({
+          doctype: 'Pre-ECT Checklist Template',
+          fields: JSON.stringify(['name', 'template_name', 'default']),
+          filters: JSON.stringify([['default', '=', 1]]),
+          limit_page_length: '1',
+          order_by: 'modified desc',
+        })
+        const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+        const data = await res.json()
+        const rows = Array.isArray(data?.message) ? data.message : []
+        const tpl = rows[0] as { name?: string; template_name?: string } | undefined
+        if (cancelled || !tpl?.name) return
+        await applyTemplate(
+          { name: tpl.name, label: tpl.template_name || tpl.name },
+          { silent: true }
+        )
+      } catch {
+        /* no default template */
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [applyTemplate])
 
   const addRow = () =>
     setChecklist(prev => [...prev, { _key: Math.random().toString(36).slice(2), checklist: '', answer: '', remarks: '' }])
@@ -582,7 +624,7 @@ export const PreEctChecklistModal = ({ admissionNo, patient, patientName, onClos
                 <div>
                   <h3 className={sectionTitleClass}>Template</h3>
                   <p className="text-xs text-slate-500 mb-3 bg-slate-50 border border-slate-200 rounded-md px-3 py-2">
-                    Select a template to automatically populate the checklist. You can then set each item's answer and add remarks.
+                    Select a template to automatically populate the checklist. If a template is marked Default, it is loaded when you open this form.
                   </p>
                   <LinkCombobox
                     label="Checklist Template"

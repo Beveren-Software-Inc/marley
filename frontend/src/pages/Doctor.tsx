@@ -48,6 +48,15 @@ import { CreatePANSSAssessmentModal } from '../components/panss/CreatePANSSAsses
 import { PANSSAssessmentList } from '../components/panss/PANSSAssessmentList'
 import { PatientHistoryList } from '../components/patientHistory/PatientHistoryList'
 import { PatientHistoryModal } from '../components/patientHistory/PatientHistoryModal'
+import { PatientAssessmentList } from '../components/patientAssessment/PatientAssessmentList'
+import { CreatePatientAssessmentModal } from '../components/patientAssessment/CreatePatientAssessmentModal'
+import { GroomingChartList } from '../components/nursing/GroomingChartList'
+import { CreateGroomingChartModal } from '../components/nursing/CreateGroomingChartModal'
+import { MentalStateList } from '../components/nursing/MentalStateList'
+import { CreateMentalStateModal } from '../components/nursing/CreateMentalStateModal'
+import { IPServiceList } from '../components/ipServices/IPServiceList'
+import { CreateIPServiceModal } from '../components/ipServices/CreateIPServiceModal'
+import { TherapySessionPanel } from '../components/therapy/TherapySessionPanel'
 import { CreatePatientModal } from '../components/patients/CreatePatientModal'
 import { PatientList } from '../components/patients/PatientList'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
@@ -226,6 +235,15 @@ export const DoctorPage = () => {
   const [ymrsRefreshKey, setYmrsRefreshKey] = useState(0)
   const [showCreatePANSSModal, setShowCreatePANSSModal] = useState(false)
   const [panssRefreshKey, setPanssRefreshKey] = useState(0)
+  const [showPatientAssessmentModal, setShowPatientAssessmentModal] = useState(false)
+  const [patientAssessmentRefreshKey, setPatientAssessmentRefreshKey] = useState(0)
+  const [showGroomingModal, setShowGroomingModal] = useState(false)
+  const [groomingRefreshKey, setGroomingRefreshKey] = useState(0)
+  const [showMentalStateModal, setShowMentalStateModal] = useState(false)
+  const [mentalStateRefreshKey, setMentalStateRefreshKey] = useState(0)
+  const [showCreateIPServiceModal, setShowCreateIPServiceModal] = useState(false)
+  const [ipServiceRefreshKey, setIpServiceRefreshKey] = useState(0)
+  const [sessionScheduleRefreshKey, setSessionScheduleRefreshKey] = useState(0)
   const [showSuicidalModal, setShowSuicidalModal] = useState(false)
   const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
 
@@ -1355,6 +1373,154 @@ export const DoctorPage = () => {
               onPatientClick={handlePatientSelect}
               createModalOpen={envChecklistCreateOpen}
               onCreateModalOpenChange={setEnvChecklistCreateOpen}
+            />
+          </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'd-nursing-assess') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <PatientAssessmentList
+              patient={selectedPatient}
+              refreshKey={patientAssessmentRefreshKey}
+              onAdd={() => guardClinicalCreate(() => setShowPatientAssessmentModal(true))}
+              allowEditWithin24h
+            />
+          </section>
+        </div>
+        {showPatientAssessmentModal && (
+          <CreatePatientAssessmentModal
+            patient={selectedPatient}
+            onClose={() => setShowPatientAssessmentModal(false)}
+            onSuccess={() => {
+              setShowPatientAssessmentModal(false)
+              setPatientAssessmentRefreshKey((prev) => prev + 1)
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'd-grooming') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <GroomingChartList
+              patient={selectedPatient}
+              refreshKey={groomingRefreshKey}
+              onAdd={() => guardClinicalCreate(() => setShowGroomingModal(true))}
+              allowEditWithin24h
+            />
+          </section>
+        </div>
+        {showGroomingModal && (
+          <CreateGroomingChartModal
+            patient={selectedPatient}
+            onClose={() => setShowGroomingModal(false)}
+            onSuccess={() => {
+              setShowGroomingModal(false)
+              setGroomingRefreshKey((prev) => prev + 1)
+              toast.success('Grooming chart saved')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'd-mse') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm">
+            <MentalStateList
+              patient={selectedPatient}
+              refreshKey={mentalStateRefreshKey}
+              onAdd={() => guardClinicalCreate(() => setShowMentalStateModal(true))}
+              allowEditWithin24h
+            />
+          </section>
+        </div>
+        {showMentalStateModal && (
+          <CreateMentalStateModal
+            patient={selectedPatient}
+            onClose={() => setShowMentalStateModal(false)}
+            onSuccess={() => {
+              setShowMentalStateModal(false)
+              setMentalStateRefreshKey((prev) => prev + 1)
+              toast.success('Mental state record saved')
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'd-ect-service') {
+    return (
+      <div className="flex min-h-full flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4 flex-1 min-h-0 flex flex-col">
+          <section className="bg-white border border-slate-200 rounded-lg p-4 shadow-sm flex flex-col min-h-[420px] overflow-hidden min-w-0">
+            <div className="font-semibold mb-2 flex items-center justify-between flex-shrink-0">
+              <span>ECT</span>
+              <button
+                type="button"
+                onClick={() => guardClinicalCreate(() => setShowCreateIPServiceModal(true))}
+                className="w-6 h-6 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold flex-shrink-0"
+                title="New ECT Service"
+              >
+                +
+              </button>
+            </div>
+            <div className="overflow-x-auto overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+              <IPServiceList
+                patient={selectedPatient}
+                refreshKey={ipServiceRefreshKey}
+                hidePricing
+              />
+            </div>
+          </section>
+        </div>
+        {showCreateIPServiceModal && (
+          <CreateIPServiceModal
+            onClose={() => setShowCreateIPServiceModal(false)}
+            onSuccess={() => {
+              setIpServiceRefreshKey((prev) => prev + 1)
+              setShowCreateIPServiceModal(false)
+            }}
+            initialPatient={selectedPatient}
+            openInNewTab={false}
+            hidePricing
+          />
+        )}
+      </div>
+    )
+  }
+
+  if (screen === 'd-session') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <DashboardCard title="Session Scheduler">
+            <TherapySessionPanel
+              patient={selectedPatient}
+              admissionNumber={activeAdmission || undefined}
+              refreshKey={sessionScheduleRefreshKey}
+              onRefresh={() => setSessionScheduleRefreshKey((prev) => prev + 1)}
+              onPatientClick={handlePatientSelect}
+              embedded
             />
           </DashboardCard>
         </div>

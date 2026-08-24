@@ -39,6 +39,7 @@
   "blacklist_reason",
   "user_id",
   "source",
+  "mobile_no_owner",
   "customer_details_section",
   "customer",
   "customer_group",
@@ -1096,6 +1097,11 @@
    "fieldtype": "Table",
    "label": "Patient Insurance Coverage",
    "options": "Patient Insurance Cover"
+  },
+  {
+   "fieldname": "mobile_no_owner",
+   "fieldtype": "Data",
+   "label": "Mobile No Owner"
   }
  ],
  "grid_page_length": 50,
@@ -1199,7 +1205,7 @@
   }
  ],
  "max_attachments": 50,
- "modified": "2026-07-22 12:19:14.686727",
+ "modified": "2026-08-23 19:05:50.474466",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Patient",

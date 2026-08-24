@@ -9,6 +9,7 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import now_datetime
 
+from healthcare.healthcare.care_episode_guard import sync_inpatient_admission_fields
 from healthcare.healthcare.doctype.observation.observation import add_observation
 from healthcare.healthcare.doctype.observation_template.observation_template import (
 	get_observation_template_details,
@@ -16,6 +17,12 @@ from healthcare.healthcare.doctype.observation_template.observation_template imp
 
 
 class SampleCollection(Document):
+	def _validate_links(self):
+		# Must run before Frappe link checks. inpatient_record is the admission;
+		# do not keep a stale Patient master id that is not an Inpatient Admission.
+		sync_inpatient_admission_fields(self)
+		return super()._validate_links()
+
 	def after_insert(self):
 		if self.observation_sample_collection:
 			for obs in self.observation_sample_collection:
@@ -31,6 +38,7 @@ class SampleCollection(Document):
 						)
 
 	def validate(self):
+		sync_inpatient_admission_fields(self)
 		if self.observation_sample_collection:
 			for obs in self.observation_sample_collection:
 				if obs.get("has_component") and obs.get("component_observations"):

@@ -3758,7 +3758,7 @@ export const LabTestList = ({
                 <td class="lbl">Visit No.</td><td>${escapeHtml(first?.service_request || '')}</td>
               </tr>
               <tr>
-                <td class="lbl">IP Admission</td><td>${escapeHtml(first?.inpatient_record || '')}</td>
+                <td class="lbl">IP Admission</td><td>${escapeHtml(first?.inpatient_admission || first?.inpatient_record || '')}</td>
                 <td class="lbl">User</td><td>${escapeHtml((first as any)?.custom_user || '')}</td>
               </tr>
             </table>

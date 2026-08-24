@@ -13,7 +13,8 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
-import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import { SessionScheduleDetailPanel } from './SessionScheduleDetailPanel'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -57,6 +58,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null)
+  const [detailSchedule, setDetailSchedule] = useState<SessionSchedule | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const cardFilters = useCardFilters()
@@ -70,6 +72,8 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerInitDone, setPractitionerInitDone] = useState(false)
+  const defaultPractitionerRef = useRef<LinkFieldOption | null>(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
   const [totalCount, setTotalCount] = useState(0)
@@ -97,8 +101,28 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   }
 
   useEffect(() => {
+    let cancelled = false
+    getCurrentUserPractitionerOption()
+      .then((opt) => {
+        if (cancelled || !opt) return
+        defaultPractitionerRef.current = opt
+        setPractitionerOptions((prev) => (prev.some((p) => p.name === opt.name) ? prev : [opt, ...prev]))
+        setFilterPractitioner(opt.name)
+        setPractitionerQuery(opt.label || opt.name)
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setPractitionerInitDone(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!practitionerInitDone) return
     loadSchedules()
-  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup, filterPractitioner, page, pageSize])
+  }, [refreshKey, patient, admissionNumber, refreshTrigger, roleGroup, filterPractitioner, page, pageSize, practitionerInitDone])
 
   useEffect(() => {
     setPage(1)
@@ -182,6 +206,11 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const isRowBusy = (schedule: SessionSchedule) =>
     actionLoading === schedule.name || statusLoadingId === schedule.name
 
+  const handleView = (schedule: SessionSchedule) => {
+    setDetailSchedule(schedule)
+    setOpenActionRow(null)
+  }
+
   const handleOpenBill = (salesOrder: string) => {
     setOpenActionRow(null)
     window.open(`/app/sales-order/${encodeURIComponent(salesOrder)}`, '_blank')
@@ -223,8 +252,14 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
     setFilterStatus('')
     setFilterDateFrom('')
     setFilterDateTo('')
-    setFilterPractitioner('')
-    setPractitionerQuery('')
+    const def = defaultPractitionerRef.current
+    if (def) {
+      setFilterPractitioner(def.name)
+      setPractitionerQuery(def.label || def.name)
+    } else {
+      setFilterPractitioner('')
+      setPractitionerQuery('')
+    }
     setPractitionerOpen(false)
   }
 
@@ -232,6 +267,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
 
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === filterPractitioner)?.label ||
+    practitionerQuery ||
     filterPractitioner ||
     ''
 
@@ -374,9 +410,17 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
             </thead>
             <tbody className="divide-y divide-slate-200">
               {filtered.map((schedule) => (
-                <tr key={schedule.name} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 text-sm font-medium text-primary">{schedule.name}</td>
-                  <td className="px-4 py-3 text-sm text-slate-700">{schedule.session_name || '—'}</td>
+                <tr
+                  key={schedule.name}
+                  className="hover:bg-slate-50 cursor-pointer"
+                  onClick={() => handleView(schedule)}
+                >
+                  <td className="px-4 py-3 text-sm font-medium text-primary hover:underline">
+                    {schedule.name}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-slate-700">
+                    {schedule.session_name || '—'}
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-700">{schedule.session_type || '—'}</td>
                   <td className="px-4 py-3 text-sm text-slate-700 text-right tabular-nums">
                     {formatAmount(schedule.amount)}
@@ -400,7 +444,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                       <span className="text-sm text-slate-500">—</span>
                     )}
                   </td>
-                  <td className="px-4 py-2 align-middle">
+                  <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
                       <div className="relative" ref={openActionRow === schedule.name ? menuRef : undefined}>
                         <button
@@ -429,6 +473,13 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                           triggerRef={menuRef}
                           minWidth={200}
                         >
+                          <button
+                            type="button"
+                            onClick={() => handleView(schedule)}
+                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                          >
+                            View
+                          </button>
                           {schedule.transaction_status === 'Draft' && (
                             <button
                               type="button"
@@ -504,6 +555,14 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
         onPageChange={setPage}
         onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
       />
+
+      {detailSchedule ? (
+        <SessionScheduleDetailPanel
+          name={detailSchedule.name}
+          preview={detailSchedule}
+          onClose={() => setDetailSchedule(null)}
+        />
+      ) : null}
     </div>
   )
 }

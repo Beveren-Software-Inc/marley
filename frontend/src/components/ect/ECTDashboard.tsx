@@ -20,17 +20,13 @@ import { AnesthesiaRecordModal } from '../admissions/AnesthesiaRecordModal'
 import { TimeOutProcedureModal } from '../admissions/TimeOutProcedureModal'
 import { PreEctChecklistModal } from '../admissions/PreEctChecklistModal'
 import { ModifiedAldereteScoreModal } from '../admissions/ModifiedAldereteScoreModal'
-import { PhysicalExaminationList } from '../physicalExam/PhysicalExaminationList'
-import { PhysicalExaminationModal } from '../physicalExam/PhysicalExaminationModal'
-import { PatientHistoryList } from '../patientHistory/PatientHistoryList'
-import { PatientHistoryModal } from '../patientHistory/PatientHistoryModal'
 import { ECTProcedureConsentModal } from './ECTProcedureConsentModal'
 import { ECTPatientHealthHistoryModal } from './ECTPatientHealthHistoryModal'
 
 type EctTab =
   | 'anesthesia-consent' | 'pre-anesthesia' | 'anesthesia-record'
   | 'recovery-room' | 'alderete' | 'timeout' | 'pre-ect' | 'suicidal'
-  | 'ect-admission' | 'ect-procedure' | 'ect-procedure-consent' | 'ect-patient-health-history' | 'ect-details' | 'consolidated-ect-details' | 'ect-chart' | 'physical' | 'patient-history'
+  | 'ect-admission' | 'ect-procedure' | 'ect-procedure-consent' | 'ect-patient-health-history' | 'ect-details' | 'consolidated-ect-details' | 'ect-chart'
 
 interface CardDef {
   id: EctTab
@@ -83,12 +79,6 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
   const [timeOutRefreshKey, setTimeOutRefreshKey] = useState(0)
   const [showPreEctModal, setShowPreEctModal] = useState(false)
   const [preEctRefreshKey, setPreEctRefreshKey] = useState(0)
-  // const [showSuicidalModal, setShowSuicidalModal] = useState(false)
-  // const [suicidalRefreshKey, setSuicidalRefreshKey] = useState(0)
-  const [showPhysicalExamModal, setShowPhysicalExamModal] = useState(false)
-  const [physicalExamRefreshKey, setPhysicalExamRefreshKey] = useState(0)
-  const [showPatientHistoryModal, setShowPatientHistoryModal] = useState(false)
-  const [patientHistoryRefreshKey, setPatientHistoryRefreshKey] = useState(0)
 
   const ALL_CARDS: CardDef[] = [
     { id: 'anesthesia-consent', title: 'Anesthesia Consent',  desc: 'Consent with signatures',        color: 'bg-indigo-50 text-indigo-700 border-indigo-200',    dot: 'bg-indigo-500',   onAdd: () => setShowECTAnesthesiaConsentModal(true) },
@@ -105,9 +95,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
     { id: 'ect-procedure',      title: 'ECT Procedure',       desc: 'Session details & vitals',       color: 'bg-sky-50 text-sky-700 border-sky-200',             dot: 'bg-sky-500',      onAdd: () => setShowECTProcedureModal(true) },
     { id: 'ect-details',        title: 'ECT Details',         desc: 'ECT detail records',             color: 'bg-blue-50 text-blue-700 border-blue-200',          dot: 'bg-blue-500',     onAdd: () => setShowECTModal(true) },
     { id: 'consolidated-ect-details', title: 'Consolidated ECT Details', desc: 'Patient ECT session counts', color: 'bg-indigo-50 text-indigo-700 border-indigo-200', dot: 'bg-indigo-500' },
-    { id: 'ect-chart',          title: 'ECT Chart',           desc: 'Patient ECT session summary',    color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200', dot: 'bg-fuchsia-500' },  // ADDED: New ECT Chart card
-    { id: 'physical',           title: 'Physical Exam',       desc: 'All body systems examination',   color: 'bg-emerald-50 text-emerald-700 border-emerald-200', dot: 'bg-emerald-500',  onAdd: () => setShowPhysicalExamModal(true) },
-    { id: 'patient-history',    title: 'Patient History',     desc: 'Complaints & past history',      color: 'bg-slate-50 text-slate-700 border-slate-200',       dot: 'bg-slate-500',    onAdd: () => setShowPatientHistoryModal(true) },
+    { id: 'ect-chart',          title: 'ECT Chart',           desc: 'Patient ECT session summary',    color: 'bg-fuchsia-50 text-fuchsia-700 border-fuchsia-200', dot: 'bg-fuchsia-500' },
   ]
 
   const ANESTHESIA_ONLY: EctTab[] = ['recovery-room', 'alderete', 'pre-ect']
@@ -134,9 +122,7 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
       case 'ect-details':        return <ECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
       case 'consolidated-ect-details':
         return <ConsolidatedECTDetailsList patient={selectedPatient} refreshKey={ectRefreshKey} />
-      case 'ect-chart':          return <ECTChart patient={selectedPatient} />  // ADDED: Case for ECT Chart
-      case 'physical':           return <PhysicalExaminationList patient={selectedPatient} refreshKey={physicalExamRefreshKey} />
-      case 'patient-history':    return <PatientHistoryList patient={selectedPatient} refreshKey={patientHistoryRefreshKey} />
+      case 'ect-chart':          return <ECTChart patient={selectedPatient} />
       default:                   return null
     }
   }
@@ -267,24 +253,6 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
         <PreEctChecklistModal admissionNo={activeAdmission || ''} patient={selectedPatient || ''} patientName=""
           onClose={() => setShowPreEctModal(false)}
           onSuccess={() => { setPreEctRefreshKey(p => p + 1); setShowPreEctModal(false) }}
-        />
-      )}
-      {/* {showSuicidalModal && (
-        <SuicidalPatientAssessmentModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowSuicidalModal(false)}
-          onSuccess={() => { setSuicidalRefreshKey(p => p + 1); setShowSuicidalModal(false) }}
-        />
-      )} */}
-      {showPhysicalExamModal && (
-        <PhysicalExaminationModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowPhysicalExamModal(false)}
-          onSuccess={() => { setPhysicalExamRefreshKey(p => p + 1); setShowPhysicalExamModal(false) }}
-        />
-      )}
-      {showPatientHistoryModal && (
-        <PatientHistoryModal admissionNo="" patient={selectedPatient || ''} patientName=""
-          onClose={() => setShowPatientHistoryModal(false)}
-          onSuccess={() => { setPatientHistoryRefreshKey(p => p + 1); setShowPatientHistoryModal(false) }}
         />
       )}
     </div>

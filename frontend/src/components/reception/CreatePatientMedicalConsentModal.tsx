@@ -36,7 +36,8 @@ interface CreatePatientMedicalConsentModalProps {
 interface HealthHistoryRow {
   _key: string
   history: string
-  yes: boolean
+  /** null = unanswered (must pick Yes or No), true = Yes, false = No */
+  yes: boolean | null
   remarks: string
   no_format: number
   is_diabetic: boolean
@@ -241,7 +242,7 @@ export const CreatePatientMedicalConsentModal = ({
           items.map((r, idx) => ({
             _key: Math.random().toString(36).slice(2),
             history: r.history || '',
-            yes: Boolean(r.yes),
+            yes: null,
             remarks: r.remarks || '',
             no_format: r.no_format || idx + 1,
             is_diabetic: Boolean(r.is_diabetic),
@@ -268,7 +269,7 @@ export const CreatePatientMedicalConsentModal = ({
   const addHealthRow = () =>
     setHealthRows((prev) => [
       ...prev,
-      { _key: Math.random().toString(36).slice(2), history: '', yes: false, remarks: '', no_format: prev.length + 1, is_diabetic: false, type: '' },
+      { _key: Math.random().toString(36).slice(2), history: '', yes: null, remarks: '', no_format: prev.length + 1, is_diabetic: false, type: '' },
     ])
 
   const removeHealthRow = (key: string) =>
@@ -277,11 +278,31 @@ export const CreatePatientMedicalConsentModal = ({
   const updateHealthRow = (key: string, field: keyof Omit<HealthHistoryRow, '_key'>, value: string | boolean | number) =>
     setHealthRows((prev) => prev.map((r) => (r._key === key ? { ...r, [field]: value } : r)))
 
+  /** Force an explicit Yes/No answer; clear dependent detail fields when switching to No */
+  const setYesNo = (key: string, value: boolean) =>
+    setHealthRows((prev) =>
+      prev.map((r) =>
+        r._key === key
+          ? { ...r, yes: value, ...(value ? {} : { type: '' }) }
+          : r
+      )
+    )
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!form.patient) {
       setError('Patient is required')
       return
+    }
+    for (const r of healthRows) {
+      if (r.yes === null) {
+        setError(`Please select Yes or No for "${r.history || 'item'}"`)
+        return
+      }
+      if (r.yes && r.is_diabetic && !r.type.trim()) {
+        setError(`Diabetic Type is required for "${r.history || 'item'}"`)
+        return
+      }
     }
     try {
       setLoading(true)
@@ -656,16 +677,33 @@ export const CreatePatientMedicalConsentModal = ({
                             placeholder="e.g. Diabetic, Hypertension…"
                           />
                         </div>
-                        {/* Yes */}
-                        <label className="mt-5 flex items-center gap-1.5 text-xs font-medium text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={row.yes}
-                            onChange={(e) => updateHealthRow(row._key, 'yes', e.target.checked)}
-                            className="h-4 w-4"
-                          />
-                          Yes
-                        </label>
+                        {/* Yes / No */}
+                        <div className="pt-5 flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => setYesNo(row._key, true)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                              row.yes === true
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`inline-block h-2 w-2 rounded-full ${row.yes === true ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setYesNo(row._key, false)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                              row.yes === false
+                                ? 'border-red-300 bg-red-50 text-red-700'
+                                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`inline-block h-2 w-2 rounded-full ${row.yes === false ? 'bg-red-500' : 'bg-slate-300'}`} />
+                            No
+                          </button>
+                        </div>
                         {/* Remove */}
                         <button
                           type="button"
@@ -677,32 +715,35 @@ export const CreatePatientMedicalConsentModal = ({
                         </button>
                       </div>
 
-                      {/* Diabetic conditional */}
-                      <div className="mt-2 flex items-center gap-3">
-                        <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
-                          <input
-                            type="checkbox"
-                            checked={row.is_diabetic}
-                            onChange={(e) => {
-                              updateHealthRow(row._key, 'is_diabetic', e.target.checked)
-                              if (!e.target.checked) updateHealthRow(row._key, 'type', '')
-                            }}
-                            className="h-4 w-4"
-                          />
-                          Diabetic
-                        </label>
-                        {row.is_diabetic && (
-                          <select
-                            value={row.type}
-                            onChange={(e) => updateHealthRow(row._key, 'type', e.target.value)}
-                            className={`${MODAL_FIELD_CLASS} w-32 px-2 py-1 text-xs`}
-                          >
-                            <option value="">Select Type</option>
-                            <option value="Type 1">Type 1</option>
-                            <option value="Type 2">Type 2</option>
-                          </select>
-                        )}
-                      </div>
+                      {/* Diabetic conditional — only shown when Yes is selected */}
+                      {row.yes === true && (
+                        <div className="mt-2 flex items-center gap-3">
+                          <label className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-700">
+                            <input
+                              type="checkbox"
+                              checked={row.is_diabetic}
+                              onChange={(e) => {
+                                updateHealthRow(row._key, 'is_diabetic', e.target.checked)
+                                if (!e.target.checked) updateHealthRow(row._key, 'type', '')
+                              }}
+                              className="h-4 w-4"
+                            />
+                            Diabetic
+                          </label>
+                          {row.is_diabetic && (
+                            <select
+                              value={row.type}
+                              onChange={(e) => updateHealthRow(row._key, 'type', e.target.value)}
+                              className={`${MODAL_FIELD_CLASS} w-32 px-2 py-1 text-xs`}
+                              required
+                            >
+                              <option value="">Select Type</option>
+                              <option value="Type 1">Type 1</option>
+                              <option value="Type 2">Type 2</option>
+                            </select>
+                          )}
+                        </div>
+                      )}
 
                       {/* Remarks */}
                       <div className="mt-2">

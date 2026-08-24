@@ -23,6 +23,32 @@ LAB_SERVICE_REQUEST_ALLOWED_ROLES = {
 }
 
 
+def _practitioner_display_name(practitioner):
+	"""Full name for Healthcare Practitioner. Never fall back to the document id."""
+	practitioner = (practitioner or "").strip()
+	if not practitioner:
+		return None
+	row = frappe.db.get_value(
+		"Healthcare Practitioner",
+		practitioner,
+		["practitioner_name", "first_name", "last_name"],
+		as_dict=True,
+	)
+	if not row:
+		return None
+	full = (row.get("practitioner_name") or "").strip()
+	if full and full != practitioner:
+		return full
+	composed = " ".join(
+		p for p in [(row.get("first_name") or "").strip(), (row.get("last_name") or "").strip()] if p
+	).strip()
+	if composed:
+		return composed
+	if full:
+		return full
+	return None
+
+
 def _collect_lab_template_names_for_permission(
 	template_dn=None, lab_request_items=None, selected_group_templates=None
 ):
@@ -765,11 +791,7 @@ def get_service_requests(
 
 	service_requests = frappe.get_all('Service Request', **fetch_kwargs)
 	for sr in service_requests:
-		if sr.practitioner:
-			sr['practitioner_name'] = (
-				frappe.db.get_value('Healthcare Practitioner', sr.practitioner, 'practitioner_name')
-				or sr.practitioner
-			)
+		sr['practitioner_name'] = _practitioner_display_name(sr.practitioner)
 
 		# Compute UI-only virtual status (sample progress / result progress) for Lab Requests
 		if sr.template_dt == 'Lab Test Template':
@@ -1184,11 +1206,7 @@ def get_lab_request_review(name):
 		"id_number": patient_label.get("id_number"),
 		"nationality": patient_label.get("nationality"),
 		"practitioner": doc.practitioner,
-		"practitioner_name": (
-			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
-			if doc.practitioner
-			else None
-		),
+		"practitioner_name": _practitioner_display_name(doc.practitioner),
 		# Lab users only care that it is booked — not Service Request workflow status.
 		"status": "Booked",
 		"service_request_status": doc.status,
@@ -1611,11 +1629,6 @@ def create_service_request(data):
 		else:
 			template_name = service_request.template_dn
 	
-	# Get practitioner name if practitioner exists
-	practitioner_name = None
-	if service_request.practitioner:
-		practitioner_name = frappe.db.get_value('Healthcare Practitioner', service_request.practitioner, 'practitioner_name')
-	
 	# Return the created service request
 	return {
 		'name': service_request.name,
@@ -1625,7 +1638,7 @@ def create_service_request(data):
 		'template_dn': service_request.template_dn,
 		'template_name': template_name or service_request.template_dn,
 		'practitioner': service_request.practitioner,
-		'practitioner_name': practitioner_name or service_request.practitioner if service_request.practitioner else None,
+		'practitioner_name': _practitioner_display_name(service_request.practitioner),
 		'status': service_request.status,
 		'order_date': service_request.order_date
 	}
@@ -1701,6 +1714,7 @@ def get_service_request(name):
 			)
 		else:
 			data["template_name"] = doc.template_dn
+	data["practitioner_name"] = _practitioner_display_name(doc.practitioner)
 	return data
 
 

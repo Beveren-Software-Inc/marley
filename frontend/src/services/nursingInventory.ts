@@ -30,6 +30,8 @@ export interface StockLedgerItem {
   unit_qty?: number | null
   unit_uom?: string | null
   units_per_pack?: number | null
+  /** 1 when the item's Item Group (or an ancestor) has Tracked By NHRA */
+  tracked_by_nhra?: number
 }
 
 export interface MaterialRequestItem {

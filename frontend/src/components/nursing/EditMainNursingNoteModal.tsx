@@ -5,9 +5,12 @@ import {
   CM_BTN_OUTLINE_SAVE,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
-import { updateMainNursingNote, type MainNursingNoteRow } from '../../services/mainNursingNote'
 import {
-  appendNursingNoteLine,
+  updateMainNursingNote,
+  type MainNursingNoteEntryRow,
+  type MainNursingNoteRow,
+} from '../../services/mainNursingNote'
+import {
   formatNursingNoteTimestamp,
   isMainNursingNoteEditable,
   MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE,
@@ -15,11 +18,16 @@ import {
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { toast } from '../../hooks/useToast'
+import { NursingNoteEditableCard } from './NursingNoteEditableCard'
 
 interface EditMainNursingNoteModalProps {
   row: MainNursingNoteRow
   onClose: () => void
   onSuccess: () => void
+}
+
+function entryTimeLabel(entry: MainNursingNoteEntryRow): string {
+  return formatNursingNoteTimestamp(entry.note_time) || '—'
 }
 
 export const EditMainNursingNoteModal = ({
@@ -36,14 +44,14 @@ export const EditMainNursingNoteModal = ({
     toast.error(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
     onClose()
   }, [editWindowOpen, onClose])
+
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [existingNotes, setExistingNotes] = useState(row.nursing_notes || '')
   const [appendNote, setAppendNote] = useState('')
   const [noteTime, setNoteTime] = useState(() => formatNursingNoteTimestamp())
+  const existingEntries = row.entries?.filter((entry) => (entry.note || '').trim()) || []
 
   useEffect(() => {
-    setExistingNotes(row.nursing_notes || '')
     setAppendNote('')
   }, [row])
 
@@ -54,20 +62,26 @@ export const EditMainNursingNoteModal = ({
     return () => clearInterval(tick)
   }, [])
 
-  const previewLine = appendNote.trim()
-    ? `[${noteTime}] ${appendNote.trim()}`
-    : ''
-
-  const initialNotes = row.nursing_notes || ''
-  const isDirty = existingNotes !== initialNotes || appendNote.trim().length > 0
+  const saveExistingNote = async (next: string, entryName?: string) => {
+    if (!editWindowOpen) {
+      throw new Error(MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE)
+    }
+    blockIfEditingLocked()
+    const result = await updateMainNursingNote({
+      name: row.name,
+      note: next,
+      entry_name: entryName,
+    })
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to update nursing note')
+    }
+    toast.success('Note updated')
+    onSuccess()
+  }
 
   const handleSave = async () => {
-    let finalNotes = existingNotes.trim()
-    if (appendNote.trim()) {
-      finalNotes = appendNursingNoteLine(finalNotes, appendNote.trim(), noteTime)
-    }
-    if (!isDirty) {
-      setError('No changes to save')
+    if (!appendNote.trim()) {
+      setError('Enter a note to append')
       return
     }
     if (!editWindowOpen) {
@@ -80,23 +94,33 @@ export const EditMainNursingNoteModal = ({
     try {
       const result = await updateMainNursingNote({
         name: row.name,
-        nursing_notes: finalNotes,
-        replace_notes: true,
+        append_notes: appendNote.trim(),
+        time: noteTime,
       })
       if (!result.success) {
-        throw new Error(result.message || 'Failed to update nursing note')
+        throw new Error(result.message || 'Failed to append nursing note')
       }
+      toast.success('Note appended')
       onSuccess()
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Failed to update nursing note')
+      setError(e instanceof Error ? e.message : 'Failed to append nursing note')
     } finally {
       setSaving(false)
     }
   }
 
   return (
-    <div className={CREATE_MODAL_OVERLAY}>
-      <div className={createModalShellClass('max-w-lg')}>
+    <div
+      className={CREATE_MODAL_OVERLAY}
+      onClick={onClose}
+      role="presentation"
+    >
+      <div
+        className={createModalShellClass('max-w-lg')}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
         <div className="px-5 py-4 border-b border-slate-200">
           <h2 className="text-lg font-semibold text-slate-900">Edit Nursing Note</h2>
           <p className="text-xs text-slate-500 mt-0.5">
@@ -116,43 +140,54 @@ export const EditMainNursingNoteModal = ({
               <div className="text-slate-900">{row.patient_name || row.file_no || '—'}</div>
             </div>
             <div>
-              <div className="text-xs font-medium text-slate-500">Shift</div>
-              <div className="text-slate-900">{row.shift || '—'}</div>
+              <div className="text-xs font-medium text-slate-500">Created by</div>
+              <div className="text-slate-900">{row.user_name || row.user || '—'}</div>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Nursing notes</label>
-            <textarea
-              value={existingNotes}
-              onChange={(e) => setExistingNotes(e.target.value)}
-              rows={8}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
-              placeholder="Edit existing nursing notes…"
-              autoFocus
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              You can edit the full note text above, including previously saved entries.
+            <div className="text-xs font-medium text-slate-700 mb-2">Saved entries</div>
+            {existingEntries.length > 0 ? (
+              <div className="space-y-2">
+                {existingEntries.map((entry, index) => (
+                  <NursingNoteEditableCard
+                    key={entry.name || `${entry.authored_by}-${index}`}
+                    note={entry.note || ''}
+                    authorLabel={entry.authored_by_name || entry.authored_by || 'Unknown'}
+                    timeLabel={entryTimeLabel(entry)}
+                    canEdit={editWindowOpen}
+                    disabled={saving}
+                    onSave={(next) => saveExistingNote(next, entry.name)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <NursingNoteEditableCard
+                note={row.nursing_notes || ''}
+                authorLabel={row.user_name || row.user || 'Note'}
+                canEdit={editWindowOpen && Boolean((row.nursing_notes || '').trim())}
+                disabled={saving}
+                onSave={(next) => saveExistingNote(next)}
+              />
+            )}
+            <p className="mt-2 text-[11px] text-slate-500">
+              Use the pencil to change a saved line. Append below to add a new line under your name.
             </p>
           </div>
 
           <div>
             <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="block text-xs font-medium text-slate-700">Append note (optional)</label>
+              <label className="block text-xs font-medium text-slate-700">Append note *</label>
               <span className="text-[11px] text-slate-500">Will be stamped {noteTime}</span>
             </div>
             <textarea
               value={appendNote}
               onChange={(e) => setAppendNote(e.target.value)}
-              rows={3}
+              rows={4}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
-              placeholder="Add a new timestamped entry…"
+              placeholder="Add your update for this shift…"
+              autoFocus
             />
-            {previewLine ? (
-              <p className="mt-2 text-xs text-slate-500">
-                Will append: <span className="text-slate-700">{previewLine}</span>
-              </p>
-            ) : null}
           </div>
         </div>
 
@@ -167,11 +202,11 @@ export const EditMainNursingNoteModal = ({
           </button>
           <button
             type="button"
-            onClick={handleSave}
-            disabled={saving || !isDirty}
+            onClick={() => void handleSave()}
+            disabled={saving || !appendNote.trim()}
             className={CM_BTN_OUTLINE_SAVE}
           >
-            {saving ? 'Saving…' : 'Save'}
+            {saving ? 'Saving…' : 'Append'}
           </button>
         </div>
       </div>

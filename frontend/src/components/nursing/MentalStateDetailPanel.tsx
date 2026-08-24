@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Brain, Calendar, FileText, Link2, User } from 'lucide-react'
 import { fetchMentalState, type MentalStateDoc, type MentalStateRow } from '../../services/mentalState'
+import { resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
@@ -102,14 +103,19 @@ export function MentalStateDetailPanel({
   const [doc, setDoc] = useState<MentalStateDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [createdBy, setCreatedBy] = useState('')
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     setError(null)
     fetchMentalState(name)
-      .then((data) => {
-        if (!cancelled) setDoc(data)
+      .then(async (data) => {
+        const username = await resolveOwnerUsername(data.owner)
+        if (!cancelled) {
+          setDoc(data)
+          setCreatedBy(username)
+        }
       })
       .catch((err) => {
         if (!cancelled) {
@@ -304,9 +310,9 @@ export function MentalStateDetailPanel({
                 )}
               />
               <InfoTile
-                icon={<FileText className="h-4 w-4" strokeWidth={2} />}
-                label="Record ID"
-                value={displayValue(doc?.name || preview?.name || name)}
+                icon={<User className="h-4 w-4" strokeWidth={2} />}
+                label="Username"
+                value={displayValue(createdBy)}
               />
             </div>
           </section>

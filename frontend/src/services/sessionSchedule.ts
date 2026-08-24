@@ -19,6 +19,9 @@ export interface SessionSchedule {
   to_time?: string
   amount?: number
   sales_order?: string
+  doc_remarks?: string
+  feedback_remarks?: string
+  sr_num?: string
 }
 
 export interface CreateSessionScheduleData {
@@ -71,6 +74,39 @@ export async function fetchSessionSchedules(
     }
   }
   return { data: [], total_count: 0 }
+}
+
+export async function fetchSessionSchedule(name: string): Promise<SessionSchedule> {
+  const { fetchDoc } = await import('./common')
+  const data = await fetchDoc('Session Schedule', name)
+  return { ...(data as unknown as SessionSchedule), name: String(data.name || name) }
+}
+
+/** Display name for Session Schedule.practitioner (Username on the detail panel). */
+export async function resolveSessionPractitionerName(
+  practitioner?: string | null,
+  practitionerName?: string | null,
+): Promise<string> {
+  const labeled = (practitionerName || '').trim()
+  if (labeled) return labeled
+  const id = (practitioner || '').trim()
+  if (!id) return ''
+  try {
+    const params = new URLSearchParams({
+      doctype: 'Healthcare Practitioner',
+      fields: JSON.stringify(['name', 'practitioner_name']),
+      filters: JSON.stringify([['name', '=', id]]),
+      limit_page_length: '1',
+    })
+    const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+    const payload = await res.json()
+    const row = Array.isArray(payload?.message) ? payload.message[0] : null
+    const resolved = String(row?.practitioner_name || '').trim()
+    if (resolved) return resolved
+  } catch {
+    /* leave blank rather than showing an internal id */
+  }
+  return ''
 }
 
 export async function createSessionSchedule(data: CreateSessionScheduleData): Promise<SessionSchedule> {

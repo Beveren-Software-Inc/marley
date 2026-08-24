@@ -207,6 +207,7 @@ export interface CreatePatientData {
   dob?: string
   blood_group?: string
   mobile?: string
+  mobile_no_owner?: string
   phone?: string
   email?: string
   id_number?: string
@@ -733,6 +734,7 @@ export interface PatientDoc {
   dob?: string
   blood_group?: string
   mobile?: string
+  mobile_no_owner?: string
   phone?: string
   email?: string
   id_number?: string
@@ -859,6 +861,7 @@ export interface UpdatePatientData {
   dob?: string
   blood_group?: string
   mobile?: string
+  mobile_no_owner?: string
   phone?: string
   email?: string
   id_number?: string

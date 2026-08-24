@@ -87,6 +87,7 @@ def serialize_entry(row) -> dict:
 		"patient_name": _get("patient_name") or "",
 		"group_code": _get("group_code") or "",
 		"cost_center": _get("cost_center") or "",
+		"creation": str(_get("creation") or ""),
 	}
 
 
@@ -106,6 +107,7 @@ ENTRY_LIST_FIELDS = [
 	"patient_name",
 	"group_code",
 	"cost_center",
+	"creation",
 ]
 
 
@@ -308,6 +310,18 @@ def save_for_context(parent_doctype: str, parent_name: str, rows) -> dict:
 		entry_name = row.get("name")
 
 		if entry_name and entry_name in existing_names:
+			from healthcare.healthcare.editing_lock import (
+				assert_editable_within_24h_if_enabled,
+			)
+
+			assert_editable_within_24h_if_enabled(
+				"Medical Diagnosis Entry",
+				entry_name,
+				"unedit_within_24hour",
+				locked_message=_(
+					"This diagnosis can no longer be edited. Records are locked 24 hours after creation."
+				),
+			)
 			doc = frappe.get_doc("Medical Diagnosis Entry", entry_name)
 			doc.update(fields)
 			doc.save(ignore_permissions=True)
@@ -368,6 +382,20 @@ def append_for_context(parent_doctype: str, parent_name: str, rows) -> dict:
 def delete_entry(name: str) -> dict:
 	if not name:
 		frappe.throw(_("Entry name is required"))
+	if not frappe.db.exists("Medical Diagnosis Entry", name):
+		frappe.throw(_("Medical Diagnosis Entry {0} not found").format(name))
+
+	from healthcare.healthcare.editing_lock import assert_editable_within_24h_if_enabled
+
+	assert_editable_within_24h_if_enabled(
+		"Medical Diagnosis Entry",
+		name,
+		"unedit_within_24hour",
+		locked_message=_(
+			"This diagnosis can no longer be deleted. Records are locked 24 hours after creation."
+		),
+	)
+
 	frappe.delete_doc("Medical Diagnosis Entry", name, force=True, ignore_permissions=True)
 	frappe.db.commit()
 	return {"success": True, "message": _("Diagnosis entry deleted")}

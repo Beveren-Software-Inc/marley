@@ -276,6 +276,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     dob: '',
     blood_group: '',
     mobile: '',
+    mobile_no_owner: '',
     alternative_mobile_no_1: '',
     alternative_mobile_no_2: '',
     phone: '',
@@ -396,6 +397,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           dob: patient.dob ? String(patient.dob).slice(0, 10) : '',
           blood_group: patient.blood_group ?? '',
           mobile: patient.mobile ?? '',
+          mobile_no_owner: patient.mobile_no_owner ?? '',
           alternative_mobile_no_1: patient.alternative_mobile_no_1 ?? '',
           alternative_mobile_no_2: patient.alternative_mobile_no_2 ?? '',
           phone: patient.phone ?? '',
@@ -652,6 +654,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
         dob: formData.dob || undefined,
         blood_group: formData.blood_group || undefined,
         mobile: formData.mobile || undefined,
+        mobile_no_owner: formData.mobile_no_owner || undefined,
         alternative_mobile_no_1: formData.alternative_mobile_no_1 || undefined,
         alternative_mobile_no_2: formData.alternative_mobile_no_2 || undefined,
         phone: formData.phone || undefined,
@@ -988,8 +991,16 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <input type="tel" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number Owner</label>
+                      <input type="text" value={formData.mobile_no_owner} onChange={(e) => handleChange('mobile_no_owner', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
                       <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                      <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 1</label>
@@ -998,10 +1009,6 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 2</label>
                       <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
-                    </div>
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
-                      <input type="email" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>

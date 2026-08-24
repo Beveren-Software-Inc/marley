@@ -348,6 +348,78 @@ function ECTProcedureConsentBody({ doc }: { doc: DocRecord }) {
 
 function PatientHealthHistoryBody({ doc }: { doc: DocRecord }) {
   const rows = asRows(doc.template_feedback)
+  const [practitionerName, setPractitionerName] = useState<string | null>(null)
+  const [patientDisplayName, setPatientDisplayName] = useState<string | null>(null)
+
+  // Resolve the linked Patient to its display name (doc.patient is a Link field = patient ID).
+  // Uses doc.patient_name when populated, otherwise fetches the Patient doc for its name.
+  useEffect(() => {
+    let cancelled = false
+    const patientRef = doc.patient
+    const savedName = doc.patient_name
+    ;(async () => {
+      if (typeof savedName === 'string' && savedName.trim() !== '') {
+        if (!cancelled) setPatientDisplayName(savedName.trim())
+        return
+      }
+      if (!patientRef || typeof patientRef !== 'string' || patientRef.trim() === '') {
+        if (!cancelled) setPatientDisplayName(null)
+        return
+      }
+      const raw = patientRef.trim()
+      try {
+        const res = await fetch(`/api/resource/Patient/${encodeURIComponent(raw)}`)
+        const data = await res.json()
+        if (cancelled) return
+        const docData = data?.data
+        const name =
+          docData?.patient_name ||
+          docData?.full_name ||
+          docData?.first_name ||
+          docData?.name ||
+          raw
+        if (!cancelled) setPatientDisplayName(String(name))
+      } catch {
+        if (!cancelled) setPatientDisplayName(raw)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [doc.patient, doc.patient_name])
+
+  // Resolve the linked Healthcare Practitioner to its display name
+  // (doc.username is a Link field = practitioner ID). Falls back to full_name then raw ID.
+  useEffect(() => {
+    let cancelled = false
+    const username = doc.username
+    ;(async () => {
+      if (!username || typeof username !== 'string' || username.trim() === '') {
+        if (!cancelled) setPractitionerName(null)
+        return
+      }
+      const raw = username.trim()
+      // Already a human-readable name (contains a space or non-ASCII) → show directly
+      if (raw.includes(' ')) {
+        if (!cancelled) setPractitionerName(raw)
+        return
+      }
+      try {
+        const res = await fetch(`/api/resource/Healthcare%20Practitioner/${encodeURIComponent(raw)}`)
+        const data = await res.json()
+        if (cancelled) return
+        const docData = data?.data
+        const name =
+          docData?.practitioner_name ||
+          docData?.full_name ||
+          docData?.employee_name ||
+          docData?.name ||
+          raw
+        if (!cancelled) setPractitionerName(String(name))
+      } catch {
+        if (!cancelled) setPractitionerName(raw)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [doc.username])
 
   return (
     <>
@@ -358,14 +430,18 @@ function PatientHealthHistoryBody({ doc }: { doc: DocRecord }) {
           Patient
         </h3>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          <DataTile label="Patient" value={displayValue(doc.patient_name || doc.patient)} />
+          <DataTile label="Patient" value={displayValue(patientDisplayName || doc.patient_name || doc.patient)} />
           {hasValue(doc.inpatient_admission) ? (
             <DataTile label="Admission / Patient Visit" value={displayValue(doc.inpatient_admission)} />
           ) : null}
           {hasValue(doc.patient_visit) ? (
             <DataTile label="Visit" value={displayValue(doc.patient_visit)} />
           ) : null}
-          {hasValue(doc.template) ? <DataTile label="Template" value={displayValue(doc.template)} /> : null}
+          {practitionerName ? (
+            <DataTile label="Username" value={displayValue(practitionerName)} />
+          ) : hasValue(doc.username) ? (
+            <DataTile label="Username" value={displayValue(doc.username)} />
+          ) : null}
         </div>
       </section>
 

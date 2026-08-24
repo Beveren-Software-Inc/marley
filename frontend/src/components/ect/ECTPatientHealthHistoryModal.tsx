@@ -1,6 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { apiRequest } from '../../services/apiClient'
-import { getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
+import {
+  fetchHealthcarePractitioners,
+  getCurrentUserPractitionerOption,
+  type LinkFieldOption,
+} from '../../services/common'
 import {
   fetchPatientHealthHistoryTemplate2Details,
   fetchPatientHealthHistoryTemplate2Options,
@@ -36,7 +40,8 @@ interface ECTPatientHealthHistoryModalProps {
 interface HealthHistoryRow {
   _key: string
   history: string
-  yes: boolean
+  /** null = unanswered (must pick Yes or No), true = Yes, false = No */
+  yes: boolean | null
   remarks: string
   no_format: number
   is_diabetic: boolean
@@ -74,22 +79,21 @@ export const ECTPatientHealthHistoryModal = ({
   const [weight, setWeight] = useState('')
   const [username, setUsername] = useState('')
 
-  // ── Template
-  const [templateOptions, setTemplateOptions] = useState<LinkFieldOption[]>([])
-  const [templateOpen, setTemplateOpen] = useState(false)
-  const [templateQuery, setTemplateQuery] = useState('')
+  // ── Template (auto-loaded in the background to populate health rows)
   const [templateSelected, setTemplateSelected] = useState<LinkFieldOption | null>(null)
-  const [templateLoading, setTemplateLoading] = useState(false)
   const [healthRows, setHealthRows] = useState<HealthHistoryRow[]>([])
-  const templateRef = useRef<HTMLDivElement>(null)
+
+  // ── Practitioner (Username)
+  const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
+  const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerSelected, setPractitionerSelected] = useState<LinkFieldOption | null>(null)
+  const practitionerRef = useRef<HTMLDivElement>(null)
 
   const [submitting, setSubmitting] = useState(false)
 
   const loadTemplateRows = async (opt: LinkFieldOption) => {
     setTemplateSelected(opt)
-    setTemplateQuery(opt.label)
-    setTemplateOpen(false)
-    setTemplateLoading(true)
     try {
       const details = await fetchPatientHealthHistoryTemplate2Details(opt.name)
       const items = details?.templates || []
@@ -98,7 +102,7 @@ export const ECTPatientHealthHistoryModal = ({
           items.map((r, idx) => ({
             _key: Math.random().toString(36).slice(2),
             history: r.history || '',
-            yes: Boolean(r.yes),
+            yes: null,
             remarks: r.remarks || '',
             no_format: r.no_format || idx + 1,
             is_diabetic: Boolean(r.is_diabetic),
@@ -113,8 +117,6 @@ export const ECTPatientHealthHistoryModal = ({
       }
     } catch {
       toast.error('Failed to load template.')
-    } finally {
-      setTemplateLoading(false)
     }
   }
 
@@ -146,6 +148,8 @@ export const ECTPatientHealthHistoryModal = ({
         const pract = await getCurrentUserPractitionerOption()
         if (cancelled || !pract) return
         setUsername(pract.name)
+        setPractitionerSelected(pract)
+        setPractitionerQuery(pract.label || pract.practitioner_name || pract.name)
       } catch {
         /* ignore */
       }
@@ -154,44 +158,58 @@ export const ECTPatientHealthHistoryModal = ({
     return () => { cancelled = true }
   }, [])
 
-  // Template options
+  // Practitioner (Username) options
   useEffect(() => {
-    if (!templateOpen) return
+    if (!practitionerOpen) return
     const id = setTimeout(async () => {
       try {
-        setTemplateOptions(await fetchPatientHealthHistoryTemplate2Options(templateQuery.trim() || undefined))
-      } catch { setTemplateOptions([]) }
-    }, templateQuery.trim() ? 300 : 0)
+        setPractitionerOptions(await fetchHealthcarePractitioners(practitionerQuery.trim() || undefined))
+      } catch { setPractitionerOptions([]) }
+    }, practitionerQuery.trim() ? 300 : 0)
     return () => clearTimeout(id)
-  }, [templateOpen, templateQuery])
+  }, [practitionerOpen, practitionerQuery])
 
   // Close dropdowns
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (templateRef.current && !templateRef.current.contains(e.target as Node)) setTemplateOpen(false)
+      if (practitionerRef.current && !practitionerRef.current.contains(e.target as Node)) setPractitionerOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  const handleTemplateSelect = async (opt: LinkFieldOption) => {
-    await loadTemplateRows(opt)
+  const handlePractitionerSelect = (opt: LinkFieldOption) => {
+    setPractitionerSelected(opt)
+    setPractitionerQuery(opt.label || opt.practitioner_name || opt.name)
+    setUsername(opt.name)
+    setPractitionerOpen(false)
   }
 
-  const clearTemplate = () => {
-    setTemplateSelected(null)
-    setTemplateQuery('')
-    setTemplateOpen(false)
+  const clearPractitioner = () => {
+    setPractitionerSelected(null)
+    setPractitionerQuery('')
+    setUsername('')
+    setPractitionerOpen(false)
   }
 
   const addHealthRow = () =>
     setHealthRows((prev) => [
       ...prev,
-      { _key: Math.random().toString(36).slice(2), history: '', yes: false, remarks: '', no_format: prev.length + 1, is_diabetic: false, type: '', specify: false, speficication: '' },
+      { _key: Math.random().toString(36).slice(2), history: '', yes: null, remarks: '', no_format: prev.length + 1, is_diabetic: false, type: '', specify: false, speficication: '' },
     ])
 
   const updateHealthRow = (key: string, field: keyof Omit<HealthHistoryRow, '_key'>, value: string | boolean | number) =>
     setHealthRows((prev) => prev.map((r) => (r._key === key ? { ...r, [field]: value } : r)))
+
+  /** Force an explicit Yes/No answer; clear dependent detail fields when switching to No */
+  const setYesNo = (key: string, value: boolean) =>
+    setHealthRows((prev) =>
+      prev.map((r) =>
+        r._key === key
+          ? { ...r, yes: value, ...(value ? {} : { type: '', speficication: '' }) }
+          : r
+      )
+    )
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -201,11 +219,15 @@ export const ECTPatientHealthHistoryModal = ({
       return
     }
     for (const r of healthRows) {
-      if (r.is_diabetic && !r.type.trim()) {
+      if (r.yes === null) {
+        toast.error(`Please select Yes or No for "${r.history || 'item'}"`)
+        return
+      }
+      if (r.yes && r.is_diabetic && !r.type.trim()) {
         toast.error(`Diabetic Type is required for "${r.history || 'item'}"`)
         return
       }
-      if (r.specify && !r.speficication.trim()) {
+      if (r.yes && r.specify && !r.speficication.trim()) {
         toast.error(`Specification is required for "${r.history || 'item'}"`)
         return
       }
@@ -279,37 +301,36 @@ export const ECTPatientHealthHistoryModal = ({
                 <label className={lc}>Weight</label>
                 <input type="text" value={weight} onChange={(e) => setWeight(e.target.value)} placeholder="e.g. 70 kg" className={ic} />
               </div>
-            </div>
-
-            {/* Middle: Template section + child table */}
-            <div className={MODAL_SECTION_CLASS}>
-              <h3 className={MODAL_SECTION_TITLE_CLASS}>Template</h3>
-              <div ref={templateRef} className="mb-3">
-                <label className={lc}>Template</label>
+              <div ref={practitionerRef}>
+                <label className={lc}>Username</label>
                 <div className="relative">
                   <input
                     type="text"
-                    value={templateSelected ? templateSelected.label : templateQuery}
-                    onChange={(e) => { setTemplateQuery(e.target.value); setTemplateOpen(true); if (templateSelected) clearTemplate() }}
-                    onFocus={() => setTemplateOpen(true)}
-                    placeholder="Search template..."
+                    value={practitionerSelected ? practitionerSelected.label || practitionerSelected.practitioner_name || practitionerSelected.name : practitionerQuery}
+                    onChange={(e) => { setPractitionerQuery(e.target.value); setPractitionerOpen(true); if (practitionerSelected) clearPractitioner() }}
+                    onFocus={() => setPractitionerOpen(true)}
+                    placeholder="Search username..."
                     className={`${linkComboboxInputWithClearClass} pr-9`}
                   />
                   <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
                     <ChevronDown className="h-3.5 w-3.5" />
                   </span>
-                  {templateOpen && templateOptions.length > 0 && (
+                  {practitionerOpen && practitionerOptions.length > 0 && (
                     <div className={linkComboboxDropdownClass}>
-                      {templateOptions.map((opt) => (
-                        <button key={opt.name} type="button" onClick={() => handleTemplateSelect(opt)} className={linkComboboxOptionClassCompact}>
-                          <span className="font-medium text-slate-800">{opt.label}</span>
+                      {practitionerOptions.map((opt) => (
+                        <button key={opt.name} type="button" onClick={() => handlePractitionerSelect(opt)} className={linkComboboxOptionClassCompact}>
+                          <span className="font-medium text-slate-800">{opt.label || opt.practitioner_name || opt.name}</span>
                         </button>
                       ))}
                     </div>
                   )}
                 </div>
-                {templateLoading && <p className="mt-1.5 text-xs text-slate-500">Loading template items…</p>}
               </div>
+            </div>
+
+            {/* Health history items */}
+            <div className={MODAL_SECTION_CLASS}>
+              <h3 className={MODAL_SECTION_TITLE_CLASS}>Health History Items</h3>
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-medium text-slate-600">{healthRows.length} item{healthRows.length !== 1 ? 's' : ''}</p>
                 <button type="button" onClick={addHealthRow} className="inline-flex items-center gap-1 rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-100">
@@ -333,11 +354,33 @@ export const ECTPatientHealthHistoryModal = ({
                           <input type="text" value={row.history} onChange={(e) => updateHealthRow(row._key, 'history', e.target.value)} className={`${MODAL_FIELD_CLASS} px-2 py-1 text-sm`} placeholder="e.g. Diabetic, Hypertension…" />
                         </div>
                         <div className="flex items-center gap-1.5 pt-4">
-                          <input type="checkbox" checked={row.yes} onChange={(e) => updateHealthRow(row._key, 'yes', e.target.checked)} className="h-4 w-4" />
-                          <span className="text-xs font-medium text-slate-700">Yes</span>
+                          <button
+                            type="button"
+                            onClick={() => setYesNo(row._key, true)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                              row.yes === true
+                                ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
+                                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`inline-block h-2 w-2 rounded-full ${row.yes === true ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            Yes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setYesNo(row._key, false)}
+                            className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors ${
+                              row.yes === false
+                                ? 'border-red-300 bg-red-50 text-red-700'
+                                : 'border-slate-300 bg-white text-slate-600 hover:bg-slate-50'
+                            }`}
+                          >
+                            <span className={`inline-block h-2 w-2 rounded-full ${row.yes === false ? 'bg-red-500' : 'bg-slate-300'}`} />
+                            No
+                          </button>
                         </div>
                       </div>
-                      {row.is_diabetic && (
+                      {row.yes === true && row.is_diabetic && (
                         <div className="mt-1.5 flex items-center gap-2">
                           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide w-24">Diabetic Type *</span>
                           <select value={row.type} onChange={(e) => updateHealthRow(row._key, 'type', e.target.value)} className={`${MODAL_FIELD_CLASS} w-32 px-2 py-1 text-xs`} required>
@@ -347,7 +390,7 @@ export const ECTPatientHealthHistoryModal = ({
                           </select>
                         </div>
                       )}
-                      {row.specify && (
+                      {row.yes === true && row.specify && (
                         <div className="mt-1.5 flex items-center gap-2">
                           <span className="text-[10px] font-medium text-slate-500 uppercase tracking-wide w-24">Specification *</span>
                           <input type="text" value={row.speficication} onChange={(e) => updateHealthRow(row._key, 'speficication', e.target.value)} className={`${MODAL_FIELD_CLASS} flex-1 px-2 py-1 text-xs`} placeholder="Specify e.g. which cancer…" required />

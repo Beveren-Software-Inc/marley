@@ -1,4 +1,4 @@
-import { useState, useEffect, useLayoutEffect, useRef } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
 import { useCardFilters, useDashboardCompactClinical, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
@@ -251,6 +251,7 @@ export const PatientVisitList = ({
   const [error, setError] = useState<Error | null>(null)
   const visitsRef = useRef<PatientVisitListRow[]>([])
   visitsRef.current = visits
+  const pendingVisitNavRef = useRef<'first' | 'last' | null>(null)
 
   const fetchVisits = async () => {
     if (visitsRef.current.length === 0) {
@@ -276,6 +277,15 @@ export const PatientVisitList = ({
       )
       setVisits(response.data)
       setTotalCount(response.total_count)
+      const nav = pendingVisitNavRef.current
+      if (nav && response.data.length) {
+        pendingVisitNavRef.current = null
+        setDetailVisit(
+          nav === 'first' ? response.data[0].value : response.data[response.data.length - 1].value
+        )
+      } else if (nav) {
+        pendingVisitNavRef.current = null
+      }
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch visits'))
     } finally {
@@ -390,6 +400,42 @@ export const PatientVisitList = ({
   const openVisitDetail = (visit: PatientVisitListRow) => {
     setDetailVisit(visit.value)
   }
+
+  const detailIndex = visits.findIndex((v) => v.value === detailVisit)
+  const hasPrevVisit = Boolean(detailVisit) && (detailIndex > 0 || page > 1)
+  const hasNextVisit = Boolean(detailVisit) && (
+    (detailIndex >= 0 && detailIndex < visits.length - 1) || page * pageSize < totalCount
+  )
+  const visitNavLabel =
+    detailVisit && detailIndex >= 0 && totalCount > 0
+      ? `${(page - 1) * pageSize + detailIndex + 1} of ${totalCount}`
+      : undefined
+
+  const goToPrevVisit = useCallback(() => {
+    const list = visitsRef.current
+    const idx = list.findIndex((v) => v.value === detailVisit)
+    if (idx > 0) {
+      setDetailVisit(list[idx - 1].value)
+      return
+    }
+    if (page > 1) {
+      pendingVisitNavRef.current = 'last'
+      setPage((p) => p - 1)
+    }
+  }, [detailVisit, page])
+
+  const goToNextVisit = useCallback(() => {
+    const list = visitsRef.current
+    const idx = list.findIndex((v) => v.value === detailVisit)
+    if (idx >= 0 && idx < list.length - 1) {
+      setDetailVisit(list[idx + 1].value)
+      return
+    }
+    if (page * pageSize < totalCount) {
+      pendingVisitNavRef.current = 'first'
+      setPage((p) => p + 1)
+    }
+  }, [detailVisit, page, pageSize, totalCount])
 
   const visitMetaOptions = { patient }
 
@@ -1093,6 +1139,11 @@ export const PatientVisitList = ({
           subtitle={detailVisit}
           onClose={() => setDetailVisit(null)}
           maxWidthClass="max-w-3xl"
+          onPrev={goToPrevVisit}
+          onNext={goToNextVisit}
+          hasPrev={hasPrevVisit}
+          hasNext={hasNextVisit}
+          navLabel={visitNavLabel}
           headerActions={
             <PrintFormatDropdown
               doctype="Patient Visit"
@@ -1103,7 +1154,7 @@ export const PatientVisitList = ({
             />
           }
         >
-          <PatientVisitDetails visitNo={detailVisit} onUpdate={fetchVisits} />
+          <PatientVisitDetails key={detailVisit} visitNo={detailVisit} onUpdate={fetchVisits} />
         </DetailSlideOver>
       )}
 

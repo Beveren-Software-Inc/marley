@@ -62,7 +62,26 @@ export function PhysicalExaminationDetailPanel({
     setLoading(true)
     setError(null)
     fetchDoc('Physical Examination', name)
-      .then((data) => {
+      .then(async (data) => {
+        const owner = String(data?.owner || '').trim()
+        if (owner) {
+          try {
+            const params = new URLSearchParams({
+              doctype: 'User',
+              fields: JSON.stringify(['name', 'full_name', 'username']),
+              filters: JSON.stringify([['name', '=', owner]]),
+              limit_page_length: '1',
+            })
+            const res = await fetch(`/api/method/frappe.client.get_list?${params}`)
+            const payload = await res.json()
+            const user = Array.isArray(payload?.message) ? payload.message[0] : null
+            if (user) {
+              data.owner_username = user.username || user.full_name || user.name
+            }
+          } catch {
+            /* keep owner id */
+          }
+        }
         if (!cancelled) setDoc(data)
       })
       .catch((err) => {
@@ -154,6 +173,10 @@ export function PhysicalExaminationDetailPanel({
                   value={displayValue(doc[field.key])}
                 />
               ))}
+              <DataTile
+                label="Username"
+                value={displayValue(doc.owner_username || doc.owner)}
+              />
             </div>
           </section>
 

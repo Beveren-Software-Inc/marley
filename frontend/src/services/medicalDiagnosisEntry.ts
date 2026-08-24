@@ -24,6 +24,8 @@ export interface MedicalDiagnosisEntryRow {
   patient?: string
   group_code?: string
   cost_center?: string
+  /** ISO creation timestamp — used for the 24h edit/delete window. */
+  creation?: string
 }
 
 export interface MedicalDiagnosisContextDefaults {

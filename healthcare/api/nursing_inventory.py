@@ -194,18 +194,18 @@ def _inventory_context_filters(doctype, warehouse_context=None):
 
 
 def _nursing_inventory_nhra_filter_enabled(warehouse_context=None):
-    """Nurse mini-warehouse inventory shows NHRA-required medicines only."""
-    return normalize_mini_warehouse_context(warehouse_context) == "nurse"
+    """Nurse inventory is not hard-limited to NHRA; use the Only NHRA UI filter instead."""
+    return False
 
 
 def _item_group_has_nhra_field():
-    return frappe.get_meta("Item Group").has_field("custom_required_by_nhra")
+    return frappe.get_meta("Item Group").has_field("custom_tracked_by_nhra")
 
 
 def _item_group_chain_has_nhra_required(item_group_name, cache):
-    """True if Item Group.custom_required_by_nhra is set on this group or any ancestor."""
+    """True if Item Group.custom_tracked_by_nhra is set on this group or any ancestor."""
     if not _item_group_has_nhra_field():
-        return True
+        return False
     if not item_group_name:
         return False
     if item_group_name in cache:
@@ -213,13 +213,13 @@ def _item_group_chain_has_nhra_required(item_group_name, cache):
     row = frappe.db.get_value(
         "Item Group",
         item_group_name,
-        ["custom_required_by_nhra", "parent_item_group"],
+        ["custom_tracked_by_nhra", "parent_item_group"],
         as_dict=True,
     )
     if not row:
         cache[item_group_name] = False
         return False
-    if row.get("custom_required_by_nhra"):
+    if row.get("custom_tracked_by_nhra"):
         cache[item_group_name] = True
         return True
     parent = (row.get("parent_item_group") or "").strip()
@@ -232,20 +232,20 @@ def _item_is_nhra_required(item_code, cache=None):
     if not item_code:
         return False
     if not _item_group_has_nhra_field():
-        return True
+        return False
     cache = cache if cache is not None else {}
     item_group = frappe.db.get_value("Item", item_code, "item_group")
     return _item_group_chain_has_nhra_required(item_group, cache)
 
 
 def _nhra_required_item_group_names():
-    """Item groups flagged custom_required_by_nhra plus all descendant groups."""
+    """Item groups flagged custom_tracked_by_nhra plus all descendant groups."""
     if not _item_group_has_nhra_field():
         return None
 
     flagged = frappe.get_all(
         "Item Group",
-        filters={"custom_required_by_nhra": 1},
+        filters={"custom_tracked_by_nhra": 1},
         pluck="name",
     )
     if not flagged:
@@ -450,6 +450,10 @@ def get_stock_ledger(cost_center, warehouse_context=None):
         item["reorder_level"] = reorder_map.get(item["item_code"], 10)
         item["item_group"] = item.get("category")
         item["warehouse"] = warehouse
+
+    nhra_cache = {}
+    for item in stock_items:
+        item["tracked_by_nhra"] = 1 if _item_is_nhra_required(item.get("item_code"), nhra_cache) else 0
 
     _enrich_stock_ledger_pack_unit_qty(stock_items)
 
@@ -673,8 +677,8 @@ def get_inventory_items(search=None, warehouse_context=None):
     """
     Get inventory items for dropdown/search.
 
-    Nurse mini-warehouse inventory returns only items in an Item Group chain
-    marked with custom_required_by_nhra (e.g. Required by NHRA).
+    Laboratory mini-warehouse inventory limits items to Healthcare Settings.lab_item_group
+    when any lab groups are configured there.
     """
     filters = {"disabled": 0, "item_group": ["is", "set"]}
     fields = ["item_code as code", "item_name as name", "stock_uom as uom", "valuation_rate as price", "item_group"]
@@ -727,7 +731,6 @@ def get_item_groups(search=None, warehouse_context=None):
     Get item groups for dropdown selection.
     Returns only leaf item groups (not parent groups).
 
-    Nurse mini-warehouse inventory limits groups to the NHRA-required tree.
     Laboratory mini-warehouse inventory limits groups to Healthcare Settings.lab_item_group
     when any lab groups are configured there.
     """

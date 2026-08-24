@@ -1088,14 +1088,7 @@ export const PatientHistoryModal = ({
                             {idx + 1}
                           </span>
                           <div className="flex-1 space-y-2 min-w-0">
-                            {/* Attribute */}
-                            <div>
-                              <label className="block text-[11px] font-semibold text-slate-500 uppercase tracking-wide mb-1">
-                                Attribute / Topic
-                                {mandatory && (
-                                  <span className="ml-1.5 text-red-600 normal-case font-semibold">(mandatory)</span>
-                                )}
-                              </label>
+                            <div className="flex items-center gap-2">
                               <input
                                 type="text"
                                 value={row.attribute}
@@ -1103,6 +1096,9 @@ export const PatientHistoryModal = ({
                                 placeholder="e.g. Chief Complaint, Past Medical History…"
                                 className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                               />
+                              {mandatory && (
+                                <span className="shrink-0 text-[11px] font-semibold text-red-600">Mandatory</span>
+                              )}
                             </div>
                             {/* Description */}
                             <div>

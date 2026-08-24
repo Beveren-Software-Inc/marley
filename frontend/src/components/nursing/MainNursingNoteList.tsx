@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { MoreHorizontal, Pencil } from 'lucide-react'
-import { fetchMainNursingNotes, type MainNursingNoteRow } from '../../services/mainNursingNote'
+import { fetchMainNursingNotes, updateMainNursingNote, type MainNursingNoteEntryRow, type MainNursingNoteRow } from '../../services/mainNursingNote'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -12,8 +12,10 @@ import {
   NURSING_SHIFTS,
 } from '../../constants/nursingShift'
 import { EditMainNursingNoteModal } from './EditMainNursingNoteModal'
+import { NursingNoteEditableCard } from './NursingNoteEditableCard'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { toast } from '../../hooks/useToast'
 
 interface MainNursingNoteListProps {
   patient?: string
@@ -60,6 +62,68 @@ const formatNursingNoteDate = (val: string | null | undefined) => {
   } catch {
     return val
   }
+}
+
+function nursingNoteAuthorsLabel(row: MainNursingNoteRow): string {
+  const authors = (row.authors || []).filter(Boolean)
+  if (authors.length > 0) return authors.join(' · ')
+  const created = row.user_name || row.user
+  const last = row.last_appended_by_name || row.last_appended_by
+  if (created && last && last !== created && last !== row.user) {
+    return `${created} · ${last}`
+  }
+  return created || last || '—'
+}
+
+function formatEntryTime(value?: string | null): string {
+  if (!value) return ''
+  const text = String(value)
+  const clock = text.includes(' ') ? text.split(' ').pop() || text : text
+  const parts = clock.split(':')
+  if (parts.length >= 2) return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+  return text
+}
+
+function compactNursingNoteText(value?: string | null): string {
+  return (value || '').replace(/\s+/g, ' ').trim()
+}
+
+/** Parent field is the original creator blob; child table also stores that same first note. */
+function nursingNotePanelContent(row: MainNursingNoteRow) {
+  const entries = row.entries || []
+  const mainText = (row.nursing_notes || '').trim()
+  const compactMain = compactNursingNoteText(mainText)
+
+  if (!entries.length) {
+    return { mainText, mainEntry: undefined as MainNursingNoteEntryRow | undefined, entries }
+  }
+
+  const everyChildAlreadyInMain =
+    Boolean(compactMain) &&
+    entries.every((entry) => {
+      const note = compactNursingNoteText(entry.note)
+      return !note || compactMain.includes(note)
+    })
+
+  // before_save concatenates every child into nursing_notes — show children only.
+  if (everyChildAlreadyInMain && entries.length > 1) {
+    return { mainText: '', mainEntry: undefined, entries }
+  }
+
+  const creatorUser = (row.user || '').trim()
+  const extraEntries = entries.filter((entry) => {
+    const note = compactNursingNoteText(entry.note)
+    if (!note) return false
+    if (compactMain && note === compactMain) return false
+    const byCreator = Boolean(creatorUser && entry.authored_by === creatorUser)
+    if (byCreator && compactMain && (compactMain.includes(note) || note.includes(compactMain))) {
+      return false
+    }
+    return true
+  })
+
+  const mainEntry = entries.find((entry) => extraEntries.indexOf(entry) === -1 && compactNursingNoteText(entry.note))
+  return { mainText, mainEntry, entries: extraEntries }
 }
 
 export const MainNursingNoteList = ({
@@ -111,6 +175,7 @@ export const MainNursingNoteList = ({
           shift: shiftFilter || undefined,
         })
         setRecords(data)
+        return data
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Failed to load nursing notes')
       } finally {
@@ -187,6 +252,30 @@ export const MainNursingNoteList = ({
       return
     }
     guardClinicalEdit(() => setEditRow(row))
+  }
+
+  const selectedPanel = selected ? nursingNotePanelContent(selected) : null
+  const canEditSelected = Boolean(selected && manageRows && canEditRow(selected))
+
+  const refreshSelectedNote = async () => {
+    const data = await load(search || undefined)
+    if (!data || !selected) return
+    const fresh = data.find((row) => row.name === selected.name)
+    if (fresh) setSelected(fresh)
+  }
+
+  const saveSelectedNote = async (next: string, entryName?: string) => {
+    if (!selected) return
+    const result = await updateMainNursingNote({
+      name: selected.name,
+      note: next,
+      entry_name: entryName,
+    })
+    if (!result.success) {
+      throw new Error(result.message || 'Failed to update nursing note')
+    }
+    toast.success('Note updated')
+    await refreshSelectedNote()
   }
 
   return (
@@ -320,7 +409,7 @@ export const MainNursingNoteList = ({
                 )}
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Notes</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">By</th>
+                <th className="px-3 py-2 text-left font-semibold text-slate-600">Created / appended by</th>
                 {manageRows ? (
                   <th className="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
                 ) : null}
@@ -357,8 +446,18 @@ export const MainNursingNoteList = ({
                   <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                     <CardRowTextHint text={row.nursing_notes} title="Nursing notes" />
                   </td>
-                  <td className="px-3 py-2 whitespace-nowrap text-slate-600">
-                    {row.user_name || row.user || '—'}
+                  <td
+                    className="px-3 py-2 text-slate-600"
+                    title={nursingNoteAuthorsLabel(row)}
+                  >
+                    <div>{row.user_name || row.user || '—'}</div>
+                    {row.last_appended_by_name &&
+                    row.last_appended_by &&
+                    row.last_appended_by !== row.user ? (
+                      <div className="text-[10px] text-slate-500">
+                        Last: {row.last_appended_by_name}
+                      </div>
+                    ) : null}
                   </td>
                   {manageRows ? (
                     <td className="px-3 py-2 text-right">
@@ -477,14 +576,47 @@ export const MainNursingNoteList = ({
               </div>
               <div>
                 <div className="text-xs text-slate-500 uppercase font-semibold">Nursing notes</div>
-                <p className="mt-1 whitespace-pre-wrap text-slate-800 rounded-md bg-slate-50 border border-slate-200 p-3">
-                  {selected.nursing_notes || '—'}
-                </p>
+                {!selectedPanel?.mainText && !selectedPanel?.entries.length ? (
+                  <p className="mt-1 whitespace-pre-wrap text-slate-800 rounded-md bg-slate-50 border border-slate-200 p-3">
+                    —
+                  </p>
+                ) : (
+                  <div className="mt-1 space-y-2">
+                    {selectedPanel.mainText ? (
+                      <NursingNoteEditableCard
+                        note={selectedPanel.mainText}
+                        authorLabel={selected.user_name || selected.user || 'Note'}
+                        canEdit={canEditSelected}
+                        onSave={(next) =>
+                          saveSelectedNote(next, selectedPanel.mainEntry?.name)
+                        }
+                      />
+                    ) : null}
+                    {selectedPanel.entries.map((entry, index) => (
+                      <NursingNoteEditableCard
+                        key={entry.name || `${entry.authored_by}-${index}`}
+                        note={entry.note || ''}
+                        authorLabel={entry.authored_by_name || entry.authored_by || 'Unknown'}
+                        timeLabel={formatEntryTime(entry.note_time)}
+                        canEdit={canEditSelected}
+                        onSave={(next) => saveSelectedNote(next, entry.name)}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
               <div>
-                <div className="text-xs text-slate-500 uppercase font-semibold">Recorded by</div>
+                <div className="text-xs text-slate-500 uppercase font-semibold">Created by</div>
                 <div>{selected.user_name || selected.user || '—'}</div>
               </div>
+              {selected.last_appended_by_name &&
+              selected.last_appended_by &&
+              selected.last_appended_by !== selected.user ? (
+                <div>
+                  <div className="text-xs text-slate-500 uppercase font-semibold">Last appended by</div>
+                  <div>{selected.last_appended_by_name}</div>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
@@ -497,7 +629,7 @@ export const MainNursingNoteList = ({
           onSuccess={() => {
             setEditRow(null)
             setSelected(null)
-            load(search || undefined)
+            void load(search || undefined)
           }}
         />
       )}

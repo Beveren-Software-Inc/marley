@@ -48,18 +48,13 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
   const [searchTerm, setSearchTerm] = useState('')
   const [filterCategory, setFilterCategory] = useState('')
   const [stockStatusFilter, setStockStatusFilter] = useState<StockStatusFilter>('')
+  const [onlyNhra, setOnlyNhra] = useState(false)
   const [itemGroups, setItemGroups] = useState<{ name: string; label: string }[]>([])
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set())
   const [exporting, setExporting] = useState(false)
-  const [summary, setSummary] = useState({
-    totalItems: 0,
-    lowStockItems: 0,
-    outOfStockItems: 0,
-    totalValue: 0
-      });
-      const [_debugItem, setDebugItem] = useState<any>(null)
+  const [_debugItem, setDebugItem] = useState<any>(null)
 
-  const hasActiveFilters = Boolean(searchTerm || filterCategory || stockStatusFilter)
+  const hasActiveFilters = Boolean(searchTerm || filterCategory || stockStatusFilter || onlyNhra)
 
   const filteredItems = useMemo(() => {
     return stockItems.filter((item) => {
@@ -74,14 +69,30 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
         (stockStatusFilter === 'out_of_stock' && current === 0) ||
         (stockStatusFilter === 'low_stock' && current > 0 && current <= reorder) ||
         (stockStatusFilter === 'in_stock' && current > reorder)
-      return matchesSearch && matchesCategory && matchesStatus
+      const matchesNhra = !onlyNhra || Number(item.tracked_by_nhra) === 1
+      return matchesSearch && matchesCategory && matchesStatus && matchesNhra
     })
-  }, [stockItems, searchTerm, filterCategory, stockStatusFilter])
+  }, [stockItems, searchTerm, filterCategory, stockStatusFilter, onlyNhra])
+
+  const displaySummary = useMemo(() => {
+    return {
+      totalItems: filteredItems.length,
+      lowStockItems: filteredItems.filter(
+        (item) => item.current_stock <= item.reorder_level && item.current_stock > 0,
+      ).length,
+      outOfStockItems: filteredItems.filter((item) => item.current_stock === 0).length,
+      totalValue: filteredItems.reduce(
+        (sum, item) => sum + (item.current_stock || 0) * (item.unit_price || 0),
+        0,
+      ),
+    }
+  }, [filteredItems])
 
   const clearFilters = () => {
     setSearchTerm('')
     setFilterCategory('')
     setStockStatusFilter('')
+    setOnlyNhra(false)
   }
 
   useEffect(() => {
@@ -106,14 +117,6 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
       if (stockData.length > 0) {
         setDebugItem(stockData[0])
       }
-      
-      // Calculate summary
-      setSummary({
-        totalItems: stockData.length,
-        lowStockItems: stockData.filter(item => item.current_stock <= item.reorder_level && item.current_stock > 0).length,
-        outOfStockItems: stockData.filter(item => item.current_stock === 0).length,
-        totalValue: stockData.reduce((sum, item) => sum + ((item.current_stock || 0) * (item.unit_price || 0)), 0)
-      })
     } catch (error) {
       console.error('Failed to load stock ledger:', error)
     } finally {
@@ -396,35 +399,46 @@ export const StockLedgerTab = ({ refreshTrigger = 0, costCenter }: StockLedgerTa
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <SummaryCard 
           title="Total Items" 
-          value={summary.totalItems} 
+          value={displaySummary.totalItems} 
           icon={Package}
           color="bg-primary"
           bgColor="border-primary/20"
         />
         <SummaryCard 
           title="Low Stock" 
-          value={summary.lowStockItems} 
+          value={displaySummary.lowStockItems} 
           icon={AlertTriangle}
           color="bg-yellow-500"
           bgColor="border-yellow-200"
         />
         <SummaryCard 
           title="Out of Stock" 
-          value={summary.outOfStockItems} 
+          value={displaySummary.outOfStockItems} 
           icon={AlertTriangle}
           color="bg-red-500"
           bgColor="border-red-200"
         />
         <SummaryCard 
           title="Total Value" 
-          value={summary.totalValue} 
+          value={displaySummary.totalValue} 
           icon={TrendingUp}
           color="bg-green-500"
           bgColor="border-green-200"
         />
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-end gap-3">
+        {warehouseContext === 'nurse' ? (
+          <label className="inline-flex items-center gap-2 text-sm text-slate-700 select-none cursor-pointer">
+            <input
+              type="checkbox"
+              checked={onlyNhra}
+              onChange={(e) => setOnlyNhra(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            Only NHRA
+          </label>
+        ) : null}
         <FilterToggleButton active={showFilters} onClick={() => setShowFilters((prev) => !prev)} />
       </div>
 

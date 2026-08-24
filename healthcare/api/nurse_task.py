@@ -3,11 +3,7 @@ import frappe
 from frappe import _
 from frappe.utils import cint, now_datetime
 from healthcare.healthcare.editing_lock import assert_editing_allowed
-from healthcare.api.nurse_shift import (
-	get_current_nurse_shift,
-	get_current_shift_window,
-	task_belongs_to_shift,
-)
+from healthcare.api.nurse_shift import get_current_nurse_shift, get_nursing_shift_window
 
 
 ADMIN_ROLES = {'Administrator', 'System Manager', 'Healthcare Administrator', 'Website Manager'}
@@ -175,6 +171,11 @@ def get_nurse_tasks(
 		elif assigned_nurse:
 			filters["assigned_nurse"] = assigned_nurse
 
+	apply_current_shift = cint(current_shift_only) and not shift and not date_from and not date_to
+	if apply_current_shift:
+		_label, window_start, window_end = get_nursing_shift_window()
+		filters["scheduled_time"] = ["between", [str(window_start), str(window_end)]]
+
 	rows = frappe.get_all(
 		"Nurse Task",
 		filters=filters,
@@ -204,19 +205,6 @@ def get_nurse_tasks(
 		limit_page_length=cint(limit or 50),
 		limit_start=cint(offset or 0),
 	)
-
-	apply_current_shift = cint(current_shift_only) and not shift and not date_from and not date_to
-	shift_row = window_start = window_end = None
-	if apply_current_shift:
-		shift_row, window_start, window_end = get_current_shift_window()
-		if shift_row:
-			rows = [
-				row
-				for row in rows
-				if task_belongs_to_shift(row, shift_row, window_start, window_end)
-			]
-		else:
-			rows = []
 
 	# Enrich with patient_name and nurse full name
 	for row in rows:

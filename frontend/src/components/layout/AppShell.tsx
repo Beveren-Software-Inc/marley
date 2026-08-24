@@ -67,10 +67,6 @@ const nurseScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: '',
-    screens: [{ id: 'n-discharge', title: 'Discharge Form' }],
-  },
-  {
-    groupTitle: '',
     screens: [
       { id: 'n-patient-history', title: 'Patient History Form' },
       { id: 'n-physical-exam', title: 'Physical Examination' },
@@ -115,6 +111,10 @@ const nurseScreenGroups: ScreenGroup[] = [
   {
     groupTitle: '',
     screens: [{ id: 'n-nurse-tasks', title: 'Assign Task' }],
+  },
+  {
+    groupTitle: '',
+    screens: [{ id: 'n-discharge', title: 'Discharge' }],
   },
 ]
 

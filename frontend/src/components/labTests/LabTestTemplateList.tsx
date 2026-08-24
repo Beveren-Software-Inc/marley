@@ -148,7 +148,10 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                   onClick={() => handleSuggestionClick(s)}
                   className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between gap-2"
                 >
-                  <span className="font-medium text-slate-800">{s.lab_test_name || s.name}</span>
+                  <span className="min-w-0">
+                    <span className="font-medium text-slate-800">{s.lab_test_name || '—'}</span>
+                    <span className="ml-1.5 font-mono text-xs text-slate-400">{s.name}</span>
+                  </span>
                   {s.department && <span className="text-xs text-slate-400 shrink-0">{s.department}</span>}
                 </button>
               ))}
@@ -174,6 +177,7 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
           <table className="min-w-full text-sm">
             <thead>
               <tr className="bg-slate-50 text-left">
+                <th className="px-3 py-2 font-semibold text-slate-600 text-xs">ID</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Name</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Department</th>
                 <th className="px-3 py-2 font-semibold text-slate-600 text-xs">Format</th>
@@ -192,7 +196,7 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="text-center text-slate-400 py-6">
+                  <td colSpan={15} className="text-center text-slate-400 py-6">
                     {searchQuery
                       ? 'No templates match your search'
                       : statusFilter === 'Inactive'
@@ -206,14 +210,14 @@ export const LabTestTemplateList = ({ refreshKey = 0, onEditClick, selectedPatie
                   key={row.name}
                   className="border-t border-slate-100 hover:bg-slate-50 transition-colors"
                 >
-                  {/* Clicking the name opens the detail panel */}
+                  <td className="px-3 py-2 font-mono text-slate-700">{row.name || '—'}</td>
                   <td className="px-3 py-2">
                     <button
                       type="button"
                       onClick={() => setDetailTemplate(row)}
                       className="font-medium text-primary hover:underline text-left"
                     >
-                      {row.lab_test_name || row.name}
+                      {row.lab_test_name || '—'}
                     </button>
                   </td>
                   <td className="px-3 py-2 text-slate-600">{row.department || '—'}</td>

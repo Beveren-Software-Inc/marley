@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, X } from 'lucide-react'
 
 /** Close a dialog/panel when the user presses Escape (browser-standard behaviour). */
 function useEscapeToClose(onClose: () => void) {
@@ -115,6 +115,8 @@ export type CreateModalHeaderProps = {
   subtitle?: ReactNode
   icon?: ReactNode
   onClose: () => void
+  /** Controls to the left of the title (e.g. previous / next) */
+  leading?: ReactNode
   /** Extra actions to the left of the close button (e.g. print) */
   trailing?: ReactNode
   /** Validation or save error — shown in the fixed header, above scrollable body */
@@ -142,6 +144,7 @@ export function CreateModalHeader({
   subtitle,
   icon,
   onClose,
+  leading,
   trailing,
   alert,
   children,
@@ -153,6 +156,7 @@ export function CreateModalHeader({
       <div className="relative px-5 py-4 sm:px-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-start gap-3">
+            {leading}
             {icon != null ? (
               <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
                 {icon}
@@ -212,6 +216,71 @@ export type DetailSlideOverProps = {
   footer?: ReactNode
   /** Tailwind max-width fragment, e.g. `max-w-2xl` or `max-w-md` */
   maxWidthClass?: string
+  /** Move to the previous record in the current list */
+  onPrev?: () => void
+  /** Move to the next record in the current list */
+  onNext?: () => void
+  hasPrev?: boolean
+  hasNext?: boolean
+  /** e.g. "3 of 24" shown between the header arrows */
+  navLabel?: string
+}
+
+function RecordNavButton({
+  direction,
+  onClick,
+  disabled,
+}: {
+  direction: 'prev' | 'next'
+  onClick?: () => void
+  disabled?: boolean
+}) {
+  const Icon = direction === 'prev' ? ChevronLeft : ChevronRight
+  const label = direction === 'prev' ? 'Previous' : 'Next'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled || !onClick}
+      aria-label={label}
+      title={`${label} (arrow key)`}
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-emerald-200/80 bg-white text-emerald-800 shadow-sm transition hover:bg-emerald-50 hover:text-emerald-950 disabled:cursor-not-allowed disabled:opacity-35 disabled:hover:bg-white"
+    >
+      <Icon className="h-5 w-5" strokeWidth={2.25} />
+    </button>
+  )
+}
+
+function useRecordNavKeys({
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+}: {
+  onPrev?: () => void
+  onNext?: () => void
+  hasPrev?: boolean
+  hasNext?: boolean
+}) {
+  useEffect(() => {
+    if (!onPrev && !onNext) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return
+      const target = e.target as HTMLElement | null
+      if (target?.closest('input, textarea, select, [contenteditable="true"]')) return
+      // Nested create/edit dialogs sit above the slide-over
+      if (document.querySelector('.z-\\[80\\], .z-\\[90\\]')) return
+      if (e.key === 'ArrowLeft' && hasPrev && onPrev) {
+        e.preventDefault()
+        onPrev()
+      } else if (e.key === 'ArrowRight' && hasNext && onNext) {
+        e.preventDefault()
+        onNext()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onPrev, onNext, hasPrev, hasNext])
 }
 
 /** Right-hand detail panel — same header/body chrome as create modals */
@@ -224,9 +293,17 @@ export function DetailSlideOver({
   children,
   footer,
   maxWidthClass = 'max-w-2xl',
+  onPrev,
+  onNext,
+  hasPrev = false,
+  hasNext = false,
+  navLabel,
 }: DetailSlideOverProps) {
   useEscapeToClose(onClose)
+  useRecordNavKeys({ onPrev, onNext, hasPrev, hasNext })
   if (typeof document === 'undefined') return null
+
+  const showNav = Boolean(onPrev || onNext)
 
   return createPortal(
     <div
@@ -241,10 +318,33 @@ export function DetailSlideOver({
       >
         <CreateModalHeader
           title={title}
-          subtitle={subtitle}
+          subtitle={
+            subtitle != null || navLabel ? (
+              <>
+                {subtitle}
+                {navLabel ? (
+                  <span className={subtitle != null ? 'ml-2 opacity-80' : undefined}>
+                    {subtitle != null ? `· ${navLabel}` : navLabel}
+                  </span>
+                ) : null}
+              </>
+            ) : undefined
+          }
           icon={icon}
           onClose={onClose}
-          trailing={headerActions}
+          leading={
+            showNav ? (
+              <RecordNavButton direction="prev" onClick={onPrev} disabled={!hasPrev} />
+            ) : null
+          }
+          trailing={
+            <>
+              {showNav ? (
+                <RecordNavButton direction="next" onClick={onNext} disabled={!hasNext} />
+              ) : null}
+              {headerActions}
+            </>
+          }
         />
         <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1 overflow-y-auto px-5 py-4 sm:px-6 sm:py-5`}>
           {children}

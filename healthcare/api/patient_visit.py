@@ -497,7 +497,37 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
 			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
-		pharmacy_rows = frappe.db.sql(
+		# Pharmacy = any Sales Order billed as medicine: base reference is
+		# Patient Medication Order. Count visit-linked SOs even when the
+		# specific PMO document is missing / not the visit's order.
+		pharmacy_visit_rows = frappe.db.sql(
+			"""
+			SELECT
+				so.custom_reference_name AS visit_name,
+				SUM(COALESCE(so.grand_total, 0)) AS amount,
+					SUM(COALESCE(so.discount_amount, 0)) AS discount,
+					SUM(COALESCE(so.advance_paid, 0)) AS paid
+			FROM `tabSales Order` so
+			WHERE
+				so.custom_reference_name IN %(visit_names)s
+				AND so.custom_reference_type = 'Patient Visit'
+				AND so.custom_base_reference = 'Patient Medication Order'
+				AND so.docstatus != 2
+			GROUP BY so.custom_reference_name
+			""",
+			{"visit_names": tuple(visit_names)},
+			as_dict=True,
+		)
+		for row in pharmacy_visit_rows:
+			pharmacy_amount_map[row.visit_name] = pharmacy_amount_map.get(row.visit_name, 0) + float(
+				row.amount or 0
+			)
+			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
+			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
+
+		# SOs that only point at a PMO (no visit on custom_reference) still
+		# count via the order's patient encounter, without double-counting.
+		pharmacy_pmo_rows = frappe.db.sql(
 			"""
 			SELECT
 				pmo.patient_encounter AS visit_name,
@@ -506,24 +536,24 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 					SUM(COALESCE(so.advance_paid, 0)) AS paid
 			FROM `tabPatient Medication Order` pmo
 			INNER JOIN `tabSales Order` so
-				ON (
-					(so.custom_reference_type = 'Patient Visit'
-						AND so.custom_reference_name = pmo.patient_encounter
-						AND so.custom_base_reference = 'Patient Medication Order'
-						AND so.custom_base_reference_name = pmo.name)
-					OR (so.custom_base_reference = 'Patient Medication Order'
-						AND so.custom_base_reference_name = pmo.name)
-				)
+				ON so.custom_base_reference = 'Patient Medication Order'
+				AND so.custom_base_reference_name = pmo.name
 			WHERE
 				pmo.patient_encounter IN %(visit_names)s
 				AND so.docstatus != 2
+				AND NOT (
+					IFNULL(so.custom_reference_type, '') = 'Patient Visit'
+					AND so.custom_reference_name = pmo.patient_encounter
+				)
 			GROUP BY pmo.patient_encounter
 			""",
 			{"visit_names": tuple(visit_names)},
 			as_dict=True,
 		)
-		for row in pharmacy_rows:
-			pharmacy_amount_map[row.visit_name] = float(row.amount or 0)
+		for row in pharmacy_pmo_rows:
+			pharmacy_amount_map[row.visit_name] = pharmacy_amount_map.get(row.visit_name, 0) + float(
+				row.amount or 0
+			)
 			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
 			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 

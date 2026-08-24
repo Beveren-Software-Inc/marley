@@ -549,6 +549,7 @@ def _apply_header_fields(
 	doc.patient = ctx.get("patient")
 	doc.patient_visit = ctx.get("patient_visit")
 	doc.inpatient_admission = ctx.get("inpatient_admission")
+	doc.inpatient_record = ctx.get("inpatient_admission")
 	doc.legacy_visit_num = ctx.get("legacy_visit_num") or ""
 	doc.legacy_admission_num = ctx.get("legacy_admission_num") or ""
 
