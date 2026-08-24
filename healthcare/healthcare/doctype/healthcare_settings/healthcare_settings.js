@@ -282,6 +282,114 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Fix Long Acting Frequency (Weekly → PMO)'), () => {
+			const dialog = new frappe.ui.Dialog({
+				title: __('Fix Long Acting Frequency'),
+				fields: [
+					{
+						fieldtype: 'HTML',
+						options:
+							'<p class="text-muted">'
+							+ __(
+								'Find Long Acting Medicine records saved as Weekly in this date range '
+								+ 'and set Frequency from the linked Patient Medication Order line '
+								+ '(long acting frequency, or the prescription frequency on that line).'
+							)
+							+ '</p>',
+					},
+					{
+						fieldname: 'from_date',
+						label: __('From Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+					{
+						fieldname: 'to_date',
+						label: __('To Date'),
+						fieldtype: 'Date',
+						reqd: 1,
+					},
+				],
+				primary_action_label: __('Preview & Run'),
+				primary_action(values) {
+					if (values.from_date > values.to_date) {
+						frappe.msgprint({
+							title: __('Invalid date range'),
+							message: __('From Date must be on or before To Date.'),
+							indicator: 'orange',
+						});
+						return;
+					}
+					frappe.call({
+						method: 'healthcare.api.long_acting_frequency_fix.preview_long_acting_frequency_fix',
+						args: {
+							from_date: values.from_date,
+							to_date: values.to_date,
+						},
+						freeze: true,
+						freeze_message: __('Checking Long Acting Medicine records…'),
+						callback(preview) {
+							const counts = preview.message || {};
+							const sample = (counts.sample || [])
+								.map(
+									(row) =>
+										`${row.name}: ${row.patient || '—'} · ${row.from_frequency} → ${row.to_frequency}`
+										+ (row.pmo ? ` (PMO ${row.pmo})` : '')
+										+ (row.match_via ? ` [${row.match_via}]` : '')
+								)
+								.join('\n');
+							frappe.confirm(
+								__(
+									'Update Long Acting Medicine records dated {0} to {1} that were saved as Weekly.\n\n'
+									+ 'Match order: (1) PMO line linked on the LAM medication row, '
+									+ '(2) frequency on that LAM line, '
+									+ '(3) same patient + same drug on a prescription, '
+									+ '(4) same patient, closest date.\n'
+									+ 'PMO text such as “every 2 weeks” / Q2W is stored as Biweekly.\n\n'
+									+ 'Weekly in range: {2}\n'
+									+ 'Will update: {3}\n'
+									+ 'Skipped (no non-Weekly frequency on the prescription): {4}\n\n'
+									+ 'Sample:\n{5}\n\nContinue? This updates immediately.',
+									[
+										counts.from_date,
+										counts.to_date,
+										counts.weekly_in_range || 0,
+										counts.will_update || 0,
+										counts.skipped_no_source || 0,
+										sample || __('(none)'),
+									]
+								),
+								() => {
+									frappe.call({
+										method:
+											'healthcare.api.long_acting_frequency_fix.start_long_acting_frequency_fix',
+										args: {
+											from_date: values.from_date,
+											to_date: values.to_date,
+										},
+										freeze: true,
+										freeze_message: __('Updating Long Acting Medicine frequencies…'),
+										callback(r) {
+											const res = r.message || {};
+											if (res.ok) {
+												dialog.hide();
+												frappe.msgprint({
+													title: __('Long Acting Frequency Fix'),
+													message: res.message || __('Done'),
+													indicator: res.errors ? 'orange' : 'green',
+												});
+											}
+										},
+									});
+								}
+							);
+						},
+					});
+				},
+			});
+			dialog.show();
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Discharge Scheduled Admissions'), () => {
 			frappe.confirm(
 				__(
@@ -7031,6 +7139,11 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} set to Inactive, {2} errors (scanned {3}).',
 							[jobKey, s.updated || 0, s.errors || 0, s.processed || 0]
+						);
+					} else if (jobKey === 'long_acting_frequency_fix') {
+						msg = __(
+							'{0} finished: {1} frequencies updated from Patient Medication Order, {2} skipped, {3} errors (scanned {4}).',
+							[jobKey, s.updated || 0, s.skipped || 0, s.errors || 0, s.processed || 0]
 						);
 					} else {
 						msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [

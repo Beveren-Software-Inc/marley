@@ -465,9 +465,15 @@ def _set_medication_row(doc, row):
 		item_route = get_item_route_of_administration_value(entry.drug)
 		if item_route:
 			entry.route_of_administration = item_route
-	entry.is_long_acting_medicine = 1 if row.get('is_long_acting_medicine') or row.get('is_long_acting') else 0
-	entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
 	entry.medication_type = row.get('medication_type') or ''
+	is_long = (
+		row.get('is_long_acting_medicine')
+		or row.get('is_long_acting')
+		or (entry.medication_type or '').strip() == 'Long Acting Medicine'
+	)
+	entry.is_long_acting_medicine = 1 if is_long else 0
+	if entry.meta.has_field('long_acting_frequency'):
+		entry.long_acting_frequency = (row.get('long_acting_frequency') or '').strip() or None
 	reason_stopped = cstr(row.get('reason_stopped') or '').strip()
 	if reason_stopped and hasattr(entry, 'reason_stopped'):
 		entry.reason_stopped = reason_stopped
@@ -756,12 +762,13 @@ def create_patient_medication_order(
 
 	doc.insert(ignore_permissions=True)
 	doc.submit()
+
+	# Create Long Acting Medicine from in-memory rows (frequency is lost if we reload first).
+	_create_long_acting_medicine_for_entries(doc)
+
 	doc.reload()
 	doc.set_status()
 	doc.reload()
-
-	# Create Long Acting Medicine for each medication row marked as long-acting
-	_create_long_acting_medicine_for_entries(doc)
 
 	# Discharge medication: close other active inpatient prescriptions for this admission
 	if cint(getattr(doc, "after_discharge", 0)):
@@ -838,14 +845,87 @@ def _long_acting_frequency_interval_days(frequency):
 	return m.get(frequency, 7)
 
 
-def _create_long_acting_medicine_for_entries(pmo_doc):
-	"""For each medication order entry with is_long_acting_medicine=1, create a Long Acting Medicine doc."""
+def _resolve_long_acting_frequency_for_entry(entry):
+	"""Chosen long-acting interval: line field, then patient/written frequency. Never assume Weekly if set."""
+	from healthcare.api.common import (
+		DEFAULT_LONG_ACTING_FREQUENCIES,
+		_ensure_default_long_acting_frequencies,
+		ensure_prescription_frequency_for_long_acting,
+	)
+
+	_ensure_default_long_acting_frequencies()
+	candidates = [
+		getattr(entry, "long_acting_frequency", None),
+		getattr(entry, "patient_frequency", None),
+		getattr(entry, "written_frequency", None),
+	]
+	raw = ""
+	for value in candidates:
+		value = (value or "").strip()
+		if value:
+			raw = value
+			break
+	if not raw:
+		return "Weekly"
+
+	if frappe.db.exists("Long Acting Frequency", raw):
+		ensure_prescription_frequency_for_long_acting(raw)
+		return raw
+
+	by_label = frappe.db.get_value("Long Acting Frequency", {"frequency": raw}, "name")
+	if by_label:
+		ensure_prescription_frequency_for_long_acting(by_label)
+		return by_label
+
+	# Create a matching Long Acting Frequency so custom choices persist (not coerced to Weekly).
+	interval = _long_acting_frequency_interval_days(raw)
+	if interval == 7 and raw not in {f[0] for f in DEFAULT_LONG_ACTING_FREQUENCIES}:
+		interval = 7
+	doc = frappe.new_doc("Long Acting Frequency")
+	doc.frequency = raw
+	doc.interval_days = interval
+	doc.insert(ignore_permissions=True)
+	ensure_prescription_frequency_for_long_acting(raw)
+	return raw
+
+
+def _entry_is_long_acting(entry) -> bool:
+	if entry is None:
+		return False
+	if cint(getattr(entry, "is_long_acting_medicine", 0)):
+		return True
+	return (getattr(entry, "medication_type", None) or "").strip() == "Long Acting Medicine"
+
+
+def _lam_exists_for_pmo_entry(entry_name) -> bool:
+	entry_name = (entry_name or "").strip()
+	if not entry_name:
+		return False
+	return bool(
+		frappe.db.exists(
+			"Subscription Medication Plan Item",
+			{
+				"medication_order_entry": entry_name,
+				"parenttype": "Long Acting Medicine",
+			},
+		)
+	)
+
+
+def _create_long_acting_medicine_for_entries(pmo_doc, only_entry_names=None):
+	"""For each long-acting medication line, create a Long Acting Medicine if one is not already linked."""
+	only = None
+	if only_entry_names:
+		only = {cstr(n).strip() for n in only_entry_names if cstr(n).strip()}
+	created = []
 	for entry in (pmo_doc.medication_orders or []):
-		is_long_acting = getattr(entry, 'is_long_acting_medicine', 0) == 1
-		medication_type = getattr(entry, 'medication_type', '').strip()
-		if not (is_long_acting or medication_type == 'Long Acting Medicine'):
+		if not _entry_is_long_acting(entry):
 			continue
-		frequency = getattr(entry, 'long_acting_frequency', None) or 'Weekly'
+		if only is not None and cstr(getattr(entry, "name", "")).strip() not in only:
+			continue
+		if _lam_exists_for_pmo_entry(getattr(entry, "name", None)):
+			continue
+		frequency = _resolve_long_acting_frequency_for_entry(entry)
 		start_dt = getdate(entry.date) if entry.date else getdate(pmo_doc.start_date)
 		# Only copy End Date when the prescription line has one — do not fall back to
 		# the PMO header end_date (often auto-filled from start/line dates).
@@ -861,6 +941,8 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 		lam.practitioner = pmo_doc.get('practitioner')
 		lam.company = pmo_doc.company
 		lam.frequency = frequency
+		if frappe.get_meta("Long Acting Medicine").has_field("written_frequency"):
+			lam.written_frequency = frequency
 		lam.start_date = start_dt
 		lam.end_date = end_dt
 		lam.next_run_date = next_run
@@ -882,6 +964,8 @@ def _create_long_acting_medicine_for_entries(pmo_doc):
 		})
 		lam.insert(ignore_permissions=True)
 		lam.submit()
+		created.append(lam.name)
+	return created
 
 
 # @frappe.whitelist()
@@ -1537,6 +1621,7 @@ def update_medication_order():
         _set_medication_row(doc, med)
     
     doc.save(ignore_permissions=True)
+    _create_long_acting_medicine_for_entries(doc)
     doc.reload()
     doc.set_status()
     doc.reload()
@@ -2179,11 +2264,20 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         entry.frequency_in_a_day = frappe.db.get_value(
             "Prescription Frequency", entry.patient_frequency, "frequency_in_a_day"
         ) or 0
+    if normalized.get("is_long_acting_medicine") or (
+        (normalized.get("medication_type") or "").strip() == "Long Acting Medicine"
+    ):
+        entry.is_long_acting_medicine = 1
+        if entry.meta.has_field("long_acting_frequency") and normalized.get("long_acting_frequency"):
+            entry.long_acting_frequency = normalized["long_acting_frequency"]
 
     doc.save(ignore_permissions=True)
+    long_acting = []
+    if _entry_is_long_acting(entry):
+        long_acting = _create_long_acting_medicine_for_entries(doc, only_entry_names=[entry.name])
     frappe.db.commit()
 
-    return {"ok": True, "entry": entry.as_dict()}
+    return {"ok": True, "entry": entry.as_dict(), "long_acting_medicine": long_acting}
 
 
 @frappe.whitelist()
@@ -2224,9 +2318,17 @@ def add_medication_order_entry(patient_medication_order, entry_data):
     new_entry = _set_medication_row(doc, entry_data)
 
     doc.save(ignore_permissions=True)
+    long_acting = []
+    if _entry_is_long_acting(new_entry):
+        long_acting = _create_long_acting_medicine_for_entries(doc, only_entry_names=[new_entry.name])
     frappe.db.commit()
 
-    return {"ok": True, "entry": new_entry.as_dict(), "prescription": doc.name}
+    return {
+        "ok": True,
+        "entry": new_entry.as_dict(),
+        "prescription": doc.name,
+        "long_acting_medicine": long_acting,
+    }
 
 
 @frappe.whitelist()
