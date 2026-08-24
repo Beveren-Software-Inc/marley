@@ -38,6 +38,7 @@
   "reference_no",
   "route_of_administration",
   "is_long_acting_medicine",
+  "long_acting_frequency",
   "transferred_to_visit",
   "returned_to_store",
   "defined_quantity",
@@ -222,6 +223,14 @@
    "fieldname": "is_long_acting_medicine",
    "fieldtype": "Check",
    "label": "Is Long Acting Medicine"
+  },
+  {
+   "allow_on_submit": 1,
+   "depends_on": "eval:doc.is_long_acting_medicine",
+   "fieldname": "long_acting_frequency",
+   "fieldtype": "Link",
+   "label": "Long Acting Frequency",
+   "options": "Long Acting Frequency"
   },
   {
    "allow_on_submit": 1,

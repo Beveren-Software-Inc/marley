@@ -59,7 +59,9 @@ function mapTransferRowToMedication(row: DischargeTransferRow): MedicationOrderR
     reference_no: row.reference_no || '',
     route_of_administration: row.route_of_administration || '',
     is_long_acting: Boolean(row.is_long_acting_medicine),
-    long_acting_frequency: 'Weekly',
+    long_acting_frequency:
+      (row.long_acting_frequency || '').trim() ||
+      (Boolean(row.is_long_acting_medicine) ? frequency || 'Weekly' : 'Weekly'),
     medication_type: row.medication_type || '',
     // Keep legacy codes so CreatePrescriptionModal can resolve ITEM_00_01 → Item.
     old_medicine_code: row.old_medicine_code || '',

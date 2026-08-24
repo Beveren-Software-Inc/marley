@@ -623,6 +623,7 @@ export interface DischargeTransferRow {
   reference_no?: string
   route_of_administration?: string
   is_long_acting_medicine?: boolean
+  long_acting_frequency?: string
   end_date?: string
   medication_type?: string
   old_medicine_code?: string

@@ -1,4 +1,4 @@
-import { flagsFromPrescriptionType } from '../utils/prescriptionType'
+import { flagsFromPrescriptionType, normalizeMedicationOrderForSave } from '../utils/prescriptionType'
 import type { LongActingMedicineRow } from './longActingMedicine'
 
 export interface Prescription {
@@ -597,7 +597,15 @@ export async function createPrescription(
   }
   if (data.medication_orders && data.medication_orders.length > 0) {
     body.medication_orders = data.medication_orders.map((row) => {
-      const longFreq = row.is_long_acting ? (row.long_acting_frequency || row.patient_frequency || 'Weekly') : undefined
+      const normalized = normalizeMedicationOrderForSave(row as MedicationOrderRow & Record<string, unknown>)
+      const isLongActing = Boolean(
+        normalized.is_long_acting_medicine ||
+          row.is_long_acting ||
+          String(normalized.medication_type || '').trim() === 'Long Acting Medicine',
+      )
+      const longFreq = isLongActing
+        ? (normalized.long_acting_frequency || normalized.patient_frequency || row.long_acting_frequency || 'Weekly')
+        : undefined
       return {
       drug: row.drug,
       dosage: row.dosage,
@@ -608,14 +616,14 @@ export async function createPrescription(
       date: row.date,
       end_date: row.end_date || undefined,
       time: row.time,
-      patient_frequency: row.is_long_acting ? longFreq : row.patient_frequency,
+      patient_frequency: isLongActing ? longFreq : row.patient_frequency,
       is_pink: row.is_pink,
       reference_no: row.reference_no || '',
-      is_prn: row.is_prn ?? false,
+      is_prn: normalized.is_prn ?? row.is_prn ?? false,
       route_of_administration: row.route_of_administration,
-      is_long_acting_medicine: row.is_long_acting ?? false,
+      is_long_acting_medicine: isLongActing,
       long_acting_frequency: longFreq,
-      medication_type: row.medication_type,
+      medication_type: normalized.medication_type || row.medication_type,
     }})
   }
   return apiRequest<{ name: string }>(
