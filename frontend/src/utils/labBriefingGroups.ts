@@ -10,6 +10,22 @@ export type LabBriefingDisplayRow<T extends NurseBriefingLabTest = NurseBriefing
     }
   | { kind: 'standalone'; test: T }
 
+/** Template / document IDs (e.g. HLT-0001, LAB_CBC) — not shown to doctors/nurses. */
+export function looksLikeLabCode(value?: string | null): boolean {
+  const v = (value || '').trim()
+  if (!v) return true
+  if (/^[A-Z]{2,}[-./_]\S*$/i.test(v)) return true
+  if (/^[A-Z0-9][A-Z0-9._-]{2,}$/.test(v) && /\d/.test(v) && v === v.toUpperCase()) return true
+  return false
+}
+
+export function labBriefingTestLabel(test: NurseBriefingLabTest): string {
+  const name = (test.lab_test_name || '').trim()
+  if (name && !looksLikeLabCode(name)) return name
+  if (name) return name
+  return 'Lab test'
+}
+
 export function labBriefingGroupKey(test: NurseBriefingLabTest): string | null {
   if (!Number(test.is_group_lab_test) || !test.service_request) return null
   const group = (test.lab_test_group || '').trim()
@@ -36,10 +52,11 @@ export function labBriefingDisplayRows<T extends NurseBriefingLabTest>(
   const rows: LabBriefingDisplayRow<T>[] = []
   for (const [key, tests] of groups.entries()) {
     const representative = tests[0]
+    const groupName = (representative.lab_test_group_name || '').trim()
     rows.push({
       kind: 'group',
       key,
-      label: representative.lab_test_group_name || representative.lab_test_group || 'Group',
+      label: groupName && !looksLikeLabCode(groupName) ? groupName : 'Group',
       tests,
       representative,
     })
@@ -52,8 +69,8 @@ export function labBriefingDisplayRows<T extends NurseBriefingLabTest>(
 
 export function labBriefingChildPreview(tests: NurseBriefingLabTest[]): string {
   const names = tests
-    .map((t) => t.lab_test_name || t.template)
-    .filter((name): name is string => Boolean(name))
+    .map((t) => labBriefingTestLabel(t))
+    .filter((name) => name && name !== 'Lab test')
   if (!names.length) return ''
   const shown = names.slice(0, 3).join(', ')
   return names.length > 3 ? `${shown} +${names.length - 3}` : shown

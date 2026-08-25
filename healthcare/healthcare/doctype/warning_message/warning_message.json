@@ -26,6 +26,7 @@
   "cost_center",
   "from_patient",
   "is_allergy",
+  "no_allergy",
   "special_phone_warning_section",
   "source_type",
   "caller_name",
@@ -358,12 +359,18 @@
    "fieldname": "next_action",
    "fieldtype": "Small Text",
    "label": "Next Action"
+  },
+  {
+   "default": "0",
+   "fieldname": "no_allergy",
+   "fieldtype": "Check",
+   "label": "No Allergy"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-07-01 13:13:31.617647",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 11:13:24.643323",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Warning Message",
  "naming_rule": "By fieldname",

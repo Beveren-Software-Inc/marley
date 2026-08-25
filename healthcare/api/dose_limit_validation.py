@@ -128,6 +128,129 @@ def _read_item_dose_limit_detail(item_code: str, fieldname: str) -> dict | None:
 	return _parse_item_dose_limit_detail(_read_item_dose_limit_raw(item_code, fieldname))
 
 
+def _normalize_route_key(value) -> str:
+	return " ".join(str(value or "").strip().lower().split())
+
+
+def _maximum_dosage_child_meta():
+	if not frappe.db.exists("DocType", "Maximum Dosage Detail"):
+		return None
+	try:
+		return frappe.get_meta("Maximum Dosage Detail")
+	except Exception:
+		return None
+
+
+def _maximum_dosage_field(meta, candidates: tuple[str, ...], *, must_include: str | None = None) -> str | None:
+	if not meta:
+		return None
+	names = {df.fieldname for df in meta.fields}
+	for name in candidates:
+		if name in names:
+			return name
+	if must_include:
+		for df in meta.fields:
+			fn = (df.fieldname or "").lower()
+			label = (df.label or "").lower()
+			if must_include in fn or must_include in label:
+				return df.fieldname
+	return None
+
+
+def _read_item_route_max_dose_rows(item_code: str) -> list[dict]:
+	"""Rows from Item.custom_maximum_dosage (Maximum Dosage Detail). Empty list = use item-level fallback."""
+	if not item_code or not frappe.db.exists("DocType", "Maximum Dosage Detail"):
+		return []
+	item_meta = frappe.get_meta("Item")
+	if not item_meta.has_field("custom_maximum_dosage"):
+		return []
+	meta = _maximum_dosage_child_meta()
+	if not meta:
+		return []
+	fields = [
+		df.fieldname
+		for df in meta.fields
+		if df.fieldname and df.fieldtype not in ("Section Break", "Column Break", "Tab Break", "HTML")
+	]
+	if "name" not in fields:
+		fields.insert(0, "name")
+	try:
+		return frappe.get_all(
+			"Maximum Dosage Detail",
+			filters={"parent": item_code, "parenttype": "Item"},
+			fields=fields,
+			ignore_permissions=True,
+		) or []
+	except Exception:
+		return []
+
+
+def _match_route_max_dose_row(rows: list[dict], route_of_administration: str | None, route_field: str | None):
+	if not rows or not route_field:
+		return None
+	wanted = _normalize_route_key(route_of_administration)
+	if not wanted:
+		return None
+	for row in rows:
+		row_route = _normalize_route_key(row.get(route_field))
+		if row_route and row_route == wanted:
+			return row
+	for row in rows:
+		row_route = _normalize_route_key(row.get(route_field))
+		if row_route and (row_route in wanted or wanted in row_route):
+			return row
+	return None
+
+
+def _route_specific_dose_details(
+	item_code: str, route_of_administration: str | None
+) -> dict | None:
+	"""If the route table has a matching row, return parsed single/daily details (priority over Item fields)."""
+	rows = _read_item_route_max_dose_rows(item_code)
+	if not rows:
+		return None
+
+	meta = _maximum_dosage_child_meta()
+	route_field = _maximum_dosage_field(
+		meta,
+		("route_of_administration", "route", "custom_route_of_administration"),
+		must_include="route",
+	)
+	single_field = _maximum_dosage_field(
+		meta,
+		(
+			"max_dose_per_single_dose",
+			"maximum_dose_per_single_dose",
+			"max_single_dose",
+			"custom_max_dose_per_single_dose",
+		),
+		must_include="single",
+	)
+	daily_field = _maximum_dosage_field(
+		meta,
+		(
+			"max_dose_per_day",
+			"maximum_dose_per_day",
+			"max_daily_dose",
+			"custom_max_dose_per_day",
+		),
+		must_include="day",
+	)
+	matched = _match_route_max_dose_row(rows, route_of_administration, route_field)
+	if not matched:
+		return None
+
+	single_detail = _parse_item_dose_limit_detail(matched.get(single_field) if single_field else None)
+	daily_detail = _parse_item_dose_limit_detail(matched.get(daily_field) if daily_field else None)
+	if not single_detail and not daily_detail:
+		return None
+	return {
+		"single": single_detail,
+		"daily": daily_detail,
+		"route": matched.get(route_field) if route_field else route_of_administration,
+	}
+
+
 def get_patient_weight_kg(
 	*,
 	patient: str | None = None,
@@ -204,49 +327,56 @@ def resolve_dose_ceiling(detail: dict | None, patient_weight: float | None = Non
 
 
 def get_item_max_dose_per_single_dose(
-	item_code: str, patient_weight: float | None = None
+	item_code: str,
+	patient_weight: float | None = None,
+	route_of_administration: str | None = None,
 ) -> float | None:
 	"""Max allowed per single administration (absolute). Weight-based needs patient_weight."""
-	for fieldname in ("custom_max_dose_per_single_dose", "custom_maximum_dose_limit"):
-		detail = _read_item_dose_limit_detail(item_code, fieldname)
-		if not detail:
-			continue
-		resolved = resolve_dose_ceiling(detail, patient_weight)
-		if resolved.get("ceiling") is not None:
-			return resolved["ceiling"]
-		if resolved.get("requires_weight"):
-			return None
-	return None
+	ceilings = _resolve_single_and_daily_ceilings(item_code, patient_weight, route_of_administration=route_of_administration)
+	return ceilings["single"].get("ceiling")
 
 
-def get_item_max_dose_per_day(item_code: str, patient_weight: float | None = None) -> float | None:
+def get_item_max_dose_per_day(
+	item_code: str,
+	patient_weight: float | None = None,
+	route_of_administration: str | None = None,
+) -> float | None:
 	"""Max allowed cumulative dose in rolling 24 hours."""
-	for fieldname in ("custom_max_dose_per_day", "custom_maximum_dose_limit"):
-		detail = _read_item_dose_limit_detail(item_code, fieldname)
-		if not detail:
-			continue
-		resolved = resolve_dose_ceiling(detail, patient_weight)
-		if resolved.get("ceiling") is not None:
-			return resolved["ceiling"]
-		if resolved.get("requires_weight"):
-			return None
-	return None
+	ceilings = _resolve_single_and_daily_ceilings(item_code, patient_weight, route_of_administration=route_of_administration)
+	return ceilings["daily"].get("ceiling")
 
 
-def get_item_maximum_dose_limit(item_code: str, patient_weight: float | None = None) -> float | None:
+def get_item_maximum_dose_limit(
+	item_code: str,
+	patient_weight: float | None = None,
+	route_of_administration: str | None = None,
+) -> float | None:
 	"""Backward-compatible alias for single-dose ceiling."""
-	return get_item_max_dose_per_single_dose(item_code, patient_weight)
+	return get_item_max_dose_per_single_dose(item_code, patient_weight, route_of_administration)
 
 
 def _resolve_single_and_daily_ceilings(
-	medicine_code: str, patient_weight: float | None, patient: str | None = None
+	medicine_code: str,
+	patient_weight: float | None,
+	patient: str | None = None,
+	route_of_administration: str | None = None,
 ) -> dict:
-	single_detail = _read_item_dose_limit_detail(
+	route_details = _route_specific_dose_details(medicine_code, route_of_administration)
+	used_route = bool(route_details)
+
+	item_single = _read_item_dose_limit_detail(
 		medicine_code, "custom_max_dose_per_single_dose"
 	) or _read_item_dose_limit_detail(medicine_code, "custom_maximum_dose_limit")
-	daily_detail = _read_item_dose_limit_detail(
+	item_daily = _read_item_dose_limit_detail(
 		medicine_code, "custom_max_dose_per_day"
 	) or _read_item_dose_limit_detail(medicine_code, "custom_maximum_dose_limit")
+
+	if used_route:
+		single_detail = route_details.get("single") or item_single
+		daily_detail = route_details.get("daily") or item_daily
+	else:
+		single_detail = item_single
+		daily_detail = item_daily
 
 	single = resolve_dose_ceiling(single_detail, patient_weight)
 	daily = resolve_dose_ceiling(daily_detail, patient_weight)
@@ -272,6 +402,8 @@ def _resolve_single_and_daily_ceilings(
 		"daily": daily,
 		"has_limit_config": bool(single_detail or daily_detail),
 		"requires_weight": bool(single.get("requires_weight") or daily.get("requires_weight")),
+		"route_specific": used_route,
+		"matched_route": (route_details or {}).get("route") if used_route else None,
 	}
 
 
@@ -326,9 +458,15 @@ def evaluate_dose_against_item_limits(
 	patient_weight: float | None = None,
 	skip_if_frequency_style: bool = False,
 	patient: str | None = None,
+	route_of_administration: str | None = None,
 ) -> dict:
 	"""Check entered dose against Item single/daily ceilings (no 24h cumulative history)."""
-	ceilings = _resolve_single_and_daily_ceilings(medicine_code, patient_weight, patient)
+	ceilings = _resolve_single_and_daily_ceilings(
+		medicine_code,
+		patient_weight,
+		patient,
+		route_of_administration=route_of_administration,
+	)
 	single = ceilings["single"]
 	daily = ceilings["daily"]
 	single_ceiling = single.get("ceiling")
@@ -358,6 +496,9 @@ def evaluate_dose_against_item_limits(
 		"prior_24h_dose": 0.0,
 		"cumulative_24h_with_new_dose": entered_dose or 0.0,
 		"medicine_code": medicine_code,
+		"route_of_administration": route_of_administration,
+		"route_specific": bool(ceilings.get("route_specific")),
+		"matched_route": ceilings.get("matched_route"),
 	}
 
 	if not result["has_limit"]:
@@ -392,6 +533,7 @@ def evaluate_medicine_given_dose(
 	patient_weight: float | None = None,
 	patient: str | None = None,
 	admission: str | None = None,
+	route_of_administration: str | None = None,
 ) -> dict:
 	"""Check single-dose ceiling and rolling 24-hour cumulative dose."""
 	if patient_weight is None:
@@ -409,6 +551,8 @@ def evaluate_medicine_given_dose(
 		dose=dose,
 		patient_weight=patient_weight,
 		skip_if_frequency_style=False,
+		patient=patient,
+		route_of_administration=route_of_administration,
 	)
 
 	if result.get("requires_weight") or not result.get("has_limit") or result.get("entered_dose") is None:
@@ -459,6 +603,9 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 	entered = evaluation.get("entered_dose")
 	single_ceiling = evaluation.get("single_dose_ceiling")
 	daily_ceiling = evaluation.get("daily_dose_ceiling")
+	route_bit = ""
+	if evaluation.get("route_specific") and evaluation.get("matched_route"):
+		route_bit = frappe._(" for route {0}").format(evaluation.get("matched_route"))
 	if evaluation.get("exceeds_single_dose"):
 		extra = ""
 		if evaluation.get("weight_based") and evaluation.get("patient_weight"):
@@ -467,8 +614,8 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 			)
 		lines.append(
 			frappe._(
-				"Entered dose ({0}) exceeds the maximum single dose ({1}) for this medicine{2}."
-			).format(entered, single_ceiling, extra)
+				"Entered dose ({0}) exceeds the maximum single dose ({1}) for this medicine{2}{3}."
+			).format(entered, single_ceiling, extra, route_bit)
 		)
 	if evaluation.get("exceeds_cumulative_24h"):
 		# DOC-117: the BRD specifies this exact alert wording.
@@ -514,6 +661,7 @@ def validate_medicine_given_dose_or_throw(
 	patient_weight=None,
 	patient: str | None = None,
 	admission: str | None = None,
+	route_of_administration: str | None = None,
 ) -> dict:
 	evaluation = evaluate_medicine_given_dose(
 		admission_detail_name=admission_detail_name,
@@ -525,6 +673,7 @@ def validate_medicine_given_dose_or_throw(
 		patient_weight=flt(patient_weight) if patient_weight not in (None, "") else None,
 		patient=patient,
 		admission=admission,
+		route_of_administration=route_of_administration,
 	)
 	if evaluation.get("ok") or not evaluation.get("has_limit"):
 		return evaluation
@@ -554,6 +703,7 @@ def preview_prescription_dose_validation(
 	patient_encounter: str | None = None,
 	inpatient_record: str | None = None,
 	patient_weight=None,
+	route_of_administration: str | None = None,
 ) -> dict:
 	"""Preview max-dose checks while creating/editing a prescription dosage."""
 	if not medicine_code:
@@ -576,6 +726,8 @@ def preview_prescription_dose_validation(
 		dose=dose,
 		patient_weight=weight,
 		skip_if_frequency_style=True,
+		patient=patient,
+		route_of_administration=route_of_administration,
 	)
 	return {
 		**evaluation,

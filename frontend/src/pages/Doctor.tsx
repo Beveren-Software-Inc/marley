@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useDoctorBriefing } from '../providers/DoctorBriefingProvider'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
@@ -143,6 +144,7 @@ export const DoctorPage = () => {
     setActiveVisit,
     setActiveAdmission,
   } = useCareContext()
+  const doctorBriefing = useDoctorBriefing()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -210,6 +212,19 @@ export const DoctorPage = () => {
   const modeForScreens = modeForInpatientDischargeScreens(mode, costCenterCareScope, inDischargeRoute)
   const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, modeForScreens))
   const screen = screenBlocked ? null : rawScreen
+
+  useEffect(() => {
+    if (rawScreen !== 'd-ip-warnings') return
+    doctorBriefing?.openAdmissionsBriefing()
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('screen')
+        return next
+      },
+      { replace: true },
+    )
+  }, [rawScreen, doctorBriefing, setSearchParams])
 
   useLayoutEffect(() => {
     if (!inDischargeRoute || mode === 'IP' || costCenterCareScope === 'op_only') return

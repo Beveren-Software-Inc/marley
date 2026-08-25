@@ -38,7 +38,6 @@
   "reference_no",
   "route_of_administration",
   "is_long_acting_medicine",
-  "long_acting_frequency",
   "transferred_to_visit",
   "returned_to_store",
   "defined_quantity",
@@ -226,14 +225,6 @@
   },
   {
    "allow_on_submit": 1,
-   "depends_on": "eval:doc.is_long_acting_medicine",
-   "fieldname": "long_acting_frequency",
-   "fieldtype": "Link",
-   "label": "Long Acting Frequency",
-   "options": "Long Acting Frequency"
-  },
-  {
-   "allow_on_submit": 1,
    "description": "Set when this order entry is transferred to a follow-up visit prescription on discharge reconciliation.",
    "fieldname": "transferred_to_visit",
    "fieldtype": "Link",
@@ -347,6 +338,7 @@
    "label": "Duration"
   },
   {
+   "allow_on_submit": 1,
    "default": "0",
    "fieldname": "stopped",
    "fieldtype": "Check",
@@ -475,8 +467,8 @@
  "index_web_pages_for_search": 1,
  "istable": 1,
  "links": [],
- "modified": "2026-08-08 01:34:36.186606",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 13:00:14.404556",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Inpatient Medication Order Entry",
  "owner": "Administrator",

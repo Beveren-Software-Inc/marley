@@ -10,6 +10,8 @@ import { ILLNESS_FIELDS, yesNoBadgeClass } from '../medicalHistory/pastMedicalHi
 import { toast } from '../../hooks/useToast'
 import { useAuth } from '../../providers/AuthProvider'
 import { canViewClinicalPatientHistory } from '../../config/permissions'
+import { recordNoKnownAllergy } from '../../services/warningMessages'
+import { CreateAllergyModal } from '../allergies/CreateAllergyModal'
 
 const stripHtml = (html: string | undefined): string => {
   if (!html) return '-'
@@ -60,7 +62,10 @@ export const PatientAlertsBanner = ({
   const [medicalLoading, setMedicalLoading] = useState(false)
   const [allergyRegistry, setAllergyRegistry] = useState<PatientAllergies | null>(null)
   const [showWarningModal, setShowWarningModal] = useState(false)
+  const [showAllergyModal, setShowAllergyModal] = useState(false)
   const [showCreateMedicalHistoryModal, setShowCreateMedicalHistoryModal] = useState(false)
+  const [noAllergyChecked, setNoAllergyChecked] = useState(false)
+  const [submittingNoAllergy, setSubmittingNoAllergy] = useState(false)
 
   useEffect(() => {
     if (!patient || !canViewClinical) {
@@ -86,15 +91,23 @@ export const PatientAlertsBanner = ({
     load()
   }, [patient, canViewClinical])
 
-  const hasWarnings = warnings.length > 0
-  // Allergies live in five stores; the medical-history field alone covers one
-  // patient site-wide, so the registry read is what makes this reliable.
-  const hasDocumentedAllergies = Boolean(
-    medicalHistory?.allergies?.trim() || allergyRegistry?.checked
+  useEffect(() => {
+    setNoAllergyChecked(false)
+  }, [patient])
+
+  const clinicalWarnings = warnings.filter((w) => !Number(w.no_allergy) && !Number(w.is_allergy))
+  const hasWarnings = clinicalWarnings.length > 0
+  const allergyEntries = allergyRegistry?.positive ?? []
+  const hasAllergyEntries = allergyEntries.length > 0
+  const hasDocumentedNoAllergy = Boolean(
+    warnings.some((w) => Number(w.no_allergy)) || allergyRegistry?.no_known_allergies,
   )
+  const hasDocumentedAllergies = hasAllergyEntries || hasDocumentedNoAllergy
   const hasRequiredAlerts = hasWarnings || (canViewClinical && hasDocumentedAllergies)
   const alertsDataLoading =
     warningsLoading || (enforceWarnings && canViewClinical && medicalLoading)
+  const showNoAllergyTick =
+    !alertsDataLoading && !hasAllergyEntries && !hasDocumentedNoAllergy
   const canDismiss =
     !enforceWarnings ||
     (!enforceWarningsPending && !alertsDataLoading && hasRequiredAlerts)
@@ -111,6 +124,23 @@ export const PatientAlertsBanner = ({
     onDismiss()
   }, [canDismiss, onDismiss])
 
+  const handleSubmitNoAllergy = useCallback(async () => {
+    if (!patient || !noAllergyChecked || submittingNoAllergy) return
+    setSubmittingNoAllergy(true)
+    try {
+      await recordNoKnownAllergy(patient)
+      toast.success('No known allergies recorded.')
+      await refetchWarnings()
+      const allergies = await fetchPatientAllergies(patient).catch(() => null)
+      setAllergyRegistry(allergies)
+      onDismiss()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record no known allergies.')
+    } finally {
+      setSubmittingNoAllergy(false)
+    }
+  }, [patient, noAllergyChecked, submittingNoAllergy, refetchWarnings, onDismiss])
+
   if (!patient || !visible || dismissed) return null
 
   const hasMedicalHistory = Boolean(
@@ -120,6 +150,7 @@ export const PatientAlertsBanner = ({
         medicalHistory.previous_surgical_history?.trim() ||
         medicalHistory.current_and_past_medications?.trim() ||
         medicalHistory.allergies?.trim() ||
+        medicalHistory.no_known_allergies ||
         medicalHistory.social_history?.trim() ||
         medicalHistory.addiction ||
         medicalHistory.smoking ||
@@ -143,7 +174,7 @@ export const PatientAlertsBanner = ({
               </div>
               {enforceWarnings && !canDismiss && !alertsDataLoading && !enforceWarningsPending && (
                 <p className="mt-1 text-xs font-medium text-amber-800">
-                  Warnings or allergies are required for admitted patients. Use &ldquo;Create one&rdquo; below, then close.
+                  Warnings or allergies are required for admitted patients. Record a warning or an allergy below, then close.
                 </p>
               )}
             </div>
@@ -163,40 +194,102 @@ export const PatientAlertsBanner = ({
           </div>
 
           <div className={`grid gap-4 p-4 bg-green-50 ${canViewClinical ? 'sm:grid-cols-2' : ''}`}>
-            {/* Warnings & Allergies */}
-            <div className="rounded-lg border border-slate-200 bg-slate-50/50 p-3">
-              <div className="mb-2 flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
-                  Warnings & Allergies
-                </span>
-                {!hasWarnings && (
+            <div className="flex flex-col gap-3">
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Warnings
+                  </span>
                   <button
                     type="button"
                     onClick={() => setShowWarningModal(true)}
-                    className="inline-flex items-center gap-1 rounded-md bg-amber-600 px-2 py-1 text-xs font-medium text-white hover:bg-amber-700 shrink-0"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-amber-600 text-white hover:bg-amber-700"
+                    title="Create warning"
+                    aria-label="Create warning"
                   >
-                    <Plus className="h-3 w-3" />
-                    Create one
+                    <Plus className="h-5 w-5" />
                   </button>
+                </div>
+                {warningsLoading ? (
+                  <p className="text-xs text-slate-500">Loading…</p>
+                ) : hasWarnings ? (
+                  <ul className="max-h-28 space-y-1.5 overflow-y-auto text-sm text-slate-700">
+                    {clinicalWarnings.slice(0, 5).map((w) => (
+                      <li key={w.name} className="flex gap-2">
+                        <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
+                        <span className="line-clamp-2">{stripHtml(w.warning)}</span>
+                      </li>
+                    ))}
+                    {clinicalWarnings.length > 5 && (
+                      <li className="text-xs text-slate-500 pt-0.5">+{clinicalWarnings.length - 5} more</li>
+                    )}
+                  </ul>
+                ) : (
+                  <p className="text-sm text-slate-500">NO WARNINGS RECORDED.</p>
                 )}
               </div>
-              {warningsLoading ? (
-                <p className="text-xs text-slate-500">Loading…</p>
-              ) : hasWarnings ? (
-                <ul className="max-h-28 space-y-1.5 overflow-y-auto text-sm text-slate-700">
-                  {warnings.slice(0, 5).map((w) => (
-                    <li key={w.name} className="flex gap-2">
-                      <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
-                      <span className="line-clamp-2">{stripHtml(w.warning)}</span>
-                    </li>
-                  ))}
-                  {warnings.length > 5 && (
-                    <li className="text-xs text-slate-500 pt-0.5">+{warnings.length - 5} more</li>
-                  )}
-                </ul>
-              ) : (
-                <p className="text-sm text-slate-500">NO WARNINGS OR ALLERGIES RECORDED.</p>
-              )}
+
+              <div className="rounded-lg border border-slate-200 bg-white p-3">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
+                    Allergies
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowAllergyModal(true)}
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-600 text-white hover:bg-red-700"
+                    title="Create allergy"
+                    aria-label="Create allergy"
+                  >
+                    <Plus className="h-5 w-5" />
+                  </button>
+                </div>
+                {medicalLoading ? (
+                  <p className="text-xs text-slate-500">Loading…</p>
+                ) : hasAllergyEntries ? (
+                  <ul className="max-h-28 space-y-1.5 overflow-y-auto">
+                    {allergyEntries.map((entry, idx) => (
+                      <li key={`allergy-${idx}`} className="text-sm text-red-900">
+                        <span className="font-semibold">{entry.allergen || entry.text}</span>
+                        {entry.severity ? (
+                          <span className="ml-1.5 rounded bg-red-200 px-1 py-0.5 text-[10px] font-semibold">
+                            {entry.severity}
+                          </span>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : hasDocumentedNoAllergy ? (
+                  <p className="text-sm text-slate-600">
+                    <span className="font-semibold text-slate-700">No known allergies</span>
+                    <span className="text-slate-500"> — recorded</span>
+                  </p>
+                ) : (
+                  <p className="text-sm text-slate-500">NO ALLERGIES RECORDED.</p>
+                )}
+                {showNoAllergyTick ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-slate-200 pt-3">
+                    <label className="inline-flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="rounded border-slate-300 text-primary focus:ring-primary"
+                        checked={noAllergyChecked}
+                        disabled={submittingNoAllergy}
+                        onChange={(e) => setNoAllergyChecked(e.target.checked)}
+                      />
+                      <span>No allergies</span>
+                    </label>
+                    <button
+                      type="button"
+                      disabled={!noAllergyChecked || submittingNoAllergy}
+                      onClick={() => void handleSubmitNoAllergy()}
+                      className="rounded-md border border-primary bg-white px-3 py-1.5 text-xs font-semibold text-primary hover:bg-primary/5 disabled:cursor-not-allowed disabled:opacity-40"
+                    >
+                      {submittingNoAllergy ? 'Saving…' : 'Submit'}
+                    </button>
+                  </div>
+                ) : null}
+              </div>
             </div>
 
             {canViewClinical && (
@@ -209,53 +302,14 @@ export const PatientAlertsBanner = ({
                   <button
                     type="button"
                     onClick={() => setShowCreateMedicalHistoryModal(true)}
-                    className="inline-flex items-center gap-1 rounded-md bg-primary px-2 py-1 text-xs font-medium text-white hover:bg-primary/90 shrink-0"
+                    className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-white hover:bg-primary/90"
+                    title="Add past medical history"
+                    aria-label="Add past medical history"
                   >
-                    <Plus className="h-3 w-3" />
-                    Add
+                    <Plus className="h-5 w-5" />
                   </button>
                 )}
               </div>
-              {/* Allergies first and always shown: a blank panel must never be
-                  mistaken for "no allergies". Sources are labelled because most
-                  entries are legacy free text, not structured records. */}
-              {!medicalLoading && allergyRegistry && (
-                allergyRegistry.positive.length > 0 ? (
-                  <div className="mb-2 rounded-md border border-red-300 bg-red-50 px-2.5 py-2">
-                    <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-red-800">
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Allergies ({allergyRegistry.positive.length})
-                    </div>
-                    <ul className="mt-1 max-h-24 space-y-1 overflow-y-auto">
-                      {allergyRegistry.positive.map((entry, idx) => (
-                        <li key={`allergy-${idx}`} className="text-xs text-red-900">
-                          <span className="font-semibold">
-                            {entry.allergen || entry.text}
-                          </span>
-                          {entry.severity && (
-                            <span className="ml-1.5 rounded bg-red-200 px-1 py-0.5 text-[10px] font-semibold">
-                              {entry.severity}
-                            </span>
-                          )}
-                          <span className="ml-1.5 text-[10px] text-red-700/80">
-                            {entry.source}
-                            {entry.is_legacy ? ' · free text' : ''}
-                          </span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : allergyRegistry.no_known_allergies ? (
-                  <p className="mb-2 text-xs text-slate-600">
-                    <span className="font-semibold text-slate-700">No known allergies</span>
-                    <span className="text-slate-500"> — recorded ({allergyRegistry.sources.join(', ')})</span>
-                  </p>
-                ) : (
-                  <p className="mb-2 rounded-md border border-amber-300 bg-amber-50 px-2.5 py-1.5 text-xs font-medium text-amber-900">
-                    No allergy record for this patient — allergy status has not been documented.
-                  </p>
-                )
-              )}
               {medicalLoading ? (
                 <p className="text-xs text-slate-500">Loading…</p>
               ) : (
@@ -273,17 +327,12 @@ export const PatientAlertsBanner = ({
                           </span>
                         </li>
                       ))}
-                      {medicalHistory.allergies?.trim() && (
+                      {medicalHistory.other_ongoing_illness?.trim() ? (
                         <li className="flex gap-2">
-                          <span className="mt-1.5 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-amber-500" />
-                          <span className="min-w-0">
-                            <span className="font-semibold text-amber-800">Allergies</span>
-                            <span className="block truncate text-xs text-amber-900">
-                              {medicalHistory.allergies}
-                            </span>
-                          </span>
+                          <FileText className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-slate-400" />
+                          <span className="truncate">{medicalHistory.other_ongoing_illness}</span>
                         </li>
-                      )}
+                      ) : null}
                       {(medicalHistory.addiction || medicalHistory.smoking) && (
                         <li className="flex flex-wrap gap-1">
                           {medicalHistory.addiction ? (
@@ -342,6 +391,18 @@ export const PatientAlertsBanner = ({
           onSuccess={() => {
             refetchWarnings()
             setShowWarningModal(false)
+          }}
+        />
+      )}
+
+      {showAllergyModal && (
+        <CreateAllergyModal
+          initialPatient={patient}
+          onClose={() => setShowAllergyModal(false)}
+          onSuccess={() => {
+            void refetchWarnings()
+            void fetchPatientAllergies(patient).then(setAllergyRegistry).catch(() => null)
+            setShowAllergyModal(false)
           }}
         />
       )}

@@ -5,7 +5,7 @@ import type { NurseBriefingAdmission } from '../../services/nurseBriefing'
 import { NurseAdmissionsBriefingModal } from '../nurseBriefing/NurseBriefingModals'
 import { StatusPill } from '../ui/StatusPill'
 import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
-import { labBriefingChildPreview, labBriefingDisplayRows } from '../../utils/labBriefingGroups'
+import { labBriefingChildPreview, labBriefingDisplayRows, labBriefingTestLabel } from '../../utils/labBriefingGroups'
 
 function BriefingModalShell({
   title,
@@ -149,10 +149,12 @@ export function DoctorLabReviewBriefingModal({
                   <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-slate-900">
-                      {test.lab_test_name || test.template || test.name}
+                      {labBriefingTestLabel(test)}
                     </p>
                     <p className="text-xs text-slate-600">{test.patient_name || test.patient}</p>
-                    <p className="mt-1 text-xs text-slate-500">{test.name}</p>
+                    <p className="mt-1 hidden text-xs text-slate-500" aria-hidden="true">
+                      {test.name}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -182,6 +184,7 @@ export function DoctorBriefingModals({
   onAdvance,
   onAdmissionSelect,
   onLabTestSelect,
+  admissionsOnly = false,
 }: {
   step: DoctorBriefingStep | null
   briefing: DoctorShiftBriefing | null
@@ -189,6 +192,7 @@ export function DoctorBriefingModals({
   onAdvance: () => void
   onAdmissionSelect?: (admission: NurseBriefingAdmission) => void
   onLabTestSelect?: (labTest: DoctorBriefingLabTest) => void
+  admissionsOnly?: boolean
 }) {
   if (!step) return null
 
@@ -199,7 +203,9 @@ export function DoctorBriefingModals({
         loading={loading}
         onClose={onAdvance}
         onAdmissionSelect={onAdmissionSelect}
-        closeLabel="Next: Pending lab review"
+        closeLabel={admissionsOnly ? 'Close' : 'Next: Pending lab review'}
+        subtitle="Warnings and allergies for admitted patients across all branches."
+        emptyMessage="No admitted patients with allergies or clinical warnings."
       />
     )
   }

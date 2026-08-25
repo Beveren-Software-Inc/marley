@@ -22,7 +22,7 @@ import {
   type MedicationOrderRow,
 } from '../../services/prescriptions'
 import {
-  displayMedicationDosage,
+  displayMedicationDosageWithUom,
   displayMedicationDrugName,
   displayMedicationFrequency,
   displayMedicationInstructions,
@@ -499,7 +499,7 @@ export function ClinicalNoteDetailPanel({
               <ul className="divide-y divide-emerald-50 overflow-hidden rounded-lg border border-emerald-100 bg-white">
                 {dayMedications.map((med, idx) => {
                   const drugName = displayMedicationDrugName(med) || med.display_drug_name || 'Medication'
-                  const dosage = displayMedicationDosage(med) || med.display_dosage
+                  const dosage = displayMedicationDosageWithUom(med) || med.display_dosage
                   const frequency = displayMedicationFrequency(med) || med.frequency
                   const instructions = displayMedicationInstructions(med)
                   const startDate = displayMedicationStartDate(med) || med.start_date || med.date

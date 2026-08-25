@@ -33,6 +33,8 @@
   "inpatient_record",
   "inpatient_status",
   "patient_visit",
+  "assigned_healthcare_practioner",
+  "assigned_practitioner_name",
   "order_source_section",
   "practitioner",
   "practitioner_email",
@@ -708,6 +710,17 @@
    "fieldname": "serv_amt_book",
    "fieldtype": "Currency",
    "label": "Serv Amt Book"
+  },
+  {
+   "fieldname": "assigned_healthcare_practioner",
+   "fieldtype": "Link",
+   "label": "Assigned Healthcare Practioner",
+   "options": "Healthcare Practitioner"
+  },
+  {
+   "fieldname": "assigned_practitioner_name",
+   "fieldtype": "Data",
+   "label": "Assigned Practitioner Name"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -726,8 +739,8 @@
    "link_fieldname": "service_request"
   }
  ],
- "modified": "2026-07-21 23:56:23.994584",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 15:24:21.258777",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Service Request",
  "naming_rule": "By \"Naming Series\" field",

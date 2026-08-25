@@ -63,6 +63,9 @@ export async function previewMedicineGivenDoseValidation(args: {
   dose: string
   date?: string
   time?: string
+  route_of_administration?: string
+  order_entry?: string
+  medication_order?: string
 }): Promise<MedicineGivenDoseValidationPreview> {
   return apiRequest<MedicineGivenDoseValidationPreview>(
     '/api/method/healthcare.api.medicine_given.preview_medicine_given_dose_validation',

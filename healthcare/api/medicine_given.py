@@ -996,6 +996,9 @@ def preview_medicine_given_dose_validation(
 	dose,
 	date: str | None = None,
 	time: str | None = None,
+	route_of_administration: str | None = None,
+	order_entry: str | None = None,
+	medication_order: str | None = None,
 ) -> dict:
 	"""Preview single-dose and 24-hour cumulative dose checks for Record Given."""
 	if not admission:
@@ -1025,6 +1028,16 @@ def preview_medicine_given_dose_validation(
 	from healthcare.api.dose_limit_validation import get_patient_weight_kg
 
 	patient_weight = get_patient_weight_kg(patient=patient, admission=admission, inpatient_record=admission)
+	if not (route_of_administration or "").strip() and order_entry:
+		route_of_administration = frappe.db.get_value(
+			"Inpatient Medication Order Entry", order_entry, "route_of_administration"
+		)
+	if not (route_of_administration or "").strip() and medication_order:
+		route_of_administration = frappe.db.get_value(
+			"Inpatient Medication Order Entry",
+			{"parent": medication_order, "drug": medicine_code},
+			"route_of_administration",
+		)
 	evaluation = evaluate_medicine_given_dose(
 		admission_detail_name=admission_detail_name,
 		medicine_code=medicine_code,
@@ -1034,13 +1047,20 @@ def preview_medicine_given_dose_validation(
 		patient_weight=patient_weight,
 		patient=patient,
 		admission=admission,
+		route_of_administration=route_of_administration,
 	)
 	return {
 		**evaluation,
 		"parsed_dose": extract_dose_numeric(dose),
-		"max_dose_per_single_dose": get_item_max_dose_per_single_dose(medicine_code, patient_weight),
-		"max_dose_per_day": get_item_max_dose_per_day(medicine_code, patient_weight),
-		"maximum_dose_limit": get_item_max_dose_per_single_dose(medicine_code, patient_weight),
+		"max_dose_per_single_dose": get_item_max_dose_per_single_dose(
+			medicine_code, patient_weight, route_of_administration
+		),
+		"max_dose_per_day": get_item_max_dose_per_day(
+			medicine_code, patient_weight, route_of_administration
+		),
+		"maximum_dose_limit": get_item_max_dose_per_single_dose(
+			medicine_code, patient_weight, route_of_administration
+		),
 		"message": dose_limit_validation_message(evaluation),
 	}
 
@@ -1173,6 +1193,7 @@ def create_medicine_given(
 		drug_name = None
 		prescription_frequency = None
 		prescription_type = None
+		given_route = None
 
 		if item_code:
 			drug_code = item_code
@@ -1181,6 +1202,7 @@ def create_medicine_given(
 			child = frappe.get_doc("Inpatient Medication Order Entry", order_entry)
 			drug_code = child.drug
 			drug_name = child.drug_name
+			given_route = getattr(child, "route_of_administration", None)
 			prescription_frequency = child.patient_frequency or getattr(child, "long_acting_frequency", None)
 			prescription_type = _prescription_type_from_order_entry(order_entry_name=order_entry)
 			if not dose_text and getattr(child, "dosage", None):
@@ -1194,6 +1216,7 @@ def create_medicine_given(
 			first = pmo.medication_orders[0]
 			drug_code = getattr(first, "drug", None)
 			drug_name = getattr(first, "drug_name", None)
+			given_route = getattr(first, "route_of_administration", None)
 			prescription_frequency = getattr(first, "patient_frequency", None)
 			prescription_type = _prescription_type_from_order_entry(pmo=pmo, drug_code=drug_code)
 			if not dose_text and getattr(first, "dosage", None):
@@ -1297,6 +1320,7 @@ def create_medicine_given(
 			override_reason=override_reason,
 			admission=admission,
 			patient=frappe.db.get_value("Inpatient Admission", admission, "patient"),
+			route_of_administration=given_route,
 		)
 		if dose_evaluation.get("override_required"):
 			apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())
@@ -1676,6 +1700,13 @@ def update_medicine_given(
 		exclude_row_name=name,
 		admission=admission,
 		patient=frappe.db.get_value("Inpatient Admission", admission, "patient"),
+		route_of_administration=frappe.db.get_value(
+			"Inpatient Medication Order Entry",
+			{"parent": getattr(row, "medication_order", None), "drug": drug_code},
+			"route_of_administration",
+		)
+		if getattr(row, "medication_order", None)
+		else None,
 	)
 	if dose_evaluation.get("override_required"):
 		apply_dose_limit_override_audit(row, dose_evaluation, (override_reason or "").strip())

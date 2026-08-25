@@ -3,10 +3,8 @@ import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../servic
 import {
   deleteMedicalDiagnosisEntry,
   getAllMedicalDiagnosisEntries,
-  getMedicalDiagnosisForContext,
   getMedicalDiagnosisForPatient,
   type MedicalDiagnosisEntryAggRow,
-  type MedicalDiagnosisEntryRow,
 } from '../../services/medicalDiagnosisEntry'
 import { MoreHorizontal, Pencil, Plus, Trash2 } from 'lucide-react'
 import { PatientDiagnosisModal } from './PatientDiagnosisModal'
@@ -56,16 +54,15 @@ function contextLabel(row: MedicalDiagnosisEntryAggRow): string {
   return '—'
 }
 
-function toAggRow(row: MedicalDiagnosisEntryRow): MedicalDiagnosisEntryAggRow {
-  return {
-    ...row,
-    parent: row.visit_num || row.inpatient_admission || '',
-    parent_type: row.visit_num
-      ? 'Patient Visit'
-      : row.inpatient_admission
-        ? 'Inpatient Admission'
-        : '',
-  }
+function isCurrentCareDiagnosis(
+  row: MedicalDiagnosisEntryAggRow,
+  mode: string | null | undefined,
+  activeVisit?: string,
+  activeAdmission?: string,
+): boolean {
+  if (mode === 'OP' && activeVisit && row.visit_num === activeVisit) return true
+  if (mode === 'IP' && activeAdmission && row.inpatient_admission === activeAdmission) return true
+  return false
 }
 
 export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: boolean } = {}) {
@@ -103,16 +100,14 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
   )
 
   const contextBanner = useMemo(() => {
+    if (!selectedPatient) return null
     if (mode === 'OP' && activeVisit) {
-      return `Showing diagnoses for OP Visit: ${activeVisit}`
+      return `All diagnoses for this patient. Current OP visit ${activeVisit} is marked.`
     }
     if (mode === 'IP' && activeAdmission) {
-      return `Showing diagnoses for IP Admission: ${activeAdmission}`
+      return `All diagnoses for this patient. Current IP admission ${activeAdmission} is marked.`
     }
-    if (selectedPatient) {
-      return `Showing diagnoses for patient: ${selectedPatient}`
-    }
-    return null
+    return `All diagnoses for this patient`
   }, [mode, activeVisit, activeAdmission, selectedPatient])
 
   const load = useCallback(async () => {
@@ -120,22 +115,11 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
     setError(null)
     try {
       let data: MedicalDiagnosisEntryAggRow[]
-
-      if (mode === 'IP' && activeAdmission) {
-        const contextRows = await getMedicalDiagnosisForContext(
-          'Inpatient Admission',
-          activeAdmission,
-        )
-        data = contextRows.map(toAggRow)
-      } else if (mode === 'OP' && activeVisit) {
-        const contextRows = await getMedicalDiagnosisForContext('Patient Visit', activeVisit)
-        data = contextRows.map(toAggRow)
-      } else if (selectedPatient) {
+      if (selectedPatient) {
         data = await getMedicalDiagnosisForPatient(selectedPatient)
       } else {
         data = await getAllMedicalDiagnosisEntries({ limit: 500 })
       }
-
       setRows(data)
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load diagnoses'
@@ -144,7 +128,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
     } finally {
       setLoading(false)
     }
-  }, [mode, activeVisit, activeAdmission, selectedPatient])
+  }, [selectedPatient])
 
   useEffect(() => {
     void load()
@@ -206,7 +190,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
 
   const filteredRows = useMemo(() => {
     const q = search.trim().toLowerCase()
-    return rows.filter((row) => {
+    const matched = rows.filter((row) => {
       if (!inDateRange(row.posting_date, fromDate || undefined, toDate || undefined)) return false
       if (practitionerFilter && row.practitioner !== practitionerFilter) return false
       if (!q) return true
@@ -230,7 +214,12 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
         .toLowerCase()
       return haystack.includes(q)
     })
-  }, [rows, search, fromDate, toDate, practitionerFilter])
+    return [...matched].sort((a, b) => {
+      const aCurrent = isCurrentCareDiagnosis(a, mode, activeVisit, activeAdmission) ? 1 : 0
+      const bCurrent = isCurrentCareDiagnosis(b, mode, activeVisit, activeAdmission) ? 1 : 0
+      return bCurrent - aCurrent
+    })
+  }, [rows, search, fromDate, toDate, practitionerFilter, mode, activeVisit, activeAdmission])
 
   const detailPreview = useMemo(
     () => (detailName ? rows.find((r) => r.name === detailName) : undefined),
@@ -239,7 +228,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
 
   const emptyMessage = useMemo(() => {
     if (search.trim() || hasActiveFilters) return 'NO DIAGNOSES MATCH YOUR FILTERS.'
-    if (hasRefContext || selectedPatient) return 'No diagnoses for the current care context.'
+    if (hasRefContext || selectedPatient) return 'No diagnoses for this patient.'
     return 'NO MEDICAL DIAGNOSIS ENTRY RECORDS YET.'
   }, [search, hasActiveFilters, hasRefContext, selectedPatient])
 
@@ -433,10 +422,12 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {filteredRows.map((row, idx) => (
+                  {filteredRows.map((row, idx) => {
+                    const isCurrent = isCurrentCareDiagnosis(row, mode, activeVisit, activeAdmission)
+                    return (
                     <tr
                       key={row.name || `${row.diagnosis}-${idx}`}
-                      className="hover:bg-slate-50/80"
+                      className={isCurrent ? 'bg-sky-50/80 hover:bg-sky-50' : 'hover:bg-slate-50/80'}
                     >
                       <td className="whitespace-nowrap px-3 py-2.5 align-top font-mono text-xs">
                         {row.name ? (
@@ -458,7 +449,12 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                         ) : null}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 align-top font-mono text-xs text-slate-700">
-                        {contextLabel(row)}
+                        <div>{contextLabel(row)}</div>
+                        {isCurrent ? (
+                          <span className="mt-0.5 inline-flex rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                            {mode === 'IP' ? 'This IP' : 'This OP'}
+                          </span>
+                        ) : null}
                       </td>
                       <td className="whitespace-nowrap px-3 py-2.5 align-top font-mono text-sm text-slate-800">
                         {row.disease_no || row.diagnosis || '—'}
@@ -542,7 +538,8 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
                         ) : null}
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

@@ -25,6 +25,7 @@ import {
 } from '../../utils/clinicalSummaryExport'
 import { toast } from '../../hooks/useToast'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
+import { formatDoseAndUom } from '../../utils/medicationOrderDisplayUtils'
 
 interface OpClinicalSummaryTabProps {
   patient: string
@@ -109,10 +110,12 @@ function EpisodePanel({ episode }: { episode: OpClinicalEpisode }) {
                     {(rx.medications || []).map((med, idx) => (
                       <li key={idx} className="text-sm text-slate-800">
                         <span className="font-medium">{med.drug_name || med.drug || 'Medication'}</span>
-                        {[med.dosage, med.frequency].filter(Boolean).length ? (
+                        {[formatDoseAndUom(med.dosage, med.uom), med.frequency].filter((v) => v && v !== '-').length ? (
                           <span className="text-slate-600">
                             {' '}
-                            — {[med.dosage, med.frequency].filter(Boolean).join(' · ')}
+                            — {[formatDoseAndUom(med.dosage, med.uom), med.frequency]
+                              .filter((v) => v && v !== '-')
+                              .join(' · ')}
                           </span>
                         ) : null}
                         {med.instructions ? (

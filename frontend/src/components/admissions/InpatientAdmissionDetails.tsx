@@ -12,7 +12,7 @@ import { PackageSelectionModal } from './PackageSelectionModal'
 import { AdmissionFormModal } from './AdmissionFormModal'
 import { ScheduleDischargeModal } from './ScheduleDischargeModal'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
-import { getMedicalDiagnosisForContext, type MedicalDiagnosisEntryRow } from '../../services/medicalDiagnosisEntry'
+import { getMedicalDiagnosisForPatient, type MedicalDiagnosisEntryRow } from '../../services/medicalDiagnosisEntry'
 import { fetchMedicineGiven, fetchMissedMedicine, type MedicineGivenRow, type MissedMedicineRow } from '../../services/medicineGiven'
 // FIX 2: LabTestRow → LabTest (matches the actual export name in labTests service)
 import { fetchLabTestsByInpatientRecord, type LabTest } from '../../services/labTests'
@@ -168,7 +168,7 @@ const useDateFormatter = () => {
 }
 
 // Custom hook for tab data management
-const useTabData = (admissionName: string, activeTab: TabType) => {
+const useTabData = (admissionName: string, activeTab: TabType, patient?: string) => {
   const [diagnoses, setDiagnoses] = useState<MedicalDiagnosisEntryRow[]>([])
   const [medicineGiven, setMedicineGiven] = useState<MedicineGivenRow[]>([])
   const [missedMedicine, setMissedMedicine] = useState<MissedMedicineRow[]>([])
@@ -189,14 +189,17 @@ const useTabData = (admissionName: string, activeTab: TabType) => {
   const loadDiagnoses = useCallback(async () => {
     try {
       setLoadingDiagnoses(true)
-      const data = await getMedicalDiagnosisForContext('Inpatient Admission', admissionName)
-      setDiagnoses(data)
+      if (patient) {
+        setDiagnoses(await getMedicalDiagnosisForPatient(patient))
+      } else {
+        setDiagnoses([])
+      }
     } catch (err) {
       console.error('Failed to load diagnoses:', err)
     } finally {
       setLoadingDiagnoses(false)
     }
-  }, [admissionName])
+  }, [patient])
 
   const loadMedicineGiven = useCallback(async () => {
     try {
@@ -645,17 +648,22 @@ const DiagnosesTab = ({
   loading,
   canEdit,
   onManage,
+  admissionName,
 }: {
   diagnoses: MedicalDiagnosisEntryRow[]
   loading: boolean
   // FIX 6: Accept boolean so callers can safely pass `!!canEdit`
   canEdit: boolean
   onManage: () => void
+  admissionName: string
 }) => {
   return (
     <div>
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-md font-semibold text-slate-800">Patient Diagnoses</h3>
+        <div>
+          <h3 className="text-md font-semibold text-slate-800">Patient Diagnoses</h3>
+          <p className="mt-0.5 text-xs text-slate-500">All diagnoses for this patient. Current IP is marked.</p>
+        </div>
         {canEdit && (
           <button
             onClick={onManage}
@@ -670,11 +678,18 @@ const DiagnosesTab = ({
       {loading ? (
         <LoadingSpinner message="Loading diagnoses..." />
       ) : diagnoses.length === 0 ? (
-        <EmptyState icon={Stethoscope} message="NO DIAGNOSES RECORDED YET" />
+        <EmptyState icon={Stethoscope} message="No diagnoses for this patient." />
       ) : (
         <div className="space-y-3">
-          {diagnoses.map((diag) => (
-            <div key={diag.name} className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+          {diagnoses.map((diag) => {
+            const onThisAdmission = diag.inpatient_admission === admissionName
+            return (
+            <div
+              key={diag.name}
+              className={`rounded-lg p-4 border ${
+                onThisAdmission ? 'border-sky-200 bg-sky-50/70' : 'border-slate-200 bg-slate-50'
+              }`}
+            >
               <div className="flex justify-between items-start mb-2">
                 <div className="flex flex-col gap-1.5">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -686,6 +701,19 @@ const DiagnosesTab = ({
                       <span className="text-slate-500 font-normal mr-1">Name</span>
                       {diag.diagnosis_name?.trim() || '—'}
                     </span>
+                    {onThisAdmission ? (
+                      <span className="rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+                        This IP
+                      </span>
+                    ) : diag.visit_num ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                        OP {diag.visit_num}
+                      </span>
+                    ) : diag.inpatient_admission ? (
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-600">
+                        IP {diag.inpatient_admission}
+                      </span>
+                    ) : null}
                     {diag.diagnoses_flag && (
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded">Primary</span>
                     )}
@@ -704,7 +732,8 @@ const DiagnosesTab = ({
                 <span className="font-medium">Doctor:</span> {diag.practitioner_name || diag.practitioner}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
       )}
     </div>
@@ -1254,7 +1283,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
     refetchLabTests,
     refetchPrescriptions,
     refetchProgressNotes,
-  } = useTabData(admissionName, activeTab)
+  } = useTabData(admissionName, activeTab, record?.patient)
 
   const loadRecord = useCallback(async () => {
     try {
@@ -1466,6 +1495,7 @@ export const InpatientAdmissionDetails = ({ admissionName, onUpdate }: Inpatient
               loading={loadingDiagnoses}
               canEdit={canEdit}
               onManage={() => setShowDiagnosisModal(true)}
+              admissionName={admissionName}
             />
           )}
           {activeTab === 'lab_tests' && (

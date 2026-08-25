@@ -523,7 +523,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import { apiRequest } from '../../services/apiClient'
 import { fetchPatientVisits, fetchPatientOptions, fetchInpatientAdmissionOptions, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
-import { ChevronDown, Plus, Trash2, Check, AlertCircle, BookOpen } from 'lucide-react'
+import { ChevronDown, Check, AlertCircle, BookOpen } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
 import {
@@ -804,14 +804,6 @@ export const PatientHistoryModal = ({
     }
   }
 
-  const addRow = () =>
-    setRows((prev) => [
-      ...prev,
-      { _key: Math.random().toString(36).slice(2), attribute: '', description: '', is_mendatory: false },
-    ])
-
-  const removeRow = (key: string) => setRows(prev => prev.filter(r => r._key !== key))
-
   const updateRow = (key: string, field: 'attribute' | 'description', value: string) =>
     setRows(prev => prev.map(r => r._key === key ? { ...r, [field]: value } : r))
 
@@ -1051,22 +1043,17 @@ export const PatientHistoryModal = ({
                     {mandatoryRows.length === 0 && rows.length > 0 && (
                       <p className="text-xs text-slate-500 mt-0.5">No mandatory items on this template — descriptions are optional.</p>
                     )}
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Line items are managed in Desk. Fill descriptions here only.
+                    </p>
                   </div>
-                  <button type="button" onClick={addRow}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-primary rounded-md hover:bg-primary/90 transition-colors shrink-0">
-                    <Plus className="w-3.5 h-3.5" /> Add Item
-                  </button>
                 </div>
 
                 {rows.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-14 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50">
                     <BookOpen className="w-8 h-8 text-slate-300 mb-2" />
                     <p className="text-sm text-slate-500 mb-1">NO HISTORY ITEMS YET</p>
-                    <p className="text-xs text-slate-400 mb-4">Choose a template on the General tab or add items manually</p>
-                    <button type="button" onClick={addRow}
-                      className="flex items-center gap-1.5 px-4 py-2 text-sm font-medium text-primary border border-primary rounded-md hover:bg-primary/5 transition-colors">
-                      <Plus className="w-4 h-4" /> Add First Item
-                    </button>
+                    <p className="text-xs text-slate-400">Choose a template on the General tab. Items are added or removed from Desk.</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
@@ -1081,7 +1068,7 @@ export const PatientHistoryModal = ({
                           ? 'border-slate-200 bg-slate-50/60'
                           : 'border-slate-200 bg-white hover:border-slate-300'
                       return (
-                      <div key={row._key} className={`rounded-lg border p-4 transition-colors group ${rowClass}`}>
+                      <div key={row._key} className={`rounded-lg border p-4 transition-colors ${rowClass}`}>
                         <div className="flex items-start gap-3">
                           {/* Index badge */}
                           <span className="w-6 h-6 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold flex items-center justify-center shrink-0 mt-0.5">
@@ -1092,9 +1079,8 @@ export const PatientHistoryModal = ({
                               <input
                                 type="text"
                                 value={row.attribute}
-                                onChange={e => updateRow(row._key, 'attribute', e.target.value)}
-                                placeholder="e.g. Chief Complaint, Past Medical History…"
-                                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+                                readOnly
+                                className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm font-medium bg-slate-50 text-slate-800 cursor-default"
                               />
                               {mandatory && (
                                 <span className="shrink-0 text-[11px] font-semibold text-red-600">Mandatory</span>
@@ -1120,11 +1106,6 @@ export const PatientHistoryModal = ({
                               />
                             </div>
                           </div>
-                          {/* Remove */}
-                          <button type="button" onClick={() => removeRow(row._key)}
-                            className="inline-flex items-center justify-center w-7 h-7 rounded text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors opacity-0 group-hover:opacity-100 mt-0.5 shrink-0">
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
                         </div>
                         {row.description.trim() && (
                           <div className="mt-1.5 ml-9">

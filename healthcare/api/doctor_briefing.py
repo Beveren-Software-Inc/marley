@@ -67,11 +67,12 @@ def get_doctor_shift_briefing(cost_center=None, section=None):
 	result = {"cost_center": cc}
 
 	if section_key == "admissions":
-		result["active_admissions"] = _active_admissions(cc)
+		# First doctor popup: warnings/allergies across all branches (not the auto-selected one).
+		result["active_admissions"] = _active_admissions(cc, all_branches=True)
 	elif section_key == "lab_tests":
 		result["pending_review_lab_tests"] = _pending_review_lab_tests(cc)
 	else:
-		result["active_admissions"] = _active_admissions(cc)
+		result["active_admissions"] = _active_admissions(cc, all_branches=True)
 		result["pending_review_lab_tests"] = _pending_review_lab_tests(cc)
 
 	return result

@@ -127,7 +127,9 @@ fixtures = [
                    "Sales Order-custom_no_charges",
                    "Payment Entry-custom_case_no",
                    "Payment Entry-custom_op_or_ip",
-                   "Item Group-custom_tracked_by_nhra"
+                   "Item Group-custom_tracked_by_nhra",
+                   "Item-custom_maximum_dosage_details",
+                   "Item-custom_maximum_dosage"
 
                 ),
             ]

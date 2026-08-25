@@ -274,6 +274,133 @@ def _serialize_discharge(admission_name: str) -> dict | None:
 	}
 
 
+def _doctor_orders_for_admission(admission_name: str, patient: str) -> list[dict]:
+	if not admission_name or not frappe.db.exists("DocType", "Doctor Order"):
+		return []
+	filters = {"docstatus": ["<", 2]}
+	if frappe.get_meta("Doctor Order").has_field("inpatient_admission"):
+		filters["inpatient_admission"] = admission_name
+	else:
+		filters["patient"] = patient
+	try:
+		rows = frappe.get_all(
+			"Doctor Order",
+			filters=filters,
+			fields=[
+				"name",
+				"trans_no",
+				"trans_date",
+				"doctor_entry_date",
+				"doctor_name",
+				"doctor",
+				"doctor_order",
+				"status",
+				"request",
+				"department",
+			],
+			order_by="trans_date asc, creation asc",
+			limit=500,
+			ignore_permissions=True,
+		)
+	except Exception:
+		return []
+	out = []
+	for row in rows:
+		out.append(
+			{
+				"name": row.get("name"),
+				"trans_no": row.get("trans_no"),
+				"trans_date": str(row.get("trans_date")) if row.get("trans_date") else None,
+				"doctor_entry_date": str(row.get("doctor_entry_date")) if row.get("doctor_entry_date") else None,
+				"doctor_name": row.get("doctor_name") or "",
+				"doctor": row.get("doctor"),
+				"doctor_order": row.get("doctor_order") or "",
+				"status": row.get("status") or "",
+				"request": row.get("request") or "",
+				"department": row.get("department") or "",
+			}
+		)
+	return out
+
+
+def _nursing_notes_for_admission(admission_name: str, patient: str) -> list[dict]:
+	if not admission_name or not frappe.db.exists("DocType", "Main Nursing Note"):
+		return []
+	filters = {"admission": admission_name}
+	try:
+		rows = frappe.get_all(
+			"Main Nursing Note",
+			filters=filters,
+			fields=[
+				"name",
+				"trans_no",
+				"date",
+				"shift",
+				"nursing_notes",
+				"user_name",
+				"last_appended_by_name",
+			],
+			order_by="date asc, creation asc",
+			limit=500,
+			ignore_permissions=True,
+		)
+	except Exception:
+		return []
+	if not rows and patient:
+		try:
+			rows = frappe.get_all(
+				"Main Nursing Note",
+				filters={"file_no": patient, "admission": admission_name},
+				fields=[
+					"name",
+					"trans_no",
+					"date",
+					"shift",
+					"nursing_notes",
+					"user_name",
+					"last_appended_by_name",
+				],
+				order_by="date asc, creation asc",
+				limit=500,
+				ignore_permissions=True,
+			)
+		except Exception:
+			rows = []
+	names = [row.name for row in rows]
+	entry_map = {}
+	if names:
+		for entry in frappe.get_all(
+			"Main Nursing Note Entry",
+			filters={"parent": ["in", names], "parenttype": "Main Nursing Note"},
+			fields=["name", "parent", "idx", "note", "note_time", "authored_by_name", "creation"],
+			order_by="parent asc, idx asc",
+			ignore_permissions=True,
+		):
+			entry_map.setdefault(entry.parent, []).append(
+				{
+					"name": entry.name,
+					"note": entry.note or "",
+					"note_time": str(entry.note_time) if entry.note_time else None,
+					"authored_by_name": entry.authored_by_name or "",
+				}
+			)
+	out = []
+	for row in rows:
+		out.append(
+			{
+				"name": row.name,
+				"trans_no": row.trans_no,
+				"date": str(row.date) if row.date else None,
+				"shift": row.shift or "",
+				"nursing_notes": row.nursing_notes or "",
+				"user_name": row.user_name or "",
+				"last_appended_by_name": row.last_appended_by_name or "",
+				"entries": entry_map.get(row.name, []),
+			}
+		)
+	return out
+
+
 def _clinical_notes_for_admission(admission_name: str, patient: str) -> list[dict]:
 	base_filters = {"patient": patient, "docstatus": ["!=", 2]}
 	fields = [
@@ -426,6 +553,8 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 		warnings = []
 
 	clinical_notes = _clinical_notes_for_admission(admission, patient)
+	doctor_orders = _doctor_orders_for_admission(admission, patient)
+	nursing_notes = _nursing_notes_for_admission(admission, patient)
 	history_form = _history_form_for_admission(admission)
 	medical_history = _medical_history_for_admission(patient, admission)
 	signatures = _serialize_admission_signatures(admission)
@@ -436,6 +565,8 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 		or diagnoses
 		or prescriptions
 		or clinical_notes
+		or doctor_orders
+		or nursing_notes
 		or history_form
 		or warnings
 		or medical_history
@@ -452,6 +583,8 @@ def get_admission_clinical_bundle(patient=None, admission=None):
 		"diagnoses": diagnoses,
 		"prescriptions": prescriptions,
 		"clinical_notes": clinical_notes,
+		"doctor_orders": doctor_orders,
+		"nursing_notes": nursing_notes,
 		"history_form": history_form,
 		"medical_history": medical_history,
 		"warnings": warnings,

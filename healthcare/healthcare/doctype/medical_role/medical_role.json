@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_bulk_edit": 1,
  "allow_rename": 1,
  "autoname": "field:medical_role",
  "creation": "2025-12-02 15:57:27.263119",
@@ -8,7 +9,9 @@
  "field_order": [
   "medical_role",
   "parent_medical_role",
-  "is_group"
+  "is_group",
+  "gp_doctor",
+  "consultants"
  ],
  "fields": [
   {
@@ -30,13 +33,25 @@
    "fieldname": "is_group",
    "fieldtype": "Check",
    "label": "Is Group"
+  },
+  {
+   "default": "0",
+   "fieldname": "gp_doctor",
+   "fieldtype": "Check",
+   "label": "Gp Doctor"
+  },
+  {
+   "default": "0",
+   "fieldname": "consultants",
+   "fieldtype": "Check",
+   "label": "Consultants"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2026-04-21 14:46:33.387537",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 15:20:08.882598",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Medical Role",
  "naming_rule": "By fieldname",

@@ -21,6 +21,8 @@ export interface WarningMessage {
   warning_message_class?: string
   creation?: string
   modified?: string
+  is_allergy?: number
+  no_allergy?: number
   is_special_phone_warning?: number
   show_in_standard_warning_popup?: number
   source_type?: string
@@ -128,6 +130,8 @@ export interface CreateWarningMessageData {
   warning?: string
   practitioner?: string
   posting_date?: string
+  is_allergy?: number
+  no_allergy?: number
   is_special_phone_warning?: number
   show_in_standard_warning_popup?: number
   source_type?: string
@@ -175,6 +179,30 @@ export async function createWarningMessage(data: CreateWarningMessageData): Prom
   } else {
     throw new Error('Invalid response format')
   }
+}
+
+export async function recordNoKnownAllergy(patient: string): Promise<WarningMessage> {
+  const csrf = (window as any).csrf_token
+  const csrfForCreate = csrf || (await (await import('./apiClient')).ensureCSRF())
+
+  const response = await fetch('/api/method/healthcare.api.warning_message.record_no_known_allergy', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrfForCreate ? { 'X-Frappe-CSRF-Token': csrfForCreate } : {}),
+    },
+    body: JSON.stringify({ patient }),
+  })
+
+  const resData = await response.json().catch(() => ({}))
+  if (!response.ok || resData?.exc) {
+    const errorMessage =
+      resData?.message?.message || resData?.message || 'Failed to record no known allergies'
+    throw new Error(typeof errorMessage === 'string' ? errorMessage : 'Failed to record no known allergies')
+  }
+  return (resData?.message || {}) as WarningMessage
 }
 
 export async function markStickyNoteVerified(name: string): Promise<WarningMessage> {

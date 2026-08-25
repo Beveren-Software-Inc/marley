@@ -10,6 +10,7 @@ export type MedicationOrderLike = {
   trans_num?: string | null
   reference_no?: string | null
   dosage?: string | number | null
+  uom?: string | null
   strength?: string | null
   instructions?: string | null
   dose_notes?: string | null
@@ -97,6 +98,20 @@ export function displayMedicationDosage(order: MedicationOrderLike): string {
     return instructions || text(order.dosage) || text(order.strength) || '-'
   }
   return text(order.dosage) || instructions || text(order.strength) || '-'
+}
+
+/** Dosage with chosen UOM, e.g. ``3 mg``. Does not duplicate a unit already in the dosage text. */
+export function formatDoseAndUom(dosage?: string | number | null, uom?: string | null): string {
+  const dose = text(dosage)
+  const unit = text(uom)
+  if (!dose || dose === '-') return dose || '-'
+  if (!unit) return dose
+  if (dose.toLowerCase().includes(unit.toLowerCase())) return dose
+  return `${dose} ${unit}`
+}
+
+export function displayMedicationDosageWithUom(order: MedicationOrderLike): string {
+  return formatDoseAndUom(displayMedicationDosage(order), order.uom)
 }
 
 export function displayMedicationFrequency(order: MedicationOrderLike): string {

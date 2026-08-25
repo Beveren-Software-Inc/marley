@@ -203,7 +203,9 @@ const MedicationRow = ({
           {order.is_long_acting_medicine && <SmallBadge cls="bg-teal-100 text-teal-700">⏳ Long Acting</SmallBadge>}
           {isFuture && <SmallBadge cls="bg-indigo-100 text-indigo-800 border border-indigo-200">📅 Future Plan</SmallBadge>}
         </div>
-        <div className="text-xs text-slate-400 mt-0.5">{displayDrugCode}</div>
+        <div className="hidden text-xs text-slate-400 mt-0.5" aria-hidden="true">
+          {displayDrugCode}
+        </div>
         {isLegacyRow && (
           <div className="mt-1 text-[11px] text-slate-500 space-x-2">
             {order.trans_num ? <span>IP Med: {order.trans_num}</span> : null}
@@ -284,6 +286,13 @@ const MedicationDetailCard = ({ order, parentStartDate }: { order: any; parentSt
         <span className="font-semibold text-slate-800">{displayMedicationDrugName(order)}</span>
         <span className="text-xs text-slate-400">{typeLabel}</span>
       </div>
+      <p className="text-[11px] leading-snug text-slate-500">
+        {[
+          `Dosage ${displayMedicationDosage(order)}`,
+          `Freq ${displayMedicationFrequency(order)}`,
+          `Route ${displayMedicationRoute(order)}`,
+        ].join(' · ')}
+      </p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs">
         {instructions && <div><span className="font-medium text-slate-700">Instructions:</span> <span className="text-slate-600">{instructions}</span></div>}
         <div><span className="font-medium text-slate-700">Frequency:</span> <span className="text-slate-600">{displayMedicationFrequency(order)}</span></div>

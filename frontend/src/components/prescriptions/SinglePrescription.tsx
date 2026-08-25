@@ -249,8 +249,47 @@ const TypeFilterCard = ({
   )
 }
 
+const CLINICAL_EDIT_FIELDS = [
+  'drug',
+  'dosage',
+  'uom',
+  'dosage_form',
+  'instructions',
+  'patient_frequency',
+  'long_acting_frequency',
+  'route_of_administration',
+  'reference_no',
+  'is_pink',
+  'is_prn',
+  'medication_type',
+  'healthcare_practitioner',
+] as const
+
+const CASEFOLD_EDIT_FIELDS = new Set([
+  'uom',
+  'dosage_form',
+  'route_of_administration',
+  'patient_frequency',
+  'long_acting_frequency',
+])
+
+function normMedCompare(field: string, value: unknown): string {
+  if (value === true || value === 1 || value === '1') return '1'
+  if (value === false || value === 0 || value === '0' || value == null) return ''
+  const text = String(value).trim()
+  if (field === 'medication_type') return text
+  if (CASEFOLD_EDIT_FIELDS.has(field)) return text.toLowerCase()
+  return text
+}
+
+function medicationClinicalFieldsChanged(order: any, form: Record<string, unknown>): boolean {
+  return CLINICAL_EDIT_FIELDS.some(
+    (field) => normMedCompare(field, order[field]) !== normMedCompare(field, form[field]),
+  )
+}
+
 // ─── Edit medication entry modal ──────────────────────────────────────────────
-const EditMedicationEntryModal = ({
+export const EditMedicationEntryModal = ({
   order,
   prescriptionName,
   patient,
@@ -290,6 +329,7 @@ const EditMedicationEntryModal = ({
     ),
   })
   const [saving, setSaving] = useState(false)
+  const [changeReason, setChangeReason] = useState('')
   const [givenCheck, setGivenCheck] = useState<{ loading: boolean; given: boolean }>({ loading: true, given: false })
   const [doseWarning, setDoseWarning] = useState<PrescriptionDoseValidationPreview | null>(null)
   const [checkingDose, setCheckingDose] = useState(false)
@@ -391,6 +431,7 @@ const EditMedicationEntryModal = ({
         patient,
         patient_encounter: patientEncounter,
         inpatient_record: inpatientRecord,
+        route_of_administration: form.route_of_administration || undefined,
       })
         .then((preview) => {
           if (!cancelled) {
@@ -408,16 +449,22 @@ const EditMedicationEntryModal = ({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [form.drug, form.dosage, patient, patientEncounter, inpatientRecord])
+  }, [form.drug, form.dosage, form.route_of_administration, patient, patientEncounter, inpatientRecord])
 
   const handleSave = async () => {
-    if (givenCheck.given) return
+    if (isDiscontinued) return
     if (!String(form.healthcare_practitioner || '').trim()) {
       toast.error('Doctor is required')
       return
     }
     if (form.is_pink && !String(form.reference_no || '').trim() && !inpatientRecord) {
       toast.error('Reference No is required for pink medications')
+      return
+    }
+    if (medicationClinicalFieldsChanged(order, form) && !changeReason.trim()) {
+      toast.error(
+        'Enter a reason for changing dosage, dosage form, unit of measure, route, prescription type, frequency, or other details',
+      )
       return
     }
     if (doseWarning?.message) {
@@ -431,8 +478,18 @@ const EditMedicationEntryModal = ({
     try {
       setSaving(true)
       const payload = normalizeMedicationOrderForSave(form)
-      await updateMedicationOrderEntry(prescriptionName, order.name, payload)
-      toast.success('Medication entry updated')
+      const willAmend = medicationClinicalFieldsChanged(order, form)
+      const res = await updateMedicationOrderEntry(
+        prescriptionName,
+        order.name,
+        payload,
+        willAmend ? changeReason.trim() : undefined,
+      )
+      toast.success(
+        res.amended
+          ? 'Previous line discontinued and a new medicine line created'
+          : 'Medication entry updated',
+      )
       setDoseLimitConfirmOpen(false)
       onSaved()
     } catch (e) {
@@ -462,7 +519,10 @@ const EditMedicationEntryModal = ({
       return next
     })
   }
-  const disabled = givenCheck.given
+  const isDiscontinued =
+    String(order.medication_status || '').trim() === 'Discontinued' || Boolean(order.stopped)
+  const willAmend = medicationClinicalFieldsChanged(order, form)
+  const disabled = isDiscontinued
 
   return createPortal(
     <>
@@ -476,16 +536,20 @@ const EditMedicationEntryModal = ({
         <div className="px-6 py-4 border-b border-slate-200 shrink-0 rounded-t-2xl flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-emerald-950">
-              Edit Medication
+              Edit Prescription
             </h2>
             <p className="text-xs text-slate-500 mt-0.5">{order.drug_name}</p>
           </div>
           <div className="flex items-center gap-2">
-            {givenCheck.loading ? (
+            {isDiscontinued ? (
+              <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full font-medium">
+                Discontinued
+              </span>
+            ) : givenCheck.loading ? (
               <span className="text-xs text-slate-400">Checking...</span>
             ) : givenCheck.given ? (
-              <span className="text-xs text-rose-600 bg-rose-50 px-2 py-0.5 rounded-full font-medium">
-                Already given — read-only
+              <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
+                Already given — dose/frequency changes create a new line
               </span>
             ) : null}
             <button onClick={onClose} className="shrink-0 rounded-lg p-2 text-emerald-800/70 transition hover:bg-emerald-200/50 hover:text-emerald-950">
@@ -497,7 +561,9 @@ const EditMedicationEntryModal = ({
           <div>
             <label className="block text-xs font-medium text-slate-600 mb-1">Drug</label>
             <input value={form.drug_name} disabled className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500 shadow-sm" />
-            <div className="text-[10px] text-slate-400 mt-0.5">{form.drug}</div>
+            <div className="hidden text-[10px] text-slate-400 mt-0.5" aria-hidden="true">
+              {form.drug}
+            </div>
           </div>
 
           <div>
@@ -715,6 +781,31 @@ const EditMedicationEntryModal = ({
             )}
           </div>
 
+          <div>
+            <label className="block text-xs font-medium text-slate-600 mb-1">
+              Reason for change {willAmend ? <span className="text-red-500">*</span> : null}
+            </label>
+            <textarea
+              value={changeReason}
+              onChange={(e) => setChangeReason(e.target.value)}
+              disabled={disabled}
+              rows={2}
+              placeholder="Required if you change route, unit of measure, prescription type, dosage form, dosage, or frequency."
+              className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            {willAmend ? (
+              <p className="mt-1 text-[11px] text-amber-800">
+                Changing route, unit of measure, prescription type, dosage form, dosage, or frequency
+                discontinues this line and adds a new one.
+              </p>
+            ) : (
+              <p className="mt-1 text-[11px] text-slate-500">
+                Only start date, end date, and days stay on this line. Route, UOM, prescription type,
+                dosage form, and similar details always create a new line.
+              </p>
+            )}
+          </div>
+
         </div>
         <div className="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 shrink-0 rounded-b-2xl bg-slate-50/50">
           <button type="button" onClick={onClose}
@@ -724,7 +815,7 @@ const EditMedicationEntryModal = ({
           {!disabled && (
             <button type="button" disabled={saving || givenCheck.loading} onClick={() => void handleSave()}
               className="px-4 py-2 text-sm rounded-lg bg-primary text-white hover:bg-primary/90 disabled:opacity-50 transition-colors font-medium">
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving...' : willAmend ? 'Discontinue & add new line' : 'Save Changes'}
             </button>
           )}
         </div>
@@ -925,6 +1016,7 @@ export const AddMedicationEntryModal = ({
         patient,
         patient_encounter: patientEncounter,
         inpatient_record: inpatientRecord,
+        route_of_administration: form.route_of_administration || undefined,
       })
         .then((preview) => {
           if (!cancelled) {
@@ -942,7 +1034,7 @@ export const AddMedicationEntryModal = ({
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [form.drug, form.dosage, patient, patientEncounter, inpatientRecord])
+  }, [form.drug, form.dosage, form.route_of_administration, patient, patientEncounter, inpatientRecord])
 
   const handleSave = async () => {
     if (!form.drug || !form.dosage || !form.date) {
@@ -1489,7 +1581,9 @@ const MedicationRow = ({
               {isFuture && <SmallBadge cls="bg-indigo-100 text-indigo-800 border border-indigo-200">📅 Future Plan</SmallBadge>}
             </div>
             {displayDrugCode && displayDrugCode !== '-' ? (
-              <div className="block w-full text-xs text-slate-400 tabular-nums">{displayDrugCode}</div>
+              <div className="hidden w-full text-xs text-slate-400 tabular-nums" aria-hidden="true">
+                {displayDrugCode}
+              </div>
             ) : null}
           </div>
           {isLegacyRow && (

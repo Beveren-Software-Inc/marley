@@ -16,6 +16,7 @@ export type OpTimelineMedication = {
   drug?: string
   drug_name?: string
   dosage?: string
+  uom?: string
   frequency?: string
   instructions?: string
   status?: string

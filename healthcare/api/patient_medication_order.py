@@ -1982,6 +1982,7 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
                 "medicine_no": getattr(item, "medicine_no", None),
                 "written_frequency": getattr(item, "written_frequency", None),
                 "dosage": item.dosage,
+                "uom": getattr(item, "uom", None),
                 "dosage_form": item.dosage_form,
                 "frequency": display["display_frequency"],
                 "patient_frequency": item.patient_frequency,
@@ -1989,6 +1990,11 @@ def get_prescriptions_by_inpatient_record(inpatient_record: str):
                 "instructions": item.instructions,
                 "date": item.date,
                 "start_date": display["display_start_date"],
+                "end_date": str(item.end_date) if getattr(item, "end_date", None) else (str(display.get("display_end_date") or "") or None),
+                "medication_status": (getattr(item, "medication_status", None) or "").strip(),
+                "stopped": cint(getattr(item, "stopped", 0)),
+                "stopped_date": str(item.stopped_date) if getattr(item, "stopped_date", None) else None,
+                "reason_stopped": getattr(item, "reason_stopped", None),
                 "status": item.status if hasattr(item, 'status') else "Active",
                 "display_drug_name": display["display_drug_name"],
                 "display_dosage": display["display_dosage"],
@@ -2204,14 +2210,111 @@ def update_medication_order_status(name: str, status: str):
     }
 
 
+_MEDICATION_ENTRY_DATE_FIELDS = frozenset({"date", "end_date", "no_of_days", "time"})
+_MEDICATION_ENTRY_CHECKBOX_FIELDS = frozenset({"is_pink", "is_prn", "is_long_acting_medicine"})
+# Any change to these fields discontinues the line and creates a replacement.
+_MEDICATION_ENTRY_AMEND_FIELDS = frozenset(
+	{
+		"drug",
+		"dosage",
+		"uom",
+		"dosage_form",
+		"instructions",
+		"patient_frequency",
+		"long_acting_frequency",
+		"route_of_administration",
+		"reference_no",
+		"is_pink",
+		"is_prn",
+		"is_long_acting_medicine",
+		"medication_type",
+		"frequency_in_a_day",
+		"healthcare_practitioner",
+	}
+)
+_MEDICATION_ENTRY_ALLOWED_FIELDS = [
+	"drug",
+	"drug_name",
+	"dosage",
+	"uom",
+	"dosage_form",
+	"no_of_days",
+	"instructions",
+	"date",
+	"end_date",
+	"time",
+	"patient_frequency",
+	"route_of_administration",
+	"reference_no",
+	"is_pink",
+	"is_prn",
+	"is_long_acting_medicine",
+	"long_acting_frequency",
+	"medication_type",
+	"frequency_in_a_day",
+	"healthcare_practitioner",
+	"healthcare_practitioner_name",
+]
+
+
+def _norm_medication_entry_value(field, value):
+	if field in _MEDICATION_ENTRY_CHECKBOX_FIELDS:
+		return cint(value)
+	if field in ("date", "end_date"):
+		if not value:
+			return ""
+		try:
+			return str(getdate(value))
+		except Exception:
+			return cstr(value).strip()
+	if field == "no_of_days":
+		return flt(value)
+	if field == "medication_type":
+		return _normalize_prescription_type(value)
+	if field == "frequency_in_a_day":
+		return cint(value)
+	text = cstr(value).strip() if value is not None else ""
+	if field in ("uom", "dosage_form", "route_of_administration", "patient_frequency", "long_acting_frequency"):
+		return text.casefold()
+	return text
+
+
+def _medication_entry_clinical_changes(entry, updates):
+	clinical = []
+	date_only = []
+	for field in _MEDICATION_ENTRY_ALLOWED_FIELDS:
+		if field not in updates:
+			continue
+		old = _norm_medication_entry_value(field, getattr(entry, field, None))
+		new = _norm_medication_entry_value(field, updates.get(field))
+		if old == new:
+			continue
+		if field in _MEDICATION_ENTRY_DATE_FIELDS:
+			date_only.append(field)
+		elif field in _MEDICATION_ENTRY_AMEND_FIELDS:
+			clinical.append(field)
+	return clinical, date_only
+
+
+def _discontinue_medication_entry(doc, entry, reason):
+	entry.medication_status = "Discontinued"
+	if hasattr(entry, "stopped"):
+		entry.stopped = 1
+	if hasattr(entry, "reason_stopped"):
+		entry.reason_stopped = reason
+	if hasattr(entry, "stopped_date"):
+		entry.stopped_date = nowdate()
+	if hasattr(entry, "stop_by"):
+		entry.stop_by = frappe.session.user
+
+
 @frappe.whitelist()
-def update_medication_order_entry(patient_medication_order, order_entry_name, updates):
+def update_medication_order_entry(patient_medication_order, order_entry_name, updates, reason=None):
     """Update a single medication order entry (child table row) in a Patient Medication Order.
 
-    Args:
-        patient_medication_order: Parent document name
-        order_entry_name: Child table row name
-        updates: JSON string or dict of field values to update
+    Date / duration-only changes are saved on the same line.
+    Changing dose, frequency, UOM, route, type, or instructions discontinues the
+    existing line and appends a replacement so the original order is preserved.
     """
     assert_editing_allowed()
     import json
@@ -2219,6 +2322,7 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
         updates = json.loads(updates)
 
     doc = frappe.get_doc("Patient Medication Order", patient_medication_order)
+    _ensure_pmo_write_permission(doc)
     entry = None
     for row in doc.get("medication_orders", []):
         if row.name == order_entry_name:
@@ -2228,13 +2332,115 @@ def update_medication_order_entry(patient_medication_order, order_entry_name, up
     if not entry:
         frappe.throw(f"Medication order entry {order_entry_name} not found")
 
-    allowed_fields = [
-        "drug", "drug_name", "dosage", "uom", "dosage_form", "no_of_days",
-        "instructions", "date", "end_date", "time", "patient_frequency",
-        "route_of_administration", "reference_no", "is_pink", "is_prn",
-        "is_long_acting_medicine", "long_acting_frequency", "medication_type",
-        "frequency_in_a_day", "healthcare_practitioner", "healthcare_practitioner_name",
-    ]
+    if (entry.get("medication_status") or "").strip() == "Discontinued" or cint(entry.get("stopped")):
+        frappe.throw(_("This medicine has been discontinued and cannot be edited."))
+
+    allowed_fields = list(_MEDICATION_ENTRY_ALLOWED_FIELDS)
+    clinical_changed, _date_changed = _medication_entry_clinical_changes(entry, updates)
+
+    if clinical_changed:
+        reason = cstr(reason or updates.get("change_reason") or "").strip()
+        if not reason:
+            frappe.throw(
+                _("A reason is required when changing dosage, dosage form, unit of measure, route, prescription type, frequency, or other details.")
+            )
+        old_drug = entry.get("drug")
+        old_drug_name = entry.get("drug_name")
+        old_uom = entry.get("uom")
+        old_route = entry.get("route_of_administration")
+        _discontinue_medication_entry(doc, entry, reason)
+
+        skip = {
+            "name",
+            "owner",
+            "creation",
+            "modified",
+            "modified_by",
+            "parent",
+            "parentfield",
+            "parenttype",
+            "idx",
+            "docstatus",
+            "doctype",
+            "medication_status",
+            "stopped",
+            "reason_stopped",
+            "stopped_date",
+            "stop_by",
+            "is_completed",
+            "quantity",
+            "amount",
+        }
+        new_data = {
+            k: v
+            for k, v in entry.as_dict().items()
+            if k not in skip
+        }
+        for field, value in updates.items():
+            if field in allowed_fields:
+                new_data[field] = value
+        new_data.pop("change_reason", None)
+        new_entry = _set_medication_row(doc, new_data)
+        if new_entry.meta.has_field("old_medicine_name"):
+            new_entry.old_medicine_name = old_drug_name or old_drug
+        if new_entry.meta.has_field("old_unit") and old_uom:
+            new_entry.old_unit = old_uom
+        if new_entry.meta.has_field("old_route") and old_route:
+            new_entry.old_route = old_route
+
+        if "healthcare_practitioner" in updates or "practitioner" in updates:
+            _apply_entry_healthcare_practitioner(
+                new_entry,
+                updates.get("healthcare_practitioner") or updates.get("practitioner"),
+                parent_doc=doc,
+            )
+
+        if (
+            cint(getattr(new_entry, "is_pink", 0))
+            and not cstr(getattr(new_entry, "reference_no", "") or "").strip()
+            and _pink_reference_required_for_pmo(doc)
+        ):
+            drug_label = getattr(new_entry, "drug_name", None) or getattr(new_entry, "drug", None)
+            frappe.throw(
+                _("Reference No is required for pink medication: {0}").format(drug_label),
+                title=_("Missing Reference No"),
+            )
+
+        normalized = _normalize_long_acting_medication_row(new_entry.as_dict())
+        if normalized.get("patient_frequency"):
+            new_entry.patient_frequency = normalized["patient_frequency"]
+            new_entry.frequency_in_a_day = frappe.db.get_value(
+                "Prescription Frequency", new_entry.patient_frequency, "frequency_in_a_day"
+            ) or 0
+        if normalized.get("is_long_acting_medicine") or (
+            (normalized.get("medication_type") or "").strip() == "Long Acting Medicine"
+        ):
+            new_entry.is_long_acting_medicine = 1
+            if new_entry.meta.has_field("long_acting_frequency") and normalized.get("long_acting_frequency"):
+                new_entry.long_acting_frequency = normalized["long_acting_frequency"]
+
+        doc.save(ignore_permissions=True)
+        log = frappe.new_doc("Medication Status Log")
+        log.patient_medication_order = doc.name
+        log.medication_entry = entry.name
+        log.patient = doc.get("patient")
+        log.drug = entry.get("drug")
+        log.drug_name = entry.get("drug_name")
+        log.action = "Discontinue"
+        log.new_status = "Discontinued"
+        log.reason = reason
+        log.insert(ignore_permissions=True)
+        long_acting = []
+        if _entry_is_long_acting(new_entry):
+            long_acting = _create_long_acting_medicine_for_entries(doc, only_entry_names=[new_entry.name])
+        frappe.db.commit()
+        return {
+            "ok": True,
+            "amended": True,
+            "entry": new_entry.as_dict(),
+            "discontinued_entry": entry.name,
+            "long_acting_medicine": long_acting,
+        }
 
     for field, value in updates.items():
         if field in allowed_fields:

@@ -8,8 +8,9 @@ import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrescriptionSlideOver } from './PrescriptionSlideOver'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
-import { AddMedicationEntryModal } from './SinglePrescription'
+import { AddMedicationEntryModal, EditMedicationEntryModal } from './SinglePrescription'
 import { prescriptionNeedsSignature, prescriptionIsSigned } from '../../utils/prescriptionSigning'
+import { isFuturePlanByStartDate } from '../../utils/prescriptionType'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters } from '../../contexts/CardFilterContext'
 import {
@@ -21,16 +22,31 @@ import { DateFilterInput } from '../ui/DateFilterInput'
 
 
 const statusColors: Record<string, string> = {
-  'Draft': 'default',
-  'Signed': 'success',
-  'Unsigned': 'warning',
-  'Submitted': 'info',
-  'Pending': 'warning',
-  'In Process': 'info',
-  'Completed': 'success',
-  'Cancelled': 'danger',
-  'On Hold': 'warning',
-  'Discontinued': 'danger',
+  Active: 'success',
+  Discontinued: 'danger',
+  Future: 'info',
+}
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'Active', label: 'Active' },
+  { value: 'Discontinued', label: 'Discontinued' },
+  { value: 'Future', label: 'Future' },
+] as const
+
+type LineListingStatus = 'Active' | 'Discontinued' | 'Future'
+
+function prescriptionLineListingStatus(
+  m: MedicationOrderEntry | null,
+  row: Prescription,
+): LineListingStatus {
+  const discontinued =
+    String(m?.medication_status || '').trim() === 'Discontinued' ||
+    Boolean(m?.stopped) ||
+    Boolean(String(m?.reason_stopped || '').trim())
+  if (discontinued) return 'Discontinued'
+  if (isFuturePlanByStartDate({ date: m?.date || row.start_date })) return 'Future'
+  return 'Active'
 }
 
 function fmtDate(value?: string | null): string {
@@ -47,16 +63,6 @@ function branchLabel(cc?: string): string {
   if (!cc) return '-'
   return cc.replace(/\s*-\s*[^-]+$/, '') || cc
 }
-
-const STATUS_OPTIONS = [
-  { value: '', label: 'All' },
-  { value: 'Draft', label: 'Draft' },
-  { value: 'Signed', label: 'Signed' },
-  { value: 'Pending', label: 'Pending' },
-  { value: 'In Process', label: 'In Process' },
-  { value: 'Completed', label: 'Completed' },
-  { value: 'Cancelled', label: 'Cancelled' },
-]
 
 interface PrescriptionListProps {
   patient?: string
@@ -107,8 +113,7 @@ export const PrescriptionList = ({
   const [detailName, setDetailName] = useState<string | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [signTarget, setSignTarget] = useState<Prescription | null>(null)
-  const [editTarget, setEditTarget] = useState<Prescription | null>(null)
-  const [editLoadingName, setEditLoadingName] = useState<string | null>(null)
+  const [editLine, setEditLine] = useState<{ prescription: Prescription; order: MedicationOrderEntry } | null>(null)
   const [addMedicationTarget, setAddMedicationTarget] = useState<Prescription | null>(null)
   const [duplicateTarget, setDuplicateTarget] = useState<Prescription | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
@@ -161,7 +166,6 @@ export const PrescriptionList = ({
 
   const filters: PrescriptionFilters = {
     patient: effectivePatient,
-    status: statusFilter || undefined,
     practitioner: practitionerFilter || undefined,
     fromDate: dateFrom || undefined,
     toDate: dateTo || undefined,
@@ -202,7 +206,6 @@ export const PrescriptionList = ({
     defaultsReady,
     effectivePatient,
     refreshKey,
-    statusFilter,
     practitionerFilter,
     dateFrom,
     dateTo,
@@ -298,20 +301,24 @@ export const PrescriptionList = ({
     setOpenActionRow(null)
   }
 
-  const openEditPrescription = async (row: Prescription) => {
-    setEditLoadingName(row.name)
-    try {
-      const full = await fetchPrescription(row.name)
-      if (!full) {
-        toast.error('Prescription not found')
-        return
-      }
-      setEditTarget(full)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load prescription')
-    } finally {
-      setEditLoadingName(null)
+  const openEditLine = (row: Prescription, m: MedicationOrderEntry | null) => {
+    if (!m?.name) {
+      toast.error('This prescription has no medicine line to edit')
+      return
     }
+    setOpenActionRow(null)
+    guardClinicalEdit(() => {
+      void (async () => {
+        try {
+          const full = await fetchPrescription(row.name)
+          const order =
+            full?.medication_orders?.find((line) => line.name === m.name) || m
+          setEditLine({ prescription: full || row, order })
+        } catch {
+          setEditLine({ prescription: row, order: m })
+        }
+      })()
+    })
   }
 
   const handleCreateSalesOrder = async (row: Prescription) => {
@@ -368,12 +375,17 @@ export const PrescriptionList = ({
   }
 
   // One row per medicine line; prescriptions without lines still get a single row.
-  const medicineRows: { p: Prescription; m: MedicationOrderEntry | null }[] = prescriptions.flatMap(
-    (p): { p: Prescription; m: MedicationOrderEntry | null }[] =>
-      p.medication_orders && p.medication_orders.length > 0
-        ? p.medication_orders.map((m) => ({ p, m }))
-        : [{ p, m: null }]
-  )
+  const medicineRows: { p: Prescription; m: MedicationOrderEntry | null }[] = prescriptions
+    .flatMap(
+      (p): { p: Prescription; m: MedicationOrderEntry | null }[] =>
+        p.medication_orders && p.medication_orders.length > 0
+          ? p.medication_orders.map((m) => ({ p, m }))
+          : [{ p, m: null }],
+    )
+    .filter(({ p, m }) => {
+      if (!statusFilter) return true
+      return prescriptionLineListingStatus(m, p) === statusFilter
+    })
 
   return (
     <div className="min-w-full flex flex-col flex-1 min-h-0 h-full">
@@ -558,7 +570,7 @@ export const PrescriptionList = ({
       <table className="w-full text-sm min-w-[1250px]">
         <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-10">
           <tr>
-            <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
+            <th className="hidden px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
               Medicine Code
             </th>
             <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">
@@ -605,7 +617,7 @@ export const PrescriptionList = ({
         <tbody className="divide-y divide-slate-200">
           {medicineRows.map(({ p: row, m }) => {
             const rowKey = m ? `${row.name}:${m.name}` : row.name
-            const lineStatus = (m?.medication_status || '').trim() || row.status || 'Draft'
+            const lineStatus = prescriptionLineListingStatus(m, row)
             const metaFields = [
               ['Prescription', row.name],
               ['Doctor',
@@ -624,18 +636,18 @@ export const PrescriptionList = ({
             }
             return (
             <tr key={rowKey} className={`${dashboardCardRowHoverClass} cursor-pointer`} onClick={openDetail}>
-              <td className="px-3 py-2 text-slate-800 font-medium whitespace-nowrap">
+              <td className="hidden px-3 py-2 text-slate-800 font-medium whitespace-nowrap">
                 {m?.drug || '-'}
-                {row.is_pink ? (
-                  <span className="ml-1.5 text-[10px] font-semibold text-pink-600">Pink</span>
-                ) : null}
-                <CardRowMetaHint fields={metaFields} />
               </td>
               <td className="px-3 py-2 text-slate-800">
                 {m?.drug_name || '-'}
+                {row.is_pink ? (
+                  <span className="ml-1.5 text-[10px] font-semibold text-pink-600">Pink</span>
+                ) : null}
                 {m?.is_prn ? (
                   <span className="ml-1.5 text-[10px] font-semibold text-amber-600">PRN</span>
                 ) : null}
+                <CardRowMetaHint fields={metaFields} />
               </td>
               <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
                 {m?.dosage ? `${m.dosage}${m.uom ? ` ${m.uom}` : ''}` : '-'}
@@ -691,24 +703,13 @@ export const PrescriptionList = ({
                     >
                       <button
                         type="button"
-                        onClick={() => { setOpenActionRow(null); setDetailName(row.name) }}
+                        onClick={() => openEditLine(row, m)}
                         className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
                       >
-                        View Details
+                        Edit Prescription
                       </button>
                       {prescriptionNeedsSignature(row) && (
                         <>
-                          <button
-                            type="button"
-                            disabled={editLoadingName === row.name}
-                            onClick={() => {
-                              setOpenActionRow(null)
-                              guardClinicalEdit(() => void openEditPrescription(row))
-                            }}
-                            className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 disabled:opacity-50"
-                          >
-                            {editLoadingName === row.name ? 'Loading…' : 'Edit Prescription'}
-                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -820,24 +821,16 @@ export const PrescriptionList = ({
         />
       )}
 
-      {editTarget && (
-        <CreatePrescriptionModal
-          editMode
-          prescriptionData={editTarget}
-          initialPatient={editTarget.patient || effectivePatient}
-          initialCareContext={
-            editTarget.patient_encounter || editTarget.after_discharge
-              ? 'Patient Visit'
-              : editTarget.care_context === 'Inpatient Admission'
-                ? 'Inpatient Admission'
-                : careContext
-          }
-          initialPatientEncounter={editTarget.patient_encounter || activeVisit}
-          initialInpatientRecord={editTarget.inpatient_record || activeAdmission}
-          onClose={() => setEditTarget(null)}
-          onSuccess={() => {
-            setEditTarget(null)
-            toast.success('Prescription updated')
+      {editLine && (
+        <EditMedicationEntryModal
+          order={editLine.order}
+          prescriptionName={editLine.prescription.name}
+          patient={editLine.prescription.patient}
+          patientEncounter={editLine.prescription.patient_encounter}
+          inpatientRecord={editLine.prescription.inpatient_record}
+          onClose={() => setEditLine(null)}
+          onSaved={() => {
+            setEditLine(null)
             load()
           }}
         />

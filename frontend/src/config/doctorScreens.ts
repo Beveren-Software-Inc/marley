@@ -167,6 +167,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: '',
     screens: [{ id: 'ect', title: 'ECT Forms' }],
   },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-ip-warnings', title: 'Current IP Warnings & Allergies' }],
+  },
 ]
 
 // Psychologists run the standard assessments — shown in their sidebar, not the doctor's.

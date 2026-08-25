@@ -58,6 +58,10 @@ def medication_entry_display_fields(
 	else:
 		display_dosage = dosage or instructions or strength
 
+	uom = _text(data.get("uom"))
+	if display_dosage and uom and uom.lower() not in display_dosage.lower():
+		display_dosage = f"{display_dosage} {uom}"
+
 	display_drug = medication_entry_drug_key(data)
 	display_drug_name = (
 		_text(data.get("drug_name"))

@@ -213,16 +213,14 @@ export function ServiceRequestDetailPanel({
     (doc?.patient_name as string) || (doc?.patient as string) || '—'
   const practitionerLabel =
     ((doc?.practitioner_name as string) || '').trim() || '—'
-  const templateLabel =
-    (doc?.template_name as string) ||
-    (doc?.template_dn as string) ||
-    '—'
-  const templateId = (doc?.template_dn as string) || ''
-  const templateDisplay =
-    templateId && templateLabel && templateLabel !== templateId
-      ? `${templateLabel} (${templateId})`
-      : templateLabel
   const isLabRequest = doc?.template_dt === 'Lab Test Template'
+  const templateNameOnly = ((doc?.template_name as string) || '').trim()
+  const templateId = ((doc?.template_dn as string) || '').trim()
+  const templateLabel = templateNameOnly || (isLabRequest ? 'Lab request' : templateId || '—')
+  const templateDisplay =
+    isLabRequest || !templateId || !templateNameOnly || templateNameOnly === templateId
+      ? templateLabel
+      : `${templateNameOnly} (${templateId})`
   const clinicianLabel = serviceRequestDetailClinicianLabel(
     doc?.template_dt as string | undefined,
     practitionerFieldLabel
@@ -333,7 +331,9 @@ export function ServiceRequestDetailPanel({
                       <span className="min-w-0">
                         <span className="font-medium text-slate-900">{line.label}</span>
                         {line.id ? (
-                          <span className="mt-0.5 block text-xs text-slate-500">{line.id}</span>
+                          <span className="hidden" aria-hidden="true">
+                            {line.id}
+                          </span>
                         ) : null}
                       </span>
                     </span>

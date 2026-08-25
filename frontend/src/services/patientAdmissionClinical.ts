@@ -77,9 +77,48 @@ export type AdmissionClinicalPrescriptionMed = {
   display_drug_name?: string
   dosage?: string
   display_dosage?: string
+  uom?: string
   frequency?: string
   instructions?: string
   status?: string
+  date?: string | null
+  start_date?: string | null
+  end_date?: string | null
+  medication_status?: string
+  stopped?: number
+  stopped_date?: string | null
+  reason_stopped?: string | null
+}
+
+export type AdmissionClinicalNursingNoteEntry = {
+  name?: string
+  note?: string
+  note_time?: string | null
+  authored_by_name?: string
+}
+
+export type AdmissionClinicalNursingNote = {
+  name: string
+  trans_no?: string | null
+  date?: string | null
+  shift?: string
+  nursing_notes?: string
+  user_name?: string
+  last_appended_by_name?: string
+  entries?: AdmissionClinicalNursingNoteEntry[]
+}
+
+export type AdmissionClinicalDoctorOrder = {
+  name: string
+  trans_no?: string | null
+  trans_date?: string | null
+  doctor_entry_date?: string | null
+  doctor_name?: string
+  doctor?: string
+  doctor_order?: string
+  status?: string
+  request?: string
+  department?: string
 }
 
 export type AdmissionClinicalPrescription = {
@@ -125,6 +164,8 @@ export type AdmissionClinicalBundle = {
   diagnoses: AdmissionClinicalDiagnosis[]
   prescriptions: AdmissionClinicalPrescription[]
   clinical_notes: AdmissionClinicalNote[]
+  doctor_orders?: AdmissionClinicalDoctorOrder[]
+  nursing_notes?: AdmissionClinicalNursingNote[]
   history_form: {
     name: string
     template?: string
