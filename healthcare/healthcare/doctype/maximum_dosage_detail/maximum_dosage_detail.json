@@ -1,0 +1,57 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-08-25 11:43:02.551782",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "route_of_administration",
+  "max_dose_per_single_dose",
+  "column_break_yohm",
+  "max_dose_per_day"
+ ],
+ "fields": [
+  {
+   "fieldname": "route_of_administration",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Route of Administration",
+   "options": "Route of Administration"
+  },
+  {
+   "fieldname": "max_dose_per_single_dose",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Max Dose Per Single Dose"
+  },
+  {
+   "fieldname": "column_break_yohm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "max_dose_per_day",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Max Dose Per Day"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-25 21:15:55.761388",
+ "modified_by": "mania@beverensoftware.com",
+ "module": "Healthcare",
+ "name": "Maximum Dosage Detail",
+ "owner": "mania@beverensoftware.com",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "rows_threshold_for_grid_search": 20,
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}
