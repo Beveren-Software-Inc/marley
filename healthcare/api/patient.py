@@ -942,6 +942,9 @@ def _apply_patient_documents(patient, data, *, replace=False):
 
 		display_name = (row.get("file_name") or "").strip()
 		document_url = (row.get("document") or "").strip() or None
+		if document_url:
+			from healthcare.api.common import ensure_file_url_public
+			document_url = ensure_file_url_public(document_url)
 		document_type = (row.get("document_type") or "").strip() or None
 
 		if not display_name and not document_url:

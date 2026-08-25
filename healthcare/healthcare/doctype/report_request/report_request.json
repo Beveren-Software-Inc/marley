@@ -1,0 +1,288 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "naming_series:",
+ "creation": "2026-08-25 19:46:00",
+ "default_view": "List",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "status",
+  "request_date",
+  "urgency",
+  "column_break_main",
+  "patient",
+  "patient_name",
+  "file_no",
+  "id_number",
+  "section_requester",
+  "requester",
+  "requester_name",
+  "requester_role",
+  "column_break_req",
+  "recipient",
+  "signed_request",
+  "section_notes",
+  "remarks",
+  "reject_reason",
+  "section_complete",
+  "completed_by",
+  "completed_by_name",
+  "completed_on",
+  "cost_center",
+  "section_audit",
+  "audit_trail"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "hidden": 1,
+   "label": "Series",
+   "options": "RR-.YYYY.-",
+   "reqd": 1
+  },
+  {
+   "default": "Pending",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Pending\nDone\nRejected\nArchived",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "request_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Date of Request",
+   "reqd": 1
+  },
+  {
+   "default": "Non-Urgent",
+   "fieldname": "urgency",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Urgency",
+   "options": "Non-Urgent\nUrgent",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_main",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "patient",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Patient",
+   "options": "Patient",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "patient.patient_name",
+   "fieldname": "patient_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Patient Name",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "patient.file_no",
+   "fieldname": "file_no",
+   "fieldtype": "Data",
+   "label": "File No.",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "patient.id_number",
+   "fieldname": "id_number",
+   "fieldtype": "Data",
+   "label": "ID / CPR",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_requester",
+   "fieldtype": "Section Break",
+   "label": "Requester & Recipient"
+  },
+  {
+   "fieldname": "requester",
+   "fieldtype": "Link",
+   "label": "Requester",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requester_name",
+   "fieldtype": "Data",
+   "label": "Requester Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "requester_role",
+   "fieldtype": "Data",
+   "label": "Requester Role",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_req",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "recipient",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Intended Recipient",
+   "reqd": 1
+  },
+  {
+   "fieldname": "signed_request",
+   "fieldtype": "Attach",
+   "label": "Signed Request (soft copy)"
+  },
+  {
+   "fieldname": "section_notes",
+   "fieldtype": "Section Break",
+   "label": "Notes"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "fieldname": "reject_reason",
+   "fieldtype": "Small Text",
+   "label": "Reject Reason"
+  },
+  {
+   "fieldname": "section_complete",
+   "fieldtype": "Section Break",
+   "label": "Completion"
+  },
+  {
+   "fieldname": "completed_by",
+   "fieldtype": "Link",
+   "label": "Completed By",
+   "options": "User",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_by_name",
+   "fieldtype": "Data",
+   "label": "Completed By Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "completed_on",
+   "fieldtype": "Datetime",
+   "label": "Completed On",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Branch",
+   "options": "Cost Center"
+  },
+  {
+   "fieldname": "section_audit",
+   "fieldtype": "Section Break",
+   "label": "Audit Trail"
+  },
+  {
+   "fieldname": "audit_trail",
+   "fieldtype": "Table",
+   "label": "Audit Trail",
+   "options": "Report Request Audit"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-08-25 19:46:00",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Report Request",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Healthcare Administrator",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Doctor",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Physician",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Receptionist",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Nurse",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "patient_name",
+ "track_changes": 1
+}

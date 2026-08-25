@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchHealthcarePractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -44,6 +44,7 @@ import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 import { formatAdmissionDate } from '../../utils/admissionDateTime'
+import { TruncatedName } from '../ui/dashboardCardListing'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -114,6 +115,19 @@ export const AdmissionList = ({
     setSelectedPatient,
     userCostCenter,
   } = useCareContext()
+  const compactCard = useDashboardCompactClinical()
+  const thClass = compactCard
+    ? 'px-1.5 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-tight whitespace-nowrap'
+    : 'px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap'
+  const tdClass = compactCard
+    ? 'px-1.5 py-1.5 text-xs text-slate-700 overflow-hidden'
+    : 'px-4 py-3 text-sm text-slate-700'
+  const actionStickyClass = compactCard
+    ? 'sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]'
+    : ''
+  const actionHeadStickyClass = compactCard
+    ? 'sticky right-0 z-20 bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)]'
+    : ''
 
   const effectivePatient = patient !== undefined ? (patient || undefined) : (contextPatient || undefined)
   // When IP mode has a specific admission selected globally, lock the list to that admission
@@ -661,23 +675,23 @@ export const AdmissionList = ({
         {/* Records Table */}
         <div className="flex flex-col flex-1 min-h-0 overflow-hidden min-w-0">
           <div className="flex-1 min-h-0 overflow-auto">
-          <table className="w-full min-w-[1400px]">
+          <table className={compactCard ? 'w-full table-fixed' : 'w-full min-w-[1400px]'}>
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Case No.</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">File No.</th>
+                <th className={thClass}>Case No.</th>
+                <th className={thClass}>File No.</th>
                 {!patient && (
-                  <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Patient Name</th>
+                  <th className={thClass}>{compactCard ? 'Patient' : 'Patient Name'}</th>
                 )}
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission Date</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Branch</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Admission by Doctor</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Resident Doctor</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Psychologist</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Room No.</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Days</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase whitespace-nowrap">Actions</th>
+                <th className={thClass}>{compactCard ? 'Adm. Date' : 'Admission Date'}</th>
+                <th className={thClass}>Branch</th>
+                <th className={thClass}>Status</th>
+                <th className={thClass}>{compactCard ? 'Adm. Doctor' : 'Admission by Doctor'}</th>
+                <th className={thClass}>{compactCard ? 'Res. Doctor' : 'Resident Doctor'}</th>
+                <th className={thClass}>{compactCard ? 'Psych.' : 'Psychologist'}</th>
+                <th className={thClass}>{compactCard ? 'Room' : 'Room No.'}</th>
+                <th className={`${thClass} ${compactCard ? 'w-10 text-center' : ''}`}>Days</th>
+                <th className={`${thClass} ${compactCard ? 'w-11' : ''} ${actionHeadStickyClass}`}>Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -691,61 +705,72 @@ export const AdmissionList = ({
                 records.map((record) => (
                   <tr
                     key={record.name}
-                    className="hover:bg-slate-50 cursor-pointer"
+                    className="hover:bg-slate-50 cursor-pointer group"
                     onClick={() => openAdmissionDetail(record)}
                   >
                     {/* Case No — select patient + IP in header (doctor/nurse home) */}
-                    <td className="px-4 py-3 text-sm font-medium whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td className={`${tdClass} font-medium`} onClick={(e) => e.stopPropagation()}>
                       <button
                         type="button"
                         onClick={(e) => handleAdmissionIdClick(e, record)}
-                        className="text-primary hover:underline text-left focus:outline-none"
+                        className="text-primary hover:underline text-left focus:outline-none block w-full truncate"
                         title="Select this admission in header"
                       >
                         {record.case_no || record.name}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.file_no || '-'}</td>
+                    <td className={`${tdClass} truncate`} title={record.file_no || undefined}>{record.file_no || '-'}</td>
 
                     {!patient && (
                       <td
-                        className="px-4 py-3 text-sm text-slate-700 cursor-pointer whitespace-nowrap"
+                        className={`${tdClass} cursor-pointer`}
                         onClick={(e) => {
                           e.stopPropagation()
                           if (record.patient) onPatientFromAdmission?.(record.patient)
                         }}
                       >
-                        <span className="font-medium text-primary hover:underline">{formatAdmissionPatientLabel(record)}</span>
+                        <TruncatedName
+                          fill={compactCard}
+                          value={formatAdmissionPatientLabel(record)}
+                          className="font-medium text-primary hover:underline"
+                        />
                       </td>
                     )}
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                    <td className={`${tdClass} ${compactCard ? 'truncate' : 'whitespace-nowrap'}`}>
                       {formatAdmissionDate(record)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap" title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className={`${tdClass} truncate`} title={record.cost_center || undefined}>{branchLabel(record.cost_center)}</td>
+                    <td className={`${tdClass} ${compactCard ? '' : 'whitespace-nowrap'}`}>
                       {(() => {
                         const displayStatus = getAdmissionDisplayStatus(record)
                         return (
                           <StatusPill
                             status={displayStatus}
+                            compact={compactCard}
                             color={statusColors[displayStatus] || statusColors[record.status] || 'default'}
                           />
                         )
                       })()}
                     </td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.admission_doctor_name || record.admission_by_doctor || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.resident_doctor_name || record.residents_doctor_no || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.psychologist_doctor_name || record.psychologist_doctor || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{record.room_service_no || record.bed_no || '-'}</td>
-                    <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap text-center">{record.expected_length_of_stay ?? '-'}</td>
+                    <td className={tdClass}>
+                      <TruncatedName fill={compactCard} value={record.admission_doctor_name || record.admission_by_doctor} />
+                    </td>
+                    <td className={tdClass}>
+                      <TruncatedName fill={compactCard} value={record.resident_doctor_name || record.residents_doctor_no} />
+                    </td>
+                    <td className={tdClass}>
+                      <TruncatedName fill={compactCard} value={record.psychologist_doctor_name || record.psychologist_doctor} />
+                    </td>
+                    <td className={`${tdClass} truncate`}>{record.room_service_no || record.bed_no || '-'}</td>
+                    <td className={`${tdClass} ${compactCard ? 'text-center' : 'whitespace-nowrap text-center'}`}>{record.expected_length_of_stay ?? '-'}</td>
 
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-1.5">
+                    <td className={`${compactCard ? 'px-1 py-1.5' : 'px-4 py-3'} ${actionStickyClass}`} onClick={(e) => e.stopPropagation()}>
+                        <div className={`flex items-center ${compactCard ? 'gap-0 justify-center' : 'gap-1.5'}`}>
                           <div className="relative inline-block" ref={openActionRow === record.name ? menuRef : undefined}>
                             <button
                               type="button"
                               onClick={() => setOpenActionRow((prev) => (prev === record.name ? null : record.name))}
-                              className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50"
+                              className={`inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 disabled:opacity-50 ${compactCard ? 'w-7 h-7' : 'w-8 h-8'}`}
                               aria-label="Actions"
                             >
                               <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -1024,12 +1049,14 @@ export const AdmissionList = ({
                               )}
                             </PortalActionsMenu>
                           </div>
+                          {!compactCard && (
                           <PrintFormatDropdown
                             doctype="Inpatient Admission"
                             docName={record.name}
                             noLetterhead={0}
                             triggerPrint={1}
                           />
+                          )}
                         </div>
                       </td>
                   </tr>

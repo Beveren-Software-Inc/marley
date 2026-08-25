@@ -92,8 +92,8 @@ export function ReceptionistOwnerCell({
           setQuery('')
         }}
         disabled={saving}
-        className="text-left text-primary hover:underline font-medium disabled:opacity-60 max-w-[12rem] truncate"
-        title="Change receptionist"
+        className="text-left text-primary hover:underline font-medium disabled:opacity-60 block max-w-[9.5rem] truncate"
+        title={display !== '—' ? display : 'Change receptionist'}
       >
         {saving ? 'Saving…' : display}
       </button>

@@ -8,6 +8,7 @@ import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
   formatDashboardDate,
+  TruncatedName,
   type CardMetaField,
 } from '../ui/dashboardCardListing'
 import { PatientVisitDetails } from './PatientVisitDetails'
@@ -67,6 +68,8 @@ interface PatientVisitListProps {
   showAppointmentAmount?: boolean
   /** Hide lab/pharmacy amount columns (e.g. Daily Auto Visits). */
   hideLabPharmacyAmounts?: boolean
+  /** Doctor home card only: tighter columns, hide Balance, fit without horizontal scroll. */
+  squeezeLayout?: boolean
   /** Doctor dashboard: detailed 15-column table (Visit No/Date/Type, File/CPR, amounts, Total Due, Discount, Balance, Doctor, User). */
   detailedColumns?: boolean
   /** Default the Doctor filter to the logged-in user's Healthcare Practitioner (any specialty). */
@@ -105,6 +108,7 @@ export const PatientVisitList = ({
   onCreateNew,
   showAppointmentAmount = false,
   hideLabPharmacyAmounts = false,
+  squeezeLayout = false,
   detailedColumns = false,
   defaultToCurrentPractitioner = false,
   forceBranchFilter = false,
@@ -377,7 +381,7 @@ export const PatientVisitList = ({
   const inputClass = 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
 
   const tableColSpan = detailedColumns
-    ? 17
+    ? (hideLabPharmacyAmounts ? 14 : 17) - (squeezeLayout ? 1 : 0)
     : cardCompactLayout
     ? 6
     : 11 +
@@ -441,15 +445,21 @@ export const PatientVisitList = ({
 
   const renderVisitActionsCell = (visit: PatientVisitListRow, compact = false) => (
     <td
-      className={`${compact ? 'px-3 py-2' : 'px-4 py-2'} align-middle whitespace-nowrap`}
+      className={`${
+        squeezeLayout
+          ? 'px-1 py-1.5 sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] w-11'
+          : compact
+            ? 'px-3 py-2'
+            : 'px-4 py-2'
+      } align-middle whitespace-nowrap`}
       onClick={(e) => e.stopPropagation()}
     >
-      <div className="flex items-center gap-1.5">
+      <div className={`flex items-center ${squeezeLayout ? 'justify-center gap-0' : 'gap-1.5'}`}>
         <div className="relative" ref={openActionRow === visit.value ? menuRef : undefined}>
           <button
             type="button"
             onClick={() => setOpenActionRow((prev) => (prev === visit.value ? null : visit.value))}
-            className="inline-flex items-center justify-center w-8 h-8 rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors"
+            className={`inline-flex items-center justify-center rounded border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 transition-colors ${squeezeLayout ? 'w-7 h-7' : 'w-8 h-8'}`}
             aria-label="Actions"
           >
             <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -800,7 +810,11 @@ export const PatientVisitList = ({
           <table
             className={
               detailedColumns
-                ? 'w-full min-w-[1620px]'
+                ? squeezeLayout
+                  ? 'w-full table-fixed'
+                  : hideLabPharmacyAmounts
+                    ? 'w-full min-w-[1280px]'
+                    : 'w-full min-w-[1620px]'
                 : cardCompactLayout
                 ? 'w-full table-fixed'
                 : `w-full ${hideLabPharmacyAmounts ? 'min-w-[1100px]' : 'min-w-[1400px]'}`
@@ -810,8 +824,49 @@ export const PatientVisitList = ({
               <tr>
                 {detailedColumns ? (
                   <>
-                    {['Visit No.', 'Visit Date', 'Visit Type', 'File No.', 'Patient Name', 'CPR No.', 'Services', 'Lab', 'Pharmacy', 'Total Due', 'Discount', 'Branch', 'Status', 'Balance', 'Doctor Name', 'Receptionist', 'Actions'].map((h) => (
-                      <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap">
+                    {(squeezeLayout
+                      ? [
+                          'Visit',
+                          'Date',
+                          'Type',
+                          'File',
+                          'Patient',
+                          'CPR',
+                          ...(!hideLabPharmacyAmounts ? ['Svc', 'Lab', 'Pharm'] : []),
+                          'Due',
+                          'Disc.',
+                          'Branch',
+                          'Status',
+                          'Doctor',
+                          'Recep.',
+                          'Actions',
+                        ]
+                      : [
+                          'Visit No.',
+                          'Visit Date',
+                          'Visit Type',
+                          'File No.',
+                          'Patient Name',
+                          'CPR No.',
+                          ...(!hideLabPharmacyAmounts ? ['Services', 'Lab', 'Pharmacy'] : []),
+                          'Total Due',
+                          'Discount',
+                          'Branch',
+                          'Status',
+                          'Balance',
+                          'Doctor Name',
+                          'Receptionist',
+                          'Actions',
+                        ]
+                    ).map((h) => (
+                      <th
+                        key={h}
+                        className={
+                          squeezeLayout
+                            ? `px-1.5 py-1.5 text-left text-[10px] font-semibold text-slate-600 uppercase tracking-tight whitespace-nowrap${h === 'Actions' ? ' sticky right-0 z-20 bg-slate-50 shadow-[-6px_0_8px_-6px_rgba(15,23,42,0.18)] w-11' : ''}`
+                            : 'px-3 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide whitespace-nowrap'
+                        }
+                      >
                         {h}
                       </th>
                     ))}
@@ -875,40 +930,54 @@ export const PatientVisitList = ({
                 </tr>
               ) : detailedColumns ? (
                 visits.map((visit) => (
-                  <tr key={visit.value} className={dashboardCardRowHoverClass}>
+                  <tr key={visit.value} className={`${dashboardCardRowHoverClass}${squeezeLayout ? ' group' : ''}`}>
                     <td
-                      className="px-3 py-2.5 text-sm font-medium text-primary whitespace-nowrap cursor-pointer hover:underline"
+                      className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} font-medium text-primary cursor-pointer hover:underline overflow-hidden`}
                       onClick={() => activateVisitInNavbar(visit)}
                       title="Select visit in OP search"
                     >
-                      {visit.value}
+                      <span className="block truncate">{visit.value}</span>
                     </td>
                     <td
-                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap cursor-pointer hover:underline hover:text-primary"
+                      className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 ${squeezeLayout ? 'truncate' : 'whitespace-nowrap'} cursor-pointer hover:underline hover:text-primary`}
                       onClick={() => openVisitDetail(visit)}
                       title="Open visit details"
                     >
                       {visit.encounter_date ? formatDate(visit.encounter_date) : '-'}
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.file_no || '-'}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}>{visit.visit_type || '-'}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}>{visit.file_no || '-'}</td>
                     <td
-                      className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap"
+                      className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm max-w-[9.5rem]'} text-slate-700 overflow-hidden`}
                       onClick={(e) => { if (visit.patient) { e.stopPropagation(); onPatientFromVisit?.(visit.patient) } }}
                     >
-                      <span className={visit.patient ? 'text-primary hover:underline cursor-pointer' : ''}>{visit.patient_name || '-'}</span>
+                      <TruncatedName
+                        fill={squeezeLayout}
+                        value={visit.patient_name}
+                        className={visit.patient ? 'text-primary hover:underline cursor-pointer' : ''}
+                      />
                     </td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.cpr_no || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.service_amount)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.lab_amount)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.pharmacy_amount)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.total_due ?? 0)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.discount ?? 0)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" title={visit.cost_center || undefined}>{branchLabel(visit.cost_center)}</td>
-                    <td className="px-3 py-2.5 whitespace-nowrap"><StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} /></td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap">{visit.practitioner_name || '-'}</td>
-                    <td className="px-3 py-2.5 text-sm text-slate-700 whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`}>{visit.cpr_no || '-'}</td>
+                    {!hideLabPharmacyAmounts && (
+                      <>
+                        <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 text-right whitespace-nowrap`}>{formatAmount(visit.service_amount)}</td>
+                        <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 text-right whitespace-nowrap`}>{formatAmount(visit.lab_amount)}</td>
+                        <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 text-right whitespace-nowrap`}>{formatAmount(visit.pharmacy_amount)}</td>
+                      </>
+                    )}
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 text-right whitespace-nowrap`}>{formatAmount(visit.total_due ?? 0)}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs' : 'px-3 py-2.5 text-sm'} text-slate-700 text-right whitespace-nowrap`}>{formatAmount(visit.discount ?? 0)}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs truncate' : 'px-3 py-2.5 text-sm whitespace-nowrap'} text-slate-700`} title={visit.cost_center || undefined}>{branchLabel(visit.cost_center)}</td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 overflow-hidden' : 'px-3 py-2.5 whitespace-nowrap'}`}>
+                      <StatusPill compact={squeezeLayout} status={visit.status} color={statusColors[visit.status] || 'default'} />
+                    </td>
+                    {!squeezeLayout && (
+                      <td className="px-3 py-2.5 text-sm text-slate-700 text-right whitespace-nowrap">{formatAmount(visit.balance ?? 0)}</td>
+                    )}
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs overflow-hidden' : 'px-3 py-2.5 text-sm max-w-[9.5rem]'} text-slate-700`}>
+                      <TruncatedName fill={squeezeLayout} value={visit.practitioner_name} />
+                    </td>
+                    <td className={`${squeezeLayout ? 'px-1.5 py-1.5 text-xs overflow-hidden' : 'px-3 py-2.5 text-sm max-w-[9.5rem]'} text-slate-700`} onClick={(e) => e.stopPropagation()}>
                       <ReceptionistOwnerCell
                         doctype="Patient Visit"
                         docName={visit.value}
@@ -955,8 +1024,8 @@ export const PatientVisitList = ({
                         {formatDashboardDate(visit.encounter_date)}
                       </button>
                     </td>
-                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
-                      {visit.practitioner_name || '-'}
+                    <td className="px-3 py-2.5 text-xs text-slate-700 align-top max-w-[9.5rem]">
+                      <TruncatedName value={visit.practitioner_name} />
                     </td>
                     <td className="px-3 py-2.5 text-xs text-slate-700 align-top whitespace-nowrap">
                       {visit.visit_type || '-'}
@@ -983,13 +1052,18 @@ export const PatientVisitList = ({
                   </td>
                   {!patient && (
                     <td
-                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer"
+                      className="px-4 py-3 text-sm text-slate-700 cursor-pointer max-w-[9.5rem]"
                       onClick={() => { if (visit.patient) onPatientFromVisit?.(visit.patient) }}
                     >
-                      <span className="font-medium text-primary hover:underline">{visitPatientDisplayName(visit)}</span>
+                      <TruncatedName
+                        value={visitPatientDisplayName(visit)}
+                        className="font-medium text-primary hover:underline"
+                      />
                     </td>
                   )}
-                  <td className="px-4 py-3 text-sm text-slate-700">{visit.practitioner_name || '-'}</td>
+                  <td className="px-4 py-3 text-sm text-slate-700 max-w-[9.5rem]">
+                    <TruncatedName value={visit.practitioner_name} />
+                  </td>
                   <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">{visit.visit_type || '-'}</td>
                   <td
                     className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap"
@@ -1021,7 +1095,7 @@ export const PatientVisitList = ({
                   <td className="px-4 py-3">
                     <StatusPill status={visit.status} color={statusColors[visit.status] || 'default'} />
                   </td>
-                  <td className="px-4 py-3 text-sm text-slate-700" onClick={(e) => e.stopPropagation()}>
+                  <td className="px-4 py-3 text-sm text-slate-700 max-w-[9.5rem]" onClick={(e) => e.stopPropagation()}>
                     <ReceptionistOwnerCell
                       doctype="Patient Visit"
                       docName={visit.value}

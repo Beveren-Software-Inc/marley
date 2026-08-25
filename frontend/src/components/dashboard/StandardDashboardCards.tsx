@@ -6,6 +6,7 @@ import { PatientVisitList } from '../patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../patientVisits/CreatePatientVisitModal'
 import { AdmissionList } from '../admissions/AdmissionList'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
+import { UploadPatientDocumentsModal, type UploadDocumentsTarget } from '../documents/UploadPatientDocumentsModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 import type { PatientVisitListRow } from '../../services/patientVisits'
@@ -93,14 +94,42 @@ export function OutpatientVisitsCard({
   listingScreen,
   onVisitActivate,
   showAppointmentAmount = false,
+  hideLabPharmacyAmounts = false,
+  squeezeLayout = false,
 }: CommonCardProps & {
   onVisitActivate?: (visit: PatientVisitListRow) => void
   showAppointmentAmount?: boolean
+  /** Doctor home: hide Services / Lab / Pharmacy amount columns. */
+  hideLabPharmacyAmounts?: boolean
+  /** Doctor home card only: squeeze columns and hide Balance. */
+  squeezeLayout?: boolean
 }) {
   const [showCreate, setShowCreate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
-  const { userRole, allowDoctorsToCreatePatientVisit } = useCareContext()
+  const [uploadTarget, setUploadTarget] = useState<UploadDocumentsTarget | null>(null)
+  const { userRole, allowDoctorsToCreatePatientVisit, mode, activeVisit, selectedPatient } = useCareContext()
   const showCreateButton = !isDoctorRole(userRole) || allowDoctorsToCreatePatientVisit
+  const patientId = patient || selectedPatient
+
+  const openUpload = () => {
+    if (mode === 'OP' && activeVisit) {
+      setUploadTarget({
+        doctype: 'Patient Visit',
+        name: activeVisit,
+        label: `Upload Documents — ${activeVisit}`,
+      })
+      return
+    }
+    if (patientId) {
+      setUploadTarget({
+        doctype: 'Patient',
+        name: patientId,
+        label: `Upload Documents — ${patientId}`,
+      })
+      return
+    }
+    toast.error('Select a patient, or an OP visit, before uploading documents.')
+  }
 
   return (
     <>
@@ -110,6 +139,8 @@ export function OutpatientVisitsCard({
         title="Patient Visits"
         onAdd={showCreateButton ? () => setShowCreate(true) : undefined}
         addButtonTitle="Create Patient Visit"
+        onUpload={openUpload}
+        uploadButtonTitle="Upload documents"
         listingScreen={listingScreen}
         allowCreateOnClosedEpisode
       >
@@ -121,6 +152,8 @@ export function OutpatientVisitsCard({
           onPatientFromVisit={onPatientSelect}
           onVisitActivate={onVisitActivate}
           showAppointmentAmount={showAppointmentAmount}
+          hideLabPharmacyAmounts={hideLabPharmacyAmounts}
+          squeezeLayout={squeezeLayout}
         />
       </DashboardCard>
       {showCreate && (
@@ -131,6 +164,13 @@ export function OutpatientVisitsCard({
             setShowCreate(false)
             setRefreshKey((k) => k + 1)
           }}
+        />
+      )}
+      {uploadTarget && (
+        <UploadPatientDocumentsModal
+          target={uploadTarget}
+          onClose={() => setUploadTarget(null)}
+          onSuccess={() => setUploadTarget(null)}
         />
       )}
     </>
@@ -151,6 +191,29 @@ export function InpatientAdmissionsCard({
 }) {
   const [showCreate, setShowCreate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const [uploadTarget, setUploadTarget] = useState<UploadDocumentsTarget | null>(null)
+  const { mode, activeAdmission, selectedPatient } = useCareContext()
+  const patientId = patient || selectedPatient
+
+  const openUpload = () => {
+    if (mode === 'IP' && activeAdmission) {
+      setUploadTarget({
+        doctype: 'Inpatient Admission',
+        name: activeAdmission,
+        label: `Upload Documents — ${activeAdmission}`,
+      })
+      return
+    }
+    if (patientId) {
+      setUploadTarget({
+        doctype: 'Patient',
+        name: patientId,
+        label: `Upload Documents — ${patientId}`,
+      })
+      return
+    }
+    toast.error('Select a patient, or an IP admission, before uploading documents.')
+  }
 
   return (
     <>
@@ -161,6 +224,8 @@ export function InpatientAdmissionsCard({
         title="Patient Admissions"
         onAdd={() => setShowCreate(true)}
         addButtonTitle="Create Admission"
+        onUpload={openUpload}
+        uploadButtonTitle="Upload documents"
         listingScreen={listingScreen}
         allowCreateOnClosedEpisode
       >
@@ -179,6 +244,16 @@ export function InpatientAdmissionsCard({
             setShowCreate(false)
             setRefreshKey((k) => k + 1)
             toast.success('Inpatient admission created successfully')
+          }}
+        />
+      )}
+      {uploadTarget && (
+        <UploadPatientDocumentsModal
+          target={uploadTarget}
+          onClose={() => setUploadTarget(null)}
+          onSuccess={() => {
+            setUploadTarget(null)
+            setRefreshKey((k) => k + 1)
           }}
         />
       )}

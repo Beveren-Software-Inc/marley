@@ -2437,6 +2437,64 @@ def set_profile_photo():
 	return {"user_image": file_doc.file_url}
 
 
+def ensure_file_url_public(file_url):
+	"""If a File is private, move it to /files so other desk users can open it."""
+	file_url = (file_url or "").strip()
+	if not file_url:
+		return file_url
+
+	names = frappe.get_all("File", filters={"file_url": file_url}, pluck="name")
+	if not names:
+		return file_url
+
+	public_url = file_url
+	for name in names:
+		doc = frappe.get_doc("File", name)
+		if not cint(doc.is_private) and not (doc.file_url or "").startswith("/private/"):
+			public_url = doc.file_url or public_url
+			continue
+		doc.is_private = 0
+		try:
+			doc.save(ignore_permissions=True)
+		except Exception:
+			frappe.log_error(frappe.get_traceback(), "ensure_file_url_public")
+			continue
+		public_url = doc.file_url or public_url
+	return public_url
+
+
+@frappe.whitelist()
+def upload_public_file():
+	"""Upload an attachment as a public File (/files/...), not /private/files/."""
+	if frappe.session.user == "Guest":
+		frappe.throw(_("Not permitted"))
+
+	uploaded = frappe.request.files.get("file") if (frappe.request and frappe.request.files) else None
+	if not uploaded:
+		frappe.throw(_("No file uploaded"))
+
+	content = uploaded.stream.read()
+	if not content:
+		frappe.throw(_("Uploaded file is empty"))
+
+	filename = uploaded.filename or "attachment"
+	file_doc = frappe.get_doc(
+		{
+			"doctype": "File",
+			"file_name": filename,
+			"folder": "Home/Attachments",
+			"is_private": 0,
+			"content": content,
+		}
+	)
+	file_doc.insert(ignore_permissions=True)
+	if cint(file_doc.is_private) or (file_doc.file_url or "").startswith("/private/"):
+		file_doc.is_private = 0
+		file_doc.save(ignore_permissions=True)
+	frappe.db.commit()
+	return {"file_url": file_doc.file_url, "name": file_doc.name}
+
+
 @frappe.whitelist()
 def get_patient_visits(search=None, patient=None, limit=20):
 	from healthcare.api.common import apply_cost_center_scope_to_filters

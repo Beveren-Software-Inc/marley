@@ -5,6 +5,7 @@ import { PatientVisitList } from '../components/patientVisits/PatientVisitList'
 import { CreatePatientVisitModal } from '../components/patientVisits/CreatePatientVisitModal'
 import { NavbarActions } from '../components/layout/NavbarActions'
 import { PatientSearch } from '../components/patients/PatientSearch'
+import { isDoctorRole } from '../config/permissions'
 
 interface PatientVisitPageProps {
   /** Optional patient passed from a parent page (e.g. Doctor). */
@@ -65,8 +66,11 @@ export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {})
               patient={selectedPatient || undefined}
               refreshKey={visitRefreshKey}
               onPatientFromVisit={handlePatientSelect}
-              onCreateNew={() =>
-                guardClinicalCreate(() => setShowCreateVisit(true), { allowOnClosed: true })
+              onCreateNew={
+                !isDoctorRole(userRole) || allowDoctorsToCreatePatientVisit
+                  ? () =>
+                      guardClinicalCreate(() => setShowCreateVisit(true), { allowOnClosed: true })
+                  : undefined
               }
             />
           </section>

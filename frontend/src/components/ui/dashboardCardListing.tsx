@@ -318,3 +318,25 @@ export function stripHtmlToText(html: string | undefined): string {
   tmp.innerHTML = html
   return (tmp.textContent || tmp.innerText || '').trim().replace(/\s+/g, ' ')
 }
+
+/** Patient / doctor / receptionist / psychologist names on visit and admission lists. */
+export function TruncatedName({
+  value,
+  className = '',
+  fill = false,
+}: {
+  value?: string | null
+  className?: string
+  /** Fill the parent cell (dashboard squeeze layout). */
+  fill?: boolean
+}) {
+  const text = (value || '').trim() || '-'
+  return (
+    <span
+      className={`block truncate ${fill ? 'max-w-full' : 'max-w-[9.5rem]'} ${className}`}
+      title={text !== '-' ? text : undefined}
+    >
+      {text}
+    </span>
+  )
+}

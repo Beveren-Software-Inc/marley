@@ -30,6 +30,7 @@ import { InsurancePatientRegisterList } from '../components/insurance/InsuranceP
 import { CreateInsurancePatientRegisterModal } from '../components/insurance/CreateInsurancePatientRegisterModal'
 import { PatientReferralList } from '../components/referrals/PatientReferralList'
 import { CreatePatientReferralModal } from '../components/referrals/CreatePatientReferralModal'
+import { ReportRequestsCard } from '../components/reportRequests/ReportRequestList'
 import { ObservationList } from '../components/observations/ObservationList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { InternalTransferList } from '../components/transfers/InternalTransferList'
@@ -67,6 +68,7 @@ type View =
   | 'long-acting-medicine'
   | 'insurance'
   | 'referral'
+  | 'report-requests'
   | 'observation'
   | 'internal-transfer'
   | 'medical-consent'
@@ -276,6 +278,8 @@ export const ReceptionistPage = () => {
       setCurrentView('reports')
     } else if (screen === 'r-referral') {
       setCurrentView('referral')
+    } else if (screen === 'r-report-requests') {
+      setCurrentView('report-requests')
     } else if (screen === 'r-observation') {
       setCurrentView('observation')
     } else if (screen === 'r-internal-transfer') {
@@ -653,6 +657,16 @@ export const ReceptionistPage = () => {
                 }}
               />
             )}
+          </div>
+        )}
+
+        {currentView === 'report-requests' && (
+          <div className="p-4">
+            <ReportRequestsCard
+              fullScreen
+              patient={selectedPatient || undefined}
+              onPatientSelect={handlePatientSelect}
+            />
           </div>
         )}
 
@@ -1071,6 +1085,12 @@ export const ReceptionistPage = () => {
                   onPatientClick={handlePatientSelect}
                 />
               </DashboardCard>
+
+              <ReportRequestsCard
+                listingScreen="r-report-requests"
+                patient={selectedPatient || undefined}
+                onPatientSelect={handlePatientSelect}
+              />
 
               {observationsAllowedForMode(mode) && (
                 <DashboardCard

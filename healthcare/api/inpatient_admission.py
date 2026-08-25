@@ -3732,6 +3732,9 @@ def _apply_e_signatures(doc, documents_data):
 		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
 		document_type = (row.get("document_type") or "").strip()
 		document_url = (row.get("document") or "").strip()
+		if document_url:
+			from healthcare.api.common import ensure_file_url_public
+			document_url = ensure_file_url_public(document_url)
 		signee_name = (row.get("signee_name") or "").strip()
 		patient_relation = (row.get("patient_relation") or "").strip()
 		if not file_name and not document_type and not document_url and not signee_name and not patient_relation:

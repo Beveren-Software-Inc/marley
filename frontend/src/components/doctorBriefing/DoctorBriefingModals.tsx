@@ -4,6 +4,8 @@ import type { DoctorBriefingLabTest, DoctorShiftBriefing } from '../../services/
 import type { NurseBriefingAdmission } from '../../services/nurseBriefing'
 import { NurseAdmissionsBriefingModal } from '../nurseBriefing/NurseBriefingModals'
 import { labBriefingChildPreview, labBriefingDisplayRows, labBriefingPatientGroups, labBriefingTestLabel } from '../../utils/labBriefingGroups'
+import { StatusPill } from '../ui/StatusPill'
+import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
 
 function BriefingModalShell({
   title,
@@ -104,7 +106,7 @@ export function DoctorLabReviewBriefingModal({
                     <p className="truncate text-base font-bold tracking-tight text-slate-900">
                       {group.patientName}
                     </p>
-                    <p className="text-[11px] text-emerald-800/70">
+                    <p className="text-[11px] font-medium text-amber-800/80">
                       {group.tests.length} test{group.tests.length === 1 ? '' : 's'} pending
                     </p>
                   </div>
@@ -126,16 +128,16 @@ export function DoctorLabReviewBriefingModal({
                           key={key}
                           type="button"
                           onClick={() => onLabTestSelect?.(representative)}
-                          className={`w-full rounded-md border border-white/80 bg-white/70 px-2 py-1.5 text-left ${
-                            onLabTestSelect ? 'cursor-pointer hover:border-emerald-400 hover:bg-white' : ''
+                          className={`w-full rounded-md border border-amber-100 bg-white/80 px-2 py-1.5 text-left ${
+                            onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/70' : ''
                           }`}
                         >
                           <div className="flex items-center gap-1.5">
-                            <Beaker className="h-3 w-3 shrink-0 text-emerald-700/80" />
-                            <span className="inline-flex items-center rounded bg-emerald-100 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-emerald-800">
+                            <Beaker className="h-3 w-3 shrink-0 text-amber-600" />
+                            <span className="inline-flex items-center rounded bg-indigo-200 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-800">
                               Group
                             </span>
-                            <p className="min-w-0 truncate text-[11px] font-medium text-slate-600" title={label}>
+                            <p className="min-w-0 truncate text-[11px] font-medium text-slate-700" title={label}>
                               {label}
                             </p>
                             <span className="ml-auto shrink-0 text-[10px] text-slate-400">
@@ -147,6 +149,13 @@ export function DoctorLabReviewBriefingModal({
                               {preview}
                             </p>
                           ) : null}
+                          <div className="mt-1.5 pl-5">
+                            <StatusPill
+                              compact
+                              status={representative.status || 'Pending Review'}
+                              color={labTestStatusColor(representative.status)}
+                            />
+                          </div>
                         </button>
                       )
                     }
@@ -158,15 +167,22 @@ export function DoctorLabReviewBriefingModal({
                         key={test.name}
                         type="button"
                         onClick={() => onLabTestSelect?.(test)}
-                        className={`w-full rounded-md border border-white/80 bg-white/70 px-2 py-1.5 text-left ${
-                          onLabTestSelect ? 'cursor-pointer hover:border-emerald-400 hover:bg-white' : ''
+                        className={`w-full rounded-md border border-amber-100 bg-white/80 px-2 py-1.5 text-left ${
+                          onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/70' : ''
                         }`}
                       >
                         <div className="flex items-center gap-1.5">
-                          <Beaker className="h-3 w-3 shrink-0 text-emerald-700/80" />
-                          <p className="min-w-0 truncate text-[11px] font-medium text-slate-600" title={testLabel}>
+                          <Beaker className="h-3 w-3 shrink-0 text-amber-600" />
+                          <p className="min-w-0 truncate text-[11px] font-medium text-slate-700" title={testLabel}>
                             {testLabel}
                           </p>
+                        </div>
+                        <div className="mt-1.5 pl-5">
+                          <StatusPill
+                            compact
+                            status={test.status || 'Pending Review'}
+                            color={labTestStatusColor(test.status)}
+                          />
                         </div>
                       </button>
                     )

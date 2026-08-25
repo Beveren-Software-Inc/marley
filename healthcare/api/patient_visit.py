@@ -1112,6 +1112,9 @@ def _apply_patient_visit_documents(doc, documents_data):
 		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
 		document_type = (row.get("document_type") or "").strip()
 		document_url = (row.get("document") or "").strip()
+		if document_url:
+			from healthcare.api.common import ensure_file_url_public
+			document_url = ensure_file_url_public(document_url)
 		if not file_name and not document_type and not document_url:
 			continue
 		doc.append(

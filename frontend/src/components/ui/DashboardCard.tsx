@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { ArrowUpRight, ArrowDownLeft } from 'lucide-react'
+import { ArrowUpRight, ArrowDownLeft, Upload } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../../providers/CareContextProvider'
 import {
@@ -19,6 +19,8 @@ export const DENSE_CARD_LISTING_CLASS = DENSE_LISTING_CLASS
 type CardHeaderActionsProps = {
   onAdd?: () => void
   addButtonTitle?: string
+  onUpload?: () => void
+  uploadButtonTitle?: string
   onOpenListing?: () => void
   listingScreen?: string
   openListingTitle?: string
@@ -28,6 +30,8 @@ type CardHeaderActionsProps = {
 export function CardHeaderActions({
   onAdd,
   addButtonTitle = 'Add',
+  onUpload,
+  uploadButtonTitle = 'Upload documents',
   onOpenListing,
   listingScreen,
   openListingTitle = 'Open full list',
@@ -70,6 +74,17 @@ export function CardHeaderActions({
           +
         </button>
       )}
+      {onUpload && (
+        <button
+          type="button"
+          onClick={onUpload}
+          className="w-6 h-6 rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50 flex items-center justify-center transition-colors flex-shrink-0"
+          title={uploadButtonTitle}
+          aria-label={uploadButtonTitle}
+        >
+          <Upload className="w-3.5 h-3.5" strokeWidth={2.25} />
+        </button>
+      )}
       {handleOpenListing && (
         <button
           type="button"
@@ -99,6 +114,8 @@ export const DashboardCard = ({
   titleAddon,
   headerExtra,
   onAdd,
+  onUpload,
+  uploadButtonTitle,
   openListingTitle,
   children,
   className = '',
@@ -121,6 +138,8 @@ export const DashboardCard = ({
   /** Extra controls in the header row (before filter / + / listing). */
   headerExtra?: ReactNode
   onAdd?: () => void
+  onUpload?: () => void
+  uploadButtonTitle?: string
   /** Navigate to full listing (sidebar screen). Use `listingScreen` or pass a custom handler. */
   onOpenListing?: () => void
   /** Query `screen` value for the full listing view, e.g. `rx`, `lab`, `n-given`. */
@@ -228,6 +247,8 @@ export const DashboardCard = ({
             <CardHeaderActions
               onAdd={handleAdd}
               addButtonTitle={resolvedAddTitle}
+              onUpload={onUpload}
+              uploadButtonTitle={uploadButtonTitle}
               onOpenListing={() => setExpanded((v) => !v)}
               openListingTitle={resolvedOpenListingTitle}
               collapseTitle={sectionLabel ? `Collapse ${sectionLabel}` : 'Collapse'}

@@ -1,0 +1,60 @@
+{
+ "actions": [],
+ "creation": "2026-08-25 19:46:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "action",
+  "user",
+  "user_full_name",
+  "action_on",
+  "details"
+ ],
+ "fields": [
+  {
+   "fieldname": "action",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Action",
+   "reqd": 1
+  },
+  {
+   "fieldname": "user",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "User",
+   "options": "User"
+  },
+  {
+   "fieldname": "user_full_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "User Name",
+   "read_only": 1
+  },
+  {
+   "default": "now",
+   "fieldname": "action_on",
+   "fieldtype": "Datetime",
+   "in_list_view": 1,
+   "label": "Date / Time"
+  },
+  {
+   "fieldname": "details",
+   "fieldtype": "Small Text",
+   "label": "Details"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-08-25 19:46:00",
+ "modified_by": "Administrator",
+ "module": "Healthcare",
+ "name": "Report Request Audit",
+ "owner": "Administrator",
+ "permissions": [],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

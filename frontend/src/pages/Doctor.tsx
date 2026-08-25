@@ -78,6 +78,7 @@ import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignMo
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
+import { ReportRequestsCard } from '../components/reportRequests/ReportRequestList'
 import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
 import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
 import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
@@ -793,16 +794,14 @@ export const DoctorPage = () => {
               addButtonTitle="Add Lab Test"
               fixedHeight
               headerExtra={
-                selectedPatient ? (
-                  <button
-                    type="button"
-                    onClick={() => openLabTrends()}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
-                    title="Lab results over time — dates in columns, tests in rows"
-                  >
-                    📈 Lab Trends
-                  </button>
-                ) : null
+                <button
+                  type="button"
+                  onClick={() => openLabTrends()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                  title="Lab results over time — dates in columns, tests in rows"
+                >
+                  📈 Lab Trends
+                </button>
               }
             >
               <LabTestList
@@ -1910,6 +1909,21 @@ export const DoctorPage = () => {
     )
   }
 
+  if (screen === 'd-report-requests') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <ReportRequestsCard
+            fullScreen
+            patient={selectedPatient || undefined}
+            onPatientSelect={handlePatientSelect}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // Show Nutritionist Notes (read-only for doctors)
   if (screen === 'nut') {
     return (
@@ -2397,6 +2411,8 @@ export const DoctorPage = () => {
 
       <OutpatientVisitsCard
         listingScreen="pvh"
+        hideLabPharmacyAmounts
+        squeezeLayout
         patient={selectedPatient || undefined}
         onPatientSelect={handlePatientSelect}
         onVisitActivate={handleVisitActivate}
@@ -2424,6 +2440,12 @@ export const DoctorPage = () => {
         />
       </DashboardCard>
 
+      <ReportRequestsCard
+        listingScreen="d-report-requests"
+        patient={selectedPatient || undefined}
+        onPatientSelect={handlePatientSelect}
+      />
+
       {/* Laboratory — one card, two tabs: Reports (results pending review) and
           Requests (lab orders). Merges the original report card with the newer
           lab-requests card. */}
@@ -2439,7 +2461,7 @@ export const DoctorPage = () => {
         listingScreen={labCardTab === 'reports' ? 'lab' : 'lab-req'}
         headerExtra={
           <div className="flex items-center gap-1.5">
-            {labCardTab === 'reports' && selectedPatient ? (
+            {labCardTab === 'reports' ? (
               <button
                 type="button"
                 onClick={() => openLabTrends()}

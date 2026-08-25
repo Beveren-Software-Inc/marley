@@ -546,6 +546,7 @@ scheduler_events = {
 		"healthcare.api.whatsapp_reminders.send_daily_whatsapp_reminders",
 		"healthcare.api.lab_test.create_daily_repeat_lab_tests",
 		"healthcare.api.lab_request_reminder.send_missing_lab_request_reminders",
+		"healthcare.api.report_request.archive_done_report_requests",
 	],
 	"hourly": [
 		"healthcare.api.nurse_task_escalation.escalate_overdue_nurse_tasks",
