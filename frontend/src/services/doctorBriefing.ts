@@ -17,14 +17,14 @@ function briefingUrl(costCenter: string | undefined, section: DoctorBriefingSect
   return `/api/method/healthcare.api.doctor_briefing.get_doctor_shift_briefing?${params}`
 }
 
-export async function fetchDoctorBriefingAdmissions(costCenter?: string): Promise<{
+export async function fetchDoctorBriefingAdmissions(_costCenter?: string): Promise<{
   cost_center?: string | null
   active_admissions: NurseBriefingAdmission[]
 }> {
   const data = await apiRequest<{
     cost_center?: string | null
     active_admissions?: NurseBriefingAdmission[]
-  }>(briefingUrl(costCenter, 'admissions'))
+  }>(briefingUrl(undefined, 'admissions'))
   return {
     cost_center: data.cost_center ?? null,
     active_admissions: data.active_admissions ?? [],

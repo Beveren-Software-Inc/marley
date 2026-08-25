@@ -386,7 +386,10 @@ export const CreatePrescriptionModal = ({
   const doseValidationKey = useMemo(
     () =>
       medications
-        .map((row) => `${(row.drug || '').trim()}\u0001${(row.dosage || '').trim()}`)
+        .map(
+          (row) =>
+            `${(row.drug || '').trim()}\u0001${(row.dosage || '').trim()}\u0001${(row.route_of_administration || '').trim()}`,
+        )
         .join('\u0002'),
     [medications],
   )
@@ -420,6 +423,7 @@ export const CreatePrescriptionModal = ({
             formData.care_context === 'Inpatient Admission'
               ? formData.inpatient_record || undefined
               : undefined,
+          route_of_administration: row.route_of_administration || undefined,
         })
           .then((preview) => {
             if (cancelled) return

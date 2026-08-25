@@ -62,6 +62,8 @@ def _enrich_warning_message_row(warning) -> dict:
 
 	row["is_special_phone_warning"] = cint(row.get("is_special_phone_warning") or 0)
 	row["show_in_standard_warning_popup"] = cint(row.get("show_in_standard_warning_popup") or 0)
+	row["no_allergy"] = cint(row.get("no_allergy") or 0)
+	row["is_allergy"] = cint(row.get("is_allergy") or 0)
 	if row.get("is_special_phone_warning") and not (row.get("warning") or "").strip():
 		row["warning"] = row.get("reported_information") or ""
 	if row.get("verified_by_practitioner"):
@@ -121,7 +123,13 @@ def _get_warning_message_fields(*, for_list: bool = False) -> list[str]:
 			]
 		)
 
-	for optional_field in ("verified_by_user", "verified_by_practitioner", "verified_on"):
+	for optional_field in (
+		"verified_by_user",
+		"verified_by_practitioner",
+		"verified_on",
+		"no_allergy",
+		"is_allergy",
+	):
 		if _warning_message_has_column(optional_field):
 			fields.append(optional_field)
 
@@ -185,8 +193,12 @@ def insert_medical_warning_message(
 	"""Insert a Medical Warning Message with mandatory ``trans_id`` set."""
 	if not patient:
 		frappe.throw(_("Patient is required for medical warnings"))
+	no_allergy = cint((extra_fields or {}).get("no_allergy") or 0)
 	if not (warning or "").strip():
-		frappe.throw(_("Warning text is required"))
+		if no_allergy:
+			warning = "No known allergies"
+		else:
+			frappe.throw(_("Warning text is required"))
 
 	doc = frappe.get_doc(
 		{
@@ -342,8 +354,12 @@ def create_warning_message(data):
 	effective_warning = (data.get('warning') or '').strip()
 	if is_special_phone_warning and not effective_warning:
 		effective_warning = (data.get('reported_information') or '').strip()
+	if cint(data.get('no_allergy') or 0) and not effective_warning:
+		effective_warning = 'No known allergies'
 
 	extra_fields = {
+		'no_allergy': cint(data.get('no_allergy') or 0),
+		'is_allergy': 0 if cint(data.get('no_allergy') or 0) else cint(data.get('is_allergy') or 0),
 		'is_special_phone_warning': is_special_phone_warning,
 		'show_in_standard_warning_popup': show_in_standard_warning_popup,
 		'caller_name': data.get('caller_name'),
@@ -409,6 +425,33 @@ def create_warning_message(data):
 		'practitioner_name': warning.practitioner_name if warning.practitioner else None,
 		'warning': warning.warning
 	}
+
+
+@frappe.whitelist()
+def record_no_known_allergy(patient: str):
+	"""Document NKDA as a Warning Message (no_allergy) without free-text entry."""
+	patient = (patient or "").strip()
+	if not patient:
+		frappe.throw(_("Patient is required"))
+	if not frappe.db.exists("Patient", patient):
+		frappe.throw(_("Patient {0} not found").format(patient))
+	if not _warning_message_has_column("no_allergy"):
+		frappe.throw(_("No Allergy is not available on Warning Message. Run migrate."))
+
+	existing = frappe.db.get_value(
+		"Warning Message",
+		{"patient": patient, "no_allergy": 1},
+		"name",
+	)
+	if existing:
+		return get_warning_message(existing)
+
+	warning = insert_medical_warning_message(
+		patient,
+		"No known allergies",
+		extra_fields={"no_allergy": 1, "is_allergy": 0} if _warning_message_has_column("is_allergy") else {"no_allergy": 1},
+	)
+	return get_warning_message(warning.name)
 
 
 @frappe.whitelist()

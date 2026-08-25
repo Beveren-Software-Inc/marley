@@ -132,6 +132,8 @@ interface CareContextValue {
   vitalSignUneditableIn24Hour: boolean
   /** True when Healthcare Settings.unedit_within_24hour is enabled (daily routine care). */
   uneditWithin24Hour: boolean
+  /** True when Healthcare Settings.allow_doctors_to_create_patient_visit is enabled. */
+  allowDoctorsToCreatePatientVisit: boolean
   /**
    * Wrap handlers that modify existing records (edit modals, append note, etc.).
    * Creating new records is still allowed via {@link guardClinicalCreate}.
@@ -198,6 +200,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [therapyNoteUneditableIn24Hour, setTherapyNoteUneditableIn24Hour] = useState(false)
   const [vitalSignUneditableIn24Hour, setVitalSignUneditableIn24Hour] = useState(false)
   const [uneditWithin24Hour, setUneditWithin24Hour] = useState(false)
+  const [allowDoctorsToCreatePatientVisit, setAllowDoctorsToCreatePatientVisit] = useState(false)
 
   const editingLockMessage =
     'Editing is locked in Healthcare Settings. You can create new records but cannot modify existing data.'
@@ -349,11 +352,13 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           therapy_note_uneditable_in_24_hour: false,
           vital_sign_uneditable_in_24_hour: false,
           unedit_within_24hour: false,
+          allow_doctors_to_create_patient_visit: false,
         }))
         setLockEditingData(Boolean(portalSettings.lock_editing_data))
         setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))
         setVitalSignUneditableIn24Hour(Boolean(portalSettings.vital_sign_uneditable_in_24_hour))
         setUneditWithin24Hour(Boolean(portalSettings.unedit_within_24hour))
+        setAllowDoctorsToCreatePatientVisit(Boolean(portalSettings.allow_doctors_to_create_patient_visit))
       } catch (error) {
         console.warn('Failed to load user context:', error)
       }
@@ -368,12 +373,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))
           setVitalSignUneditableIn24Hour(Boolean(portalSettings.vital_sign_uneditable_in_24_hour))
           setUneditWithin24Hour(Boolean(portalSettings.unedit_within_24hour))
+          setAllowDoctorsToCreatePatientVisit(Boolean(portalSettings.allow_doctors_to_create_patient_visit))
         })
         .catch(() => {
           setLockEditingData(false)
           setTherapyNoteUneditableIn24Hour(false)
           setVitalSignUneditableIn24Hour(false)
           setUneditWithin24Hour(false)
+          setAllowDoctorsToCreatePatientVisit(false)
         })
     }
 
@@ -519,6 +526,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       therapyNoteUneditableIn24Hour,
       vitalSignUneditableIn24Hour,
       uneditWithin24Hour,
+      allowDoctorsToCreatePatientVisit,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,
@@ -550,6 +558,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       therapyNoteUneditableIn24Hour,
       vitalSignUneditableIn24Hour,
       uneditWithin24Hour,
+      allowDoctorsToCreatePatientVisit,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,

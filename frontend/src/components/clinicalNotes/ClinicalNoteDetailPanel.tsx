@@ -22,7 +22,7 @@ import {
   type MedicationOrderRow,
 } from '../../services/prescriptions'
 import {
-  displayMedicationDosage,
+  displayMedicationDosageWithUom,
   displayMedicationDrugName,
   displayMedicationFrequency,
   displayMedicationInstructions,
@@ -47,6 +47,11 @@ interface ClinicalNoteDetailPanelProps {
   /** List row for instant header context while the full note loads */
   preview?: ClinicalNote
   onPatientClick?: (patient: string) => void
+  onPrev?: () => void
+  onNext?: () => void
+  hasPrev?: boolean
+  hasNext?: boolean
+  navLabel?: string
 }
 
 function displayValue(value: unknown): string {
@@ -182,6 +187,11 @@ export function ClinicalNoteDetailPanel({
   title = 'Clinical Note',
   preview,
   onPatientClick,
+  onPrev,
+  onNext,
+  hasPrev,
+  hasNext,
+  navLabel,
 }: ClinicalNoteDetailPanelProps) {
   const [doc, setDoc] = useState<ClinicalNoteDoc | null>(preview ? { ...preview, name } : null)
   const [loading, setLoading] = useState(true)
@@ -416,6 +426,11 @@ export function ClinicalNoteDetailPanel({
       icon={<NotebookPen className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
+      onPrev={onPrev}
+      onNext={onNext}
+      hasPrev={hasPrev}
+      hasNext={hasNext}
+      navLabel={navLabel}
       headerActions={
         <PrintFormatDropdown
           doctype="Clinical Note"
@@ -499,7 +514,7 @@ export function ClinicalNoteDetailPanel({
               <ul className="divide-y divide-emerald-50 overflow-hidden rounded-lg border border-emerald-100 bg-white">
                 {dayMedications.map((med, idx) => {
                   const drugName = displayMedicationDrugName(med) || med.display_drug_name || 'Medication'
-                  const dosage = displayMedicationDosage(med) || med.display_dosage
+                  const dosage = displayMedicationDosageWithUom(med) || med.display_dosage
                   const frequency = displayMedicationFrequency(med) || med.frequency
                   const instructions = displayMedicationInstructions(med)
                   const startDate = displayMedicationStartDate(med) || med.start_date || med.date

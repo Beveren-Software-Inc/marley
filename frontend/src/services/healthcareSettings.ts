@@ -6,6 +6,8 @@ export type HealthcarePortalSettings = {
   vital_sign_uneditable_in_24_hour: boolean
   /** When true, daily routine care docs cannot be edited after 24 hours from creation. */
   unedit_within_24hour: boolean
+  /** When true, doctors may create patients and patient visits from the portal. */
+  allow_doctors_to_create_patient_visit: boolean
 }
 
 export async function fetchHealthcarePortalSettings(): Promise<HealthcarePortalSettings> {
@@ -20,5 +22,6 @@ export async function fetchHealthcarePortalSettings(): Promise<HealthcarePortalS
     therapy_note_uneditable_in_24_hour: Boolean(msg?.therapy_note_uneditable_in_24_hour),
     vital_sign_uneditable_in_24_hour: Boolean(msg?.vital_sign_uneditable_in_24_hour),
     unedit_within_24hour: Boolean(msg?.unedit_within_24hour),
+    allow_doctors_to_create_patient_visit: Boolean(msg?.allow_doctors_to_create_patient_visit),
   }
 }

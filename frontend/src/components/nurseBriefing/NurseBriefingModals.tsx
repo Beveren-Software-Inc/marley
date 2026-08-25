@@ -8,7 +8,7 @@ import type {
 } from '../../services/nurseBriefing'
 import { StatusPill } from '../ui/StatusPill'
 import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
-import { labBriefingChildPreview, labBriefingDisplayRows } from '../../utils/labBriefingGroups'
+import { labBriefingChildPreview, labBriefingDisplayRows, labBriefingTestLabel } from '../../utils/labBriefingGroups'
 
 function stripHtml(html: string | undefined): string {
   if (!html) return ''
@@ -79,17 +79,21 @@ export function NurseAdmissionsBriefingModal({
   onClose,
   onAdmissionSelect,
   closeLabel = 'Next: Lab sample collection',
+  subtitle = 'Review admitted patients, warnings, and allergies before starting your shift.',
+  emptyMessage = 'No admitted patients with allergies or clinical warnings for your branch.',
 }: {
   admissions: NurseBriefingAdmission[]
   loading?: boolean
   onClose: () => void
   onAdmissionSelect?: (admission: NurseBriefingAdmission) => void
   closeLabel?: string
+  subtitle?: string
+  emptyMessage?: string
 }) {
   return (
     <BriefingModalShell
       title="Active Inpatient Admissions"
-      subtitle="Review admitted patients, warnings, and allergies before starting your shift."
+      subtitle={subtitle}
       onClose={onClose}
       closeLabel={closeLabel}
     >
@@ -99,7 +103,7 @@ export function NurseAdmissionsBriefingModal({
           Loading admissions…
         </div>
       ) : admissions.length === 0 ? (
-        <EmptyState message="No admitted patients with allergies or clinical warnings for your branch." />
+        <EmptyState message={emptyMessage} />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2">
           {admissions.map((admission) => {
@@ -127,6 +131,7 @@ export function NurseAdmissionsBriefingModal({
                   <StatusPill status={admission.status || 'Admitted'} />
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2 text-xs text-slate-600">
+                  {admission.cost_center ? <span>Branch: {admission.cost_center}</span> : null}
                   {admission.bed ? <span>Bed: {admission.bed}</span> : null}
                   {admission.medical_department ? (
                     <span>Dept: {admission.medical_department}</span>
@@ -263,12 +268,14 @@ export function NurseLabSampleBriefingModal({
                   <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-sky-600" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-semibold text-slate-900">
-                      {test.lab_test_name || test.template || test.name}
+                      {labBriefingTestLabel(test)}
                     </p>
                     <p className="text-xs text-slate-600">
                       {test.patient_name || test.patient}
                     </p>
-                    <p className="mt-1 text-xs text-slate-500">{test.name}</p>
+                    <p className="mt-1 hidden text-xs text-slate-500" aria-hidden="true">
+                      {test.name}
+                    </p>
                   </div>
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-2">

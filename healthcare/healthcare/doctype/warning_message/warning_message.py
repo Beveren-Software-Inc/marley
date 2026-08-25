@@ -8,6 +8,18 @@ from frappe.model.document import Document
 
 class WarningMessage(Document):
 	def validate(self):
+		if frappe.utils.cint(self.get("is_allergy")):
+			self.is_allergy = 1
+			if self.meta.has_field("no_allergy"):
+				self.no_allergy = 0
+
+		if frappe.utils.cint(self.get("no_allergy")):
+			self.no_allergy = 1
+			if self.meta.has_field("is_allergy"):
+				self.is_allergy = 0
+			if not (self.warning or "").strip():
+				self.warning = "No known allergies"
+
 		if self.is_special_phone_warning and not self.patient:
 			frappe.throw(_("Patient is required for a special phone warning."))
 

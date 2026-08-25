@@ -255,21 +255,16 @@ async function ensureUploadCSRFToken(): Promise<string | null> {
   }
 }
 
-/** Upload a file for Patient (e.g. for Patient Upload Document). Returns file_url to store in document field. */
+/** Upload a file as a public attachment so other users can view it. Returns file_url. */
 export async function uploadPatientFile(file: File): Promise<string> {
   const csrf = await ensureUploadCSRFToken()
   const form = new FormData()
   form.append('file', file)
-  form.append('is_private', '0')
-  form.append('folder', 'Home/Attachments')
-  // Do NOT append doctype/docname — Frappe rejects upload_file when docname is
-  // an empty string. For pre-save patient docs we upload as a standalone file
-  // and attach the returned file_url to the document row instead.
   if (csrf) form.append('csrf_token', csrf)
 
   // Use current origin so upload works on 127.0.0.1 and live (not only localhost)
   const base = (typeof window !== 'undefined' && window.location?.origin) ? window.location.origin : ''
-  const uploadUrl = `${base}/api/method/upload_file`
+  const uploadUrl = `${base}/api/method/healthcare.api.common.upload_public_file`
 
   const res = await fetch(uploadUrl, {
     method: 'POST',

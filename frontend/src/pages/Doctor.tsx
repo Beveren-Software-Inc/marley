@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
+import { useDoctorBriefing } from '../providers/DoctorBriefingProvider'
 import { ADHDAssessmentList } from '../components/adhd/AdhdAssessmentList'
 import { CreateADHDAssessmentModal } from '../components/adhd/CreateADHDAssessmentModal'
 import { DischargeAdmissionView } from '../components/admissions/DischargeAdmissionView'
@@ -77,6 +78,7 @@ import { CreateVitalSignModal } from '../components/vitalSigns/CreateVitalSignMo
 import { VitalSignsList } from '../components/vitalSigns/VitalSignsList'
 import { CreateWarningMessageModal } from '../components/warnings/CreateWarningMessageModal'
 import { WarningMessagesList } from '../components/warnings/WarningMessagesList'
+import { ReportRequestsCard } from '../components/reportRequests/ReportRequestList'
 import { CreateYBOCSAssessmentModal } from '../components/ybocs/CreateYBOCSAssessmentModal'
 import { YBOCSAssessmentList } from '../components/ybocs/YBOCSAssessmentList'
 import { CreateYMRSAssessmentModal } from '../components/ymrs/CreateYMRSAssessmentModal'
@@ -139,10 +141,12 @@ export const DoctorPage = () => {
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
     guardClinicalCreate,
+    allowDoctorsToCreatePatientVisit,
     setMode,
     setActiveVisit,
     setActiveAdmission,
   } = useCareContext()
+  const doctorBriefing = useDoctorBriefing()
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
@@ -210,6 +214,32 @@ export const DoctorPage = () => {
   const modeForScreens = modeForInpatientDischargeScreens(mode, costCenterCareScope, inDischargeRoute)
   const screenBlocked = !!(rawScreen && isDoctorScreenBlocked(rawScreen, costCenterCareScope, modeForScreens))
   const screen = screenBlocked ? null : rawScreen
+
+  useEffect(() => {
+    if (rawScreen !== 'd-ip-warnings') return
+    doctorBriefing?.openAdmissionsBriefing()
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('screen')
+        return next
+      },
+      { replace: true },
+    )
+  }, [rawScreen, doctorBriefing, setSearchParams])
+
+  useEffect(() => {
+    if (rawScreen !== 'd-pending-lab-review') return
+    doctorBriefing?.openLabReviewBriefing()
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('screen')
+        return next
+      },
+      { replace: true },
+    )
+  }, [rawScreen, doctorBriefing, setSearchParams])
 
   useLayoutEffect(() => {
     if (!inDischargeRoute || mode === 'IP' || costCenterCareScope === 'op_only') return
@@ -631,17 +661,19 @@ export const DoctorPage = () => {
   // Show Patient Progress Note
   if (screen === 'dpn') {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
           <DashboardCard 
             title="Patient Progress Notes" 
+            noHeightLimit
             onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
             addButtonTitle="Add Patient Progress Note"
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Doctor Progress Note"
+              defaultPageSize={500}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
@@ -762,16 +794,14 @@ export const DoctorPage = () => {
               addButtonTitle="Add Lab Test"
               fixedHeight
               headerExtra={
-                selectedPatient ? (
-                  <button
-                    type="button"
-                    onClick={() => openLabTrends()}
-                    className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
-                    title="Lab results over time — dates in columns, tests in rows"
-                  >
-                    📈 Lab Trends
-                  </button>
-                ) : null
+                <button
+                  type="button"
+                  onClick={() => openLabTrends()}
+                  className="inline-flex items-center gap-1.5 rounded-md border border-primary bg-transparent px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary hover:text-white"
+                  title="Lab results over time — dates in columns, tests in rows"
+                >
+                  📈 Lab Trends
+                </button>
               }
             >
               <LabTestList
@@ -1879,6 +1909,21 @@ export const DoctorPage = () => {
     )
   }
 
+  if (screen === 'd-report-requests') {
+    return (
+      <div className="flex flex-col">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <ReportRequestsCard
+            fullScreen
+            patient={selectedPatient || undefined}
+            onPatientSelect={handlePatientSelect}
+          />
+        </div>
+      </div>
+    )
+  }
+
   // Show Nutritionist Notes (read-only for doctors)
   if (screen === 'nut') {
     return (
@@ -1973,7 +2018,11 @@ export const DoctorPage = () => {
         <div className="p-4">
           <DashboardCard 
             title="Patients" 
-            onAdd={() => guardClinicalCreate(() => setShowCreatePatientModal(true))}
+            onAdd={
+              allowDoctorsToCreatePatientVisit
+                ? () => guardClinicalCreate(() => setShowCreatePatientModal(true))
+                : undefined
+            }
             addButtonTitle="Create new patient"
           >
             <PatientList refreshKey={patientRefreshKey} />
@@ -2362,6 +2411,8 @@ export const DoctorPage = () => {
 
       <OutpatientVisitsCard
         listingScreen="pvh"
+        hideLabPharmacyAmounts
+        squeezeLayout
         patient={selectedPatient || undefined}
         onPatientSelect={handlePatientSelect}
         onVisitActivate={handleVisitActivate}
@@ -2389,6 +2440,12 @@ export const DoctorPage = () => {
         />
       </DashboardCard>
 
+      <ReportRequestsCard
+        listingScreen="d-report-requests"
+        patient={selectedPatient || undefined}
+        onPatientSelect={handlePatientSelect}
+      />
+
       {/* Laboratory — one card, two tabs: Reports (results pending review) and
           Requests (lab orders). Merges the original report card with the newer
           lab-requests card. */}
@@ -2404,7 +2461,7 @@ export const DoctorPage = () => {
         listingScreen={labCardTab === 'reports' ? 'lab' : 'lab-req'}
         headerExtra={
           <div className="flex items-center gap-1.5">
-            {labCardTab === 'reports' && selectedPatient ? (
+            {labCardTab === 'reports' ? (
               <button
                 type="button"
                 onClick={() => openLabTrends()}

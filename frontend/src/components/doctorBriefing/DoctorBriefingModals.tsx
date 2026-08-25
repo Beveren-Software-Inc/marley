@@ -3,9 +3,9 @@ import { Beaker, Loader2, X } from 'lucide-react'
 import type { DoctorBriefingLabTest, DoctorShiftBriefing } from '../../services/doctorBriefing'
 import type { NurseBriefingAdmission } from '../../services/nurseBriefing'
 import { NurseAdmissionsBriefingModal } from '../nurseBriefing/NurseBriefingModals'
+import { labBriefingChildPreview, labBriefingDisplayRows, labBriefingPatientGroups, labBriefingTestLabel } from '../../utils/labBriefingGroups'
 import { StatusPill } from '../ui/StatusPill'
 import { labTestStatusColor } from '../labTests/labTestDisplayUtils'
-import { labBriefingChildPreview, labBriefingDisplayRows } from '../../utils/labBriefingGroups'
 
 function BriefingModalShell({
   title,
@@ -68,20 +68,22 @@ export function DoctorLabReviewBriefingModal({
   loading,
   onClose,
   onLabTestSelect,
+  closeLabel = 'Go to Doctor dashboard',
 }: {
   labTests: DoctorBriefingLabTest[]
   loading?: boolean
   onClose: () => void
   onLabTestSelect?: (labTest: DoctorBriefingLabTest) => void
+  closeLabel?: string
 }) {
-  const rows = useMemo(() => labBriefingDisplayRows(labTests), [labTests])
+  const patients = useMemo(() => labBriefingPatientGroups(labTests), [labTests])
 
   return (
     <BriefingModalShell
       title="Lab Tests — Pending Review"
-      subtitle="Grouped lab requests and individual tests awaiting your review."
+      subtitle="Pending review grouped by patient. Open a test to review it."
       onClose={onClose}
-      closeLabel="Go to Doctor dashboard"
+      closeLabel={closeLabel}
     >
       {loading ? (
         <div className="flex items-center justify-center py-16 text-slate-600">
@@ -91,80 +93,102 @@ export function DoctorLabReviewBriefingModal({
       ) : labTests.length === 0 ? (
         <EmptyState message="No lab tests pending review." />
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {rows.map((row) => {
-            if (row.kind === 'group') {
-              const { representative, tests, label, key } = row
-              const preview = labBriefingChildPreview(tests)
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => onLabTestSelect?.(representative)}
-                  className={`rounded-lg border border-indigo-200 bg-indigo-50/40 p-4 text-left ${
-                    onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/60' : ''
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-indigo-600" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-flex items-center rounded bg-indigo-200 px-1.5 py-0.5 text-[10px] font-bold text-indigo-800">
-                          GROUP
-                        </span>
-                        <p className="truncate font-semibold text-slate-900">{label}</p>
-                      </div>
-                      <p className="mt-0.5 text-xs text-slate-600">
-                        {representative.patient_name || representative.patient}
-                      </p>
-                      {preview ? (
-                        <p className="mt-1 line-clamp-2 text-xs text-slate-500">{preview}</p>
-                      ) : null}
-                    </div>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <StatusPill
-                      status={representative.status || 'Pending Review'}
-                      color={labTestStatusColor(representative.status)}
-                    />
-                    <span className="text-xs font-medium text-indigo-700">
-                      {tests.length} test{tests.length === 1 ? '' : 's'} pending
-                    </span>
-                  </div>
-                </button>
-              )
-            }
-
-            const test = row.test
+        <div className="grid gap-3 sm:grid-cols-2">
+          {patients.map((group) => {
+            const rows = labBriefingDisplayRows(group.tests)
             return (
-              <button
-                key={test.name}
-                type="button"
-                onClick={() => onLabTestSelect?.(test)}
-                className={`rounded-lg border border-slate-200 p-4 text-left ${
-                  onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/60' : ''
-                }`}
+              <div
+                key={group.patient}
+                className="rounded-lg border border-emerald-300/80 bg-emerald-50/35 p-4 text-left"
               >
-                <div className="flex items-start gap-2">
-                  <Beaker className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-semibold text-slate-900">
-                      {test.lab_test_name || test.template || test.name}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-base font-bold tracking-tight text-slate-900">
+                      {group.patientName}
                     </p>
-                    <p className="text-xs text-slate-600">{test.patient_name || test.patient}</p>
-                    <p className="mt-1 text-xs text-slate-500">{test.name}</p>
+                    <p className="text-[11px] font-medium text-amber-800/80">
+                      {group.tests.length} test{group.tests.length === 1 ? '' : 's'} pending
+                    </p>
                   </div>
+                  <span
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                      group.isIp ? 'bg-violet-100 text-violet-800' : 'bg-sky-100 text-sky-800'
+                    }`}
+                  >
+                    {group.isIp ? 'IP' : 'OP'}
+                  </span>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <StatusPill
-                    status={test.status || 'Pending Review'}
-                    color={labTestStatusColor(test.status)}
-                  />
-                  {test.department ? (
-                    <span className="text-xs text-slate-500">{test.department}</span>
-                  ) : null}
+                <div className="mt-3 space-y-1.5">
+                  {rows.map((row) => {
+                    if (row.kind === 'group') {
+                      const { representative, tests, label, key } = row
+                      const preview = labBriefingChildPreview(tests, 2)
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => onLabTestSelect?.(representative)}
+                          className={`w-full rounded-md border border-amber-100 bg-white/80 px-2 py-1.5 text-left ${
+                            onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/70' : ''
+                          }`}
+                        >
+                          <div className="flex items-center gap-1.5">
+                            <Beaker className="h-3 w-3 shrink-0 text-amber-600" />
+                            <span className="inline-flex items-center rounded bg-indigo-200 px-1 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-indigo-800">
+                              Group
+                            </span>
+                            <p className="min-w-0 truncate text-[11px] font-medium text-slate-700" title={label}>
+                              {label}
+                            </p>
+                            <span className="ml-auto shrink-0 text-[10px] text-slate-400">
+                              {tests.length}
+                            </span>
+                          </div>
+                          {preview ? (
+                            <p className="mt-0.5 truncate pl-5 text-[10px] text-slate-400" title={preview}>
+                              {preview}
+                            </p>
+                          ) : null}
+                          <div className="mt-1.5 pl-5">
+                            <StatusPill
+                              compact
+                              status={representative.status || 'Pending Review'}
+                              color={labTestStatusColor(representative.status)}
+                            />
+                          </div>
+                        </button>
+                      )
+                    }
+
+                    const test = row.test
+                    const testLabel = labBriefingTestLabel(test)
+                    return (
+                      <button
+                        key={test.name}
+                        type="button"
+                        onClick={() => onLabTestSelect?.(test)}
+                        className={`w-full rounded-md border border-amber-100 bg-white/80 px-2 py-1.5 text-left ${
+                          onLabTestSelect ? 'cursor-pointer hover:border-amber-300 hover:bg-amber-50/70' : ''
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <Beaker className="h-3 w-3 shrink-0 text-amber-600" />
+                          <p className="min-w-0 truncate text-[11px] font-medium text-slate-700" title={testLabel}>
+                            {testLabel}
+                          </p>
+                        </div>
+                        <div className="mt-1.5 pl-5">
+                          <StatusPill
+                            compact
+                            status={test.status || 'Pending Review'}
+                            color={labTestStatusColor(test.status)}
+                          />
+                        </div>
+                      </button>
+                    )
+                  })}
                 </div>
-              </button>
+              </div>
             )
           })}
         </div>
@@ -182,6 +206,8 @@ export function DoctorBriefingModals({
   onAdvance,
   onAdmissionSelect,
   onLabTestSelect,
+  admissionsOnly = false,
+  labsOnly = false,
 }: {
   step: DoctorBriefingStep | null
   briefing: DoctorShiftBriefing | null
@@ -189,6 +215,8 @@ export function DoctorBriefingModals({
   onAdvance: () => void
   onAdmissionSelect?: (admission: NurseBriefingAdmission) => void
   onLabTestSelect?: (labTest: DoctorBriefingLabTest) => void
+  admissionsOnly?: boolean
+  labsOnly?: boolean
 }) {
   if (!step) return null
 
@@ -199,7 +227,9 @@ export function DoctorBriefingModals({
         loading={loading}
         onClose={onAdvance}
         onAdmissionSelect={onAdmissionSelect}
-        closeLabel="Next: Pending lab review"
+        closeLabel={admissionsOnly ? 'Close' : 'Next: Pending lab review'}
+        subtitle="Warnings and allergies for admitted patients across all branches."
+        emptyMessage="No admitted patients with allergies or clinical warnings."
       />
     )
   }
@@ -210,6 +240,7 @@ export function DoctorBriefingModals({
       loading={loading}
       onClose={onAdvance}
       onLabTestSelect={onLabTestSelect}
+      closeLabel={labsOnly ? 'Close' : 'Go to Doctor dashboard'}
     />
   )
 }

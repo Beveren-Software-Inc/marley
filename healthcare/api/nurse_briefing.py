@@ -50,6 +50,8 @@ _LAB_TEST_BRIEFING_FIELDS = [
 	"date",
 	"practitioner",
 	"practitioner_name",
+	"assigned_healthcare_practioner",
+	"assigned_practitioner_name",
 	"inpatient_record",
 	"department",
 	"creation",
@@ -123,6 +125,8 @@ def _warning_text(row: dict) -> str:
 
 def _is_actionable_admission_warning(row: dict) -> bool:
 	"""Keep clinical warnings; drop NKDA/MKFDA-style notes and empty history denials."""
+	if cint(row.get("no_allergy")) or cint(row.get("is_allergy")):
+		return False
 	body = _warning_text(row)
 	if not body:
 		return True
@@ -156,10 +160,7 @@ def _beds_for_admissions(admission_names: list[str]) -> dict[str, str | None]:
 def _warnings_for_patients(patient_ids: list[str]) -> dict[str, list[dict]]:
 	if not patient_ids:
 		return {}
-	rows = frappe.get_all(
-		"Warning Message",
-		filters={"patient": ["in", patient_ids]},
-		fields=[
+	fields=[
 			"name",
 			"patient",
 			"warning",
@@ -169,7 +170,15 @@ def _warnings_for_patients(patient_ids: list[str]) -> dict[str, list[dict]]:
 			"posting_date",
 			"practitioner",
 			"high_risk_text",
-		],
+		]
+	if frappe.db.has_column("Warning Message", "no_allergy"):
+		fields.append("no_allergy")
+	if frappe.db.has_column("Warning Message", "is_allergy"):
+		fields.append("is_allergy")
+	rows = frappe.get_all(
+		"Warning Message",
+		filters={"patient": ["in", patient_ids]},
+		fields=fields,
 		order_by="posting_date desc, creation desc",
 		limit_page_length=300,
 	)
@@ -181,8 +190,9 @@ def _warnings_for_patients(patient_ids: list[str]) -> dict[str, list[dict]]:
 	return grouped
 
 
-def _active_admissions(cost_center: str | None) -> list[dict]:
-	cc_filters = _cost_center_filters(cost_center)
+def _active_admissions(cost_center: str | None, *, all_branches: bool = False) -> list[dict]:
+	# all_branches: ignore the selected branch; still limited to permitted cost centers.
+	cc_filters = _cost_center_filters(None if all_branches else cost_center)
 	if cc_filters is None:
 		return []
 
@@ -204,7 +214,7 @@ def _active_admissions(cost_center: str | None) -> list[dict]:
 			"cost_center",
 		],
 		order_by="admitted_datetime desc, scheduled_date desc",
-		limit_page_length=150,
+		limit_page_length=500,
 	)
 	if not records:
 		return []
@@ -235,7 +245,14 @@ def _active_admissions(cost_center: str | None) -> list[dict]:
 			)
 		allergy_summary = (record.get("allergies") or "").strip()
 		has_real_allergy = bool(allergy_summary) and not _is_non_actionable_briefing_text(allergy_summary)
-		record["allergy_summary"] = allergy_summary if has_real_allergy else ""
+		allergy_parts = [allergy_summary] if has_real_allergy else []
+		for row in warnings_by_patient.get(patient or "", []):
+			if not cint(row.get("is_allergy")):
+				continue
+			body = _warning_text(row)
+			if body and not _is_non_actionable_briefing_text(body):
+				allergy_parts.append(body)
+		record["allergy_summary"] = "; ".join(dict.fromkeys(allergy_parts))
 		record["warnings"] = [
 			row for row in warnings_by_patient.get(patient or "", []) if _is_actionable_admission_warning(row)
 		]

@@ -575,6 +575,7 @@
    "label": "Uploaded Documents"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "documents",
    "fieldtype": "Table",
    "label": "documents",
@@ -782,8 +783,8 @@
    "link_fieldname": "reference_name"
   }
  ],
- "modified": "2026-07-23 00:50:41.699946",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 19:11:43.650621",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Patient Visit",
  "naming_rule": "By fieldname",

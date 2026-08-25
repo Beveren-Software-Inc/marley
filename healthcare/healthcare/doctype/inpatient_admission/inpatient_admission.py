@@ -634,6 +634,158 @@ def admit_patient(inpatient_record, service_unit, check_in, expected_discharge=N
 		inpatient_record.patient,
 		{"inpatient_status": "Admitted", "inpatient_record": inpatient_record.name},
 	)
+	_create_completed_visit_and_progress_note_on_admit(inpatient_record)
+
+
+def _admission_auto_visit_practitioner(inpatient_record):
+	return (
+		inpatient_record.get("admission_by_doctor")
+		or inpatient_record.get("primary_practitioner")
+		or inpatient_record.get("admission_practitioner")
+		or None
+	)
+
+
+def _admission_auto_visit_type():
+	for name in ("New Visit", "Follow Up"):
+		if frappe.db.exists("Patient Visit Type", name):
+			return name
+	row = frappe.get_all("Patient Visit Type", pluck="name", limit=1)
+	return row[0] if row else None
+
+
+def _create_completed_visit_and_progress_note_on_admit(inpatient_record):
+	"""On admit (not schedule): completed OP visit on admission date + Patient Progress Note."""
+	if not inpatient_record or not inpatient_record.patient or not inpatient_record.name:
+		return
+
+	try:
+		existing = frappe.db.get_value(
+			"Patient Visit",
+			{"ip_admission_no": inpatient_record.name, "docstatus": ["<", 2]},
+			"name",
+		)
+		visit_name = existing
+		if not visit_name:
+			practitioner = _admission_auto_visit_practitioner(inpatient_record)
+			if not practitioner:
+				from healthcare.utils import get_current_user_practitioner
+
+				practitioner = get_current_user_practitioner()
+			if not practitioner:
+				frappe.log_error(
+					title="Admit auto patient visit skipped",
+					message=(
+						f"Admission {inpatient_record.name}: no admission doctor and "
+						f"no Healthcare Practitioner for user {frappe.session.user}."
+					),
+				)
+				return
+
+			visit_type = _admission_auto_visit_type()
+			if not visit_type:
+				frappe.log_error(
+					title="Admit auto patient visit skipped",
+					message=f"Admission {inpatient_record.name}: no Patient Visit Type found.",
+				)
+				return
+
+			admit_dt = inpatient_record.get("admitted_datetime")
+			encounter_date = (
+				inpatient_record.get("admission_date")
+				or (getdate(admit_dt) if admit_dt else None)
+				or getdate()
+			)
+			if admit_dt:
+				encounter_time = get_datetime(admit_dt).strftime("%H:%M:%S")
+			elif inpatient_record.get("admission_time"):
+				encounter_time = str(inpatient_record.admission_time)
+			else:
+				encounter_time = now_datetime().strftime("%H:%M:%S")
+
+			from healthcare.api.utils.api_utility import get_next_transaction_number
+
+			visit = frappe.get_doc(
+				{
+					"doctype": "Patient Visit",
+					"patient": inpatient_record.patient,
+					"case_no": get_next_transaction_number("Patient Visit", fieldname="case_no"),
+					"practitioner": practitioner,
+					"encounter_date": encounter_date,
+					"encounter_time": encounter_time,
+					"visit_type": visit_type,
+					"status": "Completed",
+					"ip_admission_no": inpatient_record.name,
+					"cost_center": inpatient_record.get("cost_center"),
+					"company": inpatient_record.get("company"),
+					"visit_owner": frappe.session.user,
+				}
+			)
+			visit.flags.from_inpatient_admit = True
+			visit.flags.ignore_visit_charge = True
+			visit.insert(ignore_permissions=True)
+			visit_name = visit.name
+
+		if not visit_name:
+			return
+
+		note_exists = frappe.db.exists(
+			"Clinical Note",
+			{
+				"reference_doctype": "Patient Visit",
+				"reference_document": visit_name,
+				"clinical_note_type": "Doctor Progress Note",
+				"docstatus": ["<", 2],
+			},
+		)
+		if note_exists:
+			return
+
+		visit_row = frappe.db.get_value(
+			"Patient Visit",
+			visit_name,
+			["practitioner", "encounter_date", "cost_center", "patient"],
+			as_dict=True,
+		)
+		from healthcare.api.clinical_note import _get_or_create_clinical_note_type, _resolve_clinical_note_medical_role
+		from healthcare.healthcare.doctype.clinical_note.clinical_note import (
+			assign_clinical_note_trans_no,
+			fill_patient_from_inpatient_admission,
+		)
+
+		note_type = _get_or_create_clinical_note_type("Doctor Progress Note")
+		practitioner = (visit_row or {}).get("practitioner") or _admission_auto_visit_practitioner(
+			inpatient_record
+		)
+		note = frappe.get_doc(
+			{
+				"doctype": "Clinical Note",
+				"patient": inpatient_record.patient,
+				"clinical_note_type": note_type,
+				"medical_role": _resolve_clinical_note_medical_role({"practitioner": practitioner}),
+				"practitioner": practitioner,
+				"posting_date": (visit_row or {}).get("encounter_date") or getdate(),
+				"note": _(
+					"Automatically created on inpatient admission {0}."
+				).format(inpatient_record.name),
+				"reference_doctype": "Patient Visit",
+				"reference_document": visit_name,
+				"inpatient_admission": inpatient_record.name,
+				"cost_center": (visit_row or {}).get("cost_center")
+				or inpatient_record.get("cost_center"),
+				"user": frappe.session.user,
+				"username": frappe.db.get_value("User", frappe.session.user, "full_name")
+				or frappe.session.user,
+			}
+		)
+		fill_patient_from_inpatient_admission(note)
+		assign_clinical_note_trans_no(note)
+		note.insert(ignore_permissions=True)
+	except Exception:
+		frappe.log_error(
+			title="Admit auto visit / progress note failed",
+			message=frappe.get_traceback(),
+		)
 
 
 def transfer_patient(inpatient_record, service_unit, check_in):

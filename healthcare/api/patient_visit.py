@@ -20,6 +20,24 @@ from healthcare.healthcare.doctype.patient_visit.open_visit_guard import (
 )
 
 
+def ensure_doctor_may_create_patient_or_visit():
+	"""Doctors need Healthcare Settings.allow_doctors_to_create_patient_visit to create patients or visits."""
+	roles = set(frappe.get_roles())
+	if roles & {"Administrator", "System Manager", "Healthcare Administrator"}:
+		return
+	if not (roles & {"Doctor", "Physician"}):
+		return
+	if cint(frappe.db.get_single_value("Healthcare Settings", "allow_doctors_to_create_patient_visit")):
+		return
+	frappe.throw(
+		_(
+			"Doctors are not allowed to create patients or patient visits. "
+			"Enable Allow Doctors To Create Patient Visit in Healthcare Settings."
+		),
+		frappe.PermissionError,
+	)
+
+
 @frappe.whitelist()
 def check_can_create_patient_visit(patient=None):
 	"""Portal: whether a new Patient Visit is allowed for this patient."""
@@ -967,6 +985,8 @@ def create_patient_visit(data):
 	if not data:
 		frappe.throw(_("Patient Visit data is required"))
 
+	ensure_doctor_may_create_patient_or_visit()
+
 	required_fields = ["patient", "practitioner", "encounter_date", "encounter_time", "cost_center", "visit_type"]
 	for field in required_fields:
 		if not data.get(field):
@@ -1092,6 +1112,9 @@ def _apply_patient_visit_documents(doc, documents_data):
 		file_name = (row.get("file_name") or row.get("document_type") or "").strip()
 		document_type = (row.get("document_type") or "").strip()
 		document_url = (row.get("document") or "").strip()
+		if document_url:
+			from healthcare.api.common import ensure_file_url_public
+			document_url = ensure_file_url_public(document_url)
 		if not file_name and not document_type and not document_url:
 			continue
 		doc.append(

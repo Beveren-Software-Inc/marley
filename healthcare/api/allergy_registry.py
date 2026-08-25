@@ -172,6 +172,10 @@ def get_patient_allergies(patient: str) -> dict:
 			entries.append(_entry("Warning Message", body, row.posting_date))
 
 	no_known = False
+	if frappe.db.has_column("Warning Message", "no_allergy"):
+		if frappe.db.exists("Warning Message", {"patient": patient, "no_allergy": 1}):
+			no_known = True
+
 	for row in frappe.get_all(
 		"Patient Medical History",
 		filters={"patient": patient},

@@ -213,7 +213,9 @@ export async function fetchInpatientRecords(
   excludeCancelled?: boolean,
   costCenter?: string,
   /** When set with status=Admitted: true = draft discharge only; false = exclude draft discharge. */
-  dischargeInProgress?: boolean
+  dischargeInProgress?: boolean,
+  /** With a patient in scope, also return that patient's Discharged admissions. */
+  includePatientDischarged?: boolean
 ): Promise<InpatientRecordsPaginatedResponse> {
   const params = new URLSearchParams()
   if (status) params.append('status', status)
@@ -227,6 +229,7 @@ export async function fetchInpatientRecords(
   if (dischargeInProgress !== undefined) {
     params.append('discharge_in_progress', dischargeInProgress ? '1' : '0')
   }
+  if (includePatientDischarged) params.append('include_patient_discharged', '1')
   if (limit !== undefined) params.append('limit', limit.toString())
   if (offset !== undefined) params.append('offset', offset.toString())
 

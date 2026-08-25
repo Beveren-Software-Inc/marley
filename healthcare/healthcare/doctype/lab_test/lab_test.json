@@ -61,8 +61,10 @@
   "gender",
   "c_b",
   "service_unit",
-  "practitioner",
+	"practitioner",
   "practitioner_name",
+  "assigned_healthcare_practioner",
+  "assigned_practitioner_name",
   "requesting_department",
   "employee",
   "employee_name",
@@ -611,6 +613,20 @@
    "fieldname": "practitioner_name",
    "fieldtype": "Data",
    "label": "Requesting Practitioner Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "assigned_healthcare_practioner",
+   "fieldtype": "Link",
+   "label": "Assigned Healthcare Practioner",
+   "options": "Healthcare Practitioner",
+   "ignore_user_permissions": 1
+  },
+  {
+   "fetch_from": "assigned_healthcare_practioner.practitioner_name",
+   "fieldname": "assigned_practitioner_name",
+   "fieldtype": "Data",
+   "label": "Assigned Practitioner Name",
    "read_only": 1
   },
   {

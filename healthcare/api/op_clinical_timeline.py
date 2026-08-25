@@ -110,6 +110,7 @@ def _serialize_prescription(order: dict) -> dict:
 				"drug": e.get("drug"),
 				"drug_name": e.get("drug_name") or e.get("drug"),
 				"dosage": e.get("dosage") or e.get("dose"),
+				"uom": e.get("uom"),
 				"frequency": e.get("patient_frequency") or e.get("written_frequency") or e.get("frequency"),
 				"instructions": e.get("instructions") or e.get("comment"),
 				"status": e.get("status"),

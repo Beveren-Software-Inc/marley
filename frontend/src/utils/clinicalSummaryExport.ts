@@ -6,6 +6,7 @@ import { fetchPatientVisitsFull } from '../services/patientVisits'
 import { fetchPrescriptions } from '../services/prescriptions'
 import { htmlToPlainText } from './htmlToPlainText'
 import { toast } from '../hooks/useToast'
+import { formatDoseAndUom } from './medicationOrderDisplayUtils'
 
 export type ClinicalSummaryExportMode = 'pdf' | 'excel'
 
@@ -218,7 +219,12 @@ export function buildIpClinicalSummaryHtml(
             const meds = (rx.medications || [])
               .map((med) => {
                 const drug = med.display_drug_name || med.drug_name || 'Medication'
-                const dose = [med.display_dosage || med.dosage, med.frequency].filter(Boolean).join(' · ')
+                const dose = [
+                  formatDoseAndUom(med.display_dosage || med.dosage, med.uom),
+                  med.frequency,
+                ]
+                  .filter((v) => v && v !== '-')
+                  .join(' · ')
                 return `<li><strong>${esc(drug)}</strong>${dose ? ` — ${esc(dose)}` : ''}${
                   med.instructions ? `<div class="muted">${esc(med.instructions)}</div>` : ''
                 }</li>`
@@ -483,6 +489,7 @@ export function buildOpClinicalSummaryHtmlFromTimeline(timeline: {
         drug_name?: string
         drug?: string
         dosage?: string
+        uom?: string
         frequency?: string
         instructions?: string
       }>
@@ -531,7 +538,9 @@ export function buildOpClinicalSummaryHtmlFromTimeline(timeline: {
         const meds = (rx.medications || [])
           .map((med) => {
             const drug = med.drug_name || med.drug || 'Medication'
-            const dose = [med.dosage, med.frequency].filter(Boolean).join(' · ')
+            const dose = [formatDoseAndUom(med.dosage, med.uom), med.frequency]
+              .filter((v) => v && v !== '-')
+              .join(' · ')
             return `<li><strong>${esc(drug)}</strong>${dose ? ` — ${esc(dose)}` : ''}${
               med.instructions ? `<div class="muted">${esc(plain(med.instructions))}</div>` : ''
             }</li>`

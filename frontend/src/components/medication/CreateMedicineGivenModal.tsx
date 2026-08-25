@@ -574,6 +574,9 @@ export const CreateMedicineGivenModal = ({
         dose,
         date,
         time,
+        route_of_administration: selected?.route_of_administration || undefined,
+        order_entry: selected?.name || undefined,
+        medication_order: selected?.parent || undefined,
       })
         .then((preview) => {
           if (!cancelled) {

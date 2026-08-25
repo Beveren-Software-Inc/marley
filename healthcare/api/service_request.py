@@ -1527,6 +1527,10 @@ def create_service_request(data):
 
 	if not data.get("practitioner"):
 		frappe.throw(_("Please select a practitioner for this service request."))
+
+	from healthcare.api.common import require_op_lab_assigned_consultant
+
+	require_op_lab_assigned_consultant(data)
 	
 	# Get naming series
 	naming_series = frappe.db.get_value('Service Request', {'naming_series': 'HSR-'}, 'naming_series')
@@ -1581,6 +1585,7 @@ def create_service_request(data):
 		'template_dn': data.get('template_dn'),
 		'lab_request_items': frappe.as_json(lab_request_items) if lab_request_items else None,
 		'practitioner': data.get('practitioner'),
+		'assigned_healthcare_practioner': data.get('assigned_healthcare_practioner'),
 		'order_date': data.get('order_date') or frappe.utils.today(),
 		'order_time': data.get('order_time') or frappe.utils.nowtime(),
 		'medical_department': data.get('department'),
@@ -1715,6 +1720,11 @@ def get_service_request(name):
 		else:
 			data["template_name"] = doc.template_dn
 	data["practitioner_name"] = _practitioner_display_name(doc.practitioner)
+	assigned = doc.get("assigned_healthcare_practioner")
+	data["assigned_healthcare_practioner"] = assigned
+	data["assigned_practitioner_name"] = (
+		_practitioner_display_name(assigned) if assigned else None
+	)
 	return data
 
 

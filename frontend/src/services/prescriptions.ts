@@ -852,10 +852,11 @@ export async function fetchAfterDischargePrescriptions(
 export async function updateMedicationOrderEntry(
   patientMedicationOrder: string,
   orderEntryName: string,
-  updates: Record<string, unknown>
-): Promise<{ ok: boolean }> {
+  updates: Record<string, unknown>,
+  reason?: string,
+): Promise<{ ok: boolean; amended?: boolean; discontinued_entry?: string }> {
   const { apiRequest } = await import('./apiClient')
-  return apiRequest<{ ok: boolean }>(
+  return apiRequest<{ ok: boolean; amended?: boolean; discontinued_entry?: string }>(
     '/api/method/healthcare.api.patient_medication_order.update_medication_order_entry',
     {
       method: 'POST',
@@ -863,6 +864,7 @@ export async function updateMedicationOrderEntry(
         patient_medication_order: patientMedicationOrder,
         order_entry_name: orderEntryName,
         updates: JSON.stringify(updates),
+        reason: reason || undefined,
       }),
     }
   )
@@ -1024,6 +1026,7 @@ export async function previewPrescriptionDoseValidation(args: {
   patient_encounter?: string
   inpatient_record?: string
   patient_weight?: number | string
+  route_of_administration?: string
 }): Promise<PrescriptionDoseValidationPreview> {
   const { apiRequest } = await import('./apiClient')
   return apiRequest<PrescriptionDoseValidationPreview>(

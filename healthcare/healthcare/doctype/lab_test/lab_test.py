@@ -50,8 +50,22 @@ class LabTest(Document):
 
 	def validate(self):
 		sync_inpatient_admission_fields(self)
+		self._copy_assigned_practitioner_from_service_request()
 		if self.template and not self.get("sample_instances"):
 			populate_sample_instances_from_template(self)
+
+	def _copy_assigned_practitioner_from_service_request(self):
+		if self.get("assigned_healthcare_practioner") or not self.get("service_request"):
+			return
+		if not self.meta.has_field("assigned_healthcare_practioner"):
+			return
+		if not frappe.db.exists("Service Request", self.service_request):
+			return
+		assigned = frappe.db.get_value(
+			"Service Request", self.service_request, "assigned_healthcare_practioner"
+		)
+		if assigned:
+			self.assigned_healthcare_practioner = assigned
 		# if not self.is_new():
 		# 	self.set_secondary_uom_result()
 

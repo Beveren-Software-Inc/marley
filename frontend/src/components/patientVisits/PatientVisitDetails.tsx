@@ -34,9 +34,10 @@ import {
   type MedicalDiagnosisEntryAggRow,
 } from '../../services/medicalDiagnosisEntry'
 import {
-  displayMedicationDosage,
+  displayMedicationDosageWithUom,
   displayMedicationDrugName,
   displayMedicationFrequency,
+  displayMedicationRoute,
 } from '../../utils/medicationOrderDisplayUtils'
 import { PatientDocumentAttachmentPreview } from '../ui/PatientDocumentAttachmentPreview'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
@@ -789,13 +790,12 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
                         <p className="font-medium text-slate-900">
                           {displayMedicationDrugName(med) || med.drug_name || 'Medication'}
                         </p>
-                        <p className="mt-0.5 text-xs text-slate-600">
+                        <p className="mt-0.5 text-[11px] leading-snug text-slate-500">
                           {[
-                            displayMedicationDosage(med),
-                            displayMedicationFrequency(med),
-                          ]
-                            .filter((v) => v && v !== '-')
-                            .join(' · ')}
+                            `Dosage ${displayMedicationDosageWithUom(med)}`,
+                            `Freq ${displayMedicationFrequency(med)}`,
+                            `Route ${displayMedicationRoute(med)}`,
+                          ].join(' · ')}
                         </p>
                       </li>
                     ))}

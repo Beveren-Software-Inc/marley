@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BookOpen,
   Building2,
+  CalendarDays,
   ClipboardList,
   FileSpreadsheet,
   FileText,
@@ -26,6 +27,8 @@ import {
   type ClinicalSummaryExportMode,
 } from '../../utils/clinicalSummaryExport'
 import { toast } from '../../hooks/useToast'
+import { formatDoseAndUom } from '../../utils/medicationOrderDisplayUtils'
+import { IpClinicalDayModal } from './IpClinicalDayModal'
 
 interface LastAdmissionClinicalTabProps {
   patient: string
@@ -117,6 +120,7 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
   const [error, setError] = useState<string | null>(null)
   const [selectedAdmission, setSelectedAdmission] = useState<string>('')
   const [exporting, setExporting] = useState(false)
+  const [showDayView, setShowDayView] = useState(false)
 
   useEffect(() => {
     setSelectedAdmission('')
@@ -232,6 +236,15 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <button
+            type="button"
+            onClick={() => setShowDayView(true)}
+            className="inline-flex items-center gap-1.5 rounded-md border border-emerald-300 bg-white px-3 py-1.5 text-xs font-medium text-emerald-900 hover:bg-emerald-50"
+            title="View this admission one day at a time"
+          >
+            <CalendarDays className="h-3.5 w-3.5" />
+            View by day
+          </button>
           {bundle.admission_options.length > 1 ? (
             <select
               value={selectedAdmission || bundle.admission}
@@ -463,10 +476,18 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
                           <span className="font-medium">
                             {med.display_drug_name || med.drug_name || 'Medication'}
                           </span>
-                          {[med.display_dosage || med.dosage, med.frequency].filter(Boolean).length > 0 ? (
+                          {[
+                            formatDoseAndUom(med.display_dosage || med.dosage, med.uom),
+                            med.frequency,
+                          ].filter((v) => v && v !== '-').length > 0 ? (
                             <span className="text-slate-600">
                               {' '}
-                              — {[med.display_dosage || med.dosage, med.frequency].filter(Boolean).join(' · ')}
+                              — {[
+                                formatDoseAndUom(med.display_dosage || med.dosage, med.uom),
+                                med.frequency,
+                              ]
+                                .filter((v) => v && v !== '-')
+                                .join(' · ')}
                             </span>
                           ) : null}
                           {med.instructions ? (
@@ -616,6 +637,8 @@ export function LastAdmissionClinicalTab({ patient }: LastAdmissionClinicalTabPr
           </div>
         </Section>
       </div>
+
+      {showDayView ? <IpClinicalDayModal bundle={bundle} onClose={() => setShowDayView(false)} /> : null}
 
       {loading ? <p className="text-center text-xs text-slate-400">Refreshing…</p> : null}
     </div>

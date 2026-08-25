@@ -259,10 +259,23 @@ def _allergy_patients(patients: list[str], admission_by_patient: dict[str, str])
 			checked_patients.update(r[0] for r in rows if r and r[0])
 
 	if _doctype_exists("Warning Message") and frappe.db.has_column("Warning Message", "is_allergy"):
+		allergy_conds = ["IFNULL(is_allergy, 0) = 1"]
+		if frappe.db.has_column("Warning Message", "no_allergy"):
+			allergy_conds.append("IFNULL(no_allergy, 0) = 1")
 		rows = frappe.db.sql(
 			f"""
 			SELECT DISTINCT patient FROM `tabWarning Message`
-			WHERE patient IN ({placeholders}) AND IFNULL(is_allergy, 0) = 1
+			WHERE patient IN ({placeholders}) AND ({" OR ".join(allergy_conds)})
+			""",
+			tuple(patients),
+			as_list=True,
+		)
+		checked_patients.update(r[0] for r in rows if r and r[0])
+	elif _doctype_exists("Warning Message") and frappe.db.has_column("Warning Message", "no_allergy"):
+		rows = frappe.db.sql(
+			f"""
+			SELECT DISTINCT patient FROM `tabWarning Message`
+			WHERE patient IN ({placeholders}) AND IFNULL(no_allergy, 0) = 1
 			""",
 			tuple(patients),
 			as_list=True,
