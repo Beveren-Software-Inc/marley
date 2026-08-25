@@ -171,6 +171,10 @@ export const doctorScreenGroups: ScreenGroup[] = [
     groupTitle: '',
     screens: [{ id: 'd-ip-warnings', title: 'Current IP Warnings & Allergies' }],
   },
+  {
+    groupTitle: '',
+    screens: [{ id: 'd-pending-lab-review', title: 'Pending Lab Review' }],
+  },
 ]
 
 // Psychologists run the standard assessments — shown in their sidebar, not the doctor's.

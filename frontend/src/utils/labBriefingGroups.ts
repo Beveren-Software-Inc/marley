@@ -67,11 +67,29 @@ export function labBriefingDisplayRows<T extends NurseBriefingLabTest>(
   return rows
 }
 
-export function labBriefingChildPreview(tests: NurseBriefingLabTest[]): string {
+export function labBriefingPatientGroups<T extends NurseBriefingLabTest>(
+  labTests: T[]
+): { patient: string; patientName: string; isIp: boolean; tests: T[] }[] {
+  const byPatient = new Map<string, T[]>()
+  for (const test of labTests) {
+    const key = test.patient || test.name
+    const arr = byPatient.get(key) || []
+    arr.push(test)
+    byPatient.set(key, arr)
+  }
+  return [...byPatient.entries()].map(([patient, tests]) => ({
+    patient,
+    patientName: tests[0]?.patient_name || patient,
+    isIp: tests.some((t) => Boolean(t.inpatient_record)),
+    tests,
+  }))
+}
+
+export function labBriefingChildPreview(tests: NurseBriefingLabTest[], max = 3): string {
   const names = tests
     .map((t) => labBriefingTestLabel(t))
     .filter((name) => name && name !== 'Lab test')
   if (!names.length) return ''
-  const shown = names.slice(0, 3).join(', ')
-  return names.length > 3 ? `${shown} +${names.length - 3}` : shown
+  const shown = names.slice(0, max).join(', ')
+  return names.length > max ? `${shown} +${names.length - max}` : shown
 }

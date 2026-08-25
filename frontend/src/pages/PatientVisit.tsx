@@ -12,7 +12,7 @@ interface PatientVisitPageProps {
 }
 
 export const PatientVisitPage = ({ initialPatient }: PatientVisitPageProps = {}) => {
-  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, guardClinicalCreate } = useCareContext()
+  const { selectedPatient: globalPatient, setSelectedPatient: setGlobalPatient, guardClinicalCreate, userRole, allowDoctorsToCreatePatientVisit } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const searchFromUrl = searchParams.get('search')
   const patientFromUrl = searchParams.get('patient') || initialPatient || ''

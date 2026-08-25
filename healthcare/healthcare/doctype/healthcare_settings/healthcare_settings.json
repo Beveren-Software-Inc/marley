@@ -49,6 +49,7 @@
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
   "apply_multiplier_on_insurance",
+  "allow_doctors_to_create_patient_visit",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -1014,7 +1015,7 @@
    "label": "IP Mapper",
    "options": "IP Cost Center Mapper"
   },
-	{
+  {
    "default": "0",
    "description": "When enabled, saving a discharge draft after the first checklist item is ticked creates Sales Order and Delivery Note for unbilled Given Medicine (batch/serial auto-picked from the nurse warehouse).",
    "fieldname": "create_pending_given_medicine_on_discharge",
@@ -1027,12 +1028,18 @@
    "fieldname": "create_pending_room_charges_on_discharge",
    "fieldtype": "Check",
    "label": "Create Pending Room Charges on Discharge"
+  },
+  {
+   "default": "0",
+   "fieldname": "allow_doctors_to_create_patient_visit",
+   "fieldtype": "Check",
+   "label": "Allow Doctors To Create Patient Visit"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-16 11:55:00.000000",
- "modified_by": "Administrator",
+ "modified": "2026-08-25 17:27:37.517369",
+ "modified_by": "mania@beverensoftware.com",
  "module": "Healthcare",
  "name": "Healthcare Settings",
  "owner": "Administrator",

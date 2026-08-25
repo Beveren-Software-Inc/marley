@@ -29,6 +29,7 @@ type DoctorBriefingContextValue = {
   briefingActive: boolean
   step: DoctorBriefingStep | null
   openAdmissionsBriefing: () => void
+  openLabReviewBriefing: () => void
 }
 
 const DoctorBriefingContext = createContext<DoctorBriefingContextValue | null>(null)
@@ -78,6 +79,7 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   const [briefing, setBriefing] = useState<DoctorShiftBriefing>(EMPTY_BRIEFING)
   const [loading, setLoading] = useState(false)
   const [admissionsOnly, setAdmissionsOnly] = useState(false)
+  const [labsOnly, setLabsOnly] = useState(false)
   const completedForLandingRef = useRef(wasShiftBriefingShown('doctor'))
   const lastRouteRef = useRef(location.pathname)
   const loadedSectionsRef = useRef({ admissions: false, lab_tests: false })
@@ -100,6 +102,7 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   const clearBriefingUi = useCallback(() => {
     setStep(null)
     setAdmissionsOnly(false)
+    setLabsOnly(false)
     setBriefing(EMPTY_BRIEFING)
     setLoading(false)
     loadedSectionsRef.current = { admissions: false, lab_tests: false }
@@ -116,10 +119,10 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   }, [location.pathname, onDoctorRoute, clearBriefingUi])
 
   useEffect(() => {
-    if (careSelected && !admissionsOnly) {
+    if (careSelected && !admissionsOnly && !labsOnly) {
       clearBriefingUi()
     }
-  }, [careSelected, admissionsOnly, clearBriefingUi])
+  }, [careSelected, admissionsOnly, labsOnly, clearBriefingUi])
 
   const loadSection = useCallback(
     async (section: DoctorBriefingStep) => {
@@ -157,6 +160,7 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
   )
 
   const openAdmissionsBriefing = useCallback(() => {
+    setLabsOnly(false)
     setAdmissionsOnly(true)
     loadedSectionsRef.current.admissions = false
     setStep('admissions')
@@ -179,6 +183,29 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
     })()
   }, [])
 
+  const openLabReviewBriefing = useCallback(() => {
+    setAdmissionsOnly(false)
+    setLabsOnly(true)
+    loadedSectionsRef.current.lab_tests = false
+    setStep('lab_tests')
+    setLoading(true)
+    void (async () => {
+      try {
+        const data = await fetchDoctorBriefingLabTests(userCostCenter)
+        loadedSectionsRef.current.lab_tests = true
+        setBriefing((prev) => ({
+          ...prev,
+          pending_review_lab_tests: data.pending_review_lab_tests,
+        }))
+      } catch (err) {
+        console.error('Failed to load pending lab review:', err)
+        loadedSectionsRef.current.lab_tests = true
+      } finally {
+        setLoading(false)
+      }
+    })()
+  }, [userCostCenter])
+
   useEffect(() => {
     if (!shouldOfferBriefing || step) return
     markShiftBriefingShown('doctor')
@@ -196,17 +223,22 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
         setAdmissionsOnly(false)
         return null
       }
+      if (labsOnly) {
+        setLabsOnly(false)
+        return null
+      }
       if (current === 'admissions') return 'lab_tests'
       markShiftBriefingShown('doctor')
       completedForLandingRef.current = true
       return null
     })
-  }, [admissionsOnly])
+  }, [admissionsOnly, labsOnly])
 
   const finishBriefing = useCallback(() => {
     markShiftBriefingShown('doctor')
     completedForLandingRef.current = true
     setAdmissionsOnly(false)
+    setLabsOnly(false)
     setStep(null)
   }, [])
 
@@ -264,8 +296,9 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
       briefingActive: Boolean(step),
       step,
       openAdmissionsBriefing,
+      openLabReviewBriefing,
     }),
-    [step, openAdmissionsBriefing],
+    [step, openAdmissionsBriefing, openLabReviewBriefing],
   )
 
   return (
@@ -280,6 +313,7 @@ export function DoctorBriefingProvider({ children }: { children: ReactNode }) {
           onAdmissionSelect={handleAdmissionSelect}
           onLabTestSelect={handleLabTestSelect}
           admissionsOnly={admissionsOnly}
+          labsOnly={labsOnly}
         />
       ) : null}
     </DoctorBriefingContext.Provider>

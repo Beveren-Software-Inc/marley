@@ -136,12 +136,13 @@ export async function fetchAnaesthesiaTypes(search?: string): Promise<LinkFieldO
 export async function fetchHealthcarePractitioners(
   search?: string,
   department?: string,
-  opts?: { appointmentOnly?: boolean },
+  opts?: { appointmentOnly?: boolean; consultantsOnly?: boolean },
 ): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (search) params.append('search', search)
   if (department) params.append('department', department)
   if (opts?.appointmentOnly) params.append('appointment_only', '1')
+  if (opts?.consultantsOnly) params.append('consultants_only', '1')
 
   const url = `/api/method/healthcare.api.common.get_healthcare_practitioners${params.toString() ? `?${params.toString()}` : ''}`
 
@@ -160,6 +161,27 @@ export async function fetchAppointmentPractitioners(
   department?: string,
 ): Promise<LinkFieldOption[]> {
   return fetchHealthcarePractitioners(search, department, { appointmentOnly: true })
+}
+
+export async function fetchPractitionerLabReviewFlags(practitioner: string): Promise<{
+  gp_doctor: boolean
+  consultants: boolean
+  medical_role?: string | null
+}> {
+  const params = new URLSearchParams({ practitioner })
+  const response = await fetch(
+    `/api/method/healthcare.api.common.get_practitioner_lab_review_flags?${params.toString()}`,
+  )
+  const resData = await response.json()
+  const msg = resData?.message
+  if (msg && typeof msg === 'object') {
+    return {
+      gp_doctor: Boolean(msg.gp_doctor),
+      consultants: Boolean(msg.consultants),
+      medical_role: msg.medical_role,
+    }
+  }
+  return { gp_doctor: false, consultants: false }
 }
 
 /** Discharge form: practitioners with Medical Role Nurse or parent Medical Role Nurse. */

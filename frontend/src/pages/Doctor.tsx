@@ -140,6 +140,7 @@ export const DoctorPage = () => {
     setSelectedPatient: setGlobalPatient,
     costCenterCareScope,
     guardClinicalCreate,
+    allowDoctorsToCreatePatientVisit,
     setMode,
     setActiveVisit,
     setActiveAdmission,
@@ -216,6 +217,19 @@ export const DoctorPage = () => {
   useEffect(() => {
     if (rawScreen !== 'd-ip-warnings') return
     doctorBriefing?.openAdmissionsBriefing()
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        next.delete('screen')
+        return next
+      },
+      { replace: true },
+    )
+  }, [rawScreen, doctorBriefing, setSearchParams])
+
+  useEffect(() => {
+    if (rawScreen !== 'd-pending-lab-review') return
+    doctorBriefing?.openLabReviewBriefing()
     setSearchParams(
       (prev) => {
         const next = new URLSearchParams(prev)
@@ -646,17 +660,19 @@ export const DoctorPage = () => {
   // Show Patient Progress Note
   if (screen === 'dpn') {
     return (
-      <div className="flex flex-col">
+      <div className="flex flex-col h-[calc(100dvh-2.25rem)] max-h-[calc(100dvh-2.25rem)] overflow-hidden">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
-        <div className="p-4">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-4">
           <DashboardCard 
             title="Patient Progress Notes" 
+            noHeightLimit
             onAdd={() => guardClinicalCreate(() => setShowDoctorProgressNoteModal(true))}
             addButtonTitle="Add Patient Progress Note"
           >
             <ClinicalNotesList 
               patient={selectedPatient} 
               clinicalNoteType="Doctor Progress Note"
+              defaultPageSize={500}
               key={clinicalNotesRefreshKey}
               onPatientClick={handlePatientSelect}
             />
@@ -1988,7 +2004,11 @@ export const DoctorPage = () => {
         <div className="p-4">
           <DashboardCard 
             title="Patients" 
-            onAdd={() => guardClinicalCreate(() => setShowCreatePatientModal(true))}
+            onAdd={
+              allowDoctorsToCreatePatientVisit
+                ? () => guardClinicalCreate(() => setShowCreatePatientModal(true))
+                : undefined
+            }
             addButtonTitle="Create new patient"
           >
             <PatientList refreshKey={patientRefreshKey} />

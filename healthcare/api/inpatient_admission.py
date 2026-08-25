@@ -104,6 +104,7 @@ def get_inpatient_records(
 	exclude_cancelled=None,
 	cost_center=None,
 	discharge_in_progress=None,
+	include_patient_discharged=None,
 	limit=20,
 	offset=0,
 ):
@@ -115,6 +116,8 @@ def get_inpatient_records(
 	discharge_in_progress (optional, UI grouping only — does not change stored status):
 	  1 → only admissions with a draft Discharge
 	  0 → exclude admissions that have a draft Discharge
+	include_patient_discharged: when a patient is in scope, also return that patient's
+	Discharged admissions even if status/date/doctor filters would hide them.
 	Returns { data: [...], total_count: N }
 	"""
 	from healthcare.api.common import get_permitted_cost_centers
@@ -124,6 +127,9 @@ def get_inpatient_records(
 	exclude_cancelled = cint(exclude_cancelled)
 	# None = no filter; "0"/"1" (or 0/1) = exclude / only draft-discharge admissions
 	dip_filter = None if discharge_in_progress in (None, "") else cint(discharge_in_progress)
+	include_patient_discharged = cint(include_patient_discharged) and bool(patient)
+	if include_patient_discharged and (status or "").strip() in ("Discharged", "Cancelled"):
+		include_patient_discharged = 0
 
 	# Use SQL path when we have search, practitioner, date, status, or exclude_cancelled filters
 	use_sql = bool(
@@ -135,13 +141,16 @@ def get_inpatient_records(
 		or exclude_cancelled
 		or cost_center
 		or dip_filter is not None
+		or include_patient_discharged
 	)
 
 	if use_sql:
 		conditions = ["1=1"]
+		history_conditions = ["ia.status = 'Discharged'"]
 		params = {}
 		if patient:
 			conditions.append("ia.patient = %(patient)s")
+			history_conditions.append("ia.patient = %(patient)s")
 			params['patient'] = patient
 		if status:
 			conditions.append("ia.status = %(status)s")
@@ -150,6 +159,7 @@ def get_inpatient_records(
 			conditions.append("ia.status != 'Cancelled'")
 		if search:
 			conditions.append("(ia.name LIKE %(search)s OR ia.patient_name LIKE %(search)s OR ia.patient LIKE %(search)s OR p.file_no LIKE %(search)s)")
+			history_conditions.append("(ia.name LIKE %(search)s OR ia.patient_name LIKE %(search)s OR ia.patient LIKE %(search)s OR p.file_no LIKE %(search)s)")
 			params['search'] = f'%{search}%'
 		if practitioner:
 			# The list's doctor filter targets the Admission By Doctor field (matches the table column).
@@ -163,6 +173,7 @@ def get_inpatient_records(
 			params['to_date'] = to_date
 		if cost_center:
 			conditions.append("ia.cost_center = %(cost_center_filter)s")
+			history_conditions.append("ia.cost_center = %(cost_center_filter)s")
 			params['cost_center_filter'] = cost_center
 		if dip_filter == 1:
 			conditions.append(
@@ -178,11 +189,15 @@ def get_inpatient_records(
 			if not permitted_cc:
 				return {"data": [], "total_count": 0}
 			placeholders = ", ".join(f"%(cc_{i})s" for i in range(len(permitted_cc)))
-			conditions.append(f"ia.cost_center IN ({placeholders})")
+			cc_sql = f"ia.cost_center IN ({placeholders})"
+			conditions.append(cc_sql)
+			history_conditions.append(cc_sql)
 			for i, cc in enumerate(permitted_cc):
 				params[f"cc_{i}"] = cc
 
 		where_sql = " AND ".join(conditions)
+		if include_patient_discharged:
+			where_sql = f"({where_sql}) OR ({' AND '.join(history_conditions)})"
 
 		count_result = frappe.db.sql("""
 			SELECT COUNT(*) as cnt

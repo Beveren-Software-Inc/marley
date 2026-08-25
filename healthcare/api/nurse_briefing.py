@@ -50,6 +50,8 @@ _LAB_TEST_BRIEFING_FIELDS = [
 	"date",
 	"practitioner",
 	"practitioner_name",
+	"assigned_healthcare_practioner",
+	"assigned_practitioner_name",
 	"inpatient_record",
 	"department",
 	"creation",

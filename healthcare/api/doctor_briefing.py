@@ -6,6 +6,7 @@ from __future__ import annotations
 import frappe
 from frappe import _
 
+from healthcare.api.common import filter_pending_review_labs_for_session
 from healthcare.api.nurse_briefing import (
 	_LAB_TEST_BRIEFING_FIELDS,
 	_active_admissions,
@@ -54,7 +55,7 @@ def _pending_review_lab_tests(cost_center: str | None) -> list[dict]:
 		limit_page_length=150,
 	)
 	_attach_lab_test_group_names(rows)
-	return rows
+	return filter_pending_review_labs_for_session(rows)
 
 
 @frappe.whitelist()

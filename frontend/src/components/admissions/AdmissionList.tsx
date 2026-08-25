@@ -311,7 +311,8 @@ export const AdmissionList = ({
     pageSize,
     (page - 1) * pageSize,
     excludeCancelled,
-    userCostCenter || undefined
+    userCostCenter || undefined,
+    Boolean(effectivePatient)
   )
 
   const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({

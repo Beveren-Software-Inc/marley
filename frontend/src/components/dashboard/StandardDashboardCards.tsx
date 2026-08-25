@@ -10,6 +10,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 import type { PatientVisitListRow } from '../../services/patientVisits'
 import type { InpatientRecord } from '../../services/inpatientRecords'
+import { isDoctorRole } from '../../config/permissions'
 
 /**
  * Standardised dashboard cards — Appointments, Patient Visits and
@@ -98,6 +99,8 @@ export function OutpatientVisitsCard({
 }) {
   const [showCreate, setShowCreate] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
+  const { userRole, allowDoctorsToCreatePatientVisit } = useCareContext()
+  const showCreateButton = !isDoctorRole(userRole) || allowDoctorsToCreatePatientVisit
 
   return (
     <>
@@ -105,7 +108,7 @@ export function OutpatientVisitsCard({
         fixedHeight={!fullScreen}
         noHeightLimit={fullScreen}
         title="Patient Visits"
-        onAdd={() => setShowCreate(true)}
+        onAdd={showCreateButton ? () => setShowCreate(true) : undefined}
         addButtonTitle="Create Patient Visit"
         listingScreen={listingScreen}
         allowCreateOnClosedEpisode

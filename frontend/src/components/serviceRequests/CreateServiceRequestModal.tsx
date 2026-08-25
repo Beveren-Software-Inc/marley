@@ -6,6 +6,7 @@ import {
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
   fetchPatientVisits,
+  fetchPractitionerLabReviewFlags,
   fetchServiceRequestTemplateTypes,
   fetchServiceRequestTemplates,
   getCurrentUserPractitioner,
@@ -130,6 +131,14 @@ export const CreateServiceRequestModal = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerSearchQuery, setPractitionerSearchQuery] = useState('')
   const [practitionerDropdownOpen, setPractitionerDropdownOpen] = useState(false)
+  const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
+  const [consultantSearchQuery, setConsultantSearchQuery] = useState('')
+  const [consultantDropdownOpen, setConsultantDropdownOpen] = useState(false)
+  const [ordererFlags, setOrdererFlags] = useState<{
+    gp_doctor: boolean
+    consultants: boolean
+    loaded: boolean
+  }>({ gp_doctor: false, consultants: false, loaded: false })
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterSearchQuery, setCostCenterSearchQuery] = useState('')
   const [costCenterDropdownOpen, setCostCenterDropdownOpen] = useState(false)
@@ -163,6 +172,7 @@ export const CreateServiceRequestModal = ({
     template_dt: '',
     template_dn: '',
     practitioner: '',
+    assigned_healthcare_practioner: '',
     patient_visit:
       mode === 'OP' ? (initialPatientVisit || activeVisit || '') : '',
     inpatient_record:
@@ -379,6 +389,62 @@ export const CreateServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [practitionerDropdownOpen, practitionerSearchQuery])
 
+  useEffect(() => {
+    if (!form.practitioner) {
+      setOrdererFlags({ gp_doctor: false, consultants: false, loaded: false })
+      return
+    }
+    let cancelled = false
+    fetchPractitionerLabReviewFlags(form.practitioner)
+      .then((flags) => {
+        if (!cancelled) {
+          setOrdererFlags({
+            gp_doctor: flags.gp_doctor,
+            consultants: flags.consultants,
+            loaded: true,
+          })
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setOrdererFlags({ gp_doctor: false, consultants: false, loaded: true })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [form.practitioner])
+
+  const needsAssignedConsultant =
+    isLabRequest &&
+    mode === 'OP' &&
+    ordererFlags.loaded &&
+    !ordererFlags.gp_doctor &&
+    !ordererFlags.consultants
+
+  useEffect(() => {
+    if (!needsAssignedConsultant) {
+      setForm((prev) =>
+        prev.assigned_healthcare_practioner
+          ? { ...prev, assigned_healthcare_practioner: '' }
+          : prev,
+      )
+      setConsultantSearchQuery('')
+    }
+  }, [needsAssignedConsultant])
+
+  useEffect(() => {
+    if (!consultantDropdownOpen || !needsAssignedConsultant) return
+    const run = () => {
+      fetchHealthcarePractitioners(consultantSearchQuery.trim() || undefined, undefined, {
+        consultantsOnly: true,
+      })
+        .then(setConsultantOptions)
+        .catch(() => setConsultantOptions([]))
+    }
+    const delay = consultantSearchQuery.trim() ? 280 : 0
+    const t = setTimeout(run, delay)
+    return () => clearTimeout(t)
+  }, [consultantDropdownOpen, consultantSearchQuery, needsAssignedConsultant])
+
   // Auto-fill current user's practitioner and display label
   useEffect(() => {
     getCurrentUserPractitioner().then((pract) => {
@@ -589,6 +655,10 @@ export const CreateServiceRequestModal = ({
       setError(isLabRequest ? 'Please select a branch for this lab request.' : 'Please select a branch for this service request.')
       return
     }
+    if (needsAssignedConsultant && !form.assigned_healthcare_practioner?.trim()) {
+      setError('Assign a consultant for this outpatient lab request.')
+      return
+    }
     if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
       setError('Select at least one child template for grouped lab tests.')
       return
@@ -610,6 +680,7 @@ export const CreateServiceRequestModal = ({
           template_dn: primaryDn,
           lab_request_items: basketWithDiscounts,
           practitioner: form.practitioner || undefined,
+          assigned_healthcare_practioner: form.assigned_healthcare_practioner || undefined,
           patient_visit: form.patient_visit || undefined,
           inpatient_record: form.inpatient_record || undefined,
           patient_care_type: mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined,
@@ -642,6 +713,7 @@ export const CreateServiceRequestModal = ({
           template_dt: form.template_dt,
           template_dn: primaryDn,
           practitioner: form.practitioner || undefined,
+          assigned_healthcare_practioner: form.assigned_healthcare_practioner || undefined,
           patient_visit: form.patient_visit || undefined,
           inpatient_record: form.inpatient_record || undefined,
           patient_care_type: mode === 'OP' ? 'OP' : mode === 'IP' ? 'IP' : undefined,
@@ -774,6 +846,61 @@ export const CreateServiceRequestModal = ({
                       : 'Defaults to your linked practitioner; type to search and change.'}
                   </p>
                 </div>
+                {needsAssignedConsultant ? (
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Assigned to consultant
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        className={inputClass}
+                        value={consultantSearchQuery}
+                        onChange={(e) => {
+                          setConsultantSearchQuery(e.target.value)
+                          setForm((prev) => ({ ...prev, assigned_healthcare_practioner: '' }))
+                        }}
+                        onFocus={() => setConsultantDropdownOpen(true)}
+                        onBlur={() => setTimeout(() => setConsultantDropdownOpen(false), 180)}
+                        placeholder="Search consultant…"
+                      />
+                      {consultantDropdownOpen && (
+                        <div className={linkComboboxDropdownClass}>
+                          {consultantOptions.length === 0 ? (
+                            <p className="px-3 py-2 text-sm text-slate-500">
+                              No consultants match. Tick Consultants on Medical Role for the reviewer.
+                            </p>
+                          ) : (
+                            consultantOptions.map((item) => (
+                              <button
+                                key={item.name}
+                                type="button"
+                                className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => {
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    assigned_healthcare_practioner: item.name,
+                                  }))
+                                  setConsultantSearchQuery(item.label || item.name)
+                                  setConsultantDropdownOpen(false)
+                                }}
+                              >
+                                <span className="font-medium text-slate-900">{item.label || item.name}</span>
+                                {item.department ? (
+                                  <span className="mt-0.5 block text-xs text-slate-500">{item.department}</span>
+                                ) : null}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      Required for outpatient lab requests when the ordering practitioner is not a GP or consultant.
+                    </p>
+                  </div>
+                ) : null}
               </div>
             </div>
 

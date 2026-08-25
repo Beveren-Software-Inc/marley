@@ -39,6 +39,8 @@ export interface NurseBriefingLabTest {
   date?: string
   practitioner?: string
   practitioner_name?: string
+  assigned_healthcare_practioner?: string
+  assigned_practitioner_name?: string
   inpatient_record?: string
   department?: string
   creation?: string

@@ -464,6 +464,9 @@ def create_patient(data):
 	if isinstance(data, str):
 		import json
 		data = json.loads(data)
+	from healthcare.api.patient_visit import ensure_doctor_may_create_patient_or_visit
+
+	ensure_doctor_may_create_patient_or_visit()
 	_validate_patient_payload(data)
 
 	from healthcare.healthcare.doctype.patient.patient_duplicate import throw_if_duplicate_patient

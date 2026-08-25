@@ -6,6 +6,7 @@ import {
   FlaskConical,
   Stethoscope,
   User,
+  UserCheck,
   Wallet,
 } from 'lucide-react'
 import { fetchServiceRequest } from '../../services/serviceRequests'
@@ -213,6 +214,9 @@ export function ServiceRequestDetailPanel({
     (doc?.patient_name as string) || (doc?.patient as string) || '—'
   const practitionerLabel =
     ((doc?.practitioner_name as string) || '').trim() || '—'
+  const assignedLabel =
+    ((doc?.assigned_practitioner_name as string) || '').trim() ||
+    ((doc?.assigned_healthcare_practioner as string) || '').trim()
   const isLabRequest = doc?.template_dt === 'Lab Test Template'
   const templateNameOnly = ((doc?.template_name as string) || '').trim()
   const templateId = ((doc?.template_dn as string) || '').trim()
@@ -292,6 +296,13 @@ export function ServiceRequestDetailPanel({
               label={clinicianLabel}
               value={practitionerLabel}
             />
+            {isLabRequest || assignedLabel ? (
+              <InfoTile
+                icon={<UserCheck className="h-4 w-4" />}
+                label="Assigned to"
+                value={assignedLabel || '—'}
+              />
+            ) : null}
             <InfoTile
               icon={<FlaskConical className="h-4 w-4" />}
               label="Template"

@@ -17,6 +17,7 @@ import {
 import { toast } from '../../hooks/useToast'
 import { MoreHorizontal, Pencil } from 'lucide-react'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
 
 // Helper function to strip HTML tags and decode HTML entities
 const stripHtml = (html: string): string => {
@@ -38,6 +39,8 @@ interface ClinicalNotesListProps {
   addButtonTitle?: string
   /** Show ⋮ Edit for notes still within 24h of creation (therapy notes). */
   allowEditWithin24h?: boolean
+  /** Rows per page on first load. Patient Progress Notes listing uses 500. */
+  defaultPageSize?: PageSize
 }
 
 function clinicalNoteTypeDisplayLabel(clinicalNoteType?: string): string {
@@ -89,6 +92,7 @@ export const ClinicalNotesList = ({
   onAdd,
   addButtonTitle,
   allowEditWithin24h = false,
+  defaultPageSize = DEFAULT_PAGE_SIZE,
 }: ClinicalNotesListProps) => {
   const listTitle = resolveListTitle(clinicalNoteType, title)
   const resolvedAddTitle = addButtonTitle ?? `Add ${clinicalNoteType || 'Clinical Note'}`
@@ -104,7 +108,7 @@ export const ClinicalNotesList = ({
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const [listRefreshKey, setListRefreshKey] = useState(0)
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
+  const [pageSize, setPageSize] = useState<PageSize>(defaultPageSize)
   const [totalCount, setTotalCount] = useState(0)
 
   const cardFilters = useCardFilters()
@@ -131,16 +135,16 @@ export const ClinicalNotesList = ({
   const useDoctorProgressMineOnly =
     clinicalNoteType === 'Doctor Progress Note' && !patient && !hasRefContext
 
-  const mineOnlyRequest = !notePractitionerFilter && useDoctorProgressMineOnly
-
   const showAdvancedNoteFilters =
-    showFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
+    (showFilters && (Boolean(patient) || applyDefaultPractitionerFilter)) ||
+    useDoctorProgressMineOnly
   const showPractitionerPicker =
-    showAdvancedNoteFilters && (Boolean(patient) || applyDefaultPractitionerFilter)
+    showAdvancedNoteFilters && (Boolean(patient) || applyDefaultPractitionerFilter || useDoctorProgressMineOnly)
 
-  // All lists start unfiltered — no default practitioner filter (nurse-dept request).
+  // Other note lists stay unfiltered. Patient Progress Notes with no patient
+  // defaults the visible Doctor field to the logged-in practitioner so it can be cleared.
   useEffect(() => {
-    if (true) {
+    if (!useDoctorProgressMineOnly) {
       setPractitionerInitDone(true)
       return
     }
@@ -154,6 +158,7 @@ export const ClinicalNotesList = ({
           const options = await fetchHealthcarePractitioners()
           const match = options.find((p) => p.name === practId)
           setPractitionerQuery(match?.label || practId)
+          setPractitionerOptions(options)
         } catch {
           setPractitionerQuery(practId)
         }
@@ -163,7 +168,7 @@ export const ClinicalNotesList = ({
     return () => {
       cancelled = true
     }
-  }, [applyDefaultPractitionerFilter])
+  }, [useDoctorProgressMineOnly])
 
   useEffect(() => {
     if (!practitionerOpen || !showPractitionerPicker) return
@@ -210,7 +215,7 @@ export const ClinicalNotesList = ({
           referenceDoctype,
           referenceDocument,
           inpatientAdmission,
-          !practitionerForApi && mineOnlyRequest ? true : undefined,
+          undefined,
           practitionerForApi,
           postingDateFrom || undefined,
           postingDateTo || undefined,
@@ -234,7 +239,6 @@ export const ClinicalNotesList = ({
     mode,
     activeVisit,
     activeAdmission,
-    mineOnlyRequest,
     postingDateFrom,
     postingDateTo,
     notePractitionerFilter,
@@ -243,6 +247,18 @@ export const ClinicalNotesList = ({
     page,
     pageSize,
   ])
+
+  const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
+    items: clinicalNotes,
+    loading,
+    getKey: (note) => note.name,
+    selectedKey: detailName,
+    onSelect: (note) => setDetailName(note.name),
+    page,
+    setPage,
+    pageSize,
+    totalCount,
+  })
 
   useEffect(() => {
     setPage(1)
@@ -253,7 +269,6 @@ export const ClinicalNotesList = ({
     mode,
     activeVisit,
     activeAdmission,
-    mineOnlyRequest,
     postingDateFrom,
     postingDateTo,
     notePractitionerFilter,
@@ -334,7 +349,7 @@ export const ClinicalNotesList = ({
     )
   }
 
-  if (loading && !aggregateDoctorProgressLayout) {
+  if (loading && !aggregateDoctorProgressLayout && !detailName) {
     return (
       <div className="flex items-center justify-center p-8">
         <div className="text-slate-600">Loading clinical notes...</div>
@@ -692,22 +707,38 @@ export const ClinicalNotesList = ({
           {showPractitionerPicker && (
             <div className="flex flex-col gap-1 min-w-[180px] relative">
               <label className="text-xs font-medium text-slate-500">Doctor</label>
-              <input
-                type="text"
-                value={
-                  notePractitionerFilter
-                    ? practitionerOptions.find((p) => p.name === notePractitionerFilter)?.label || practitionerQuery
-                    : practitionerQuery
-                }
-                onChange={(e) => {
-                  setPractitionerQuery(e.target.value)
-                  setNotePractitionerFilter('')
-                  setPractitionerOpen(true)
-                }}
-                onFocus={() => setPractitionerOpen(true)}
-                placeholder="Search doctor…"
-                className="rounded-md border border-slate-300 px-2 py-1.5 text-sm w-full"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  value={
+                    notePractitionerFilter
+                      ? practitionerOptions.find((p) => p.name === notePractitionerFilter)?.label || practitionerQuery
+                      : practitionerQuery
+                  }
+                  onChange={(e) => {
+                    setPractitionerQuery(e.target.value)
+                    setNotePractitionerFilter('')
+                    setPractitionerOpen(true)
+                  }}
+                  onFocus={() => setPractitionerOpen(true)}
+                  placeholder="All doctors"
+                  className="rounded-md border border-slate-300 px-2 py-1.5 pr-8 text-sm w-full"
+                />
+                {(notePractitionerFilter || practitionerQuery) ? (
+                  <button
+                    type="button"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 text-slate-400 hover:text-slate-700"
+                    title="Show all doctors"
+                    onClick={() => {
+                      setNotePractitionerFilter('')
+                      setPractitionerQuery('')
+                      setPractitionerOpen(false)
+                    }}
+                  >
+                    ×
+                  </button>
+                ) : null}
+              </div>
               {practitionerOpen && practitionerOptions.length > 0 && (
                 <div className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto">
                   {practitionerOptions.map((p) => (
@@ -806,7 +837,7 @@ export const ClinicalNotesList = ({
 
       {aggregateDoctorProgressLayout && (
         <p className="text-xs text-slate-500 mb-2 px-1">
-          Progress notes below are filtered to your practitioner by default. Clear the practitioner filter or open a patient file to change scope.
+          Progress notes below are filtered to the Doctor field (defaults to you). Clear Doctor to see every practitioner, or open a patient file.
         </p>
       )}
 
@@ -843,6 +874,11 @@ export const ClinicalNotesList = ({
           preview={clinicalNotes.find((n) => n.name === detailName)}
           onClose={() => setDetailName(null)}
           onPatientClick={onPatientClick}
+          onPrev={goPrev}
+          onNext={goNext}
+          hasPrev={hasPrev}
+          hasNext={hasNext}
+          navLabel={navLabel}
         />
       ) : null}
 

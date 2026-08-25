@@ -65,6 +65,9 @@ def get_healthcare_portal_settings():
 		"unedit_within_24hour": bool(
 			frappe.db.get_single_value("Healthcare Settings", "unedit_within_24hour")
 		),
+		"allow_doctors_to_create_patient_visit": bool(
+			frappe.db.get_single_value("Healthcare Settings", "allow_doctors_to_create_patient_visit")
+		),
 	}
 
 
@@ -317,17 +320,98 @@ def get_nationalities(search=None):
 	)
 	return nationalities
 
+def practitioner_lab_review_flags(practitioner):
+	"""GP / Consultant flags from the practitioner's Medical Role checkboxes."""
+	out = {"gp_doctor": False, "consultants": False, "medical_role": None}
+	if not practitioner:
+		return out
+	role = frappe.db.get_value("Healthcare Practitioner", practitioner, "medical_role")
+	out["medical_role"] = role
+	if not role or not frappe.db.exists("Medical Role", role):
+		return out
+	row = frappe.db.get_value(
+		"Medical Role", role, ["gp_doctor", "consultants"], as_dict=True
+	)
+	if not row:
+		return out
+	out["gp_doctor"] = bool(frappe.utils.cint(row.get("gp_doctor")))
+	out["consultants"] = bool(frappe.utils.cint(row.get("consultants")))
+	return out
+
+
 @frappe.whitelist()
-def get_healthcare_practitioners(search=None, department=None, appointment_only=None):
+def get_practitioner_lab_review_flags(practitioner=None):
+	return practitioner_lab_review_flags(practitioner)
+
+
+def session_lab_review_scope():
+	"""all = GP / admin (every pending lab); consultant = all IP, OP only if ordered or assigned."""
+	roles = set(frappe.get_roles())
+	if roles & {"Administrator", "System Manager", "Healthcare Administrator"}:
+		return "all"
+	pract = get_current_user_healthcare_practitioner()
+	flags = practitioner_lab_review_flags(pract)
+	if flags["gp_doctor"]:
+		return "all"
+	return "consultant"
+
+
+def filter_pending_review_labs_for_session(rows):
+	if not rows:
+		return rows
+	if session_lab_review_scope() == "all":
+		return rows
+	me = get_current_user_healthcare_practitioner()
+	if not me:
+		return [r for r in rows if r.get("inpatient_record")]
+	out = []
+	for r in rows:
+		if r.get("inpatient_record"):
+			out.append(r)
+			continue
+		if r.get("practitioner") == me or r.get("assigned_healthcare_practioner") == me:
+			out.append(r)
+	return out
+
+
+def require_op_lab_assigned_consultant(data):
+	"""Junior OP lab requests must name the consultant who will review."""
+	if (data or {}).get("template_dt") != "Lab Test Template":
+		return
+	if data.get("inpatient_record"):
+		return
+	if not data.get("patient_visit"):
+		return
+	flags = practitioner_lab_review_flags(data.get("practitioner"))
+	if flags["gp_doctor"] or flags["consultants"]:
+		return
+	if not data.get("assigned_healthcare_practioner"):
+		frappe.throw(
+			_("Assign a consultant for this outpatient lab request."),
+			title=_("Assigned consultant required"),
+		)
+
+
+@frappe.whitelist()
+def get_healthcare_practitioners(search=None, department=None, appointment_only=None, consultants_only=None):
 	"""Get list of active Healthcare Practitioners. Search by ID, doctors_id, or name.
 
 	When appointment_only is truthy, only practitioners with the Appointment checkbox set.
+	When consultants_only is truthy, only practitioners whose Medical Role has Consultants checked.
 	"""
 	filters = {'status': 'Active'}
 	if department:
 		filters['department'] = department
 	if frappe.utils.cint(appointment_only):
 		filters['appointment'] = 1
+	if frappe.utils.cint(consultants_only):
+		consultant_roles = [
+			r.name
+			for r in frappe.get_all("Medical Role", filters={"consultants": 1}, fields=["name"])
+		]
+		if not consultant_roles:
+			return []
+		filters["medical_role"] = ["in", consultant_roles]
 
 	or_filters = None
 	if search:
