@@ -40,6 +40,8 @@ const MED_TYPES = [
   { key: 'Future Plan',                label: 'Future Plan',     icon: '📅', color: 'indigo'  },
 ]
 
+const DEFAULT_PRESCRIPTION_TYPE_FILTER = 'Regular - Psy (Active)'
+
 // ─── Tailwind-named color map ─────────────────────────────────────────────────
 const TYPE_COLORS: Record<string, { active: string; inactive: string; badge: string; activeBadge: string }> = {
   slate:  { active: 'bg-slate-700 text-white border-slate-700',          inactive: 'bg-white text-slate-600 border-slate-200 hover:border-slate-400',   badge: 'bg-slate-100 text-slate-700',   activeBadge: 'bg-white/20 text-white' },
@@ -318,7 +320,7 @@ export const PrescriptionDetails = ({ prescriptionName, onUpdate }: Prescription
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState<Error | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
-  const [activeType, setActiveType]     = useState('All')
+  const [activeType, setActiveType]     = useState(DEFAULT_PRESCRIPTION_TYPE_FILTER)
   const [showSignModal, setShowSignModal] = useState(false)
   const [showDuplicateModal, setShowDuplicateModal] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)

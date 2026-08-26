@@ -252,7 +252,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const [showPrescriptionModal, setShowPrescriptionModal] = useState(false)
   const [showProgressNoteModal, setShowProgressNoteModal] = useState(false)
   const [showLabRequestModal, setShowLabRequestModal] = useState(false)
-  const [activeTab, setActiveTab] = useState<TabType>('details')
+  const [activeTab, setActiveTab] = useState<TabType>('notes')
   const [expandedLabRequests, setExpandedLabRequests] = useState<Record<string, boolean>>({})
   const [showCancelModal, setShowCancelModal] = useState(false)
   const [cancelLoading, setCancelLoading] = useState(false)
@@ -295,7 +295,7 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
 
   useEffect(() => {
     void loadVisit()
-    setActiveTab('details')
+    setActiveTab('notes')
   }, [visitNo])
 
   const handleCancelVisitConfirm = async (reason: string) => {
@@ -324,18 +324,18 @@ export const PatientVisitDetails = ({ visitNo, onUpdate }: PatientVisitDetailsPr
   const servicesCount = serviceRequests.length + ipServices.length
 
   const tabs: Array<{ id: TabType; label: string; icon: ElementType; count: number }> = [
-    { id: 'details', label: 'Details', icon: Info, count: 0 },
-    { id: 'diagnoses', label: 'Diagnoses', icon: Stethoscope, count: diagnosesTabCount },
-    { id: 'lab_tests', label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
-    { id: 'services', label: 'Services', icon: Package, count: servicesCount },
-    { id: 'prescriptions', label: 'Prescriptions', icon: Pill, count: prescriptions.length },
     { id: 'notes', label: 'Notes', icon: NotebookPen, count: notes.length },
+    { id: 'prescriptions', label: 'Prescription', icon: Pill, count: prescriptions.length },
+    { id: 'diagnoses', label: 'Diagnosis', icon: Stethoscope, count: diagnosesTabCount },
+    { id: 'lab_tests', label: 'Lab Tests', icon: FlaskConical, count: labTests.length },
+    { id: 'details', label: 'Details', icon: Info, count: 0 },
     {
       id: 'documents',
       label: 'Documents',
       icon: FileText,
       count: hasDocuments ? visit.documents!.length : 0,
     },
+    { id: 'services', label: 'Services', icon: Package, count: servicesCount },
   ]
 
   return (

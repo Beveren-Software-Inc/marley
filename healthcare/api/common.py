@@ -375,21 +375,8 @@ def filter_pending_review_labs_for_session(rows):
 
 
 def require_op_lab_assigned_consultant(data):
-	"""Junior OP lab requests must name the consultant who will review."""
-	if (data or {}).get("template_dt") != "Lab Test Template":
-		return
-	if data.get("inpatient_record"):
-		return
-	if not data.get("patient_visit"):
-		return
-	flags = practitioner_lab_review_flags(data.get("practitioner"))
-	if flags["gp_doctor"] or flags["consultants"]:
-		return
-	if not data.get("assigned_healthcare_practioner"):
-		frappe.throw(
-			_("Assign a consultant for this outpatient lab request."),
-			title=_("Assigned consultant required"),
-		)
+	"""Assigned consultant on OP lab requests is optional (kept for callers / future rules)."""
+	return
 
 
 @frappe.whitelist()

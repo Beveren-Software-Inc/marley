@@ -3,9 +3,10 @@ import { createPortal } from 'react-dom'
 import { FileDown, FileText, MoreHorizontal, Pencil } from 'lucide-react'
 import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { LoadMoreControls, DEFAULT_PAGE_SIZE } from '../ui/PaginationControls'
 import { VitalSignsDetailPanel } from './VitalSignsDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { toast } from '../../hooks/useToast'
@@ -79,6 +80,7 @@ export const VitalSignsList = ({
 }: VitalSignsListProps) => {
   const { guardClinicalEdit, vitalSignUneditableIn24Hour } = useCareContext()
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
@@ -93,6 +95,10 @@ export const VitalSignsList = ({
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
 
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const pageSize = DEFAULT_PAGE_SIZE
+
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [practitionerFilter, setPractitionerFilter] = useState('')
@@ -103,27 +109,37 @@ export const VitalSignsList = ({
 
   const hasActiveFilters = Boolean(dateFrom || dateTo || practitionerFilter)
 
+  useEffect(() => {
+    setPage(1)
+  }, [patient, dateFrom, dateTo, practitionerFilter, refreshKey])
+
   const loadVitalSigns = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-      const response = await fetchVitalSigns(200, 0, patient, {
+      const offset = (page - 1) * pageSize
+      const response = await fetchVitalSigns(pageSize, offset, patient, {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         practitioner: practitionerFilter || undefined,
       })
-      setVitalSigns(response)
+      setVitalSigns((prev) => (page > 1 ? [...prev, ...response] : response))
+      const loadedCount = offset + response.length
+      // API returns an array only (no total_count) — treat a full page as "has more".
+      const hasMore = response.length === pageSize
+      setTotalCount(hasMore ? loadedCount + pageSize : loadedCount)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch vital signs'))
-      setVitalSigns([])
+      if (page <= 1) setVitalSigns([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }
-  }, [patient, dateFrom, dateTo, practitionerFilter])
+  }, [patient, dateFrom, dateTo, practitionerFilter, page, pageSize, refreshKey])
 
   useEffect(() => {
     loadVitalSigns()
-  }, [loadVitalSigns, refreshKey])
+  }, [loadVitalSigns])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -155,6 +171,8 @@ export const VitalSignsList = ({
     setPractitionerQuery('')
     setPractitionerOpen(false)
   }
+
+  const showLoadMore = preferLoadMore || vitalSigns.length < totalCount
 
   const openDetail = (vs: VitalSign) => {
     setDetailName(vs.name)
@@ -444,11 +462,11 @@ export const VitalSignsList = ({
         </div>
       )}
 
-      {loading ? (
+      {loading && vitalSigns.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-600">Loading vital signs...</div>
         </div>
-      ) : error ? (
+      ) : error && vitalSigns.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
             <h3 className="text-red-800 font-semibold mb-2">Error Loading Vital Signs</h3>
@@ -593,6 +611,16 @@ export const VitalSignsList = ({
         </div>
       )}
 
+      {showLoadMore && !error ? (
+        <LoadMoreControls
+          loadedCount={vitalSigns.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : null}
+
       {detailName ? (
         <VitalSignsDetailPanel
           name={detailName}
@@ -609,7 +637,11 @@ export const VitalSignsList = ({
           onClose={() => setEditRow(null)}
           onSuccess={() => {
             setEditRow(null)
-            void loadVitalSigns()
+            if (page === 1) {
+              void loadVitalSigns()
+            } else {
+              setPage(1)
+            }
           }}
           initialPatient={patient}
           editRow={editRow}

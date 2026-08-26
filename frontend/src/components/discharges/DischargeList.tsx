@@ -9,8 +9,8 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { DischargeDetailPanel } from './DischargeDetailPanel'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { useCardFilters, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { navigateToDischarge } from '../../utils/dischargeNavigation'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -57,6 +57,7 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
   const [admissionFilter, setAdmissionFilter] = useState<string>('')
   const [dischargeIdFilter, setDischargeIdFilter] = useState<string>('')
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -106,7 +107,9 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
           excludeCancelled
         )
         if (cancelled) return
-        setDischarges(response.data)
+        setDischarges((prev) =>
+          preferLoadMore && page > 1 ? [...prev, ...response.data] : response.data
+        )
         setTotalCount(response.total_count)
       } catch (err) {
         if (!cancelled) {
@@ -669,14 +672,24 @@ export const DischargeList = ({ patient, admission, onPatientClick }: DischargeL
             </table>
           </div>
           </div>
-          <PaginationControls
-            page={page}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            loading={loading}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-          />
+          {preferLoadMore ? (
+            <LoadMoreControls
+              loadedCount={discharges.length}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              loading={loading || refreshing}
+              onLoadMore={() => setPage((p) => p + 1)}
+            />
+          ) : (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              loading={loading}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            />
+          )}
         </>
       )}
       </div>

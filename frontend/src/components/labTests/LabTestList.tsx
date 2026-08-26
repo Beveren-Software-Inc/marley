@@ -1708,7 +1708,7 @@ import { LabTestReviewModal } from './LabTestReviewModal'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { toast } from '../../hooks/useToast'
 import {
   canEditLabTestResults,
@@ -1718,7 +1718,7 @@ import {
 } from '../../config/permissions'
 import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useCardFilters, useCardLeadingSlot, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable, labTestReportDate } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -2464,6 +2464,7 @@ export const LabTestList = ({
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)
 
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const leadingSlot = useCardLeadingSlot()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const inDashboardCard = cardFilters !== undefined
@@ -2567,6 +2568,7 @@ export const LabTestList = ({
     filters.fromDate || undefined, filters.toDate || undefined,
     filters.template || undefined, filters.practitioner || undefined, byNurse,
     pageSize, (page - 1) * pageSize, defaultsReady, pipelinePending,
+    preferLoadMore,
   )
 
   /** Legacy LAB 00-03 parents expand into LAB 00-04 singles for the list UI. */
@@ -4331,14 +4333,24 @@ export const LabTestList = ({
       )}
         </div>
 
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-      />
+      {preferLoadMore ? (
+        <LoadMoreControls
+          loadedCount={labTests.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
+      )}
 
       </div>
 

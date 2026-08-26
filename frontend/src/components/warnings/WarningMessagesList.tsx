@@ -4,14 +4,14 @@ import { useWarningMessages } from '../../hooks/useWarningMessages'
 import type { NoPatientWarningScope, WarningMessage, WarningMessageListQuery } from '../../services/warningMessages'
 import { markStickyNoteVerified } from '../../services/warningMessages'
 import { WarningMessageDetailPanel } from './WarningMessageDetailPanel'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 
 // Format a datetime as "dd/mm/yyyy" + "HH:mm" (24h, no seconds)
 const formatPostingDateTime = (val?: string | null): { date: string; time: string } => {
@@ -59,6 +59,7 @@ export const WarningMessagesList = ({
   addButtonTitle = 'Add Warning Message',
 }: WarningMessagesListProps) => {
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
@@ -105,6 +106,7 @@ export const WarningMessagesList = ({
     listQuery,
     page,
     pageSize,
+    preferLoadMore,
   )
   const [detailWarning, setDetailWarning] = useState<WarningMessage | null>(null)
   const [actionMenuOpenFor, setActionMenuOpenFor] = useState<string | null>(null)
@@ -429,14 +431,24 @@ export const WarningMessagesList = ({
         ) : null}
       </div>
 
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-      />
+      {preferLoadMore ? (
+        <LoadMoreControls
+          loadedCount={warnings.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
+      )}
 
       {detailWarning ? (
         <WarningMessageDetailPanel

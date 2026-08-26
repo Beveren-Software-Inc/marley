@@ -17,6 +17,18 @@ export const DashboardCompactClinicalContext = createContext(false)
 export const useDashboardCompactClinical = () => useContext(DashboardCompactClinicalContext)
 
 /**
+ * Fixed-height dashboard tiles (Patient History, role home cards): use Load more
+ * instead of full pagination so the footer stays usable inside the clipped card.
+ */
+export const DashboardLoadMoreContext = createContext(false)
+export const useDashboardLoadMore = () => useContext(DashboardLoadMoreContext)
+
+/** Prefer Load more when inside a fixed-height (non-expanded) dashboard card. */
+export function usePreferCardLoadMore() {
+  return useDashboardLoadMore()
+}
+
+/**
  * Header slot node for a `DashboardCard` — a list rendered inside a card can portal
  * extra controls (e.g. PDF/Excel) into the header, to the left of the +/↗ buttons.
  * null when not inside a card (or the slot hasn't mounted yet).

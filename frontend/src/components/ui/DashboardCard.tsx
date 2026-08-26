@@ -8,6 +8,7 @@ import {
   CardLeadingSlotContext,
   DashboardCompactClinicalContext,
   DashboardFullListingContext,
+  DashboardLoadMoreContext,
 } from '../../contexts/CardFilterContext'
 
 /** Shared class for compact list/table typography (see global.css `.dense-listing`). */
@@ -215,8 +216,8 @@ export const DashboardCard = ({
             ? 'fixed inset-2 sm:inset-4 z-50 max-h-none overflow-auto shadow-2xl'
             : useFixedHeight
               ? tall
-                ? 'min-h-[min(420px,55vh)] max-h-[min(640px,75vh)] sm:min-h-[560px] sm:max-h-[640px]'
-                : 'min-h-[min(280px,45vh)] max-h-[min(360px,58vh)] sm:min-h-[400px] sm:max-h-[400px]'
+                ? 'h-[min(560px,75vh)] overflow-hidden'
+                : 'h-[min(360px,58vh)] sm:h-[400px] overflow-hidden'
               : fullList
                 ? 'flex-1 min-h-0'
                 : ''
@@ -274,11 +275,13 @@ export const DashboardCard = ({
         >
           <DashboardFullListingContext.Provider value={fullList}>
             <DashboardCompactClinicalContext.Provider value={compactClinical}>
-              <CardLeadingSlotContext.Provider value={leadingSlot}>
-                <CardHeaderSlotContext.Provider value={headerSlot}>
-                  <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
-                </CardHeaderSlotContext.Provider>
-              </CardLeadingSlotContext.Provider>
+              <DashboardLoadMoreContext.Provider value={useFixedHeight}>
+                <CardLeadingSlotContext.Provider value={leadingSlot}>
+                  <CardHeaderSlotContext.Provider value={headerSlot}>
+                    <CardFilterContext.Provider value={showFilters}>{children}</CardFilterContext.Provider>
+                  </CardHeaderSlotContext.Provider>
+                </CardLeadingSlotContext.Provider>
+              </DashboardLoadMoreContext.Provider>
             </DashboardCompactClinicalContext.Provider>
           </DashboardFullListingContext.Provider>
         </div>

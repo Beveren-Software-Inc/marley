@@ -655,10 +655,6 @@ export const CreateServiceRequestModal = ({
       setError(isLabRequest ? 'Please select a branch for this lab request.' : 'Please select a branch for this service request.')
       return
     }
-    if (needsAssignedConsultant && !form.assigned_healthcare_practioner?.trim()) {
-      setError('Assign a consultant for this outpatient lab request.')
-      return
-    }
     if (!useLabBasket && isGroupTemplate && selectedGroupTemplates.length === 0) {
       setError('Select at least one child template for grouped lab tests.')
       return
@@ -849,7 +845,8 @@ export const CreateServiceRequestModal = ({
                 {needsAssignedConsultant ? (
                   <div>
                     <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-                      Assigned to consultant
+                      Assigned to consultant{' '}
+                      <span className="font-normal normal-case text-slate-400">(optional)</span>
                     </label>
                     <div className="relative">
                       <input
@@ -897,7 +894,7 @@ export const CreateServiceRequestModal = ({
                       )}
                     </div>
                     <p className="mt-1.5 text-[11px] text-slate-500">
-                      Required for outpatient lab requests when the ordering practitioner is not a GP or consultant.
+                      Optional. You can assign a consultant for review later if needed.
                     </p>
                   </div>
                 ) : null}
