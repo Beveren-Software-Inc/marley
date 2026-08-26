@@ -43,7 +43,7 @@ import { Stethoscope } from 'lucide-react'
 import { InpatientDiagnosisModal } from './InpatientDiagnosisModal'
 import { CreateAdmissionModal } from './CreateAdmissionModal'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
-import { formatAdmissionDate } from '../../utils/admissionDateTime'
+import { formatAdmissionDate, resolveAdmissionStayDays } from '../../utils/admissionDateTime'
 import { TruncatedName } from '../ui/dashboardCardListing'
 import { isDoctorRole, isNurseRole } from '../../config/permissions'
 import { stripDischargeFlowParams } from '../../utils/dischargeNavigation'
@@ -762,7 +762,9 @@ export const AdmissionList = ({
                       <TruncatedName fill={compactCard} value={record.psychologist_doctor_name || record.psychologist_doctor} />
                     </td>
                     <td className={`${tdClass} truncate`}>{record.room_service_no || record.bed_no || '-'}</td>
-                    <td className={`${tdClass} ${compactCard ? 'text-center' : 'whitespace-nowrap text-center'}`}>{record.expected_length_of_stay ?? '-'}</td>
+                    <td className={`${tdClass} ${compactCard ? 'text-center' : 'whitespace-nowrap text-center'}`}>
+                      {resolveAdmissionStayDays(record) ?? '-'}
+                    </td>
 
                     <td className={`${compactCard ? 'px-1 py-1.5' : 'px-4 py-3'} ${actionStickyClass}`} onClick={(e) => e.stopPropagation()}>
                         <div className={`flex items-center ${compactCard ? 'gap-0 justify-center' : 'gap-1.5'}`}>

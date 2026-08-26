@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react'
-import { fetchClinicalNotes, fetchPendingDoctorProgressEncounters, type ClinicalNote, type PendingDoctorProgressEncounter } from '../../services/clinicalNotes'
+import {
+  deleteClinicalNote,
+  fetchClinicalNotes,
+  fetchPendingDoctorProgressEncounters,
+  type ClinicalNote,
+  type PendingDoctorProgressEncounter,
+} from '../../services/clinicalNotes'
 import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
 import { ClinicalNoteDetailPanel } from './ClinicalNoteDetailPanel'
 import { EditClinicalNoteModal } from './EditClinicalNoteModal'
@@ -15,7 +21,7 @@ import {
   isClinicalNoteEditableWithin24h,
 } from '../../constants/nursingShift'
 import { toast } from '../../hooks/useToast'
-import { MoreHorizontal, Pencil } from 'lucide-react'
+import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { useSlideOverListNav } from '../../hooks/useSlideOverListNav'
 
@@ -372,12 +378,39 @@ export const ClinicalNotesList = ({
     if (!canEditNote(note)) {
       toast.error(
         note.note_locked
-          ? 'This clinical note is locked and cannot be edited.'
+          ? 'This clinical note is locked and cannot be edited or deleted.'
           : CLINICAL_NOTE_EDIT_LOCKED_MESSAGE
       )
       return
     }
     guardClinicalEdit(() => setEditNote(note))
+  }
+
+  const handleDeleteNote = (note: ClinicalNote) => {
+    if (!canEditNote(note)) {
+      toast.error(
+        note.note_locked
+          ? 'This clinical note is locked and cannot be edited or deleted.'
+          : CLINICAL_NOTE_EDIT_LOCKED_MESSAGE
+      )
+      return
+    }
+    const label = clinicalNoteTypeDisplayLabel(clinicalNoteType)
+    guardClinicalEdit(() => {
+      if (!window.confirm(`Delete ${label} ${note.name}?`)) return
+      setOpenActionRow(null)
+      void (async () => {
+        try {
+          await deleteClinicalNote(note.name)
+          toast.success(`${label} deleted`)
+          if (detailName === note.name) setDetailName(null)
+          if (editNote?.name === note.name) setEditNote(null)
+          setListRefreshKey((k) => k + 1)
+        } catch (err) {
+          toast.error(err instanceof Error ? err.message : `Failed to delete ${label.toLowerCase()}`)
+        }
+      })()
+    })
   }
 
   const renderNoteActions = (note: ClinicalNote) => {
@@ -414,17 +447,27 @@ export const ClinicalNotesList = ({
             minWidth={160}
           >
             {canEditNote(note) ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenActionRow(null)
-                  openEditNote(note)
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-              >
-                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
-                Edit
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenActionRow(null)
+                    openEditNote(note)
+                  }}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                >
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                  Edit
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleDeleteNote(note)}
+                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="h-3.5 w-3.5 shrink-0 text-red-500" aria-hidden />
+                  Delete
+                </button>
+              </>
             ) : (
               <div
                 className="px-3 py-2 text-xs text-slate-500"
@@ -435,10 +478,10 @@ export const ClinicalNotesList = ({
                 }
               >
                 {note.note_locked
-                  ? 'Edit locked'
+                  ? 'Locked'
                   : therapyNoteUneditableIn24Hour
-                    ? 'Edit locked (24h)'
-                    : 'Edit unavailable'}
+                    ? 'Locked (24h)'
+                    : 'Unavailable'}
               </div>
             )}
           </PortalActionsMenu>

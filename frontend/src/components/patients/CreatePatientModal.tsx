@@ -24,6 +24,8 @@ import { PatientDobAgeHint } from './PatientDobAgeHint'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
 import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { digitsOnlyPhone, firstInvalidPatientPhone, isNumericPhone } from '../../utils/phoneInput'
+import { isValidEmail } from '../../utils/emailInput'
 import { PenLine, Trash2, Check, Upload, Download, RefreshCw, Loader2 } from 'lucide-react'
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
@@ -249,7 +251,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     sex: '',
     dob: '',
     blood_group: '',
-    mobile: initialMobile || '',
+    mobile: digitsOnlyPhone(initialMobile || ''),
     mobile_no_owner: '',
     alternative_mobile_no_1: '',
     alternative_mobile_no_2: '',
@@ -361,9 +363,10 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     field: 'full_name' | 'relation' | 'mobile_no' | 'email' | 'description' | 'is_next_of_kin',
     value: string | boolean
   ) => {
+    const nextValue = field === 'mobile_no' && typeof value === 'string' ? digitsOnlyPhone(value) : value
     setRelations((prev) => {
       const next = [...prev]
-      next[idx] = { ...next[idx], [field]: value }
+      next[idx] = { ...next[idx], [field]: nextValue }
       return next
     })
   }
@@ -458,6 +461,34 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     if (!formData.mobile && !formData.phone) {
       setError('At least one Contact No. (Mobile or Phone) is required')
       setActiveTab('details')
+      return
+    }
+    const invalidPhone = firstInvalidPatientPhone({
+      mobile: formData.mobile,
+      phone: formData.phone,
+      alternative_mobile_no_1: formData.alternative_mobile_no_1,
+      alternative_mobile_no_2: formData.alternative_mobile_no_2,
+      emergency_contact_phone: formData.emergency_contact_phone,
+    })
+    if (invalidPhone) {
+      setError(`${invalidPhone} must contain numbers only`)
+      setActiveTab('details')
+      return
+    }
+    const invalidRelative = relations.find((r) => !isNumericPhone(r.mobile_no))
+    if (invalidRelative) {
+      setError('Relative Mobile No must contain numbers only')
+      setActiveTab('relations')
+      return
+    }
+    if (!isValidEmail(formData.email)) {
+      setError('Email must be a valid email address')
+      setActiveTab('details')
+      return
+    }
+    if (relations.some((r) => !isValidEmail(r.email))) {
+      setError('Relative Email must be a valid email address')
+      setActiveTab('relations')
       return
     }
     if (!formData.address_line1) {
@@ -571,8 +602,18 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
     }
   }
 
+  const PATIENT_PHONE_FIELDS = new Set([
+    'mobile',
+    'phone',
+    'alternative_mobile_no_1',
+    'alternative_mobile_no_2',
+    'emergency_contact_phone',
+  ])
+
   const handleChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ ...prev, [field]: value }))
+    const next =
+      typeof value === 'string' && PATIENT_PHONE_FIELDS.has(field) ? digitsOnlyPhone(value) : value
+    setFormData((prev) => ({ ...prev, [field]: next }))
   }
 
   const handleInsuranceSelect = (ins: any) => {
@@ -897,7 +938,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Mobile <span className="text-red-500">*</span>
                       </label>
-                      <input type="tel" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} required
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} required
+                        placeholder="Numbers only"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
@@ -907,7 +949,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                      <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)}
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)}
+                        placeholder="Numbers only"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
@@ -917,12 +960,14 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No</label>
-                      <input type="tel" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)}
+                        placeholder="Numbers only"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternative Mobile No 2</label>
-                      <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)}
+                        placeholder="Numbers only"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
@@ -1055,8 +1100,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Emergency Contact Phone</label>
-                      <input type="tel" value={formData.emergency_contact_phone} onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
-                        placeholder="Emergency contact number"
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.emergency_contact_phone} onChange={(e) => handleChange('emergency_contact_phone', e.target.value)}
+                        placeholder="Numbers only"
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
@@ -1332,8 +1377,8 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Mobile No</label>
-                          <input type="tel" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
-                            placeholder="Mobile number"
+                          <input type="tel" inputMode="numeric" pattern="[0-9]*" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)}
+                            placeholder="Numbers only"
                             className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>

@@ -66,6 +66,48 @@ export interface AdmissionSpanFields extends AdmissionDateFields {
   discharge_datetime?: string | null
   /** Planned discharge date from a draft Discharge (Discharge in Progress). */
   draft_discharge_date?: string | null
+  status?: string | null
+}
+
+function startOfLocalDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
+}
+
+/** Calendar day difference (end − start), at least 1 when both dates resolve. */
+function calendarDaysBetween(start: Date, end: Date): number {
+  const ms = startOfLocalDay(end).getTime() - startOfLocalDay(start).getTime()
+  return Math.max(Math.round(ms / 86_400_000), 1)
+}
+
+/**
+ * Stay days for the admission list Days column.
+ * - Draft discharge with a discharge date → discharge date − admission date
+ * - Fully discharged → discharge datetime − admission date
+ * - Still Admitted (no planned discharge date) → today − admission date
+ * - No admission date → null
+ */
+export function resolveAdmissionStayDays(record: AdmissionSpanFields): number | null {
+  const start = resolveAdmissionDateTime(record)
+  if (!start) return null
+
+  const draftEnd = (record.draft_discharge_date || '').trim()
+  if (draftEnd) {
+    const end = parseDate(draftEnd)
+    if (end) return calendarDaysBetween(start, end)
+  }
+
+  const dischargedEnd = (record.discharge_datetime || '').trim()
+  if (dischargedEnd) {
+    const end = parseDate(dischargedEnd)
+    if (end) return calendarDaysBetween(start, end)
+  }
+
+  const status = (record.status || '').trim()
+  if (status === 'Admitted' || status === 'Discharge Scheduled') {
+    return calendarDaysBetween(start, new Date())
+  }
+
+  return null
 }
 
 /** Format date only (no time) for display. */

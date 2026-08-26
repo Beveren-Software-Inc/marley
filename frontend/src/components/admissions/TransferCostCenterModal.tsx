@@ -44,7 +44,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     return () => clearTimeout(t)
   }, [admission.company, admission.cost_center, toCostCenterQuery])
 
-  // Load service units (vacant, in selected branch) when branch is selected
+  // Vacant units for target branch, plus units with no branch link (branch-agnostic).
   useEffect(() => {
     if (!toCostCenter) {
       setServiceUnitOptions([])
@@ -118,7 +118,7 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
       <div className="absolute inset-0 bg-black/50" onClick={onClose} aria-hidden="true" />
       <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200">
-          <h2 className="text-lg font-semibold text-slate-900">Transfeto Another Branch</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Transfer to Another Branch</h2>
           <button
             type="button"
             onClick={onClose}
@@ -130,6 +130,9 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
         </div>
         <div className="px-6 py-4 text-sm text-slate-600 border-b border-slate-100">
           {admission.patient_name || admission.patient} — {admission.name}
+          {admission.cost_center ? (
+            <div className="mt-1 text-xs text-slate-500">From branch: {admission.cost_center}</div>
+          ) : null}
         </div>
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
           {error && (
@@ -192,10 +195,15 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
               disabled={!toCostCenter}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
             />
+            <p className="mt-1 text-[11px] text-slate-500">
+              Shows vacant units for this branch, plus units not linked to any branch.
+            </p>
             {serviceUnitOpen && toCostCenter && (
               <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
                 {serviceUnitOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">No vacant units in this branch</div>
+                  <div className="px-3 py-2 text-xs text-slate-500">
+                    No vacant units for this branch (or unlinked)
+                  </div>
                 ) : (
                   serviceUnitOptions.map((su) => (
                     <button
@@ -208,7 +216,10 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
                         setServiceUnitOpen(false)
                       }}
                     >
-                      {su.healthcare_service_unit_name}
+                      <div>{su.healthcare_service_unit_name}</div>
+                      {!su.cost_center ? (
+                        <div className="text-[11px] text-slate-400">No branch link</div>
+                      ) : null}
                     </button>
                   ))
                 )}

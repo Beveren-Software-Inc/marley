@@ -867,12 +867,15 @@ def transfer_to_another_cost_center(
 			)
 		)
 
-	# If target bed provided, validate it is in the target cost center and vacant
+	# If target bed provided, validate it is vacant/inpatient, and branch-matched when linked.
+	# Service units with no cost center are branch-agnostic and may be used for any transfer.
 	if to_service_unit:
-		su_cost_center = frappe.db.get_value("Healthcare Service Unit", to_service_unit, "cost_center")
-		if su_cost_center != to_cost_center:
+		su_cost_center = (frappe.db.get_value("Healthcare Service Unit", to_service_unit, "cost_center") or "").strip()
+		if su_cost_center and su_cost_center != to_cost_center:
 			frappe.throw(
-				_("Service Unit {0} is not in cost center {1}.").format(to_service_unit, to_cost_center)
+				_("Service Unit {0} is linked to branch {1}, not {2}.").format(
+					to_service_unit, su_cost_center, to_cost_center
+				)
 			)
 		occupancy_status = frappe.db.get_value("Healthcare Service Unit", to_service_unit, "occupancy_status")
 		if occupancy_status == "Occupied":

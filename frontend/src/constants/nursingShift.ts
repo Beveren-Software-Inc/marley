@@ -87,7 +87,7 @@ export function isMainNursingNoteEditable(modified?: string | null): boolean {
 }
 
 export const CLINICAL_NOTE_EDIT_LOCKED_MESSAGE =
-  'This clinical note can no longer be edited. Notes are locked 24 hours after creation.'
+  'This clinical note can no longer be edited or deleted. Notes are locked 24 hours after creation.'
 
 /**
  * True when a clinical/therapy note may still be edited.

@@ -341,6 +341,45 @@ export function ReceptionReports() {
     }
   }, [report, resolvedAdmission])
 
+  // SOA (OP): To Date = today.
+  // Visit selected → From Date = that visit's encounter date.
+  // Visit blank → From Date = patient's first visit ever.
+  useEffect(() => {
+    if (report !== 'soa-op') return
+
+    setToDate(todayInputDate())
+
+    let cancelled = false
+    ;(async () => {
+      try {
+        if (resolvedVisit) {
+          const row = await apiRequest<{ encounter_date?: string }>(
+            `/api/resource/Patient%20Visit/${encodeURIComponent(resolvedVisit)}?fields=${encodeURIComponent(JSON.stringify(['encounter_date']))}`,
+          )
+          if (cancelled || !row) return
+          const d = (row.encounter_date || '').toString().slice(0, 10)
+          if (d) setFromDate(d)
+          return
+        }
+
+        if (!selectedPatient) return
+
+        const first = await apiRequest<string | null>(
+          `/api/method/healthcare.api.reception_reports.get_patient_first_visit_date?patient=${encodeURIComponent(selectedPatient)}`,
+        )
+        if (cancelled) return
+        const d = (first || '').toString().slice(0, 10)
+        if (d) setFromDate(d)
+      } catch {
+        /* leave From Date unchanged if visit/patient history cannot be loaded */
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+  }, [report, resolvedVisit, selectedPatient])
+
   const run = async () => {
     if (report === 'receipts' && (!fromDate || !toDate)) {
       toast.error('Select From Date and To Date')
