@@ -11,6 +11,7 @@ import { ClinicalNoteDetailPanel } from './ClinicalNoteDetailPanel'
 import { EditClinicalNoteModal } from './EditClinicalNoteModal'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
+import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
@@ -110,6 +111,8 @@ export const ClinicalNotesList = ({
   const [error, setError] = useState<Error | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [editNote, setEditNote] = useState<ClinicalNote | null>(null)
+  const [deleteNote, setDeleteNote] = useState<ClinicalNote | null>(null)
+  const [deletingNote, setDeletingNote] = useState(false)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const [listRefreshKey, setListRefreshKey] = useState(0)
@@ -395,22 +398,28 @@ export const ClinicalNotesList = ({
       )
       return
     }
-    const label = clinicalNoteTypeDisplayLabel(clinicalNoteType)
     guardClinicalEdit(() => {
-      if (!window.confirm(`Delete ${label} ${note.name}?`)) return
       setOpenActionRow(null)
-      void (async () => {
-        try {
-          await deleteClinicalNote(note.name)
-          toast.success(`${label} deleted`)
-          if (detailName === note.name) setDetailName(null)
-          if (editNote?.name === note.name) setEditNote(null)
-          setListRefreshKey((k) => k + 1)
-        } catch (err) {
-          toast.error(err instanceof Error ? err.message : `Failed to delete ${label.toLowerCase()}`)
-        }
-      })()
+      setDeleteNote(note)
     })
+  }
+
+  const confirmDeleteNote = async () => {
+    if (!deleteNote) return
+    const label = clinicalNoteTypeDisplayLabel(clinicalNoteType)
+    setDeletingNote(true)
+    try {
+      await deleteClinicalNote(deleteNote.name)
+      toast.success(`${label} deleted`)
+      if (detailName === deleteNote.name) setDetailName(null)
+      if (editNote?.name === deleteNote.name) setEditNote(null)
+      setDeleteNote(null)
+      setListRefreshKey((k) => k + 1)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : `Failed to delete ${label.toLowerCase()}`)
+    } finally {
+      setDeletingNote(false)
+    }
   }
 
   const renderNoteActions = (note: ClinicalNote) => {
@@ -938,6 +947,24 @@ export const ClinicalNotesList = ({
           }}
         />
       ) : null}
+
+      <ConfirmDialog
+        open={Boolean(deleteNote)}
+        variant="danger"
+        title={`Delete ${clinicalNoteTypeDisplayLabel(clinicalNoteType)}`}
+        message={
+          deleteNote
+            ? `Are you sure you want to delete ${clinicalNoteTypeDisplayLabel(clinicalNoteType)} ${deleteNote.name}? This cannot be undone.`
+            : ''
+        }
+        confirmLabel="Delete"
+        cancelLabel="Cancel"
+        loading={deletingNote}
+        onConfirm={() => void confirmDeleteNote()}
+        onCancel={() => {
+          if (!deletingNote) setDeleteNote(null)
+        }}
+      />
     </div>
   )
 }
