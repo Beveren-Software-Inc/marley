@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, Droplet, History, Clock } from 'lucide-react'
+import { FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers, FileStack } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabBookedRequestList } from '../components/labTests/LabBookedRequestList'
@@ -716,6 +716,7 @@ import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsS
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { CreateLabTestTemplateModal } from '../components/labTests/CreateLabTestTemplateModal'
 import { LabTestTemplateList } from '../components/labTests/LabTestTemplateList'
+import { LabTestSetupGroups } from '../components/labTests/LabTestSetupGroups'
 import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSampleModal'
 import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeModal'
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
@@ -725,11 +726,44 @@ import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type L
 
 type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
 
+type SetupTab = 'templates' | 'samples' | 'sample-types' | 'lab-setup'
+
 const VALID_LAB_TABS: LabTab[] = [
   'pending-lab-tests',
   'sample-collection',
   'lab-tests',
   'lab-history',
+]
+
+const SETUP_NAV_CARDS = [
+  {
+    id: 'templates' as SetupTab,
+    title: 'Lab Test Templates',
+    icon: FileStack,
+    color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
+    iconColor: 'text-indigo-600',
+  },
+  {
+    id: 'samples' as SetupTab,
+    title: 'Lab Test Samples',
+    icon: TestTube2,
+    color: 'bg-cyan-50 text-cyan-700 border-cyan-200',
+    iconColor: 'text-cyan-600',
+  },
+  {
+    id: 'sample-types' as SetupTab,
+    title: 'Sample Types',
+    icon: Tags,
+    color: 'bg-amber-50 text-amber-700 border-amber-200',
+    iconColor: 'text-amber-600',
+  },
+  {
+    id: 'lab-setup' as SetupTab,
+    title: 'Lab Setup',
+    icon: Layers,
+    color: 'bg-violet-50 text-violet-700 border-violet-200',
+    iconColor: 'text-violet-600',
+  },
 ]
 
 const NAV_CARDS = [
@@ -806,6 +840,7 @@ export const LabPage = () => {
   const [sampleTypeRefreshKey, setSampleTypeRefreshKey] = useState(0)
   const [sampleTypes, setSampleTypes] = useState<LinkFieldOption[]>([])
   const [sampleTypesLoading, setSampleTypesLoading] = useState(false)
+  const [setupTab, setSetupTab] = useState<SetupTab>('templates')
 
   const [pendingResultCount, setPendingResultCount] = useState(0)
   const [batchSaving, setBatchSaving] = useState(false)
@@ -897,101 +932,153 @@ export const LabPage = () => {
 
   // ─── l-setup ───────────────────────────────────────────
   if (screen === 'l-setup') {
+    const activeSetupCard =
+      SETUP_NAV_CARDS.find((c) => c.id === setupTab) ?? SETUP_NAV_CARDS[0]
+
     return (
-      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
+      <div className="flex flex-col flex-1 min-h-0 h-full min-w-0 overflow-hidden">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
 
-        <div className="p-4 space-y-4">
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden p-4 gap-4">
+          {/* Navigation cards — same pattern as lab main page */}
+          <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-7 gap-1.5 shrink-0">
+            {SETUP_NAV_CARDS.map((card) => {
+              const Icon = card.icon
+              const isActive = setupTab === card.id
+              return (
+                <button
+                  key={card.id}
+                  type="button"
+                  onClick={() => setSetupTab(card.id)}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg border px-1 py-1.5 text-center transition-all hover:shadow-sm ${
+                    isActive
+                      ? `${card.color} shadow-sm`
+                      : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                  }`}
+                >
+                  <div className={`rounded-md p-1 ${isActive ? 'bg-white/60' : 'bg-slate-100'}`}>
+                    <Icon className={`h-3.5 w-3.5 ${isActive ? card.iconColor : 'text-slate-500'}`} />
+                  </div>
+                  <p
+                    className={`text-[10px] leading-tight sm:text-[11px] ${
+                      isActive ? 'font-bold' : 'font-medium text-slate-800'
+                    }`}
+                  >
+                    {card.title}
+                  </p>
+                </button>
+              )
+            })}
+          </div>
 
-          {/* Lab Test Templates */}
-          <DashboardCard
-            title="Lab Test Templates"
-            filterable={false}
-            noHeightLimit
-            onAdd={() => { setEditTemplateName(undefined); setShowCreateTemplateModal(true) }}
-            addButtonTitle="Create Lab Test Template"
-          >
-            <div className="overflow-y-auto max-h-72" style={{ scrollbarWidth: 'thin' }}>
-              <LabTestTemplateList
+          {setupTab === 'lab-setup' ? (
+            <div className="flex-1 min-h-0 overflow-y-auto" style={{ scrollbarWidth: 'thin' }}>
+              <LabTestSetupGroups
                 refreshKey={templateRefreshKey}
-                selectedPatient={selectedPatient}
                 onEditClick={handleEditTemplate}
               />
             </div>
-          </DashboardCard>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {/* Lab Test Samples */}
+          ) : (
             <DashboardCard
-              title="Lab Test Samples"
+              noHeightLimit
+              className="flex-1 min-h-0"
+              openListingTitle={`Expand ${activeSetupCard.title}`}
               filterable={false}
-              fixedHeight
-              onAdd={() => setShowCreateSampleModal(true)}
-              addButtonTitle="Create Lab Test Sample"
+              {...(setupTab === 'templates'
+                ? {
+                    onAdd: () => {
+                      setEditTemplateName(undefined)
+                      setShowCreateTemplateModal(true)
+                    },
+                    addButtonTitle: 'Create Lab Test Template',
+                  }
+                : {})}
+              {...(setupTab === 'samples'
+                ? {
+                    onAdd: () => setShowCreateSampleModal(true),
+                    addButtonTitle: 'Create Lab Test Sample',
+                  }
+                : {})}
+              {...(setupTab === 'sample-types'
+                ? {
+                    onAdd: () => setShowCreateSampleTypeModal(true),
+                    addButtonTitle: 'Create Sample Type',
+                  }
+                : {})}
             >
-              <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                {samplesLoading ? (
-                  <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
-                ) : labSamples.length === 0 ? (
-                  <div className="text-center text-sm text-slate-400 py-4">NO LAB TEST SAMPLES YET</div>
-                ) : (
-                  <table className="min-w-full text-sm">
-                    <thead>
-                      <tr className="bg-slate-50">
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Sample</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Type</th>
-                        <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">UOM</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {labSamples.map(s => (
-                        <tr key={s.name} className="border-t border-slate-100 hover:bg-slate-50">
-                          <td className="px-3 py-2 font-medium text-slate-800">{s.sample || s.name}</td>
-                          <td className="px-3 py-2 text-slate-500">{s.sample_type || '—'}</td>
-                          <td className="px-3 py-2 text-slate-500">{s.sample_uom || '—'}</td>
+              {setupTab === 'templates' && (
+                <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  <LabTestTemplateList
+                    refreshKey={templateRefreshKey}
+                    selectedPatient={selectedPatient}
+                    onEditClick={handleEditTemplate}
+                  />
+                </div>
+              )}
+
+              {setupTab === 'samples' && (
+                <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  {samplesLoading ? (
+                    <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
+                  ) : labSamples.length === 0 ? (
+                    <div className="text-center text-sm text-slate-400 py-4">NO LAB TEST SAMPLES YET</div>
+                  ) : (
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Sample</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">Type</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600">UOM</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            </DashboardCard>
+                      </thead>
+                      <tbody>
+                        {labSamples.map((s) => (
+                          <tr key={s.name} className="border-t border-slate-100 hover:bg-slate-50">
+                            <td className="px-3 py-2 font-medium text-slate-800">{s.sample || s.name}</td>
+                            <td className="px-3 py-2 text-slate-500">{s.sample_type || '—'}</td>
+                            <td className="px-3 py-2 text-slate-500">{s.sample_uom || '—'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+              )}
 
-            {/* Sample Types */}
-            <DashboardCard
-              title="Sample Types"
-              filterable={false}
-              fixedHeight
-              onAdd={() => setShowCreateSampleTypeModal(true)}
-              addButtonTitle="Create Sample Type"
-            >
-              <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                {sampleTypesLoading ? (
-                  <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
-                ) : sampleTypes.length === 0 ? (
-                  <div className="text-center text-sm text-slate-400 py-4">NO SAMPLE TYPES YET</div>
-                ) : (
-                  <div className="flex flex-wrap gap-2 p-1">
-                    {sampleTypes.map(t => (
-                      <span key={t.name}
-                        className="inline-block px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 font-medium">
-                        {t.label || t.name}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {setupTab === 'sample-types' && (
+                <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
+                  {sampleTypesLoading ? (
+                    <div className="text-center text-sm text-slate-400 py-4">Loading…</div>
+                  ) : sampleTypes.length === 0 ? (
+                    <div className="text-center text-sm text-slate-400 py-4">NO SAMPLE TYPES YET</div>
+                  ) : (
+                    <div className="flex flex-wrap gap-2 p-1">
+                      {sampleTypes.map((t) => (
+                        <span
+                          key={t.name}
+                          className="inline-block px-3 py-1 rounded-full text-xs bg-blue-50 text-blue-700 border border-blue-200 font-medium"
+                        >
+                          {t.label || t.name}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </DashboardCard>
-          </div>
+          )}
         </div>
 
         {showCreateTemplateModal && (
           <CreateLabTestTemplateModal
-            onClose={() => { setShowCreateTemplateModal(false); setEditTemplateName(undefined) }}
+            onClose={() => {
+              setShowCreateTemplateModal(false)
+              setEditTemplateName(undefined)
+            }}
             onSuccess={() => {
               setShowCreateTemplateModal(false)
               setEditTemplateName(undefined)
-              setTemplateRefreshKey(k => k + 1)
+              setTemplateRefreshKey((k) => k + 1)
               handleTemplateCreated()
             }}
             templateName={editTemplateName}
@@ -1000,13 +1087,19 @@ export const LabPage = () => {
         {showCreateSampleModal && (
           <CreateLabTestSampleModal
             onClose={() => setShowCreateSampleModal(false)}
-            onSuccess={() => { setShowCreateSampleModal(false); setSampleRefreshKey(k => k + 1) }}
+            onSuccess={() => {
+              setShowCreateSampleModal(false)
+              setSampleRefreshKey((k) => k + 1)
+            }}
           />
         )}
         {showCreateSampleTypeModal && (
           <CreateSampleTypeModal
             onClose={() => setShowCreateSampleTypeModal(false)}
-            onSuccess={() => { setShowCreateSampleTypeModal(false); setSampleTypeRefreshKey(k => k + 1) }}
+            onSuccess={() => {
+              setShowCreateSampleTypeModal(false)
+              setSampleTypeRefreshKey((k) => k + 1)
+            }}
           />
         )}
       </div>

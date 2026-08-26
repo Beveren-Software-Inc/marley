@@ -16,6 +16,14 @@ interface LabTestHistoryProps {
   className?: string
   /** Prefill the Test Name filter (e.g. when opening trends from a listing row). */
   initialTestName?: string
+  /**
+   * When true and a group/test filter has multiple analyte rows, collapse to one
+   * row per date for the group panel (CBC) instead of listing every child.
+   */
+  unconsolidated?: boolean
+  onUnconsolidatedChange?: (value: boolean) => void
+  /** Hide the in-panel Unconsolidate control when the parent puts it in a header. */
+  hideUnconsolidateControl?: boolean
 }
 
 interface Filters {
@@ -91,6 +99,52 @@ function buildVerticalHistoryEvents(
     return (b.time || '').localeCompare(a.time || '')
   })
   return events
+}
+
+/** One timeline entry per date for a group panel (hide individual analytes). */
+function collapseVerticalEventsToGroup(
+  events: VerticalHistoryEvent[],
+  groupLabel: string,
+): VerticalHistoryEvent[] {
+  const byDate = new Map<string, VerticalHistoryEvent[]>()
+  for (const e of events) {
+    const key = e.date || e.dateLine || e.key
+    const arr = byDate.get(key) || []
+    arr.push(e)
+    byDate.set(key, arr)
+  }
+  const out: VerticalHistoryEvent[] = []
+  for (const [, list] of byDate) {
+    const first = list[0]
+    const directions = list.map((e) => e.cell?.direction)
+    const direction = directions.includes('high')
+      ? 'high'
+      : directions.includes('low')
+        ? 'low'
+        : first.cell?.direction ?? null
+    const anyAbnormal = list.some(
+      (e) => e.cell?.flag === 'abnormal' || e.cell?.direction === 'high' || e.cell?.direction === 'low',
+    )
+    out.push({
+      key: `group::${first.date}::${groupLabel}`,
+      date: first.date,
+      time: first.time,
+      dateLine: first.dateLine,
+      testLabel: groupLabel,
+      cell: {
+        value: `${list.length} result${list.length !== 1 ? 's' : ''}`,
+        flag: anyAbnormal ? 'abnormal' : first.cell?.flag || 'neutral',
+        direction,
+        lab_test: first.cell?.lab_test,
+      },
+    })
+  }
+  out.sort((a, b) => {
+    const byDate = (b.date || '').localeCompare(a.date || '')
+    if (byDate !== 0) return byDate
+    return (b.time || '').localeCompare(a.time || '')
+  })
+  return out
 }
 
 const MIN_DATE_COLUMNS = 20
@@ -289,6 +343,9 @@ export const LabTestHistory = ({
   onPatientChange,
   className = '',
   initialTestName = '',
+  unconsolidated: unconsolidatedProp,
+  onUnconsolidatedChange,
+  hideUnconsolidateControl = false,
 }: LabTestHistoryProps) => {
   const defaults = defaultDateRange()
   const [filters, setFilters] = useState<Filters>({
@@ -300,6 +357,13 @@ export const LabTestHistory = ({
   const [displayPatientName, setDisplayPatientName] = useState(patientName || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unconsolidatedInternal, setUnconsolidatedInternal] = useState(false)
+
+  const unconsolidated = unconsolidatedProp ?? unconsolidatedInternal
+  const setUnconsolidated = (value: boolean) => {
+    onUnconsolidatedChange?.(value)
+    if (unconsolidatedProp === undefined) setUnconsolidatedInternal(value)
+  }
 
   const [patientQuery, setPatientQuery] = useState(patientName || patientId || '')
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -308,7 +372,11 @@ export const LabTestHistory = ({
 
   useEffect(() => {
     setFilters((prev) => ({ ...prev, testName: initialTestName.trim() }))
-  }, [initialTestName])
+    // Parent controls unconsolidated when opening from a group; only reset local toggle.
+    if (unconsolidatedProp === undefined) {
+      setUnconsolidatedInternal(false)
+    }
+  }, [initialTestName]) // eslint-disable-line react-hooks/exhaustive-deps -- unconsolidatedProp is mode, not a trigger
 
   useEffect(() => {
     setPatientQuery(patientName || patientId || '')
@@ -453,17 +521,25 @@ export const LabTestHistory = ({
           {(() => {
             const focusedTest = filters.testName.trim()
             const verticalMode = Boolean(focusedTest)
-            const verticalEvents = verticalMode ? buildVerticalHistoryEvents(columns, rows) : []
+            const rawVerticalEvents = verticalMode ? buildVerticalHistoryEvents(columns, rows) : []
+            const canUnconsolidate = verticalMode && rows.length > 1
+            const verticalEvents =
+              canUnconsolidate && unconsolidated
+                ? collapseVerticalEventsToGroup(rawVerticalEvents, focusedTest)
+                : rawVerticalEvents
             const displayColumns = verticalMode ? columns : padHistoryColumns(columns)
-            const showTestCol = verticalMode && rows.length > 1
+            const showTestCol = verticalMode && verticalEvents.some((e) => e.testLabel !== focusedTest)
+              ? verticalEvents.length > 1
+              : verticalMode && rows.length > 1 && !unconsolidated
 
             return (
               <>
-          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
             <span>
               {verticalMode ? (
                 <>
                   {focusedTest}
+                  {unconsolidated && canUnconsolidate ? ' · group view' : ''}
                   {' · '}
                   {verticalEvents.length} result{verticalEvents.length !== 1 ? 's' : ''}
                   {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
@@ -476,7 +552,21 @@ export const LabTestHistory = ({
                 </>
               )}
             </span>
-            <span className="flex items-center gap-3">
+            <span className="flex items-center gap-3 flex-wrap">
+              {canUnconsolidate && !hideUnconsolidateControl ? (
+                <button
+                  type="button"
+                  onClick={() => setUnconsolidated(!unconsolidated)}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title={
+                    unconsolidated
+                      ? 'Show all child tests in this group'
+                      : 'Show only this group as one timeline'
+                  }
+                >
+                  {unconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                </button>
+              ) : null}
               <span className="inline-flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Normal
               </span>

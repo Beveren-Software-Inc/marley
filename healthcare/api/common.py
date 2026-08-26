@@ -3070,7 +3070,7 @@ def get_lab_test_templates_admin_list(search=None):
 		"filters": filters,
 		"fields": [
 			"name", "lab_test_name", "lab_test_code", "department",
-			"lab_test_template_type", "is_group", "is_billable", "disabled",
+			"lab_test_template_type", "is_group", "lab_group", "is_billable", "disabled",
 			"lab_test_rate", "op_rate",
 			"female_min_range", "female_max_range", "male_min_range", "male_max_range",
 			"min_range", "max_range", "lab_test_uom",

@@ -1909,6 +1909,8 @@ export interface LabTestTemplateListRow {
   department: string
   lab_test_template_type: string
   is_group: number
+  /** Parent group template name when this row is a child. */
+  lab_group?: string | null
   is_billable: number
   disabled: number
   female_min_range: string

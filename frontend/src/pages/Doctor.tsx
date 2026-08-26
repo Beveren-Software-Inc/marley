@@ -159,8 +159,10 @@ export const DoctorPage = () => {
   const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [labTrendsTestName, setLabTrendsTestName] = useState('')
+  const [labTrendsUnconsolidated, setLabTrendsUnconsolidated] = useState(false)
   const openLabTrends = (testName = '') => {
     setLabTrendsTestName(testName.trim())
+    setLabTrendsUnconsolidated(false)
     setShowLabTrends(true)
   }
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
@@ -857,14 +859,30 @@ export const DoctorPage = () => {
                     Results over time — dates in columns, tests in rows
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLabTrends(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  {labTrendsTestName ? (
+                    <button
+                      type="button"
+                      onClick={() => setLabTrendsUnconsolidated((v) => !v)}
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      title={
+                        labTrendsUnconsolidated
+                          ? 'Show all child tests in this group'
+                          : 'Show only this group as one timeline'
+                      }
+                    >
+                      {labTrendsUnconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setShowLabTrends(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-auto p-4">
                 <LabTestHistory
@@ -872,6 +890,9 @@ export const DoctorPage = () => {
                   patientId={selectedPatient || undefined}
                   onPatientChange={handlePatientSelect}
                   initialTestName={labTrendsTestName}
+                  unconsolidated={labTrendsUnconsolidated}
+                  onUnconsolidatedChange={setLabTrendsUnconsolidated}
+                  hideUnconsolidateControl={Boolean(labTrendsTestName)}
                 />
               </div>
             </div>
@@ -2576,14 +2597,30 @@ export const DoctorPage = () => {
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lab Trends</p>
               <p className="text-sm font-semibold text-slate-900">Results over time — dates in columns, tests in rows</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowLabTrends(false)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              {labTrendsTestName ? (
+                <button
+                  type="button"
+                  onClick={() => setLabTrendsUnconsolidated((v) => !v)}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title={
+                    labTrendsUnconsolidated
+                      ? 'Show all child tests in this group'
+                      : 'Show only this group as one timeline'
+                  }
+                >
+                  {labTrendsUnconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowLabTrends(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-4">
             <LabTestHistory
@@ -2591,6 +2628,9 @@ export const DoctorPage = () => {
               patientId={selectedPatient || undefined}
               onPatientChange={handlePatientSelect}
               initialTestName={labTrendsTestName}
+              unconsolidated={labTrendsUnconsolidated}
+              onUnconsolidatedChange={setLabTrendsUnconsolidated}
+              hideUnconsolidateControl={Boolean(labTrendsTestName)}
             />
           </div>
         </div>

@@ -369,7 +369,7 @@ export const CreateLongActingMedicineModal = ({
           frequency: formData.frequency,
           start_date: formData.start_date,
           end_date: formData.end_date || undefined,
-          next_run_date: formData.next_run_date || undefined,
+          next_run_date: formData.next_run_date || formData.start_date || undefined,
           practitioner: formData.practitioner || undefined,
           company: formData.company || undefined,
           status: formData.status,
@@ -564,6 +564,9 @@ export const CreateLongActingMedicineModal = ({
                       }
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                     />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Leave blank to use start date (first dose due same day).
+                    </p>
                   </div>
                 </div>
 
