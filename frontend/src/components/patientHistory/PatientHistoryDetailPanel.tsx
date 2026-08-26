@@ -67,7 +67,6 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
   const [detail, setDetail] = useState<PatientHistoryDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [showEmpty, setShowEmpty] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -108,11 +107,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
     }
   }, [name])
 
-  const visibleRows = useMemo(() => {
-    if (!detail) return []
-    if (showEmpty) return detail.history_detail
-    return detail.history_detail.filter(rowHasContent)
-  }, [detail, showEmpty])
+  const visibleRows = useMemo(() => detail?.history_detail ?? [], [detail])
 
   const filledCount = detail?.history_detail.filter(rowHasContent).length ?? 0
   const emptyCount = (detail?.history_detail.length ?? 0) - filledCount
@@ -210,21 +205,15 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
 
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-emerald-100/80 bg-gradient-to-r from-white via-emerald-50/30 to-teal-50/20 px-5 py-2.5 sm:px-6">
           <p className="text-xs text-emerald-900/70">
-            <span className="font-semibold text-emerald-950">{filledCount}</span> section
-            {filledCount !== 1 ? 's' : ''} documented
+            <span className="font-semibold text-emerald-950">{visibleRows.length}</span> section
+            {visibleRows.length !== 1 ? 's' : ''}
             {emptyCount > 0 && (
-              <span className="text-emerald-700/50"> · {emptyCount} empty</span>
+              <span className="text-emerald-700/50">
+                {' '}
+                · {filledCount} documented · {emptyCount} without description
+              </span>
             )}
           </p>
-          {emptyCount > 0 && (
-            <button
-              type="button"
-              onClick={() => setShowEmpty((v) => !v)}
-              className="text-xs font-medium text-emerald-700 transition hover:text-emerald-900 hover:underline"
-            >
-              {showEmpty ? 'Hide empty sections' : 'Show empty sections'}
-            </button>
-          )}
         </div>
 
         <div className={`${CREATE_MODAL_BODY_GRADIENT} min-h-0 flex-1`}>
@@ -244,7 +233,7 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
               <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-100/80 ring-1 ring-emerald-200/60">
                 <BookOpen className="h-6 w-6 text-emerald-600/70" />
               </div>
-              <p className="text-sm text-emerald-900/70">NO HISTORY SECTIONS HAVE BEEN FILLED IN YET.</p>
+              <p className="text-sm text-emerald-900/70">NO HISTORY SECTIONS ON THIS RECORD.</p>
             </div>
           )}
           {!loading && detail && visibleRows.length > 0 && (

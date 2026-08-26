@@ -13,6 +13,7 @@ export function useWarningMessages(
   query?: WarningMessageListQuery,
   page: number = 1,
   pageSize: PageSize = DEFAULT_PAGE_SIZE,
+  appendOnOffset: boolean = false,
 ) {
   const [warnings, setWarnings] = useState<WarningMessage[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -51,7 +52,9 @@ export function useWarningMessages(
           noPatientScope,
           query,
         )
-        setWarnings(response.data)
+        setWarnings((prev) =>
+          appendOnOffset && page > 1 ? [...prev, ...response.data] : response.data
+        )
         setTotalCount(response.total_count)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch warning messages'))
@@ -61,7 +64,7 @@ export function useWarningMessages(
     }
 
     loadWarnings()
-  }, [patient, noPatientScope, queryKey, page, pageSize])
+  }, [patient, noPatientScope, queryKey, page, pageSize, appendOnOffset])
 
   return {
     warnings,
@@ -79,7 +82,9 @@ export function useWarningMessages(
           noPatientScope,
           query,
         )
-        setWarnings(response.data)
+        setWarnings((prev) =>
+          appendOnOffset && page > 1 ? [...prev, ...response.data] : response.data
+        )
         setTotalCount(response.total_count)
       } catch (err) {
         setError(err instanceof Error ? err : new Error('Failed to fetch warning messages'))

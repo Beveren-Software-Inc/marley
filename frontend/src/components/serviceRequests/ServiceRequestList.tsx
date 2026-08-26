@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, type Dispatch, type SetStateAction } from 'react'
 import {
   fetchServiceRequests,
   confirmPayment,
@@ -26,11 +26,11 @@ import { ServiceRequestDetailPanel } from './ServiceRequestDetailPanel'
 import { BookConsultationSessionModal } from './BookConsultationSessionModal'
 import { LabRequestActionModal, type LabRequestModalAction } from './LabRequestActionModal'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { X } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
   dashboardCardRowHoverClass,
@@ -104,7 +104,7 @@ const SR_STATUSES = [
 
 const refetch = (
   setLoading: (v: boolean) => void,
-  setServiceRequests: (v: ServiceRequest[]) => void,
+  setServiceRequests: Dispatch<SetStateAction<ServiceRequest[]>>,
   setTotalCount: (v: number) => void,
   setError: (v: Error | null) => void,
   patient?: string,
@@ -115,6 +115,8 @@ const refetch = (
   offset: number = 0,
   practitioner?: string,
   patientSearch?: string,
+  preferLoadMore: boolean = false,
+  page: number = 1,
 ) => {
   setLoading(true)
   fetchServiceRequests(
@@ -128,7 +130,9 @@ const refetch = (
     !patient ? patientSearch?.trim() || undefined : undefined,
   )
     .then((result) => {
-      setServiceRequests(result.data)
+      setServiceRequests((prev) =>
+        preferLoadMore && page > 1 ? [...prev, ...result.data] : result.data
+      )
       setTotalCount(result.total_count)
     })
     .catch((err) => setError(err instanceof Error ? err : new Error('Failed to fetch service requests')))
@@ -180,6 +184,7 @@ export const ServiceRequestList = ({
 
   // Filter state
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
@@ -297,6 +302,8 @@ export const ServiceRequestList = ({
       (page - 1) * pageSize,
       practitionerFilter || undefined,
       debouncedPatientSearch,
+      preferLoadMore,
+      page,
     )
   }, [
     patient,
@@ -309,6 +316,7 @@ export const ServiceRequestList = ({
     page,
     pageSize,
     practitionerInitDone,
+    preferLoadMore,
   ])
 
   const doRefetch = () =>
@@ -325,6 +333,8 @@ export const ServiceRequestList = ({
       (page - 1) * pageSize,
       practitionerFilter || undefined,
       debouncedPatientSearch,
+      preferLoadMore,
+      page,
     )
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {
@@ -964,14 +974,24 @@ export const ServiceRequestList = ({
       )}
         </div>
 
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-      />
+      {preferLoadMore ? (
+        <LoadMoreControls
+          loadedCount={serviceRequests.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
+      )}
       </div>
 
       {detailName && (

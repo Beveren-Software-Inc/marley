@@ -18,7 +18,9 @@ export function useInpatientRecords(
   offset?: number,
   excludeCancelled?: boolean,
   costCenter?: string,
-  includePatientDischarged?: boolean
+  includePatientDischarged?: boolean,
+  /** When true, pages with offset > 0 append instead of replace (card Load more). */
+  appendOnOffset?: boolean,
 ) {
   const [records, setRecords] = useState<InpatientRecord[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -50,7 +52,8 @@ export function useInpatientRecords(
         resolved.dischargeInProgress,
         includePatientDischarged
       )
-      setRecords(response.data)
+      const shouldAppend = Boolean(appendOnOffset && (offset ?? 0) > 0)
+      setRecords((prev) => (shouldAppend ? [...prev, ...response.data] : response.data))
       setTotalCount(response.total_count)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch inpatient records'))
@@ -58,7 +61,11 @@ export function useInpatientRecords(
       setLoading(false)
       setRefreshing(false)
     }
-  }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter, includePatientDischarged, refreshKey])
+  }, [status, search, patient, practitioner, fromDate, toDate, limit, offset, excludeCancelled, costCenter, includePatientDischarged, refreshKey, appendOnOffset])
+
+  useEffect(() => {
+    recordsRef.current = records
+  }, [records])
 
   useEffect(() => {
     loadRecords()

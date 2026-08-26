@@ -182,6 +182,8 @@ const MED_TYPES = [
   { key: '__stopped__',                label: 'Stopped',          icon: '🛑', color: 'rose'    },
 ]
 
+const DEFAULT_PRESCRIPTION_TYPE_FILTER = 'Regular - Psy (Active)'
+
 const TYPE_COLORS: Record<string, { active: string; inactive: string; badge: string; activeBadge: string }> = {
   slate:  { active: 'bg-slate-700 text-white border-slate-700',          inactive: 'bg-white text-slate-600 border-slate-200 hover:border-slate-400',   badge: 'bg-slate-100 text-slate-700',   activeBadge: 'bg-white/20 text-white' },
   rose:   { active: 'bg-rose-600 text-white border-rose-600',            inactive: 'bg-white text-rose-600 border-rose-200 hover:border-rose-400',       badge: 'bg-rose-100 text-rose-700',     activeBadge: 'bg-white/20 text-white' },
@@ -1710,7 +1712,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   const [prescription, setPrescription] = useState<Prescription | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [activeType, setActiveType] = useState('All')
+  const [activeType, setActiveType] = useState(DEFAULT_PRESCRIPTION_TYPE_FILTER)
   const [showTypeFilters, setShowTypeFilters] = useState(true)
   const [showCreatePrescriptionModal, setShowCreatePrescriptionModal] = useState(false)
   const [showEditPrescriptionModal, setShowEditPrescriptionModal] = useState(false)
@@ -1811,7 +1813,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
   }
 
   useEffect(() => {
-    setActiveType('All')
+    setActiveType(DEFAULT_PRESCRIPTION_TYPE_FILTER)
     setShowHistory(false)
     if ((mode === 'OP' && activeVisit) || (mode === 'IP' && activeAdmission)) {
       load()
@@ -1822,7 +1824,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
 
   useEffect(() => {
     if (!showHistory) return
-    setActiveType('All')
+    setActiveType(DEFAULT_PRESCRIPTION_TYPE_FILTER)
     void loadHistory()
   }, [showHistory, selectedPatient])
 

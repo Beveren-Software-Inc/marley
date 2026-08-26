@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
 import { getAllPatientDiagnoses, fetchHealthcarePractitioners, type PatientDiagnosisAggRow, type LinkFieldOption } from '../../services/common'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { CardRowMetaHint, dashboardCardRowHoverClass } from '../ui/dashboardCardListing'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { LoadMoreControls, DEFAULT_PAGE_SIZE } from '../ui/PaginationControls'
 
 interface PatientDiagnosisListProps {
   patient?: string
@@ -40,8 +41,10 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
   const [rows, setRows] = useState<PatientDiagnosisAggRow[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [visibleCount, setVisibleCount] = useState<number>(DEFAULT_PAGE_SIZE)
 
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const inDashboardCard = cardFilters !== undefined
@@ -94,6 +97,14 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
       return true
     })
   }, [rows, fromDate, toDate, practitionerFilter])
+
+  useEffect(() => {
+    setVisibleCount(DEFAULT_PAGE_SIZE)
+  }, [fromDate, toDate, practitionerFilter, rows])
+
+  const visibleRows = filteredRows.slice(0, visibleCount)
+  const totalCount = filteredRows.length
+  const showLoadMore = preferLoadMore || visibleRows.length < totalCount
 
   const hasActiveFilters = Boolean(fromDate || toDate || practitionerFilter)
 
@@ -229,7 +240,7 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
               </tr>
             </thead>
             <tbody>
-              {filteredRows.map((row, idx) => {
+              {visibleRows.map((row, idx) => {
                 const practitionerLabel = diagnosisPractitionerLabel(row)
                 const dateLabel = formatDate(row.posting_date)
                 const metaFields = [
@@ -294,6 +305,16 @@ export function PatientDiagnosisList({ patient, refreshKey }: PatientDiagnosisLi
           </table>
         </div>
       )}
+
+      {showLoadMore && filteredRows.length > 0 ? (
+        <LoadMoreControls
+          loadedCount={visibleRows.length}
+          totalCount={totalCount}
+          pageSize={DEFAULT_PAGE_SIZE}
+          loading={loading}
+          onLoadMore={() => setVisibleCount((c) => c + DEFAULT_PAGE_SIZE)}
+        />
+      ) : null}
     </div>
   )
 }

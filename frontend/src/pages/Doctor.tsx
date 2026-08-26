@@ -1669,6 +1669,7 @@ export const DoctorPage = () => {
             title="Patient History" 
             onAdd={() => guardClinicalCreate(() => setShowPatientHistoryModal(true))}
             addButtonTitle="New Patient History"
+            noHeightLimit
           >
             <div className="text-sm text-slate-600 mb-3">
               Structured patient history records with template-driven attribute items and detailed descriptions.

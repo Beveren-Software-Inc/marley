@@ -15,6 +15,8 @@ export function useLabTests(
   offset: number = 0,
   enabled: boolean = true,
   pipelinePending: boolean = false,
+  /** When true, pages with offset > 0 append instead of replace (card Load more). */
+  appendOnOffset?: boolean,
 ) {
   const [labTests, setLabTests] = useState<LabTest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -40,14 +42,15 @@ export function useLabTests(
         byNurse,
         pipelinePending,
       )
-      setLabTests(response.data)
+      const shouldAppend = Boolean(appendOnOffset && (offset ?? 0) > 0)
+      setLabTests((prev) => (shouldAppend ? [...prev, ...response.data] : response.data))
       setTotalCount(response.total_count)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch lab tests'))
     } finally {
       setLoading(false)
     }
-  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending])
+  }, [enabled, patient, status, pendingReview, isOutsourced, fromDate, toDate, template, practitioner, byNurse, limit, offset, pipelinePending, appendOnOffset])
 
   useEffect(() => {
     loadLabTests()

@@ -86,3 +86,53 @@ export const PaginationControls = ({
     </div>
   )
 }
+
+export interface LoadMoreControlsProps {
+  loadedCount: number
+  totalCount: number
+  pageSize?: number
+  loading?: boolean
+  onLoadMore: () => void
+}
+
+/** Sticky footer for dashboard cards — append next batch instead of paging away. */
+export const LoadMoreControls = ({
+  loadedCount,
+  totalCount,
+  pageSize = DEFAULT_PAGE_SIZE,
+  loading,
+  onLoadMore,
+}: LoadMoreControlsProps) => {
+  const hasMore = loadedCount < totalCount
+  const remaining = Math.max(0, totalCount - loadedCount)
+  const nextBatch = Math.min(pageSize, remaining)
+
+  return (
+    <div className="mt-auto flex-shrink-0 bg-white flex flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm text-slate-600 border-t border-slate-200">
+      <span className="text-slate-500 whitespace-nowrap">
+        {totalCount > 0
+          ? `Showing ${loadedCount} of ${totalCount}`
+          : 'No records'}
+      </span>
+      {hasMore ? (
+        <button
+          type="button"
+          disabled={loading}
+          onClick={onLoadMore}
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+        >
+          {loading ? (
+            <>
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-primary" />
+              Loading…
+            </>
+          ) : (
+            `Load more (${nextBatch})`
+          )}
+        </button>
+      ) : totalCount > 0 ? (
+        <span className="text-xs text-slate-400">All loaded</span>
+      ) : null}
+    </div>
+  )
+}

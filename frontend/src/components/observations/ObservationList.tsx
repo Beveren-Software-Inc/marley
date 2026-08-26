@@ -8,8 +8,9 @@ import { fetchObservationLevels, fetchHealthcarePractitioners, getCurrentUserPra
 import { useCareContext } from '../../providers/CareContextProvider'
 import { isDoctorRole } from '../../config/permissions'
 import { toast } from '../../hooks/useToast'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { LoadMoreControls, DEFAULT_PAGE_SIZE } from '../ui/PaginationControls'
 import { ObservationDetailPanel } from './ObservationDetailPanel'
 import { ScheduleObservationDischargeModal } from './ScheduleObservationDischargeModal'
 import { isObservationActive } from './observationDisplayUtils'
@@ -50,6 +51,7 @@ const FilterToggleButton = ({
 
 export const ObservationList = ({ patient, refreshKey, onPatientClick }: ObservationListProps) => {
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
@@ -64,6 +66,10 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
   const [dischargeTarget, setDischargeTarget] = useState<Observation | null>(null)
   const actionMenuRef = useRef<HTMLDivElement>(null)
   const levelFilterRef = useRef<HTMLDivElement>(null)
+
+  const [page, setPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const pageSize = DEFAULT_PAGE_SIZE
 
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
@@ -99,29 +105,49 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
 
   const hasActiveFilters = Boolean(dateFrom || dateTo || observationLevelFilter || doctorFilter)
 
+  useEffect(() => {
+    setPage(1)
+  }, [patient, observationLevelFilter, doctorFilter, dateFrom, dateTo, refreshKey])
+
   const loadObservations = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
       // One From/To range filters on both Start Date and DC Date (backend ORs the two).
-      const response = await fetchObservations(50, 0, patient, {
+      const offset = (page - 1) * pageSize
+      const response = await fetchObservations(pageSize, offset, patient, {
         observationLevel: observationLevelFilter || undefined,
         practitioner: doctorFilter || undefined,
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
       })
-      setObservations(response)
+      setObservations((prev) => (page > 1 ? [...prev, ...response] : response))
+      const loadedCount = offset + response.length
+      // API returns an array only (no total_count) — treat a full page as "has more".
+      const hasMore = response.length === pageSize
+      setTotalCount(hasMore ? loadedCount + pageSize : loadedCount)
     } catch (err) {
       setError(err instanceof Error ? err : new Error('Failed to fetch observations'))
-      setObservations([])
+      if (page <= 1) setObservations([])
+      setTotalCount(0)
     } finally {
       setLoading(false)
     }
-  }, [patient, observationLevelFilter, doctorFilter, dateFrom, dateTo])
+  }, [patient, observationLevelFilter, doctorFilter, dateFrom, dateTo, page, pageSize, refreshKey])
 
   useEffect(() => {
     loadObservations()
-  }, [loadObservations, refreshKey])
+  }, [loadObservations])
+
+  const showLoadMore = preferLoadMore || observations.length < totalCount
+
+  const reloadObservations = () => {
+    if (page === 1) {
+      void loadObservations()
+    } else {
+      setPage(1)
+    }
+  }
 
   useEffect(() => {
     if (!observationLevelOpen) return
@@ -193,7 +219,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
           : `Sales Order ${res.sales_order} created (Draft)`,
       )
       setOpenActionRow(null)
-      await loadObservations()
+      reloadObservations()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create Service Bill')
     } finally {
@@ -363,11 +389,11 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
         </div>
       )}
 
-      {loading ? (
+      {loading && observations.length === 0 ? (
         <div className="flex items-center justify-center p-8">
           <div className="text-slate-600">Loading observations...</div>
         </div>
-      ) : error ? (
+      ) : error && observations.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8">
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 max-w-2xl w-full">
             <h3 className="text-red-800 font-semibold mb-2">Error Loading Observations</h3>
@@ -559,6 +585,16 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
         </div>
       )}
 
+      {showLoadMore && !error ? (
+        <LoadMoreControls
+          loadedCount={observations.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : null}
+
       {detailName ? (
         <ObservationDetailPanel
           name={detailName}
@@ -575,7 +611,7 @@ export const ObservationList = ({ patient, refreshKey, onPatientClick }: Observa
         <ScheduleObservationDischargeModal
           observation={dischargeTarget}
           onClose={() => setDischargeTarget(null)}
-          onSuccess={loadObservations}
+          onSuccess={reloadObservations}
         />
       ) : null}
     </>

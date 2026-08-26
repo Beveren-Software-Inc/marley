@@ -1,11 +1,11 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { useCardFilters, useDashboardCompactClinical } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useInpatientRecords } from '../../hooks/useInpatientRecords'
 import { fetchHealthcarePractitioners, fetchBranchOptions, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { StatusPill } from '../ui/StatusPill'
 import { PackageSelectionModal } from './PackageSelectionModal'
@@ -146,6 +146,7 @@ export const AdmissionList = ({
       : defaultStatus),
   )
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(() => {
     if (!restoredFilters) return false
     return (
@@ -326,7 +327,8 @@ export const AdmissionList = ({
     (page - 1) * pageSize,
     excludeCancelled,
     userCostCenter || undefined,
-    Boolean(effectivePatient)
+    Boolean(effectivePatient),
+    preferLoadMore,
   )
 
   const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
@@ -1067,14 +1069,24 @@ export const AdmissionList = ({
             </tbody>
           </table>
           </div>
-          <PaginationControls
-            page={page}
-            pageSize={pageSize}
-            totalCount={totalCount}
-            loading={loading}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-          />
+          {preferLoadMore ? (
+            <LoadMoreControls
+              loadedCount={records.length}
+              totalCount={totalCount}
+              pageSize={pageSize}
+              loading={loading || refreshing}
+              onLoadMore={() => setPage((p) => p + 1)}
+            />
+          ) : (
+            <PaginationControls
+              page={page}
+              pageSize={pageSize}
+              totalCount={totalCount}
+              loading={loading}
+              onPageChange={setPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            />
+          )}
         </div>
       </div>
 

@@ -1,6 +1,6 @@
 import { useState, useEffect, useLayoutEffect, useRef, useCallback } from 'react'
 import { createPortal } from 'react-dom'
-import { useCardFilters, useDashboardCompactClinical, useCardHeaderSlot } from '../../contexts/CardFilterContext'
+import { useCardFilters, useDashboardCompactClinical, useCardHeaderSlot, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { StatusPill } from '../ui/StatusPill'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
@@ -30,7 +30,7 @@ import { isDoctorRole } from '../../config/permissions'
 import { observationsAllowedForMode } from '../../config/costCenterCareScope'
 import { ReceptionistOwnerCell } from '../ui/ReceptionistOwnerCell'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { UploadPatientDocumentsModal } from '../documents/UploadPatientDocumentsModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -134,6 +134,7 @@ export const PatientVisitList = ({
   const [selectedStatus, setSelectedStatus] = useState<string>('')
   const cardFilters = useCardFilters()
   const cardCompactLayout = useDashboardCompactClinical()
+  const preferLoadMore = usePreferCardLoadMore()
   const headerSlot = useCardHeaderSlot()
   const [showFiltersInternal, setShowFiltersInternal] = useState(forceBranchFilter)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
@@ -279,7 +280,9 @@ export const PatientVisitList = ({
         receptionistFilter || undefined,
         effectiveVisitFilter,
       )
-      setVisits(response.data)
+      setVisits((prev) =>
+        preferLoadMore && page > 1 ? [...prev, ...response.data] : response.data
+      )
       setTotalCount(response.total_count)
       const nav = pendingVisitNavRef.current
       if (nav && response.data.length) {
@@ -1119,14 +1122,24 @@ export const PatientVisitList = ({
           </table>
         )}
         </div>
-        <PaginationControls
-          page={page}
-          pageSize={pageSize}
-          totalCount={totalCount}
-          loading={loading}
-          onPageChange={setPage}
-          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
-        />
+        {preferLoadMore ? (
+          <LoadMoreControls
+            loadedCount={visits.length}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            loading={loading || refreshing}
+            onLoadMore={() => setPage((p) => p + 1)}
+          />
+        ) : (
+          <PaginationControls
+            page={page}
+            pageSize={pageSize}
+            totalCount={totalCount}
+            loading={loading}
+            onPageChange={setPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+          />
+        )}
       </div>
 
       {/* Referral Modal */}

@@ -629,6 +629,7 @@
 import {
   useCardFilters,
   useDashboardCompactClinical,
+  usePreferCardLoadMore,
 } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
@@ -669,7 +670,7 @@ import { AppointmentPaymentModal } from './AppointmentPaymentModal'
 import { AppointmentAdRemarkModal } from './AppointmentAdRemarkModal'
 import { AppointmentDoctorNoteModal } from './AppointmentDoctorNoteModal'
 import { SendWhatsAppAppointmentModal } from './SendWhatsAppAppointmentModal'
-import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
+import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import {
   fetchAppointmentPractitioners,
@@ -955,6 +956,7 @@ export const AppointmentList = ({
   // Filters (server-side)
   const { userCostCenter } = useCareContext()
   const cardFilters = useCardFilters()
+  const preferLoadMore = usePreferCardLoadMore()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -1156,7 +1158,9 @@ export const AppointmentList = ({
 
         if (cancelled) return
 
-        setAppointments(response.data)
+        setAppointments((prev) =>
+          preferLoadMore && page > 1 ? [...prev, ...response.data] : response.data
+        )
         setTotalCount(response.total_count)
 
         // Skip leave checks on compact dashboard tiles and when filtering by patient (reception header).
@@ -1208,7 +1212,7 @@ export const AppointmentList = ({
   }, [
     refreshKey, useAllAppointmentsApi, cardCompactLayout, patient,
     refreshTrigger, page, pageSize, filterStatus, filterPractitioner, filterDateFrom, filterDateTo, searchQuery,
-    filterBranch,
+    filterBranch, preferLoadMore,
   ])
 
   const { hasPrev, hasNext, navLabel, goPrev, goNext } = useSlideOverListNav({
@@ -2277,14 +2281,24 @@ export const AppointmentList = ({
         </div>
 
       {/* ── Pagination ── */}
-      <PaginationControls
-        page={page}
-        pageSize={pageSize}
-        totalCount={totalCount}
-        loading={loading}
-        onPageChange={setPage}
-        onPageSizeChange={handlePageSizeChange}
-      />
+      {preferLoadMore ? (
+        <LoadMoreControls
+          loadedCount={appointments.length}
+          totalCount={totalCount}
+          pageSize={pageSize}
+          loading={loading || refreshing}
+          onLoadMore={() => setPage((p) => p + 1)}
+        />
+      ) : (
+        <PaginationControls
+          page={page}
+          pageSize={pageSize}
+          totalCount={totalCount}
+          loading={loading}
+          onPageChange={setPage}
+          onPageSizeChange={handlePageSizeChange}
+        />
+      )}
       </div>
       </div>
 
