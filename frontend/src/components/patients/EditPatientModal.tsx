@@ -28,6 +28,8 @@ import { PatientDocumentAttachmentPreview, printImagesInPlace } from '../ui/Pati
 import { toast } from '../../hooks/useToast'
 import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
+import { digitsOnlyPhone, firstInvalidPatientPhone, isNumericPhone } from '../../utils/phoneInput'
+import { isValidEmail } from '../../utils/emailInput'
 import { PenLine, Trash2, Check, X, Upload, Download, Printer, RefreshCw, Loader2, Ban } from 'lucide-react'
 import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -396,11 +398,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           sex: patient.sex ?? '',
           dob: patient.dob ? String(patient.dob).slice(0, 10) : '',
           blood_group: patient.blood_group ?? '',
-          mobile: patient.mobile ?? '',
+          mobile: digitsOnlyPhone(patient.mobile ?? ''),
           mobile_no_owner: patient.mobile_no_owner ?? '',
-          alternative_mobile_no_1: patient.alternative_mobile_no_1 ?? '',
-          alternative_mobile_no_2: patient.alternative_mobile_no_2 ?? '',
-          phone: patient.phone ?? '',
+          alternative_mobile_no_1: digitsOnlyPhone(patient.alternative_mobile_no_1 ?? ''),
+          alternative_mobile_no_2: digitsOnlyPhone(patient.alternative_mobile_no_2 ?? ''),
+          phone: digitsOnlyPhone(patient.phone ?? ''),
           email: patient.email ?? '',
           id_number: patient.id_number ?? '',
           nationality: patient.nationality ?? '',
@@ -434,7 +436,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
           setRelations(patient.patient_relation.map((r: any) => ({
             full_name: r.full_name || '',
             relation: r.relation || '',
-            mobile_no: r.mobile_no || '',
+            mobile_no: digitsOnlyPhone(r.mobile_no || ''),
             email: r.email || '',
             description: r.description || '',
             is_next_of_kin: r.is_next_of_kin === 1
@@ -487,8 +489,18 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     load()
   }, [patientName])
 
+  const PATIENT_PHONE_FIELDS = new Set([
+    'mobile',
+    'phone',
+    'alternative_mobile_no_1',
+    'alternative_mobile_no_2',
+    'emergency_contact_phone',
+  ])
+
   const handleChange = (field: string, value: string | boolean) => {
-    setFormData((prev) => ({ ...prev, [field]: value }))
+    const next =
+      typeof value === 'string' && PATIENT_PHONE_FIELDS.has(field) ? digitsOnlyPhone(value) : value
+    setFormData((prev) => ({ ...prev, [field]: next }))
   }
 
   // Document handlers
@@ -587,9 +599,10 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     field: 'full_name' | 'relation' | 'mobile_no' | 'email' | 'description' | 'is_next_of_kin',
     value: string | boolean
   ) => {
+    const nextValue = field === 'mobile_no' && typeof value === 'string' ? digitsOnlyPhone(value) : value
     setRelations((prev) => {
       const next = [...prev]
-      next[idx] = { ...next[idx], [field]: value }
+      next[idx] = { ...next[idx], [field]: nextValue }
       return next
     })
   }
@@ -611,6 +624,32 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
     if (!formData.mobile && !formData.phone) {
       setError('At least one Contact No. (Mobile or Phone) is required')
       setActiveTab('details')
+      return
+    }
+    const invalidPhone = firstInvalidPatientPhone({
+      mobile: formData.mobile,
+      phone: formData.phone,
+      alternative_mobile_no_1: formData.alternative_mobile_no_1,
+      alternative_mobile_no_2: formData.alternative_mobile_no_2,
+    })
+    if (invalidPhone) {
+      setError(`${invalidPhone} must contain numbers only`)
+      setActiveTab('details')
+      return
+    }
+    if (relations.some((r) => !isNumericPhone(r.mobile_no))) {
+      setError('Relative Mobile No must contain numbers only')
+      setActiveTab('relations')
+      return
+    }
+    if (!isValidEmail(formData.email)) {
+      setError('Email must be a valid email address')
+      setActiveTab('details')
+      return
+    }
+    if (relations.some((r) => !isValidEmail(r.email))) {
+      setError('Relative Email must be a valid email address')
+      setActiveTab('relations')
       return
     }
     if (!formData.address_line1) {
@@ -988,7 +1027,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                       <label className="block text-sm font-medium text-slate-700 mb-1">
                         Mobile <span className="text-red-500">*</span>
                       </label>
-                      <input type="tel" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.mobile} onChange={(e) => handleChange('mobile', e.target.value)} placeholder="Numbers only" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Mobile Number Owner</label>
@@ -996,7 +1035,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Phone</label>
-                      <input type="tel" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="Numbers only" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
@@ -1004,11 +1043,11 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 1</label>
-                      <input type="tel" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.alternative_mobile_no_1} onChange={(e) => handleChange('alternative_mobile_no_1', e.target.value)} placeholder="Numbers only" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Alternate Mobile 2</label>
-                      <input type="tel" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <input type="tel" inputMode="numeric" pattern="[0-9]*" value={formData.alternative_mobile_no_2} onChange={(e) => handleChange('alternative_mobile_no_2', e.target.value)} placeholder="Numbers only" className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                     </div>
                   </div>
                 </div>
@@ -1318,7 +1357,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Mobile No</label>
-                          <input type="tel" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)} placeholder="Mobile number" className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                          <input type="tel" inputMode="numeric" pattern="[0-9]*" value={row.mobile_no || ''} onChange={(e) => updateRelationRow(idx, 'mobile_no', e.target.value)} placeholder="Numbers only" className="w-full rounded border border-slate-300 bg-white text-slate-900 px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                         </div>
                         <div>
                           <label className="block text-xs font-medium text-slate-600 mb-0.5">Email</label>

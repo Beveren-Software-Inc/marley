@@ -1166,9 +1166,24 @@ def update_patient_visit(name, data):
 		if field in data:
 			doc.set(field, data.get(field))
 
+	# Reception staff editing a visit take credit as receptionist (visit_owner).
+	# Skip elevated/clinical users who may also hold a Reception role (e.g. CEO).
+	if _should_stamp_visit_owner_on_reception_edit() and doc.meta.has_field("visit_owner"):
+		doc.visit_owner = frappe.session.user
+
 	doc.save(ignore_permissions=True)
 	frappe.db.commit()
 	return get_patient_visit(doc.name)
+
+
+def _should_stamp_visit_owner_on_reception_edit() -> bool:
+	"""True when saver is Reception/Receptionist without System Manager, CEO, or Doctor."""
+	roles = set(frappe.get_roles(frappe.session.user))
+	if not roles.intersection({"Receptionist", "Reception"}):
+		return False
+	if roles.intersection({"System Manager", "CEO", "Doctor", "Physician"}):
+		return False
+	return True
 
 
 @frappe.whitelist()

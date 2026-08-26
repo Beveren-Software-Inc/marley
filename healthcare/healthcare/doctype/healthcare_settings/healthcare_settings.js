@@ -181,6 +181,55 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Data Maintenance'));
 
+		frm.add_custom_button(__('Update Patient Category'), () => {
+			frappe.call({
+				method: 'healthcare.api.patient_category_from_major_type.preview_patient_category_from_major_type',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map((row) => `${row.patient}: Pat Major Type "${row.pat_major_type}" → Category "${row.to}"${row.from ? ` (was "${row.from}")` : ''}`)
+						.join('\n');
+					frappe.confirm(
+						__(
+							'Run in background: set Patient Category from Pat Major Type.\n\n'
+							+ 'A → Military\nN → Regular\nR → VIP\n\n'
+							+ 'Patients with Pat Major Type: {0}\n'
+							+ 'A (Military): {1}\nN (Regular): {2}\nR (VIP): {3}\nOther / unknown: {4}\n\n'
+							+ 'To update: {5}\nAlready correct: {6}\nUnmatched type: {7}\n\n'
+							+ 'Sample:\n{8}\n\nContinue?',
+							[
+								counts.patients_with_code || 0,
+								counts.count_A_military || 0,
+								counts.count_N_regular || 0,
+								counts.count_R_vip || 0,
+								counts.count_other || 0,
+								counts.needs_update || 0,
+								counts.skipped_already_ok || 0,
+								counts.skipped_unmatched || 0,
+								sample || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.patient_category_from_major_type.start_patient_category_from_major_type',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('patient_category_from_major_type');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Delete Duplicate Unlinked Customers'), () => {
 			frappe.call({
 				method: 'healthcare.api.patient_customer_dedupe.preview_patient_customer_dedupe',
@@ -7119,6 +7168,19 @@ function poll_migration_status(jobKey) {
 								s.skipped_ok || 0,
 								s.skipped_no_customer || 0,
 								s.skipped_no_file_no || 0,
+								s.errors || 0,
+								s.processed || 0,
+							]
+						);
+					} else if (jobKey === 'patient_category_from_major_type') {
+						msg = __(
+							'{0} finished: {1} updated Category from Pat Major Type, {2} already correct, {3} unmatched type, {4} no type, {5} errors (scanned {6}).',
+							[
+								jobKey,
+								s.updated || 0,
+								s.skipped_already_ok || 0,
+								s.skipped_unmatched || 0,
+								s.skipped_no_code || 0,
 								s.errors || 0,
 								s.processed || 0,
 							]

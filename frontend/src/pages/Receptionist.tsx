@@ -34,7 +34,8 @@ import { ReportRequestsCard } from '../components/reportRequests/ReportRequestLi
 import { ObservationList } from '../components/observations/ObservationList'
 import { CreateObservationModal } from '../components/observations/CreateObservationModal'
 import { InternalTransferList } from '../components/transfers/InternalTransferList'
-import { CreateInternalTransferModal } from '../components/transfers/CreateInternalTransferModal'
+import { TransferCostCenterModal } from '../components/admissions/TransferCostCenterModal'
+import { fetchInpatientRecord, type InpatientRecord } from '../services/inpatientRecords'
 import { BillingDashboard } from '../components/billing/BillingDashboard'
 import { DailyAutoVisitView } from '../components/patientVisits/DailyAutoVisitView'
 import { AdditionalCollectionBillingPage } from './billing/AdditionalCollectionBillingPage'
@@ -136,8 +137,23 @@ export const ReceptionistPage = () => {
   const [showObservationModal, setShowObservationModal] = useState(false)
   const [observationRefreshKey, setObservationRefreshKey] = useState(0)
   const [showCreateInternalTransfer, setShowCreateInternalTransfer] = useState(false)
+  const [transferAdmission, setTransferAdmission] = useState<InpatientRecord | null>(null)
   const [internalTransferRefreshKey, setInternalTransferRefreshKey] = useState(0)
     const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
+
+  const openInternalTransferModal = async () => {
+    if (!activeAdmission) {
+      toast.error('Select an inpatient admission at the top first')
+      return
+    }
+    try {
+      const rec = await fetchInpatientRecord(activeAdmission)
+      setTransferAdmission(rec)
+      setShowCreateInternalTransfer(true)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load admission for transfer')
+    }
+  }
 
 
   const handlePatientSelect = (patient: string | undefined) => {
@@ -698,7 +714,7 @@ export const ReceptionistPage = () => {
               </div>
               <button
                 type="button"
-                onClick={() => setShowCreateInternalTransfer(true)}
+                onClick={() => void openInternalTransferModal()}
                 className="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors text-sm font-bold"
                 title="New Internal Transfer"
               >
@@ -1111,7 +1127,7 @@ export const ReceptionistPage = () => {
               <DashboardCard
                 fixedHeight
                 title="Internal Transfer"
-                onAdd={() => guardClinicalCreate(() => setShowCreateInternalTransfer(true))}
+                onAdd={() => guardClinicalCreate(() => void openInternalTransferModal())}
                 addButtonTitle="New Internal Transfer"
                 listingScreen="r-internal-transfer"
               >
@@ -1205,13 +1221,23 @@ export const ReceptionistPage = () => {
         />
       )}
 
-      {showCreateInternalTransfer && (
-        <CreateInternalTransferModal
-          initialPatient={selectedPatient || undefined}
-          onClose={() => setShowCreateInternalTransfer(false)}
+      {showCreateInternalTransfer && transferAdmission && (
+        <TransferCostCenterModal
+          admission={{
+            name: transferAdmission.name,
+            patient: transferAdmission.patient,
+            patient_name: transferAdmission.patient_name,
+            company: transferAdmission.company,
+            cost_center: transferAdmission.cost_center,
+          }}
+          onClose={() => {
+            setShowCreateInternalTransfer(false)
+            setTransferAdmission(null)
+          }}
           onSuccess={() => {
             setShowCreateInternalTransfer(false)
-            setInternalTransferRefreshKey(k => k + 1)
+            setTransferAdmission(null)
+            setInternalTransferRefreshKey((k) => k + 1)
           }}
         />
       )}

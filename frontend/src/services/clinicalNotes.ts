@@ -227,3 +227,32 @@ export async function updateClinicalNote(data: UpdateClinicalNoteData) {
     posting_date?: string | null
   }
 }
+
+export async function deleteClinicalNote(name: string) {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+
+  const response = await fetch('/api/method/healthcare.api.clinical_note.delete_clinical_note', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+    },
+    body: JSON.stringify({ name }),
+  })
+
+  const resData = await response.json()
+  if (!response.ok || resData.exc) {
+    const message =
+      resData?._error_message ||
+      resData?.message?.message ||
+      resData?.message ||
+      resData?.exc ||
+      'Failed to delete clinical note'
+    throw new Error(typeof message === 'string' ? message : 'Failed to delete clinical note')
+  }
+
+  return resData.message as { success: boolean; name: string }
+}

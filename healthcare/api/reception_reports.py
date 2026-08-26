@@ -550,6 +550,44 @@ def _soa_is_medicine_item(item_code, item_group=None, base_reference=None):
 	return any(h in ig for h in ("medic", "pharma", "drug", "pharmacy"))
 
 
+def _soa_observation_display_map():
+	"""Map auto-generated Observation Level items to receptionist New Item / New Item Name."""
+	cached = getattr(frappe.local, "_soa_observation_display_map", None)
+	if cached is not None:
+		return cached
+	mapping = {}
+	if not frappe.db.exists("DocType", "Observation Level"):
+		frappe.local._soa_observation_display_map = mapping
+		return mapping
+	rows = frappe.get_all(
+		"Observation Level",
+		fields=["item", "item_code", "new_item", "new_item_name"],
+		limit_page_length=0,
+	)
+	for row in rows:
+		display_code = (row.get("new_item") or "").strip()
+		display_name = (row.get("new_item_name") or "").strip()
+		if not display_code and not display_name:
+			continue
+		if display_code and not display_name:
+			display_name = frappe.db.get_value("Item", display_code, "item_name") or display_code
+		keys = {row.get("item"), row.get("item_code"), row.get("new_item")}
+		for key in keys:
+			code = (key or "").strip()
+			if code:
+				mapping[code] = (display_code or code, display_name or code)
+	frappe.local._soa_observation_display_map = mapping
+	return mapping
+
+
+def _soa_apply_observation_display(code, name):
+	mapped = _soa_observation_display_map().get((code or "").strip())
+	if not mapped:
+		return code, name
+	display_code, display_name = mapped
+	return display_code or code, display_name or name
+
+
 def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentage=0, base_reference=None):
 	"""One SOA raw line. Labs → Lab test; PMO/stock meds → Medicine (print summary)."""
 	code = getattr(it, "item_code", None) or (it.get("item_code") if isinstance(it, dict) else None)
@@ -565,6 +603,8 @@ def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentag
 	elif _soa_is_medicine_item(code, item_group=group, base_reference=base_reference):
 		code, name, group = "Medicine", "Medicine", "Medicine"
 		rate = None
+	else:
+		code, name = _soa_apply_observation_display(code, name)
 
 	return {
 		"item_code": code,
@@ -1205,6 +1245,30 @@ def _soa_aggregate_lines(sos, invoices):
 
 	return by_category, bill_total, discount_total
 
+
+def _patient_first_visit_date(patient: str):
+	"""Earliest Patient Visit encounter_date for this patient (any visit ever)."""
+	patient = (patient or "").strip()
+	if not patient:
+		return None
+	first = frappe.db.sql(
+		"""
+		SELECT MIN(encounter_date)
+		FROM `tabPatient Visit`
+		WHERE patient = %s AND encounter_date IS NOT NULL
+		""",
+		patient,
+	)
+	d = first[0][0] if first and first[0] else None
+	return str(getdate(d)) if d else None
+
+
+@frappe.whitelist()
+def get_patient_first_visit_date(patient=None):
+	"""Return YYYY-MM-DD of the patient's first Patient Visit, or None."""
+	return _patient_first_visit_date(patient or "")
+
+
 @frappe.whitelist()
 def get_op_statement_of_account(visit=None, from_date=None, to_date=None, patient=None):
 	"""Statement of Account for OP.
@@ -1212,7 +1276,7 @@ def get_op_statement_of_account(visit=None, from_date=None, to_date=None, patien
 	- With ``visit``: one Patient Visit (existing behaviour).
 	- Without ``visit``: require ``patient`` + ``from_date``/``to_date`` and include
 	  services/items from all of that patient's OP visits whose SO/SI dates fall
-	  in the range.
+	  in the range. If From Date is blank, default to the patient's first visit.
 	"""
 	visit = (visit or "").strip() or None
 	patient = (patient or "").strip() or None
@@ -1232,6 +1296,10 @@ def get_op_statement_of_account(visit=None, from_date=None, to_date=None, patien
 
 	if not patient or not frappe.db.exists("Patient", patient):
 		frappe.throw(_("Select a patient, or pick a Patient Visit"))
+	if not from_date:
+		from_date = _patient_first_visit_date(patient)
+	if not to_date:
+		to_date = str(frappe.utils.today())
 	if not from_date or not to_date:
 		frappe.throw(_("From Date and To Date are required when Visit is not selected"))
 

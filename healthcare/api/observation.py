@@ -237,6 +237,8 @@ def get_observation_level_details(name):
 			"item",
 			"item_code",
 			"link_existing_item",
+			"new_item",
+			"new_item_name",
 		],
 		as_dict=True,
 	)
@@ -496,12 +498,10 @@ def _existing_observation_sales_order_for_date(observation_name: str, billing_da
 
 def _resolve_observation_billing_item(obs, lvl):
 	def _level_has_resolved_item(doc):
-		code = (getattr(doc, "item_code", None) or "").strip()
-		link = (getattr(doc, "item", None) or "").strip()
-		if code and frappe.db.exists("Item", code):
-			return True
-		if link and frappe.db.exists("Item", link):
-			return True
+		for field in ("new_item", "item_code", "item"):
+			code = (getattr(doc, field, None) or "").strip()
+			if code and frappe.db.exists("Item", code):
+				return True
 		return False
 
 	if cint(lvl.link_existing_item) and not lvl.item:
@@ -514,10 +514,12 @@ def _resolve_observation_billing_item(obs, lvl):
 		lvl.save()
 		lvl.reload()
 
-	item_code = (getattr(lvl, "item_code", None) or getattr(lvl, "item", None) or "").strip()
+	legacy_code = (getattr(lvl, "item_code", None) or getattr(lvl, "item", None) or "").strip()
+	linked = (getattr(lvl, "new_item", None) or "").strip()
+	item_code = linked if linked and frappe.db.exists("Item", linked) else legacy_code
 	if not item_code or not frappe.db.exists("Item", item_code):
 		frappe.throw(
-			_("Observation Level {0} has no Item for billing — save the level with Is Billable or link an Item").format(
+			_("Observation Level {0} has no Item for billing — set New Item, or save the level with Is Billable").format(
 				lvl.name
 			)
 		)
@@ -526,8 +528,11 @@ def _resolve_observation_billing_item(obs, lvl):
 	if billing_rate <= 0:
 		billing_rate = flt(getattr(lvl, "rate", None)) or 0
 
-	desc = getattr(lvl, "observation_level", None) or obs.observation_level or obs.name
-	return item_code, billing_rate, desc
+	display_name = (getattr(lvl, "new_item_name", None) or "").strip()
+	if not display_name:
+		display_name = frappe.db.get_value("Item", item_code, "item_name") or item_code
+
+	return item_code, billing_rate, display_name
 
 
 def _create_observation_sales_order(obs, billing_date=None) -> dict:
@@ -566,7 +571,7 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 	if not cint(lvl.is_billable):
 		frappe.throw(_("Observation Level {0} must be billable to create a Sales Order").format(lvl.name))
 
-	item_code, billing_rate, desc = _resolve_observation_billing_item(obs, lvl)
+	item_code, billing_rate, display_name = _resolve_observation_billing_item(obs, lvl)
 	customer = frappe.db.get_value("Patient", obs.patient, "customer") or obs.patient
 
 	so = frappe.new_doc("Sales Order")
@@ -592,10 +597,11 @@ def _create_observation_sales_order(obs, billing_date=None) -> dict:
 		"items",
 		{
 			"item_code": item_code,
+			"item_name": display_name,
 			"qty": 1,
 			"rate": billing_rate,
 			"price_list_rate": billing_rate,
-			"description": _("Observation {0} ({1}): {2}").format(obs.name, billing_date, desc),
+			"description": display_name,
 		},
 	)
 

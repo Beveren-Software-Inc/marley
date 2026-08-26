@@ -466,7 +466,7 @@ def create_clinical_note(data):
 CLINICAL_NOTE_EDIT_WINDOW_HOURS = 24
 
 CLINICAL_NOTE_EDIT_LOCKED_MESSAGE = _(
-	"This clinical note can no longer be edited. Notes are locked 24 hours after creation."
+	"This clinical note can no longer be edited or deleted. Notes are locked 24 hours after creation."
 )
 
 
@@ -485,12 +485,12 @@ def clinical_note_edit_window_expired(creation) -> bool:
 
 
 def assert_clinical_note_editable(doc) -> None:
-	"""Reject portal edits when permanently locked, or past 24h if setting is on."""
+	"""Reject portal edit/delete when permanently locked, or past 24h if setting is on."""
 	if doc.is_new():
 		return
 	if frappe.db.get_value(doc.doctype, doc.name, "note_locked"):
 		frappe.throw(
-			_("This clinical note is locked and cannot be edited."),
+			_("This clinical note is locked and cannot be edited or deleted."),
 			title=_("Note Locked"),
 		)
 	# Only enforce the 24h window when Healthcare Settings asks for it.
@@ -500,7 +500,7 @@ def assert_clinical_note_editable(doc) -> None:
 	if clinical_note_edit_window_expired(creation):
 		frappe.throw(
 			CLINICAL_NOTE_EDIT_LOCKED_MESSAGE,
-			title=_("Editing not allowed"),
+			title=_("Not allowed"),
 			exc=frappe.ValidationError,
 		)
 
@@ -547,6 +547,28 @@ def update_clinical_note(data):
 		"creation": str(doc.creation) if doc.creation else None,
 		"modified": str(doc.modified) if doc.modified else None,
 	}
+
+
+@frappe.whitelist()
+def delete_clinical_note(name):
+	"""Delete a clinical note (same 24h / lock rules as edit)."""
+	from healthcare.healthcare.editing_lock import assert_editing_allowed
+
+	assert_editing_allowed()
+	name = (name or "").strip()
+	if not name:
+		frappe.throw(_("Clinical Note name is required"))
+
+	if not frappe.db.exists("Clinical Note", name):
+		frappe.throw(_("Clinical Note {0} not found").format(name))
+
+	doc = frappe.get_doc("Clinical Note", name)
+	assert_clinical_note_editable(doc)
+
+	frappe.delete_doc("Clinical Note", name, ignore_permissions=True)
+	frappe.db.commit()
+
+	return {"success": True, "name": name}
  
  
 def resolve_medical_role_filter(medical_role):
