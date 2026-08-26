@@ -120,7 +120,7 @@ fixtures = [
                    "Item Group-custom_required_by_nhra",
                    "Customer-custom_patient_file_no",
                    
-                   #Payment entry
+                   #Payment entry - Stay
                    "Payment Entry-custom_payment_owner",
                    "UOM-custom_is_medical",
                    "Material Request-custom_is_medical",
