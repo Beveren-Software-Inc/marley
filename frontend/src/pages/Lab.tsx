@@ -707,7 +707,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { Navigate, useSearchParams } from 'react-router-dom'
 import { useCareContext } from '../providers/CareContextProvider'
-import { FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers, FileStack } from 'lucide-react'
+import { FlaskConical, Droplet, History, Clock, TestTube2, Tags, Layers } from 'lucide-react'
 import { PatientCareHeader } from '../components/patients/PatientCareHeader'
 import { LabTestList, type LabTestListBatchSaveRef } from '../components/labTests/LabTestList'
 import { LabBookedRequestList } from '../components/labTests/LabBookedRequestList'
@@ -715,7 +715,6 @@ import { DashboardCard } from '../components/ui/DashboardCard'
 import { LabTestResultsSaveHeader } from '../components/labTests/LabTestResultsSaveHeader'
 import { CreateLabTestModal } from '../components/labTests/CreateLabTestModal'
 import { CreateLabTestTemplateModal } from '../components/labTests/CreateLabTestTemplateModal'
-import { LabTestTemplateList } from '../components/labTests/LabTestTemplateList'
 import { LabTestSetupGroups } from '../components/labTests/LabTestSetupGroups'
 import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSampleModal'
 import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeModal'
@@ -726,7 +725,7 @@ import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type L
 
 type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
 
-type SetupTab = 'templates' | 'samples' | 'sample-types' | 'lab-setup'
+type SetupTab = 'lab-setup' | 'samples' | 'sample-types'
 
 const VALID_LAB_TABS: LabTab[] = [
   'pending-lab-tests',
@@ -737,11 +736,11 @@ const VALID_LAB_TABS: LabTab[] = [
 
 const SETUP_NAV_CARDS = [
   {
-    id: 'templates' as SetupTab,
-    title: 'Lab Test Templates',
-    icon: FileStack,
-    color: 'bg-indigo-50 text-indigo-700 border-indigo-200',
-    iconColor: 'text-indigo-600',
+    id: 'lab-setup' as SetupTab,
+    title: 'Lab Setup',
+    icon: Layers,
+    color: 'bg-violet-50 text-violet-700 border-violet-200',
+    iconColor: 'text-violet-600',
   },
   {
     id: 'samples' as SetupTab,
@@ -756,13 +755,6 @@ const SETUP_NAV_CARDS = [
     icon: Tags,
     color: 'bg-amber-50 text-amber-700 border-amber-200',
     iconColor: 'text-amber-600',
-  },
-  {
-    id: 'lab-setup' as SetupTab,
-    title: 'Lab Setup',
-    icon: Layers,
-    color: 'bg-violet-50 text-violet-700 border-violet-200',
-    iconColor: 'text-violet-600',
   },
 ]
 
@@ -840,7 +832,7 @@ export const LabPage = () => {
   const [sampleTypeRefreshKey, setSampleTypeRefreshKey] = useState(0)
   const [sampleTypes, setSampleTypes] = useState<LinkFieldOption[]>([])
   const [sampleTypesLoading, setSampleTypesLoading] = useState(false)
-  const [setupTab, setSetupTab] = useState<SetupTab>('templates')
+  const [setupTab, setSetupTab] = useState<SetupTab>('lab-setup')
 
   const [pendingResultCount, setPendingResultCount] = useState(0)
   const [batchSaving, setBatchSaving] = useState(false)
@@ -984,15 +976,6 @@ export const LabPage = () => {
               className="flex-1 min-h-0"
               openListingTitle={`Expand ${activeSetupCard.title}`}
               filterable={false}
-              {...(setupTab === 'templates'
-                ? {
-                    onAdd: () => {
-                      setEditTemplateName(undefined)
-                      setShowCreateTemplateModal(true)
-                    },
-                    addButtonTitle: 'Create Lab Test Template',
-                  }
-                : {})}
               {...(setupTab === 'samples'
                 ? {
                     onAdd: () => setShowCreateSampleModal(true),
@@ -1006,16 +989,6 @@ export const LabPage = () => {
                   }
                 : {})}
             >
-              {setupTab === 'templates' && (
-                <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
-                  <LabTestTemplateList
-                    refreshKey={templateRefreshKey}
-                    selectedPatient={selectedPatient}
-                    onEditClick={handleEditTemplate}
-                  />
-                </div>
-              )}
-
               {setupTab === 'samples' && (
                 <div className="overflow-y-auto flex-1 min-h-0" style={{ scrollbarWidth: 'thin' }}>
                   {samplesLoading ? (

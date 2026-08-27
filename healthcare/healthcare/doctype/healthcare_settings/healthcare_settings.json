@@ -50,6 +50,10 @@
   "close_all_cost_before_patient_transfer",
   "apply_multiplier_on_insurance",
   "allow_doctors_to_create_patient_visit",
+  "validate_dose_per_day_on_given_medicine",
+  "validate_dose_per_session_on_given_medicine",
+  "validate_dose_per_day_on_prescription",
+  "validate_dose_per_session_on_prescription",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -1034,12 +1038,36 @@
    "fieldname": "allow_doctors_to_create_patient_visit",
    "fieldtype": "Check",
    "label": "Allow Doctors To Create Patient Visit"
+  },
+  {
+   "default": "0",
+   "fieldname": "validate_dose_per_day_on_given_medicine",
+   "fieldtype": "Check",
+   "label": "Validate Dose Per Day on Given Medicine"
+  },
+  {
+   "default": "0",
+   "fieldname": "validate_dose_per_session_on_given_medicine",
+   "fieldtype": "Check",
+   "label": "Validate Dose Per Session on Given Medicine"
+  },
+  {
+   "default": "0",
+   "fieldname": "validate_dose_per_day_on_prescription",
+   "fieldtype": "Check",
+   "label": "Validate Dose Per Day on Prescription"
+  },
+  {
+   "default": "0",
+   "fieldname": "validate_dose_per_session_on_prescription",
+   "fieldtype": "Check",
+   "label": "Validate Dose Per Session on Prescription"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-25 17:27:37.517369",
- "modified_by": "mania@beverensoftware.com",
+ "modified": "2026-08-27 15:55:10.291958",
+ "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
  "owner": "Administrator",

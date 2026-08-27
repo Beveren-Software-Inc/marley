@@ -1921,6 +1921,13 @@ export interface LabTestTemplateListRow {
   max_range: string
   lab_test_uom:string
   lab_test_rate: number
+  op_rate?: number
+  outpatient_rate?: number
+  inpatient_rate?: number
+  result_type?: string
+  /** Shown when result type is Multiple (Result Mul Val). */
+  result_mul_val?: string
+  is_multiple?: number | boolean
 }
 
 export async function fetchLabTestTemplateList(search?: string): Promise<LabTestTemplateListRow[]> {
@@ -1935,6 +1942,34 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
     return resData.message as LabTestTemplateListRow[]
   }
   return []
+}
+
+/** Partial update for Lab Test Template (single row). Prefer bulk for Lab Setup. */
+export async function updateLabTestTemplateQuickFields(
+  name: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  await apiRequest(`/api/resource/Lab%20Test%20Template/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify(fields),
+  })
+}
+
+/** One-request batch save for Lab Setup inline edits. */
+export async function bulkUpdateLabTestTemplatesQuick(
+  updates: Array<{ name: string; fields: Record<string, unknown> }>,
+): Promise<{ updated: string[]; failed: Array<{ name?: string; error?: string }> }> {
+  const result = await apiRequest<{
+    updated?: string[]
+    failed?: Array<{ name?: string; error?: string }>
+  }>('/api/method/healthcare.api.common.bulk_update_lab_test_templates_quick', {
+    method: 'POST',
+    body: JSON.stringify({ updates }),
+  })
+  return {
+    updated: Array.isArray(result?.updated) ? result.updated : [],
+    failed: Array.isArray(result?.failed) ? result.failed : [],
+  }
 }
 
 export interface LabTestSampleOption {

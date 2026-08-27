@@ -5,7 +5,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import cint, flt
+from frappe.utils import cint, cstr, flt
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
@@ -3071,7 +3071,7 @@ def get_lab_test_templates_admin_list(search=None):
 		"fields": [
 			"name", "lab_test_name", "lab_test_code", "department",
 			"lab_test_template_type", "is_group", "lab_group", "is_billable", "disabled",
-			"lab_test_rate", "op_rate",
+			"lab_test_rate", "op_rate", "result_type", "result_mul_val", "is_multiple",
 			"female_min_range", "female_max_range", "male_min_range", "male_max_range",
 			"min_range", "max_range", "lab_test_uom",
 		],
@@ -3087,6 +3087,71 @@ def get_lab_test_templates_admin_list(search=None):
 		t["outpatient_rate"] = flt(t.get("op_rate") or 0)
 		t["inpatient_rate"] = flt(t.get("lab_test_rate") or 0)
 	return templates
+
+
+LAB_TEST_TEMPLATE_QUICK_FIELDS = frozenset(
+	{
+		"lab_test_name",
+		"result_type",
+		"is_multiple",
+		"result_mul_val",
+		"female_min_range",
+		"female_max_range",
+		"male_min_range",
+		"male_max_range",
+		"min_range",
+		"max_range",
+		"lab_test_uom",
+		"lab_test_rate",
+		"op_rate",
+	}
+)
+
+
+@frappe.whitelist()
+def bulk_update_lab_test_templates_quick(updates=None):
+	"""Batch-update Lab Test Template setup fields in one request (Lab Setup inline save)."""
+	if isinstance(updates, str):
+		updates = frappe.parse_json(updates)
+	if not updates:
+		frappe.throw(_("No updates provided"))
+	if not isinstance(updates, (list, tuple)):
+		frappe.throw(_("Updates must be a list"))
+
+	updated = []
+	failed = []
+	for raw in updates:
+		row = raw or {}
+		name = cstr(row.get("name") or "").strip()
+		fields_in = row.get("fields") or {}
+		if not name:
+			failed.append({"name": name or None, "error": _("Template name is required")})
+			continue
+		if not frappe.db.exists("Lab Test Template", name):
+			failed.append({"name": name, "error": _("Template not found")})
+			continue
+		if not isinstance(fields_in, dict):
+			failed.append({"name": name, "error": _("Fields must be an object")})
+			continue
+
+		payload = {}
+		for key, value in fields_in.items():
+			if key not in LAB_TEST_TEMPLATE_QUICK_FIELDS:
+				continue
+			payload[key] = value
+
+		if not payload:
+			continue
+
+		try:
+			# Direct set_value avoids full Document load/validate per row — much faster for setup edits.
+			frappe.db.set_value("Lab Test Template", name, payload, update_modified=True)
+			updated.append(name)
+		except Exception as e:
+			failed.append({"name": name, "error": str(e)})
+
+	frappe.db.commit()
+	return {"updated": updated, "failed": failed}
 
 
 @frappe.whitelist()
