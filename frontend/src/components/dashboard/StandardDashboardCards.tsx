@@ -260,3 +260,150 @@ export function InpatientAdmissionsCard({
     </>
   )
 }
+
+/**
+ * Doctor landing: one card with Patient Visits (default) and Appointments tabs,
+ * same pattern as Lab Reports / Requests.
+ */
+export function DoctorVisitsAppointmentsCard({
+  patient,
+  onPatientSelect,
+  onVisitActivate,
+  onOpenVisitInHeader,
+  hideLabPharmacyAmounts = true,
+  squeezeLayout = true,
+}: CommonCardProps & {
+  onVisitActivate?: (visit: PatientVisitListRow) => void
+  onOpenVisitInHeader?: () => void
+  hideLabPharmacyAmounts?: boolean
+  squeezeLayout?: boolean
+}) {
+  const { guardClinicalCreate, userRole, allowDoctorsToCreatePatientVisit, mode, activeVisit, selectedPatient } =
+    useCareContext()
+  const [tab, setTab] = useState<'visits' | 'appointments'>('visits')
+  const [showCreateVisit, setShowCreateVisit] = useState(false)
+  const [showCreateAppointment, setShowCreateAppointment] = useState(false)
+  const [visitRefreshKey, setVisitRefreshKey] = useState(0)
+  const [appointmentRefreshKey, setAppointmentRefreshKey] = useState(0)
+  const [uploadTarget, setUploadTarget] = useState<UploadDocumentsTarget | null>(null)
+
+  const showCreateVisitButton = !isDoctorRole(userRole) || allowDoctorsToCreatePatientVisit
+  const patientId = patient || selectedPatient
+
+  const openUpload = () => {
+    if (mode === 'OP' && activeVisit) {
+      setUploadTarget({
+        doctype: 'Patient Visit',
+        name: activeVisit,
+        label: `Upload Documents — ${activeVisit}`,
+      })
+      return
+    }
+    if (patientId) {
+      setUploadTarget({
+        doctype: 'Patient',
+        name: patientId,
+        label: `Upload Documents — ${patientId}`,
+      })
+      return
+    }
+    toast.error('Select a patient, or an OP visit, before uploading documents.')
+  }
+
+  return (
+    <>
+      <DashboardCard
+        fixedHeight
+        title={tab === 'visits' ? 'Patient Visits' : 'Appointments'}
+        onAdd={
+          tab === 'visits'
+            ? showCreateVisitButton
+              ? () => setShowCreateVisit(true)
+              : undefined
+            : () => guardClinicalCreate(() => setShowCreateAppointment(true))
+        }
+        addButtonTitle={tab === 'visits' ? 'Create Patient Visit' : 'Add Appointment'}
+        onUpload={tab === 'visits' ? openUpload : undefined}
+        uploadButtonTitle="Upload documents"
+        listingScreen={tab === 'visits' ? 'pvh' : 'appointments'}
+        allowCreateOnClosedEpisode
+        headerExtra={
+          <div className="flex rounded-md border border-slate-300 bg-white p-0.5 text-xs font-semibold">
+            {(
+              [
+                ['visits', 'VISITS'],
+                ['appointments', 'APPOINTMENTS'],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setTab(id)}
+                className={`rounded px-2 py-0.5 transition-colors ${
+                  tab === id ? 'bg-primary text-white' : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      >
+        {tab === 'visits' ? (
+          <PatientVisitList
+            key={`visits-${visitRefreshKey}`}
+            detailedColumns
+            defaultToCurrentPractitioner
+            patient={patient || undefined}
+            refreshKey={visitRefreshKey}
+            onPatientFromVisit={onPatientSelect}
+            onVisitActivate={onVisitActivate}
+            hideLabPharmacyAmounts={hideLabPharmacyAmounts}
+            squeezeLayout={squeezeLayout}
+          />
+        ) : (
+          <AppointmentList
+            key={`appointments-${appointmentRefreshKey}`}
+            compact
+            detailedColumns
+            doctorScheduleMode={!patient}
+            showAll={!!patient}
+            defaultTodayDates
+            patient={patient || undefined}
+            refreshKey={appointmentRefreshKey}
+            onPatientClick={onPatientSelect}
+            onOpenVisitInHeader={onOpenVisitInHeader}
+          />
+        )}
+      </DashboardCard>
+      {showCreateVisit && (
+        <CreatePatientVisitModal
+          initialPatient={patient || undefined}
+          onClose={() => setShowCreateVisit(false)}
+          onSuccess={() => {
+            setShowCreateVisit(false)
+            setVisitRefreshKey((k) => k + 1)
+          }}
+        />
+      )}
+      {showCreateAppointment && (
+        <CreateAppointmentModal
+          initialPatient={patient || undefined}
+          onClose={() => setShowCreateAppointment(false)}
+          onSuccess={() => {
+            setShowCreateAppointment(false)
+            setAppointmentRefreshKey((k) => k + 1)
+            toast.success('Appointment created')
+          }}
+        />
+      )}
+      {uploadTarget && (
+        <UploadPatientDocumentsModal
+          target={uploadTarget}
+          onClose={() => setUploadTarget(null)}
+          onSuccess={() => setUploadTarget(null)}
+        />
+      )}
+    </>
+  )
+}

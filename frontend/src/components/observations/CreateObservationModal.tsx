@@ -9,13 +9,17 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createObservation, fetchObservationLevelDetails } from '../../services/observations'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchMedicalDepartments, type LinkFieldOption, fetchPatientVisits, fetchObservationLevels } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { toast } from '../../hooks/useToast'
 import { fetchInpatientRecords } from '../../services/inpatientRecords'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 import { localDateInputValue } from '../../utils/formatDate'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateObservationModalProps {
   onClose: () => void
@@ -58,6 +62,11 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Department dropdown state
   const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
@@ -221,60 +230,32 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
     loadOptions()
   }, [])
 
-  // Auto-populate current user's practitioner (same approach as CreateClinicalNoteModal)
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (practitioner) {
-          setFormData(prev => ({ ...prev, practitioner }))
-          
-          // Find the practitioner option to set display label
-          const practitionerOption = practitionerOptions.find(p => p.name === practitioner)
-          if (practitionerOption) {
-            setSelectedPractitioner(practitionerOption)
-            setPractitionerQuery(practitionerOption.label)
-            
-            // Auto-populate department from practitioner if available
-            if (practitionerOption.department) {
-              setFormData(prev => ({ ...prev, department: practitionerOption.department || '' }))
-              // Find the department in options to set display label
-              const departmentOption = departmentOptions.find(d => d.name === practitionerOption.department)
-              if (departmentOption) {
-                setSelectedDepartment(departmentOption)
-                setDepartmentQuery(departmentOption.label)
-              } else {
-                // If department not in options, fetch all departments and try again
-                try {
-                  const deptResults = await fetchMedicalDepartments()
-                  const foundDept = deptResults.find(d => d.name === practitionerOption.department)
-                  if (foundDept) {
-                    setSelectedDepartment(foundDept)
-                    setDepartmentQuery(foundDept.label)
-                  } else {
-                    setDepartmentQuery(practitionerOption.department)
-                  }
-                } catch (err) {
-                  console.error('Failed to fetch departments:', err)
-                  setDepartmentQuery(practitionerOption.department)
-                }
-              }
-            }
-          } else {
-            // If practitioner not in options (shouldn't happen, but just in case)
-            setPractitionerQuery(practitioner)
-          }
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    const practitionerOption = practitionerOptions.find((p) => p.name === linkedPractitionerId)
+    if (practitionerOption) {
+      setSelectedPractitioner(practitionerOption)
+      setPractitionerQuery(practitionerOption.label)
+      if (practitionerOption.department) {
+        setFormData((prev) =>
+          prev.department ? prev : { ...prev, department: practitionerOption.department || '' },
+        )
+        const departmentOption = departmentOptions.find((d) => d.name === practitionerOption.department)
+        if (departmentOption) {
+          setSelectedDepartment(departmentOption)
+          setDepartmentQuery(departmentOption.label)
+        } else {
+          setDepartmentQuery(practitionerOption.department)
         }
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
       }
+    } else {
+      setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
     }
-    
-    // Wait for practitionerOptions and departmentOptions to be loaded
-    if (practitionerOptions.length > 0) {
-      autoPopulatePractitioner()
-    }
-  }, [practitionerOptions, departmentOptions])
+  }, [linkedPractitionerId, linkedPractitionerLabel, practitionerOptions, departmentOptions])
 
   // Search patients
   useEffect(() => {
@@ -619,15 +600,24 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
                 <input
                   type="text"
                   value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
+                  readOnly={practitionerLocked}
                   onChange={(e) => {
+                    if (practitionerLocked) return
                     setPractitionerQuery(e.target.value)
                     setPractitionerOpen(true)
                   }}
-                  onFocus={() => setPractitionerOpen(true)}
+                  onFocus={() => {
+                    if (!practitionerLocked) setPractitionerOpen(true)
+                  }}
                   placeholder="SEARCH DOCTOR"
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    practitionerLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                  }
                 />
-                {practitionerOpen && practitionerOptions.length > 0 && (
+                {practitionerOpen && !practitionerLocked && practitionerOptions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                     {practitionerOptions.map((pract) => (
                       <div

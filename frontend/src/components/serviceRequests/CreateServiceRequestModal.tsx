@@ -9,7 +9,6 @@ import {
   fetchPractitionerLabReviewFlags,
   fetchServiceRequestTemplateTypes,
   fetchServiceRequestTemplates,
-  getCurrentUserPractitioner,
   syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
@@ -26,6 +25,10 @@ import {
   type LabLineDiscount,
 } from '../../utils/labTestDiscounts'
 import { toast } from '../../hooks/useToast'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -131,6 +134,11 @@ export const CreateServiceRequestModal = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerSearchQuery, setPractitionerSearchQuery] = useState('')
   const [practitionerDropdownOpen, setPractitionerDropdownOpen] = useState(false)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
   const [consultantOptions, setConsultantOptions] = useState<LinkFieldOption[]>([])
   const [consultantSearchQuery, setConsultantSearchQuery] = useState('')
   const [consultantDropdownOpen, setConsultantDropdownOpen] = useState(false)
@@ -445,21 +453,14 @@ export const CreateServiceRequestModal = ({
     return () => clearTimeout(t)
   }, [consultantDropdownOpen, consultantSearchQuery, needsAssignedConsultant])
 
-  // Auto-fill current user's practitioner and display label
+  // Auto-fill current user's practitioner; lock for doctors (not admins).
   useEffect(() => {
-    getCurrentUserPractitioner().then((pract) => {
-      if (!pract) return
-      fetchHealthcarePractitioners(undefined)
-        .then((opts) => {
-          const lbl = opts.find((p) => p.name === pract)?.label || pract
-          setForm((prev) => (prev.practitioner === '' ? { ...prev, practitioner: pract } : prev))
-          setPractitionerSearchQuery((q) => (q.trim() === '' ? lbl : q))
-        })
-        .catch(() => {
-          setForm((prev) => (prev.practitioner === '' ? { ...prev, practitioner: pract } : prev))
-        })
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setForm((prev) => (prev.practitioner === '' ? { ...prev, practitioner: linkedPractitionerId } : prev))
+    setPractitionerSearchQuery((q) =>
+      q.trim() === '' ? linkedPractitionerLabel || linkedPractitionerId : q,
+    )
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (mode !== 'OP' || !form.patient || patientVisits.length === 0) return
@@ -795,19 +796,26 @@ export const CreateServiceRequestModal = ({
                   <input
                     type="text"
                     value={practitionerSearchQuery}
+                    readOnly={practitionerLocked}
                     onChange={(e) => {
+                      if (practitionerLocked) return
                       setPractitionerSearchQuery(e.target.value)
                       setForm((prev) => ({ ...prev, practitioner: '' }))
                       setPractitionerDropdownOpen(true)
                     }}
-                    onFocus={() => setPractitionerDropdownOpen(true)}
+                    onFocus={() => {
+                      if (!practitionerLocked) setPractitionerDropdownOpen(true)
+                    }}
                     onBlur={() => {
                       window.setTimeout(() => setPractitionerDropdownOpen(false), 180)
                     }}
                     placeholder={isOtherService ? 'Search nurse name…' : 'Search doctor name…'}
-                    className={inputClass}
+                    title={
+                      practitionerLocked ? 'Locked to your linked practitioner' : undefined
+                    }
+                    className={practitionerLocked ? LOCKED_PRACTITIONER_INPUT_CLASS : inputClass}
                   />
-                  {practitionerDropdownOpen && (
+                  {practitionerDropdownOpen && !practitionerLocked && (
                     <div className={linkComboboxDropdownClass}>
                       {practitionerOptions.length === 0 ? (
                         <div className="px-3 py-2.5 text-xs text-slate-500">

@@ -29,7 +29,6 @@ import {
   fetchCompanies,
   resolveDefaultCompany,
   fetchCostCenters,
-  getCurrentUserPractitioner,
   fetchMedicalDepartments,
   fetchObservationLevels,
   fetchDocumentTypes,
@@ -43,6 +42,10 @@ import {
 } from '../../services/observations'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface Company {
   name: string
@@ -220,6 +223,12 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
   const [consultantQuery, setConsultantQuery] = useState('')
   const [psychologistQuery, setPsychologistQuery] = useState('')
   const [residentQuery, setResidentQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
+  const consultantFieldLocked = practitionerLocked && !isEditMode
 
   const [formData, setFormData] = useState({
     case_no: '',
@@ -646,13 +655,16 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
     selectedObsPractitioner,
   ])
 
-  // Auto-fill current user's practitioner as consultant doctor (create only)
+  // Auto-fill current user's linked practitioner as consultant doctor (create only)
   useEffect(() => {
-    if (isEditMode) return
-    getCurrentUserPractitioner().then(pract => {
-      if (pract) setFormData(prev => prev.consultant_doctor === '' ? { ...prev, consultant_doctor: pract } : prev)
-    })
-  }, [isEditMode])
+    if (isEditMode || !linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.consultant_doctor === ''
+        ? { ...prev, consultant_doctor: linkedPractitionerId }
+        : prev,
+    )
+    setConsultantQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [isEditMode, linkedPractitionerId, linkedPractitionerLabel])
 
   // Auto-populate next case number (create only); user can change it
   useEffect(() => {
@@ -1327,17 +1339,27 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                 <input
                   type="text"
                   value={formData.consultant_doctor ? consultantOptions.find(p => p.name === formData.consultant_doctor)?.label || formData.consultant_doctor : consultantQuery}
+                  readOnly={consultantFieldLocked}
                   onChange={(e) => {
+                    if (consultantFieldLocked) return
                     // Clear current selection so user can freely edit text
                     setFormData(prev => ({ ...prev, consultant_doctor: '' }))
                     setConsultantQuery(e.target.value)
                     setConsultantOpen(true)
                   }}
-                  onFocus={() => setConsultantOpen(true)}
+                  onFocus={() => {
+                    if (!consultantFieldLocked) setConsultantOpen(true)
+                  }}
                   placeholder="Search Consultant Doctor..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  title={consultantFieldLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    consultantFieldLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                  }
                   required
                 />
+                {!consultantFieldLocked ? (
                 <button
                   type="button"
                   onClick={(e) => {
@@ -1352,7 +1374,8 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
                 </button>
-                {consultantOpen && (
+                ) : null}
+                {consultantOpen && !consultantFieldLocked && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {consultantOptions.length > 0 ? (
                       consultantOptions.map((pract) => (

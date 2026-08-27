@@ -18,9 +18,13 @@ import {
   type IOPEnrollmentSessionRow,
 } from '../../services/iop'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateIOPEnrollmentModalProps {
   onClose: () => void
@@ -42,6 +46,11 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const [status, setStatus] = useState('Scheduled')
   const [notes, setNotes] = useState('')
@@ -127,26 +136,12 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
     return () => clearTimeout(t)
   }, [practitionerOpen, practitionerQuery])
 
-  // Auto-populate current user's practitioner
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const currentPractitioner = await getCurrentUserPractitioner()
-        if (currentPractitioner) {
-          setPractitioner(currentPractitioner)
-          // Also set the query for display
-          const practitionerOption = practitioners.find(p => p.name === currentPractitioner)
-          if (practitionerOption) {
-            setPractitionerQuery(practitionerOption.label)
-          }
-        }
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
-      }
-    }
-    autoPopulatePractitioner()
-  }, [practitioners])
-
+    if (!linkedPractitionerId) return
+    setPractitioner((prev) => prev || linkedPractitionerId)
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
   const handleSelectPatient = (p: PatientListItem) => {
     setPatient(p.name)
     setPatientQuery((p as { patient_name?: string }).patient_name || p.name)
@@ -269,16 +264,25 @@ export const CreateIOPEnrollmentModal = ({ onClose, onSuccess, initialPatient }:
               <input
                 type="text"
                 value={practitionerQuery}
+                readOnly={practitionerLocked}
                 onChange={(e) => {
+                  if (practitionerLocked) return
                   setPractitionerQuery(e.target.value)
                   setPractitionerOpen(true)
                   if (practitioner) setPractitioner('')
                 }}
-                onFocus={() => setPractitionerOpen(true)}
+                onFocus={() => {
+                  if (!practitionerLocked) setPractitionerOpen(true)
+                }}
                 placeholder="Search doctor..."
-                className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                className={
+                  practitionerLocked
+                    ? LOCKED_PRACTITIONER_INPUT_CLASS
+                    : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                }
               />
-              {practitionerOpen && practitioners.length > 0 && (
+              {practitionerOpen && !practitionerLocked && practitioners.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto">
                   {practitioners.map((p) => (
                     <button

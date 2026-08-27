@@ -24,6 +24,8 @@ interface DoctypeListPanelProps {
   limit?: number
   orderBy?: string
   refreshKey?: number | string
+  /** Open a detail view when a row is clicked. */
+  onRowClick?: (row: Record<string, any>) => void
 }
 
 const STATUS_TONE: Record<string, string> = {
@@ -46,6 +48,7 @@ export const DoctypeListPanel = ({
   limit = 100,
   orderBy = 'modified desc',
   refreshKey,
+  onRowClick,
 }: DoctypeListPanelProps) => {
   const [rows, setRows] = useState<Record<string, any>[]>([])
   const [loading, setLoading] = useState(false)
@@ -270,7 +273,13 @@ export const DoctypeListPanel = ({
             )}
             {!loading &&
               rows.map((row) => (
-                <tr key={row.name} className="border-t border-slate-100 hover:bg-slate-50">
+                <tr
+                  key={row.name}
+                  className={`border-t border-slate-100 hover:bg-slate-50 ${
+                    onRowClick ? 'cursor-pointer' : ''
+                  }`}
+                  onClick={() => onRowClick?.(row)}
+                >
                   {columns.map((c) => (
                     <td key={c.fieldname} className="px-3 py-2 align-top">
                       {cell(row, c)}

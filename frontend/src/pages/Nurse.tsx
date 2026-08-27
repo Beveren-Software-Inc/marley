@@ -49,6 +49,7 @@ import { MedicineGivenList } from '../components/medication/MedicineGivenList'
 import { DailyMedicationChart } from '../components/medication/DailyMedicationChart'
 import { MedicationSheet } from '../components/medication/MedicationSheet'
 import { ReceptionLongActingMedicineList } from '../components/medication/ReceptionLongActingMedicineList'
+import { PatientMedicationHub } from '../components/medication/PatientMedicationHub'
 import { BulkScheduleIOPModal } from '../components/iop/BulkScheduleIOPModal'
 import { reconcileDischargeMedicines } from '../services/medicineGiven'
 import { Loader2, PackageSearch, Plus, Calendar, CalendarClock } from 'lucide-react'
@@ -1150,6 +1151,21 @@ export const NursePage = () => {
               onPatientClick={handlePatientSelect}
             />
           </section>
+        </div>
+      </div>
+    )
+  }
+
+  // Patient Medication hub — folder click opens tabbed page; leaf items stay individual screens
+  if (screen === 'n-patient-medication') {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 h-full min-w-0 overflow-hidden">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col overflow-hidden p-4">
+          <PatientMedicationHub
+            patient={selectedPatient}
+            admission={activeAdmission}
+          />
         </div>
       </div>
     )

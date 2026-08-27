@@ -14,11 +14,14 @@ import { createSuicideRiskAssessment } from '../../services/suicideRisk'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import {
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   fetchPatientVisits,
   type LinkFieldOption,
 } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types
@@ -56,6 +59,11 @@ export const CreateSuicideRiskAssessmentModal = ({
   const [clinicianQuery, setClinicianQuery] = useState('')
   const [clinicianOpen, setClinicianOpen] = useState(false)
   const [clinicianOptions, setClinicianOptions] = useState<LinkFieldOption[]>([])
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
   const [inpatientAdmission, setInpatientAdmission] = useState(
     (isIPMode && activeAdmission) ? activeAdmission : (defaultAdmission || '')
   )
@@ -135,20 +143,10 @@ export const CreateSuicideRiskAssessmentModal = ({
   }, [clinicianQuery, clinicianOpen])
 
   useEffect(() => {
-    getCurrentUserPractitioner().then((pract) => {
-      if (!pract || clinician) return
-      fetchHealthcarePractitioners(pract).then((opts) => {
-        const match = opts.find((o) => o.name === pract)
-        if (match) {
-          setClinician(match.name)
-          setClinicianQuery(match.label)
-        } else {
-          setClinician(pract)
-          setClinicianQuery(pract)
-        }
-      })
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setClinician((prev) => prev || linkedPractitionerId)
+    setClinicianQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (isIPMode && activeAdmission) setInpatientAdmission(activeAdmission)
@@ -364,16 +362,25 @@ export const CreateSuicideRiskAssessmentModal = ({
                   <input
                     type="text"
                     value={clinicianQuery}
+                    readOnly={practitionerLocked}
                     onChange={(e) => {
+                      if (practitionerLocked) return
                       setClinicianQuery(e.target.value)
                       setClinician('')
                       setClinicianOpen(true)
                     }}
-                    onFocus={() => setClinicianOpen(true)}
+                    onFocus={() => {
+                      if (!practitionerLocked) setClinicianOpen(true)
+                    }}
                     placeholder="Search doctor…"
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                    className={
+                      practitionerLocked
+                        ? LOCKED_PRACTITIONER_INPUT_CLASS
+                        : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                    }
                   />
-                  {clinicianOpen && clinicianOptions.length > 0 && (
+                  {clinicianOpen && !practitionerLocked && clinicianOptions.length > 0 && (
                     <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
                       {clinicianOptions.map((p) => (
                         <button

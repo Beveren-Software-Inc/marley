@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BookOpen, User, Building2, FileText } from 'lucide-react'
-import { fetchDoc } from '../../services/common'
+import { BookOpen, User, Building2, FileText, Stethoscope } from 'lucide-react'
+import { fetchDoc, resolveOwnerCreatorInfo } from '../../services/common'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { CREATE_MODAL_BODY_GRADIENT, CreateModalHeader } from '../ui/CreateModalChrome'
@@ -23,6 +23,10 @@ export interface PatientHistoryDetail {
   cost_center?: string
   date?: string
   creation?: string
+  owner?: string
+  createdByUsername?: string
+  createdByFullName?: string
+  createdByPractitioner?: string
   history_detail: PatientHistoryDetailRow[]
 }
 
@@ -73,12 +77,15 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
     setLoading(true)
     setError(null)
     fetchDoc('Patient History', name)
-      .then((data) => {
+      .then(async (data) => {
         if (cancelled) return
         const rows = Array.isArray(data.history_detail)
           ? (data.history_detail as Record<string, unknown>[]).map(mapDetailRow)
           : []
         rows.sort(compareHistoryDetailOrder)
+        const owner = data.owner ? String(data.owner) : undefined
+        const creator = await resolveOwnerCreatorInfo(owner)
+        if (cancelled) return
         setDetail({
           name: String(data.name ?? name),
           patient: data.patient ? String(data.patient) : undefined,
@@ -90,6 +97,10 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
           cost_center: data.cost_center ? String(data.cost_center) : undefined,
           date: data.date ? String(data.date) : undefined,
           creation: data.creation ? String(data.creation) : undefined,
+          owner,
+          createdByUsername: creator.username || undefined,
+          createdByFullName: creator.fullName || undefined,
+          createdByPractitioner: creator.practitionerLabel || undefined,
           history_detail: rows,
         })
       })
@@ -196,6 +207,44 @@ export function PatientHistoryDetailPanel({ name, onClose }: PatientHistoryDetai
                   <div className="min-w-0">
                     <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">Branch</p>
                     <p className="truncate font-medium text-emerald-950">{detail.cost_center}</p>
+                  </div>
+                </div>
+              )}
+              {(detail.createdByFullName ||
+                (!detail.createdByUsername && detail.owner)) && (
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-emerald-100/60 bg-white/70 px-3 py-2">
+                  <User className="h-4 w-4 shrink-0 text-emerald-600/70" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">
+                      Created By
+                    </p>
+                    <p className="truncate font-medium text-emerald-950">
+                      {detail.createdByFullName || detail.owner}
+                    </p>
+                  </div>
+                </div>
+              )}
+              {detail.createdByUsername && (
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-emerald-100/60 bg-white/70 px-3 py-2">
+                  <User className="h-4 w-4 shrink-0 text-emerald-600/70" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">
+                      Username
+                    </p>
+                    <p className="truncate font-medium text-emerald-950">{detail.createdByUsername}</p>
+                  </div>
+                </div>
+              )}
+              {detail.createdByPractitioner && (
+                <div className="flex min-w-0 items-center gap-2 rounded-lg border border-emerald-100/60 bg-white/70 px-3 py-2">
+                  <Stethoscope className="h-4 w-4 shrink-0 text-emerald-600/70" />
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-medium uppercase tracking-wide text-emerald-800/60">
+                      Practitioner
+                    </p>
+                    <p className="truncate font-medium text-emerald-950">
+                      {detail.createdByPractitioner}
+                    </p>
                   </div>
                 </div>
               )}

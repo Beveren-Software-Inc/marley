@@ -11,7 +11,6 @@ import {
 import { createWarningMessage } from '../../services/warningMessages'
 import {
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
@@ -23,6 +22,10 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClass,
 } from '../ui/linkComboboxStyles'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateWarningMessageModalProps {
   onClose: () => void
@@ -76,6 +79,11 @@ export const CreateWarningMessageModal = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -186,21 +194,12 @@ export const CreateWarningMessageModal = ({
   }, [])
 
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (!practitioner) return
-
-        setFormData((prev) => ({ ...prev, practitioner }))
-
-        const practitionerOption = practitionerOptions.find((p) => p.name === practitioner)
-        setPractitionerQuery(practitionerOption?.label || practitioner)
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
-      }
-    }
-    autoPopulatePractitioner()
-  }, [practitionerOptions])
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -553,29 +552,40 @@ export const CreateWarningMessageModal = ({
                   <input
                     type="text"
                     value={practitionerQuery}
+                    readOnly={practitionerLocked}
                     onChange={(e) => {
+                      if (practitionerLocked) return
                       setPractitionerQuery(e.target.value)
                       setFormData((prev) => ({ ...prev, practitioner: '' }))
                       setPractitionerOpen(true)
                     }}
-                    onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search doctor..."
-                    className={linkComboboxInputWithClearClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowCreatePractitioner(true)
+                    onFocus={() => {
+                      if (!practitionerLocked) setPractitionerOpen(true)
                     }}
-                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                    title="Create New Practitioner"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  {practitionerOpen && practitionerOptions.length > 0 && (
+                    placeholder="Search doctor..."
+                    title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                    className={
+                      practitionerLocked
+                        ? LOCKED_PRACTITIONER_INPUT_CLASS
+                        : linkComboboxInputWithClearClass
+                    }
+                  />
+                  {!practitionerLocked ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowCreatePractitioner(true)
+                      }}
+                      className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                      title="Create New Practitioner"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  {practitionerOpen && !practitionerLocked && practitionerOptions.length > 0 && (
                     <div className={`${linkComboboxDropdownClassTall} top-full`}>
                       {practitionerOptions.map((pract) => (
                         <button

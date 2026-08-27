@@ -5,8 +5,12 @@ import {
 } from '../ui/CreateModalChrome'
 import { createECTProcedure } from '../../services/ectProcedure'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchAnaesthesiaTypes, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateECTProcedureModalProps {
   onClose: () => void
@@ -40,23 +44,32 @@ const InputField = memo(({ value, onChange, type = "text", placeholder = "", dis
 InputField.displayName = 'InputField'
 
 // Memoized ComboboxField
-const ComboboxField = memo(({ query, onQueryChange, onFocus, isOpen, isLoading, options, onSelect, placeholder = "" }: any) => (
+const ComboboxField = memo(({ query, onQueryChange, onFocus, isOpen, isLoading, options, onSelect, placeholder = "", locked = false }: any) => (
   <div className="relative">
     <input
       type="text"
       value={query}
+      readOnly={locked}
       onChange={(e) => {
+        if (locked) return
         onQueryChange(e.target.value)
         onFocus()
       }}
-      onFocus={onFocus}
+      onFocus={() => {
+        if (!locked) onFocus()
+      }}
       placeholder={placeholder}
-      className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+      title={locked ? 'Locked to your linked practitioner' : undefined}
+      className={
+        locked
+          ? LOCKED_PRACTITIONER_INPUT_CLASS
+          : 'w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all'
+      }
     />
-    {isLoading && (
+    {isLoading && !locked && (
       <div className="absolute right-3 top-2.5 text-slate-400 text-xs">Loading...</div>
     )}
-    {isOpen && options.length > 0 && (
+    {isOpen && !locked && options.length > 0 && (
       <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
         {options.map((option: any) => (
           <button
@@ -132,6 +145,11 @@ export const CreateECTProcedureModal = ({
   const [assistantQuery, setAssistantQuery] = useState('')
   const [anaesthetistQuery, setAnaesthetistQuery] = useState('')
   const [anaesthesiaQuery, setAnaesthesiaQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Memoized change handler
   const handleChange = useCallback((field: string, value: string) => {
@@ -278,12 +296,16 @@ export const CreateECTProcedureModal = ({
     return () => clearTimeout(t)
   }, [anaesthetistQuery, anaesthetistOpen])
 
-  // Auto-fill current user's practitioner as consultant doctor
+  // Auto-fill current user's linked practitioner as consultant doctor
   useEffect(() => {
-    getCurrentUserPractitioner().then(pract => {
-      if (pract) setFormData(prev => prev.consultant_doctor === '' ? { ...prev, consultant_doctor: pract } : prev)
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.consultant_doctor
+        ? prev
+        : { ...prev, consultant_doctor: linkedPractitionerId },
+    )
+    setConsultantQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!anaesthesiaOpen) return
@@ -463,6 +485,7 @@ export const CreateECTProcedureModal = ({
                     options={consultantOptions}
                     onSelect={handleConsultantSelect}
                     placeholder="Search consultant..."
+                    locked={practitionerLocked}
                   />
                 </FormField>
                 <FormField label="Assistant Doctor">

@@ -13,9 +13,12 @@ import {
   fetchItems,
   fetchDosageForms,
   fetchPrescriptionFrequencies,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 import type { LongActingFrequency, MedicationOrderEntry } from '../../services/prescriptions'
 import { LONG_ACTING_FREQUENCY_OPTIONS, fetchPrescriptions } from '../../services/prescriptions'
 import { toast } from '../../hooks/useToast'
@@ -56,6 +59,7 @@ interface ComboboxProps {
   onClear?: () => void
   label?: string
   required?: boolean
+  locked?: boolean
   renderOption?: (opt: LinkFieldOption) => React.ReactNode
 }
 
@@ -68,6 +72,7 @@ const Combobox = ({
   onSelect,
   onOpen,
   required,
+  locked,
   renderOption,
   onClear,
 }: ComboboxProps) => {
@@ -88,18 +93,27 @@ const Combobox = ({
         <input
           type="text"
           value={displayValue}
+          readOnly={locked}
           onChange={(e) => {
+            if (locked) return
             onQueryChange(e.target.value)
             setOpen(true)
           }}
           onFocus={() => {
+            if (locked) return
             setOpen(true)
             onOpen()
           }}
           placeholder={placeholder}
           required={required}
-          className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
+          title={locked ? 'Locked to your linked practitioner' : undefined}
+          className={
+            locked
+              ? LOCKED_PRACTITIONER_INPUT_CLASS
+              : 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white'
+          }
         />
+        {!locked ? (
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {displayValue && onClear && (
             <button
@@ -118,8 +132,9 @@ const Combobox = ({
           )}
           <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
+        ) : null}
       </div>
-      {open && (
+      {open && !locked && (
         <div className="absolute z-30 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-52 overflow-auto">
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
@@ -202,6 +217,11 @@ export const CreateLongActingMedicineModal = ({
   const [dosageForms, setDosageForms] = useState<LinkFieldOption[]>([])
   const [frequencies, setFrequencies] = useState<LinkFieldOption[]>([])
   const [practQuery, setPractQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -245,10 +265,15 @@ export const CreateLongActingMedicineModal = ({
     fetchCompanies().then(setCompanies).catch(() => setCompanies([]))
     fetchDosageForms().then(setDosageForms).catch(() => setDosageForms([]))
     fetchPrescriptionFrequencies().then(setFrequencies).catch(() => setFrequencies([]))
-    getCurrentUserPractitioner().then(pract => {
-      if (pract) setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
-    })
   }, [])
+
+  useEffect(() => {
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   // Default company: first in list (user can change)
   useEffect(() => {
@@ -581,6 +606,7 @@ export const CreateLongActingMedicineModal = ({
                       displayValue={practitionerDisplay}
                       placeholder="Search doctor..."
                       options={practitioners}
+                      locked={practitionerLocked}
                       onQueryChange={(q) => {
                         setPractQuery(q)
                         setFormData((p) => ({ ...p, practitioner: '' }))

@@ -68,6 +68,9 @@ def get_healthcare_portal_settings():
 		"allow_doctors_to_create_patient_visit": bool(
 			frappe.db.get_single_value("Healthcare Settings", "allow_doctors_to_create_patient_visit")
 		),
+		"lock_doctors_name_choosing": bool(
+			frappe.db.get_single_value("Healthcare Settings", "lock_doctors_name_choosing")
+		),
 	}
 
 

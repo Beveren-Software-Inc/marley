@@ -28,10 +28,13 @@ import {
   fetchInpatientAdmissionOptions,
   fetchPatientVisits,
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types & constants
@@ -148,6 +151,11 @@ export const CreatePHQ9AssessmentModal = ({
   const [practitionerLabel, setPractitionerLabel] = useState('')
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
 
   const [templates, setTemplates] = useState<TemplateDetails[]>([])
@@ -186,20 +194,11 @@ export const CreatePHQ9AssessmentModal = ({
   }, [resolvedPatient])
 
   useEffect(() => {
-    getCurrentUserPractitioner()
-      .then(async (id) => {
-        if (!id) return
-        setPractitioner(id)
-        try {
-          const opts = await fetchHealthcarePractitioners(id)
-          const match = opts.find((o) => o.name === id)
-          setPractitionerLabel(match?.label || id)
-        } catch {
-          setPractitionerLabel(id)
-        }
-      })
-      .catch(() => {})
-  }, [])
+    if (!linkedPractitionerId) return
+    setPractitioner((prev) => prev || linkedPractitionerId)
+    setPractitionerLabel((prev) => prev || linkedPractitionerLabel || linkedPractitionerId)
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -479,17 +478,22 @@ export const CreatePHQ9AssessmentModal = ({
                     <input
                       type="text"
                       value={practitioner ? practitionerLabel : practitionerQuery}
+                      readOnly={practitionerLocked}
                       onChange={(e) => {
+                        if (practitionerLocked) return
                         setPractitionerQuery(e.target.value)
                         setPractitioner('')
                         setPractitionerLabel('')
                         setPractitionerOpen(true)
                       }}
-                      onFocus={() => setPractitionerOpen(true)}
+                      onFocus={() => {
+                        if (!practitionerLocked) setPractitionerOpen(true)
+                      }}
                       placeholder="Search doctor…"
-                      className={MODAL_FIELD_CLASS}
+                      title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                      className={practitionerLocked ? LOCKED_PRACTITIONER_INPUT_CLASS : MODAL_FIELD_CLASS}
                     />
-                    {practitionerOpen && practitionerOptions.length > 0 && (
+                    {practitionerOpen && !practitionerLocked && practitionerOptions.length > 0 && (
                       <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
                         {practitionerOptions.map((p) => (
                           <button

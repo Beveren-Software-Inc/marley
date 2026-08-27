@@ -628,6 +628,7 @@
 
 import {
   useCardFilters,
+  useCardHeaderSlot,
   useDashboardCompactClinical,
   usePreferCardLoadMore,
 } from '../../contexts/CardFilterContext'
@@ -638,6 +639,7 @@ import {
 } from '../ui/dashboardCardListing'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import {
   fetchPractitionerAppointments,
   fetchAllAppointments,
@@ -957,6 +959,7 @@ export const AppointmentList = ({
   const { userCostCenter } = useCareContext()
   const cardFilters = useCardFilters()
   const preferLoadMore = usePreferCardLoadMore()
+  const headerSlot = useCardHeaderSlot()
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = cardFilters !== undefined ? cardFilters : showFiltersInternal
   const isInsideCard = cardFilters !== undefined
@@ -1743,23 +1746,91 @@ export const AppointmentList = ({
                     </td>
   )
 
+  const exportFilteredCsv = () => {
+    const headers = ['File No.', 'Patient Name', 'Date', 'Time', 'Doctor Name', 'Branch', 'Status']
+    const rows = appointments.map((apt) => [
+      apt.file_no || '',
+      apt.patient_name || apt.temporary_patient_name || '',
+      apt.appointment_date || '',
+      apptTime(apt),
+      apt.practitioner_name || apt.practitioner || '',
+      branchLabel(apt.cost_center),
+      apt.status || '',
+    ])
+    const csv = [headers, ...rows]
+      .map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `appointments-${filterDateFrom || 'all'}-${filterDateTo || 'all'}.csv`
+    a.click()
+    URL.revokeObjectURL(url)
+  }
+
+  const printFilteredList = () => {
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) return
+    const rows = appointments
+      .map((apt) => {
+        const patient = apt.patient_name || apt.temporary_patient_name || ''
+        return `<tr><td>${apt.file_no || ''}</td><td>${patient}</td><td>${apt.appointment_date ? formatDate(apt.appointment_date) : ''}</td><td>${apptTime(apt)}</td><td>${apt.practitioner_name || apt.practitioner || ''}</td><td>${branchLabel(apt.cost_center)}</td><td>${apt.status || ''}</td></tr>`
+      })
+      .join('')
+    win.document.write(
+      `<html><head><title>Appointment Listing</title></head><body><h3>Appointment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>File No.</th><th>Patient Name</th><th>Date</th><th>Time</th><th>Doctor Name</th><th>Branch</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></body></html>`,
+    )
+    win.document.close()
+    win.print()
+  }
+
   return (
     <>
       <div className={`flex flex-col flex-1 min-h-0 h-full transition-opacity ${refreshing ? 'opacity-60 pointer-events-none' : ''}`}>
+      {/* PDF / Excel — portaled into the card header (same as Patient Visits). */}
+      {isInsideCard && detailedColumns && headerSlot && createPortal(
+        <>
+          <button
+            type="button"
+            onClick={printFilteredList}
+            className="px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium"
+          >
+            PDF
+          </button>
+          <button
+            type="button"
+            onClick={exportFilteredCsv}
+            className="px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium"
+          >
+            Excel
+          </button>
+        </>,
+        headerSlot,
+      )}
+
       {/* Header row */}
       {!isInsideCard && !embedded && (
       <div className="flex items-center justify-between gap-2 mb-3">
         <h2 className="text-xl font-semibold text-slate-900">Appointments</h2>
-        <button
-          type="button"
-          onClick={() => setShowFiltersInternal(prev => !prev)}
-          className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
-          title={showFilters ? 'Hide filters' : 'Show filters'}
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
-          </svg>
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setShowFiltersInternal(prev => !prev)}
+            className={`p-1.5 rounded-md border transition-colors ${showFilters ? 'bg-primary/10 border-primary text-primary' : 'border-slate-300 text-slate-500 hover:bg-slate-50'}`}
+            title={showFilters ? 'Hide filters' : 'Show filters'}
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z" />
+            </svg>
+          </button>
+          {detailedColumns && (
+            <>
+              <button type="button" onClick={printFilteredList} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">PDF</button>
+              <button type="button" onClick={exportFilteredCsv} className="px-3 py-1.5 text-xs border border-slate-300 rounded-md hover:bg-slate-50">Excel</button>
+            </>
+          )}
+        </div>
       </div>
       )}
 

@@ -879,6 +879,10 @@ export interface LabHistoryMatrixRow {
   key: string
   label: string
   uom?: string
+  /** Parent panel/group template code when this row is a child analyte. */
+  group_key?: string
+  /** Display name for the parent group (e.g. CBC). */
+  group_label?: string
   cells: Record<string, LabHistoryMatrixCell>
 }
 

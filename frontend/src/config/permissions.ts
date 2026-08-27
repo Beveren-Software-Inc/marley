@@ -265,6 +265,8 @@ export interface ScreenItem {
 export interface ScreenGroup {
   groupTitle: string
   screens: ScreenItem[]
+  /** When set, clicking the folder title navigates to this screen (chevron still expands/collapses). */
+  hubScreenId?: string
 }
 
 export interface MainLinkItem {

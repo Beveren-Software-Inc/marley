@@ -417,12 +417,15 @@ import {
   fetchInpatientAdmissions,
   fetchPatientVisits,
   fetchCostCenters,
-  getCurrentUserPractitioner,
   syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateSickLeaveModalProps {
   onClose: () => void
@@ -538,6 +541,11 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
   const [doctorQuery, setDoctorQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
   const [selectedDoctor, setSelectedDoctor] = useState<LinkFieldOption | null>(null)
 
   // Branch — Cost Center dropdown
@@ -698,26 +706,19 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     return () => { cancelled = true; clearTimeout(t) }
   }, [doctorQuery, doctorOpen])
 
-  // Auto-fill current user's practitioner
+  // Auto-fill current user's linked practitioner
   useEffect(() => {
-    getCurrentUserPractitioner().then(async (pract) => {
-      if (!pract || doctorId) return
-      setDoctorId(pract)
-      try {
-        const opts = await fetchHealthcarePractitioners(pract)
-        const match = opts.find((o) => o.name === pract)
-        if (match) {
-          setSelectedDoctor(match)
-          setDoctorQuery(match.label)
-          setDoctorName(match.label)
-        } else {
-          setDoctorQuery(pract)
-        }
-      } catch {
-        setDoctorQuery(pract)
-      }
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setDoctorId((prev) => prev || linkedPractitionerId)
+    setDoctorQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+    setDoctorName((prev) => prev || linkedPractitionerLabel || linkedPractitionerId)
+    setSelectedDoctor((prev) =>
+      prev || {
+        name: linkedPractitionerId,
+        label: linkedPractitionerLabel || linkedPractitionerId,
+      },
+    )
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   const closeAllDropdowns = () => {
     setPatientOpen(false)
@@ -794,6 +795,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     onClear,
     placeholder,
     disabled,
+    locked,
   }: {
     label: string
     required?: boolean
@@ -808,8 +810,9 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
     onClear?: () => void
     placeholder: string
     disabled?: boolean
+    locked?: boolean
   }) => {
-    const showClear = Boolean(!disabled && onClear && (selectedLabel || query))
+    const showClear = Boolean(!disabled && !locked && onClear && (selectedLabel || query))
     return (
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -819,14 +822,23 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
           <input
             type="text"
             value={isOpen ? query : (selectedLabel ?? query)}
+            readOnly={locked}
             onChange={(e) => {
+              if (locked) return
               onChange(e.target.value)
               if (e.target.value) onFocus()
             }}
-            onFocus={onFocus}
+            onFocus={() => {
+              if (!locked) onFocus()
+            }}
             placeholder={placeholder}
             disabled={disabled}
-            className={`w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${showClear ? 'pr-8' : ''} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+            title={locked ? 'Locked to your linked practitioner' : undefined}
+            className={
+              locked
+                ? LOCKED_PRACTITIONER_INPUT_CLASS
+                : `w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary ${showClear ? 'pr-8' : ''} ${disabled ? 'bg-slate-100 cursor-not-allowed' : ''}`
+            }
           />
           {showClear ? (
             <button
@@ -840,10 +852,10 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
-          ) : fieldLoading ? (
+          ) : fieldLoading && !locked ? (
             <span className="absolute right-3 top-2.5 text-xs text-slate-400">Loading…</span>
           ) : null}
-          {isOpen && !disabled && options.length > 0 && (
+          {isOpen && !disabled && !locked && options.length > 0 && (
             <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
               {options.map((o) => (
                 <button
@@ -1039,6 +1051,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 query={doctorQuery}
                 selectedLabel={selectedDoctor?.label}
                 options={doctorOptions}
+                locked={practitionerLocked}
                 onFocus={() => setDoctorOpen(true)}
                 onChange={(v) => {
                   setDoctorQuery(v)

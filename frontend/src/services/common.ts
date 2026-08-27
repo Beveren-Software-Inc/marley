@@ -531,6 +531,66 @@ export async function resolveOwnerUsername(owner?: string | null): Promise<strin
   return ''
 }
 
+/** Creator user + linked Healthcare Practitioner for detail panels. */
+export async function resolveOwnerCreatorInfo(owner?: string | null): Promise<{
+  username: string
+  fullName: string
+  practitionerLabel: string
+}> {
+  const id = (owner || '').trim()
+  const empty = { username: '', fullName: '', practitionerLabel: '' }
+  if (!id) return empty
+
+  let username = ''
+  let fullName = ''
+  let practitionerLabel = ''
+
+  try {
+    const userParams = new URLSearchParams({
+      doctype: 'User',
+      fields: JSON.stringify(['name', 'full_name', 'username']),
+      filters: JSON.stringify([['name', '=', id]]),
+      limit_page_length: '1',
+    })
+    const userRes = await fetch(`/api/method/frappe.client.get_list?${userParams}`, {
+      credentials: 'include',
+    })
+    const userPayload = await userRes.json()
+    const user = Array.isArray(userPayload?.message) ? userPayload.message[0] : null
+    if (user) {
+      fullName = String(user.full_name || '').trim()
+      const rawUsername = String(user.username || '').trim()
+      username = rawUsername && !rawUsername.includes('@') ? rawUsername : ''
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const practParams = new URLSearchParams({
+      doctype: 'Healthcare Practitioner',
+      fields: JSON.stringify(['name', 'practitioner_name']),
+      filters: JSON.stringify([
+        ['user_id', '=', id],
+        ['status', '=', 'Active'],
+      ]),
+      limit_page_length: '1',
+    })
+    const practRes = await fetch(`/api/method/frappe.client.get_list?${practParams}`, {
+      credentials: 'include',
+    })
+    const practPayload = await practRes.json()
+    const pract = Array.isArray(practPayload?.message) ? practPayload.message[0] : null
+    if (pract) {
+      practitionerLabel = String(pract.practitioner_name || pract.name || '').trim()
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { username, fullName, practitionerLabel }
+}
+
 export interface CreateLeadSourceData {
   source: string
 }

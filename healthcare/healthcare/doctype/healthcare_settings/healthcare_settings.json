@@ -54,6 +54,7 @@
   "validate_dose_per_session_on_given_medicine",
   "validate_dose_per_day_on_prescription",
   "validate_dose_per_session_on_prescription",
+  "lock_doctors_name_choosing",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -1062,11 +1063,17 @@
    "fieldname": "validate_dose_per_session_on_prescription",
    "fieldtype": "Check",
    "label": "Validate Dose Per Session on Prescription"
+  },
+  {
+   "default": "0",
+   "fieldname": "lock_doctors_name_choosing",
+   "fieldtype": "Check",
+   "label": "Lock Doctors Name Choosing"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-27 15:55:10.291958",
+ "modified": "2026-08-27 16:19:49.588451",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

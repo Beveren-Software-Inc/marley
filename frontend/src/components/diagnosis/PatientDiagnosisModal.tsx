@@ -17,7 +17,6 @@ import {
   fetchInpatientAdmissions,
   fetchHealthcarePractitioners,
   fetchCostCenters,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -33,6 +32,10 @@ import {
   parseToDatetimeLocalValue,
   toDatetimeLocalValue,
 } from '../../utils/datetimeLocal'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface PatientDiagnosisModalProps {
   /** Pre-selected parent — if omitted the modal shows an OP/IP + visit/admission selector */
@@ -154,6 +157,11 @@ export function PatientDiagnosisModal({
   const [practitionerOpen, setPractitionerOpen] = useState<Record<string, boolean>>({})
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Pre-fill standalone selector from navbar care context when visit/admission not passed as props
   useEffect(() => {
@@ -186,16 +194,18 @@ export function PatientDiagnosisModal({
       return
     }
     let cancelled = false
-    Promise.all([
-      getMedicalDiagnosisContextDefaults(parentDoctype, parentName),
-      getCurrentUserPractitioner(),
-    ])
-      .then(([fromParent, userPractitioner]) => {
+    getMedicalDiagnosisContextDefaults(parentDoctype, parentName)
+      .then((fromParent) => {
         if (cancelled) return
+        const pract =
+          fromParent.practitioner || linkedPractitionerId || ''
         const merged: MedicalDiagnosisContextDefaults = {
           cost_center: fromParent.cost_center || userCostCenter || '',
-          practitioner: fromParent.practitioner || userPractitioner || '',
-          practitioner_name: fromParent.practitioner_name || '',
+          practitioner: pract,
+          practitioner_name:
+            fromParent.practitioner_name ||
+            (pract === linkedPractitionerId ? linkedPractitionerLabel : '') ||
+            pract,
         }
         if (merged.practitioner && !merged.practitioner_name) {
           merged.practitioner_name = merged.practitioner
@@ -206,11 +216,13 @@ export function PatientDiagnosisModal({
         if (!cancelled) {
           setContextDefaults({
             cost_center: userCostCenter || '',
+            practitioner: linkedPractitionerId || '',
+            practitioner_name: linkedPractitionerLabel || linkedPractitionerId || '',
           })
         }
       })
     return () => { cancelled = true }
-  }, [parentDoctype, parentName, userCostCenter])
+  }, [parentDoctype, parentName, userCostCenter, linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     fetchCostCenters(costCenterCompany, undefined)
@@ -589,20 +601,28 @@ export function PatientDiagnosisModal({
                             ? (practitionerQuery[row._id] ?? '')
                             : row.practitionerLabel
                         }
+                        readOnly={practitionerLocked}
                         onFocus={() => {
+                          if (practitionerLocked) return
                           setPractitionerOpen((p) => ({ ...p, [row._id]: true }))
                           setPractitionerQuery((p) => ({ ...p, [row._id]: '' }))
                           fetchHealthcarePractitioners(undefined).then(setPractitionerOptions).catch(() => {})
                         }}
                         onChange={(e) => {
+                          if (practitionerLocked) return
                           setPractitionerQuery((p) => ({ ...p, [row._id]: e.target.value }))
                           setPractitionerOpen((p) => ({ ...p, [row._id]: true }))
                           updateField(row._id, 'practitioner', '')
                         }}
                         placeholder="Search doctor…"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                        title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                        className={
+                          practitionerLocked
+                            ? LOCKED_PRACTITIONER_INPUT_CLASS
+                            : 'w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 hover:border-emerald-300/80 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25'
+                        }
                       />
-                      {practitionerOpen[row._id] && practitionerOptions.length > 0 && (
+                      {practitionerOpen[row._id] && !practitionerLocked && practitionerOptions.length > 0 && (
                         <div className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
                           {practitionerOptions.map((opt) => (
                             <button
