@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, useMemo, useRef } from 'react'
 import { fetchReceptionLongActingMedicineList } from '../../services/receptionLongActingMedicine'
 import type { LongActingMedicineRow, ReminderChannel, InjectionSide } from '../../services/longActingMedicine'
-import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
+import { sendLongActingMedicineReminder, updateLongActingMedicineRemarks, recordLongActingMedicineGiveOut, stopLongActingMedicine, fetchLongActingMedicine, formatInjectionSide, formatInjectionSideShort, formatLongActingDose, suggestedNextInjectionSide, fetchLongActingGiveOutsForPatient, type LongActingGiveOutHistoryRow } from '../../services/longActingMedicine'
 import {
   LONG_ACTING_FREQUENCY_OPTIONS,
   mapLongActingMedicineToDuplicateMedications,
@@ -246,9 +246,9 @@ export const ReceptionLongActingMedicineList = ({
       ?? (med?.dosage != null && med.dosage !== '' && Number(med.dosage) !== 0
         ? String(med.dosage)
         : '')
-    const dosageForm = source.default_dosage_form ?? med?.dosage_form ?? ''
+    const uom = source.default_uom ?? med?.uom ?? ''
     setGiveOutDosage(dosage || '')
-    setGiveOutDosageForm(dosageForm || '')
+    setGiveOutDosageForm(uom || '')
     setGiveOutInjectionSide(suggestedNextInjectionSide(source.injection_given_on))
   }
 
@@ -527,6 +527,7 @@ export const ReceptionLongActingMedicineList = ({
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Start</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Next Run</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Medication</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Dose</th>
                 <th className="px-3 py-2 text-center text-xs font-semibold text-slate-600 uppercase">Last Inj.</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold text-slate-600 uppercase">Remarks</th>
@@ -562,6 +563,11 @@ export const ReceptionLongActingMedicineList = ({
                           <span className="line-clamp-2" title={row.medication_label || undefined}>
                             {row.medication_label || '—'}
                           </span>,
+                        )}
+                      </td>
+                      <td className="px-3 py-2 text-slate-700 whitespace-nowrap">
+                        {mask(
+                          formatLongActingDose(row.default_dosage, row.default_uom) || '—',
                         )}
                       </td>
                       <td
@@ -821,7 +827,7 @@ export const ReceptionLongActingMedicineList = ({
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Dosage Form</label>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">Unit of Measure</label>
                     <input
                       type="text"
                       value={giveOutDosageForm}
