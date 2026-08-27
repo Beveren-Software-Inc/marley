@@ -10,8 +10,8 @@ import {
   fetchLongActingMedicine,
   formatInjectionSide,
   formatInjectionSideShort,
+  formatLongActingDose,
   injectionSideFromGiveOut,
-  type LongActingMedicineItem,
   type LongActingMedicineRow,
 } from '../../services/longActingMedicine'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -77,16 +77,6 @@ function InfoTile({
   )
 }
 
-function medicationLabel(item: LongActingMedicineItem): string {
-  const parts = [
-    item.drug_name || item.drug,
-    item.dosage != null && item.dosage !== '' ? String(item.dosage) : null,
-    item.dosage_form,
-    item.patient_frequency,
-  ].filter(Boolean)
-  return parts.length ? parts.join(' · ') : '—'
-}
-
 export function LongActingMedicineDetailPanel({
   name,
   onClose,
@@ -133,6 +123,13 @@ export function LongActingMedicineDetailPanel({
 
   const medications = doc?.medications ?? preview?.medications ?? []
   const status = doc?.status ?? preview?.status ?? 'Draft'
+  const dosageDisplay =
+    formatLongActingDose(
+      doc?.default_dosage ?? preview?.default_dosage,
+      doc?.default_uom ?? preview?.default_uom,
+    ) ||
+    formatLongActingDose(medications[0]?.dosage, medications[0]?.uom) ||
+    '—'
 
   return (
     <DetailSlideOver
@@ -186,7 +183,16 @@ export function LongActingMedicineDetailPanel({
                     key={item.name || `${item.drug}-${idx}`}
                     className="rounded-lg border border-slate-100 bg-slate-50/80 px-3 py-2.5 text-sm text-slate-800"
                   >
-                    <p className="font-medium">{medicationLabel(item)}</p>
+                    <p className="font-medium">{item.drug_name || item.drug || '—'}</p>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      Dosage:{' '}
+                      <span className="font-medium text-slate-800">
+                        {formatLongActingDose(item.dosage, item.uom) || '—'}
+                      </span>
+                      {item.patient_frequency ? (
+                        <span className="text-slate-500"> · {item.patient_frequency}</span>
+                      ) : null}
+                    </p>
                     {item.instructions ? (
                       <p className="mt-1 text-xs text-slate-600">{item.instructions}</p>
                     ) : null}
@@ -280,6 +286,11 @@ export function LongActingMedicineDetailPanel({
                 icon={<Calendar className="h-4 w-4" strokeWidth={2} />}
                 label="Next run"
                 value={formatDate(doc?.next_run_date || preview?.next_run_date)}
+              />
+              <InfoTile
+                icon={<Pill className="h-4 w-4" strokeWidth={2} />}
+                label="Dosage"
+                value={dosageDisplay}
               />
               <InfoTile
                 icon={<Pill className="h-4 w-4" strokeWidth={2} />}

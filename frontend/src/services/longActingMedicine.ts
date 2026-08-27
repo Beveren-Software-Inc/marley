@@ -61,6 +61,7 @@ export interface LongActingMedicineRow {
   drug_name?: string
   medication_label?: string
   default_dosage?: string
+  default_uom?: string
   default_dosage_form?: string
   practitioner?: string
   practitioner_name?: string
@@ -84,12 +85,29 @@ export interface LongActingMedicineItem {
   drug_name?: string
   dosage?: number | string
   dosage_form?: string
+  uom?: string
   instructions?: string
   patient_frequency?: string
   qty_per_cycle?: number | string
   is_active?: number | boolean
   old_med_no?: string
   old_medication_name?: string
+}
+
+/** Display dose with Unit of Measure, e.g. "5 Nos" / "1 UNIT". */
+export function formatLongActingDose(
+  dosage?: number | string | null,
+  uom?: string | null,
+): string {
+  const dose =
+    dosage == null || dosage === '' || Number(dosage) === 0
+      ? ''
+      : String(dosage).replace(/\.0$/, '').trim()
+  const unit = (uom || '').trim()
+  if (dose && unit) return `${dose} ${unit}`
+  if (dose) return dose
+  if (unit) return unit
+  return ''
 }
 
 export async function fetchLongActingMedicine(name: string): Promise<LongActingMedicineRow> {

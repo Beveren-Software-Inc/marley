@@ -1737,6 +1737,93 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Single-Group Lab Children (July 2026)'), () => {
+			open_direct_sync_excel_upload({
+				dialog_title: __('Single-Group Lab Children (July 2026)'),
+				preview_method:
+					'healthcare.api.lab_test_template_price_update.preview_single_group_lab_child_price_update',
+				import_method:
+					'healthcare.api.lab_test_template_price_update.update_single_group_lab_child_prices_from_excel',
+				freeze_message: __('Reading single-group Lab Prices…'),
+				import_freeze_message: __('Updating single-group lab children…'),
+				build_confirm_message: (counts) => {
+					const missingSample = (counts.samples_missing || []).join('\n') || __('(none)');
+					const updateSample = (counts.samples_updates || []).join('\n') || __('(none)');
+					return __(
+						'Update single-group lab children from this Excel?\n\n'
+							+ 'Only Excel parents with no children in the sheet (e.g. LAB-089, LAB-091).\n'
+							+ 'Skips panels like LAB-001 / LAB-055-004.\n\n'
+							+ 'For each: LAB-xxx → system child LAB-xxx-001\n'
+							+ '  OP/IP prices from the Excel group row\n'
+							+ '  lab_group = LAB-xxx if empty\n'
+							+ '  Enable (disabled = 0)\n'
+							+ '  Tick Price Included in Group\n\n'
+							+ 'Excel rows: {0}\n'
+							+ 'Single-group rows: {1}\n'
+							+ 'Matched children: {2}\n'
+							+ 'Missing LAB-xxx-001: {3}\n'
+							+ 'Children to update: {4}\n'
+							+ '  OP: {5}  IP: {6}\n'
+							+ '  Set lab_group: {7}\n'
+							+ '  Enable: {8}\n'
+							+ '  Price included: {9}\n'
+							+ 'Already correct: {10}\n\n'
+							+ 'Sample updates:\n{11}\n\n'
+							+ 'Sample missing:\n{12}\n\nContinue?',
+						[
+							counts.excel_rows || 0,
+							counts.single_group_rows || 0,
+							counts.matched || 0,
+							counts.missing || 0,
+							counts.templates_needing_update || 0,
+							counts.would_update_op || 0,
+							counts.would_update_ip || 0,
+							counts.would_set_lab_group || 0,
+							counts.would_enable || 0,
+							counts.would_include_in_group || 0,
+							counts.unchanged || 0,
+							updateSample,
+							missingSample,
+						]
+					);
+				},
+				build_result_message: (result) => {
+					const missingSample = (result.samples_missing || []).join('\n') || __('(none)');
+					const updateSample = (result.samples_updates || []).join('\n') || __('(none)');
+					return __(
+						'Single-group lab children updated.\n\n'
+							+ 'Single-group rows: {0}\n'
+							+ 'Matched: {1}\n'
+							+ 'Updated: {2}\n'
+							+ '  OP: {3}  IP: {4}\n'
+							+ '  lab_group: {5}\n'
+							+ '  Enabled: {6}\n'
+							+ '  Price included: {7}\n'
+							+ 'Unchanged: {8}\n'
+							+ 'Missing: {9}\n'
+							+ 'Errors: {10}\n\n'
+							+ 'Sample updates:\n{11}\n\n'
+							+ 'Sample missing:\n{12}',
+						[
+							result.single_group_rows || 0,
+							result.matched || 0,
+							result.updated || 0,
+							result.updated_op || 0,
+							result.updated_ip || 0,
+							result.updated_lab_group || 0,
+							result.updated_enabled || 0,
+							result.updated_price_included || 0,
+							result.unchanged || 0,
+							result.missing || 0,
+							result.errors || 0,
+							updateSample,
+							missingSample,
+						]
+					);
+				},
+			});
+		}, __('Direct Upload'));
+
 		frm.add_custom_button(__('Admission Transfer - IP_ADMISSION_TRANSFER'), () => {
 			open_direct_excel_upload({
 				dialog_title: __('Admission Transfer (IP_ADMISSION_TRANSFER)'),

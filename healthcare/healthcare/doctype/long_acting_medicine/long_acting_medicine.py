@@ -160,7 +160,7 @@ def _first_medication_labels_for_parents(parent_names):
 
 
 def _first_medication_doses_for_parents(parent_names):
-	"""Map LAM name -> {default_dosage, default_dosage_form} from first plan item."""
+	"""Map LAM name -> {default_dosage, default_uom, default_dosage_form} from first plan item."""
 	if not parent_names:
 		return {}
 
@@ -168,17 +168,55 @@ def _first_medication_doses_for_parents(parent_names):
 	med_rows = frappe.get_all(
 		"Subscription Medication Plan Item",
 		filters={"parent": ["in", parent_names]},
-		fields=["parent", "dosage", "dosage_form", "idx"],
+		fields=["parent", "dosage", "dosage_form", "drug", "medication_order_entry", "idx"],
 		order_by="parent asc, idx asc",
 	)
+
+	entry_names = list(
+		{
+			(row.medication_order_entry or "").strip()
+			for row in med_rows
+			if (row.medication_order_entry or "").strip()
+		}
+	)
+	drug_names = list({(row.drug or "").strip() for row in med_rows if (row.drug or "").strip()})
+
+	entry_uoms: dict[str, str] = {}
+	if entry_names:
+		for erow in frappe.get_all(
+			"Inpatient Medication Order Entry",
+			filters={"name": ["in", entry_names]},
+			fields=["name", "uom"],
+		):
+			if (erow.uom or "").strip():
+				entry_uoms[erow.name] = erow.uom.strip()
+
+	drug_uoms: dict[str, str] = {}
+	if drug_names:
+		for drow in frappe.get_all(
+			"Item",
+			filters={"name": ["in", drug_names]},
+			fields=["name", "stock_uom"],
+		):
+			if (drow.stock_uom or "").strip():
+				drug_uoms[drow.name] = drow.stock_uom.strip()
+
 	for row in med_rows:
 		if row.parent in defaults:
 			continue
 		dosage = _format_dosage_value(row.dosage)
 		dosage_form = (row.dosage_form or "").strip() or None
-		if dosage or dosage_form:
+		uom = None
+		entry = (row.medication_order_entry or "").strip()
+		drug = (row.drug or "").strip()
+		if entry and entry in entry_uoms:
+			uom = entry_uoms[entry]
+		elif drug and drug in drug_uoms:
+			uom = drug_uoms[drug]
+		if dosage or uom or dosage_form:
 			defaults[row.parent] = {
 				"default_dosage": dosage,
+				"default_uom": uom,
 				"default_dosage_form": dosage_form,
 			}
 	return defaults
@@ -195,19 +233,37 @@ def _format_dosage_value(dosage=None):
 	return text
 
 
-def _format_medication_dose(dosage=None, dosage_form=None):
+def _resolve_uom_for_plan_item(med) -> str | None:
+	"""Unit of Measure from linked order entry, else Item stock UOM — not Dosage Form."""
+	entry = (_row_field(med, "medication_order_entry") or "").strip()
+	if entry and frappe.db.exists("Inpatient Medication Order Entry", entry):
+		uom = frappe.db.get_value("Inpatient Medication Order Entry", entry, "uom")
+		if (uom or "").strip():
+			return str(uom).strip()
+	drug = (_row_field(med, "drug") or "").strip()
+	if drug:
+		uom = frappe.db.get_value("Item", drug, "stock_uom")
+		if (uom or "").strip():
+			return str(uom).strip()
+	return None
+
+
+def _format_medication_dose(dosage=None, uom=None):
 	dose = _format_dosage_value(dosage)
+	unit = (uom or "").strip() or None
 	if not dose:
 		return None
-	if dosage_form:
-		return f"{dose} {str(dosage_form).strip()}".strip()
+	if unit:
+		return f"{dose} {unit}".strip()
 	return dose
 
 
 def _plan_item_dose_fields(med):
+	uom = _resolve_uom_for_plan_item(med)
 	return {
 		"dose": _format_dosage_value(_row_field(med, "dosage")),
-		"dose_term": (_row_field(med, "dosage_form") or "").strip() or None,
+		"dose_term": uom,
+		"uom": uom,
 	}
 
 
@@ -319,14 +375,20 @@ def enrich_long_acting_medicine_row(doc):
 	data["medication_label"] = medication_label
 
 	default_dosage = None
+	default_uom = None
 	default_dosage_form = None
 	for med in data.get("medications") or []:
+		if isinstance(med, dict):
+			uom = _resolve_uom_for_plan_item(med)
+			med["uom"] = uom
 		dose_fields = _plan_item_dose_fields(med)
-		if dose_fields["dose"] or dose_fields["dose_term"]:
+		if dose_fields["dose"] or dose_fields["uom"] or dose_fields["dose_term"]:
 			default_dosage = dose_fields["dose"]
-			default_dosage_form = dose_fields["dose_term"]
+			default_uom = dose_fields["uom"]
+			default_dosage_form = (_row_field(med, "dosage_form") or "").strip() or None
 			break
 	data["default_dosage"] = default_dosage
+	data["default_uom"] = default_uom
 	data["default_dosage_form"] = default_dosage_form
 
 	return data
@@ -393,6 +455,7 @@ def enrich_long_acting_medicine_list_rows(rows):
 		item["medication_label"] = medication_labels.get(item["name"])
 		plan_defaults = medication_defaults.get(item["name"]) or {}
 		item["default_dosage"] = plan_defaults.get("default_dosage")
+		item["default_uom"] = plan_defaults.get("default_uom")
 		item["default_dosage_form"] = plan_defaults.get("default_dosage_form")
 		enriched.append(item)
 	return enriched
