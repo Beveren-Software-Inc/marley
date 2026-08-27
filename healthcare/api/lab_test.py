@@ -1740,6 +1740,9 @@ def get_lab_test_history_matrix(
 			"results",
 			"result_flag",
 			"is_legacy_import",
+			"lab_test_group",
+			"is_group_lab_test",
+			"service_request",
 		],
 		order_by="result_date asc, creation asc",
 	)
@@ -1767,6 +1770,31 @@ def get_lab_test_history_matrix(
 	patient_name = frappe.db.get_value("Patient", patient, "patient_name")
 	patient_gender = frappe.db.get_value("Patient", patient, "sex") or ""
 	search_term = (test_search or "").strip().lower()
+
+	group_name_cache: dict[str, str] = {}
+
+	def _group_display_name(group_code: str) -> str:
+		code = (group_code or "").strip()
+		if not code:
+			return ""
+		if code not in group_name_cache:
+			group_name_cache[code] = (
+				frappe.db.get_value("Lab Test Template", code, "lab_test_name") or code
+			)
+		return group_name_cache[code] or ""
+
+	def _lab_test_matches_search(lt) -> bool:
+		"""True when search matches this lab test / its panel group (e.g. CBC)."""
+		if not search_term:
+			return True
+		candidates = [
+			(lt.lab_test_name or "").strip(),
+			(lt.template or "").strip(),
+			(lt.name or "").strip(),
+			(lt.lab_test_group or "").strip(),
+			_group_display_name(lt.lab_test_group or ""),
+		]
+		return any(search_term in c.lower() for c in candidates if c)
 
 	def _format_time(value):
 		if not value:
@@ -1807,10 +1835,37 @@ def get_lab_test_history_matrix(
 	template_cache: dict[str, dict] = {}
 	template_info_cache: dict[str, dict] = {}
 
+	def _ensure_row(row_key, label, uom="", group_key="", group_label=""):
+		gk = (group_key or "").strip()
+		gl = (group_label or "").strip()
+		if row_key not in rows_map:
+			rows_map[row_key] = {
+				"key": row_key,
+				"label": label,
+				"uom": uom or "",
+				"group_key": gk,
+				"group_label": gl,
+				"cells": {},
+			}
+		else:
+			row = rows_map[row_key]
+			if gk and not (row.get("group_key") or "").strip():
+				row["group_key"] = gk
+				row["group_label"] = gl
+			if label and (not row.get("label") or len(label) > len(row.get("label") or "")):
+				row["label"] = label
+			if uom and not row.get("uom"):
+				row["uom"] = uom
+		return rows_map[row_key]
+
 	for lt in lab_tests:
 		eff_date = _effective_date(lt)
 		if not eff_date:
 			continue
+		lt_matches_search = _lab_test_matches_search(lt)
+		# Skip whole documents that don't match the test/group search at all —
+		# unless search is empty (show everything).
+		# Analyte-level matching still applies below when the parent doesn't match.
 		col_key = str(eff_date)
 		if col_key not in columns_by_date:
 			columns_by_date[col_key] = {
@@ -1830,6 +1885,9 @@ def get_lab_test_history_matrix(
 			col["lab_test"] = lt.name
 			col["lab_test_name"] = lt.lab_test_name or lt.template or lt.name
 			col["status"] = lt.status
+
+		panel_group_key = (lt.lab_test_group or "").strip()
+		panel_group_label = _group_display_name(panel_group_key) if panel_group_key else ""
 
 		items = frappe.get_all(
 			"Normal Test Result",
@@ -1853,11 +1911,23 @@ def get_lab_test_history_matrix(
 				label = (tpl_info.get("name") or sub_template).strip()
 				if not label:
 					continue
-				if search_term and search_term not in label.lower():
-					if sub_template and search_term in sub_template.lower():
-						pass
-					else:
-						continue
+				line_group_key = (line.get("lab_group_num") or panel_group_key or "").strip()
+				line_group_label = (
+					(line.get("group_name") or "").strip()
+					or _group_display_name(line_group_key)
+					or panel_group_label
+				)
+				if search_term and not lt_matches_search:
+					group_name = (line.get("group_name") or "").strip()
+					if search_term not in label.lower():
+						if sub_template and search_term in sub_template.lower():
+							pass
+						elif group_name and search_term in group_name.lower():
+							pass
+						elif line_group_label and search_term in line_group_label.lower():
+							pass
+						else:
+							continue
 				# One history row per child line (lab_sub_num = Lab Test Template).
 				sr_num = line.get("sr_num")
 				if sub_template:
@@ -1866,13 +1936,18 @@ def get_lab_test_history_matrix(
 					row_key = f"{lt.name}::sr::{sr_num}".lower()
 				else:
 					row_key = f"{lt.name}::line::{len(rows_map)}".lower()
-				if row_key not in rows_map:
-					rows_map[row_key] = {"key": row_key, "label": label, "uom": "", "cells": {}}
+				_ensure_row(row_key, label, group_key=line_group_key, group_label=line_group_label)
 				value = (line.get("lab_result_value") or "").strip()
 				if value:
 					cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
 					rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 		elif items:
+			item_group_key = panel_group_key
+			item_group_label = panel_group_label
+			# Compound panel on one Lab Test doc (e.g. CBC with many Normal Test Results).
+			if not item_group_key and len(items) > 1:
+				item_group_key = (lt.template or lt.name or "").strip()
+				item_group_label = (lt.lab_test_name or item_group_key).strip()
 			for item in items:
 				tpl_key = (lt.template or "").strip()
 				tpl_info = _lab_test_template_info(tpl_key, template_info_cache) if tpl_key else {}
@@ -1885,18 +1960,26 @@ def get_lab_test_history_matrix(
 				)
 				if not label_base:
 					continue
-				if search_term and search_term not in label_base.lower():
-					if event_code and search_term in event_code.lower():
-						pass
-					elif tpl_key and search_term in tpl_key.lower():
-						pass
-					else:
-						continue
+				if search_term and not lt_matches_search:
+					if search_term not in label_base.lower():
+						if event_code and search_term in event_code.lower():
+							pass
+						elif tpl_key and search_term in tpl_key.lower():
+							pass
+						elif item_group_label and search_term in item_group_label.lower():
+							pass
+						else:
+							continue
 				uom = (item.lab_test_uom or "").strip()
 				row_key = label_base.lower()
 				label = f"{label_base} ({uom})" if uom else label_base
-				if row_key not in rows_map:
-					rows_map[row_key] = {"key": row_key, "label": label, "uom": uom, "cells": {}}
+				_ensure_row(
+					row_key,
+					label,
+					uom=uom,
+					group_key=item_group_key,
+					group_label=item_group_label,
+				)
 				value = (item.result_value or "").strip()
 				if value:
 					cell_eval = _matrix_cell_eval_from_template_info(
@@ -1916,11 +1999,16 @@ def get_lab_test_history_matrix(
 				label_base = (lt.lab_test_name or lt.template or lt.name or "").strip()
 			if not label_base:
 				continue
-			if search_term and search_term not in label_base.lower():
-				continue
+			if search_term and not lt_matches_search and search_term not in label_base.lower():
+				if not (panel_group_label and search_term in panel_group_label.lower()):
+					continue
 			row_key = label_base.lower()
-			if row_key not in rows_map:
-				rows_map[row_key] = {"key": row_key, "label": label_base, "uom": "", "cells": {}}
+			_ensure_row(
+				row_key,
+				label_base,
+				group_key=panel_group_key,
+				group_label=panel_group_label,
+			)
 			value = (lt.custom_result or lt.results or "").strip()
 			if value:
 				cell_eval = _matrix_cell_eval_from_template_info(value, patient_gender, tpl_info)
@@ -1932,7 +2020,13 @@ def get_lab_test_history_matrix(
 						pass
 				rows_map[row_key]["cells"][col_key] = _matrix_history_cell(value, lt.name, cell_eval)
 
-	rows = sorted(rows_map.values(), key=lambda r: r["label"].lower())
+	rows = sorted(
+		rows_map.values(),
+		key=lambda r: (
+			(r.get("group_label") or r.get("group_key") or "\uffff").lower(),
+			(r.get("label") or "").lower(),
+		),
+	)
 	columns = sorted(columns_by_date.values(), key=lambda c: c["date"])
 
 	return {

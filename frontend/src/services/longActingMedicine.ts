@@ -72,6 +72,8 @@ export interface LongActingMedicineRow {
   last_give_out_by?: string
   is_given_out_for_current_run?: boolean
   can_give_out?: boolean
+  /** Due for next cycle after first give-out — doctor must Duplicate a new order. */
+  can_duplicate_for_next_run?: boolean
   can_stop?: boolean
   injection_given_on?: InjectionSide | string
 }

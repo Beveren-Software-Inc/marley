@@ -15,7 +15,6 @@ import {
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
   fetchPatientVisits as fetchPatientVisitOptions,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import {
@@ -28,6 +27,10 @@ import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateDoctorMedicationPlanModalProps {
   onClose: () => void
@@ -68,6 +71,11 @@ export const CreateDoctorMedicationPlanModal = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerLoading, setPractitionerLoading] = useState(false)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const [visitOptions, setVisitOptions] = useState<{ name: string; label: string }[]>([])
   const [admissionOptions, setAdmissionOptions] = useState<LinkFieldOption[]>([])
@@ -103,16 +111,6 @@ export const CreateDoctorMedicationPlanModal = ({
         const results = await fetchHealthcarePractitioners()
         setPractitionerOptions(results)
         setFilteredPractitionerOptions(results)
-
-        const me = await getCurrentUserPractitioner()
-        if (me) {
-          const opt = results.find((p) => p.name === me)
-          setFormData((prev) => ({
-            ...prev,
-            practitioner: me,
-          }))
-          if (opt) setPractitionerQuery(opt.label)
-        }
       } catch {
         setPractitionerOptions([])
         setFilteredPractitionerOptions([])
@@ -122,6 +120,14 @@ export const CreateDoctorMedicationPlanModal = ({
     }
     loadPractitioners()
   }, [])
+
+  useEffect(() => {
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!practitionerOpen) return
@@ -410,14 +416,24 @@ export const CreateDoctorMedicationPlanModal = ({
                 <input
                   type="text"
                   value={practitionerQuery}
+                  readOnly={practitionerLocked}
                   onChange={(e) => {
+                    if (practitionerLocked) return
                     setPractitionerQuery(e.target.value)
                     setPractitionerOpen(true)
                   }}
-                  onFocus={() => setPractitionerOpen(true)}
+                  onFocus={() => {
+                    if (!practitionerLocked) setPractitionerOpen(true)
+                  }}
                   placeholder="Search doctor..."
-                  className={linkComboboxInputWithClearClass}
+                  title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    practitionerLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : linkComboboxInputWithClearClass
+                  }
                 />
+                {!practitionerLocked ? (
                 <button
                   type="button"
                   className="ml-2 text-xs text-primary whitespace-nowrap"
@@ -425,10 +441,11 @@ export const CreateDoctorMedicationPlanModal = ({
                 >
                   + New
                 </button>
-                {practitionerLoading && (
+                ) : null}
+                {practitionerLoading && !practitionerLocked && (
                   <div className="absolute right-8 top-2.5 text-slate-400 text-xs">Loading...</div>
                 )}
-                {practitionerOpen && !practitionerLoading && filteredPractitionerOptions.length > 0 && (
+                {practitionerOpen && !practitionerLocked && !practitionerLoading && filteredPractitionerOptions.length > 0 && (
                   <div className={`${linkComboboxDropdownClassTall} top-full left-0`}>
                     {filteredPractitionerOptions.map((pr) => (
                       <button

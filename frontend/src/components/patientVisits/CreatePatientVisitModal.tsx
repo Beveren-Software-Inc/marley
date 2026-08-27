@@ -20,7 +20,6 @@ import {
   fetchHealthcarePractitioners,
   fetchDocumentTypes,
   fetchCostCenters,
-  getCurrentUserPractitioner,
   type LinkFieldOption 
 } from '../../services/common'
 import { DocumentTypeSelect } from '../ui/DocumentTypeSelect'
@@ -31,6 +30,10 @@ import { toast } from '../../hooks/useToast'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { PenLine, Ban } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface SignaturePadProps {
   onSave: (file: File) => void
@@ -249,6 +252,11 @@ export const CreatePatientVisitModal = ({
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
   const [practOpen, setPractOpen] = useState(false)
   const [practQuery, setPractQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Visit type searchable dropdown state
   const [visitTypeOptions, setVisitTypeOptions] = useState<PatientVisitTypeOption[]>([])
@@ -284,22 +292,18 @@ export const CreatePatientVisitModal = ({
     }
   }, [initialIOPEnrollment])
 
-  // Load initial options (practitioners + visit types) and auto-fill current user's practitioner
+  // Load initial options (practitioners + visit types)
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [practs, visitTypes, docTypes, currentPract] = await Promise.all([
+        const [practs, visitTypes, docTypes] = await Promise.all([
           fetchHealthcarePractitioners(),
           fetchPatientVisitTypes(),
           fetchDocumentTypes(),
-          getCurrentUserPractitioner(),
         ])
         setPractitioners(practs)
         setVisitTypeOptions(visitTypes)
         setDocumentTypes(docTypes)
-        if (currentPract && !initialPractitioner) {
-          setFormData((prev) => (prev.practitioner === '' ? { ...prev, practitioner: currentPract } : prev))
-        }
         if (initialPractitioner) {
           setPractQuery(initialPractitioner)
         }
@@ -309,6 +313,15 @@ export const CreatePatientVisitModal = ({
     }
     loadOptions()
   }, [initialPractitioner])
+
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
+  useEffect(() => {
+    if (!linkedPractitionerId || initialPractitioner) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel, initialPractitioner])
 
   useEffect(() => {
     let cancelled = false
@@ -909,17 +922,27 @@ export const CreatePatientVisitModal = ({
                 <input
                   type="text"
                   value={formData.practitioner ? practitioners.find(p => p.name === formData.practitioner)?.label || formData.practitioner : practQuery}
+                  readOnly={practitionerLocked}
                   onChange={(e) => {
+                    if (practitionerLocked) return
                     setPractQuery(e.target.value)
                     setPractOpen(true)
                     if (formData.practitioner) {
                       setFormData({ ...formData, practitioner: '' })
                     }
                   }}
-                  onFocus={() => setPractOpen(true)}
+                  onFocus={() => {
+                    if (!practitionerLocked) setPractOpen(true)
+                  }}
                   placeholder="Search doctor..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
+                  title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    practitionerLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : 'w-full rounded-md border border-slate-300 px-3 py-2 pr-14 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500'
+                  }
                 />
+                {!practitionerLocked ? (
                 <div className="absolute right-2 flex items-center gap-1">
                   {formData.practitioner && (
                     <button
@@ -950,7 +973,8 @@ export const CreatePatientVisitModal = ({
                     </svg>
                   </button>
                 </div>
-                {practOpen && (
+                ) : null}
+                {practOpen && !practitionerLocked && (
                   <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto top-full">
                     {practitioners.length > 0 ? (
                       practitioners.map((pract) => (

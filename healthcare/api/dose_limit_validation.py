@@ -5,7 +5,48 @@ from __future__ import annotations
 import re
 
 import frappe
-from frappe.utils import add_to_date, flt, get_datetime, getdate, nowdate, now_datetime
+from frappe.utils import add_to_date, cint, flt, get_datetime, getdate, nowdate, now_datetime
+
+
+def _healthcare_settings_flag(fieldname: str) -> bool:
+	"""Return True when a Healthcare Settings checkbox is enabled.
+
+	Do not use ``frappe.db.has_column`` here — Healthcare Settings is a Single
+	DocType and values live in ``tabSingles``, so column checks falsely disable
+	validation even when the checkbox is checked.
+	"""
+	if not fieldname:
+		return False
+	try:
+		return bool(cint(frappe.db.get_single_value("Healthcare Settings", fieldname) or 0))
+	except Exception:
+		return False
+
+
+def dose_validation_toggles(context: str) -> dict:
+	"""
+	Which dose checks to run for a context.
+
+	context:
+	  - ``prescription`` → validate_dose_per_*_on_prescription
+	  - ``given_medicine`` → validate_dose_per_*_on_given_medicine
+
+	session = per single administration; day = per-day / rolling 24h.
+	Unchecked → do not validate that limit.
+	"""
+	ctx = (context or "").strip().lower()
+	if ctx in ("prescription", "rx", "pmo", "patient_medication_order"):
+		return {
+			"session": _healthcare_settings_flag("validate_dose_per_session_on_prescription"),
+			"day": _healthcare_settings_flag("validate_dose_per_day_on_prescription"),
+			"context": "prescription",
+		}
+	# given medicine (default for administration flows)
+	return {
+		"session": _healthcare_settings_flag("validate_dose_per_session_on_given_medicine"),
+		"day": _healthcare_settings_flag("validate_dose_per_day_on_given_medicine"),
+		"context": "given_medicine",
+	}
 
 
 def _normalize_row_time(value=None) -> str:
@@ -459,30 +500,65 @@ def evaluate_dose_against_item_limits(
 	skip_if_frequency_style: bool = False,
 	patient: str | None = None,
 	route_of_administration: str | None = None,
+	validate_session: bool | None = None,
+	validate_day: bool | None = None,
+	context: str | None = None,
 ) -> dict:
-	"""Check entered dose against Item single/daily ceilings (no 24h cumulative history)."""
+	"""Check entered dose against Item single/daily ceilings (no 24h cumulative history).
+
+	``validate_session`` / ``validate_day`` override Healthcare Settings when provided.
+	When ``context`` is set (``prescription`` / ``given_medicine``), toggles are read from settings.
+	"""
+	if validate_session is None or validate_day is None:
+		toggles = dose_validation_toggles(context or "prescription")
+		if validate_session is None:
+			validate_session = toggles["session"]
+		if validate_day is None:
+			validate_day = toggles["day"]
+	validate_session = bool(validate_session)
+	validate_day = bool(validate_day)
+
 	ceilings = _resolve_single_and_daily_ceilings(
 		medicine_code,
 		patient_weight,
 		patient,
 		route_of_administration=route_of_administration,
 	)
-	single = ceilings["single"]
-	daily = ceilings["daily"]
-	single_ceiling = single.get("ceiling")
-	daily_ceiling = daily.get("ceiling")
+	single = ceilings["single"] if validate_session else {}
+	daily = ceilings["daily"] if validate_day else {}
+	single_ceiling = single.get("ceiling") if validate_session else None
+	daily_ceiling = daily.get("ceiling") if validate_day else None
+
+	# Weight is only required when an enabled check depends on it.
+	requires_weight = False
+	if validate_session and single.get("requires_weight"):
+		requires_weight = True
+	if validate_day and daily.get("requires_weight"):
+		requires_weight = True
+
+	orig_single = ceilings["single"]
+	orig_daily = ceilings["daily"]
+	has_limit_config = bool(
+		(validate_session and (orig_single.get("raw") or orig_single.get("requires_weight") or orig_single.get("ceiling") is not None))
+		or (validate_day and (orig_daily.get("raw") or orig_daily.get("requires_weight") or orig_daily.get("ceiling") is not None))
+	)
 
 	frequency_style = is_frequency_style_dosage(dose)
 	entered_dose = None if (skip_if_frequency_style and frequency_style) else extract_dose_numeric(dose)
 
 	result = {
 		"ok": True,
-		"has_limit": bool(ceilings["has_limit_config"]),
-		"weight_based": bool(single.get("weight_based") or daily.get("weight_based")),
-		"requires_weight": bool(ceilings["requires_weight"]),
+		"has_limit": bool(has_limit_config),
+		"weight_based": bool(
+			(validate_session and single.get("weight_based"))
+			or (validate_day and daily.get("weight_based"))
+		),
+		"requires_weight": bool(requires_weight),
 		"patient_weight": patient_weight,
-		"rate_per_kg": single.get("rate_per_kg") or daily.get("rate_per_kg"),
-		"limit_raw": single.get("raw") or daily.get("raw"),
+		"rate_per_kg": (single.get("rate_per_kg") if validate_session else None)
+		or (daily.get("rate_per_kg") if validate_day else None),
+		"limit_raw": (single.get("raw") if validate_session else None)
+		or (daily.get("raw") if validate_day else None),
 		"single_dose_ceiling": single_ceiling,
 		"daily_dose_ceiling": daily_ceiling,
 		"ceiling": single_ceiling,
@@ -499,7 +575,14 @@ def evaluate_dose_against_item_limits(
 		"route_of_administration": route_of_administration,
 		"route_specific": bool(ceilings.get("route_specific")),
 		"matched_route": ceilings.get("matched_route"),
+		"validate_session": validate_session,
+		"validate_day": validate_day,
 	}
+
+	# Both toggles off → never block
+	if not validate_session and not validate_day:
+		result["has_limit"] = False
+		return result
 
 	if not result["has_limit"]:
 		return result
@@ -513,9 +596,9 @@ def evaluate_dose_against_item_limits(
 	if entered_dose is None:
 		return result
 
-	if single_ceiling is not None:
+	if validate_session and single_ceiling is not None:
 		result["exceeds_single_dose"] = entered_dose > single_ceiling
-	if daily_ceiling is not None:
+	if validate_day and daily_ceiling is not None:
 		result["exceeds_cumulative_24h"] = entered_dose > daily_ceiling
 		result["cumulative_24h_with_new_dose"] = entered_dose
 	result["ok"] = not (result["exceeds_single_dose"] or result["exceeds_cumulative_24h"])
@@ -535,7 +618,11 @@ def evaluate_medicine_given_dose(
 	admission: str | None = None,
 	route_of_administration: str | None = None,
 ) -> dict:
-	"""Check single-dose ceiling and rolling 24-hour cumulative dose."""
+	"""Check single-dose ceiling and rolling 24-hour cumulative dose (Given Medicine)."""
+	toggles = dose_validation_toggles("given_medicine")
+	validate_session = toggles["session"]
+	validate_day = toggles["day"]
+
 	if patient_weight is None:
 		if not admission and admission_detail_name:
 			admission = frappe.db.get_value("Admission Detail", admission_detail_name, "admission")
@@ -553,31 +640,40 @@ def evaluate_medicine_given_dose(
 		skip_if_frequency_style=False,
 		patient=patient,
 		route_of_administration=route_of_administration,
+		validate_session=validate_session,
+		validate_day=validate_day,
+		context="given_medicine",
 	)
+
+	if not validate_session and not validate_day:
+		return result
 
 	if result.get("requires_weight") or not result.get("has_limit") or result.get("entered_dose") is None:
 		return result
 
 	entered_dose = result["entered_dose"]
-	single_ceiling = result.get("single_dose_ceiling")
-	daily_ceiling = result.get("daily_dose_ceiling")
+	single_ceiling = result.get("single_dose_ceiling") if validate_session else None
+	daily_ceiling = result.get("daily_dose_ceiling") if validate_day else None
 
-	record_datetime = medicine_given_datetime(date_value, time_value)
-	prior_24h = get_cumulative_dose_24h(
-		admission_detail_name=admission_detail_name,
-		medicine_code=medicine_code,
-		record_datetime=record_datetime,
-		exclude_row_name=exclude_row_name,
-	)
-	cumulative_with_new = prior_24h + entered_dose
+	prior_24h = 0.0
+	cumulative_with_new = entered_dose
+	if validate_day and daily_ceiling is not None:
+		record_datetime = medicine_given_datetime(date_value, time_value)
+		prior_24h = get_cumulative_dose_24h(
+			admission_detail_name=admission_detail_name,
+			medicine_code=medicine_code,
+			record_datetime=record_datetime,
+			exclude_row_name=exclude_row_name,
+		)
+		cumulative_with_new = prior_24h + entered_dose
 
 	result["prior_24h_dose"] = prior_24h
 	result["cumulative_24h_with_new_dose"] = cumulative_with_new
 	result["exceeds_single_dose"] = (
-		single_ceiling is not None and entered_dose > single_ceiling
+		validate_session and single_ceiling is not None and entered_dose > single_ceiling
 	)
 	result["exceeds_cumulative_24h"] = (
-		daily_ceiling is not None and cumulative_with_new > daily_ceiling
+		validate_day and daily_ceiling is not None and cumulative_with_new > daily_ceiling
 	)
 	result["ok"] = not (result["exceeds_single_dose"] or result["exceeds_cumulative_24h"])
 	return result
@@ -592,11 +688,15 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 		raw = evaluation.get("limit_raw") or "mg/kg"
 		rate = evaluation.get("rate_per_kg")
 		rate_bit = f" ({rate} mg/kg)" if rate else f" ({raw})"
+		entered = evaluation.get("entered_dose")
+		entered_bit = (
+			frappe._(" Entered dose: {0}.").format(entered) if entered is not None else ""
+		)
 		lines.append(
 			frappe._(
-				"This medicine has a weight-based maximum dose{0}. "
-				"Check patient weight (kg) to validate the dose."
-			).format(rate_bit)
+				"This medicine has a weight-based maximum dose{0}.{1} "
+				"Add patient weight (kg) to validate against the max single dose."
+			).format(rate_bit, entered_bit)
 		)
 		return "\n".join(lines)
 
@@ -606,7 +706,7 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 	route_bit = ""
 	if evaluation.get("route_specific") and evaluation.get("matched_route"):
 		route_bit = frappe._(" for route {0}").format(evaluation.get("matched_route"))
-	if evaluation.get("exceeds_single_dose"):
+	if evaluation.get("exceeds_single_dose") and evaluation.get("validate_session", True):
 		extra = ""
 		if evaluation.get("weight_based") and evaluation.get("patient_weight"):
 			extra = frappe._(" (based on patient weight {0} kg)").format(
@@ -617,7 +717,7 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 				"Entered dose ({0}) exceeds the maximum single dose ({1}) for this medicine{2}{3}."
 			).format(entered, single_ceiling, extra, route_bit)
 		)
-	if evaluation.get("exceeds_cumulative_24h"):
+	if evaluation.get("exceeds_cumulative_24h") and evaluation.get("validate_day", True):
 		# DOC-117: the BRD specifies this exact alert wording.
 		lines.append(
 			frappe._(
@@ -634,10 +734,16 @@ def dose_limit_validation_message(evaluation: dict) -> str:
 
 
 def apply_dose_limit_override_audit(row, evaluation: dict, override_reason: str) -> None:
+	session_on = evaluation.get("validate_session", True)
+	day_on = evaluation.get("validate_day", True)
 	if frappe.db.has_column("Medicine Given", "override_exceeded_dose_limit"):
-		row.override_exceeded_dose_limit = 1 if evaluation.get("exceeds_single_dose") else 0
+		row.override_exceeded_dose_limit = (
+			1 if session_on and evaluation.get("exceeds_single_dose") else 0
+		)
 	if frappe.db.has_column("Medicine Given", "override_exceeded_cumulative_24h"):
-		row.override_exceeded_cumulative_24h = 1 if evaluation.get("exceeds_cumulative_24h") else 0
+		row.override_exceeded_cumulative_24h = (
+			1 if day_on and evaluation.get("exceeds_cumulative_24h") else 0
+		)
 	if hasattr(row, "override_reason"):
 		row.override_reason = override_reason
 	if hasattr(row, "override_user"):
@@ -728,6 +834,7 @@ def preview_prescription_dose_validation(
 		skip_if_frequency_style=True,
 		patient=patient,
 		route_of_administration=route_of_administration,
+		context="prescription",
 	)
 	return {
 		**evaluation,

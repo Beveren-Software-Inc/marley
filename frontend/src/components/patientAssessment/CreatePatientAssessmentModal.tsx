@@ -844,12 +844,15 @@ import {
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { getHealthcareServiceTemplates } from '../../services/sessionSchedule'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreatePatientAssessmentModalProps {
   onClose: () => void
@@ -885,6 +888,7 @@ const Combo = ({
   onSelect,
   loading,
   disabled,
+  readOnly,
   renderOption,
 }: {
   label: string
@@ -898,6 +902,7 @@ const Combo = ({
   onSelect: (opt: { name: string; label: string }) => void
   loading?: boolean
   disabled?: boolean
+  readOnly?: boolean
   renderOption?: (opt: { name: string; label: string }) => React.ReactNode
 }) => (
   <div>
@@ -908,14 +913,25 @@ const Combo = ({
       <input
         type="text"
         disabled={disabled}
+        readOnly={readOnly}
         value={displayValue}
-        onChange={(e) => onQueryChange(e.target.value)}
-        onFocus={onOpen}
+        onChange={(e) => {
+          if (readOnly) return
+          onQueryChange(e.target.value)
+        }}
+        onFocus={() => {
+          if (!readOnly) onOpen()
+        }}
         placeholder={placeholder}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
+        title={readOnly ? 'Locked to your linked practitioner' : undefined}
+        className={
+          readOnly
+            ? LOCKED_PRACTITIONER_INPUT_CLASS
+            : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400'
+        }
       />
       {loading && <span className="absolute right-3 top-2.5 text-xs text-slate-400">…</span>}
-      {open && options.length > 0 && (
+      {open && !readOnly && options.length > 0 && (
         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-48 overflow-y-auto top-full">
           {options.map((o) => (
             <button key={o.name} type="button" onClick={() => onSelect(o)}
@@ -1012,6 +1028,12 @@ export const CreatePatientAssessmentModal = ({
       ? { name: editRow.healthcare_practitioner, label: editRow.practitioner_name || editRow.healthcare_practitioner }
       : null
   )
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
+  const practFieldLocked = practitionerLocked && !isEditMode
 
   // ── Load all assessment parameters once ───────────────────────────────────────
   useEffect(() => {
@@ -1216,17 +1238,17 @@ export const CreatePatientAssessmentModal = ({
     return () => { c = true; clearTimeout(t) }
   }, [practQuery, practOpen])
 
-  // Auto-fill current user's practitioner
+  // Auto-fill current user's linked practitioner (create only)
   useEffect(() => {
-    getCurrentUserPractitioner().then(pract => {
-      if (pract && !selectedPract) {
-        fetchHealthcarePractitioners(pract).then(opts => {
-          const match = opts.find(o => o.name === pract)
-          if (match) { setSelectedPract(match); setPractQuery(match.label) }
-        })
-      }
-    })
-  }, [])
+    if (isEditMode || !linkedPractitionerId) return
+    setSelectedPract((prev) =>
+      prev || {
+        name: linkedPractitionerId,
+        label: linkedPractitionerLabel || linkedPractitionerId,
+      },
+    )
+    setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [isEditMode, linkedPractitionerId, linkedPractitionerLabel])
 
   // ── Healthcare Service (therapy_session) options ───────────────────────────────
   useEffect(() => {
@@ -1552,6 +1574,7 @@ export const CreatePatientAssessmentModal = ({
                     onQueryChange={(q) => { setPractQuery(q); setPractOpen(true); if (!q) setSelectedPract(null) }}
                     onOpen={() => setPractOpen(true)} open={practOpen} options={practOptions}
                     onSelect={(o) => { setSelectedPract(o); setPractQuery(o.label); setPractOpen(false) }}
+                    readOnly={practFieldLocked}
                     renderOption={(o) => (<div><div className="font-medium">{o.label}</div><div className="text-xs text-slate-500">{o.name}</div></div>)}
                   />
                   <Combo

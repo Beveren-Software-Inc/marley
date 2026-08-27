@@ -134,6 +134,8 @@ interface CareContextValue {
   uneditWithin24Hour: boolean
   /** True when Healthcare Settings.allow_doctors_to_create_patient_visit is enabled. */
   allowDoctorsToCreatePatientVisit: boolean
+  /** True when Healthcare Settings.lock_doctors_name_choosing is enabled. */
+  lockDoctorsNameChoosing: boolean
   /**
    * Wrap handlers that modify existing records (edit modals, append note, etc.).
    * Creating new records is still allowed via {@link guardClinicalCreate}.
@@ -201,6 +203,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
   const [vitalSignUneditableIn24Hour, setVitalSignUneditableIn24Hour] = useState(false)
   const [uneditWithin24Hour, setUneditWithin24Hour] = useState(false)
   const [allowDoctorsToCreatePatientVisit, setAllowDoctorsToCreatePatientVisit] = useState(false)
+  const [lockDoctorsNameChoosing, setLockDoctorsNameChoosing] = useState(false)
 
   const editingLockMessage =
     'Editing is locked in Healthcare Settings. You can create new records but cannot modify existing data.'
@@ -353,12 +356,14 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           vital_sign_uneditable_in_24_hour: false,
           unedit_within_24hour: false,
           allow_doctors_to_create_patient_visit: false,
+          lock_doctors_name_choosing: false,
         }))
         setLockEditingData(Boolean(portalSettings.lock_editing_data))
         setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))
         setVitalSignUneditableIn24Hour(Boolean(portalSettings.vital_sign_uneditable_in_24_hour))
         setUneditWithin24Hour(Boolean(portalSettings.unedit_within_24hour))
         setAllowDoctorsToCreatePatientVisit(Boolean(portalSettings.allow_doctors_to_create_patient_visit))
+        setLockDoctorsNameChoosing(Boolean(portalSettings.lock_doctors_name_choosing))
       } catch (error) {
         console.warn('Failed to load user context:', error)
       }
@@ -374,6 +379,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           setVitalSignUneditableIn24Hour(Boolean(portalSettings.vital_sign_uneditable_in_24_hour))
           setUneditWithin24Hour(Boolean(portalSettings.unedit_within_24hour))
           setAllowDoctorsToCreatePatientVisit(Boolean(portalSettings.allow_doctors_to_create_patient_visit))
+          setLockDoctorsNameChoosing(Boolean(portalSettings.lock_doctors_name_choosing))
         })
         .catch(() => {
           setLockEditingData(false)
@@ -381,6 +387,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           setVitalSignUneditableIn24Hour(false)
           setUneditWithin24Hour(false)
           setAllowDoctorsToCreatePatientVisit(false)
+          setLockDoctorsNameChoosing(false)
         })
     }
 
@@ -527,6 +534,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       vitalSignUneditableIn24Hour,
       uneditWithin24Hour,
       allowDoctorsToCreatePatientVisit,
+      lockDoctorsNameChoosing,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,
@@ -559,6 +567,7 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
       vitalSignUneditableIn24Hour,
       uneditWithin24Hour,
       allowDoctorsToCreatePatientVisit,
+      lockDoctorsNameChoosing,
       applyOpCareContext,
       applyIpCareContext,
       refreshUserCostCenter,

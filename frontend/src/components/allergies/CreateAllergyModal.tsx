@@ -11,7 +11,6 @@ import {
 import { createWarningMessage } from '../../services/warningMessages'
 import {
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { fetchPatients, searchPatients, type PatientListItem } from '../../services/patients'
@@ -21,6 +20,10 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClass,
 } from '../ui/linkComboboxStyles'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateAllergyModalProps {
   onClose: () => void
@@ -47,6 +50,11 @@ export function CreateAllergyModal({ onClose, onSuccess, initialPatient }: Creat
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   useEffect(() => {
     if (!initialPatient) return
@@ -68,19 +76,12 @@ export function CreateAllergyModal({ onClose, onSuccess, initialPatient }: Creat
   }, [])
 
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (!practitioner) return
-        setFormData((prev) => ({ ...prev, practitioner }))
-        const option = practitionerOptions.find((p) => p.name === practitioner)
-        setPractitionerQuery(option?.label || practitioner)
-      } catch (err) {
-        console.error('Failed to auto-populate doctor:', err)
-      }
-    }
-    void autoPopulatePractitioner()
-  }, [practitionerOptions])
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!patientOpen) return
@@ -224,16 +225,25 @@ export function CreateAllergyModal({ onClose, onSuccess, initialPatient }: Creat
                 <input
                   type="text"
                   value={practitionerQuery}
+                  readOnly={practitionerLocked}
                   onChange={(e) => {
+                    if (practitionerLocked) return
                     setPractitionerQuery(e.target.value)
                     setFormData((prev) => ({ ...prev, practitioner: '' }))
                     setPractitionerOpen(true)
                   }}
-                  onFocus={() => setPractitionerOpen(true)}
+                  onFocus={() => {
+                    if (!practitionerLocked) setPractitionerOpen(true)
+                  }}
                   placeholder="Search doctor..."
-                  className={linkComboboxInputWithClearClass}
+                  title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    practitionerLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : linkComboboxInputWithClearClass
+                  }
                 />
-                {practitionerOpen && practitionerOptions.length > 0 ? (
+                {practitionerOpen && !practitionerLocked && practitionerOptions.length > 0 ? (
                   <div className={`${linkComboboxDropdownClassTall} top-full`}>
                     {practitionerOptions.map((pract) => (
                       <button

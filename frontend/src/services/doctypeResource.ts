@@ -87,6 +87,26 @@ export async function createDoctypeRow(
   return { name: '' }
 }
 
+export async function updateDoctypeRow(
+  doctype: string,
+  name: string,
+  payload: Record<string, any>
+): Promise<{ name: string }> {
+  const res = await apiRequest<{ name?: string; data?: { name: string } }>(
+    `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`,
+    { method: 'PUT', body: JSON.stringify(payload) }
+  )
+  if (res?.name) return { name: res.name }
+  if (res?.data?.name) return { name: res.data.name }
+  return { name }
+}
+
+export async function deleteDoctypeRow(doctype: string, name: string): Promise<void> {
+  await apiRequest(`/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`, {
+    method: 'DELETE',
+  })
+}
+
 export async function fetchLinkOptions(
   doctype: string,
   limit = 200,

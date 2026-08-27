@@ -5,9 +5,13 @@ import {
 } from '../ui/CreateModalChrome'
 import { createECTAdmission } from '../../services/ectAdmission'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateECTAdmissionModalProps {
   onClose: () => void
@@ -51,6 +55,11 @@ export const CreateECTAdmissionModal = ({
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
   const [doctorQuery, setDoctorQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -163,12 +172,14 @@ export const CreateECTAdmissionModal = ({
     return () => clearTimeout(t)
   }, [doctorQuery, doctorOpen])
 
-  // Auto-fill current user's practitioner
+  // Auto-fill current user's linked practitioner
   useEffect(() => {
-    getCurrentUserPractitioner().then(pract => {
-      if (pract) setFormData(prev => prev.doctor === '' ? { ...prev, doctor: pract } : prev)
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.doctor ? prev : { ...prev, doctor: linkedPractitionerId, doctors_name: linkedPractitionerLabel || linkedPractitionerId },
+    )
+    setDoctorQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   const handlePatientSelect = (p: PatientListItem) => {
     setFormData(prev => ({
@@ -382,15 +393,24 @@ export const CreateECTAdmissionModal = ({
                 <input
                   type="text"
                   value={doctorQuery}
+                  readOnly={practitionerLocked}
                   onChange={(e) => {
+                    if (practitionerLocked) return
                     setDoctorQuery(e.target.value)
                     setDoctorOpen(true)
                   }}
-                  onFocus={() => setDoctorOpen(true)}
+                  onFocus={() => {
+                    if (!practitionerLocked) setDoctorOpen(true)
+                  }}
                   placeholder="Search doctor..."
-                  className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                  className={
+                    practitionerLocked
+                      ? LOCKED_PRACTITIONER_INPUT_CLASS
+                      : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                  }
                 />
-                {doctorOpen && doctorOptions.length > 0 && (
+                {doctorOpen && !practitionerLocked && doctorOptions.length > 0 && (
                   <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto">
                     {doctorOptions.map((d) => (
                       <button

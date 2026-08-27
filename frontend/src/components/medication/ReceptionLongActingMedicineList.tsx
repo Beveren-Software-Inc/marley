@@ -81,6 +81,7 @@ export const ReceptionLongActingMedicineList = ({
     patient?: string
     practitioner?: string
     medications: MedicationOrderRow[]
+    sourceName: string
   } | null>(null)
   const [duplicateLoadingId, setDuplicateLoadingId] = useState<string | null>(null)
 
@@ -102,6 +103,7 @@ export const ReceptionLongActingMedicineList = ({
           patient: source.patient || row.patient,
           practitioner: source.practitioner || row.practitioner,
           medications,
+          sourceName: row.name,
         })
       )
     } catch (err) {
@@ -221,6 +223,20 @@ export const ReceptionLongActingMedicineList = ({
     if (diffDays === 0) return 'bg-green-100 hover:bg-green-200'
     return 'bg-white hover:bg-slate-50'
   }
+
+  const isDueNextRun = (row: LongActingMedicineRow) => {
+    if (!row.next_run_date) return false
+    const status = row.status || 'Draft'
+    if (status !== 'Active' && status !== 'Draft') return false
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const next = new Date(row.next_run_date)
+    next.setHours(0, 0, 0, 0)
+    return next.getTime() <= today.getTime()
+  }
+
+  const showAwaitingNewOrder =
+    isNurseRole(userRole) && !isDoctorRole(userRole) && !canDuplicateAsPrescription
 
   const applyGiveOutDefaults = (row: LongActingMedicineRow, detail?: LongActingMedicineRow) => {
     const source = detail || row
@@ -587,6 +603,28 @@ export const ReceptionLongActingMedicineList = ({
                               {givingOutId === row.name ? 'Saving…' : 'Give out'}
                             </button>
                           )}
+                          {canDuplicateAsPrescription && row.can_duplicate_for_next_run && (
+                            <button
+                              type="button"
+                              onClick={(e) => void openDuplicatePrescription(e, row)}
+                              disabled={duplicateLoadingId === row.name}
+                              className="inline-flex items-center px-2.5 py-1 text-xs font-semibold rounded border border-teal-600 bg-white text-teal-800 hover:bg-teal-50 disabled:opacity-50"
+                              title="Create a new long-acting order for this due cycle"
+                            >
+                              {duplicateLoadingId === row.name ? 'Opening…' : 'Duplicate'}
+                            </button>
+                          )}
+                          {showAwaitingNewOrder &&
+                            isDueNextRun(row) &&
+                            !row.can_give_out &&
+                            !row.can_duplicate_for_next_run && (
+                              <span
+                                className="inline-flex items-center px-2 py-1 text-[10px] font-medium rounded border border-amber-200 bg-amber-50 text-amber-800"
+                                title="A doctor must Duplicate this order before the next dose can be given"
+                              >
+                                Awaiting new order
+                              </span>
+                            )}
                           {/* Three-dot menu */}
                           <div className="relative" ref={openMenuRow === row.name ? menuRef : undefined}>
                             <button
@@ -924,9 +962,25 @@ export const ReceptionLongActingMedicineList = ({
       {duplicateRx && (
         <CreatePrescriptionModal
           onClose={() => setDuplicateRx(null)}
-          onSuccess={() => {
+          onSuccess={async () => {
+            const sourceName = duplicateRx.sourceName
             setDuplicateRx(null)
-            toast.success('Prescription created from long acting medicine')
+            try {
+              if (sourceName) {
+                await stopLongActingMedicine(
+                  sourceName,
+                  'Superseded by new prescription from Duplicate',
+                )
+              }
+              toast.success('New order created — nurse can give out the new long-acting medicine')
+            } catch (err) {
+              toast.success('Prescription created from long acting medicine')
+              toast.error(
+                err instanceof Error
+                  ? err.message
+                  : 'New order created, but failed to stop the previous long-acting medicine',
+              )
+            }
             load()
             onPrescriptionCreated?.()
           }}

@@ -3906,6 +3906,9 @@ export const LabTestList = ({
           onOpenTrends={onOpenLabTrends}
           resolveDocName={resolveLabTestDocName}
           onReview={(name) => openReviewModal(name, 'Reviewed')}
+          onReviewGroup={({ serviceRequest, groupLabel, children }) =>
+            openBulkReviewModal(serviceRequest, groupLabel, children)
+          }
         />
       ) : useCompactCardTable ? (
         <LabTestDashboardCardTable
@@ -4047,7 +4050,22 @@ export const LabTestList = ({
                           >
                             {isExpanded ? <ChevronDown className="w-4 h-4 shrink-0" /> : <ChevronRight className="w-4 h-4 shrink-0" />}
                           </button>
-                          <span className="text-indigo-700 font-semibold">{groupLabel}</span>
+                          {onOpenLabTrends ? (
+                            <button
+                              type="button"
+                              data-no-row-click
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                onOpenLabTrends(groupLabel)
+                              }}
+                              className="text-indigo-700 font-semibold hover:underline text-left"
+                              title={`Open lab trends for ${groupLabel}`}
+                            >
+                              {groupLabel}
+                            </button>
+                          ) : (
+                            <span className="text-indigo-700 font-semibold">{groupLabel}</span>
+                          )}
                           <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-semibold bg-indigo-100 text-indigo-700" title={`${children.length} test${children.length === 1 ? '' : 's'}`}>{children.length}</span>
                         </div>
                        </td>
@@ -4137,7 +4155,7 @@ export const LabTestList = ({
                               className="px-2 py-1 text-xs rounded-md border border-emerald-600 text-emerald-700 hover:bg-emerald-50"
                               title="Review all pending tests in this group with one note"
                             >
-                              Bulk Review
+                              Review
                             </button>
                           )}
                         </div>

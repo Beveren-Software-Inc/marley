@@ -10,13 +10,16 @@ import {
   fetchHealthcarePractitioners,
   fetchInpatientAdmissions,
   fetchMedicalDepartments,
-  getCurrentUserPractitioner,
   syncCostCenterFromCareEpisode,
   type LinkFieldOption,
 } from '../../services/common'
 import { searchPatients, type PatientListItem } from '../../services/patients'
 import { createDoctorOrder, fetchNextDoctorOrderTransNo } from '../../services/doctorOrder'
 import { useCareContext } from '../../providers/CareContextProvider'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateDoctorOrderModalProps {
   onClose: () => void
@@ -72,6 +75,11 @@ export const CreateDoctorOrderModal = ({
   const [doctorOptions, setDoctorOptions] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
   const [doctorQuery, setDoctorQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   useEffect(() => {
     let cancelled = false
@@ -96,16 +104,13 @@ export const CreateDoctorOrderModal = ({
     fetchMedicalDepartments(departmentQuery || undefined).then(setDepartmentOptions).catch(() => setDepartmentOptions([]))
   }, [departmentQuery, departmentOpen])
 
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
   useEffect(() => {
-    getCurrentUserPractitioner().then(async (practId) => {
-      if (!practId) return
-      setDoctor(practId)
-      const rows = await fetchHealthcarePractitioners(practId)
-      const label = rows[0]?.label || rows[0]?.name || practId
-      setDoctorName(label)
-      setDoctorQuery(label)
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setDoctor((prev) => prev || linkedPractitionerId)
+    setDoctorName((prev) => prev || linkedPractitionerLabel || linkedPractitionerId)
+    setDoctorQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   useEffect(() => {
     if (!patientProp) return
@@ -307,16 +312,25 @@ export const CreateDoctorOrderModal = ({
             <input
               type="text"
               value={doctorQuery}
+              readOnly={practitionerLocked}
               onChange={(e) => {
+                if (practitionerLocked) return
                 setDoctorQuery(e.target.value)
                 setDoctor('')
                 setDoctorOpen(true)
               }}
-              onFocus={() => setDoctorOpen(true)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              onFocus={() => {
+                if (!practitionerLocked) setDoctorOpen(true)
+              }}
+              title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+              className={
+                practitionerLocked
+                  ? LOCKED_PRACTITIONER_INPUT_CLASS
+                  : 'w-full rounded-md border border-slate-300 px-3 py-2 text-sm'
+              }
               placeholder="Search doctor…"
             />
-            {doctorOpen && doctorOptions.length > 0 && (
+            {doctorOpen && !practitionerLocked && doctorOptions.length > 0 && (
               <div className="mt-1 border border-slate-200 rounded-md bg-white shadow-lg max-h-36 overflow-auto">
                 {doctorOptions.map((d) => (
                   <button

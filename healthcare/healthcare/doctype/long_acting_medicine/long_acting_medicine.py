@@ -19,6 +19,17 @@ LONG_ACTING_GIVE_OUT_ROLES = frozenset(
 	}
 )
 
+# Doctors create a fresh order (Duplicate) when the next run is due after the first give-out.
+LONG_ACTING_DUPLICATE_ROLES = frozenset(
+	{
+		"Administrator",
+		"System Manager",
+		"Healthcare Administrator",
+		"Doctor",
+		"Physician",
+	}
+)
+
 
 def _long_acting_frequency_interval_days(frequency):
 	if not frequency:
@@ -42,6 +53,17 @@ def user_can_give_out_long_acting_medicine(user=None):
 	if user in ("Guest", ""):
 		return False
 	return bool(LONG_ACTING_GIVE_OUT_ROLES & set(frappe.get_roles(user)))
+
+
+def user_can_duplicate_long_acting_medicine(user=None):
+	user = user or frappe.session.user
+	if user in ("Guest", ""):
+		return False
+	return bool(LONG_ACTING_DUPLICATE_ROLES & set(frappe.get_roles(user)))
+
+
+def _active_long_acting_status(status):
+	return status in (None, "", "Active", "Draft")
 
 
 def _row_field(row, field):
@@ -261,12 +283,23 @@ def enrich_long_acting_medicine_row(doc):
 			_safe_getdate(_row_field(row, "scheduled_run_date")) == next_run for row in give_outs
 		)
 	)
+	# Give out only for the first dose on this document. Later due dates require a
+	# new doctor order via Duplicate (nurse must not give from the old order).
+	has_prior_give_out = bool(give_outs)
 	data["can_give_out"] = bool(
 		user_can_give_out_long_acting_medicine()
 		and next_run
 		and next_run <= today
+		and not has_prior_give_out
 		and not data["is_given_out_for_current_run"]
-		and data.get("status") in (None, "", "Active", "Draft")
+		and _active_long_acting_status(data.get("status"))
+	)
+	data["can_duplicate_for_next_run"] = bool(
+		user_can_duplicate_long_acting_medicine()
+		and next_run
+		and next_run <= today
+		and has_prior_give_out
+		and _active_long_acting_status(data.get("status"))
 	)
 	data["can_stop"] = bool(
 		user_can_give_out_long_acting_medicine()
@@ -322,6 +355,7 @@ def enrich_long_acting_medicine_list_rows(rows):
 
 	today = getdate()
 	can_give = user_can_give_out_long_acting_medicine()
+	can_duplicate = user_can_duplicate_long_acting_medicine()
 	enriched = []
 	for row in rows:
 		item = dict(row)
@@ -332,6 +366,7 @@ def enrich_long_acting_medicine_list_rows(rows):
 			next_run
 			and any(_safe_getdate(go.scheduled_run_date) == next_run for go in parent_give_outs)
 		)
+		has_prior_give_out = bool(parent_give_outs)
 		item["last_give_out_date"] = last_row.date if last_row else None
 		item["last_give_out_time"] = last_row.time if last_row else None
 		item["last_give_out_by"] = last_row.user if last_row else None
@@ -340,8 +375,16 @@ def enrich_long_acting_medicine_list_rows(rows):
 			can_give
 			and next_run
 			and next_run <= today
+			and not has_prior_give_out
 			and not is_given
-			and item.get("status") in (None, "", "Active", "Draft")
+			and _active_long_acting_status(item.get("status"))
+		)
+		item["can_duplicate_for_next_run"] = bool(
+			can_duplicate
+			and next_run
+			and next_run <= today
+			and has_prior_give_out
+			and _active_long_acting_status(item.get("status"))
 		)
 		item["can_stop"] = bool(
 			can_give
@@ -384,6 +427,14 @@ def record_long_acting_medicine_give_out(
 	today = getdate()
 	if scheduled_run_date > today:
 		frappe.throw(_("This dose is not due yet"))
+
+	if doc.get("give_outs"):
+		frappe.throw(
+			_(
+				"This long acting medicine was already given. "
+				"A doctor must Duplicate it to create a new order for the next dose."
+			)
+		)
 
 	if _has_give_out_for_scheduled_date(doc, scheduled_run_date):
 		frappe.throw(_("This scheduled run has already been given out"))

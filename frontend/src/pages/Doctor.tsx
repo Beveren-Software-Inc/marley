@@ -108,10 +108,12 @@ import { PatientVisitPage } from './PatientVisit'
 
 import { DashboardCard } from '../components/ui/DashboardCard'
 import { PortalTopBar } from '../components/layout/PortalTopBar'
-import { AppointmentsCard, OutpatientVisitsCard, InpatientAdmissionsCard } from '../components/dashboard/StandardDashboardCards'
+import { AppointmentsCard, OutpatientVisitsCard, InpatientAdmissionsCard, DoctorVisitsAppointmentsCard } from '../components/dashboard/StandardDashboardCards'
 import { SickLeaveList } from '../components/nursing/SickLeaveList'
 import { CreateSickLeaveModal } from '../components/nursing/CreateSickLeaveModal'
 import { DoctypeListPanel } from '../components/generic/DoctypeListPanel'
+import { CreateIPMedicalReportModal } from '../components/medicalReport/CreateIPMedicalReportModal'
+import { IPMedicalReportList } from '../components/medicalReport/IPMedicalReportList'
 import { OverdueClinicalActions } from '../components/doctor/OverdueClinicalActions'
 const CreateLabRequestModal = ({ 
   onClose, 
@@ -159,8 +161,10 @@ export const DoctorPage = () => {
   const [labCardTab, setLabCardTab] = useState<'reports' | 'requests'>('reports')
   const [showLabTrends, setShowLabTrends] = useState(false)
   const [labTrendsTestName, setLabTrendsTestName] = useState('')
+  const [labTrendsUnconsolidated, setLabTrendsUnconsolidated] = useState(false)
   const openLabTrends = (testName = '') => {
     setLabTrendsTestName(testName.trim())
+    setLabTrendsUnconsolidated(false)
     setShowLabTrends(true)
   }
   const [showCreatePatientModal , setShowCreatePatientModal] = useState(false)
@@ -196,6 +200,8 @@ export const DoctorPage = () => {
   const [showSleepingPatternModal, setShowSleepingPatternModal] = useState(false)
   const [sleepingPatternRefreshKey, setSleepingPatternRefreshKey] = useState(0)
   const [envChecklistCreateOpen, setEnvChecklistCreateOpen] = useState(false)
+  const [showIPMedicalReportModal, setShowIPMedicalReportModal] = useState(false)
+  const [ipMedicalReportRefreshKey, setIpMedicalReportRefreshKey] = useState(0)
   // DOC-072 sick leave issued from the doctor portal
   const [doctorSickLeaveOpen, setDoctorSickLeaveOpen] = useState(false)
   const [doctorSickLeaveRefresh, setDoctorSickLeaveRefresh] = useState(0)
@@ -857,14 +863,30 @@ export const DoctorPage = () => {
                     Results over time — dates in columns, tests in rows
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowLabTrends(false)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
+                <div className="flex items-center gap-2">
+                  {labTrendsTestName ? (
+                    <button
+                      type="button"
+                      onClick={() => setLabTrendsUnconsolidated((v) => !v)}
+                      className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                      title={
+                        labTrendsUnconsolidated
+                          ? 'Show all child tests in this group'
+                          : 'Show only this group as one timeline'
+                      }
+                    >
+                      {labTrendsUnconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => setShowLabTrends(false)}
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                    aria-label="Close"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="min-h-0 flex-1 overflow-auto p-4">
                 <LabTestHistory
@@ -872,6 +894,9 @@ export const DoctorPage = () => {
                   patientId={selectedPatient || undefined}
                   onPatientChange={handlePatientSelect}
                   initialTestName={labTrendsTestName}
+                  unconsolidated={labTrendsUnconsolidated}
+                  onUnconsolidatedChange={setLabTrendsUnconsolidated}
+                  hideUnconsolidateControl={Boolean(labTrendsTestName)}
                 />
               </div>
             </div>
@@ -1353,38 +1378,30 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="IP Medical Report">
-            <DoctypeListPanel
-              doctype="IP Medical Report"
-              filters={selectedPatient ? { patient: selectedPatient } : {}}
-              columns={[
-                { fieldname: 'name', label: 'Report' },
-                { fieldname: 'patient_name', label: 'Patient' },
-                { fieldname: 'case_no', label: 'Case No' },
-                { fieldname: 'admission_date', label: 'Admitted' },
-                { fieldname: 'discharge_date', label: 'Discharged' },
-                { fieldname: 'practitioner', label: 'Consultant' },
-                { fieldname: 'report_status', label: 'Status' },
-              ]}
-              createDefaults={selectedPatient ? { patient: selectedPatient } : {}}
-              createFields={[
-                { fieldname: 'patient', label: 'Patient', fieldtype: 'Link', options: 'Patient', reqd: true },
-                { fieldname: 'inpatient_admission', label: 'Admission', fieldtype: 'Link', options: 'Inpatient Admission' },
-                { fieldname: 'admission_date', label: 'Admission Date', fieldtype: 'Date' },
-                { fieldname: 'discharge_date', label: 'Discharge Date', fieldtype: 'Date' },
-                { fieldname: 'practitioner', label: 'Consultant', fieldtype: 'Link', options: 'Healthcare Practitioner' },
-                { fieldname: 'reason_for_admission', label: 'Reason for Admission', fieldtype: 'Small Text' },
-                { fieldname: 'diagnosis', label: 'Diagnosis', fieldtype: 'Small Text' },
-                { fieldname: 'clinical_course', label: 'Clinical Course', fieldtype: 'Small Text' },
-                { fieldname: 'treatment_given', label: 'Treatment Given', fieldtype: 'Small Text' },
-                { fieldname: 'condition_on_discharge', label: 'Condition on Discharge', fieldtype: 'Small Text' },
-                { fieldname: 'recommendations', label: 'Recommendations', fieldtype: 'Small Text' },
-                { fieldname: 'report_status', label: 'Status', fieldtype: 'Select', options: 'Draft\nIssued\nCancelled', default: 'Draft' },
-              ]}
-              emptyMessage="No IP medical report issued yet."
+          <DashboardCard
+            title="IP Medical Report"
+            onAdd={() => guardClinicalCreate(() => setShowIPMedicalReportModal(true))}
+            addButtonTitle="Create IP Medical Report"
+            allowCreateOnClosedEpisode
+          >
+            <IPMedicalReportList
+              patient={selectedPatient}
+              refreshKey={ipMedicalReportRefreshKey}
+              onPatientClick={handlePatientSelect}
             />
           </DashboardCard>
         </div>
+        {showIPMedicalReportModal && (
+          <CreateIPMedicalReportModal
+            initialPatient={selectedPatient || undefined}
+            initialAdmission={mode === 'IP' ? activeAdmission || undefined : undefined}
+            onClose={() => setShowIPMedicalReportModal(false)}
+            onSuccess={() => {
+              setShowIPMedicalReportModal(false)
+              setIpMedicalReportRefreshKey((k) => k + 1)
+            }}
+          />
+        )}
       </div>
     )
   }
@@ -2390,17 +2407,6 @@ export const DoctorPage = () => {
     )
   }
 
-  const doctorAppointmentsCard = (
-    <AppointmentsCard
-      doctorScheduleMode
-      defaultTodayDates
-      listingScreen="appointments"
-      patient={selectedPatient || undefined}
-      onPatientSelect={handlePatientSelect}
-      onOpenVisitInHeader={returnToDoctorHome}
-    />
-  )
-
   return (
   <div className="flex flex-col">
     <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -2408,15 +2414,11 @@ export const DoctorPage = () => {
     {/* Fixed single column — every card keeps its place; data follows the top
         filters (branch → OP/IP → visit/admission → selected patient). */}
     <div className="flex flex-col gap-4 p-4">
-      {doctorAppointmentsCard}
-
-      <OutpatientVisitsCard
-        listingScreen="pvh"
-        hideLabPharmacyAmounts
-        squeezeLayout
+      <DoctorVisitsAppointmentsCard
         patient={selectedPatient || undefined}
         onPatientSelect={handlePatientSelect}
         onVisitActivate={handleVisitActivate}
+        onOpenVisitInHeader={returnToDoctorHome}
       />
 
       <InpatientAdmissionsCard
@@ -2576,14 +2578,30 @@ export const DoctorPage = () => {
               <p className="text-xs font-medium uppercase tracking-wide text-slate-500">Lab Trends</p>
               <p className="text-sm font-semibold text-slate-900">Results over time — dates in columns, tests in rows</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setShowLabTrends(false)}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
-              aria-label="Close"
-            >
-              ✕
-            </button>
+            <div className="flex items-center gap-2">
+              {labTrendsTestName ? (
+                <button
+                  type="button"
+                  onClick={() => setLabTrendsUnconsolidated((v) => !v)}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title={
+                    labTrendsUnconsolidated
+                      ? 'Show all child tests in this group'
+                      : 'Show only this group as one timeline'
+                  }
+                >
+                  {labTrendsUnconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                </button>
+              ) : null}
+              <button
+                type="button"
+                onClick={() => setShowLabTrends(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100"
+                aria-label="Close"
+              >
+                ✕
+              </button>
+            </div>
           </div>
           <div className="min-h-0 flex-1 overflow-auto p-4">
             <LabTestHistory
@@ -2591,6 +2609,9 @@ export const DoctorPage = () => {
               patientId={selectedPatient || undefined}
               onPatientChange={handlePatientSelect}
               initialTestName={labTrendsTestName}
+              unconsolidated={labTrendsUnconsolidated}
+              onUnconsolidatedChange={setLabTrendsUnconsolidated}
+              hideUnconsolidateControl={Boolean(labTrendsTestName)}
             />
           </div>
         </div>

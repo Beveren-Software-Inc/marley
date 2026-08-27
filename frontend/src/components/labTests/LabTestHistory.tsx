@@ -16,6 +16,14 @@ interface LabTestHistoryProps {
   className?: string
   /** Prefill the Test Name filter (e.g. when opening trends from a listing row). */
   initialTestName?: string
+  /**
+   * When true and a group/test filter has multiple analyte rows, collapse to one
+   * row per date for the group panel (CBC) instead of listing every child.
+   */
+  unconsolidated?: boolean
+  onUnconsolidatedChange?: (value: boolean) => void
+  /** Hide the in-panel Unconsolidate control when the parent puts it in a header. */
+  hideUnconsolidateControl?: boolean
 }
 
 interface Filters {
@@ -93,6 +101,52 @@ function buildVerticalHistoryEvents(
   return events
 }
 
+/** One timeline entry per date for a group panel (hide individual analytes). */
+function collapseVerticalEventsToGroup(
+  events: VerticalHistoryEvent[],
+  groupLabel: string,
+): VerticalHistoryEvent[] {
+  const byDate = new Map<string, VerticalHistoryEvent[]>()
+  for (const e of events) {
+    const key = e.date || e.dateLine || e.key
+    const arr = byDate.get(key) || []
+    arr.push(e)
+    byDate.set(key, arr)
+  }
+  const out: VerticalHistoryEvent[] = []
+  for (const [, list] of byDate) {
+    const first = list[0]
+    const directions = list.map((e) => e.cell?.direction)
+    const direction = directions.includes('high')
+      ? 'high'
+      : directions.includes('low')
+        ? 'low'
+        : first.cell?.direction ?? null
+    const anyAbnormal = list.some(
+      (e) => e.cell?.flag === 'abnormal' || e.cell?.direction === 'high' || e.cell?.direction === 'low',
+    )
+    out.push({
+      key: `group::${first.date}::${groupLabel}`,
+      date: first.date,
+      time: first.time,
+      dateLine: first.dateLine,
+      testLabel: groupLabel,
+      cell: {
+        value: `${list.length} result${list.length !== 1 ? 's' : ''}`,
+        flag: anyAbnormal ? 'abnormal' : first.cell?.flag || 'neutral',
+        direction,
+        lab_test: first.cell?.lab_test,
+      },
+    })
+  }
+  out.sort((a, b) => {
+    const byDate = (b.date || '').localeCompare(a.date || '')
+    if (byDate !== 0) return byDate
+    return (b.time || '').localeCompare(a.time || '')
+  })
+  return out
+}
+
 const MIN_DATE_COLUMNS = 20
 const TEST_COLUMN_WIDTH_PX = 260
 const DATE_COLUMN_WIDTH_PX = 88
@@ -111,6 +165,55 @@ function padHistoryColumns(columns: LabHistoryMatrixColumn[]): LabHistoryMatrixC
     })
   }
   return padded
+}
+
+type MatrixDisplayRow =
+  | { kind: 'group'; key: string; label: string }
+  | { kind: 'test'; row: LabHistoryMatrixRow; indented: boolean }
+
+/** Group panel header (CBC) then child analytes; standalone tests after. */
+function buildGroupedMatrixRows(rows: LabHistoryMatrixRow[]): MatrixDisplayRow[] {
+  const groups = new Map<string, { label: string; children: LabHistoryMatrixRow[] }>()
+  const standalone: LabHistoryMatrixRow[] = []
+
+  for (const row of rows) {
+    const gk = (row.group_key || '').trim()
+    if (!gk) {
+      standalone.push(row)
+      continue
+    }
+    const existing = groups.get(gk)
+    if (existing) {
+      existing.children.push(row)
+      if (!existing.label && row.group_label) existing.label = row.group_label
+    } else {
+      groups.set(gk, {
+        label: (row.group_label || gk).trim() || gk,
+        children: [row],
+      })
+    }
+  }
+
+  const out: MatrixDisplayRow[] = []
+  const groupEntries = [...groups.entries()].sort((a, b) =>
+    a[1].label.localeCompare(b[1].label, undefined, { sensitivity: 'base' }),
+  )
+  for (const [gk, g] of groupEntries) {
+    out.push({ kind: 'group', key: `group::${gk}`, label: g.label })
+    const children = [...g.children].sort((a, b) =>
+      a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+    )
+    for (const child of children) {
+      out.push({ kind: 'test', row: child, indented: true })
+    }
+  }
+  const alone = [...standalone].sort((a, b) =>
+    a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }),
+  )
+  for (const row of alone) {
+    out.push({ kind: 'test', row, indented: false })
+  }
+  return out
 }
 
 function cellClass(flag?: string, direction?: 'high' | 'low' | null) {
@@ -289,6 +392,9 @@ export const LabTestHistory = ({
   onPatientChange,
   className = '',
   initialTestName = '',
+  unconsolidated: unconsolidatedProp,
+  onUnconsolidatedChange,
+  hideUnconsolidateControl = false,
 }: LabTestHistoryProps) => {
   const defaults = defaultDateRange()
   const [filters, setFilters] = useState<Filters>({
@@ -300,6 +406,13 @@ export const LabTestHistory = ({
   const [displayPatientName, setDisplayPatientName] = useState(patientName || '')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [unconsolidatedInternal, setUnconsolidatedInternal] = useState(false)
+
+  const unconsolidated = unconsolidatedProp ?? unconsolidatedInternal
+  const setUnconsolidated = (value: boolean) => {
+    onUnconsolidatedChange?.(value)
+    if (unconsolidatedProp === undefined) setUnconsolidatedInternal(value)
+  }
 
   const [patientQuery, setPatientQuery] = useState(patientName || patientId || '')
   const [patientOptions, setPatientOptions] = useState<PatientListItem[]>([])
@@ -308,7 +421,11 @@ export const LabTestHistory = ({
 
   useEffect(() => {
     setFilters((prev) => ({ ...prev, testName: initialTestName.trim() }))
-  }, [initialTestName])
+    // Parent controls unconsolidated when opening from a group; only reset local toggle.
+    if (unconsolidatedProp === undefined) {
+      setUnconsolidatedInternal(false)
+    }
+  }, [initialTestName]) // eslint-disable-line react-hooks/exhaustive-deps -- unconsolidatedProp is mode, not a trigger
 
   useEffect(() => {
     setPatientQuery(patientName || patientId || '')
@@ -452,31 +569,115 @@ export const LabTestHistory = ({
         <>
           {(() => {
             const focusedTest = filters.testName.trim()
-            const verticalMode = Boolean(focusedTest)
-            const verticalEvents = verticalMode ? buildVerticalHistoryEvents(columns, rows) : []
+            // Single analyte → vertical timeline. Group / multi-row (e.g. CBC) → matrix with group headers.
+            const isGroupMatrixFilter =
+              Boolean(focusedTest) &&
+              (rows.length > 1 || rows.some((r) => (r.group_key || r.group_label || '').trim()))
+            const verticalMode = Boolean(focusedTest) && !isGroupMatrixFilter && rows.length === 1
+            const rawVerticalEvents = verticalMode ? buildVerticalHistoryEvents(columns, rows) : []
+            const canUnconsolidate =
+              Boolean(focusedTest) &&
+              rows.length > 1 &&
+              (verticalMode || isGroupMatrixFilter)
+            const verticalEvents =
+              verticalMode && canUnconsolidate && unconsolidated
+                ? collapseVerticalEventsToGroup(rawVerticalEvents, focusedTest)
+                : rawVerticalEvents
             const displayColumns = verticalMode ? columns : padHistoryColumns(columns)
-            const showTestCol = verticalMode && rows.length > 1
+            const matrixRows =
+              !verticalMode && unconsolidated && isGroupMatrixFilter
+                ? // Collapse children to one summary row per group when Unconsolidate is on.
+                  (() => {
+                    const byGroup = new Map<string, LabHistoryMatrixRow[]>()
+                    for (const r of rows) {
+                      const gk = (r.group_key || r.key).trim() || r.key
+                      const list = byGroup.get(gk) || []
+                      list.push(r)
+                      byGroup.set(gk, list)
+                    }
+                    const collapsed: LabHistoryMatrixRow[] = []
+                    for (const [, list] of byGroup) {
+                      const first = list[0]
+                      const label = (first.group_label || first.group_key || first.label || '').trim()
+                      const cells: LabHistoryMatrixRow['cells'] = {}
+                      for (const col of columns) {
+                        if (!col.key || col.key.startsWith('__pad_')) continue
+                        const withVal = list.filter((r) => (r.cells[col.key]?.value || '').trim())
+                        if (!withVal.length) continue
+                        const directions = withVal.map((r) => r.cells[col.key]?.direction)
+                        const direction = directions.includes('high')
+                          ? 'high'
+                          : directions.includes('low')
+                            ? 'low'
+                            : withVal[0].cells[col.key]?.direction ?? null
+                        const anyAbnormal = withVal.some(
+                          (r) =>
+                            r.cells[col.key]?.flag === 'abnormal' ||
+                            r.cells[col.key]?.direction === 'high' ||
+                            r.cells[col.key]?.direction === 'low',
+                        )
+                        cells[col.key] = {
+                          value: `${withVal.length} result${withVal.length !== 1 ? 's' : ''}`,
+                          flag: anyAbnormal ? 'abnormal' : withVal[0].cells[col.key]?.flag || 'neutral',
+                          direction,
+                          lab_test: withVal[0].cells[col.key]?.lab_test,
+                        }
+                      }
+                      collapsed.push({
+                        key: `group-summary::${first.group_key || first.key}`,
+                        label,
+                        group_key: first.group_key,
+                        group_label: first.group_label,
+                        cells,
+                      })
+                    }
+                    return collapsed
+                  })()
+                : rows
+            const groupedMatrixRows = verticalMode
+              ? []
+              : unconsolidated && isGroupMatrixFilter
+                ? matrixRows.map((row) => ({ kind: 'test' as const, row, indented: false }))
+                : buildGroupedMatrixRows(matrixRows)
+            const showTestCol = verticalMode && verticalEvents.some((e) => e.testLabel !== focusedTest)
+              ? verticalEvents.length > 1
+              : verticalMode && rows.length > 1 && !unconsolidated
 
             return (
               <>
-          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2">
+          <div className="px-4 py-2 text-xs text-slate-500 border-b border-slate-100 flex items-center justify-between gap-2 flex-wrap">
             <span>
               {verticalMode ? (
                 <>
                   {focusedTest}
+                  {unconsolidated && canUnconsolidate ? ' · group view' : ''}
                   {' · '}
                   {verticalEvents.length} result{verticalEvents.length !== 1 ? 's' : ''}
                   {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
                 </>
               ) : (
                 <>
-                  {rows.length} test{rows.length !== 1 ? 's' : ''} × {columns.length} date
+                  {matrixRows.length} test{matrixRows.length !== 1 ? 's' : ''} × {columns.length} date
                   {columns.length !== 1 ? 's' : ''}
                   {filters.fromDate && filters.toDate ? ` (${filters.fromDate} → ${filters.toDate})` : ''}
                 </>
               )}
             </span>
-            <span className="flex items-center gap-3">
+            <span className="flex items-center gap-3 flex-wrap">
+              {canUnconsolidate && !hideUnconsolidateControl ? (
+                <button
+                  type="button"
+                  onClick={() => setUnconsolidated(!unconsolidated)}
+                  className="rounded-md border border-slate-300 bg-white px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                  title={
+                    unconsolidated
+                      ? 'Show all child tests in this group'
+                      : 'Show only this group as one timeline'
+                  }
+                >
+                  {unconsolidated ? 'Consolidate' : 'Unconsolidate'}
+                </button>
+              ) : null}
               <span className="inline-flex items-center gap-1">
                 <span className="w-3 h-3 rounded bg-green-100 border border-green-200" /> Normal
               </span>
@@ -581,7 +782,7 @@ export const LabTestHistory = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.length === 0 ? (
+                {groupedMatrixRows.length === 0 ? (
                   <tr>
                     <td
                       colSpan={displayColumns.length + 1}
@@ -591,14 +792,52 @@ export const LabTestHistory = ({
                     </td>
                   </tr>
                 ) : (
-                  rows.map((row) => (
+                  groupedMatrixRows.map((entry) => {
+                    if (entry.kind === 'group') {
+                      return (
+                        <tr key={entry.key} className="bg-slate-100/90">
+                          <td
+                            className="sticky left-0 z-[5] bg-slate-100 border-r border-slate-200 px-3 py-2 text-xs font-bold uppercase tracking-wide text-slate-700 truncate"
+                            style={{
+                              width: `${TEST_COLUMN_WIDTH_PX}px`,
+                              maxWidth: `${TEST_COLUMN_WIDTH_PX}px`,
+                            }}
+                            title={entry.label}
+                          >
+                            {entry.label}
+                          </td>
+                          {displayColumns.map((col) => (
+                            <td
+                              key={col.key}
+                              className={`border-l ${
+                                col.key.startsWith('__pad_')
+                                  ? 'border-slate-50 bg-slate-50/30'
+                                  : 'border-slate-100 bg-slate-100/90'
+                              }`}
+                              style={{
+                                width: `${DATE_COLUMN_WIDTH_PX}px`,
+                                minWidth: `${DATE_COLUMN_WIDTH_PX}px`,
+                                maxWidth: `${DATE_COLUMN_MAX_WIDTH_PX}px`,
+                              }}
+                            />
+                          ))}
+                        </tr>
+                      )
+                    }
+                    const { row, indented } = entry
+                    return (
                   <tr key={row.key} className="hover:bg-slate-50/50">
                     <td
                       className="sticky left-0 z-[5] bg-white border-r border-slate-200 px-3 py-2.5 text-sm text-slate-800 font-medium truncate"
                       style={{ width: `${TEST_COLUMN_WIDTH_PX}px`, maxWidth: `${TEST_COLUMN_WIDTH_PX}px` }}
                       title={row.label}
                     >
-                      {row.label}
+                      <span className={indented ? 'pl-3 inline-block' : undefined}>
+                        {indented ? (
+                          <span className="text-slate-400 mr-1.5 font-normal">└</span>
+                        ) : null}
+                        {row.label}
+                      </span>
                     </td>
                     {displayColumns.map((col) => {
                       const cell = row.cells[col.key]
@@ -632,7 +871,8 @@ export const LabTestHistory = ({
                       )
                     })}
                   </tr>
-                  ))
+                    )
+                  })
                 )}
               </tbody>
             </table>

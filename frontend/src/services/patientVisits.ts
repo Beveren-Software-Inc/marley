@@ -146,6 +146,23 @@ export async function fetchPatientVisitsFull(
   }
 }
 
+/** Earliest Patient Visit encounter_date (YYYY-MM-DD), or null. */
+export async function fetchPatientFirstVisitDate(patient: string): Promise<string | null> {
+  const id = (patient || '').trim()
+  if (!id) return null
+  try {
+    const res = await fetch(
+      `/api/method/healthcare.api.reception_reports.get_patient_first_visit_date?patient=${encodeURIComponent(id)}`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    )
+    const json = await res.json()
+    const d = (json?.message || '').toString().slice(0, 10)
+    return d || null
+  } catch {
+    return null
+  }
+}
+
 export async function fetchPatientVisit(name: string) {
   const response = await fetch(
     `/api/method/healthcare.api.patient_visit.get_patient_visit?name=${encodeURIComponent(name)}`

@@ -14,7 +14,6 @@ import {
   fetchCompanies,
   resolveDefaultCompany,
   fetchHealthcarePractitioners,
-  getCurrentUserPractitioner,
   fetchPatientVisits,
   fetchInpatientAdmissions,
   fetchPrescriptionItems,
@@ -27,6 +26,7 @@ import {
   fetchDoc,
   type LinkFieldOption,
 } from '../../services/common'
+import { useLockedLinkedPractitioner } from '../../hooks/useLockedLinkedPractitioner'
 import {
   createPrescription,
   updatePrescription,
@@ -151,6 +151,7 @@ interface ComboboxProps {
   renderOption?: (opt: LinkFieldOption) => React.ReactNode
   allowCustom?: boolean
   onCreateClick?: () => void
+  readOnly?: boolean
 }
 
 const Combobox = ({
@@ -166,6 +167,7 @@ const Combobox = ({
   onClear,
   allowCustom = false,
   onCreateClick,
+  readOnly = false,
 }: ComboboxProps) => {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -193,7 +195,9 @@ const Combobox = ({
         <input
           type="text"
           value={displayValue}
+          readOnly={readOnly}
           onChange={(e) => {
+            if (readOnly) return
             onQueryChange(e.target.value)
             if (allowCustom) {
               setCustomValue(e.target.value)
@@ -201,13 +205,20 @@ const Combobox = ({
             setOpen(true)
           }}
           onFocus={() => {
+            if (readOnly) return
             setOpen(true)
             onOpen()
           }}
           placeholder={placeholder}
           required={required}
-          className={linkComboboxInputWithClearClass}
+          title={readOnly ? 'Locked to your linked practitioner' : undefined}
+          className={
+            readOnly
+              ? 'w-full rounded-md border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-700 cursor-not-allowed focus:outline-none'
+              : linkComboboxInputWithClearClass
+          }
         />
+        {!readOnly ? (
         <div className="absolute right-2.5 top-1/2 -translate-y-1/2 flex items-center gap-1">
           {onCreateClick && (
             <button
@@ -240,9 +251,10 @@ const Combobox = ({
           )}
           <ChevronDown className="w-4 h-4 text-slate-400 pointer-events-none" />
         </div>
+        ) : null}
       </div>
       
-      {open && (
+      {open && !readOnly && (
         <div className={linkComboboxDropdownClass}>
           {loading ? (
             <div className="px-3 py-2 text-xs text-slate-500">Loading...</div>
@@ -323,6 +335,11 @@ export const CreatePrescriptionModal = ({
   const [admissions, setAdmissions] = useState<LinkFieldOption[]>([])
   const [practitioners, setPractitioners] = useState<LinkFieldOption[]>([])
   const [practQuery, setPractQuery] = useState('')
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   const [formData, setFormData] = useState({
     care_context: 'Patient Visit' as 'Patient Visit' | 'Inpatient Admission',
@@ -719,27 +736,10 @@ export const CreatePrescriptionModal = ({
   }, [])
 
   useEffect(() => {
-    const autoPopulatePractitioner = async () => {
-      try {
-        const practitioner = await getCurrentUserPractitioner()
-        if (practitioner && !isEditing) {
-          setFormData((prev) => ({ ...prev, practitioner }))
-          const practitionerOption = practitioners.find((p) => p.name === practitioner)
-          if (practitionerOption) {
-            setPractQuery(practitionerOption.label || practitioner)
-          } else {
-            setPractQuery(practitioner)
-          }
-        }
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
-      }
-    }
-
-    if (practitioners.length > 0 && !isEditing && !formData.practitioner) {
-      autoPopulatePractitioner()
-    }
-  }, [practitioners, isEditing, formData.practitioner])
+    if (isEditing || !linkedPractitionerId) return
+    setFormData((prev) => (prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId }))
+    setPractQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel, isEditing])
 
   useEffect(() => {
     if (initialPractitioner && !isEditing && !formData.practitioner) {
@@ -966,13 +966,13 @@ export const CreatePrescriptionModal = ({
       if (!isIP && !rowIsLongActing && (field === 'date' || field === 'end_date' || field === 'no_of_days')) {
         const start = row.date || ''
         const end = (field === 'end_date' ? value : row.end_date) as string
-        const days = (field === 'no_of_days' ? value : row.no_of_days) as number
+        const daysNum = Number(field === 'no_of_days' ? value : row.no_of_days)
         // Only derive days from start+end; only derive end when the user sets Days.
         // Do not auto-fill end date from start date alone.
         if ((field === 'date' || field === 'end_date') && start && end) {
           row.no_of_days = daysBetween(start, end) || 1
-        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
-          row.end_date = addDays(start, days)
+        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
+          row.end_date = addDays(start, daysNum)
         }
       }
       
@@ -1414,6 +1414,7 @@ export const CreatePrescriptionModal = ({
                       displayValue={practitionerDisplay}
                       placeholder="Search doctor..."
                       options={practitioners}
+                      readOnly={practitionerLocked && !isEditing}
                       onQueryChange={(q) => {
                         setPractQuery(q)
                         setFormData((p) => ({ ...p, practitioner: '' }))
@@ -1868,7 +1869,7 @@ export const CreatePrescriptionModal = ({
                                   min={1}
                                   step={1}
                                   value={row.no_of_days ?? ''}
-                                  onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value ? Number(e.target.value) : 1)}
+                                  onChange={(e) => updateMedicationRow(index, 'no_of_days', e.target.value === '' ? '' : Number(e.target.value))}
                                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary bg-white"
                                 />
                               </div>

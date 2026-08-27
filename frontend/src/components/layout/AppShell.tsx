@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState, useMemo, useEffect } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { ChevronDown, ChevronRight, Folder } from 'lucide-react'
 import { UserMenu } from '../user/UserMenu'
 import { AppShellContext } from '../../contexts/AppShellContext'
@@ -39,6 +39,7 @@ const nurseScreenGroups: ScreenGroup[] = [
   },
   {
     groupTitle: 'Patient Medication',
+    hubScreenId: 'n-patient-medication',
     screens: [
       { id: 'n-daily-med', title: 'Daily Medication Chart' },
       { id: 'n-med-sheet', title: 'Medication Sheet' },
@@ -391,6 +392,7 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const { selectedPatient, costCenterPatientCareType, mode } = useCareContext()
   const ccScope = careScopeFromCostCenterField(costCenterPatientCareType)
   const location = useLocation()
+  const navigate = useNavigate()
   const urlSearch = new URLSearchParams(location.search)
   const inNurseDischargeRoute = isInpatientDischargeRoute(urlSearch, [NURSE_DISCHARGE_SCREEN_ID])
   const inDoctorDischargeRoute = isInpatientDischargeRoute(urlSearch, [DOCTOR_DISCHARGE_SCREEN_ID])
@@ -497,7 +499,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
         const prefix = link.prefix || link.to
         if (!pathname.startsWith(prefix)) continue
         for (const group of link.screenGroups ?? []) {
-          if (group.screens.some((s) => s.id === screen)) {
+          if (
+            group.hubScreenId === screen ||
+            group.screens.some((s) => s.id === screen)
+          ) {
             next.add(`${link.to}||${group.groupTitle}`)
           }
         }
@@ -512,8 +517,10 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
   const isRoleNavActive = (prefix: string) => isRolePathActive(prefix)
 
   /** Folder row is highlighted when it contains the current screen on this role. */
-  const isGroupNavActive = (prefix: string, screens: ScreenItem[]) =>
-    isRolePathActive(prefix) && !!activeScreen && screens.some((s) => s.id === activeScreen)
+  const isGroupNavActive = (prefix: string, screens: ScreenItem[], hubScreenId?: string) =>
+    isRolePathActive(prefix) &&
+    !!activeScreen &&
+    (activeScreen === hubScreenId || screens.some((s) => s.id === activeScreen))
 
   /** Leaf screen row is highlighted when it matches the current screen on this role. */
   const isScreenNavActive = (prefix: string, screenId: string) =>
@@ -593,7 +600,11 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                     {link.screenGroups.map((group) => {
                       const groupKey      = `${link.to}||${group.groupTitle}`
                       const groupExpanded = expandedGroups.has(groupKey)
-                      const groupIsActive = isGroupNavActive(rolePrefix, group.screens)
+                      const groupIsActive = isGroupNavActive(
+                        rolePrefix,
+                        group.screens,
+                        group.hubScreenId,
+                      )
 
                       // Folderless entries: an empty groupTitle renders its screens
                       // as direct sidebar items (no folder row, no indent).
@@ -632,7 +643,15 @@ export const AppShell = ({ children }: { children: ReactNode }) => {
                             </button>
                             <button
                               type="button"
-                              onClick={() => toggleGroup(link.to, group.groupTitle)}
+                              onClick={() => {
+                                if (group.hubScreenId) {
+                                  setExpandedGroups((prev) => new Set(prev).add(groupKey))
+                                  navigate(buildScreenPath(link.to, group.hubScreenId, location.search))
+                                  closeSidebar()
+                                  return
+                                }
+                                toggleGroup(link.to, group.groupTitle)
+                              }}
                               className={sidebarGroupClass(group.groupTitle, groupIsActive)}
                             >
                               <Folder className="w-3.5 h-3.5 flex-shrink-0 opacity-70" />

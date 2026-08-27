@@ -6,10 +6,14 @@ import {
 } from '../ui/CreateModalChrome'
 import { createPatientReferral, searchReferralSourceDocs, type ReferralSourceDoc } from '../../services/patientReferral'
 import { searchPatients, type PatientListItem } from '../../services/patients'
-import { fetchCostCenters, fetchDoctorPractitioners, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchCostCenters, fetchDoctorPractitioners, type LinkFieldOption } from '../../services/common'
 import { getPortalBranch } from '../../services/costCenterPermission'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 type SourceDoctype = 'Patient Visit' | 'Inpatient Admission'
 
@@ -58,6 +62,11 @@ export const CreatePatientReferralModal = ({
   const [doctorQuery, setDoctorQuery] = useState('')
   const [doctorResults, setDoctorResults] = useState<LinkFieldOption[]>([])
   const [doctorOpen, setDoctorOpen] = useState(false)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // patient search
   const [patientQuery, setPatientQuery] = useState(initialPatientName ?? initialPatient ?? '')
@@ -100,12 +109,12 @@ export const CreatePatientReferralModal = ({
     return () => clearTimeout(t)
   }, [doctorQuery, doctorOpen])
 
-  // Auto-fill current user's practitioner
+  // Auto-fill current user's linked practitioner
   useEffect(() => {
-    getCurrentUserPractitioner().then(pract => {
-      if (pract && !referralDoctor) setReferralDoctor(pract)
-    })
-  }, [])
+    if (!linkedPractitionerId) return
+    setReferralDoctor((prev) => prev || linkedPractitionerId)
+    setDoctorQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   // ── source document search ──────────────────────────────────────
   // Immediately load + open dropdown when doctype is selected or patient changes
@@ -398,17 +407,22 @@ export const CreatePatientReferralModal = ({
             <input
               type="text"
               value={doctorQuery}
+              readOnly={practitionerLocked}
               onChange={e => {
+                if (practitionerLocked) return
                 setDoctorQuery(e.target.value)
                 setReferralDoctor('')
                 setDoctorOpen(true)
               }}
-              onFocus={() => setDoctorOpen(true)}
+              onFocus={() => {
+                if (!practitionerLocked) setDoctorOpen(true)
+              }}
               onBlur={() => setTimeout(() => setDoctorOpen(false), 150)}
               placeholder="Search doctor…"
-              className={cls('referralDoctor')}
+              title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+              className={practitionerLocked ? LOCKED_PRACTITIONER_INPUT_CLASS : cls('referralDoctor')}
             />
-            {doctorOpen && doctorResults.length > 0 && (
+            {doctorOpen && !practitionerLocked && doctorResults.length > 0 && (
               <ul ref={doctorDropRef} className="absolute z-30 left-0 right-0 top-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-48 overflow-y-auto text-sm">
                 {doctorResults.map(d => (
                   <li

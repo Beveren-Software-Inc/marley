@@ -600,7 +600,7 @@ import {
 import { NotebookPen } from 'lucide-react'
 import { createClinicalNote } from '../../services/clinicalNotes'
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
-import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchInpatientAdmissionOptions, fetchPatientVisits as fetchPatientVisitOptions, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import {
   linkComboboxDropdownClassTall,
   linkComboboxInputClass,
@@ -608,6 +608,10 @@ import {
   linkComboboxOptionClass,
 } from '../ui/linkComboboxStyles'
 import { toast } from '../../hooks/useToast'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { CareModeBadges, careModeVisitLabel } from '../ui/CareModeBadges'
@@ -689,6 +693,11 @@ export const CreateClinicalNoteModal = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [practitionerLoading, setPractitionerLoading] = useState(false)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Admission and Visit options
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
@@ -875,32 +884,14 @@ export const CreateClinicalNoteModal = ({
     return () => clearTimeout(timeoutId)
   }, [practitionerQuery, practitionerOpen, practitionerOptions])
 
-  // Auto-populate current user's linked practitioner (independent of the dropdown list limit)
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
   useEffect(() => {
-    let cancelled = false
-    ;(async () => {
-      try {
-        const practitionerId = await getCurrentUserPractitioner()
-        if (!practitionerId || cancelled) return
-        setFormData((prev) =>
-          prev.practitioner ? prev : { ...prev, practitioner: practitionerId },
-        )
-        try {
-          const options = await fetchHealthcarePractitioners(practitionerId)
-          if (cancelled) return
-          const match = options.find((p) => p.name === practitionerId)
-          setPractitionerQuery(match?.label || practitionerId)
-        } catch {
-          if (!cancelled) setPractitionerQuery(practitionerId)
-        }
-      } catch (err) {
-        console.error('Failed to auto-populate practitioner:', err)
-      }
-    })()
-    return () => {
-      cancelled = true
-    }
-  }, [])
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+  }, [linkedPractitionerId, linkedPractitionerLabel])
 
   // Search patients
   useEffect(() => {
@@ -1092,31 +1083,47 @@ export const CreateClinicalNoteModal = ({
                   <input
                     type="text"
                     value={practitionerQuery}
-                    onChange={e => {
+                    readOnly={practitionerLocked}
+                    onChange={(e) => {
+                      if (practitionerLocked) return
                       setPractitionerQuery(e.target.value)
                       setPractitionerOpen(true)
                     }}
-                    onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search doctor..."
-                    className={linkComboboxInputWithClearClass}
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowCreatePractitioner(true)
+                    onFocus={() => {
+                      if (!practitionerLocked) setPractitionerOpen(true)
                     }}
-                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                    title="Create New Practitioner"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  {practitionerLoading && (
+                    placeholder="Search doctor..."
+                    title={
+                      practitionerLocked ? 'Locked to your linked practitioner' : undefined
+                    }
+                    className={
+                      practitionerLocked
+                        ? LOCKED_PRACTITIONER_INPUT_CLASS
+                        : linkComboboxInputWithClearClass
+                    }
+                  />
+                  {!practitionerLocked ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowCreatePractitioner(true)
+                      }}
+                      className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                      title="Create New Practitioner"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  {practitionerLoading && !practitionerLocked && (
                     <div className="absolute right-8 top-2.5 text-slate-400 text-xs">Loading...</div>
                   )}
-                  {practitionerOpen && !practitionerLoading && filteredPractitionerOptions.length > 0 && (
+                  {practitionerOpen &&
+                    !practitionerLocked &&
+                    !practitionerLoading &&
+                    filteredPractitionerOptions.length > 0 && (
                     <div className={`${linkComboboxDropdownClassTall} top-full left-0`}>
                       {filteredPractitionerOptions.map(pr => (
                         <button
@@ -1133,7 +1140,11 @@ export const CreateClinicalNoteModal = ({
                       ))}
                     </div>
                   )}
-                  {practitionerOpen && !practitionerLoading && filteredPractitionerOptions.length === 0 && practitionerQuery && (
+                  {practitionerOpen &&
+                    !practitionerLocked &&
+                    !practitionerLoading &&
+                    filteredPractitionerOptions.length === 0 &&
+                    practitionerQuery && (
                     <div className={`${linkComboboxDropdownClassTall} top-full left-0`}>
                       <div className="px-4 py-2 text-sm text-slate-500">
                         No practitioners found matching "{practitionerQuery}"

@@ -6,7 +6,7 @@ import {
   createModalShellClass,
 } from '../ui/CreateModalChrome'
 import { createLabTest } from '../../services/labTests'
-import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, getCurrentUserPractitioner, type LinkFieldOption } from '../../services/common'
+import { fetchHealthcarePractitioners, fetchLabTestTemplates, fetchMedicalDepartments, fetchDocumentTypes, fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { getPortalBranch } from '../../services/costCenterPermission'
 import { createNurseTask } from '../../services/nurseTask'
 import { searchPatients, fetchPatients, uploadPatientFile, type PatientListItem, type PatientDocumentRow } from '../../services/patients'
@@ -17,6 +17,10 @@ import { CreateLabTestTemplateModal } from './CreateLabTestTemplateModal'
 import { CreateDepartmentModal } from './CreateDepartmentModal'
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { fromDatetimeLocalValue } from '../../utils/datetimeLocal'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface CreateLabTestModalProps {
   onClose: () => void
@@ -78,6 +82,11 @@ export const CreateLabTestModal = ({
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
   const [selectedPractitioner, setSelectedPractitioner] = useState<LinkFieldOption | null>(null)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
 
   // Department dropdown state
   const [departmentOptions, setDepartmentOptions] = useState<LinkFieldOption[]>([])
@@ -224,29 +233,39 @@ export const CreateLabTestModal = ({
     }
   }, [initialPatient])
 
-  // Load initial options and auto-fill current user's practitioner
+  // Load initial options
   useEffect(() => {
     const loadOptions = async () => {
       // Load each option list independently so one failed lookup does not blank the whole form.
-      const [templates, practs, depts, costCenters, currentPract] = await Promise.allSettled([
+      const [templates, practs, depts, costCenters] = await Promise.allSettled([
         fetchLabTestTemplates(undefined, undefined, templatesNurseOnly),
         fetchHealthcarePractitioners(),
         fetchMedicalDepartments(),
         fetchCostCenters(),
-        getCurrentUserPractitioner(),
       ])
       if (templates.status === 'fulfilled') setTemplateOptions(templates.value)
       else console.error('Failed to load lab test templates:', templates.reason)
       if (practs.status === 'fulfilled') setPractitionerOptions(practs.value)
       if (depts.status === 'fulfilled') setDepartmentOptions(depts.value)
       if (costCenters.status === 'fulfilled') setCostCenterOptions(costCenters.value)
-      if (currentPract.status === 'fulfilled' && currentPract.value) {
-        const pract = currentPract.value
-        setFormData(prev => prev.practitioner === '' ? { ...prev, practitioner: pract } : prev)
-      }
     }
     loadOptions()
   }, [templatesNurseOnly])
+
+  // Auto-populate current user's linked practitioner; lock for doctors (not admins).
+  useEffect(() => {
+    if (!linkedPractitionerId) return
+    setFormData((prev) =>
+      prev.practitioner ? prev : { ...prev, practitioner: linkedPractitionerId },
+    )
+    const opt = practitionerOptions.find((p) => p.name === linkedPractitionerId)
+    if (opt) {
+      setSelectedPractitioner(opt)
+      setPractitionerQuery(opt.label || opt.name)
+    } else {
+      setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
+    }
+  }, [linkedPractitionerId, linkedPractitionerLabel, practitionerOptions])
 
   // Search/fetch patients
   useEffect(() => {
@@ -647,28 +666,39 @@ export const CreateLabTestModal = ({
                   <input
                     type="text"
                     value={selectedPractitioner ? selectedPractitioner.label : practitionerQuery}
+                    readOnly={practitionerLocked}
                     onChange={(e) => {
+                      if (practitionerLocked) return
                       setPractitionerQuery(e.target.value)
                       setPractitionerOpen(true)
                     }}
-                    onFocus={() => setPractitionerOpen(true)}
-                    placeholder="Search doctor..."
-                    className="w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setShowCreatePractitioner(true)
+                    onFocus={() => {
+                      if (!practitionerLocked) setPractitionerOpen(true)
                     }}
-                    className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
-                    title="Create New Practitioner"
-                  >
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                    </svg>
-                  </button>
-                  {practitionerOpen && practitionerOptions.length > 0 && (
+                    placeholder="Search doctor..."
+                    title={practitionerLocked ? 'Locked to your linked practitioner' : undefined}
+                    className={
+                      practitionerLocked
+                        ? LOCKED_PRACTITIONER_INPUT_CLASS
+                        : 'w-full rounded-md border border-slate-300 px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-primary'
+                    }
+                  />
+                  {!practitionerLocked ? (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setShowCreatePractitioner(true)
+                      }}
+                      className="absolute right-2 p-1 text-primary hover:text-primary/80 rounded"
+                      title="Create New Practitioner"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  ) : null}
+                  {practitionerOpen && !practitionerLocked && practitionerOptions.length > 0 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-slate-300 rounded-md shadow-lg max-h-60 overflow-y-auto top-full">
                       {practitionerOptions.map((pract) => (
                         <button

@@ -373,12 +373,12 @@ export const EditMedicationEntryModal = ({
       if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
         const start = (field === 'date' ? value : next.date) as string
         const end = (field === 'end_date' ? value : next.end_date) as string
-        const days = (field === 'no_of_days' ? value : next.no_of_days) as number
+        const daysNum = Number(field === 'no_of_days' ? value : next.no_of_days)
         // Do not auto-fill end date from start date alone — only when Days is set, or derive Days from start+end.
         if ((field === 'date' || field === 'end_date') && start && end) {
           next.no_of_days = String(daysBetween(start, end) || 1) as any
-        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
-          next.end_date = addDaysToDate(start, days)
+        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
+          next.end_date = addDaysToDate(start, daysNum)
         }
       }
       return next
@@ -732,7 +732,7 @@ export const EditMedicationEntryModal = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
-              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => updateFieldWithDateCalc('no_of_days', e.target.value ? Number(e.target.value) : 1)} disabled={disabled}
+              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => updateFieldWithDateCalc('no_of_days', e.target.value)} disabled={disabled}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
           </div>
@@ -962,11 +962,11 @@ export const AddMedicationEntryModal = ({
       if (field === 'date' || field === 'end_date' || field === 'no_of_days') {
         const start = (field === 'date' ? value : next.date) as string
         const end = (field === 'end_date' ? value : next.end_date) as string
-        const days = (field === 'no_of_days' ? value : next.no_of_days) as number
+        const daysNum = Number(field === 'no_of_days' ? value : next.no_of_days)
         if ((field === 'date' || field === 'end_date') && start && end) {
           next.no_of_days = String(daysBetween(start, end) || 1) as any
-        } else if (field === 'no_of_days' && start && typeof days === 'number' && days > 0) {
-          next.end_date = addDaysToDate(start, days)
+        } else if (field === 'no_of_days' && start && Number.isFinite(daysNum) && daysNum > 0) {
+          next.end_date = addDaysToDate(start, daysNum)
         }
       }
       return next
@@ -1310,7 +1310,7 @@ export const AddMedicationEntryModal = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Days</label>
-              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => addUpdateFieldWithDateCalc('no_of_days', e.target.value ? Number(e.target.value) : 1)}
+              <input type="number" min={1} step={1} value={form.no_of_days} onChange={(e) => addUpdateFieldWithDateCalc('no_of_days', e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
           </div>

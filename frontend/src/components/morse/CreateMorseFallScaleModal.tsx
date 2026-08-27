@@ -30,17 +30,20 @@ import {
   fetchCompanies,
   fetchHealthcarePractitioners,
   fetchInpatientAdmissionOptions,
-  getCurrentUserPractitioner,
   type LinkFieldOption,
 } from '../../services/common'
 import { useCareContext } from '../../providers/CareContextProvider'
-import { isDoctorRole } from '../../config/permissions'
 import { toast } from '../../hooks/useToast'
+import {
+  LOCKED_PRACTITIONER_INPUT_CLASS,
+  useLockedLinkedPractitioner,
+} from '../../hooks/useLockedLinkedPractitioner'
 
 interface LinkComboboxProps {
   label: string
   value: string
   required?: boolean
+  locked?: boolean
   onSelect: (opt: LinkFieldOption) => void
   onClear: () => void
   fetchOptions: (search: string) => Promise<LinkFieldOption[]>
@@ -55,6 +58,7 @@ function LinkCombobox({
   label,
   value,
   required,
+  locked,
   onSelect,
   onClear,
   fetchOptions,
@@ -71,7 +75,7 @@ function LinkCombobox({
   }, [value])
 
   useEffect(() => {
-    if (!open) return
+    if (!open || locked) return
     const t = setTimeout(async () => {
       setLoadingOptions(true)
       try {
@@ -83,7 +87,7 @@ function LinkCombobox({
       }
     }, query.trim() === '' ? 0 : 300)
     return () => clearTimeout(t)
-  }, [query, open, fetchOptions])
+  }, [query, open, fetchOptions, locked])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -105,16 +109,22 @@ function LinkCombobox({
         <input
           type="text"
           value={query}
+          readOnly={locked}
           onChange={(e) => {
+            if (locked) return
             setQuery(e.target.value)
             onClear()
             setOpen(true)
           }}
-          onFocus={() => setOpen(true)}
+          onFocus={() => {
+            if (!locked) setOpen(true)
+          }}
           placeholder={placeholder ?? 'Search...'}
-          className={linkComboboxInputClass}
+          title={locked ? 'Locked to your linked practitioner' : undefined}
+          className={locked ? LOCKED_PRACTITIONER_INPUT_CLASS : linkComboboxInputClass}
           autoComplete="off"
         />
+        {!locked ? (
         <span className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-slate-400">
           {loadingOptions ? (
             <span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-primary rounded-full animate-spin" />
@@ -122,8 +132,9 @@ function LinkCombobox({
             <ChevronDown className="w-3.5 h-3.5" />
           )}
         </span>
+        ) : null}
       </div>
-      {open && (
+      {open && !locked && (
         <div className={linkComboboxDropdownClass}>
           {options.length === 0 ? (
             <div className="px-3 py-2 text-xs text-slate-400">
@@ -233,9 +244,15 @@ export function CreateMorseFallScaleModal({
   onClose,
   onCreated,
 }: CreateMorseFallScaleModalProps) {
-  const { activeAdmission, userRole } = useCareContext()
+  const { activeAdmission } = useCareContext()
   const lockedAdmission = editRow?.admission_no || activeAdmission || defaultAdmission || ''
   const isEditMode = Boolean(editRow)
+  const {
+    locked: practitionerLocked,
+    practitionerId: linkedPractitionerId,
+    practitionerLabel: linkedPractitionerLabel,
+  } = useLockedLinkedPractitioner()
+  const practFieldLocked = practitionerLocked && !isEditMode
 
   const [activeTab, setActiveTab] = useState<TabId>('assessment')
   const [admissionOptions, setAdmissionOptions] = useState<{ name: string; label: string }[]>([])
@@ -300,26 +317,12 @@ export function CreateMorseFallScaleModal({
       .catch(() => setCompanyOptions([]))
   }, [])
 
-  // Default the Doctor Name to the logged-in doctor only; nurses (and other roles) start blank.
-  const practitionerDefaultApplied = useRef(false)
+  // Default Doctor Name to linked practitioner for doctors (not admins); lock on create.
   useEffect(() => {
-    if (practitionerDefaultApplied.current) return
-    if (!isDoctorRole(userRole)) return
-    practitionerDefaultApplied.current = true
-    getCurrentUserPractitioner()
-      .then(async (id) => {
-        if (!id) return
-        setPractitioner(id)
-        try {
-          const opts = await fetchHealthcarePractitioners(undefined)
-          const match = opts.find((o) => o.name === id)
-          setPractitionerLabel(match?.label || id)
-        } catch {
-          setPractitionerLabel(id)
-        }
-      })
-      .catch(() => {})
-  }, [userRole])
+    if (isEditMode || !linkedPractitionerId) return
+    setPractitioner((prev) => prev || linkedPractitionerId)
+    setPractitionerLabel((prev) => prev || linkedPractitionerLabel || linkedPractitionerId)
+  }, [isEditMode, linkedPractitionerId, linkedPractitionerLabel])
 
   const totalFromStandard = selections.reduce<number>((sum, pts) => sum + (pts ?? 0), 0)
   const totalFromExtra = extraRows.reduce<number>((sum, r) => sum + (r.points || 0), 0)
@@ -460,6 +463,7 @@ export function CreateMorseFallScaleModal({
                       label="Username"
                       required
                       value={practitionerLabel}
+                      locked={practFieldLocked}
                       fetchOptions={fetchPractitionerOptions}
                       placeholder="Search username…"
                       onSelect={(opt) => {

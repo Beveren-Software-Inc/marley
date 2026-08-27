@@ -20,7 +20,12 @@ import { EditPatientVisitModal } from './EditPatientVisitModal'
 import { toast } from '../../hooks/useToast'
 import { fetchAppointmentPractitioners, fetchBranchOptions, fetchUsers, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { formatDate } from '../../utils/formatDate'
-import { fetchPatientVisitsFull, fetchPatientVisitTypes, type PatientVisitTypeOption } from '../../services/patientVisits'
+import {
+  fetchPatientVisitsFull,
+  fetchPatientVisitTypes,
+  fetchPatientFirstVisitDate,
+  type PatientVisitTypeOption,
+} from '../../services/patientVisits'
 import { CreatePatientReferralModal } from '../referrals/CreatePatientReferralModal'
 import { CreateVitalSignModal } from '../vitalSigns/CreateVitalSignModal'
 import { CreateObservationModal } from '../observations/CreateObservationModal'
@@ -219,6 +224,29 @@ export const PatientVisitList = ({
     setDateFrom(from)
     setDateTo(to)
   }, [shouldUseOpDefaults])
+
+  // Patient chosen with no OP visit in the header → From = first visit date, To = today.
+  useEffect(() => {
+    const patientId = (effectivePatient || '').trim()
+    if (!patientId) return
+    if (effectiveVisitFilter) return
+
+    let cancelled = false
+    ;(async () => {
+      const first = await fetchPatientFirstVisitDate(patientId)
+      if (cancelled) return
+      if (first) {
+        setDateFrom(first)
+        setDateTo(localDateISO())
+      } else {
+        setDateFrom('')
+        setDateTo('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [effectivePatient, effectiveVisitFilter])
 
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState<PageSize>(DEFAULT_PAGE_SIZE)

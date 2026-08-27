@@ -531,6 +531,66 @@ export async function resolveOwnerUsername(owner?: string | null): Promise<strin
   return ''
 }
 
+/** Creator user + linked Healthcare Practitioner for detail panels. */
+export async function resolveOwnerCreatorInfo(owner?: string | null): Promise<{
+  username: string
+  fullName: string
+  practitionerLabel: string
+}> {
+  const id = (owner || '').trim()
+  const empty = { username: '', fullName: '', practitionerLabel: '' }
+  if (!id) return empty
+
+  let username = ''
+  let fullName = ''
+  let practitionerLabel = ''
+
+  try {
+    const userParams = new URLSearchParams({
+      doctype: 'User',
+      fields: JSON.stringify(['name', 'full_name', 'username']),
+      filters: JSON.stringify([['name', '=', id]]),
+      limit_page_length: '1',
+    })
+    const userRes = await fetch(`/api/method/frappe.client.get_list?${userParams}`, {
+      credentials: 'include',
+    })
+    const userPayload = await userRes.json()
+    const user = Array.isArray(userPayload?.message) ? userPayload.message[0] : null
+    if (user) {
+      fullName = String(user.full_name || '').trim()
+      const rawUsername = String(user.username || '').trim()
+      username = rawUsername && !rawUsername.includes('@') ? rawUsername : ''
+    }
+  } catch {
+    /* ignore */
+  }
+
+  try {
+    const practParams = new URLSearchParams({
+      doctype: 'Healthcare Practitioner',
+      fields: JSON.stringify(['name', 'practitioner_name']),
+      filters: JSON.stringify([
+        ['user_id', '=', id],
+        ['status', '=', 'Active'],
+      ]),
+      limit_page_length: '1',
+    })
+    const practRes = await fetch(`/api/method/frappe.client.get_list?${practParams}`, {
+      credentials: 'include',
+    })
+    const practPayload = await practRes.json()
+    const pract = Array.isArray(practPayload?.message) ? practPayload.message[0] : null
+    if (pract) {
+      practitionerLabel = String(pract.practitioner_name || pract.name || '').trim()
+    }
+  } catch {
+    /* ignore */
+  }
+
+  return { username, fullName, practitionerLabel }
+}
+
 export interface CreateLeadSourceData {
   source: string
 }
@@ -1909,6 +1969,8 @@ export interface LabTestTemplateListRow {
   department: string
   lab_test_template_type: string
   is_group: number
+  /** Parent group template name when this row is a child. */
+  lab_group?: string | null
   is_billable: number
   disabled: number
   female_min_range: string
@@ -1919,6 +1981,13 @@ export interface LabTestTemplateListRow {
   max_range: string
   lab_test_uom:string
   lab_test_rate: number
+  op_rate?: number
+  outpatient_rate?: number
+  inpatient_rate?: number
+  result_type?: string
+  /** Shown when result type is Multiple (Result Mul Val). */
+  result_mul_val?: string
+  is_multiple?: number | boolean
 }
 
 export async function fetchLabTestTemplateList(search?: string): Promise<LabTestTemplateListRow[]> {
@@ -1933,6 +2002,34 @@ export async function fetchLabTestTemplateList(search?: string): Promise<LabTest
     return resData.message as LabTestTemplateListRow[]
   }
   return []
+}
+
+/** Partial update for Lab Test Template (single row). Prefer bulk for Lab Setup. */
+export async function updateLabTestTemplateQuickFields(
+  name: string,
+  fields: Record<string, unknown>,
+): Promise<void> {
+  await apiRequest(`/api/resource/Lab%20Test%20Template/${encodeURIComponent(name)}`, {
+    method: 'PUT',
+    body: JSON.stringify(fields),
+  })
+}
+
+/** One-request batch save for Lab Setup inline edits. */
+export async function bulkUpdateLabTestTemplatesQuick(
+  updates: Array<{ name: string; fields: Record<string, unknown> }>,
+): Promise<{ updated: string[]; failed: Array<{ name?: string; error?: string }> }> {
+  const result = await apiRequest<{
+    updated?: string[]
+    failed?: Array<{ name?: string; error?: string }>
+  }>('/api/method/healthcare.api.common.bulk_update_lab_test_templates_quick', {
+    method: 'POST',
+    body: JSON.stringify({ updates }),
+  })
+  return {
+    updated: Array.isArray(result?.updated) ? result.updated : [],
+    failed: Array.isArray(result?.failed) ? result.failed : [],
+  }
 }
 
 export interface LabTestSampleOption {
