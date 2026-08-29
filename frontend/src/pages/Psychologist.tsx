@@ -67,8 +67,8 @@ export const PsychologistPage = () => {
   } = useCareContext()
   const [searchParams, setSearchParams] = useSearchParams()
   const screen = searchParams.get('screen') || ''
-  // F044: Physical Examination, Patient History and Session Schedule are not readable
-  // by the Psychologist role (backend DocPerms → 403). Only expose them to admins.
+  // F044: Physical Examination and Patient History are not readable by the
+  // Psychologist role (backend DocPerms → 403). Only expose them to admins.
   const showRestricted = isAdmin(userRole ?? [])
   const patientFromUrl = searchParams.get('patient') || ''
 
@@ -420,8 +420,8 @@ export const PsychologistPage = () => {
     )
   }
 
-  // ── Session Scheduler (under Psychologist → Therapy) ───────────────────────
-  if (screen === 't-session' && showRestricted) {
+  // ── Session Scheduler ───────────────────────────────────────────────────────
+  if (screen === 't-session') {
     return (
       <div className="flex flex-col h-full min-w-0">
         {header}
