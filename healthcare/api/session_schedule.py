@@ -492,6 +492,73 @@ def get_session_schedules(
 	}
 
 
+def _apply_session_schedule_fields(session_schedule, data, *, billed=False):
+	"""Map portal payload onto a Session Schedule. Billing fields stay frozen once billed."""
+	admission_number = (data.get("admission_number") or "").strip() or None
+	patient_visit = (data.get("patient_visit") or "").strip() or None
+	explicit_patient = (data.get("patient") or data.get("patient_num") or "").strip() or None
+	care_type = "IP" if admission_number else ("OP" if patient_visit else None)
+
+	if data.get("date"):
+		session_schedule.date = data.get("date")
+
+	if not billed:
+		if data.get("session_type"):
+			session_schedule.session_type = data.get("session_type")
+		if "session_name" in data:
+			session_schedule.session_name = data.get("session_name")
+
+	if "doctor" in data:
+		session_schedule.doctor = data.get("doctor") or None
+
+	if "practitioner" in data:
+		practitioner = (data.get("practitioner") or "").strip()
+		session_schedule.practitioner = practitioner or None
+		if practitioner:
+			session_schedule.practitioner_name = (
+				data.get("practitioner_name")
+				or frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
+				or practitioner
+			)
+		else:
+			session_schedule.practitioner_name = None
+
+	if "cost_center" in data:
+		session_schedule.cost_center = data.get("cost_center") or None
+	if "from_time" in data:
+		session_schedule.from_time = data.get("from_time") or None
+	if "to_time" in data:
+		session_schedule.to_time = data.get("to_time") or None
+	if "doc_remarks" in data:
+		session_schedule.doc_remarks = data.get("doc_remarks") or None
+
+	session_schedule.admission_number = admission_number
+	session_schedule.patient_visit = patient_visit
+	if not session_schedule.company:
+		session_schedule.company = _default_company(session_schedule)
+
+	patient = (
+		_patient_from_schedule_refs(admission_number, patient_visit)
+		or explicit_patient
+		or session_schedule.get("patient_num")
+	)
+	if patient:
+		# patient_num is read_only on the form; set it in code so list filters work.
+		session_schedule.patient_num = patient
+	else:
+		frappe.throw(
+			_("Select a patient (or link a Patient Visit / Admission) before saving a session schedule.")
+		)
+
+	if not billed:
+		session_schedule.amount = _default_amount_from_template(
+			session_schedule.session_type,
+			data.get("amount"),
+			patient_care_type=care_type,
+			patient=patient,
+		) or None
+
+
 @frappe.whitelist()
 def create_session_schedule(data: dict):
 	"""Create a new Session Schedule record."""
@@ -500,51 +567,8 @@ def create_session_schedule(data: dict):
 
 	try:
 		session_schedule = frappe.new_doc("Session Schedule")
-
-		admission_number = (data.get("admission_number") or "").strip() or None
-		patient_visit = (data.get("patient_visit") or "").strip() or None
-		explicit_patient = (data.get("patient") or data.get("patient_num") or "").strip() or None
-		care_type = "IP" if admission_number else ("OP" if patient_visit else None)
-
-		session_schedule.date = data.get("date")
-		session_schedule.session_type = data.get("session_type")
-		session_schedule.session_name = data.get("session_name")
-		session_schedule.doctor = data.get("doctor")
-		practitioner = (data.get("practitioner") or "").strip()
-		if practitioner:
-			session_schedule.practitioner = practitioner
-			session_schedule.practitioner_name = (
-				data.get("practitioner_name")
-				or frappe.db.get_value("Healthcare Practitioner", practitioner, "practitioner_name")
-				or practitioner
-			)
-		session_schedule.cost_center = data.get("cost_center")
-		session_schedule.from_time = data.get("from_time")
-		session_schedule.to_time = data.get("to_time")
-		session_schedule.admission_number = admission_number
-		session_schedule.patient_visit = patient_visit
-		session_schedule.company = _default_company(session_schedule)
-
-		patient = (
-			_patient_from_schedule_refs(admission_number, patient_visit)
-			or explicit_patient
-		)
-		if patient:
-			# patient_num is read_only on the form; set it in code so list filters work.
-			session_schedule.patient_num = patient
-		else:
-			frappe.throw(
-				_("Select a patient (or link a Patient Visit / Admission) before creating a session schedule.")
-			)
-
-		session_schedule.amount = _default_amount_from_template(
-			data.get("session_type"),
-			data.get("amount"),
-			patient_care_type=care_type,
-			patient=patient,
-		) or None
+		_apply_session_schedule_fields(session_schedule, data, billed=False)
 		session_schedule.transaction_status = "Draft"
-
 		session_schedule.insert(ignore_permissions=True)
 		frappe.db.commit()
 
@@ -552,6 +576,34 @@ def create_session_schedule(data: dict):
 		return _attach_sales_orders([row])[0]
 	except Exception as e:
 		frappe.log_error(frappe.get_traceback(), "create_session_schedule")
+		frappe.throw(str(e))
+
+
+@frappe.whitelist()
+def update_session_schedule(session_schedule_name: str, data: dict):
+	"""Update an existing Session Schedule record."""
+	assert_editing_allowed()
+	if not session_schedule_name:
+		frappe.throw(_("Session Schedule name is required"))
+	if not data:
+		frappe.throw(_("No data provided"))
+	if not frappe.db.exists("Session Schedule", session_schedule_name):
+		frappe.throw(_("Session Schedule {0} not found").format(session_schedule_name))
+
+	session_schedule = frappe.get_doc("Session Schedule", session_schedule_name)
+	status = (session_schedule.transaction_status or "").strip()
+	if status in {"Cancelled", "Submitted"}:
+		frappe.throw(_("Cancelled or submitted session schedules cannot be edited."))
+
+	try:
+		billed = bool(_existing_session_schedule_sales_order(session_schedule.name))
+		_apply_session_schedule_fields(session_schedule, data, billed=billed)
+		session_schedule.save(ignore_permissions=True)
+		frappe.db.commit()
+		row = session_schedule.as_dict()
+		return _attach_sales_orders([row])[0]
+	except Exception as e:
+		frappe.log_error(frappe.get_traceback(), "update_session_schedule")
 		frappe.throw(str(e))
 
 
