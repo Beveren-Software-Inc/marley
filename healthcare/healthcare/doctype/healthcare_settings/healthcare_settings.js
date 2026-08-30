@@ -2783,6 +2783,74 @@ frappe.ui.form.on('Healthcare Settings', {
 			});
 		}, __('Direct Upload'));
 
+		frm.add_custom_button(__('Backfill Legacy Sales Item Links'), () => {
+			frappe.call({
+				method: 'healthcare.api.legacy_sales_item_link_backfill.preview_legacy_sales_item_link_backfill',
+				callback(preview) {
+					const counts = preview.message || {};
+					const sample = (counts.sample || [])
+						.map(
+							(row) =>
+								`${row.parent} line ${row.sr_num}: item_num “${row.item_num}” → ITEM_00_01 “${row.item}”`
+								+ (row.item_name ? ` (${row.item_name})` : '')
+						)
+						.join('\n');
+					const unmatched = (counts.unmatched_sample || [])
+						.map(
+							(row) =>
+								`${row.parent} line ${row.sr_num}: item_num “${row.item_num}” (not in ITEM_00_01)`
+						)
+						.join('\n');
+					if (!counts.candidates) {
+						frappe.msgprint({
+							title: __('Legacy Sales Item Links'),
+							message: __('No Legacy Sales item lines with item_num and a blank Item link.'),
+							indicator: 'green',
+						});
+						return;
+					}
+					frappe.confirm(
+						__(
+							'Run in background: on Legacy Sales Transaction Item lines that already have values, '
+							+ 'have Item Num, and have a blank Item link, look up Item Num on ITEM_00_01 '
+							+ 'and set the Item field when the code exists.\n\n'
+							+ 'Lines with item_num and blank Item: {0}\n'
+							+ 'Will set Item (ITEM_00_01 found){1}: {2}\n'
+							+ 'Will skip (item_num not on ITEM_00_01){1}: {3}\n'
+							+ 'ITEM_00_01 records: {4}\n\n'
+							+ 'Sample to update:\n{5}\n\n'
+							+ 'Sample unmatched:\n{6}\n\nContinue?',
+							[
+								counts.candidates || 0,
+								counts.counts_are_estimate ? __(' (estimate)') : '',
+								counts.needs_update || 0,
+								counts.skipped_unmatched || 0,
+								counts.item_00_01_count || 0,
+								sample || __('(none)'),
+								unmatched || __('(none)'),
+							]
+						),
+						() => {
+							frappe.call({
+								method: 'healthcare.api.legacy_sales_item_link_backfill.start_legacy_sales_item_link_backfill',
+								freeze: true,
+								freeze_message: __('Starting background job…'),
+								callback(r) {
+									if (r.message?.ok) {
+										frappe.show_alert({
+											message: r.message.message || __('Job started'),
+											indicator: 'green',
+										});
+										poll_migration_status('legacy_sales_item_link_backfill');
+									}
+								},
+							});
+						}
+					);
+				},
+			});
+		}, __('Data Maintenance'));
+
 		frm.add_custom_button(__('Patient Adjustment — PATIENT_ADJUSTMENT_01'), () => {
 			open_direct_sync_excel_upload({
 				dialog_title: __('Patient Adjustment (PATIENT_ADJUSTMENT_01)'),
@@ -7293,6 +7361,18 @@ function poll_migration_status(jobKey) {
 						msg = __(
 							'{0} finished: {1} frequencies updated from Patient Medication Order, {2} skipped, {3} errors (scanned {4}).',
 							[jobKey, s.updated || 0, s.skipped || 0, s.errors || 0, s.processed || 0]
+						);
+					} else if (jobKey === 'legacy_sales_item_link_backfill') {
+						msg = __(
+							'{0} finished: {1} Item links set from ITEM_00_01, {2} unmatched item_num, {3} errors (scanned {4} of {5}).',
+							[
+								jobKey,
+								s.updated || 0,
+								s.skipped_unmatched || 0,
+								s.errors || 0,
+								s.processed || 0,
+								s.total || 0,
+							]
 						);
 					} else {
 						msg = __('{0} finished: {1} OK, {2} skipped, {3} errors', [

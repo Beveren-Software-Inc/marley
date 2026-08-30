@@ -273,8 +273,29 @@ def get_patient_visit(name):
 		pass
 
 	return data
- 
-# healthcare/api/common.py
+
+
+def _add_pharmacy_amounts_net_of_returns(rows, pharmacy_amount_map, discount_map, paid_map):
+	"""Add pharmacy SO amounts to visit maps after subtracting POS/DN returns.
+
+	Sales Order grand_total is left unchanged on return (the return is on the
+	Delivery Note). Visit pharmacy cost must show only remaining dispensed value.
+	"""
+	from healthcare.api.pos_dispense_return import (
+		get_returned_amount_map_for_sales_orders,
+		net_grand_total_after_returns,
+	)
+
+	returned_map = get_returned_amount_map_for_sales_orders([row.name for row in rows if row.get("name")])
+	for row in rows:
+		visit_name = row.get("visit_name")
+		if not visit_name:
+			continue
+		net = net_grand_total_after_returns(row.get("amount"), returned_map.get(row.name, 0))
+		pharmacy_amount_map[visit_name] = pharmacy_amount_map.get(visit_name, 0) + net
+		discount_map[visit_name] = discount_map.get(visit_name, 0) + float(row.get("discount") or 0)
+		paid_map[visit_name] = paid_map.get(visit_name, 0) + float(row.get("paid") or 0)
+
 
 @frappe.whitelist()
 def get_patient_visits_full(search=None, patient=None, practitioner=None, from_date=None, to_date=None, visit_type=None, status=None, cost_center=None, visit_owner=None, limit=20, offset=0, visit_name=None):
@@ -518,40 +539,37 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		# Pharmacy = any Sales Order billed as medicine: base reference is
 		# Patient Medication Order. Count visit-linked SOs even when the
 		# specific PMO document is missing / not the visit's order.
+		# Per-SO rows so POS Delivery Note returns can reduce the visit amount
+		# (SO grand_total stays at the original dispensed value).
 		pharmacy_visit_rows = frappe.db.sql(
 			"""
 			SELECT
+				so.name,
 				so.custom_reference_name AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount,
-					SUM(COALESCE(so.discount_amount, 0)) AS discount,
-					SUM(COALESCE(so.advance_paid, 0)) AS paid
+				COALESCE(so.grand_total, 0) AS amount,
+				COALESCE(so.discount_amount, 0) AS discount,
+				COALESCE(so.advance_paid, 0) AS paid
 			FROM `tabSales Order` so
 			WHERE
 				so.custom_reference_name IN %(visit_names)s
 				AND so.custom_reference_type = 'Patient Visit'
 				AND so.custom_base_reference = 'Patient Medication Order'
 				AND so.docstatus != 2
-			GROUP BY so.custom_reference_name
 			""",
 			{"visit_names": tuple(visit_names)},
 			as_dict=True,
 		)
-		for row in pharmacy_visit_rows:
-			pharmacy_amount_map[row.visit_name] = pharmacy_amount_map.get(row.visit_name, 0) + float(
-				row.amount or 0
-			)
-			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
-			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
 
 		# SOs that only point at a PMO (no visit on custom_reference) still
 		# count via the order's patient encounter, without double-counting.
 		pharmacy_pmo_rows = frappe.db.sql(
 			"""
 			SELECT
+				so.name,
 				pmo.patient_encounter AS visit_name,
-				SUM(COALESCE(so.grand_total, 0)) AS amount,
-					SUM(COALESCE(so.discount_amount, 0)) AS discount,
-					SUM(COALESCE(so.advance_paid, 0)) AS paid
+				COALESCE(so.grand_total, 0) AS amount,
+				COALESCE(so.discount_amount, 0) AS discount,
+				COALESCE(so.advance_paid, 0) AS paid
 			FROM `tabPatient Medication Order` pmo
 			INNER JOIN `tabSales Order` so
 				ON so.custom_base_reference = 'Patient Medication Order'
@@ -563,17 +581,16 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 					IFNULL(so.custom_reference_type, '') = 'Patient Visit'
 					AND so.custom_reference_name = pmo.patient_encounter
 				)
-			GROUP BY pmo.patient_encounter
 			""",
 			{"visit_names": tuple(visit_names)},
 			as_dict=True,
 		)
-		for row in pharmacy_pmo_rows:
-			pharmacy_amount_map[row.visit_name] = pharmacy_amount_map.get(row.visit_name, 0) + float(
-				row.amount or 0
-			)
-			discount_map[row.visit_name] = discount_map.get(row.visit_name, 0) + float(row.discount or 0)
-			paid_map[row.visit_name] = paid_map.get(row.visit_name, 0) + float(row.paid or 0)
+		_add_pharmacy_amounts_net_of_returns(
+			list(pharmacy_visit_rows) + list(pharmacy_pmo_rows),
+			pharmacy_amount_map,
+			discount_map,
+			paid_map,
+		)
 
 	appointment_amount_map = {}
 	appointment_names = [v.appointment for v in visits if v.get("appointment")]

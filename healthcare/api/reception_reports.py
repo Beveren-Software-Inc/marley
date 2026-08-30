@@ -1713,6 +1713,10 @@ def _soa_old_op_lines(sos, invoices, so_to_visit, visit_meta):
 				continue
 			so_items_by_parent.setdefault(it.parent, []).append(it)
 
+	from healthcare.api.pos_dispense_return import get_returned_amount_map_for_sales_orders
+
+	returned_by_so = get_returned_amount_map_for_sales_orders(so_names)
+
 	alloc = _soa_pe_allocated_by_reference(so_names + si_names)
 	paid_by_so = {n: flt(alloc.get(n)) for n in so_names}
 	for si_name, so_name in si_to_so.items():
@@ -1751,9 +1755,11 @@ def _soa_old_op_lines(sos, invoices, so_to_visit, visit_meta):
 		if labs:
 			chunks.append(("lab", labs, sum(_soa_item_net_amounts(it, is_invoice)[0] for it in labs)))
 		if meds:
-			chunks.append(
-				("medicine", meds, sum(_soa_item_net_amounts(it, is_invoice)[0] for it in meds))
-			)
+			due = sum(_soa_item_net_amounts(it, is_invoice)[0] for it in meds)
+			if not is_invoice and so:
+				due = max(0.0, flt(due) - flt(returned_by_so.get(so.name, 0)))
+			if due > 0:
+				chunks.append(("medicine", meds, due))
 		for it in others:
 			chunks.append(("other", [it], _soa_item_net_amounts(it, is_invoice)[0]))
 		dues = [c[2] for c in chunks]
