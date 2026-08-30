@@ -30,6 +30,13 @@ const LETTERHEAD = {
   web: 'www.serenehospital.com',
 }
 
+const SOA_OLD_FOOTER = {
+  contact:
+    'Tel: 00973-17686060, Mobile: 00973-32177363, Fax: 00973-17686088, Email: serenehospitalbh@gmail.com',
+  address:
+    'Address: Building No. 1301, Road No. 4526, Al-Juffair 345, Kingdom of Bahrain, CR No. 905181-1',
+}
+
 /** Lab-report palette (maroon labels / navy table headers). */
 const SOA_MAROON = '#800000'
 const SOA_NAVY = '#000080'
@@ -270,11 +277,12 @@ function buildOldOpSoaHtml(data: any, fromDate: string, toDate: string) {
       <tr class="total"><td colspan="3">Pending Adjustment Amount</td>
         <td></td><td></td>
         <td class="num">${fmtAmt(data.pending_adjustment)}</td></tr>
-      <tr class="total"><td colspan="3">Balance Amount</td>
+      <tr class="total"><td colspan="3" class="soa-bal">Balance Amount</td>
         <td></td><td></td>
-        <td class="num">${fmtAmt(data.balance)}</td></tr>
+        <td class="num soa-bal">${fmtAmt(data.balance)}</td></tr>
     </tbody></table>`
   html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+  html += `<div class="soa-old-footer"><div>${SOA_OLD_FOOTER.contact}</div><div>${SOA_OLD_FOOTER.address}</div></div>`
   return html
 }
 
@@ -329,8 +337,13 @@ function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false
   .soa-doc { font-weight: bold; text-decoration: underline; margin-bottom: 6px; }
   .soa-desc { font-size: 10px; color: #222; }
   .soa-desc-h { font-weight: bold; font-size: 10px; }
+  .soa-bal { color: #cc0000 !important; font-weight: bold; }
   .soa-paid { color: ${SOA_MAROON}; font-weight: bold; }
-  @page { size: A4 ${orientation}; margin: 10mm; }
+  .soa-old-footer { font-size: 9px; text-align: center; color: #333; line-height: 1.45; margin-top: 16px; padding-top: 6px; border-top: 1px solid #888; }
+  @page { size: A4 ${orientation}; margin: 10mm 10mm 22mm 10mm; }
+  @media print {
+    .soa-old-footer { position: fixed; bottom: 6px; left: 10mm; right: 10mm; margin-top: 0; }
+  }
 `
   }
   return `
