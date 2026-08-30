@@ -104,35 +104,60 @@ function soaInfoCell(label: string, value: string | number | null | undefined) {
   return `<td class="soa-lbl">${label}</td><td class="soa-val">${value ?? ''}</td>`
 }
 
-function soaCategoryRows(cats: Record<string, any[]>) {
+/** Right half of the last header row: Service Category | IP/OP | Case Branch | branch */
+function soaCategoryBranchCells(care: 'IP' | 'OP', branch: string | number | null | undefined) {
+  return `<td colspan="2" class="soa-cat-wrap"><table class="soa-cat-branch"><colgroup>
+      <col class="soa-c-sc"/><col class="soa-c-sv"/><col class="soa-c-cb"/><col class="soa-c-br"/>
+    </colgroup><tbody><tr>
+      <td class="soa-lbl">Service Category</td>
+      <td class="soa-val">${care}</td>
+      <td class="soa-lbl">Case Branch</td>
+      <td class="soa-val">${branch ?? ''}</td>
+    </tr></tbody></table></td>`
+}
+
+function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolean }) {
+  const summaryCodes = new Set([
+    'Medicine',
+    'Lab test',
+    'Medicines',
+    'Lab Tests',
+    'IP_MEDI',
+    'IP-MED',
+    'OP-MED',
+    'IP-LAB',
+    'OP-LAB',
+    'Medicine Charges',
+    'Lab tests',
+  ])
   return Object.entries(cats)
     .map(([cat, rows]) =>
       rows
         .map((r, i) => {
-          const lineDisc = Number(r.discount_amount || 0)
-          const discPct = Number(r.discount_percentage || 0)
-          const discCell =
-            lineDisc > 0
-              ? `${fmtAmt(lineDisc)}${discPct > 0 ? ` (${discPct}%)` : ''}`
-              : ''
-          // Combined Medicine / Lab test lines have no single rate — show dash, keep amount
-          const isSummary =
-            r.rate == null ||
-            ['Medicine', 'Lab test', 'Medicines', 'Lab Tests'].includes(String(r.item_code || ''))
-          const rateCell = isSummary ? '—' : fmtAmt(r.rate)
-          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${rateCell}</td><td class="num">${discCell}</td><td class="num">${r.qty}</td><td class="num">${r.frequency}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+          const code = String(r.item_code || '')
+          const name = String(r.item_name || '')
+          const isMedOrLab =
+            summaryCodes.has(code) ||
+            name === 'Medicine Charges' ||
+            name === 'Lab tests'
+          const rateCell = isMedOrLab || r.rate == null ? '—' : fmtAmt(r.rate)
+          const daysCell = opts?.showDays
+            ? `<td class="num">${isMedOrLab ? '' : (r.qty ?? '')}</td>`
+            : ''
+          const freqCell = isMedOrLab ? '' : (r.frequency ?? '')
+          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${rateCell}</td>${daysCell}<td class="num">${freqCell}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
         })
         .join(''),
     )
     .join('')
 }
 
-function soaTotalsFooter(data: any) {
-  return `<tr class="total"><td colspan="7">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
-      <tr class="total"><td colspan="7">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
-      <tr class="total"><td colspan="7">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
-      <tr class="total"><td colspan="7">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
-      <tr class="total"><td colspan="7">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
+function soaTotalsFooter(data: any, labelColspan: number) {
+  return `<tr class="total"><td colspan="${labelColspan}">Total Bill Amount</td><td class="num">${fmtAmt(data.bill_total)}</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Discount Amount</td><td class="num">(${fmtAmt(data.discount_total)})</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Paid Amount</td><td class="num">(${fmtAmt(data.paid_total)})</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Net Bill Amount</td><td class="num">${fmtAmt(data.net_total)}</td></tr>
+      <tr class="total"><td colspan="${labelColspan}">Balance Amount</td><td class="num">${fmtAmt(data.balance)}</td></tr>`
 }
 
 /** Single Paid table for SOA (mode is a column — no separate Payments-by-Mode table). */
@@ -177,6 +202,82 @@ function soaPaymentsHtml(data: any) {
       </tbody></table>`
 }
 
+function fmtSoaShortDate(v: string | null | undefined) {
+  if (!v) return ''
+  const s = String(v).slice(0, 10)
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s)
+  if (m) return `${m[3]}-${m[2]}-${m[1].slice(2)}`
+  return s
+}
+
+function buildOldOpSoaHtml(data: any, fromDate: string, toDate: string) {
+  const rangeFrom = fmtSoaShortDate(data.from_date || fromDate)
+  const rangeTo = fmtSoaShortDate(data.to_date || toDate)
+  const range = rangeFrom && rangeTo ? `(From ${rangeFrom} to ${rangeTo})` : ''
+  const cat = 'OP / IOP'
+  let html = buildLetterhead('Patient Statement of Account', range, { soa: true })
+  html += `<table class="soa-info soa-old-head"><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr>
+    <td class="soa-head-col"><table class="soa-info"><colgroup><col class="soa-oh-l"/><col class="soa-oh-v"/></colgroup><tbody>
+      <tr>${soaInfoCell('File No.', data.file_no)}</tr>
+      <tr>${soaInfoCell('CPR / ID No.', data.cpr)}</tr>
+      <tr>${soaInfoCell('Gender', data.gender)}</tr>
+      <tr>${soaInfoCell('Nationality', data.nationality)}</tr>
+      <tr>${soaInfoCell('Age', data.age)}</tr>
+    </tbody></table></td>
+    <td class="soa-head-col soa-head-right"><table class="soa-info"><colgroup><col class="soa-oh-l"/><col class="soa-oh-v"/></colgroup><tbody>
+      <tr>${soaInfoCell('Patient Name', data.patient_name)}</tr>
+      <tr>${soaInfoCell('Patient Address', data.address)}</tr>
+      <tr>${soaInfoCell('Services Category', cat)}</tr>
+    </tbody></table></td>
+  </tr></tbody></table>`
+  const lines = (data.old_lines || []) as Array<{
+    invoice_date?: string
+    invoice_no?: string
+    description?: string
+    doctor_name?: string
+    due_amount?: number
+    paid_amount?: number
+    balance_amount?: number
+  }>
+  const dueSum = lines.reduce((s, r) => s + Number(r.due_amount || 0), 0)
+  const paidSum = lines.reduce((s, r) => s + Number(r.paid_amount || 0), 0)
+  const balSum = lines.reduce((s, r) => s + Number(r.balance_amount || 0), 0)
+  const body = lines
+    .map(
+      (r) =>
+        `<tr>
+          <td>${fmtSoaShortDate(r.invoice_date)}</td>
+          <td>${r.invoice_no ?? ''}</td>
+          <td><div class="soa-doc">${r.doctor_name ?? ''}</div><div class="soa-desc">${r.description ?? ''}</div></td>
+          <td class="num">${fmtAmt(r.due_amount)}</td>
+          <td class="num">${fmtAmt(r.paid_amount)}</td>
+          <td class="num">${fmtAmt(r.balance_amount)}</td>
+        </tr>`,
+    )
+    .join('')
+  html += `<table class="soa-old-lines"><colgroup>
+      <col class="soa-od"/><col class="soa-on"/><col class="soa-os"/>
+      <col class="soa-oa"/><col class="soa-oa"/><col class="soa-oa"/>
+    </colgroup><thead><tr>
+      <th>Invoice Date</th><th>Invoice No.</th>
+      <th>Doctor Name<br/><span class="soa-desc-h">Services Description</span></th>
+      <th class="num">Due Amount</th><th class="num">Paid / Adjustment Amount</th><th class="num">Balance Amount</th>
+    </tr></thead><tbody>${body}
+      <tr class="total"><td colspan="3">Total Amount (BHD)</td>
+        <td class="num">${fmtAmt(dueSum || data.net_total)}</td>
+        <td class="num">${fmtAmt(paidSum)}</td>
+        <td class="num">${fmtAmt(balSum)}</td></tr>
+      <tr class="total"><td colspan="3">Pending Adjustment Amount</td>
+        <td></td><td></td>
+        <td class="num">${fmtAmt(data.pending_adjustment)}</td></tr>
+      <tr class="total"><td colspan="3">Balance Amount</td>
+        <td></td><td></td>
+        <td class="num">${fmtAmt(data.balance)}</td></tr>
+    </tbody></table>`
+  html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+  return html
+}
+
 function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false) {
   if (soa) {
     return `
@@ -189,10 +290,29 @@ function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false
   .lh-meta { color: ${SOA_MAROON}; font-size: 10px; }
   .soa-h3 { margin: 12px 0 4px; font-size: 13px; color: ${SOA_MAROON}; font-weight: bold; text-align: center; }
   .soa-note { margin: 2px 0 6px; font-size: 10px; color: #444; }
-  .soa-info { width: 100%; border-collapse: collapse; margin-bottom: 10px; }
-  .soa-info td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
-  .soa-lbl { width: 18%; font-weight: bold; color: ${SOA_MAROON}; }
-  .soa-val { width: 32%; color: #000; }
+  .soa-info { width: 100%; border-collapse: collapse; margin-bottom: 10px; table-layout: fixed; }
+  .soa-info td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; word-wrap: break-word; }
+  .soa-lbl { font-weight: bold; color: ${SOA_MAROON}; }
+  .soa-val { color: #000; }
+  .soa-c-al { width: 13%; }
+  .soa-c-av { width: 22%; }
+  .soa-c-bl { width: 14%; }
+  .soa-c-bv { width: 51%; }
+  .soa-cat-wrap { padding: 0; }
+  .soa-cat-branch { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  .soa-cat-branch td { border: none; border-left: 1px solid #000; padding: 4px 6px; vertical-align: top; word-wrap: break-word; }
+  .soa-cat-branch td:first-child { border-left: none; }
+  .soa-c-sc { width: 28%; }
+  .soa-c-sv { width: 12%; }
+  .soa-c-cb { width: 24%; }
+  .soa-c-br { width: 36%; }
+  .soa-old-head { margin-bottom: 10px; }
+  .soa-old-head > tbody > tr > td.soa-head-col { padding: 0; vertical-align: top; }
+  .soa-old-head .soa-info { margin-bottom: 0; width: 100%; }
+  .soa-oh-l { width: 36%; }
+  .soa-oh-v { width: 64%; }
+  .soa-head-right .soa-info { height: 100%; }
+  .soa-head-right tr:nth-child(2) td { height: 3.6em; vertical-align: top; }
   table { width: 100%; border-collapse: collapse; margin-bottom: 8px; }
   th, td { border: 1px solid #000; padding: 3px 5px; text-align: left; }
   th { background: ${SOA_TH_BG}; color: ${SOA_NAVY}; font-weight: bold; }
@@ -200,6 +320,15 @@ function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false
   td.soa-cat { color: ${SOA_MAROON}; font-weight: bold; vertical-align: top; }
   tr.total td { font-weight: bold; background: #f8fafc; }
   .soa-pay { width: 100%; max-width: 640px; }
+  .soa-old-cat { margin: 6px 0 10px; font-size: 12px; }
+  .soa-old-lines { width: 100%; }
+  .soa-old-lines col.soa-od { width: 11%; }
+  .soa-old-lines col.soa-on { width: 16%; }
+  .soa-old-lines col.soa-os { width: 43%; }
+  .soa-old-lines col.soa-oa { width: 10%; }
+  .soa-doc { font-weight: bold; text-decoration: underline; margin-bottom: 6px; }
+  .soa-desc { font-size: 10px; color: #222; }
+  .soa-desc-h { font-weight: bold; font-size: 10px; }
   .soa-paid { color: ${SOA_MAROON}; font-weight: bold; }
   @page { size: A4 ${orientation}; margin: 10mm; }
 `
@@ -510,21 +639,27 @@ export function ReceptionReports() {
       return { html, filename: `ip-payments-discounts-${resolvedAdmission}` }
     }
     if (report === 'soa-op') {
+      if (data.use_old_approach_soa) {
+        return {
+          html: buildOldOpSoaHtml(data, fromDate, toDate),
+          filename: `soa-op-${data.case_no || data.visit || selectedPatient || 'patient'}`,
+        }
+      }
       const visitMeta = resolvedVisit
         ? `Visit No. ${data.case_no || data.visit}`
         : `Patient ${data.patient_name || selectedPatient || ''} · All OP visits`
       let html = buildLetterhead('Statement of Account (OP)', `${visitMeta}${range ? ` · ${range}` : ''}`, {
         soa: true,
       })
-      html += `<table class="soa-info"><tbody>
+      html += `<table class="soa-info"><colgroup><col class="soa-c-al"/><col class="soa-c-av"/><col class="soa-c-bl"/><col class="soa-c-bv"/></colgroup><tbody>
         <tr>${soaInfoCell('Visit No.', data.visit ?? (resolvedVisit ? resolvedVisit : 'Multiple visits'))}${soaInfoCell('Patient File No.', data.file_no)}</tr>
         <tr>${soaInfoCell('Visit Date', data.visit_date)}${soaInfoCell('Patient Name', data.patient_name)}</tr>
         <tr>${soaInfoCell('Visit Type', data.visit_type ?? (resolvedVisit ? '' : 'All OP'))}${soaInfoCell('Doctor Name', data.doctor_name)}</tr>
-        <tr>${soaInfoCell('Status', data.status)}${soaInfoCell('Branch', data.branch)}</tr>
+        <tr>${soaInfoCell('Status', data.status)}${soaCategoryBranchCells('OP', data.branch)}</tr>
       </tbody></table>`
       html += `<h3 class="soa-h3">Service Details</h3>`
-      html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
-        ${soaTotalsFooter(data)}
+      html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
+        ${soaTotalsFooter(data, 5)}
       </tbody></table>`
       html += soaPaymentsHtml(data)
       html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
@@ -534,15 +669,15 @@ export function ReceptionReports() {
     let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`, {
       soa: true,
     })
-    html += `<table class="soa-info"><tbody>
+    html += `<table class="soa-info"><colgroup><col class="soa-c-al"/><col class="soa-c-av"/><col class="soa-c-bl"/><col class="soa-c-bv"/></colgroup><tbody>
       <tr>${soaInfoCell('Admission No.', data.admission)}${soaInfoCell('Patient File No.', data.file_no)}</tr>
       <tr>${soaInfoCell('Admission Date', data.admission_date)}${soaInfoCell('Patient Name', data.patient_name)}</tr>
       <tr>${soaInfoCell('Discharge Date', data.discharge_date)}${soaInfoCell('Doctor Name', data.doctor_name)}</tr>
-      <tr>${soaInfoCell('Days Charged', data.days_charged)}${soaInfoCell('Case Branch', data.branch)}</tr>
+      <tr>${soaInfoCell('Days Charged', data.days_charged)}${soaCategoryBranchCells('IP', data.branch)}</tr>
     </tbody></table>`
     html += `<h3 class="soa-h3">Service Details</h3>`
-    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">Discount (BHD)</th><th class="num">Qty</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {})}
-      ${soaTotalsFooter(data)}
+    html += `<table><thead><tr><th>Service Category</th><th>Service Code</th><th>Service Name</th><th class="num">Rate (BHD)</th><th class="num">No of Days</th><th class="num">Frequency</th><th class="num">Total Amount (BHD)</th></tr></thead><tbody>${soaCategoryRows(data.categories || {}, { showDays: true })}
+      ${soaTotalsFooter(data, 6)}
     </tbody></table>`
     html += soaPaymentsHtml(data)
     html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`

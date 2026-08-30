@@ -7,6 +7,8 @@ Order's custom_base_reference (Patient Visit = OP, Inpatient Admission = IP, non
 Payment Only).
 """
 
+import re
+
 import frappe
 from frappe import _
 from frappe.utils import cint, flt, getdate
@@ -339,6 +341,7 @@ def _admission_package_quotation_lines(admission):
 					amount=flt(it.amount),
 					discount_amount=flt(it.discount_amount),
 					discount_percentage=it.discount_percentage,
+					care_type="IP",
 				)
 			)
 	return lines
@@ -516,6 +519,79 @@ def _admission_sales_invoices(admission, so_names=None):
 	)
 
 
+SOA_LAB_SUMMARY_CODES = frozenset({"Lab test", "Lab Tests", "IP-LAB", "OP-LAB"})
+SOA_MED_SUMMARY_CODES = frozenset({"Medicine", "Medicines", "IP_MEDI", "IP-MED", "OP-MED"})
+
+
+def _soa_room_item_codes():
+	codes = getattr(frappe.local, "_soa_room_item_codes", None)
+	if codes is not None:
+		return codes
+	codes = set()
+	for row in frappe.get_all(
+		"Healthcare Service Unit Type",
+		filters={"inpatient_occupancy": 1},
+		fields=["item", "item_code"],
+		limit_page_length=0,
+	):
+		if row.get("item"):
+			codes.add(row.item)
+		if row.get("item_code"):
+			codes.add(row.item_code)
+	frappe.local._soa_room_item_codes = codes
+	return codes
+
+
+def _soa_case_management_item_codes():
+	codes = getattr(frappe.local, "_soa_cm_item_codes", None)
+	if codes is not None:
+		return codes
+	codes = {
+		c
+		for c in frappe.get_all(
+			"Healthcare Service Template",
+			filters={"is_case_management": 1},
+			pluck="item_code",
+			limit_page_length=0,
+		)
+		if c
+	}
+	frappe.local._soa_cm_item_codes = codes
+	return codes
+
+
+def _soa_looks_like_room(text):
+	return bool(re.search(r"\brooms?\b", text or "", flags=re.I))
+
+
+def _soa_display_category(group, code=None, name=None):
+	"""Keep Room and Case Management as their own categories; rename Other Service → Service."""
+	g = (group or "").strip()
+	if not g and code:
+		g = (frappe.db.get_value("Item", code, "item_group") or "").strip()
+
+	if code and code in _soa_case_management_item_codes():
+		return "Case Management"
+	if _soa_looks_like_room(g) or _soa_looks_like_room(name) or (code and code in _soa_room_item_codes()):
+		return g if _soa_looks_like_room(g) else "Room"
+
+	if g.lower() in ("other service", "other services"):
+		return "Service"
+	return g or "Service"
+
+
+def _soa_summary_labels(care_type, kind):
+	"""Service code + name for collapsed Medicine / Lab rows on SOA."""
+	is_ip = str(care_type or "").strip().upper() == "IP"
+	if kind == "lab":
+		code = "IP-LAB" if is_ip else "OP-LAB"
+		name = "Lab tests"
+	else:
+		code = "IP-MED" if is_ip else "OP-MED"
+		name = "Medicine Charges"
+	return code, name, name
+
+
 def _soa_is_lab_item(item_code, item_group=None, base_reference=None):
 	"""Lab billing lines collapse to a single 'Lab test' SOA row."""
 	br = (base_reference or "").strip()
@@ -588,8 +664,10 @@ def _soa_apply_observation_display(code, name):
 	return display_code or code, display_name or name
 
 
-def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentage=0, base_reference=None):
-	"""One SOA raw line. Labs → Lab test; PMO/stock meds → Medicine (print summary)."""
+def _soa_line_from_item(
+	it, *, rate, amount, discount_amount, discount_percentage=0, base_reference=None, care_type="IP"
+):
+	"""One SOA raw line. Labs / PMO stock meds collapse to one summary row each."""
 	code = getattr(it, "item_code", None) or (it.get("item_code") if isinstance(it, dict) else None)
 	name = getattr(it, "item_name", None) or (it.get("item_name") if isinstance(it, dict) else None)
 	group = getattr(it, "item_group", None) or (it.get("item_group") if isinstance(it, dict) else None)
@@ -598,10 +676,10 @@ def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentag
 		qty = it.get("qty")
 
 	if _soa_is_lab_item(code, item_group=group, base_reference=base_reference):
-		code, name, group = "Lab test", "Lab test", "Lab test"
+		code, name, group = _soa_summary_labels(care_type, "lab")
 		rate = None
 	elif _soa_is_medicine_item(code, item_group=group, base_reference=base_reference):
-		code, name, group = "Medicine", "Medicine", "Medicine"
+		code, name, group = _soa_summary_labels(care_type, "medicine")
 		rate = None
 	else:
 		code, name = _soa_apply_observation_display(code, name)
@@ -609,7 +687,7 @@ def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentag
 	return {
 		"item_code": code,
 		"item_name": name,
-		"category": group or "Other Services",
+		"category": _soa_display_category(group, code=code, name=name),
 		"rate": None if rate is None else flt(rate),
 		"discount_amount": flt(discount_amount),
 		"discount_percentage": flt(discount_percentage),
@@ -619,18 +697,11 @@ def _soa_line_from_item(it, *, rate, amount, discount_amount, discount_percentag
 
 
 def _soa_bucket_raw_lines(raw_lines):
-	"""Aggregate SOA lines: Lab test / Medicine collapse to one row each; else by item+rate."""
+	"""Aggregate SOA lines: Lab / Medicine collapse to one row each; else by item+rate."""
 	lines = {}
 	for it in raw_lines or []:
 		code = it.get("item_code")
-		if code in ("Lab test", "Medicine", "Lab Tests", "Medicines"):
-			# Normalize legacy labels from any leftover callers
-			if code in ("Lab Tests", "Lab test"):
-				code = "Lab test"
-				it = {**it, "item_code": code, "item_name": code, "category": code}
-			else:
-				code = "Medicine"
-				it = {**it, "item_code": code, "item_name": code, "category": code}
+		if code in SOA_LAB_SUMMARY_CODES or code in SOA_MED_SUMMARY_CODES:
 			key = (code,)
 			display_rate = None
 		else:
@@ -1119,7 +1190,7 @@ def _soa_payment_payload(payment_entries, patient, case_no=None):
 	}
 
 
-def _soa_aggregate_lines(sos, invoices):
+def _soa_aggregate_lines(sos, invoices, care_type="OP"):
 	"""Build category-grouped SOA lines + totals from Sales Orders / Invoices."""
 	so_names = [s.name for s in sos]
 	si_names = [i.name for i in invoices]
@@ -1171,6 +1242,7 @@ def _soa_aggregate_lines(sos, invoices):
 					discount_amount=line_disc,
 					discount_percentage=it.discount_percentage,
 					base_reference=_soa_base_for_si_item(it, so_base_map),
+					care_type=care_type,
 				)
 			)
 
@@ -1205,6 +1277,7 @@ def _soa_aggregate_lines(sos, invoices):
 					discount_amount=flt(it.discount_amount),
 					discount_percentage=it.discount_percentage,
 					base_reference=so_base_map.get(it.parent),
+					care_type=care_type,
 				)
 			)
 
@@ -1244,6 +1317,344 @@ def _soa_aggregate_lines(sos, invoices):
 	bill_total = round(bill_total + unbilled_so_header_disc, 3)
 
 	return by_category, bill_total, discount_total
+
+
+def _soa_use_old_approach():
+	return bool(cint(frappe.db.get_single_value("Healthcare Settings", "use_old_approach_soa")))
+
+
+def _soa_is_iop_visit_type(visit_type):
+	"""True when the Patient Visit Type is IOP (word match, not e.g. BIOPSY)."""
+	vt = (visit_type or "").strip().upper()
+	return bool(re.search(r"\bIOP\b", vt))
+
+
+def _soa_visit_row_is_iop(row, type_labels=None):
+	if not row:
+		return False
+	if row.get("iop_enrollment"):
+		return True
+	link = (row.get("visit_type") or "").strip()
+	label = (type_labels or {}).get(link) or link
+	return _soa_is_iop_visit_type(link) or _soa_is_iop_visit_type(label)
+
+
+def _soa_service_category_from_visits(visit_rows, type_labels=None):
+	"""OP, IOP, or OP / IOP from the visits that appear on this statement."""
+	has_op = False
+	has_iop = False
+	for row in visit_rows or []:
+		if _soa_visit_row_is_iop(row, type_labels):
+			has_iop = True
+		else:
+			has_op = True
+	if has_op and has_iop:
+		return "OP / IOP"
+	if has_iop:
+		return "IOP"
+	return "OP"
+
+
+def _soa_format_age(dob):
+	if not dob:
+		return None
+	born = getdate(dob)
+	today = getdate()
+	months = (today.year - born.year) * 12 + (today.month - born.month)
+	if today.day < born.day:
+		months -= 1
+	years, rem_m = divmod(max(months, 0), 12)
+	return f"{years} Y - {rem_m} M"
+
+
+def _soa_patient_demographics(patient):
+	"""File no, CPR, gender, nationality, age, address for the old OP SOA header."""
+	if not patient or not frappe.db.exists("Patient", patient):
+		return {}
+	meta = frappe.get_meta("Patient")
+	wanted = [
+		"patient_name",
+		"file_no",
+		"sex",
+		"dob",
+		"uid",
+		"id_number",
+		"nationality",
+		"pat_nationality",
+		"address",
+	]
+	fields = [f for f in wanted if meta.has_field(f)]
+	row = frappe.db.get_value("Patient", patient, fields, as_dict=True) or {}
+	cpr = (row.get("id_number") or row.get("uid") or "").strip() or None
+	nationality = (row.get("nationality") or row.get("pat_nationality") or "").strip() or None
+	return {
+		"cpr": cpr,
+		"gender": row.get("sex") or None,
+		"nationality": nationality,
+		"age": _soa_format_age(row.get("dob")),
+		"address": (row.get("address") or "").strip() or None,
+		"file_no": row.get("file_no") or None,
+		"patient_name": row.get("patient_name") or None,
+	}
+
+
+def _soa_item_net_amounts(it, is_invoice=False):
+	if is_invoice:
+		item_disc = flt(it.discount_amount)
+		distributed = flt(getattr(it, "distributed_discount_amount", None) or 0)
+		line_disc = item_disc + distributed
+		net_amt = flt(it.net_amount)
+		if net_amt <= 0 and line_disc > 0:
+			net_amt = max(flt(it.amount) - distributed, 0)
+		elif net_amt <= 0:
+			net_amt = flt(it.amount)
+		return net_amt, line_disc
+	return flt(it.amount), flt(it.discount_amount)
+
+
+def _soa_pe_allocated_by_reference(ref_names):
+	"""Submitted Payment Entry allocations keyed by Sales Order / Invoice name."""
+	names = [n for n in (ref_names or []) if n]
+	if not names:
+		return {}
+	refs = frappe.get_all(
+		"Payment Entry Reference",
+		filters={"reference_name": ["in", names]},
+		fields=["reference_name", "allocated_amount", "parent"],
+		limit_page_length=0,
+	)
+	if not refs:
+		return {}
+	parents = list({r.parent for r in refs if r.parent})
+	submitted = set(
+		frappe.get_all(
+			"Payment Entry",
+			filters={"name": ["in", parents], "docstatus": 1, "payment_type": "Receive"},
+			pluck="name",
+			limit_page_length=0,
+		)
+	)
+	out = {}
+	for r in refs:
+		if r.parent not in submitted:
+			continue
+		out[r.reference_name] = out.get(r.reference_name, 0.0) + flt(r.allocated_amount)
+	return out
+
+
+def _soa_old_description(so, items, kind):
+	"""Match the legacy print: LAB/…- Lab Charges, SAL/…- Pharmacy Charges, CODE- NAME."""
+	so_name = getattr(so, "name", None) or ""
+	base = (getattr(so, "custom_base_reference", None) or "").strip()
+	base_name = (getattr(so, "custom_base_reference_name", None) or "").strip()
+	if kind == "lab":
+		label = base_name if base in ("Lab Test", "Lab Test Template") and base_name else so_name
+		return f"{label}- Lab Charges"
+	if kind == "medicine":
+		return f"{so_name}- Pharmacy Charges"
+	it = items[0] if items else None
+	code = (getattr(it, "item_code", None) or "") if it else ""
+	name = (getattr(it, "item_name", None) or "") if it else ""
+	if code and name:
+		return f"{code}- {name}"
+	return name or code or so_name
+
+
+def _soa_old_allocate_paid(dues, paid):
+	"""Spread SO/invoice paid across sibling rows; never exceed each row's due."""
+	paid = max(flt(paid), 0.0)
+	total_due = sum(dues)
+	shares = []
+	remaining = paid
+	for i, due in enumerate(dues):
+		due = flt(due)
+		if i == len(dues) - 1:
+			share = min(max(remaining, 0.0), due)
+		elif total_due > 0:
+			share = min(round(paid * due / total_due, 3), due, remaining)
+		else:
+			share = 0.0
+		share = round(max(share, 0.0), 3)
+		shares.append(share)
+		remaining = round(remaining - share, 3)
+	return shares
+
+
+def _soa_old_op_lines(sos, invoices, so_to_visit, visit_meta):
+	"""One printable row per Sales Order (lab/pharmacy collapsed; other items listed).
+
+	Invoice No. = Sales Order name, Invoice Date = Sales Order date.
+	"""
+	sos = list(sos or [])
+	invoices = list(invoices or [])
+	so_names = [s.name for s in sos]
+	si_names = [i.name for i in invoices]
+	so_by_name = {s.name: s for s in sos}
+	so_base_map = _soa_so_base_map(sos)
+
+	si_by_so = {}
+	orphan_invoices = []
+	si_to_so = {}
+	if si_names:
+		si_items = frappe.get_all(
+			"Sales Invoice Item",
+			filters={"parent": ["in", si_names]},
+			fields=[
+				"parent",
+				"item_code",
+				"item_name",
+				"item_group",
+				"qty",
+				"rate",
+				"amount",
+				"net_amount",
+				"price_list_rate",
+				"discount_amount",
+				"discount_percentage",
+				"distributed_discount_amount",
+				"so_detail",
+				"sales_order",
+			],
+			limit_page_length=0,
+		)
+		for it in si_items:
+			so = it.sales_order
+			if so:
+				si_by_so.setdefault(so, []).append(it)
+				si_to_so[it.parent] = so
+			else:
+				orphan_invoices.append(it)
+
+	so_items_by_parent = {}
+	invoiced_details = set()
+	for items in si_by_so.values():
+		for it in items:
+			if it.so_detail:
+				invoiced_details.add(it.so_detail)
+	if so_names:
+		for it in frappe.get_all(
+			"Sales Order Item",
+			filters={"parent": ["in", so_names]},
+			fields=[
+				"name",
+				"parent",
+				"item_code",
+				"item_name",
+				"item_group",
+				"rate",
+				"qty",
+				"amount",
+				"price_list_rate",
+				"discount_amount",
+				"discount_percentage",
+			],
+			limit_page_length=0,
+		):
+			if it.name in invoiced_details:
+				continue
+			so_items_by_parent.setdefault(it.parent, []).append(it)
+
+	alloc = _soa_pe_allocated_by_reference(so_names + si_names)
+	paid_by_so = {n: flt(alloc.get(n)) for n in so_names}
+	for si_name, so_name in si_to_so.items():
+		paid_by_so[so_name] = paid_by_so.get(so_name, 0.0) + flt(alloc.get(si_name))
+
+	inv_date_by_name = {i.name: i.posting_date for i in invoices}
+
+	def visit_doctor(visit_name):
+		meta = (visit_meta or {}).get(visit_name) or {}
+		doctor = meta.get("practitioner_name")
+		if not doctor and meta.get("practitioner"):
+			doctor = frappe.db.get_value(
+				"Healthcare Practitioner", meta.get("practitioner"), "practitioner_name"
+			)
+		return doctor
+
+	def classify(items, so):
+		base = so_base_map.get(getattr(so, "name", None)) if so else None
+		labs, meds, others = [], [], []
+		for it in items:
+			group = getattr(it, "item_group", None)
+			code = getattr(it, "item_code", None)
+			if _soa_is_lab_item(code, item_group=group, base_reference=base):
+				labs.append(it)
+			elif _soa_is_medicine_item(code, item_group=group, base_reference=base):
+				meds.append(it)
+			else:
+				others.append(it)
+		return labs, meds, others
+
+	def emit(so, invoice_no, invoice_date, items, is_invoice, paid_pool, visit_name):
+		if not items:
+			return []
+		labs, meds, others = classify(items, so)
+		chunks = []
+		if labs:
+			chunks.append(("lab", labs, sum(_soa_item_net_amounts(it, is_invoice)[0] for it in labs)))
+		if meds:
+			chunks.append(
+				("medicine", meds, sum(_soa_item_net_amounts(it, is_invoice)[0] for it in meds))
+			)
+		for it in others:
+			chunks.append(("other", [it], _soa_item_net_amounts(it, is_invoice)[0]))
+		dues = [c[2] for c in chunks]
+		pays = _soa_old_allocate_paid(dues, paid_pool)
+		doctor = visit_doctor(visit_name)
+		rows = []
+		for (kind, group, due), paid in zip(chunks, pays):
+			due = round(flt(due), 3)
+			paid = round(flt(paid), 3)
+			rows.append(
+				{
+					"invoice_date": str(invoice_date)[:10] if invoice_date else None,
+					"invoice_no": invoice_no,
+					"description": _soa_old_description(so, group, kind),
+					"doctor_name": doctor,
+					"due_amount": due,
+					"paid_amount": paid,
+					"balance_amount": round(due - paid, 3),
+					"visit": visit_name,
+				}
+			)
+		return rows
+
+	out = []
+	for so in sorted(sos, key=lambda s: (str(s.transaction_date or ""), str(s.creation or ""), s.name)):
+		items = si_by_so.get(so.name) or so_items_by_parent.get(so.name) or []
+		is_invoice = so.name in si_by_so
+		visit_name = (so_to_visit or {}).get(so.name)
+		out.extend(
+			emit(
+				so,
+				so.name,
+				so.transaction_date,
+				items,
+				is_invoice,
+				paid_by_so.get(so.name, 0.0),
+				visit_name,
+			)
+		)
+
+	# Invoices with no Sales Order still print, using the invoice number/date.
+	orphan_by_parent = {}
+	for it in orphan_invoices:
+		orphan_by_parent.setdefault(it.parent, []).append(it)
+	for si_name, items in orphan_by_parent.items():
+		dummy = frappe._dict(name=si_name, custom_base_reference=None, custom_base_reference_name=None)
+		out.extend(
+			emit(
+				dummy,
+				si_name,
+				inv_date_by_name.get(si_name),
+				items,
+				True,
+				flt(alloc.get(si_name)),
+				None,
+			)
+		)
+
+	out.sort(key=lambda r: (r.get("invoice_date") or "", r.get("invoice_no") or "", r.get("description") or ""))
+	return out
 
 
 def _patient_first_visit_date(patient: str):
@@ -1364,9 +1775,11 @@ def _build_op_soa(
 		patient_name = pv.patient_name or patient_name
 
 	sos_by_name = {}
+	so_to_visit = {}
 	for v in visits:
 		for so in _visit_sales_orders(v):
 			sos_by_name[so.name] = so
+			so_to_visit[so.name] = v
 	all_sos = list(sos_by_name.values())
 	all_so_names = [s.name for s in all_sos]
 
@@ -1391,7 +1804,61 @@ def _build_op_soa(
 			if i.posting_date and fd <= getdate(i.posting_date) <= td
 		]
 
-	by_category, bill_total, discount_total = _soa_aggregate_lines(sos, invoices)
+	by_category, bill_total, discount_total = _soa_aggregate_lines(sos, invoices, care_type="OP")
+
+	visit_meta = {}
+	if visits:
+		for row in frappe.get_all(
+			"Patient Visit",
+			filters={"name": ["in", visits]},
+			fields=[
+				"name",
+				"visit_type",
+				"iop_enrollment",
+				"practitioner_name",
+				"practitioner",
+				"encounter_date",
+			],
+			limit_page_length=0,
+		):
+			visit_meta[row.name] = row
+
+	type_names = {r.get("visit_type") for r in visit_meta.values() if r.get("visit_type")}
+	type_labels = {}
+	if type_names:
+		for t in frappe.get_all(
+			"Patient Visit Type",
+			filters={"name": ["in", list(type_names)]},
+			fields=["name", "visit_type"],
+			limit_page_length=0,
+		):
+			type_labels[t.name] = t.visit_type or t.name
+
+	contributor = set()
+	for so in sos:
+		vname = so_to_visit.get(so.name)
+		if vname:
+			contributor.add(vname)
+	if from_date and to_date:
+		fd, td = getdate(from_date), getdate(to_date)
+		for name, meta in visit_meta.items():
+			enc = meta.get("encounter_date")
+			if enc and fd <= getdate(enc) <= td:
+				contributor.add(name)
+	if not contributor:
+		contributor = set(visit_meta)
+	use_old = _soa_use_old_approach()
+	# Old HIS print is the combined OP / IOP statement (see sample SOA).
+	service_category = (
+		"OP / IOP"
+		if use_old
+		else _soa_service_category_from_visits(
+			[visit_meta[n] for n in contributor if n in visit_meta],
+			type_labels,
+		)
+	)
+	old_lines = _soa_old_op_lines(sos, invoices, so_to_visit, visit_meta) if use_old else []
+	demo = _soa_patient_demographics(patient)
 
 	paid_entries = []
 	seen_pe = set()
@@ -1408,6 +1875,8 @@ def _build_op_soa(
 		case_no=header_visit or None,
 	)
 	paid_total = flt(pay_block.get("paid_total"))
+	line_paid = round(sum(flt(r.get("paid_amount")) for r in old_lines), 3) if old_lines else 0.0
+	pending_adjustment = round(max(paid_total - line_paid, 0.0), 3)
 
 	doctor_name = None
 	visit_date = None
@@ -1439,13 +1908,22 @@ def _build_op_soa(
 		"visit": visit_label,
 		"case_no": case_no,
 		"patient": patient,
-		"patient_name": patient_name,
-		"file_no": file_no,
+		"patient_name": patient_name or demo.get("patient_name"),
+		"file_no": file_no or demo.get("file_no"),
+		"cpr": demo.get("cpr"),
+		"gender": demo.get("gender"),
+		"nationality": demo.get("nationality"),
+		"age": demo.get("age"),
+		"address": demo.get("address"),
 		"doctor_name": doctor_name,
 		"visit_date": visit_date,
 		"visit_type": visit_type,
 		"status": status,
 		"branch": branch,
+		"service_category": service_category,
+		"use_old_approach_soa": use_old,
+		"old_lines": old_lines,
+		"pending_adjustment": pending_adjustment,
 		"categories": by_category,
 		"bill_total": bill_total,
 		"discount_total": discount_total,
