@@ -5143,6 +5143,14 @@ def process_legacy_sales_detail_import_batch(offset: int = 0) -> None:
 		raise
 
 
+@frappe.whitelist()
+def start_legacy_sales_item_link_backfill_migration() -> dict:
+	"""Backfill blank Item links on Legacy Sales Transaction Item from item_num → ITEM_00_01."""
+	from healthcare.api.legacy_sales_item_link_backfill import start_legacy_sales_item_link_backfill
+
+	return start_legacy_sales_item_link_backfill()
+
+
 # ── Service Request Excel import (Oracle VISIT_00_02) ───────────────────────
 
 

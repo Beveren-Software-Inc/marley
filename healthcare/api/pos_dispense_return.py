@@ -140,6 +140,53 @@ def get_billable_grand_total_for_sales_order(so) -> float:
 	return flt(total, so.precision("grand_total") if hasattr(so, "precision") else 2)
 
 
+def get_returned_amount_map_for_sales_orders(so_names) -> dict[str, float]:
+	"""Positive returned amount per Sales Order from submitted return Delivery Notes.
+
+	Does not subtract invoiced qty — this is stock/dispense remaining, for visit
+	pharmacy cost and similar displays.
+	"""
+	names = [n for n in (so_names or []) if n]
+	if not names:
+		return {}
+	rows = frappe.db.sql(
+		"""
+		SELECT sales_order, SUM(returned_amount) AS returned_amount
+		FROM (
+			SELECT
+				COALESCE(
+					NULLIF(orig_dni.against_sales_order, ''),
+					NULLIF(ret_dni.against_sales_order, '')
+				) AS sales_order,
+				ABS(
+					CASE
+						WHEN IFNULL(ret_dni.net_amount, 0) != 0 THEN ret_dni.net_amount
+						ELSE ret_dni.amount
+					END
+				) AS returned_amount
+			FROM `tabDelivery Note Item` ret_dni
+			INNER JOIN `tabDelivery Note` ret_dn ON ret_dn.name = ret_dni.parent
+			LEFT JOIN `tabDelivery Note Item` orig_dni ON orig_dni.name = ret_dni.dn_detail
+			WHERE ret_dn.docstatus = 1
+			  AND IFNULL(ret_dn.is_return, 0) = 1
+			  AND (
+					orig_dni.against_sales_order IN %(so_names)s
+					OR ret_dni.against_sales_order IN %(so_names)s
+			  )
+		) returns_by_so
+		WHERE sales_order IN %(so_names)s
+		GROUP BY sales_order
+		""",
+		{"so_names": names},
+		as_dict=True,
+	)
+	return {row.sales_order: flt(row.returned_amount) for row in rows if row.sales_order}
+
+
+def net_grand_total_after_returns(grand_total, returned_amount) -> float:
+	return max(0.0, flt(grand_total) - flt(returned_amount))
+
+
 def enrich_sales_order_billable_fields(row_or_doc):
 	"""Attach billable_grand_total / returned_amount on list rows or SO docs."""
 	if isinstance(row_or_doc, dict):

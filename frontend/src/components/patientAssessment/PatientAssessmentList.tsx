@@ -56,26 +56,6 @@ const FilterToggleButton = ({
   </button>
 )
 
-const statusBadge = (docstatus: number) => {
-  if (docstatus === 1)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-100 text-emerald-700">
-        Submitted
-      </span>
-    )
-  if (docstatus === 2)
-    return (
-      <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-100 text-red-700">
-        Cancelled
-      </span>
-    )
-  return (
-    <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-amber-100 text-amber-700">
-      Draft
-    </span>
-  )
-}
-
 export const PatientAssessmentList = ({
   patient,
   refreshKey,
@@ -398,9 +378,6 @@ export const PatientAssessmentList = ({
                   Score
                 </th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">
-                  Status
-                </th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">
                   Action
                 </th>
               </tr>
@@ -445,7 +422,6 @@ export const PatientAssessmentList = ({
                     {r.healthcare_practitioner || '—'}
                   </td>
                   <td className="px-3 py-2">{scoreDisplay(r)}</td>
-                  <td className="px-3 py-2">{statusBadge(r.docstatus)}</td>
                   {/* stopPropagation prevents the row click (detail modal) from firing when the print button is clicked */}
                   <td
                     className="px-3 py-2"
