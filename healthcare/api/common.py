@@ -3078,8 +3078,8 @@ def get_lab_test_templates_admin_list(search=None):
 			"female_min_range", "female_max_range", "male_min_range", "male_max_range",
 			"min_range", "max_range", "lab_test_uom",
 		],
-		"limit": 500,
-		"order_by": "lab_test_name asc",
+		"limit": 5000,
+		"order_by": "name asc",
 	}
 	if or_filters:
 		query_kwargs["or_filters"] = or_filters

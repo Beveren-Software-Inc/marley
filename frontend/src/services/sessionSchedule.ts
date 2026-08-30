@@ -40,6 +40,7 @@ export interface CreateSessionScheduleData {
   from_time?: string
   to_time?: string
   amount?: number
+  doc_remarks?: string
 }
 
 export async function fetchSessionSchedules(
@@ -131,6 +132,23 @@ export async function createSessionSchedule(data: CreateSessionScheduleData): Pr
   } else {
     throw new Error(resData?.exc || 'Failed to create session schedule')
   }
+}
+
+export async function updateSessionSchedule(
+  name: string,
+  data: CreateSessionScheduleData,
+): Promise<SessionSchedule> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest<SessionSchedule>(
+    '/api/method/healthcare.api.session_schedule.update_session_schedule',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        session_schedule_name: name,
+        data,
+      }),
+    },
+  )
 }
 
 export async function updateSessionScheduleStatus(

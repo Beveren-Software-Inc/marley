@@ -6,10 +6,13 @@ import {
 } from '../ui/CreateModalChrome'
 import {
   createSessionSchedule,
+  fetchSessionSchedule,
   fetchSessionScheduleAmount,
   getHealthcareServiceTemplates,
+  updateSessionSchedule,
   type CreateSessionScheduleData,
   type HealthcareServiceTemplateOption,
+  type SessionSchedule,
 } from '../../services/sessionSchedule'
 import { fetchHealthcarePractitioners, fetchPatientVisits, type LinkFieldOption } from '../../services/common'
 import { getPortalBranch } from '../../services/costCenterPermission'
@@ -32,6 +35,37 @@ interface CreateSessionScheduleModalProps {
   onSuccess?: () => void
   initialAdmission?: string
   initialPatientVisit?: string
+  editName?: string
+  initialRecord?: SessionSchedule
+}
+
+function toDateInput(value?: string): string {
+  if (!value) return ''
+  return value.slice(0, 10)
+}
+
+function toTimeInput(value?: string): string {
+  if (!value) return ''
+  const parts = value.split(':')
+  if (parts.length < 2) return ''
+  return `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`
+}
+
+function recordToForm(rec: SessionSchedule) {
+  return {
+    date: toDateInput(rec.date) || new Date().toISOString().split('T')[0],
+    admission_number: rec.admission_number || '',
+    patient_visit: rec.patient_visit || '',
+    session_type: rec.session_type || '',
+    session_name: rec.session_name || '',
+    practitioner: rec.practitioner || '',
+    practitioner_name: rec.practitioner_name || '',
+    cost_center: rec.cost_center || '',
+    from_time: toTimeInput(rec.from_time),
+    to_time: toTimeInput(rec.to_time),
+    amount: rec.amount != null && !Number.isNaN(Number(rec.amount)) ? String(rec.amount) : '',
+    doc_remarks: rec.doc_remarks || '',
+  }
 }
 
 // Combobox for practitioner selection
@@ -152,42 +186,56 @@ export const CreateSessionScheduleModal = ({
   onSuccess,
   initialAdmission,
   initialPatientVisit,
+  editName,
+  initialRecord,
 }: CreateSessionScheduleModalProps) => {
   const { mode, activeVisit, activeAdmission, selectedPatient } = useCareContext()
+  const isEdit = Boolean(editName)
   const isIPMode = mode === 'IP'
   const isOPMode = mode === 'OP'
 
-  const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    admission_number: isIPMode ? (initialAdmission || activeAdmission || '') : '',
-    patient_visit: isOPMode ? (initialPatientVisit || activeVisit || '') : '',
-    session_type: '',
-    session_name: '',
-    practitioner: '',
-    practitioner_name: '',
-    cost_center: '',
-    from_time: '',
-    to_time: '',
-    amount: '',
-  })
+  const [formData, setFormData] = useState(() =>
+    initialRecord
+      ? recordToForm(initialRecord)
+      : {
+          date: new Date().toISOString().split('T')[0],
+          admission_number: isIPMode ? (initialAdmission || activeAdmission || '') : '',
+          patient_visit: isOPMode ? (initialPatientVisit || activeVisit || '') : '',
+          session_type: '',
+          session_name: '',
+          practitioner: '',
+          practitioner_name: '',
+          cost_center: '',
+          from_time: '',
+          to_time: '',
+          amount: '',
+          doc_remarks: '',
+        },
+  )
 
   const [loading, setLoading] = useState(false)
+  const [loadingRecord, setLoadingRecord] = useState(Boolean(editName && !initialRecord))
   const [error, setError] = useState<string | null>(null)
+  const [billed, setBilled] = useState(Boolean(initialRecord?.sales_order))
+  const skipNextPricingRef = useRef(Boolean(editName || initialRecord))
 
   // Healthcare Service Templates (session_type links to this doctype)
   const [serviceTemplates, setServiceTemplates] = useState<HealthcareServiceTemplateOption[]>([])
   const [serviceTemplatesLoading, setServiceTemplatesLoading] = useState(false)
-  const [serviceTemplateQuery, setServiceTemplateQuery] = useState('')
+  const [serviceTemplateQuery, setServiceTemplateQuery] = useState(
+    initialRecord?.session_name || initialRecord?.session_type || '',
+  )
 
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
   const [costCenterLoading, setCostCenterLoading] = useState(false)
 
   // Global portal branch auto-applies as the default (UI filter only).
   useEffect(() => {
+    if (isEdit) return
     const cc = getPortalBranch()
     if (!cc) return
     setFormData((prev) => (prev.cost_center ? prev : { ...prev, cost_center: cc }))
-  }, [])
+  }, [isEdit])
 
   // Admissions (IP)
   const [admissionOptions, setAdmissionOptions] = useState<InpatientRecord[]>([])
@@ -202,7 +250,9 @@ export const CreateSessionScheduleModal = ({
   // Practitioner (who entered the session)
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerLoading, setPractitionerLoading] = useState(false)
-  const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [practitionerQuery, setPractitionerQuery] = useState(
+    initialRecord?.practitioner_name || initialRecord?.practitioner || '',
+  )
   const {
     locked: practitionerLocked,
     practitionerId: linkedPractitionerId,
@@ -271,6 +321,11 @@ export const CreateSessionScheduleModal = ({
   // Refresh amount when visit/admission/patient context changes after a template is chosen
   useEffect(() => {
     if (!formData.session_type) return
+    if (skipNextPricingRef.current) {
+      skipNextPricingRef.current = false
+      return
+    }
+    if (billed) return
     void applyInsuredAmount(formData.session_type)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
@@ -280,16 +335,44 @@ export const CreateSessionScheduleModal = ({
     selectedPatient,
     isIPMode,
     isOPMode,
+    billed,
   ])
 
   useEffect(() => {
+    if (!editName) return
+    let cancelled = false
+    setLoadingRecord(true)
+    fetchSessionSchedule(editName)
+      .then((rec) => {
+        if (cancelled) return
+        skipNextPricingRef.current = true
+        setFormData(recordToForm(rec))
+        setBilled(Boolean(rec.sales_order))
+        setServiceTemplateQuery(rec.session_name || rec.session_type || '')
+        setPractitionerQuery(rec.practitioner_name || rec.practitioner || '')
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : 'Failed to load session schedule')
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRecord(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [editName])
+
+  useEffect(() => {
+    if (isEdit) return
     if (isIPMode && activeAdmission && !formData.admission_number) {
       setFormData((prev) => ({ ...prev, admission_number: activeAdmission }))
     }
     if (isOPMode && activeVisit && !formData.patient_visit) {
       setFormData((prev) => ({ ...prev, patient_visit: activeVisit }))
     }
-  }, [activeAdmission, activeVisit, isIPMode, isOPMode, formData.admission_number, formData.patient_visit])
+  }, [activeAdmission, activeVisit, isIPMode, isOPMode, formData.admission_number, formData.patient_visit, isEdit])
 
   // Load branches
   useEffect(() => {
@@ -336,7 +419,7 @@ export const CreateSessionScheduleModal = ({
 
   // Load patient visits (OP)
   useEffect(() => {
-    if (!visitOpen || !isOPMode) return
+    if (!visitOpen) return
 
     const timeoutId = setTimeout(async () => {
       try {
@@ -361,6 +444,7 @@ export const CreateSessionScheduleModal = ({
 
   // Auto-populate current user's linked practitioner; lock for doctors (not admins).
   useEffect(() => {
+    if (isEdit) return
     if (!linkedPractitionerId) return
     setFormData((prev) =>
       prev.practitioner
@@ -372,7 +456,7 @@ export const CreateSessionScheduleModal = ({
           },
     )
     setPractitionerQuery((q) => q.trim() || linkedPractitionerLabel || linkedPractitionerId)
-  }, [linkedPractitionerId, linkedPractitionerLabel])
+  }, [linkedPractitionerId, linkedPractitionerLabel, isEdit])
 
   const handleChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }))
@@ -391,18 +475,18 @@ export const CreateSessionScheduleModal = ({
       return
     }
 
-    if (isIPMode && !formData.admission_number) {
+    if (!isEdit && isIPMode && !formData.admission_number) {
       setError('Admission number is required in IP mode.')
       return
     }
 
-    if (isOPMode && !formData.patient_visit) {
+    if (!isEdit && isOPMode && !formData.patient_visit) {
       setError('Patient visit is required in OP mode.')
       return
     }
 
     if (!selectedPatient && !formData.admission_number && !formData.patient_visit) {
-      setError('Select a patient (or link a Patient Visit / Admission) before creating a session schedule.')
+      setError('Select a patient (or link a Patient Visit / Admission) before saving a session schedule.')
       return
     }
 
@@ -420,17 +504,23 @@ export const CreateSessionScheduleModal = ({
         cost_center: formData.cost_center || undefined,
         from_time: formData.from_time || undefined,
         to_time: formData.to_time || undefined,
-        admission_number: isIPMode ? (formData.admission_number || undefined) : undefined,
-        patient_visit: isOPMode ? (formData.patient_visit || undefined) : undefined,
+        admission_number: formData.admission_number || undefined,
+        patient_visit: formData.patient_visit || undefined,
         amount: formData.amount !== '' ? Number(formData.amount) : undefined,
+        doc_remarks: formData.doc_remarks || undefined,
       }
 
-      await createSessionSchedule(data)
-      toast.success('Session Schedule created successfully')
+      if (isEdit && editName) {
+        await updateSessionSchedule(editName, data)
+        toast.success('Session Schedule updated')
+      } else {
+        await createSessionSchedule(data)
+        toast.success('Session Schedule created successfully')
+      }
       onSuccess?.()
       onClose()
     } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Failed to create session schedule'
+      const msg = err instanceof Error ? err.message : `Failed to ${isEdit ? 'update' : 'create'} session schedule`
       setError(msg)
       toast.error(msg)
     } finally {
@@ -447,11 +537,18 @@ export const CreateSessionScheduleModal = ({
     label: tpl.service_name || tpl.name,
   }))
 
+  const showAdmission = isIPMode || Boolean(formData.admission_number)
+  const showVisit = isOPMode || Boolean(formData.patient_visit)
+  const busy = loading || loadingRecord
+
   return (
     <div className={CREATE_MODAL_OVERLAY}>
       <div className={createModalShellClass('w-full max-w-2xl max-h-[90vh] overflow-y-auto')}>
         {/* Header */}
-        <CreateModalHeader title="Create Session Schedule" onClose={onClose} />
+        <CreateModalHeader
+          title={isEdit ? 'Edit Session Schedule' : 'Create Session Schedule'}
+          onClose={onClose}
+        />
 
 
         {/* Form */}
@@ -461,6 +558,14 @@ export const CreateSessionScheduleModal = ({
               <p className="text-red-700 text-sm">{error}</p>
             </div>
           )}
+          {loadingRecord ? (
+            <p className="text-sm text-slate-500">Loading session schedule…</p>
+          ) : null}
+          {billed ? (
+            <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              This session has been billed. Service template and amount cannot be changed.
+            </p>
+          ) : null}
 
           {/* Date */}
           <div>
@@ -477,10 +582,10 @@ export const CreateSessionScheduleModal = ({
           </div>
 
           {/* Care context: IP admission or OP patient visit */}
-          {isIPMode ? (
+          {showAdmission ? (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Admission Number <span className="text-red-500">*</span>
+                Admission Number {isIPMode && !isEdit ? <span className="text-red-500">*</span> : null}
               </label>
               <div className="relative">
                 <input
@@ -515,10 +620,11 @@ export const CreateSessionScheduleModal = ({
                 )}
               </div>
             </div>
-          ) : isOPMode ? (
+          ) : null}
+          {showVisit ? (
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">
-                Patient Visit <span className="text-red-500">*</span>
+                Patient Visit {isOPMode && !isEdit ? <span className="text-red-500">*</span> : null}
               </label>
               <div className="relative">
                 <input
@@ -560,11 +666,11 @@ export const CreateSessionScheduleModal = ({
                 </p>
               ) : null}
             </div>
-          ) : (
+          ) : !showAdmission ? (
             <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
               Select IP or OP mode in the header to link this session to an admission or patient visit.
             </div>
-          )}
+          ) : null}
 
           {/* Healthcare Service Template */}
           <div>
@@ -578,6 +684,7 @@ export const CreateSessionScheduleModal = ({
               options={serviceTemplateOptions}
               loading={serviceTemplatesLoading}
               required
+              locked={billed}
               onQueryChange={(q) => {
                 setServiceTemplateQuery(q)
                 if (formData.session_type) {
@@ -648,8 +755,9 @@ export const CreateSessionScheduleModal = ({
               step="0.01"
               placeholder="Filled from template; edit if needed"
               value={formData.amount}
+              disabled={billed}
               onChange={(e) => handleChange('amount', e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:opacity-60"
             />
             <p className="mt-1 text-xs text-slate-500">
               List / Inclusive price. Insurance discount is applied on the Sales Order → Invoice.
@@ -756,19 +864,32 @@ export const CreateSessionScheduleModal = ({
             />
           </div>
 
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              Remarks
+            </label>
+            <textarea
+              rows={3}
+              value={formData.doc_remarks}
+              onChange={(e) => handleChange('doc_remarks', e.target.value)}
+              placeholder="Optional notes"
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+            />
+          </div>
+
           {/* Actions */}
           <div className="flex gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              disabled={loading}
+              disabled={busy}
               className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-md hover:bg-slate-50 disabled:opacity-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={loading}
+              disabled={busy}
               className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
             >
               {loading && (
@@ -777,7 +898,7 @@ export const CreateSessionScheduleModal = ({
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                 </svg>
               )}
-              {loading ? 'Creating...' : 'Create Session Schedule'}
+              {loading ? (isEdit ? 'Saving...' : 'Creating...') : isEdit ? 'Save Changes' : 'Create Session Schedule'}
             </button>
           </div>
         </form>

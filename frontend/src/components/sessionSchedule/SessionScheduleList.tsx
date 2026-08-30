@@ -15,6 +15,8 @@ import { DateFilterInput } from '../ui/DateFilterInput'
 import { PaginationControls, DEFAULT_PAGE_SIZE, type PageSize } from '../ui/PaginationControls'
 import { fetchHealthcarePractitioners, getCurrentUserPractitionerOption, type LinkFieldOption } from '../../services/common'
 import { SessionScheduleDetailPanel } from './SessionScheduleDetailPanel'
+import { CreateSessionScheduleModal } from './CreateSessionScheduleModal'
+import { useCareContext } from '../../providers/CareContextProvider'
 
 interface SessionScheduleListProps {
   refreshKey?: string | number
@@ -51,6 +53,7 @@ function formatAmount(value?: number): string {
 }
 
 export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embedded, roleGroup }: SessionScheduleListProps) => {
+  const { guardClinicalEdit } = useCareContext()
   const [schedules, setSchedules] = useState<SessionSchedule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
@@ -59,6 +62,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null)
   const [detailSchedule, setDetailSchedule] = useState<SessionSchedule | null>(null)
+  const [editSchedule, setEditSchedule] = useState<SessionSchedule | null>(null)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const cardFilters = useCardFilters()
@@ -209,6 +213,19 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
   const handleView = (schedule: SessionSchedule) => {
     setDetailSchedule(schedule)
     setOpenActionRow(null)
+  }
+
+  const canEditSchedule = (schedule: SessionSchedule) => {
+    const status = schedule.transaction_status || ''
+    return status !== 'Cancelled' && status !== 'Submitted'
+  }
+
+  const handleEdit = (schedule: SessionSchedule) => {
+    guardClinicalEdit(() => {
+      setDetailSchedule(null)
+      setEditSchedule(schedule)
+      setOpenActionRow(null)
+    })
   }
 
   const handleOpenBill = (salesOrder: string) => {
@@ -405,7 +422,7 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Doctor</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Practitioner</th>
                 <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase">Status</th>
-                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[100px]">Actions</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase w-[160px]">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
@@ -446,6 +463,16 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                   </td>
                   <td className="px-4 py-2 align-middle" onClick={(e) => e.stopPropagation()}>
                     <div className="flex items-center gap-1.5">
+                      {canEditSchedule(schedule) ? (
+                        <button
+                          type="button"
+                          onClick={() => handleEdit(schedule)}
+                          disabled={isRowBusy(schedule)}
+                          className="inline-flex items-center rounded border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+                        >
+                          Edit
+                        </button>
+                      ) : null}
                       <div className="relative" ref={openActionRow === schedule.name ? menuRef : undefined}>
                         <button
                           type="button"
@@ -480,6 +507,15 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
                           >
                             View
                           </button>
+                          {canEditSchedule(schedule) ? (
+                            <button
+                              type="button"
+                              onClick={() => handleEdit(schedule)}
+                              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
                           {schedule.transaction_status === 'Draft' && (
                             <button
                               type="button"
@@ -561,6 +597,19 @@ export const SessionScheduleList = ({ refreshKey, patient, admissionNumber, embe
           name={detailSchedule.name}
           preview={detailSchedule}
           onClose={() => setDetailSchedule(null)}
+          onEdit={canEditSchedule(detailSchedule) ? () => handleEdit(detailSchedule) : undefined}
+        />
+      ) : null}
+
+      {editSchedule ? (
+        <CreateSessionScheduleModal
+          editName={editSchedule.name}
+          initialRecord={editSchedule}
+          onClose={() => setEditSchedule(null)}
+          onSuccess={() => {
+            setEditSchedule(null)
+            setRefreshTrigger((k) => k + 1)
+          }}
         />
       ) : null}
     </div>
