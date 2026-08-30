@@ -117,6 +117,11 @@ function trimOrEmpty(value: string | number | null | undefined): string {
   return asStr(value).trim()
 }
 
+/** LAB-001, LAB-002, LAB-010 — not lexicographic LAB-1, LAB-10, LAB-2. */
+function compareLabTestNo(a: string, b: string): number {
+  return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' })
+}
+
 const cellInputClass =
   'w-full min-w-[2.75rem] max-w-[6.5rem] rounded border border-slate-200 bg-white px-1 py-0.5 text-[11px] text-slate-800 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary'
 
@@ -169,11 +174,7 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
   const parents = useMemo(() => {
     // Only true group templates — do not list standalone singles here.
     const list = allRows.filter((r) => !r.disabled && isGroupTemplate(r))
-    list.sort((a, b) =>
-      (a.lab_test_name || a.name).localeCompare(b.lab_test_name || b.name, undefined, {
-        sensitivity: 'base',
-      }),
-    )
+    list.sort((a, b) => compareLabTestNo(a.name, b.name))
     const q = parentSearch.trim().toLowerCase()
     if (!q) return list
     return list.filter(
@@ -200,12 +201,14 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
 
   const children = useMemo(() => {
     if (!selectedParentRow) return []
-    return allRows.filter(
-      (r) =>
-        !r.is_group &&
-        (r.lab_group || '').trim() === selectedParentRow.name &&
-        !r.disabled,
-    )
+    return allRows
+      .filter(
+        (r) =>
+          !r.is_group &&
+          (r.lab_group || '').trim() === selectedParentRow.name &&
+          !r.disabled,
+      )
+      .sort((a, b) => compareLabTestNo(a.name, b.name))
   }, [allRows, selectedParentRow])
 
   // Reset drafts when the visible children set changes (parent switch / reload).
