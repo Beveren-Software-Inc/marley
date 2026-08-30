@@ -132,7 +132,7 @@ import json
 
 import frappe
 from frappe import _
-from frappe.utils import add_months, cint, cstr, flt, getdate, nowdate, today
+from frappe.utils import add_months, cint, cstr, flt, formatdate, getdate, nowdate, today
 from healthcare.healthcare.editing_lock import assert_editing_allowed
 
 
@@ -945,6 +945,466 @@ def get_payment_summary(
     }
 
 
+_COLLECTION_AMOUNT_KEYS = (
+    "consultation",
+    "pharmacy",
+    "lab",
+    "cash",
+    "cheque",
+    "card",
+    "bwallet",
+    "disc",
+    "balance",
+    "total_due",
+    "paid_previous",
+    "disc_previous",
+)
+
+
+def _collection_zero_amounts():
+    return {k: 0.0 for k in _COLLECTION_AMOUNT_KEYS}
+
+
+def _collection_add_amounts(dst, src):
+    for k in _COLLECTION_AMOUNT_KEYS:
+        dst[k] = flt(dst.get(k)) + flt(src.get(k))
+
+
+def _collection_round_amounts(row):
+    for k in _COLLECTION_AMOUNT_KEYS:
+        row[k] = round(flt(row.get(k)), 3)
+    row["total_due"] = round(
+        flt(row.get("consultation")) + flt(row.get("pharmacy")) + flt(row.get("lab")),
+        3,
+    )
+
+
+def _collection_mode_bucket(mode):
+    m = (mode or "").strip().lower()
+    if not m:
+        return "cash"
+    if "cash" in m:
+        return "cash"
+    if "wallet" in m or "benefit" in m:
+        return "bwallet"
+    if "card" in m or "visa" in m or "master" in m or "credit" in m:
+        return "card"
+    return "cheque"
+
+
+def _collection_service_split(items, so_base_by_name):
+    consult = pharm = lab = 0.0
+    from healthcare.api.reception_reports import _soa_is_lab_item, _soa_is_medicine_item
+
+    for it in items or []:
+        amt = flt(it.get("net_amount") if it.get("net_amount") not in (None, "") else it.get("amount"))
+        so_name = (it.get("sales_order") or "").strip()
+        base_ref = (so_base_by_name.get(so_name) or "") if so_name else ""
+        code = it.get("item_code")
+        group = it.get("item_group")
+        if _soa_is_lab_item(code, item_group=group, base_reference=base_ref):
+            lab += amt
+        elif _soa_is_medicine_item(code, item_group=group, base_reference=base_ref):
+            pharm += amt
+        else:
+            consult += amt
+    return consult, pharm, lab
+
+
+def _collection_allocate(consult, pharm, lab, allocated):
+    allocated = flt(allocated)
+    total = flt(consult) + flt(pharm) + flt(lab)
+    if allocated <= 0:
+        return 0.0, 0.0, 0.0
+    if total <= 0:
+        return allocated, 0.0, 0.0
+    return (
+        allocated * flt(consult) / total,
+        allocated * flt(pharm) / total,
+        allocated * flt(lab) / total,
+    )
+
+
+def _collection_doctor_label(ref_type, ref_name, consult, pharm, lab, cache):
+    key = (ref_type, ref_name)
+    if key in cache:
+        named = cache[key]
+        if named:
+            return named
+    else:
+        named = ""
+        if ref_type == "Patient Visit" and ref_name:
+            named = frappe.db.get_value("Patient Visit", ref_name, "practitioner_name") or ""
+        elif ref_type == "Inpatient Admission" and ref_name:
+            row = frappe.db.get_value(
+                "Inpatient Admission",
+                ref_name,
+                ["admission_doctor_name", "primary_practitioner"],
+                as_dict=True,
+            ) or {}
+            named = (row.get("admission_doctor_name") or "").strip()
+            if not named and row.get("primary_practitioner"):
+                named = (
+                    frappe.db.get_value(
+                        "Healthcare Practitioner",
+                        row.primary_practitioner,
+                        "practitioner_name",
+                    )
+                    or ""
+                )
+        cache[key] = named
+        if named:
+            return named
+    if flt(lab) >= flt(pharm) and flt(lab) > flt(consult):
+        return "LAB VISIT"
+    if flt(pharm) > flt(consult):
+        return "PHARMACY"
+    return named or ""
+
+
+def _collection_case_date(ref_type, ref_name, fallback, cache):
+    key = (ref_type, ref_name)
+    if key in cache:
+        return cache[key] or fallback
+    dt = None
+    if ref_type == "Patient Visit" and ref_name:
+        dt = frappe.db.get_value("Patient Visit", ref_name, "encounter_date")
+    elif ref_type == "Inpatient Admission" and ref_name:
+        dt = frappe.db.get_value("Inpatient Admission", ref_name, "admitted_datetime")
+        if dt:
+            dt = getdate(dt)
+    cache[key] = dt
+    return dt or fallback
+
+
+def _collection_patient_display(patient, party_name, cache):
+    if patient and patient in cache:
+        return cache[patient]
+    out = {"file_no": "", "patient_name": party_name or ""}
+    if patient:
+        row = frappe.db.get_value("Patient", patient, ["file_no", "patient_name"], as_dict=True) or {}
+        out["file_no"] = row.get("file_no") or ""
+        out["patient_name"] = row.get("patient_name") or party_name or patient
+    cache[patient or ""] = out
+    return out
+
+
+@frappe.whitelist()
+def get_daily_collection_summary(
+    reference_type=None,
+    reference_name=None,
+    patient=None,
+    from_date=None,
+    to_date=None,
+    mode_of_payment=None,
+    receptionist_shift=None,
+    filter_by_open_shift=None,
+    cashier=None,
+):
+    """Daily Collection Summary: cashier → IP / OP visit rows with service + mode splits."""
+    from_date = getdate(from_date or today())
+    to_date = getdate(to_date or from_date)
+    if from_date > to_date:
+        frappe.throw(_("From Date must be before To Date"))
+
+    pe_rows = get_payment_entries(
+        reference_type=reference_type,
+        reference_name=reference_name,
+        patient=patient,
+        from_date=str(from_date),
+        to_date=str(to_date),
+        mode_of_payment=mode_of_payment,
+        receptionist_shift=receptionist_shift,
+        filter_by_open_shift=filter_by_open_shift,
+        cashier=cashier,
+    )
+    receive = [
+        r
+        for r in pe_rows
+        if cint(r.get("docstatus")) == 1 and (r.get("payment_type") or "Receive") != "Pay"
+    ]
+
+    company = frappe.defaults.get_user_default("Company") or frappe.db.get_single_value(
+        "Global Defaults", "default_company"
+    )
+    company_name = (
+        frappe.db.get_value("Company", company, "company_name") if company else ""
+    ) or company or ""
+    branch = ""
+    cc_names = []
+    for r in receive:
+        cc = (r.get("cost_center") or "").strip()
+        if cc and cc not in cc_names:
+            cc_names.append(cc)
+    if len(cc_names) == 1:
+        branch = (
+            frappe.db.get_value("Cost Center", cc_names[0], "cost_center_name") or cc_names[0]
+        )
+    elif cc_names:
+        branch = "All"
+    else:
+        from healthcare.api.common import get_permitted_cost_centers
+
+        permitted = get_permitted_cost_centers()
+        if permitted and len(permitted) == 1:
+            branch = (
+                frappe.db.get_value("Cost Center", permitted[0], "cost_center_name") or permitted[0]
+            )
+        elif not permitted:
+            branch = ""
+
+    empty = {
+        "from_date": str(from_date),
+        "to_date": str(to_date),
+        "company": company_name,
+        "branch": branch or "",
+        "users": [],
+        "report_total": _collection_zero_amounts(),
+    }
+    if not receive:
+        _collection_round_amounts(empty["report_total"])
+        return empty
+
+    pe_names = [r.name for r in receive]
+    refs = frappe.get_all(
+        "Payment Entry Reference",
+        filters={"parent": ["in", pe_names], "reference_doctype": "Sales Invoice"},
+        fields=["parent", "reference_name", "allocated_amount"],
+        limit_page_length=0,
+    )
+    refs_by_pe = {}
+    invoice_names = []
+    for ref in refs:
+        refs_by_pe.setdefault(ref.parent, []).append(ref)
+        if ref.reference_name and ref.reference_name not in invoice_names:
+            invoice_names.append(ref.reference_name)
+
+    invoices = {}
+    items_by_invoice = {}
+    so_base_by_name = {}
+    if invoice_names:
+        si_meta = frappe.get_meta("Sales Invoice")
+        si_fields = [
+            "name",
+            "posting_date",
+            "grand_total",
+            "outstanding_amount",
+        ]
+        for fieldname in (
+            "patient",
+            "patient_name",
+            "discount_amount",
+            "custom_reference_type",
+            "custom_reference_name",
+            "cost_center",
+        ):
+            if si_meta.has_field(fieldname):
+                si_fields.append(fieldname)
+        for inv in frappe.get_all(
+            "Sales Invoice",
+            filters={"name": ["in", invoice_names]},
+            fields=si_fields,
+            limit_page_length=0,
+        ):
+            invoices[inv.name] = inv
+        item_meta = frappe.get_meta("Sales Invoice Item")
+        item_fields = ["parent", "item_code", "item_name", "amount"]
+        for fieldname in ("item_group", "net_amount", "discount_amount", "sales_order"):
+            if item_meta.has_field(fieldname):
+                item_fields.append(fieldname)
+        item_rows = frappe.get_all(
+            "Sales Invoice Item",
+            filters={"parent": ["in", invoice_names]},
+            fields=item_fields,
+            limit_page_length=0,
+        )
+        so_names = []
+        for it in item_rows:
+            items_by_invoice.setdefault(it.parent, []).append(it)
+            so_name = it.get("sales_order")
+            if so_name and so_name not in so_names:
+                so_names.append(so_name)
+        if so_names:
+            so_fields = ["name"]
+            if frappe.get_meta("Sales Order").has_field("custom_base_reference"):
+                so_fields.append("custom_base_reference")
+            for so in frappe.get_all(
+                "Sales Order",
+                filters={"name": ["in", so_names]},
+                fields=so_fields,
+                limit_page_length=0,
+            ):
+                so_base_by_name[so.name] = so.get("custom_base_reference") or ""
+
+    doctor_cache, date_cache, patient_cache = {}, {}, {}
+    grouped = {}
+    invoice_seen = set()
+
+    for pe in receive:
+        cashier_id = pe.get("cashier") or pe.get("owner") or ""
+        cashier_name = pe.get("cashier_name") or cashier_id
+        mode_key = _collection_mode_bucket(pe.get("mode_of_payment"))
+        pe_refs = refs_by_pe.get(pe.name) or []
+        if not pe_refs:
+            ref_type = (pe.get("custom_op_or_ip") or "").strip()
+            if ref_type == "Inpatient Admission" or ref_type.upper() == "IP":
+                patient_type = "IP"
+                ref_type = "Inpatient Admission"
+            else:
+                patient_type = "OP"
+                if ref_type == "Patient Visit" or ref_type.upper() == "OP":
+                    ref_type = "Patient Visit"
+                else:
+                    ref_type = ""
+            visit_no = (pe.get("custom_case_no") or pe.get("invoice_reference_name") or pe.name or "").strip()
+            disp = _collection_patient_display(None, pe.get("party_name"), patient_cache)
+            key = (cashier_id, patient_type, visit_no or pe.name)
+            row = grouped.get(key)
+            if not row:
+                row = {
+                    "cashier": cashier_id,
+                    "cashier_name": cashier_name,
+                    "patient_type": patient_type,
+                    "visit_no": visit_no,
+                    "date": pe.get("posting_date"),
+                    "file_no": disp["file_no"],
+                    "patient_name": disp["patient_name"] or pe.get("party_name") or "",
+                    "doctor_name": "",
+                    **_collection_zero_amounts(),
+                }
+                grouped[key] = row
+            amt = flt(pe.get("paid_amount"))
+            row[mode_key] = flt(row.get(mode_key)) + amt
+            row["consultation"] = flt(row.get("consultation")) + amt
+            continue
+
+        for ref in pe_refs:
+            inv = invoices.get(ref.reference_name)
+            allocated = flt(ref.allocated_amount)
+            if allocated <= 0:
+                allocated = flt(pe.get("paid_amount"))
+            if not inv:
+                continue
+            ref_type = (inv.get("custom_reference_type") or pe.get("custom_op_or_ip") or "").strip()
+            ref_name = (inv.get("custom_reference_name") or pe.get("custom_case_no") or "").strip()
+            if ref_type == "Inpatient Admission" or (ref_type or "").upper() == "IP":
+                patient_type = "IP"
+                ref_type = "Inpatient Admission"
+            else:
+                patient_type = "OP"
+                if ref_type == "Patient Visit" or (ref_type or "").upper() == "OP":
+                    ref_type = "Patient Visit"
+            visit_no = ref_name or inv.name
+            inv_date = getdate(inv.get("posting_date")) if inv.get("posting_date") else None
+            is_previous = bool(inv_date and inv_date < from_date)
+            consult_net, pharm_net, lab_net = _collection_service_split(
+                items_by_invoice.get(inv.name), so_base_by_name
+            )
+            a_consult, a_pharm, a_lab = _collection_allocate(consult_net, pharm_net, lab_net, allocated)
+            disp = _collection_patient_display(inv.get("patient"), inv.get("patient_name") or pe.get("party_name"), patient_cache)
+            case_date = _collection_case_date(ref_type, ref_name, pe.get("posting_date"), date_cache)
+            doctor = _collection_doctor_label(ref_type, ref_name, a_consult, a_pharm, a_lab, doctor_cache)
+            key = (cashier_id, patient_type, visit_no)
+            row = grouped.get(key)
+            if not row:
+                row = {
+                    "cashier": cashier_id,
+                    "cashier_name": cashier_name,
+                    "patient_type": patient_type,
+                    "visit_no": visit_no,
+                    "date": case_date,
+                    "file_no": disp["file_no"],
+                    "patient_name": disp["patient_name"],
+                    "doctor_name": doctor,
+                    **_collection_zero_amounts(),
+                }
+                grouped[key] = row
+            elif doctor and (
+                not row.get("doctor_name")
+                or (
+                    row.get("doctor_name") in ("PHARMACY", "LAB VISIT")
+                    and doctor not in ("PHARMACY", "LAB VISIT")
+                )
+            ):
+                row["doctor_name"] = doctor
+            row[mode_key] = flt(row.get(mode_key)) + allocated
+            seen_key = (key, inv.name)
+            inv_disc = flt(inv.get("discount_amount"))
+            if not inv_disc:
+                inv_disc = sum(flt(it.get("discount_amount")) for it in items_by_invoice.get(inv.name) or [])
+            if is_previous:
+                row["paid_previous"] = flt(row.get("paid_previous")) + allocated
+                if seen_key not in invoice_seen:
+                    row["disc_previous"] = flt(row.get("disc_previous")) + inv_disc
+                    row["balance"] = flt(row.get("balance")) + flt(inv.get("outstanding_amount"))
+                    invoice_seen.add(seen_key)
+            else:
+                row["consultation"] = flt(row.get("consultation")) + a_consult
+                row["pharmacy"] = flt(row.get("pharmacy")) + a_pharm
+                row["lab"] = flt(row.get("lab")) + a_lab
+                if seen_key not in invoice_seen:
+                    row["disc"] = flt(row.get("disc")) + inv_disc
+                    row["balance"] = flt(row.get("balance")) + flt(inv.get("outstanding_amount"))
+                    invoice_seen.add(seen_key)
+
+    users_map = {}
+    for row in grouped.values():
+        _collection_round_amounts(row)
+        if row.get("date"):
+            try:
+                row["date"] = formatdate(row["date"], "dd-MMM-yy").upper()
+            except Exception:
+                row["date"] = str(row["date"])
+        cid = row["cashier"] or ""
+        bucket = users_map.setdefault(
+            cid,
+            {
+                "cashier": cid,
+                "cashier_name": row["cashier_name"],
+                "ip": [],
+                "op": [],
+            },
+        )
+        if row["patient_type"] == "IP":
+            bucket["ip"].append(row)
+        else:
+            bucket["op"].append(row)
+
+    users = []
+    report_total = _collection_zero_amounts()
+    for bucket in users_map.values():
+        bucket["ip"].sort(key=lambda r: (r.get("date") or "", r.get("visit_no") or ""))
+        bucket["op"].sort(key=lambda r: (r.get("date") or "", r.get("visit_no") or ""))
+        ip_total = _collection_zero_amounts()
+        op_total = _collection_zero_amounts()
+        for r in bucket["ip"]:
+            _collection_add_amounts(ip_total, r)
+        for r in bucket["op"]:
+            _collection_add_amounts(op_total, r)
+        user_total = _collection_zero_amounts()
+        _collection_add_amounts(user_total, ip_total)
+        _collection_add_amounts(user_total, op_total)
+        _collection_round_amounts(ip_total)
+        _collection_round_amounts(op_total)
+        _collection_round_amounts(user_total)
+        bucket["ip_total"] = ip_total
+        bucket["op_total"] = op_total
+        bucket["user_total"] = user_total
+        _collection_add_amounts(report_total, user_total)
+        users.append(bucket)
+
+    users.sort(key=lambda u: (u.get("cashier_name") or u.get("cashier") or "").lower())
+    _collection_round_amounts(report_total)
+    return {
+        "from_date": str(from_date),
+        "to_date": str(to_date),
+        "company": company_name,
+        "branch": branch or "",
+        "users": users,
+        "report_total": report_total,
+    }
+
+
 @frappe.whitelist()
 def get_patient_statement_of_account(patient=None, from_date=None, to_date=None, company=None):
     """Customer statement of account (General Ledger) for a patient's linked Customer."""
@@ -1347,6 +1807,19 @@ def update_sales_invoice_items(invoice_name, items):
     return get_invoice_details(invoice_name)
 
 
+def _ensure_sales_invoice_due_date(doc):
+    """ERPNext rejects Due Date before Posting Date. Old drafts often have a stale due date."""
+    posting = getdate(doc.posting_date) or getdate(today())
+    due = getdate(today())
+    if due < posting:
+        due = posting
+    doc.due_date = due
+    for row in doc.get("payment_schedule") or []:
+        row_due = getdate(row.due_date) if row.due_date else None
+        if not row_due or row_due < posting:
+            row.due_date = due
+
+
 @frappe.whitelist()
 def submit_sales_invoice_doc(invoice_name):
     """Submit a draft Sales Invoice."""
@@ -1365,6 +1838,7 @@ def submit_sales_invoice_doc(invoice_name):
 
     finalize_sales_invoice_cost_centers(doc)
     sync_sales_invoice_uom_from_previous_docs(doc)
+    _ensure_sales_invoice_due_date(doc)
 
     # set_missing_values / calculate during save can reset UOM — restore right before prevdoc check
     _orig = doc.validate_with_previous_doc
@@ -1374,6 +1848,14 @@ def submit_sales_invoice_doc(invoice_name):
         return _orig(*args, **kwargs)
 
     doc.validate_with_previous_doc = _validate_with_previous_preserving_uom
+
+    _orig_due = doc.validate_due_date
+
+    def _validate_due_date_with_fix(*args, **kwargs):
+        _ensure_sales_invoice_due_date(doc)
+        return _orig_due(*args, **kwargs)
+
+    doc.validate_due_date = _validate_due_date_with_fix
 
     doc.flags.ignore_permissions = True
     doc.save(ignore_permissions=True)

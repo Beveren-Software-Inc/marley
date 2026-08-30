@@ -712,6 +712,82 @@ export async function fetchPaymentSummary(
   return data.message || { payment_count: 0, total_paid: 0, advance_amount: 0, modes: [] }
 }
 
+export interface DailyCollectionAmounts {
+  consultation: number
+  pharmacy: number
+  lab: number
+  cash: number
+  cheque: number
+  card: number
+  bwallet: number
+  disc: number
+  balance: number
+  total_due: number
+  paid_previous: number
+  disc_previous: number
+}
+
+export interface DailyCollectionRow extends DailyCollectionAmounts {
+  cashier?: string
+  cashier_name?: string
+  patient_type?: string
+  visit_no?: string
+  date?: string
+  file_no?: string
+  patient_name?: string
+  doctor_name?: string
+}
+
+export interface DailyCollectionUser {
+  cashier: string
+  cashier_name: string
+  ip: DailyCollectionRow[]
+  op: DailyCollectionRow[]
+  ip_total: DailyCollectionAmounts
+  op_total: DailyCollectionAmounts
+  user_total: DailyCollectionAmounts
+}
+
+export interface DailyCollectionSummary {
+  from_date: string
+  to_date: string
+  company: string
+  branch: string
+  users: DailyCollectionUser[]
+  report_total: DailyCollectionAmounts
+}
+
+export async function fetchDailyCollectionSummary(opts: {
+  referenceType?: string
+  referenceName?: string
+  patient?: string
+  fromDate?: string
+  toDate?: string
+  modeOfPayment?: string
+  filterByOpenShift?: boolean
+  cashier?: string
+}): Promise<DailyCollectionSummary> {
+  const params = new URLSearchParams()
+  if (opts.referenceType) params.append('reference_type', opts.referenceType)
+  if (opts.referenceName) params.append('reference_name', opts.referenceName)
+  if (opts.patient) params.append('patient', opts.patient)
+  if (opts.fromDate) params.append('from_date', opts.fromDate)
+  if (opts.toDate) params.append('to_date', opts.toDate)
+  if (opts.modeOfPayment) params.append('mode_of_payment', opts.modeOfPayment)
+  if (opts.filterByOpenShift) params.append('filter_by_open_shift', '1')
+  if (opts.cashier) params.append('cashier', opts.cashier)
+  const response = await fetch(
+    `/api/method/healthcare.api.billing.get_daily_collection_summary?${params.toString()}`,
+  )
+  const data = await response.json()
+  if (!response.ok || data?.exc) {
+    throw new Error(
+      typeof data?.message === 'string' ? data.message : 'Failed to load daily collection summary',
+    )
+  }
+  return data.message as DailyCollectionSummary
+}
+
 export interface PatientStatementEntry {
   posting_date?: string | null
   account?: string
