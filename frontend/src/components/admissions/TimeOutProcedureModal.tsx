@@ -8,6 +8,8 @@ import { PenLine, Trash2, Check, ChevronDown, Plus, AlertCircle , ClipboardList 
 import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
 import { localDateInputValue } from '../../utils/formatDate'
+import { DateFilterInput } from '../ui/DateFilterInput'
+
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
 interface SignaturePadProps {
@@ -574,7 +576,7 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
                     </div>
                     <div>
                       <label className={labelClass}>Date</label>
-                      <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
+                      <DateFilterInput value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
                     </div>
                   </div>
                 </div>
@@ -772,7 +774,7 @@ export const TimeOutProcedureModal = ({ admissionNo, patient, patientName, onClo
                   <div className="grid grid-cols-2 gap-4 mb-5">
                     <div>
                       <label className={labelClass}>Date of Signing</label>
-                      <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
+                      <DateFilterInput value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
                     </div>
                     <div>
                       <label className={labelClass}>Time of Signing</label>

@@ -28,12 +28,12 @@ interface LabBookedRequestListProps {
 }
 
 const VIRTUAL_STATUS_TABS = [
-  { key: 'all', label: 'All' },
   { key: 'booked', label: 'Booked' },
-  { key: 'sample-collected', label: 'Sample Collected' },
   { key: 'partial-sample-collected', label: 'Partial Sample' },
+  { key: 'sample-collected', label: 'Sample Collected' },
   { key: 'partial-results', label: 'Partial Results' },
   { key: 'completed-tests', label: 'Completed Tests' },
+  { key: 'all', label: 'All' },
 ] as const
 
 type VirtualStatusKey = (typeof VIRTUAL_STATUS_TABS)[number]['key']
@@ -107,7 +107,7 @@ export function LabBookedRequestList({
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
 
   // Virtual status filter (UI-only) — backend computes from linked Lab Tests
-  const [virtualStatus, setVirtualStatus] = useState<VirtualStatusKey>('all')
+  const [virtualStatus, setVirtualStatus] = useState<VirtualStatusKey>('booked')
 
   const inDashboardCard = useInDashboardCard()
   const cardFilters = useCardFilters()

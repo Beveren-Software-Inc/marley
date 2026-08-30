@@ -18,6 +18,7 @@ import {
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateIOPDayModalProps {
   onClose: () => void
@@ -115,8 +116,7 @@ export const CreateIOPDayModal = ({ onClose, onSuccess }: CreateIOPDayModalProps
           )}
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Date <span className="text-red-500">*</span></label>
-            <input
-              type="date"
+            <DateFilterInput
               min={localDateInputValue()}
               value={posting_date}
               onChange={(e) => setPostingDate(e.target.value)}

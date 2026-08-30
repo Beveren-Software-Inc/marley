@@ -11,6 +11,7 @@ import { searchPatients, type PatientListItem } from '../../services/patients'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { toast } from '../../hooks/useToast'
 import { NURSING_SHIFTS, getCurrentNursingShift, getNursingShiftFromTime, type NursingShift } from '../../constants/nursingShift'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateMainNursingNoteModalProps {
   onClose: () => void
@@ -260,8 +261,7 @@ export const CreateMainNursingNoteModal = ({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Nursing date *</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"

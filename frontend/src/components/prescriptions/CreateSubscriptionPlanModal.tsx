@@ -11,6 +11,7 @@ import {
   displayMedicationDrugCode,
   displayMedicationDrugName,
 } from '../../utils/medicationOrderDisplayUtils'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const FREQUENCIES = ['Monthly', 'Every 2 Months', 'Every 3 Months'] as const
 
@@ -196,8 +197,7 @@ export const CreateSubscriptionPlanModal = ({
               <label className="block text-xs font-medium text-slate-600 mb-1">
                 Start Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={planStartDate}
                 onChange={(e) => setPlanStartDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -205,8 +205,7 @@ export const CreateSubscriptionPlanModal = ({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

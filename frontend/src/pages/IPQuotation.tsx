@@ -4,6 +4,7 @@ import { fetchIPQuotations, fetchIPQuotationDetail, type IPQuotationRow, type IP
 import { useFormatMoney } from '../hooks/useFormatMoney'
 import { toast } from '../hooks/useToast'
 import { DetailSlideOver } from '../components/ui/CreateModalChrome'
+import { DateFilterInput } from '../components/ui/DateFilterInput'
 
 function today(): string {
   return new Date().toISOString().slice(0, 10)
@@ -94,8 +95,7 @@ export const IPQuotationPage = () => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">From Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -103,8 +103,7 @@ export const IPQuotationPage = () => {
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">To Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm"

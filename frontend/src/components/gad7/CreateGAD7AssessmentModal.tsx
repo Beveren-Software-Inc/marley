@@ -34,6 +34,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ResponseRowInternal {
   _id: string
@@ -439,8 +440,7 @@ export const CreateGAD7AssessmentModal = ({
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Assessment Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={assessmentDate}
                   onChange={(e) => setAssessmentDate(e.target.value)}
                   className={MODAL_FIELD_CLASS}

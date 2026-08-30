@@ -11,6 +11,7 @@ import {
   type FollowUpCandidateRow,
   type ReminderChannel,
   type FollowUpReferencePayload,
+  type FollowUpWhatsAppTarget,
 } from '../../services/followUp'
 import { toast } from '../../hooks/useToast'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
@@ -21,6 +22,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { AddFollowUpRemarkModal, type FollowUpRemarkTarget } from './AddFollowUpRemarkModal'
+import { SendWhatsAppFollowUpModal } from './SendWhatsAppFollowUpModal'
 
 const CHANNEL_OPTIONS: { value: ReminderChannel; label: string; icon: string }[] = [
   { value: 'whatsapp', label: 'WhatsApp', icon: '💬' },
@@ -89,6 +91,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
   const [bulkMenuMode, setBulkMenuMode] = useState<'selected' | 'all' | null>(null)
   const [openActionRow, setOpenActionRow] = useState<string | null>(null)
   const [remarkTarget, setRemarkTarget] = useState<FollowUpRemarkTarget | null>(null)
+  const [whatsappTarget, setWhatsappTarget] = useState<FollowUpWhatsAppTarget | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [detailName, setDetailName] = useState<string | null>(null)
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set())
@@ -209,12 +212,19 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
     })
   }
 
-  const handleRemindFollowUp = async (name: string, channel: ReminderChannel) => {
+  const handleRemindFollowUp = async (row: PatientFollowUpRow, channel: ReminderChannel) => {
     setOpenActionRow(null)
-    setSendingId(name)
-    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    if (channel === 'whatsapp') {
+      setWhatsappTarget({
+        patient_follow_up_name: row.name,
+        patient_name: row.patient_name || row.patient,
+      })
+      return
+    }
+    setSendingId(row.name)
+    const channelLabel = channel === 'sms' ? 'SMS' : 'Email'
     try {
-      const result = await sendFollowUpReminder(name, channel)
+      const result = await sendFollowUpReminder(row.name, channel)
       if (result.sent) {
         toast.success(`${channelLabel} reminder sent`)
         loadList()
@@ -230,9 +240,19 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
 
   const handleRemindCandidate = async (row: FollowUpCandidateRow, channel: ReminderChannel) => {
     setOpenActionRow(null)
+    if (channel === 'whatsapp') {
+      setWhatsappTarget({
+        patient_follow_up_name: row.follow_up_name,
+        patient_name: row.patient_name || row.patient,
+        reference_doctype: row.reference_doctype,
+        reference_name: row.reference_name,
+        follow_up_type: row.follow_up_type,
+      })
+      return
+    }
     const key = candidateRowKey(row)
     setSendingId(key)
-    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    const channelLabel = channel === 'sms' ? 'SMS' : 'Email'
     try {
       const result = await sendFollowUpRemindersSelected({
         channel,
@@ -689,7 +709,7 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
                                   <button
                                     key={ch.value}
                                     type="button"
-                                    onClick={() => handleRemindFollowUp(row.name, ch.value)}
+                                    onClick={() => handleRemindFollowUp(row, ch.value)}
                                     disabled={sendingId === row.name}
                                     className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50 flex items-center gap-2"
                                   >
@@ -859,6 +879,14 @@ export const FollowUpList = ({ refreshKey, patient, onPatientClick }: FollowUpLi
         >
           <DocDetailView doctype="Patient Follow Up" name={detailName} />
         </DetailSlideOver>
+      )}
+
+      {whatsappTarget && (
+        <SendWhatsAppFollowUpModal
+          target={whatsappTarget}
+          onClose={() => setWhatsappTarget(null)}
+          onSuccess={() => loadList()}
+        />
       )}
 
       {remarkTarget && (

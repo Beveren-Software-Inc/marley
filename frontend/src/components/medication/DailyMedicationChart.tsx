@@ -14,6 +14,7 @@ import {
   displayMedicationDrugName,
   displayMedicationFrequency,
 } from '../../utils/medicationOrderDisplayUtils'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface DailyMedicationChartProps {
   patient?: string
@@ -207,8 +208,7 @@ export const DailyMedicationChart = ({ patient, admission: admissionProp }: Dail
           )}
           <div className="flex items-center gap-1.5">
             <label className="text-xs font-medium text-slate-600">Date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={date}
               onChange={(e) => setDate(e.target.value)}
               className="rounded-md border border-slate-300 px-2 py-1 text-xs focus:outline-none focus:ring-2 focus:ring-primary bg-white"

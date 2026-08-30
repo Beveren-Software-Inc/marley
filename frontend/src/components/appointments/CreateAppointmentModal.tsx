@@ -35,6 +35,7 @@ import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModa
 import { useBlockIfActiveCareClosed } from '../../hooks/useBlockIfActiveCareClosed'
 import { CreatePatientModal } from '../patients/CreatePatientModal'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function getTimePart(t: string | number | null | undefined): string {
   const s = String(t ?? '').trim()
@@ -965,8 +966,7 @@ export const CreateAppointmentModal = ({ onClose, onSuccess, initialPatient, ini
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Appointment Date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
+            <DateFilterInput
               min={localDateInputValue()}
               value={formData.appointment_date}
               onChange={(e) => {

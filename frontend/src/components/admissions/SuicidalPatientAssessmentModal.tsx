@@ -22,6 +22,7 @@ import {
   createModalShellClass,
   createModalTabButtonClass,
 } from '../ui/CreateModalChrome'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface SuicidalPatientAssessmentModalProps {
   admissionNo: string
@@ -388,8 +389,7 @@ function GeneralTab({
           </div>
           <div>
             <label className={labelClass}>Assessment Date <span className="text-red-500">*</span></label>
-            <input
-              type="date"
+            <DateFilterInput
               value={form.assessment_date}
               onChange={e => setField('assessment_date', e.target.value)}
               required

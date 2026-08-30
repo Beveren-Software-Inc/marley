@@ -55,6 +55,7 @@
   "validate_dose_per_day_on_prescription",
   "validate_dose_per_session_on_prescription",
   "lock_doctors_name_choosing",
+  "use_old_approach_soa",
   "discount_section",
   "discount_limit",
   "orders_tab",
@@ -1069,11 +1070,18 @@
    "fieldname": "lock_doctors_name_choosing",
    "fieldtype": "Check",
    "label": "Lock Doctors Name Choosing"
+  },
+  {
+   "default": "0",
+   "description": "When checked, OP Statement of Account uses the legacy print (invoice = Sales Order number and date, Services Category OP / IOP). When unchecked, the current grouped statement is used.",
+   "fieldname": "use_old_approach_soa",
+   "fieldtype": "Check",
+   "label": "Use Old Approach SOA"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-27 16:19:49.588451",
+ "modified": "2026-08-30 12:06:05.226720",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

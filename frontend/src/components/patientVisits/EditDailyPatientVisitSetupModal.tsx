@@ -31,6 +31,7 @@ import {
   linkComboboxInputClass,
   linkComboboxOptionClass,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface EditDailyPatientVisitSetupModalProps {
   setupName: string
@@ -274,8 +275,7 @@ export const EditDailyPatientVisitSetupModal = ({
                   <label className={MODAL_LABEL_CLASS}>
                     Start Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.from_date}
                     onChange={(e) => update({ from_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}
@@ -284,8 +284,7 @@ export const EditDailyPatientVisitSetupModal = ({
                 </div>
                 <div>
                   <label className={MODAL_LABEL_CLASS}>End Date</label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.to_date || ''}
                     onChange={(e) => update({ to_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}

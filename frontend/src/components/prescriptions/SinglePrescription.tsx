@@ -64,6 +64,7 @@ import {
   CreateFrequencyMiniModal,
   type CreateFrequencyKind,
 } from './CreateFrequencyMiniModal'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function addDaysToDate(dateStr: string, days: number): string {
   const d = new Date(dateStr)
@@ -722,12 +723,12 @@ export const EditMedicationEntryModal = ({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Start Date</label>
-              <input type="date" value={form.date} onChange={(e) => updateFieldWithDateCalc('date', e.target.value)} disabled={disabled}
+              <DateFilterInput value={form.date} onChange={(e) => updateFieldWithDateCalc('date', e.target.value)} disabled={disabled}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
-              <input type="date" value={form.end_date} onChange={(e) => updateFieldWithDateCalc('end_date', e.target.value)} disabled={disabled}
+              <DateFilterInput value={form.end_date} onChange={(e) => updateFieldWithDateCalc('end_date', e.target.value)} disabled={disabled}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:bg-slate-100 disabled:text-slate-500" />
             </div>
             <div>
@@ -1300,12 +1301,12 @@ export const AddMedicationEntryModal = ({
           <div className="grid grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">Start Date *</label>
-              <input type="date" value={form.date} onChange={(e) => addUpdateFieldWithDateCalc('date', e.target.value)}
+              <DateFilterInput value={form.date} onChange={(e) => addUpdateFieldWithDateCalc('date', e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">End Date</label>
-              <input type="date" value={form.end_date} onChange={(e) => addUpdateFieldWithDateCalc('end_date', e.target.value)}
+              <DateFilterInput value={form.end_date} onChange={(e) => addUpdateFieldWithDateCalc('end_date', e.target.value)}
                 className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400 focus:border-emerald-400/80 focus:outline-none focus:ring-2 focus:ring-emerald-500/25" />
             </div>
             <div>

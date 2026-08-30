@@ -650,7 +650,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //                     </div>
 //                     <div>
 //                       <label className={lc}>Date</label>
-//                       <input type="date" value={anesthesiaDate}
+//                       <DateFilterInput value={anesthesiaDate}
 //                         onChange={e => setAnesthesiaDate(e.target.value)}
 //                         className={ic} />
 //                     </div>
@@ -746,7 +746,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //                     <div />
 //                     <div>
 //                       <label className={lc}>Sign Date</label>
-//                       <input type="date" value={guardianSignDate}
+//                       <DateFilterInput value={guardianSignDate}
 //                         onChange={e => setGuardianSignDate(e.target.value)}
 //                         className={ic} />
 //                     </div>
@@ -795,7 +795,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //                     </div>
 //                     <div>
 //                       <label className={lc}>Sign Date</label>
-//                       <input type="date" value={witnessSignDate}
+//                       <DateFilterInput value={witnessSignDate}
 //                         onChange={e => setWitnessSignDate(e.target.value)}
 //                         className={ic} />
 //                     </div>
@@ -871,6 +871,7 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
@@ -1569,7 +1570,7 @@ export const ECTAnesthesiaConsentModal = ({
                     </div>
                     <div>
                       <label className={lc}>Date</label>
-                      <input type="date" value={anesthesiaDate}
+                      <DateFilterInput value={anesthesiaDate}
                         onChange={e => setAnesthesiaDate(e.target.value)}
                         className={ic} />
                     </div>
@@ -1665,7 +1666,7 @@ export const ECTAnesthesiaConsentModal = ({
                     <div />
                     <div>
                       <label className={lc}>Sign Date</label>
-                      <input type="date" value={guardianSignDate}
+                      <DateFilterInput value={guardianSignDate}
                         onChange={e => setGuardianSignDate(e.target.value)}
                         className={ic} />
                     </div>
@@ -1714,7 +1715,7 @@ export const ECTAnesthesiaConsentModal = ({
                     </div>
                     <div>
                       <label className={lc}>Sign Date</label>
-                      <input type="date" value={witnessSignDate}
+                      <DateFilterInput value={witnessSignDate}
                         onChange={e => setWitnessSignDate(e.target.value)}
                         className={ic} />
                     </div>

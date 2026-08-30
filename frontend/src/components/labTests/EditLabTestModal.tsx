@@ -7,6 +7,7 @@ import {
   type LinkFieldOption,
 } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // Full Lab Test status list (matches the Lab Test doctype status field options), so the
 // Status dropdown always contains the test's current status and every valid transition.
@@ -478,8 +479,7 @@ export const EditLabTestModal = ({ labTestName, onClose, onSuccess }: EditLabTes
                   <label className="block text-xs font-medium text-slate-600 mb-1">
                     Date
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={formData.date}
                     onChange={(e) => handleChange('date', e.target.value)}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

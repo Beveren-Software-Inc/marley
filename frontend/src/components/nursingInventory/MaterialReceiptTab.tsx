@@ -16,6 +16,7 @@ import {
 } from './InventoryListFilters'
 import { toast } from '../../hooks/useToast'
 import { Plus, Trash2, Save, Eye, Upload, Package, CheckCircle } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface MaterialReceiptTabProps {
   onSuccess: () => void
@@ -512,8 +513,7 @@ export const MaterialReceiptTab = ({ onSuccess, refreshKey: _refreshKey, costCen
                           />
                         </td>
                         <td className="px-3 py-2">
-                          <input
-                            type="date"
+                          <DateFilterInput
                             value={item.expiry_date || ''}
                             onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)}
                             className="w-full px-2 py-1 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-primary"

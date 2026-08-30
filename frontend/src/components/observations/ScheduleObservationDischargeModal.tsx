@@ -10,6 +10,7 @@ import {
 } from '../ui/CreateModalChrome'
 import { scheduleObservationDischarge, type Observation } from '../../services/observations'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ScheduleObservationDischargeModalProps {
   observation: Observation
@@ -72,8 +73,7 @@ export function ScheduleObservationDischargeModal({
             <label className="mb-1 block text-sm font-medium text-slate-700">
               DC date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
+            <DateFilterInput
               value={dcDate}
               onChange={(e) => setDcDate(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

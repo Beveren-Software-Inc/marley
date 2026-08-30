@@ -6,7 +6,7 @@ import json
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import cint, nowdate
+from frappe.utils import cint, cstr, format_date, nowdate
 
 
 def _permitted_cost_center_sql(alias=""):
@@ -418,27 +418,116 @@ def send_follow_up_reminders_selected(
 
 	sent = 0
 	for name in unique_names:
-		res = send_follow_up_reminder(name, channel=channel)
-		if res.get("sent"):
-			sent += 1
+		try:
+			res = send_follow_up_reminder(name, channel=channel)
+			if res.get("sent"):
+				sent += 1
+		except Exception:
+			frappe.log_error(title=f"Follow-up reminder failed: {name}", message=frappe.get_traceback())
 	return {"sent": sent, "total": len(unique_names)}
 
 
 @frappe.whitelist()
-def send_follow_up_reminder(patient_follow_up_name, channel="sms"):
+def get_follow_up_whatsapp_preview(
+	patient_follow_up_name=None,
+	template_name=None,
+	reference_doctype=None,
+	reference_name=None,
+	follow_up_type=None,
+):
+	"""Return WhatsApp preview (phone, templates, filled message) for a follow-up."""
+	ctx = _get_follow_up_context(
+		patient_follow_up_name=patient_follow_up_name,
+		reference_doctype=reference_doctype,
+		reference_name=reference_name,
+		follow_up_type=follow_up_type,
+	)
+	templates = _get_follow_up_whatsapp_templates(ctx)
+	if not templates:
+		unapproved = _find_unapproved_follow_up_template(ctx)
+		if unapproved:
+			frappe.throw(
+				_(
+					"WhatsApp template {0} is {1}. It must be APPROVED before it can be sent."
+				).format(unapproved.get("template_name") or unapproved.get("name"), unapproved.get("status"))
+			)
+		frappe.throw(
+			_(
+				"No WhatsApp template mapped for Patient Follow Up. "
+				"Add one under Digital Connect Whatsap Settings → Template Mapping, "
+				"or set an approved template named patient_follow_up."
+			)
+		)
+
+	selected_name = template_name or (templates[0]["name"] if len(templates) == 1 else None)
+	if selected_name and selected_name not in {t["name"] for t in templates}:
+		frappe.throw(_("Template {0} is not available for this follow-up").format(selected_name))
+
+	selected = None
+	preview = None
+	parameters = []
+	if selected_name:
+		selected = next(t for t in templates if t["name"] == selected_name)
+		parameters = _build_follow_up_whatsapp_parameters(ctx, selected_name)
+		preview = _render_follow_up_whatsapp_preview(selected_name, parameters, ctx)
+
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_get_company_country_isd,
+	)
+
+	country, country_isd = _get_company_country_isd(ctx.get("company"))
+
+	return {
+		"follow_up": ctx.get("name"),
+		"patient": ctx.get("patient"),
+		"patient_name": ctx.get("patient_name") or ctx.get("patient"),
+		"phone_number": _resolve_follow_up_mobile(ctx.get("patient"), company=ctx.get("company")) or "",
+		"country": country,
+		"country_isd": country_isd,
+		"templates": templates,
+		"selected_template": selected_name,
+		"parameters": parameters,
+		"preview": preview,
+		"selected": selected,
+	}
+
+
+@frappe.whitelist()
+def send_follow_up_reminder(
+	patient_follow_up_name=None,
+	channel="sms",
+	phone_number=None,
+	template_name=None,
+	template_parameters=None,
+	reference_doctype=None,
+	reference_name=None,
+	follow_up_type=None,
+):
 	"""Send one reminder for the given Patient Follow Up.
 
 	channel: 'email' | 'whatsapp' | 'sms'
+	WhatsApp accepts optional phone_number / template_name / template_parameters.
 	"""
+	channel = (channel or "sms").lower()
+	if not patient_follow_up_name and reference_doctype and reference_name and follow_up_type:
+		patient_follow_up_name = ensure_follow_up_for_reference(
+			reference_doctype, reference_name, follow_up_type
+		)
 	if not patient_follow_up_name:
 		return {"sent": False, "message": "No follow-up specified"}
-
-	channel = (channel or "sms").lower()
 
 	doc = frappe.db.get_value(
 		"Patient Follow Up",
 		patient_follow_up_name,
-		["patient", "patient_name", "follow_up_date", "whatsapp_template"],
+		[
+			"name",
+			"patient",
+			"patient_name",
+			"follow_up_date",
+			"whatsapp_template",
+			"company",
+			"cost_center",
+		],
 		as_dict=True,
 	)
 	if not doc:
@@ -450,10 +539,25 @@ def send_follow_up_reminder(patient_follow_up_name, channel="sms"):
 	)
 
 	if channel == "whatsapp":
-		mobile = _resolve_follow_up_mobile(doc.patient)
+		from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+			_normalize_whatsapp_phone,
+		)
+
+		override = (phone_number or "").strip()
+		if override:
+			mobile = _normalize_whatsapp_phone(override, company=doc.get("company"))
+		else:
+			mobile = _resolve_follow_up_mobile(doc.patient, company=doc.get("company"))
 		if not mobile:
-			return {"sent": False, "message": "Patient has no mobile number"}
-		return _send_follow_up_via_whatsapp(doc, mobile, patient_follow_up_name, message_text)
+			frappe.throw(_("Patient has no mobile number. Enter a number to send WhatsApp."))
+		return _send_follow_up_via_whatsapp(
+			doc,
+			mobile,
+			patient_follow_up_name,
+			message_text,
+			template_name=template_name,
+			template_parameters=template_parameters,
+		)
 	elif channel == "email":
 		patient_email = frappe.db.get_value("Patient", doc.patient, "email") if doc.patient else None
 		if not patient_email:
@@ -469,7 +573,7 @@ def send_follow_up_reminder(patient_follow_up_name, channel="sms"):
 			frappe.log_error(title="Follow-up email reminder failed", message=frappe.get_traceback())
 			return {"sent": False, "message": str(e)}
 	else:
-		mobile = _resolve_follow_up_mobile(doc.patient)
+		mobile = _resolve_follow_up_mobile(doc.patient, company=doc.get("company"))
 		if not mobile:
 			return {"sent": False, "message": "Patient has no mobile number"}
 		try:
@@ -481,47 +585,388 @@ def send_follow_up_reminder(patient_follow_up_name, channel="sms"):
 			return {"sent": False, "message": str(e)}
 
 
-def _resolve_follow_up_mobile(patient):
-	"""Resolve the best mobile number for a patient."""
+def _get_follow_up_context(
+	patient_follow_up_name=None,
+	reference_doctype=None,
+	reference_name=None,
+	follow_up_type=None,
+):
+	"""Load a Patient Follow Up, or a lightweight context from an OP/IP reference."""
+	if patient_follow_up_name:
+		if not frappe.db.exists("Patient Follow Up", patient_follow_up_name):
+			frappe.throw(_("Follow Up {0} not found").format(patient_follow_up_name))
+		return frappe.get_doc("Patient Follow Up", patient_follow_up_name)
+
+	if reference_doctype and reference_name:
+		existing = frappe.db.exists(
+			"Patient Follow Up",
+			{
+				"reference_doctype": reference_doctype,
+				"reference_name": reference_name,
+				"follow_up_type": follow_up_type or ["in", ["OP", "IP", "Normal"]],
+			}
+			if follow_up_type
+			else {"reference_doctype": reference_doctype, "reference_name": reference_name},
+		)
+		if existing:
+			return frappe.get_doc("Patient Follow Up", existing)
+		if reference_doctype == "Patient Visit":
+			source = frappe.db.get_value(
+				"Patient Visit",
+				reference_name,
+				["patient", "patient_name", "encounter_date", "company", "cost_center"],
+				as_dict=True,
+			)
+			if source:
+				return frappe._dict(
+					{
+						"name": None,
+						"patient": source.patient,
+						"patient_name": source.patient_name,
+						"follow_up_date": source.encounter_date or nowdate(),
+						"whatsapp_template": None,
+						"company": source.company,
+						"cost_center": source.cost_center,
+					}
+				)
+		elif reference_doctype == "Inpatient Admission":
+			source = frappe.db.get_value(
+				"Inpatient Admission",
+				reference_name,
+				["patient", "patient_name", "followup_date", "company", "cost_center"],
+				as_dict=True,
+			)
+			if source:
+				return frappe._dict(
+					{
+						"name": None,
+						"patient": source.patient,
+						"patient_name": source.patient_name,
+						"follow_up_date": source.followup_date or nowdate(),
+						"whatsapp_template": None,
+						"company": source.company,
+						"cost_center": source.cost_center,
+					}
+				)
+
+	frappe.throw(_("Follow-up is required"))
+
+
+def _count_double_brace_variables(text):
+	"""Count {{n}} slots — matches Digital Connect send_test_message."""
+	import re
+
+	if not text:
+		return 0
+	matches = re.findall(r"\{\{(\d+)\}\}", text)
+	if not matches:
+		return 0
+	return max(int(m) for m in matches)
+
+
+def _count_follow_up_template_variables(text):
+	"""Count {{n}} and {n} so preview can fill either style."""
+	import re
+
+	if not text:
+		return 0
+	nums = [int(m) for m in re.findall(r"\{\{(\d+)\}\}", text)]
+	nums += [int(m) for m in re.findall(r"(?<!\{)\{(\d+)\}(?!\})", text)]
+	return max(nums) if nums else 0
+
+
+def _follow_up_template_candidate_names(doc):
+	"""Ordered template names that could apply to a Patient Follow Up."""
+	names = []
+	if doc.get("whatsapp_template"):
+		names.append(doc.whatsapp_template)
+	if frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		settings = frappe.get_single("Digital Connect Whatsap Settings")
+		for row in settings.get("template_mapping") or []:
+			if row.get("reference_document") == "Patient Follow Up" and row.get("template"):
+				names.append(row.template)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={"for_doctype": "Patient Follow Up"},
+			pluck="name",
+		)
+	)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={"template_name": ["in", ["patient_follow_up", "patient_follow_up-en"]]},
+			pluck="name",
+		)
+	)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={"actual_name": ["in", ["patient_follow_up", "patient_follow_up-en"]]},
+			pluck="name",
+		)
+	)
+	seen = set()
+	out = []
+	for name in names:
+		if name and name not in seen:
+			seen.add(name)
+			out.append(name)
+	return out
+
+
+def _find_unapproved_follow_up_template(doc):
+	for name in _follow_up_template_candidate_names(doc):
+		row = frappe.db.get_value(
+			"Digital Whatsapp Template",
+			name,
+			["name", "template_name", "status"],
+			as_dict=True,
+		)
+		if row and (row.status or "").upper() != "APPROVED":
+			return row
+	return None
+
+
+def _get_follow_up_whatsapp_templates(doc):
+	"""Resolve approved WhatsApp templates for Patient Follow Up."""
+	purpose_by_name = {}
+	if frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		settings = frappe.get_single("Digital Connect Whatsap Settings")
+		for row in settings.get("template_mapping") or []:
+			if row.get("reference_document") == "Patient Follow Up" and row.get("template"):
+				purpose_by_name[row.template] = row.get("purpose") or ""
+
+	out = []
+	seen = set()
+	for name in _follow_up_template_candidate_names(doc):
+		if name in seen:
+			continue
+		row = frappe.db.get_value(
+			"Digital Whatsapp Template",
+			name,
+			[
+				"name",
+				"template_name",
+				"actual_name",
+				"status",
+				"header_type",
+				"header_text",
+				"body_text",
+				"footer_text",
+				"field_names",
+				"language_code",
+			],
+			as_dict=True,
+		)
+		if not row or (row.status or "").upper() != "APPROVED":
+			continue
+		seen.add(name)
+		purpose = purpose_by_name.get(name) or (
+			"Follow Up Template" if doc.get("whatsapp_template") == name else "Follow Up"
+		)
+		out.append(
+			{
+				"name": row.name,
+				"template_name": row.template_name,
+				"actual_name": row.actual_name,
+				"purpose": purpose,
+				"header_type": row.header_type,
+				"header_text": row.header_text or "",
+				"body_text": row.body_text or "",
+				"footer_text": row.footer_text or "",
+				"field_names": row.field_names or "",
+				"language_code": row.language_code or "",
+				"variable_count": _count_follow_up_template_variables(
+					row.header_text if row.header_type == "TEXT" else ""
+				)
+				+ _count_follow_up_template_variables(row.body_text),
+			}
+		)
+	return out
+
+
+def _build_follow_up_whatsapp_param_map(doc):
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_get_digiconnect_branch_info,
+	)
+
+	branch = _get_digiconnect_branch_info(doc.get("cost_center"))
+	patient_name = doc.get("patient_name") or doc.get("patient") or ""
+	follow_up_date = format_date(doc.get("follow_up_date")) if doc.get("follow_up_date") else ""
+	contacts = branch.get("contacts") or ""
+	branch_label = branch.get("branch_label") or branch.get("branch") or ""
+	return {
+		"patient_name": patient_name,
+		"patient": patient_name,
+		"follow_up_date": follow_up_date,
+		"date": follow_up_date,
+		"branch": branch_label,
+		"cost_center": branch_label,
+		"contacts": contacts,
+		"branch_contacts": contacts,
+		"company": doc.get("company") or "",
+	}
+
+
+def _build_follow_up_whatsapp_parameters(doc, template_name):
+	import re
+
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	param_map = _build_follow_up_whatsapp_param_map(doc)
+	header_count = (
+		_count_double_brace_variables(template.header_text)
+		if template.header_type == "TEXT"
+		else 0
+	)
+	body_count = _count_double_brace_variables(template.body_text)
+	total = header_count + body_count
+
+	field_names = []
+	if template.field_names:
+		field_names = [x.strip() for x in re.split(r"[,\n;]+", template.field_names) if x.strip()]
+
+	defaults = [
+		param_map["patient_name"],
+		param_map["follow_up_date"],
+		param_map["branch"],
+		param_map["branch_contacts"],
+	]
+
+	values = []
+	for i in range(total):
+		if i < len(field_names):
+			key = field_names[i]
+			values.append(cstr(param_map.get(key, "")))
+		elif i < len(defaults):
+			values.append(cstr(defaults[i]))
+		else:
+			values.append("")
+	return values
+
+
+def _render_follow_up_whatsapp_preview(template_name, parameters, doc=None):
+	import re
+
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	params = list(parameters or [])
+	param_map = _build_follow_up_whatsapp_param_map(doc) if doc else {}
+	defaults = [
+		param_map.get("patient_name") or "",
+		param_map.get("follow_up_date") or "",
+		param_map.get("branch") or "",
+		param_map.get("branch_contacts") or "",
+	]
+	patient_name = defaults[0]
+
+	def fill(text, offset=0):
+		if not text:
+			return ""
+
+		def repl(match):
+			idx = int(match.group(1)) - 1
+			abs_idx = offset + idx
+			if 0 <= abs_idx < len(params) and cstr(params[abs_idx]):
+				return cstr(params[abs_idx])
+			if 0 <= abs_idx < len(defaults):
+				return cstr(defaults[abs_idx])
+			return match.group(0)
+
+		filled = re.sub(r"\{\{(\d+)\}\}", repl, text)
+		filled = re.sub(r"(?<!\{)\{(\d+)\}(?!\})", repl, filled)
+		if patient_name:
+			filled = filled.replace("[Patient Name]", patient_name)
+		return filled
+
+	header_offset = 0
+	header_text = ""
+	if template.header_type == "TEXT" and template.header_text:
+		header_count = _count_follow_up_template_variables(template.header_text)
+		header_text = fill(template.header_text, 0)
+		header_offset = header_count
+
+	return {
+		"header": header_text,
+		"body": fill(template.body_text or "", header_offset),
+		"footer": template.footer_text or "",
+		"template_name": template.template_name,
+		"actual_name": template.actual_name,
+	}
+
+
+def _resolve_follow_up_mobile(patient, company=None):
+	"""Resolve the best mobile number for a patient, normalized for WhatsApp."""
+	if not patient:
+		return ""
 	values = frappe.db.get_value(
-		"Patient", patient,
+		"Patient",
+		patient,
 		["mobile", "mobile_no", "mobile_no_1", "phone"],
 		as_dict=True,
 	) or {}
+	raw = ""
 	for field in ("mobile", "mobile_no", "mobile_no_1", "phone"):
 		number = (values.get(field) or "").strip()
 		if number:
-			return number
-	return ""
+			raw = number
+			break
+	if not raw:
+		return ""
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_normalize_whatsapp_phone,
+	)
+
+	return _normalize_whatsapp_phone(raw, company=company)
 
 
-def _send_follow_up_via_whatsapp(doc, mobile, follow_up_name, fallback_body=""):
+def _send_follow_up_via_whatsapp(
+	doc, mobile, follow_up_name, fallback_body="", template_name=None, template_parameters=None
+):
 	"""Send a WhatsApp message for a follow-up reminder (template or plain text)."""
-	try:
-		from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
-			send_test_message,
-		)
+	from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
+		send_test_message,
+	)
 
-		template_name = doc.get("whatsapp_template")
-		if template_name:
-			result = send_test_message(phone_number=mobile, template_name=template_name)
-		else:
-			result = send_test_message(phone_number=mobile, body=fallback_body, preview_url=1)
-		chat_name = result.get("chat_name") if isinstance(result, dict) else None
-		if chat_name:
-			frappe.db.set_value(
-				"Digital Whatsapp Chat",
-				chat_name,
-				{
-					"reference_doctype": "Patient Follow Up",
-					"reference_name": follow_up_name,
-				},
-				update_modified=True,
-			)
-		return {"sent": True, "channel": "whatsapp"}
-	except Exception as e:
-		frappe.log_error(title="Follow-up WhatsApp reminder failed", message=frappe.get_traceback())
-		return {"sent": False, "message": str(e)}
+	resolved_template = (template_name or "").strip() or doc.get("whatsapp_template")
+	if not resolved_template:
+		mapped = _get_follow_up_whatsapp_templates(doc)
+		if len(mapped) == 1:
+			resolved_template = mapped[0]["name"]
+		elif len(mapped) > 1:
+			frappe.throw(_("Multiple WhatsApp templates found. Please select one."))
+
+	if resolved_template:
+		if template_parameters is None:
+			template_parameters = _build_follow_up_whatsapp_parameters(doc, resolved_template)
+		elif isinstance(template_parameters, str):
+			stripped = template_parameters.strip()
+			if stripped.startswith("["):
+				try:
+					parsed = frappe.parse_json(stripped)
+					if isinstance(parsed, list):
+						template_parameters = parsed
+				except Exception:
+					pass
+		result = send_test_message(
+			phone_number=mobile,
+			template_name=resolved_template,
+			template_parameters=template_parameters or [],
+		)
+	else:
+		result = send_test_message(phone_number=mobile, body=fallback_body, preview_url=1)
+
+	chat_name = result.get("chat_name") if isinstance(result, dict) else None
+	if chat_name and follow_up_name:
+		frappe.db.set_value(
+			"Digital Whatsapp Chat",
+			chat_name,
+			{
+				"reference_doctype": "Patient Follow Up",
+				"reference_name": follow_up_name,
+			},
+			update_modified=True,
+		)
+	return {"sent": True, "channel": "whatsapp", "follow_up": follow_up_name}
 
 
 @frappe.whitelist()
@@ -559,9 +1004,12 @@ def send_follow_up_reminders_bulk(
 	)
 	sent = 0
 	for name in names:
-		res = send_follow_up_reminder(name, channel=channel)
-		if res.get("sent"):
-			sent += 1
+		try:
+			res = send_follow_up_reminder(name, channel=channel)
+			if res.get("sent"):
+				sent += 1
+		except Exception:
+			frappe.log_error(title=f"Follow-up reminder failed: {name}", message=frappe.get_traceback())
 	return {"sent": sent, "total": len(names)}
 
 

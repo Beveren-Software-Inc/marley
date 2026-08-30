@@ -23,6 +23,7 @@ import {
   linkComboboxInputClassCompact,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -812,7 +813,7 @@ export const CreateInsuranceClaimModal = ({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-medium text-slate-700 mb-1">Claim Date</label>
-                      <input type="date" value={claimDate} onChange={e => setClaimDate(e.target.value)}
+                      <DateFilterInput value={claimDate} onChange={e => setClaimDate(e.target.value)}
                         className={MODAL_FIELD_CLASS_COMPACT} />
                     </div>
                     <div>

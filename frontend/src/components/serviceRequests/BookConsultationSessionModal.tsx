@@ -15,6 +15,7 @@ import { bookSession } from '../../services/serviceRequests'
 import { toast } from '../../hooks/useToast'
 import { X, Calendar, Clock, User } from 'lucide-react'
 import type { ServiceRequest } from '../../services/serviceRequests'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 /* ─── time helpers (identical to CreateAppointmentModal) ─── */
 function getTimePart(t: string | number | null | undefined): string {
@@ -298,8 +299,7 @@ export const BookConsultationSessionModal = ({ serviceRequest: sr, onClose, onSu
               <Calendar className="inline w-3.5 h-3.5 mr-1 -mt-0.5" />
               Appointment Date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
+            <DateFilterInput
               value={appointmentDate}
               min={new Date().toISOString().split('T')[0]}
               onChange={e => {

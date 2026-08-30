@@ -8,6 +8,7 @@ import {
 import { searchPatients, fetchPatients, type PatientListItem } from '../../services/patients'
 import { Search, User } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface LabTestHistoryProps {
   patientId?: string
@@ -325,8 +326,7 @@ const FilterBar = ({
 
       <div className="flex flex-col gap-1 min-w-[150px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">From Date</label>
-        <input
-          type="date"
+        <DateFilterInput
           value={filters.fromDate}
           onChange={(e) => set('fromDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"
@@ -335,8 +335,7 @@ const FilterBar = ({
 
       <div className="flex flex-col gap-1 min-w-[150px]">
         <label className="text-xs font-medium text-slate-500 uppercase tracking-wide">To Date</label>
-        <input
-          type="date"
+        <DateFilterInput
           value={filters.toDate}
           onChange={(e) => set('toDate', e.target.value)}
           className="w-full px-3 py-1.5 text-sm rounded-md border border-slate-300 focus:outline-none focus:ring-2 focus:ring-primary"

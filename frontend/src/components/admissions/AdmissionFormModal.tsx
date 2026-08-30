@@ -7,6 +7,7 @@ import { SignaturePad, attachFileDisplayUrl } from '../ui/SignaturePad'
 import { toast } from '../../hooks/useToast'
 import { PenLine, X, BedDouble, Check } from 'lucide-react'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function YesNoField({
   label,
@@ -1409,8 +1410,7 @@ export const AdmissionFormModal = ({
                 {/* Expected Discharge */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Expected Discharge Date</label>
-                  <input
-                    type="date" value={formData.expectedDischarge}
+                  <DateFilterInput value={formData.expectedDischarge}
                     onChange={(e) => setFormData({ ...formData, expectedDischarge: e.target.value })}
                     className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />

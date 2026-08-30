@@ -37,6 +37,7 @@ import {
   linkComboboxInputClass,
   linkComboboxOptionClass,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface DailyAutoVisitViewProps {
   patient?: string
@@ -166,8 +167,7 @@ const BackfillVisitsModal = ({
               <label className={MODAL_LABEL_CLASS}>
                 From Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={fromDate}
                 max={todayStr}
                 onChange={(e) => setFromDate(e.target.value)}
@@ -179,8 +179,7 @@ const BackfillVisitsModal = ({
               <label className={MODAL_LABEL_CLASS}>
                 To Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={toDate}
                 max={todayStr}
                 onChange={(e) => setToDate(e.target.value)}
@@ -461,8 +460,7 @@ const CreateSetupModal = ({
                   <label className={MODAL_LABEL_CLASS}>
                     Start Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.from_date}
                     onChange={(e) => update({ from_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}
@@ -471,8 +469,7 @@ const CreateSetupModal = ({
                 </div>
                 <div>
                   <label className={MODAL_LABEL_CLASS}>End Date</label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.to_date || ''}
                     onChange={(e) => update({ to_date: e.target.value })}
                     className={MODAL_FIELD_CLASS}
@@ -742,8 +739,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
               <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500">From</label>
               <div className="relative">
                 <CalendarRange className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="date"
+                <DateFilterInput
                   value={fromDate}
                   onChange={(e) => setFromDate(e.target.value)}
                   className="h-8 rounded-md border border-slate-300 bg-white pl-7 pr-2 text-sm text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300"
@@ -754,8 +750,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
               <label className="text-[11px] font-medium uppercase tracking-wide text-slate-500">To</label>
               <div className="relative">
                 <CalendarRange className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
-                <input
-                  type="date"
+                <DateFilterInput
                   value={toDate}
                   onChange={(e) => setToDate(e.target.value)}
                   className="h-8 rounded-md border border-slate-300 bg-white pl-7 pr-2 text-sm text-slate-700 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-300"

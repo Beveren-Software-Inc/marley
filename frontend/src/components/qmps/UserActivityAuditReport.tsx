@@ -11,6 +11,7 @@ import {
   type UserActivitySummaryRow,
 } from '../../services/userActivityAudit'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type ViewMode = 'timeline' | 'summary'
 type SortKey = NonNullable<ActivityAuditFilters['sort_by']>
@@ -666,8 +667,7 @@ export function UserActivityAuditReport() {
 
           <div className="space-y-1">
             <label className="block text-[11px] font-medium text-slate-500">From date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={fromDate}
               onChange={(e) => {
                 setFromDate(e.target.value)
@@ -679,8 +679,7 @@ export function UserActivityAuditReport() {
 
           <div className="space-y-1">
             <label className="block text-[11px] font-medium text-slate-500">To date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={toDate}
               onChange={(e) => {
                 setToDate(e.target.value)

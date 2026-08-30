@@ -4,6 +4,7 @@ import { fetchHealthcarePractitioners, getCurrentUserPractitioner, type LinkFiel
 import { toast } from '../../hooks/useToast'
 import { CreatePractitionerModal } from '../practitioners/CreatePractitionerModal'
 import { toDatetimeLocalValue } from '../../utils/datetimeLocal'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ScheduleDischargeModalProps {
   admission: {
@@ -242,8 +243,7 @@ export const ScheduleDischargeModal = ({ admission, onClose, onSuccess }: Schedu
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Followup Date
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={formData.followup_date}
                 onChange={(e) => setFormData({ ...formData, followup_date: e.target.value })}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

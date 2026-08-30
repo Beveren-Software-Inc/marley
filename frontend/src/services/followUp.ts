@@ -1,3 +1,5 @@
+import { messageFromExc } from './appointments'
+
 export interface PatientFollowUpRow {
   name: string
   patient: string
@@ -137,10 +139,97 @@ export interface FollowUpReferencePayload {
   follow_up_type: string
 }
 
+export interface FollowUpWhatsAppTarget {
+  patient_follow_up_name?: string
+  patient_name?: string
+  reference_doctype?: string
+  reference_name?: string
+  follow_up_type?: string
+}
+
+export interface FollowUpWhatsAppTemplateOption {
+  name: string
+  template_name: string
+  actual_name?: string
+  purpose?: string
+  header_type?: string
+  header_text?: string
+  body_text?: string
+  footer_text?: string
+  field_names?: string
+  language_code?: string
+  variable_count?: number
+}
+
+export interface FollowUpWhatsAppPreview {
+  follow_up?: string | null
+  patient?: string
+  patient_name?: string
+  phone_number: string
+  country?: string
+  country_isd?: string
+  templates: FollowUpWhatsAppTemplateOption[]
+  selected_template: string | null
+  parameters: string[]
+  preview: {
+    header: string
+    body: string
+    footer: string
+    template_name?: string
+    actual_name?: string
+  } | null
+  selected?: FollowUpWhatsAppTemplateOption | null
+}
+
+function followUpTargetPayload(target: FollowUpWhatsAppTarget) {
+  return {
+    ...(target.patient_follow_up_name
+      ? { patient_follow_up_name: target.patient_follow_up_name }
+      : {}),
+    ...(target.reference_doctype ? { reference_doctype: target.reference_doctype } : {}),
+    ...(target.reference_name ? { reference_name: target.reference_name } : {}),
+    ...(target.follow_up_type ? { follow_up_type: target.follow_up_type } : {}),
+  }
+}
+
+export async function getFollowUpWhatsAppPreview(
+  target: FollowUpWhatsAppTarget,
+  templateName?: string,
+): Promise<FollowUpWhatsAppPreview> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.healthcare.doctype.patient_follow_up.patient_follow_up.get_follow_up_whatsapp_preview',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        ...followUpTargetPayload(target),
+        ...(templateName ? { template_name: templateName } : {}),
+      }),
+    },
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return data?.message as FollowUpWhatsAppPreview
+}
+
 export async function sendFollowUpReminder(
-  patientFollowUpName: string,
+  patientFollowUpName: string | undefined,
   channel: ReminderChannel = 'sms',
-): Promise<{ sent: boolean; message?: string; channel?: string }> {
+  options?: {
+    phone_number?: string
+    template_name?: string
+    template_parameters?: string | string[]
+    reference_doctype?: string
+    reference_name?: string
+    follow_up_type?: string
+  },
+): Promise<{ sent: boolean; message?: string; channel?: string; follow_up?: string }> {
   const { ensureCSRF } = await import('./apiClient')
   const csrf = await ensureCSRF()
   const res = await fetch(
@@ -151,14 +240,27 @@ export async function sendFollowUpReminder(
         'Content-Type': 'application/json',
         ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
       },
-      body: JSON.stringify({ patient_follow_up_name: patientFollowUpName, channel }),
+      body: JSON.stringify({
+        patient_follow_up_name: patientFollowUpName,
+        channel,
+        ...(options?.phone_number ? { phone_number: options.phone_number } : {}),
+        ...(options?.template_name ? { template_name: options.template_name } : {}),
+        ...(options?.template_parameters != null
+          ? {
+              template_parameters: Array.isArray(options.template_parameters)
+                ? JSON.stringify(options.template_parameters)
+                : options.template_parameters,
+            }
+          : {}),
+        ...(options?.reference_doctype ? { reference_doctype: options.reference_doctype } : {}),
+        ...(options?.reference_name ? { reference_name: options.reference_name } : {}),
+        ...(options?.follow_up_type ? { follow_up_type: options.follow_up_type } : {}),
+      }),
       credentials: 'include',
     },
   )
   const data = await res.json()
-  if (data.exc) {
-    throw new Error(data._server_messages ? JSON.parse(data._server_messages)[0] : 'Failed to send')
-  }
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
   return data.message || { sent: false }
 }
 

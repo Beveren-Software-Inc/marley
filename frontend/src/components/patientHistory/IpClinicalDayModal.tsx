@@ -13,6 +13,7 @@ import type {
   AdmissionClinicalNote,
   AdmissionClinicalPrescriptionMed,
 } from '../../services/patientAdmissionClinical'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function dateKey(value?: string | null): string {
   if (!value) return ''
@@ -243,8 +244,7 @@ export function IpClinicalDayModal({
           </button>
           <label className="flex items-center gap-2 text-xs font-medium text-slate-600">
             <CalendarDays className="h-4 w-4 text-emerald-700" />
-            <input
-              type="date"
+            <DateFilterInput
               value={day}
               min={dayList[0]}
               max={dayList[dayList.length - 1]}

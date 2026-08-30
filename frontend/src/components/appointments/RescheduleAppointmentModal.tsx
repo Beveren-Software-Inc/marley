@@ -10,6 +10,7 @@ import {
 } from '../../services/appointments'
 import { toast } from '../../hooks/useToast'
 import { X, AlertCircle, CalendarOff } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface RescheduleAppointmentModalProps {
   appointment: Appointment
@@ -359,8 +360,7 @@ export const RescheduleAppointmentModal = ({
             <label className="block text-sm font-medium text-slate-700 mb-1">
               Appointment Date <span className="text-red-500">*</span>
             </label>
-            <input
-              type="date"
+            <DateFilterInput
               value={appointment_date}
               onChange={(e) => handleDateChange(e.target.value)}
               className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary"

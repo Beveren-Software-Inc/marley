@@ -32,6 +32,7 @@ import {
 } from '../ui/linkComboboxStyles'
 import { htmlToPlainText } from '../../utils/htmlToPlainText'
 import { FileText } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function toDateInput(value?: string | null): string {
   if (!value) return ''
@@ -407,8 +408,7 @@ export function CreateIPMedicalReportModal({
             {!admissionDateLocked ? (
               <div>
                 <label className={labelClass}>Admission Date</label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={admissionDate}
                   onChange={(e) => setAdmissionDate(e.target.value)}
                   className={inputClass}
@@ -418,8 +418,7 @@ export function CreateIPMedicalReportModal({
 
             <div className={!admissionDateLocked ? undefined : 'sm:col-span-2'}>
               <label className={labelClass}>Discharge Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={dischargeDate}
                 onChange={(e) => setDischargeDate(e.target.value)}
                 className={inputClass}

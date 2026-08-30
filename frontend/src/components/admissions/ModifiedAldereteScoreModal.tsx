@@ -950,7 +950,22 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
             </>
           }
           onClose={onClose}
-        />
+        >
+          <div className="-mb-px mt-3 flex overflow-x-auto border-b border-emerald-100/80">
+            {TABS.map(tab => (
+              <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 whitespace-nowrap ${createModalTabButtonClass(activeTab === tab.id)}`}>
+                {tab.icon && tab.icon}
+                {tab.label}
+                {tab.id === 'score' && rows.length > 0 ? (
+                  <span className={`inline-flex items-center justify-center min-w-[18px] rounded-full px-1 py-0.5 text-[10px] font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
+                    {totalScore.toFixed(1).replace(/\.0$/, '')}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        </CreateModalHeader>
 
         {/* Mode indicator box */}
         <div className="mx-6 mt-4 rounded-lg border border-primary/20 bg-primary/5 px-4 py-3">
@@ -965,22 +980,6 @@ export const ModifiedAldereteScoreModal = ({ admissionNo, patient, patientName, 
               : 'Please select either IP or OP mode from the top navbar before creating a score.'
             }
           </p>
-        </div>
-
-        {/* Tabs inside header - rendered via children in CreateModalHeader above, but it's a separate block here */}
-        <div className="-mt-px flex overflow-x-auto border-b border-emerald-100/80 bg-gradient-to-b from-emerald-700 to-emerald-800 px-4">
-          {TABS.map(tab => (
-            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 whitespace-nowrap ${createModalTabButtonClass(activeTab === tab.id)}`}>
-              {tab.icon && tab.icon}
-              {tab.label}
-              {tab.id === 'score' && rows.length > 0 ? (
-                <span className={`inline-flex items-center justify-center min-w-[18px] rounded-full px-1 py-0.5 text-[10px] font-bold ${colors.bg} ${colors.text} border ${colors.border}`}>
-                  {totalScore.toFixed(1).replace(/\.0$/, '')}
-                </span>
-              ) : null}
-            </button>
-          ))}
         </div>
 
         {/* Form */}

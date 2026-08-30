@@ -5,6 +5,7 @@ import { searchPatients, fetchPatients, type PatientListItem } from '../../servi
 import { formatMoneyAmount } from '../../utils/currencyFormat'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { SpecialtySalesInvoiceSlideOver } from '../billing/SpecialtySalesInvoiceSlideOver'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface Props {
   patient?: string
@@ -130,8 +131,7 @@ export function InvoicesNeedingClaimList({
         <div className="card-filter-bar flex flex-wrap gap-2 items-end">
           <div>
             <label className="block text-xs text-slate-500 mb-0.5">From Date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={dateFrom}
               onChange={e => setDateFrom(e.target.value)}
               className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -139,8 +139,7 @@ export function InvoicesNeedingClaimList({
           </div>
           <div>
             <label className="block text-xs text-slate-500 mb-0.5">To Date</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={dateTo}
               onChange={e => setDateTo(e.target.value)}
               className="rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

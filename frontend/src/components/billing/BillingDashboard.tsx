@@ -16,6 +16,7 @@ import {
   fetchPatientCrossBranchPaidBreakdown,
   fetchPaymentEntries,
   fetchPaymentSummary,
+  fetchDailyCollectionSummary,
   getInvoicesByReference,
   getInvoiceDetails,
   type ServiceOrder,
@@ -68,10 +69,12 @@ import { PaymentModal } from './PaymentModal'
 import { StandalonePaymentModal } from './StandalonePaymentModal'
 import { AdvanceInvoiceReconcileModal } from './AdvanceInvoiceReconcileModal'
 import { PatientStatementOfAccountModal } from './PatientStatementOfAccountModal'
+import { openDailyCollectionSummaryPrint } from './dailyCollectionSummaryPrint'
 import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useAuth } from '../../providers/AuthProvider'
 import { canReconcileInvoiceAdvances } from '../../config/permissions'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'dv' | 'unpaid' | 'paid' | 'payments'
 
@@ -178,6 +181,7 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showStandalonePaymentModal, setShowStandalonePaymentModal] = useState(false)
   const [showStatementOfAccountModal, setShowStatementOfAccountModal] = useState(false)
+  const [printingCollection, setPrintingCollection] = useState(false)
   const [showAdvanceReconcileModal, setShowAdvanceReconcileModal] = useState(false)
   const [selectedPaymentInvoice, setSelectedPaymentInvoice] = useState<{
     name: string
@@ -1003,11 +1007,11 @@ const handleMakePayment = async (
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs text-slate-600 mb-1">From Date</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <DateFilterInput value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-600 mb-1">To Date</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <DateFilterInput value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <button type="button" onClick={() => { setFromDate(''); setToDate('') }} className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-md">
           <X className="w-3 h-3" /> Clear
@@ -1078,6 +1082,27 @@ const handleMakePayment = async (
     win.print()
   }
 
+  const printDailyCollectionSummary = async () => {
+    setPrintingCollection(true)
+    try {
+      const data = await fetchDailyCollectionSummary({
+        referenceType: scopedReferenceType,
+        referenceName: scopedReferenceName,
+        patient: effectivePatient,
+        fromDate: fromDate || undefined,
+        toDate: toDate || undefined,
+        modeOfPayment: paymentModeFilter || undefined,
+        filterByOpenShift: shiftFilterActive,
+        cashier: cashierFilter || undefined,
+      })
+      openDailyCollectionSummaryPrint(data)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to print daily collection summary')
+    } finally {
+      setPrintingCollection(false)
+    }
+  }
+
   if (currentView === 'payments') {
     return (
       <div className="space-y-4">
@@ -1121,6 +1146,16 @@ const handleMakePayment = async (
                   Statement
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => void printDailyCollectionSummary()}
+                disabled={printingCollection}
+                className="inline-flex items-center gap-1 px-3 py-1.5 rounded border border-slate-300 text-xs text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+                title="Daily collection summary for the current payment filters"
+              >
+                <FileIcon className="w-3 h-3" />
+                {printingCollection ? 'Preparing…' : 'Collection Summary'}
+              </button>
             </div>
           </div>
           <div className="overflow-x-auto">
