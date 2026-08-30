@@ -885,7 +885,7 @@ import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL
 //                     </div>
 //                     <div>
 //                       <label className={lc}>Sign Date</label>
-//                       <input type="date" value={signDate} onChange={e => setSignDate(e.target.value)} className={ic} />
+//                       <DateFilterInput value={signDate} onChange={e => setSignDate(e.target.value)} className={ic} />
 //                     </div>
 //                     <div>
 //                       <label className={lc}>Sign Time</label>
@@ -959,6 +959,7 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Signature Pad ────────────────────────────────────────────────────────────
 
@@ -1895,7 +1896,7 @@ export const PreAnesthesiaAssessmentModal = ({
                     </div>
                     <div>
                       <label className={lc}>Sign Date</label>
-                      <input type="date" value={signDate} onChange={e => setSignDate(e.target.value)} className={ic} />
+                      <DateFilterInput value={signDate} onChange={e => setSignDate(e.target.value)} className={ic} />
                     </div>
                     <div>
                       <label className={lc}>Sign Time</label>

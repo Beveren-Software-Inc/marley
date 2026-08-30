@@ -27,6 +27,7 @@ import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { digitsOnlyPhone, firstInvalidPatientPhone, isNumericPhone } from '../../utils/phoneInput'
 import { isValidEmail } from '../../utils/emailInput'
 import { PenLine, Trash2, Check, Upload, Download, RefreshCw, Loader2 } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Signature Pad Component ────────────────────────────────────────────────
 
@@ -908,7 +909,7 @@ export const CreatePatientModal = ({ onClose, onSuccess, initialName, initialMob
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
-                      <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)}
+                      <DateFilterInput value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)}
                         className="w-full rounded-md border border-slate-300 bg-white text-slate-900 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                       <PatientDobAgeHint dob={formData.dob} />
                     </div>

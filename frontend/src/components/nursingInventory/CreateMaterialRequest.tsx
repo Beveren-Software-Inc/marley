@@ -15,6 +15,7 @@ import {
   isMedicalPayload,
   type IsMedicalChoice,
 } from '../ui/IsMedicalSelect'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateMaterialRequestModalProps {
   onClose: () => void
@@ -298,8 +299,7 @@ export const CreateMaterialRequestModal = ({ onClose, onSuccess, costCenter }: C
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Request Date
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={new Date().toISOString().split('T')[0]}
                     readOnly
                     disabled

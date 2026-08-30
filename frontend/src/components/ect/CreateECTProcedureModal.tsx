@@ -11,6 +11,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateECTProcedureModalProps {
   onClose: () => void
@@ -31,15 +32,28 @@ const FormField = memo(({ label, required = false, children }: { label: string; 
 FormField.displayName = 'FormField'
 
 // Memoized InputField - pure component
-const InputField = memo(({ value, onChange, type = "text", placeholder = "", disabled = false }: { value: string; onChange: (e: React.ChangeEvent<HTMLInputElement>) => void; type?: string; placeholder?: string; disabled?: boolean }) => (
-  <input
-    type={type}
-    value={value}
-    onChange={onChange}
-    placeholder={placeholder}
-    disabled={disabled}
-    className="w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-  />
+const INPUT_FIELD_CLASS =
+  'w-full px-3 py-2.5 text-sm border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all disabled:opacity-50 disabled:cursor-not-allowed'
+
+const InputField = memo(({ value, onChange, type = "text", placeholder = "", disabled = false }: { value: string; onChange: (e: { target: { value: string } }) => void; type?: string; placeholder?: string; disabled?: boolean }) => (
+  type === 'date' ? (
+    <DateFilterInput
+      value={value}
+      onChange={onChange}
+      disabled={disabled}
+      placeholder={placeholder || 'DD/MM/YYYY'}
+      className={INPUT_FIELD_CLASS}
+    />
+  ) : (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange}
+      placeholder={placeholder}
+      disabled={disabled}
+      className={INPUT_FIELD_CLASS}
+    />
+  )
 ))
 InputField.displayName = 'InputField'
 

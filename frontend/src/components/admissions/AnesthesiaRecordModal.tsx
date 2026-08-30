@@ -15,6 +15,8 @@ import {
 } from '../ui/linkComboboxStyles'
 
 import { CM_BTN_CANCEL, CM_BTN_PRIMARY, CREATE_MODAL_BODY_GRADIENT, CREATE_MODAL_FOOTER_STICKY, CREATE_MODAL_OVERLAY, CreateModalHeader, createModalShellClass, createModalTabButtonClass } from '../ui/CreateModalChrome'
+import { DateFilterInput } from '../ui/DateFilterInput'
+
 // ─── Signature Pad (mirrors DischargeModal implementation) ───────────────────
 
 interface SignaturePadProps {
@@ -529,7 +531,7 @@ function GeneralTab({ form, setField, admissionNo, patient, patientName, fetchAd
           </div>
           <div>
             <label className={labelClass}>Date</label>
-            <input type="date" value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
+            <DateFilterInput value={form.date} onChange={e => setField('date', e.target.value)} className={inputClass} />
           </div>
           <div>
             <label className={labelClass}>Time</label>
@@ -759,8 +761,7 @@ function SigningTab({ form, setField, signatureUrl, setSignatureUrl }: {
         <div className="grid grid-cols-2 gap-6 mb-4">
           <div>
             <label className={labelClass}>Date of Signing</label>
-            <input
-              type="date"
+            <DateFilterInput
               value={form.date}
               onChange={e => setField('date', e.target.value)}
               className={inputClass}

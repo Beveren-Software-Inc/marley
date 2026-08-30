@@ -5,6 +5,7 @@ import {
   type QualityIndicatorRow,
 } from '../../services/qualityIndicators'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const CATEGORIES = [
   'Patient Safety',
@@ -94,8 +95,7 @@ export const QualityIndicatorsBoard = () => {
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div>
           <label className="block text-xs font-medium text-slate-600">From</label>
-          <input
-            type="date"
+          <DateFilterInput
             value={from}
             onChange={(e) => setFrom(e.target.value)}
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -103,8 +103,7 @@ export const QualityIndicatorsBoard = () => {
         </div>
         <div>
           <label className="block text-xs font-medium text-slate-600">To</label>
-          <input
-            type="date"
+          <DateFilterInput
             value={to}
             onChange={(e) => setTo(e.target.value)}
             className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"

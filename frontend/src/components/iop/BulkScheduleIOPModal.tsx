@@ -17,6 +17,7 @@ import {
 } from '../../services/iop'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface BulkScheduleIOPModalProps {
   onClose: () => void
@@ -141,12 +142,12 @@ export const BulkScheduleIOPModal = ({ onClose, onSuccess }: BulkScheduleIOPModa
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">From <span className="text-red-500">*</span></label>
-              <input type="date" min={localDateInputValue()} value={startDate} onChange={(e) => setStartDate(e.target.value)}
+              <DateFilterInput min={localDateInputValue()} value={startDate} onChange={(e) => setStartDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">To <span className="text-red-500">*</span></label>
-              <input type="date" min={startDate || localDateInputValue()} value={endDate} onChange={(e) => setEndDate(e.target.value)}
+              <DateFilterInput min={startDate || localDateInputValue()} value={endDate} onChange={(e) => setEndDate(e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" required />
             </div>
           </div>

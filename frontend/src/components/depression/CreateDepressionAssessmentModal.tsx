@@ -31,6 +31,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const RESPONSE_OPTIONS = ['0', '1', '2', '3'] as const
 type ResponseOption = typeof RESPONSE_OPTIONS[number]
@@ -445,8 +446,7 @@ export const CreateDepressionAssessmentModal = ({
                 <label className="block text-xs font-medium text-slate-600 mb-1">
                   Assessment Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={assessmentDate}
                   onChange={(e) => setAssessmentDate(e.target.value)}
                   className={MODAL_FIELD_CLASS}

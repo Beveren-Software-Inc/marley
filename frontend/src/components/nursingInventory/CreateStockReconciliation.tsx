@@ -10,6 +10,7 @@ import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { InventoryBranchField, useInventoryBranch } from './InventoryBranchField'
 import { toast } from '../../hooks/useToast'
 import { X, Save, Search, AlertTriangle, Plus, Minus } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateStockReconciliationModalProps {
   onClose: () => void
@@ -576,8 +577,7 @@ export const CreateStockReconciliationModal = ({
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Reconciliation Date
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={new Date().toISOString().split('T')[0]}
                     readOnly
                     disabled

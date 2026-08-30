@@ -27,6 +27,7 @@ import {
   linkComboboxInputWithClearClass,
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const STATUS_OPTIONS = ['Unused', 'Active', 'Exhausted', 'Expired', 'Cancelled']
 
@@ -348,8 +349,7 @@ export const CreateInsurancePatientRegisterModal = ({
 
                 <div>
                   <label className={MODAL_LABEL_CLASS}>Posting Date</label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={postingDate}
                     onChange={(e) => setPostingDate(e.target.value)}
                     className={MODAL_FIELD_CLASS}

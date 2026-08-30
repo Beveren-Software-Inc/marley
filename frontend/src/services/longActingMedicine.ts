@@ -1,3 +1,5 @@
+import { messageFromExc } from './appointments'
+
 export type InjectionSide = 'LT' | 'RT'
 
 export interface LongActingMedicineGiveOutRow {
@@ -159,20 +161,99 @@ export async function fetchLongActingGiveOutsForPatient(
 
 export type ReminderChannel = 'email' | 'whatsapp' | 'sms'
 
+export interface LongActingWhatsAppTemplateOption {
+  name: string
+  template_name: string
+  actual_name?: string
+  purpose?: string
+  header_type?: string
+  header_text?: string
+  body_text?: string
+  footer_text?: string
+  field_names?: string
+  language_code?: string
+  variable_count?: number
+}
+
+export interface LongActingWhatsAppPreview {
+  name?: string
+  patient?: string
+  patient_name?: string
+  phone_number: string
+  country?: string
+  country_isd?: string
+  templates: LongActingWhatsAppTemplateOption[]
+  selected_template: string | null
+  parameters: string[]
+  preview: {
+    header: string
+    body: string
+    footer: string
+    template_name?: string
+    actual_name?: string
+  } | null
+  selected?: LongActingWhatsAppTemplateOption | null
+}
+
+export async function getLongActingMedicineWhatsAppPreview(
+  name: string,
+  templateName?: string,
+): Promise<LongActingWhatsAppPreview> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
+  const res = await fetch(
+    '/api/method/healthcare.api.common.get_long_acting_medicine_whatsapp_preview',
+    {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        name,
+        ...(templateName ? { template_name: templateName } : {}),
+      }),
+    },
+  )
+  const data = await res.json()
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type))
+  return data?.message as LongActingWhatsAppPreview
+}
+
 export async function sendLongActingMedicineReminder(
   name: string,
-  channel: ReminderChannel = 'email'
+  channel: ReminderChannel = 'email',
+  options?: {
+    phone_number?: string
+    template_name?: string
+    template_parameters?: string | string[]
+  },
 ): Promise<{ sent: boolean; channel: string }> {
+  const { ensureCSRF } = await import('./apiClient')
+  const csrf = await ensureCSRF()
   const res = await fetch(
     '/api/method/healthcare.api.common.send_long_acting_medicine_reminder',
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, channel }),
-    }
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(csrf ? { 'X-Frappe-CSRF-Token': csrf } : {}),
+      },
+      body: JSON.stringify({
+        name,
+        channel,
+        ...(options?.phone_number ? { phone_number: options.phone_number } : {}),
+        ...(options?.template_name ? { template_name: options.template_name } : {}),
+        ...(options?.template_parameters != null
+          ? { template_parameters: options.template_parameters }
+          : {}),
+      }),
+    },
   )
   const data = await res.json()
-  if (data?.exc) throw new Error(data?.message || 'Failed to send reminder')
+  if (data?.exc) throw new Error(messageFromExc(data.exc, data.exc_type) || data?.message || 'Failed to send reminder')
   return (data?.message as { sent: boolean; channel: string }) || { sent: true, channel }
 }
 

@@ -23,6 +23,7 @@ import {
   CREATE_MODAL_OVERLAY,
   createModalShellClass,
 } from '../ui/CreateModalChrome'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type TabId = 'details' | 'items'
 
@@ -362,8 +363,7 @@ export function AdditionalCollectionInvoiceModal({
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Posting date</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       value={postingDate}
                       onChange={(e) => setPostingDate(e.target.value)}
@@ -371,8 +371,7 @@ export function AdditionalCollectionInvoiceModal({
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-600 mb-1.5">Due date</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
                       value={dueDate}
                       onChange={(e) => setDueDate(e.target.value)}

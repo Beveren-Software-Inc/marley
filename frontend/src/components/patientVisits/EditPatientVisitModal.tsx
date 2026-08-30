@@ -36,6 +36,7 @@ import { useBlockIfEditingLocked } from '../../hooks/useBlockIfEditingLocked'
 import { useRejectEditModeWhenLocked } from '../../hooks/useRejectEditModeWhenLocked'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface EditChargeRow {
   item_code: string
@@ -502,8 +503,7 @@ export const EditPatientVisitModal = ({
                   <label className={MODAL_LABEL_CLASS}>
                     Encounter Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={encounterDate}
                     onChange={(e) => setEncounterDate(e.target.value)}
                     className={MODAL_FIELD_CLASS}

@@ -28,6 +28,7 @@ import {
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface ECTPatientHealthHistoryModalProps {
   patient?: string
@@ -287,7 +288,7 @@ export const ECTPatientHealthHistoryModal = ({
               </div>
               <div>
                 <label className={lc}>Date</label>
-                <input type="date" value={historyDate} onChange={(e) => setHistoryDate(e.target.value)} className={ic} />
+                <DateFilterInput value={historyDate} onChange={(e) => setHistoryDate(e.target.value)} className={ic} />
               </div>
               <div>
                 <label className={lc}>Time</label>

@@ -14,6 +14,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type SourceDoctype = 'Patient Visit' | 'Inpatient Admission'
 
@@ -260,8 +261,7 @@ export const CreatePatientReferralModal = ({
               <label className="block text-xs font-medium text-slate-700 mb-1">
                 Referral Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={referralDate}
                 onChange={e => { setReferralDate(e.target.value); setErrors(p => ({ ...p, referralDate: '' })) }}
                 className={cls('referralDate')}

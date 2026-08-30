@@ -7,6 +7,7 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { formatMoneyAmount } from '../../utils/currencyFormat'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -238,8 +239,7 @@ function UpdateClaimModal({ row, currency, onClose, onSuccess }: UpdateClaimModa
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1">Reference Date</label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={referenceDate}
                     onChange={e => setReferenceDate(e.target.value)}
                     className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

@@ -50,6 +50,7 @@ import {
   isOtherServiceRequest,
   serviceRequestPractitionerLabel,
 } from '../../utils/serviceRequestLabels'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type LabTemplateGroupFilter = 'all' | 'group' | 'single'
 
@@ -1233,8 +1234,7 @@ export const CreateServiceRequestModal = ({
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className={labelClass}>Order date</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       value={form.order_date}
                       onChange={(e) => setForm((prev) => ({ ...prev, order_date: e.target.value }))}
                       className={inputClass}

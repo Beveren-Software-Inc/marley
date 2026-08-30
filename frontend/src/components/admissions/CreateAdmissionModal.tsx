@@ -46,6 +46,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface Company {
   name: string
@@ -1530,8 +1531,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
               <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Admission Ordered For
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={formData.admission_ordered_for}
                 onChange={(e) => setFormData(prev => ({ ...prev, admission_ordered_for: e.target.value }))}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -1636,8 +1636,7 @@ export const CreateAdmissionModal = ({ onClose, onSuccess, patientName, encounte
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">Start Date <span className="text-red-500">*</span></label>
-                      <input
-                        type="date"
+                      <DateFilterInput
                         value={observationForm.chargesStartToday === 'Yes'
                           ? new Date().toISOString().split('T')[0]
                           : observationForm.start_date}

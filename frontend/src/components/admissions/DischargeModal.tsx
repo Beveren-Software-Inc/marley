@@ -86,6 +86,7 @@ import {
 } from '../../utils/dischargeNavigation'
 import { CollapsibleFormSection } from '../billing/CollapsibleFormSection'
 import { X, ArrowLeft, CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Receipt, PenLine, Trash2, Check, Save, Clock, Pill, Calendar, DollarSign, ClipboardList, HeartPulse, ArrowRightLeft, FolderOpen, Users, Lock, type LucideIcon } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -689,8 +690,7 @@ const DailyVisitSetupForm = ({
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">From Date *</label>
-          <input
-            type="date"
+          <DateFilterInput
             value={formData.from_date}
             onChange={(e) => setFormData({ ...formData, from_date: e.target.value })}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -699,8 +699,7 @@ const DailyVisitSetupForm = ({
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">End Date *</label>
-          <input
-            type="date"
+          <DateFilterInput
             value={formData.to_date}
             onChange={(e) => setFormData({ ...formData, to_date: e.target.value })}
             className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -3528,7 +3527,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Final Discharge Date</label>
-                    <input type="date" value={formData.final_discharge_date}
+                    <DateFilterInput value={formData.final_discharge_date}
                       onChange={(e) => setFormData({ ...formData, final_discharge_date: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
@@ -3588,7 +3587,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">Next Appointment Date</label>
-                    <input type="date" min={localDateInputValue()} value={formData.next_appointment_date}
+                    <DateFilterInput min={localDateInputValue()} value={formData.next_appointment_date}
                       onChange={(e) => setFormData({ ...formData, next_appointment_date: e.target.value })}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                   </div>
@@ -4380,8 +4379,7 @@ const presTotal = items.reduce((sum: number, d: any) => sum + (d.amount || 0), 0
 
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
-                      <input
-                        type="date"
+                      <DateFilterInput
                         value={
                           Number(formData.charge_observation_today)
                             ? new Date().toISOString().split('T')[0]

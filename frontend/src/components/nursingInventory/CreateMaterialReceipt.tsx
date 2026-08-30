@@ -9,6 +9,7 @@ import { createMaterialReceipt, fetchInventoryItems, fetchSuppliers, getWarehous
 import { useMiniWarehouseContext } from './MiniWarehouseInventoryContext'
 import { toast } from '../../hooks/useToast'
 import { X, Plus, Trash2, Save, Package } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateMaterialReceiptModalProps {
   onClose: () => void
@@ -358,8 +359,7 @@ export const CreateMaterialReceiptModal = ({
                   <label className="block text-sm font-medium text-slate-700 mb-1">
                     Receipt Date
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={new Date().toISOString().split('T')[0]}
                     readOnly
                     disabled
@@ -487,8 +487,7 @@ export const CreateMaterialReceiptModal = ({
                           <label className="block text-xs font-medium text-slate-600 mb-1">
                             Expiry Date
                           </label>
-                          <input
-                            type="date"
+                          <DateFilterInput
                             value={item.expiry_date}
                             onChange={(e) => updateItem(idx, 'expiry_date', e.target.value)}
                             className="w-full px-3 py-2 border border-slate-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary"

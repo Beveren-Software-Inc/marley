@@ -5,7 +5,7 @@ import re
 
 import frappe
 from frappe import _
-from frappe.utils import cint, cstr, flt
+from frappe.utils import cint, cstr, flt, formatdate, getdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
 
 
@@ -1959,11 +1959,80 @@ def update_long_acting_medicine_remarks(name: str, remarks: str):
 
 
 @frappe.whitelist()
-def send_long_acting_medicine_reminder(name: str, channel: str = "email"):
+def get_long_acting_medicine_whatsapp_preview(name: str, template_name=None):
+	"""Return WhatsApp preview (phone, templates, filled message) for Long Acting Medicine."""
+	if not name:
+		frappe.throw(_("Long Acting Medicine name is required"))
+	if not frappe.db.exists("Long Acting Medicine", name):
+		frappe.throw(_("Long Acting Medicine {0} does not exist").format(frappe.bold(name)))
+
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_get_company_country_isd,
+	)
+
+	doc = frappe.get_doc("Long Acting Medicine", name)
+	patient = frappe.get_doc("Patient", doc.patient) if doc.patient else None
+	patient_name = doc.patient_name or (patient.patient_name if patient else doc.patient or name)
+	templates = _get_long_acting_whatsapp_templates(doc)
+	if not templates:
+		unapproved = _find_unapproved_long_acting_template(doc)
+		if unapproved:
+			frappe.throw(
+				_(
+					"WhatsApp template {0} is {1}. It must be APPROVED before it can be sent."
+				).format(unapproved.get("template_name") or unapproved.get("name"), unapproved.get("status"))
+			)
+		frappe.throw(
+			_(
+				"No WhatsApp template mapped for Long Acting Medicine. "
+				"Add one under Digital Connect Whatsap Settings → Template Mapping, "
+				"or set for_doctype to Long Acting Medicine on an APPROVED template."
+			)
+		)
+
+	selected_name = (template_name or "").strip() or None
+	if not selected_name and len(templates) == 1:
+		selected_name = templates[0]["name"]
+	if selected_name and selected_name not in {t["name"] for t in templates}:
+		frappe.throw(_("Template {0} is not available for this record").format(selected_name))
+
+	selected = None
+	preview = None
+	parameters = []
+	if selected_name:
+		selected = next(t for t in templates if t["name"] == selected_name)
+		parameters = _build_long_acting_whatsapp_parameters(doc, selected_name)
+		preview = _render_long_acting_whatsapp_preview(selected_name, parameters, doc)
+
+	country, country_isd = _get_company_country_isd(doc.get("company"))
+
+	return {
+		"name": doc.name,
+		"patient": doc.patient,
+		"patient_name": patient_name,
+		"phone_number": _resolve_long_acting_patient_mobile(doc, patient=patient) or "",
+		"country": country,
+		"country_isd": country_isd,
+		"templates": templates,
+		"selected_template": selected_name,
+		"parameters": parameters,
+		"preview": preview,
+		"selected": selected,
+	}
+
+
+@frappe.whitelist()
+def send_long_acting_medicine_reminder(
+	name: str,
+	channel: str = "email",
+	phone_number: str = None,
+	template_name: str = None,
+	template_parameters=None,
+):
 	"""Send a reminder for a Long Acting Medicine via the specified channel.
 
 	channel: 'email' | 'whatsapp' | 'sms'
-	Extend each branch below to hook into your messaging gateway.
+	WhatsApp accepts optional phone_number / template_name / template_parameters.
 	"""
 	if not name:
 		frappe.throw(_("Long Acting Medicine name is required"))
@@ -1980,44 +2049,515 @@ def send_long_acting_medicine_reminder(name: str, channel: str = "email"):
 	patient_name = doc.patient_name or (patient.patient_name if patient else doc.patient or name)
 
 	if channel == "email":
-		# Hook: send email via frappe.sendmail or Communication doctype
-		# frappe.sendmail(recipients=[patient.email], subject="...", message="...")
 		pass
 	elif channel == "whatsapp":
-		_send_long_acting_medicine_whatsapp(doc, patient)
+		_send_long_acting_medicine_whatsapp(
+			doc,
+			patient,
+			phone_override=phone_number,
+			template_name=template_name,
+			template_parameters=template_parameters,
+		)
 	elif channel == "sms":
-		# Hook: send SMS via frappe.core.doctype.sms_settings or external gateway
 		pass
 
 	return {"sent": True, "channel": channel, "patient": patient_name}
 
 
-def _send_long_acting_medicine_whatsapp(doc, patient):
+def _long_acting_template_candidate_names(doc):
+	names = []
+	if doc.get("whatsapp_template"):
+		names.append(doc.whatsapp_template)
+	if frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		settings = frappe.get_single("Digital Connect Whatsap Settings")
+		for row in settings.get("template_mapping") or []:
+			if row.get("reference_document") == "Long Acting Medicine" and row.get("template"):
+				names.append(row.template)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={"for_doctype": "Long Acting Medicine"},
+			pluck="name",
+		)
+	)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={
+				"template_name": [
+					"in",
+					["long_acting", "long_acting_medicine", "long_acting-en", "long_acting_medicine-en"],
+				]
+			},
+			pluck="name",
+		)
+	)
+	names.extend(
+		frappe.get_all(
+			"Digital Whatsapp Template",
+			filters={
+				"actual_name": [
+					"in",
+					["long_acting", "long_acting_medicine", "long_acting-en", "long_acting_medicine-en"],
+				]
+			},
+			pluck="name",
+		)
+	)
+	seen = set()
+	out = []
+	for name in names:
+		if name and name not in seen:
+			seen.add(name)
+			out.append(name)
+	return out
+
+
+def _find_unapproved_long_acting_template(doc):
+	for name in _long_acting_template_candidate_names(doc):
+		row = frappe.db.get_value(
+			"Digital Whatsapp Template",
+			name,
+			["name", "template_name", "status"],
+			as_dict=True,
+		)
+		if row and (row.status or "").upper() != "APPROVED":
+			return row
+	return None
+
+
+def _get_long_acting_whatsapp_templates(doc):
+	"""Resolve approved WhatsApp templates for Long Acting Medicine."""
+	purpose_by_name = {}
+	if frappe.db.exists("DocType", "Digital Connect Whatsap Settings"):
+		settings = frappe.get_single("Digital Connect Whatsap Settings")
+		for row in settings.get("template_mapping") or []:
+			if row.get("reference_document") == "Long Acting Medicine" and row.get("template"):
+				purpose_by_name[row.template] = row.get("purpose") or ""
+
+	out = []
+	seen = set()
+	for name in _long_acting_template_candidate_names(doc):
+		if name in seen:
+			continue
+		row = frappe.db.get_value(
+			"Digital Whatsapp Template",
+			name,
+			[
+				"name",
+				"template_name",
+				"actual_name",
+				"status",
+				"header_type",
+				"header_text",
+				"body_text",
+				"footer_text",
+				"field_names",
+				"language_code",
+			],
+			as_dict=True,
+		)
+		if not row or (row.status or "").upper() != "APPROVED":
+			continue
+		seen.add(name)
+		purpose = purpose_by_name.get(name) or (
+			"Long Acting Template" if doc.get("whatsapp_template") == name else "Long Acting Medicine"
+		)
+		out.append(
+			{
+				"name": row.name,
+				"template_name": row.template_name,
+				"actual_name": row.actual_name,
+				"purpose": purpose,
+				"header_type": row.header_type,
+				"header_text": row.header_text or "",
+				"body_text": row.body_text or "",
+				"footer_text": row.footer_text or "",
+				"field_names": row.field_names or "",
+				"language_code": row.language_code or "",
+				"variable_count": _count_long_acting_template_variables(
+					row.header_text if row.header_type == "TEXT" else ""
+				)
+				+ _count_long_acting_template_variables(row.body_text),
+			}
+		)
+	return out
+
+
+def _count_long_acting_template_variables(text):
+	if not text:
+		return 0
+	nums = [int(m) for m in re.findall(r"\{\{(\d+)\}\}", text)]
+	nums += [int(m) for m in re.findall(r"(?<!\{)\{(\d+)\}(?!\})", text)]
+	return max(nums) if nums else 0
+
+
+def _long_acting_medications_summary(doc, limit=5):
+	from healthcare.healthcare.doctype.long_acting_medicine.long_acting_medicine import (
+		_first_medication_give_out_fields,
+	)
+
+	first = _first_medication_give_out_fields(doc) or {}
+	labels = []
+	first_label = (first.get("medication") or "").strip()
+	if first_label:
+		labels.append(first_label)
+	for item in doc.get("medications") or []:
+		if getattr(item, "is_active", 1) == 0:
+			continue
+		label = (getattr(item, "drug_name", None) or getattr(item, "drug", None) or "").strip()
+		if label and label not in labels:
+			labels.append(label)
+	text = ", ".join(labels[:limit])
+	if len(labels) > limit:
+		text += f" (+{len(labels) - limit} more)"
+	return text
+
+
+def _format_long_acting_date_whatsapp(value):
+	"""Format like appointments: MON 24-AUG-2026."""
+	if not value:
+		return ""
+	try:
+		d = getdate(value)
+	except Exception:
+		return cstr(value)
+	return f"{d.strftime('%a').upper()} {d.strftime('%d-%b-%Y').upper()}"
+
+
+def _resolve_long_acting_cost_center(doc):
+	"""Same source as appointments: cost center → DigiConnect branch name and phone."""
+	if doc.get("cost_center"):
+		return doc.cost_center
+
+	for item in doc.get("medications") or []:
+		moe = getattr(item, "medication_order_entry", None)
+		if not moe and isinstance(item, dict):
+			moe = item.get("medication_order_entry")
+		if not moe:
+			continue
+		pmo_name = frappe.db.get_value("Inpatient Medication Order Entry", moe, "parent")
+		if not pmo_name:
+			continue
+		pmo = frappe.db.get_value(
+			"Patient Medication Order",
+			pmo_name,
+			["cost_center", "inpatient_record", "patient_encounter", "reference_doctype", "reference_document_name"],
+			as_dict=True,
+		)
+		if not pmo:
+			continue
+		if pmo.get("cost_center"):
+			return pmo.cost_center
+		from healthcare.api.sales_order_cost_center import cost_center_from_patient_medication_order
+
+		cc = cost_center_from_patient_medication_order(
+			pmo, pmo.get("reference_doctype"), pmo.get("reference_document_name")
+		)
+		if cc:
+			return cc
+		if pmo.get("inpatient_record"):
+			cc = frappe.db.get_value("Inpatient Admission", pmo.inpatient_record, "cost_center")
+			if cc:
+				return cc
+		if pmo.get("patient_encounter"):
+			enc_meta = frappe.get_meta("Patient Encounter")
+			if enc_meta.has_field("cost_center"):
+				cc = frappe.db.get_value("Patient Encounter", pmo.patient_encounter, "cost_center")
+				if cc:
+					return cc
+
+	patient = doc.get("patient")
+	if patient:
+		adm = frappe.get_all(
+			"Inpatient Admission",
+			filters={"patient": patient, "status": ["in", ["Admitted", "Admission Scheduled"]]},
+			fields=["cost_center"],
+			order_by="modified desc",
+			limit=1,
+		)
+		if adm and adm[0].get("cost_center"):
+			return adm[0].cost_center
+		visit = frappe.get_all(
+			"Patient Visit",
+			filters={"patient": patient},
+			fields=["cost_center"],
+			order_by="encounter_date desc, modified desc",
+			limit=1,
+		)
+		if visit and visit[0].get("cost_center"):
+			return visit[0].cost_center
+
+	permitted = get_permitted_cost_centers()
+	if permitted:
+		return permitted[0]
+	return None
+
+
+def _build_long_acting_whatsapp_param_map(doc):
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_get_digiconnect_branch_info,
+	)
+
+	practitioner_name = ""
+	if doc.get("practitioner"):
+		practitioner_name = (
+			frappe.db.get_value("Healthcare Practitioner", doc.practitioner, "practitioner_name")
+			or doc.practitioner
+		)
+	frequency = doc.get("written_frequency") or doc.get("frequency") or ""
+	due = doc.get("next_run_date") or doc.get("start_date")
+	datetime_str = _format_long_acting_date_whatsapp(due)
+	start = _format_long_acting_date_whatsapp(doc.get("start_date"))
+	end = _format_long_acting_date_whatsapp(doc.get("end_date"))
+	meds = _long_acting_medications_summary(doc)
+	patient_name = doc.get("patient_name") or doc.get("patient") or ""
+
+	cost_center = _resolve_long_acting_cost_center(doc)
+	branch = _get_digiconnect_branch_info(cost_center)
+	contacts = branch.get("contacts") or ""
+	branch_label = branch.get("branch_label") or branch.get("branch") or ""
+
+	return {
+		"patient_name": patient_name,
+		"patient": patient_name,
+		"frequency": cstr(frequency),
+		"written_frequency": cstr(doc.get("written_frequency") or frequency),
+		"long_acting_frequency": cstr(frequency),
+		"next_run_date": datetime_str,
+		"date": datetime_str,
+		"appointment_date": datetime_str,
+		"appointment_datetime": datetime_str,
+		"appointment_date_time": datetime_str,
+		"date_time": datetime_str,
+		"datetime": datetime_str,
+		"start_date": start,
+		"end_date": end,
+		"medication": meds,
+		"medications": meds,
+		"medications_summary": meds,
+		"drug": meds,
+		"drug_name": meds,
+		"practitioner_name": cstr(practitioner_name),
+		"practitioner": cstr(practitioner_name or doc.get("practitioner") or ""),
+		"doctor": cstr(practitioner_name),
+		"doctor_name": cstr(practitioner_name),
+		"branch": branch_label,
+		"cost_center": branch_label,
+		"branch_prefix": branch.get("branch_prefix") or branch_label,
+		"branch_contacts": contacts,
+		"contacts": contacts,
+		"phone": contacts,
+		"mobile": contacts,
+		"company": branch_label or cstr(doc.get("company") or ""),
+		"company_name": cstr(doc.get("company") or ""),
+		"status": cstr(doc.get("status") or ""),
+		"name": cstr(doc.get("name") or ""),
+	}
+
+
+def _long_acting_whatsapp_param_value(key, param_map):
+	"""Resolve template field_names, including appointment-style aliases."""
+	key = (key or "").strip()
+	if not key:
+		return ""
+	if key in param_map:
+		return cstr(param_map.get(key) or "")
+	aliases = {
+		"location": "branch",
+		"branch_name": "branch",
+		"hospital": "branch",
+		"contact": "branch_contacts",
+		"contact_number": "branch_contacts",
+		"contacts_number": "branch_contacts",
+		"assistance": "branch_contacts",
+		"call": "branch_contacts",
+	}
+	mapped = aliases.get(key.lower())
+	if mapped:
+		return cstr(param_map.get(mapped) or "")
+	return ""
+
+
+def _build_long_acting_whatsapp_parameters(doc, template_name):
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	param_map = _build_long_acting_whatsapp_param_map(doc)
+	header_count = (
+		_count_long_acting_template_variables(template.header_text)
+		if template.header_type == "TEXT"
+		else 0
+	)
+	body_count = _count_long_acting_template_variables(template.body_text)
+	total = header_count + body_count
+
+	field_names = []
+	if template.field_names:
+		field_names = [x.strip() for x in re.split(r"[,\n;]+", template.field_names) if x.strip()]
+
+	# Same order as appointments: name, branch, date, phone — not frequency.
+	defaults = [
+		param_map["patient_name"],
+		param_map["branch"],
+		param_map["appointment_datetime"],
+		param_map["branch_contacts"],
+	]
+
+	values = []
+	for i in range(total):
+		if i < len(field_names):
+			key = field_names[i]
+			# Injection templates often reuse appointment slots named company / frequency.
+			if key == "frequency" and param_map.get("branch_contacts"):
+				values.append(cstr(param_map["branch_contacts"]))
+			elif key == "company" and param_map.get("branch"):
+				values.append(cstr(param_map["branch"]))
+			else:
+				val = _long_acting_whatsapp_param_value(key, param_map)
+				if val:
+					values.append(val)
+				else:
+					raw = doc.get(key) if hasattr(doc, "get") else None
+					values.append("" if raw is None else cstr(raw))
+		elif i < len(defaults):
+			values.append(cstr(defaults[i]))
+		else:
+			values.append("")
+	return values
+
+
+def _render_long_acting_whatsapp_preview(template_name, parameters, doc=None):
+	template = frappe.get_doc("Digital Whatsapp Template", template_name)
+	params = list(parameters or [])
+	param_map = _build_long_acting_whatsapp_param_map(doc) if doc else {}
+	defaults = [
+		param_map.get("patient_name") or "",
+		param_map.get("branch") or "",
+		param_map.get("appointment_datetime") or "",
+		param_map.get("branch_contacts") or "",
+	]
+	patient_name = defaults[0]
+
+	def fill(text, offset=0):
+		if not text:
+			return ""
+
+		def repl(match):
+			idx = int(match.group(1)) - 1
+			abs_idx = offset + idx
+			if 0 <= abs_idx < len(params) and cstr(params[abs_idx]):
+				return cstr(params[abs_idx])
+			if 0 <= abs_idx < len(defaults):
+				return cstr(defaults[abs_idx])
+			return match.group(0)
+
+		filled = re.sub(r"\{\{(\d+)\}\}", repl, text)
+		filled = re.sub(r"(?<!\{)\{(\d+)\}(?!\})", repl, filled)
+		if patient_name:
+			filled = filled.replace("[Patient Name]", patient_name)
+		return filled
+
+	header_offset = 0
+	header_text = ""
+	if template.header_type == "TEXT" and template.header_text:
+		header_count = _count_long_acting_template_variables(template.header_text)
+		header_text = fill(template.header_text, 0)
+		header_offset = header_count
+
+	return {
+		"header": header_text,
+		"body": fill(template.body_text or "", header_offset),
+		"footer": template.footer_text or "",
+		"template_name": template.template_name,
+		"actual_name": template.actual_name,
+	}
+
+
+def _resolve_long_acting_patient_mobile(doc, patient=None):
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_normalize_whatsapp_phone,
+	)
+
+	raw = ""
+	if patient:
+		raw = (
+			getattr(patient, "mobile", "")
+			or getattr(patient, "mobile_no", "")
+			or getattr(patient, "mobile_no_1", "")
+			or getattr(patient, "phone", "")
+			or ""
+		).strip()
+	if not raw and doc.get("patient"):
+		values = frappe.db.get_value(
+			"Patient",
+			doc.patient,
+			["mobile", "mobile_no", "mobile_no_1", "phone"],
+			as_dict=True,
+		) or {}
+		for field in ("mobile", "mobile_no", "mobile_no_1", "phone"):
+			number = (values.get(field) or "").strip()
+			if number:
+				raw = number
+				break
+	if not raw:
+		return ""
+	return _normalize_whatsapp_phone(raw, company=doc.get("company"))
+
+
+def _send_long_acting_medicine_whatsapp(
+	doc,
+	patient,
+	phone_override=None,
+	template_name=None,
+	template_parameters=None,
+):
 	"""Send WhatsApp reminder for a Long Acting Medicine document."""
 	from healthcare.healthcare.doctype.digital_connect_whatsap_settings.digital_connect_whatsap_settings import (
 		send_test_message,
 	)
+	from healthcare.healthcare.doctype.patient_appointment.patient_appointment import (
+		_normalize_whatsapp_phone,
+	)
 
-	if not patient:
-		frappe.throw(_("Patient record not found for this Long Acting Medicine"))
+	override = (phone_override or "").strip()
+	if override:
+		phone = _normalize_whatsapp_phone(override, company=doc.get("company"))
+	else:
+		phone = _resolve_long_acting_patient_mobile(doc, patient=patient)
 
-	phone = (
-		getattr(patient, "mobile", "") or
-		getattr(patient, "mobile_no", "") or
-		getattr(patient, "mobile_no_1", "") or
-		getattr(patient, "phone", "") or ""
-	).strip()
 	if not phone:
-		frappe.throw(_("Patient {0} has no mobile number").format(patient.patient_name or patient.name))
+		frappe.throw(
+			_("Patient {0} has no mobile number. Enter a number to send WhatsApp.").format(
+				doc.patient_name or (patient.patient_name if patient else doc.patient) or doc.name
+			)
+		)
 
-	template_name = doc.get("whatsapp_template")
-	if template_name:
+	resolved_template = (template_name or "").strip() or doc.get("whatsapp_template")
+	if not resolved_template:
+		mapped = _get_long_acting_whatsapp_templates(doc)
+		if len(mapped) == 1:
+			resolved_template = mapped[0]["name"]
+		elif len(mapped) > 1:
+			frappe.throw(_("Multiple WhatsApp templates found. Please select one."))
+
+	if resolved_template:
+		if template_parameters is None:
+			template_parameters = _build_long_acting_whatsapp_parameters(doc, resolved_template)
+		elif isinstance(template_parameters, str):
+			stripped = template_parameters.strip()
+			if stripped.startswith("["):
+				try:
+					parsed = frappe.parse_json(stripped)
+					if isinstance(parsed, list):
+						template_parameters = parsed
+				except Exception:
+					pass
 		result = send_test_message(
 			phone_number=phone,
-			template_name=template_name,
+			template_name=resolved_template,
+			template_parameters=template_parameters or [],
 		)
 	else:
-		patient_name = doc.patient_name or patient.patient_name or doc.patient
+		patient_name = doc.patient_name or (patient.patient_name if patient else None) or doc.patient
 		body = _(
 			"Dear {0}, this is a reminder for your Long Acting Medicine. "
 			"Please visit the hospital as scheduled."

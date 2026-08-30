@@ -35,6 +35,7 @@ import { useAuth } from '../../providers/AuthProvider'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { canManagePatientBlacklist } from '../../config/permissions'
 import { BlacklistPatientModal } from './BlacklistPatientModal'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 // ─── Signature Pad Component (same as CreatePatientModal) ───────────────────
 
@@ -1000,7 +1001,7 @@ export const EditPatientModal = ({ patientName, onClose, onSuccess }: EditPatien
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
-                      <input type="date" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
+                      <DateFilterInput value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                       <PatientDobAgeHint dob={formData.dob} />
                     </div>
                     <div>

@@ -18,6 +18,7 @@ import {
   linkComboboxOptionClassCompact,
 } from '../ui/linkComboboxStyles'
 import { X } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreatePatientSafetyEventModalProps {
   onClose: () => void
@@ -332,8 +333,7 @@ export const CreatePatientSafetyEventModal = ({ onClose, onSuccess }: CreatePati
                   <label className={MODAL_LABEL_CLASS}>
                     3. Event Discovery Date <span className="text-red-500">*</span>
                   </label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.event_discovery_date}
                     onChange={(e) => setField('event_discovery_date', e.target.value)}
                     className={MODAL_FIELD_CLASS}
@@ -350,8 +350,7 @@ export const CreatePatientSafetyEventModal = ({ onClose, onSuccess }: CreatePati
                 </div>
                 <div>
                   <label className={MODAL_LABEL_CLASS}>9. Report Date</label>
-                  <input
-                    type="date"
+                  <DateFilterInput
                     value={form.report_date}
                     onChange={(e) => setField('report_date', e.target.value)}
                     className={MODAL_FIELD_CLASS}

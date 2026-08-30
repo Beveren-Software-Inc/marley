@@ -15,6 +15,7 @@ import { createReportRequest } from '../../services/reportRequests'
 import { toast } from '../../hooks/useToast'
 import { FileText } from 'lucide-react'
 import { useCareContext } from '../../providers/CareContextProvider'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 export function CreateReportRequestModal({
   onClose,
@@ -161,8 +162,7 @@ export function CreateReportRequestModal({
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="mb-0.5 block text-xs font-medium text-slate-600">Date of request</label>
-                <input
-                  type="date"
+                <DateFilterInput
                   className={MODAL_FIELD_CLASS}
                   value={requestDate}
                   onChange={(e) => setRequestDate(e.target.value)}

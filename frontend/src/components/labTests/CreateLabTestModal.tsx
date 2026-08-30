@@ -21,6 +21,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateLabTestModalProps {
   onClose: () => void
@@ -748,8 +749,7 @@ export const CreateLabTestModal = ({
                 {formData.repeat_daily && (
                   <div className="flex-1">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Repeat Until</label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       value={formData.repeat_until}
                       onChange={(e) => setFormData(prev => ({ ...prev, repeat_until: e.target.value }))}
                       min={formData.date || undefined}
@@ -764,8 +764,7 @@ export const CreateLabTestModal = ({
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   Date
                 </label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={formData.date}
                   onChange={(e) => handleChange('date', e.target.value)}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

@@ -305,8 +305,8 @@
 //                 <label className="block text-sm font-medium text-slate-700 mb-1">
 //                   From Date <span className="text-red-500">*</span>
 //                 </label>
-//                 <input
-//                   type="date"
+//                 <DateFilterInput
+//
 //                   value={fromDate}
 //                   onChange={(e) => setFromDate(e.target.value)}
 //                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -314,8 +314,8 @@
 //               </div>
 //               <div>
 //                 <label className="block text-sm font-medium text-slate-700 mb-1">To Date</label>
-//                 <input
-//                   type="date"
+//                 <DateFilterInput
+//
 //                   value={toDate}
 //                   onChange={(e) => setToDate(e.target.value)}
 //                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -426,6 +426,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateSickLeaveModalProps {
   onClose: () => void
@@ -1010,8 +1011,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
                 <label className="block text-sm font-medium text-slate-700 mb-1">
                   From Date <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={fromDate}
                   onChange={(e) => handleFromDateChange(e.target.value)}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"
@@ -1019,8 +1019,7 @@ export const CreateSickLeaveModal = ({ onClose, onSuccess, patient }: CreateSick
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">To Date</label>
-                <input
-                  type="date"
+                <DateFilterInput
                   value={toDate}
                   onChange={(e) => handleToDateChange(e.target.value)}
                   className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

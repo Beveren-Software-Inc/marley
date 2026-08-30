@@ -9,6 +9,7 @@ import {
 import { createPractitionerUnavailability } from '../../services/practitionerUnavailability'
 import { fetchCostCenters, fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreatePractitionerUnavailabilityModalProps {
   onClose: () => void
@@ -152,8 +153,7 @@ export const CreatePractitionerUnavailabilityModal = ({
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 Start Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 min={localDateInputValue()}
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
@@ -165,8 +165,7 @@ export const CreatePractitionerUnavailabilityModal = ({
               <label className="block text-sm font-medium text-slate-700 mb-1">
                 End Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 min={startDate || localDateInputValue()}
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}

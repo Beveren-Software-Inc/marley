@@ -34,6 +34,7 @@ import {
 } from '../../utils/labTestDiscounts'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type SRTab = 'patient_order' | 'service_details' | 'billing_pricing'
 
@@ -712,8 +713,7 @@ export const EditServiceRequestModal = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Order Date <span className="text-red-500">*</span></label>
-                    <input
-                      type="date"
+                    <DateFilterInput
                       value={formData.order_date}
                       onChange={(e) => set('order_date', e.target.value)}
                       className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -853,7 +853,7 @@ export const EditServiceRequestModal = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Expected Date</label>
-                    <input type="date" value={formData.expected_date} onChange={(e) => set('expected_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+                    <DateFilterInput value={formData.expected_date} onChange={(e) => set('expected_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Order Group</label>
@@ -983,7 +983,7 @@ export const EditServiceRequestModal = ({
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Occurrence Date</label>
-                    <input type="date" value={formData.occurrence_date} onChange={(e) => set('occurrence_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
+                    <DateFilterInput value={formData.occurrence_date} onChange={(e) => set('occurrence_date', e.target.value)} className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:ring-2 focus:ring-primary focus:border-transparent" />
                   </div>
                   <div>
                     <label className="block text-sm font-semibold text-slate-900 mb-2">Occurrence Time</label>

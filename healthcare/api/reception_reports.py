@@ -522,6 +522,17 @@ def _admission_sales_invoices(admission, so_names=None):
 SOA_LAB_SUMMARY_CODES = frozenset({"Lab test", "Lab Tests", "IP-LAB", "OP-LAB"})
 SOA_MED_SUMMARY_CODES = frozenset({"Medicine", "Medicines", "IP_MEDI", "IP-MED", "OP-MED"})
 
+# IP Statement of Account: omit a heading when that category has no lines.
+SOA_IP_CATEGORY_ORDER = (
+	"Standard Admission Assessment Fee",
+	"Room Charge",
+	"Medical Supervision",
+	"Medicines",
+	"Lab Tests",
+	"Services",
+	"Other Services",
+)
+
 
 def _soa_room_item_codes():
 	codes = getattr(frappe.local, "_soa_room_item_codes", None)
@@ -560,8 +571,51 @@ def _soa_case_management_item_codes():
 	return codes
 
 
+def _soa_medical_supervision_item_codes():
+	codes = getattr(frappe.local, "_soa_ms_item_codes", None)
+	if codes is not None:
+		return codes
+	codes = set()
+	template_name = (frappe.db.get_single_value("Healthcare Settings", "medical_supervision_item") or "").strip()
+	if template_name and frappe.db.exists("Healthcare Service Template", template_name):
+		item_code = frappe.db.get_value("Healthcare Service Template", template_name, "item_code")
+		if item_code:
+			codes.add(item_code)
+	frappe.local._soa_ms_item_codes = codes
+	return codes
+
+
+def _soa_template_info_by_item():
+	"""item_code → Healthcare Service Template fields used for IP SOA grouping."""
+	cached = getattr(frappe.local, "_soa_tpl_by_item", None)
+	if cached is not None:
+		return cached
+	mapping = {}
+	for row in frappe.get_all(
+		"Healthcare Service Template",
+		fields=["item_code", "service_name", "category", "is_case_management"],
+		limit_page_length=0,
+	):
+		code = (row.get("item_code") or "").strip()
+		if code:
+			mapping[code] = row
+	frappe.local._soa_tpl_by_item = mapping
+	return mapping
+
+
 def _soa_looks_like_room(text):
 	return bool(re.search(r"\brooms?\b", text or "", flags=re.I))
+
+
+def _soa_looks_like_supervision(text):
+	return bool(re.search(r"medical\s+supervision", text or "", flags=re.I))
+
+
+def _soa_looks_like_session(text):
+	t = (text or "").strip().lower()
+	if not t:
+		return False
+	return any(h in t for h in ("session", "therapy", "psycholog", "occupational", "medical service"))
 
 
 def _soa_display_category(group, code=None, name=None):
@@ -580,15 +634,64 @@ def _soa_display_category(group, code=None, name=None):
 	return g or "Service"
 
 
+def _soa_ip_display_category(group, code=None, name=None, base_reference=None):
+	"""Fixed IP SOA headings. Unknown billed items fall through to Other Services."""
+	g = (group or "").strip()
+	if not g and code:
+		g = (frappe.db.get_value("Item", code, "item_group") or "").strip()
+	tpl = _soa_template_info_by_item().get((code or "").strip())
+	br = (base_reference or "").strip()
+
+	if code and code in _soa_case_management_item_codes():
+		return "Standard Admission Assessment Fee"
+	if tpl and cint(tpl.get("is_case_management")):
+		return "Standard Admission Assessment Fee"
+	if re.search(r"admission\s+assessment|case\s+management", name or "", flags=re.I):
+		return "Standard Admission Assessment Fee"
+
+	if (
+		_soa_looks_like_room(g)
+		or _soa_looks_like_room(name)
+		or (code and code in _soa_room_item_codes())
+	):
+		return "Room Charge"
+
+	if (code and code in _soa_medical_supervision_item_codes()) or _soa_looks_like_supervision(name) or _soa_looks_like_supervision(g):
+		return "Medical Supervision"
+
+	if br == "Session Schedule":
+		return "Services"
+	tpl_cat = ((tpl.get("category") if tpl else None) or "").strip()
+	if tpl_cat == "Other Service":
+		return "Other Services"
+	if tpl_cat == "Medical Service" or _soa_looks_like_session(g) or _soa_looks_like_session(name):
+		return "Services"
+
+	return "Other Services"
+
+
+def _soa_ordered_ip_categories(by_category):
+	"""Emit IP SOA groups in the required order; skip headings that have no rows."""
+	ordered = {}
+	for cat in SOA_IP_CATEGORY_ORDER:
+		rows = by_category.get(cat)
+		if rows:
+			ordered[cat] = rows
+	for cat, rows in by_category.items():
+		if cat not in ordered and rows:
+			ordered[cat] = rows
+	return ordered
+
+
 def _soa_summary_labels(care_type, kind):
 	"""Service code + name for collapsed Medicine / Lab rows on SOA."""
 	is_ip = str(care_type or "").strip().upper() == "IP"
 	if kind == "lab":
 		code = "IP-LAB" if is_ip else "OP-LAB"
-		name = "Lab tests"
+		name = "Lab Tests" if is_ip else "Lab tests"
 	else:
 		code = "IP-MED" if is_ip else "OP-MED"
-		name = "Medicine Charges"
+		name = "Medicines" if is_ip else "Medicine Charges"
 	return code, name, name
 
 
@@ -607,22 +710,33 @@ def _soa_is_lab_item(item_code, item_group=None, base_reference=None):
 	return False
 
 
-def _soa_is_medicine_item(item_code, item_group=None, base_reference=None):
+def _soa_is_medicine_item(item_code, item_group=None, base_reference=None, item_name=None):
 	"""
-	Medicine / pharmacy stock on SOA → single 'Medicine' row.
+	Medicine / pharmacy stock / injections on SOA → single 'Medicines' row.
 
 	Primary source: Sales Orders from Patient Medication Order (stock drugs).
-	Fallback: stock items in a pharmacy / medicine item group.
+	Fallback: stock items in a pharmacy / medicine item group, or injection items.
 	"""
 	br = (base_reference or "").strip()
 	if br == "Patient Medication Order":
 		return True
-	if not item_code or _soa_is_lab_item(item_code, item_group=item_group, base_reference=base_reference):
+	if _soa_is_lab_item(item_code, item_group=item_group, base_reference=base_reference):
 		return False
-	row = frappe.db.get_value("Item", item_code, ["is_stock_item", "item_group"], as_dict=True)
-	if not row or not cint(row.is_stock_item):
+	ig = (item_group or "").strip().lower()
+	name = (item_name or "").strip().lower()
+	if "inject" in ig or "inject" in name:
+		return True
+	if not item_code:
+		return False
+	row = frappe.db.get_value("Item", item_code, ["is_stock_item", "item_group", "item_name"], as_dict=True)
+	if not row:
 		return False
 	ig = (row.item_group or item_group or "").strip().lower()
+	name = (row.item_name or item_name or "").strip().lower()
+	if "inject" in ig or "inject" in name:
+		return True
+	if not cint(row.is_stock_item):
+		return False
 	return any(h in ig for h in ("medic", "pharma", "drug", "pharmacy"))
 
 
@@ -675,19 +789,34 @@ def _soa_line_from_item(
 	if qty is None and isinstance(it, dict):
 		qty = it.get("qty")
 
+	is_ip = str(care_type or "").strip().upper() == "IP"
+	orig_code, orig_name, orig_group = code, name, group
+
 	if _soa_is_lab_item(code, item_group=group, base_reference=base_reference):
 		code, name, group = _soa_summary_labels(care_type, "lab")
 		rate = None
-	elif _soa_is_medicine_item(code, item_group=group, base_reference=base_reference):
+		category = "Lab Tests" if is_ip else _soa_display_category(group, code=code, name=name)
+	elif _soa_is_medicine_item(code, item_group=group, base_reference=base_reference, item_name=name):
 		code, name, group = _soa_summary_labels(care_type, "medicine")
 		rate = None
+		category = "Medicines" if is_ip else _soa_display_category(group, code=code, name=name)
 	else:
 		code, name = _soa_apply_observation_display(code, name)
+		if is_ip:
+			category = _soa_ip_display_category(
+				orig_group, code=orig_code, name=orig_name or name, base_reference=base_reference
+			)
+			if category == "Services":
+				tpl = _soa_template_info_by_item().get((orig_code or "").strip())
+				if tpl and tpl.get("service_name"):
+					name = tpl.service_name
+		else:
+			category = _soa_display_category(group, code=code, name=name)
 
 	return {
 		"item_code": code,
 		"item_name": name,
-		"category": _soa_display_category(group, code=code, name=name),
+		"category": category,
 		"rate": None if rate is None else flt(rate),
 		"discount_amount": flt(discount_amount),
 		"discount_percentage": flt(discount_percentage),
@@ -697,16 +826,23 @@ def _soa_line_from_item(
 
 
 def _soa_bucket_raw_lines(raw_lines):
-	"""Aggregate SOA lines: Lab / Medicine collapse to one row each; else by item+rate."""
+	"""Aggregate SOA lines: Lab / Medicine one row; IP sessions by type; else by item+rate."""
 	lines = {}
 	for it in raw_lines or []:
 		code = it.get("item_code")
-		if code in SOA_LAB_SUMMARY_CODES or code in SOA_MED_SUMMARY_CODES:
-			key = (code,)
+		cat = (it.get("category") or "").strip()
+		if code in SOA_LAB_SUMMARY_CODES or code in SOA_MED_SUMMARY_CODES or cat in ("Lab Tests", "Medicines"):
+			key = (cat or code,)
 			display_rate = None
+			session_row = False
+		elif cat == "Services":
+			key = ("Services", code)
+			display_rate = flt(it["rate"]) if it.get("rate") is not None else None
+			session_row = True
 		else:
-			key = (code, round(flt(it["rate"]), 6))
-			display_rate = flt(it["rate"])
+			key = (code, round(flt(it["rate"] or 0), 6))
+			display_rate = flt(it["rate"]) if it.get("rate") is not None else None
+			session_row = False
 		row = lines.setdefault(
 			key,
 			{
@@ -722,9 +858,25 @@ def _soa_bucket_raw_lines(raw_lines):
 			},
 		)
 		row["qty"] += flt(it["qty"])
-		row["frequency"] += 1
 		row["amount"] += flt(it["amount"])
 		row["discount_amount"] += flt(it["discount_amount"])
+		if session_row:
+			row["frequency"] += flt(it["qty"])
+			incoming_rate = flt(it["rate"]) if it.get("rate") is not None else None
+			if row["rate"] is not None and incoming_rate is not None and abs(flt(row["rate"]) - incoming_rate) > 0.000001:
+				row["rate"] = None
+		else:
+			row["frequency"] += 1
+	for row in lines.values():
+		if (row.get("category") or "").strip() != "Services":
+			continue
+		qty = flt(row.get("qty"))
+		if row.get("rate") is None and qty:
+			row["rate"] = round(flt(row["amount"]) / qty, 3)
+		if qty == int(qty):
+			row["frequency"] = int(qty)
+		else:
+			row["frequency"] = round(qty, 2)
 	return lines
 
 
@@ -871,16 +1023,23 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 	# Package quotations with no Sales Order (settings off / mapping failed)
 	raw_lines.extend(_admission_package_quotation_lines(admission))
 
-	# Aggregate: Lab test / Medicine one line each; other services by item + rate
+	# Aggregate: Lab / Medicine one line; sessions by type; else by item + rate
 	lines = _soa_bucket_raw_lines(raw_lines)
 	by_category = {}
 	for row in lines.values():
 		row["qty"] = round(row["qty"], 2)
 		row["amount"] = round(row["amount"], 3)
 		row["discount_amount"] = round(row["discount_amount"], 3)
+		if (row.get("category") or "").strip() == "Services":
+			qty = flt(row["qty"])
+			row["frequency"] = int(qty) if qty == int(qty) else qty
 		by_category.setdefault(row["category"], []).append(row)
-	for rows in by_category.values():
-		rows.sort(key=lambda r: -r["amount"])
+	for cat, rows in by_category.items():
+		if cat == "Services":
+			rows.sort(key=lambda r: (r.get("item_name") or r.get("item_code") or "").lower())
+		else:
+			rows.sort(key=lambda r: -r["amount"])
+	by_category = _soa_ordered_ip_categories(by_category)
 
 	# Gross bill = net line amounts + all discounts shown on lines
 	line_net = sum(flt(r["amount"]) for r in lines.values())

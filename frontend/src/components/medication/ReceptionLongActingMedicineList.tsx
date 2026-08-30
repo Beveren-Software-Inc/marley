@@ -18,6 +18,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { isDoctorRole, isNurseRole, canSeeLongActingMedDetails } from '../../config/permissions'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import { SendWhatsAppLongActingModal } from './SendWhatsAppLongActingModal'
 
 interface ReceptionLongActingMedicineListProps {
   patient?: string
@@ -75,6 +76,7 @@ export const ReceptionLongActingMedicineList = ({
   const [giveOutModalLoading, setGiveOutModalLoading] = useState(false)
   const [givingOutId, setGivingOutId] = useState<string | null>(null)
   const [stoppingId, setStoppingId] = useState<string | null>(null)
+  const [whatsappTarget, setWhatsappTarget] = useState<{ name: string; patientName: string } | null>(null)
 
   // Duplicate → Create Prescription (Long Acting type pre-selected)
   const [duplicateRx, setDuplicateRx] = useState<{
@@ -371,7 +373,11 @@ export const ReceptionLongActingMedicineList = ({
   const handleSendReminder = async (e: React.MouseEvent, rowName: string, patientName: string, channel: ReminderChannel) => {
     e.stopPropagation()
     setOpenMenuRow(null)
-    const channelLabel = channel === 'whatsapp' ? 'WhatsApp' : channel === 'sms' ? 'SMS' : 'Email'
+    if (channel === 'whatsapp') {
+      setWhatsappTarget({ name: rowName, patientName: patientName || rowName })
+      return
+    }
+    const channelLabel = channel === 'sms' ? 'SMS' : 'Email'
     try {
       await sendLongActingMedicineReminder(rowName, channel)
       toast.success(`${channelLabel} reminder sent for ${patientName || rowName}`)
@@ -993,6 +999,14 @@ export const ReceptionLongActingMedicineList = ({
           initialPatient={duplicateRx.patient}
           initialPractitioner={duplicateRx.practitioner}
           initialMedications={duplicateRx.medications}
+        />
+      )}
+
+      {whatsappTarget && (
+        <SendWhatsAppLongActingModal
+          name={whatsappTarget.name}
+          patientName={whatsappTarget.patientName}
+          onClose={() => setWhatsappTarget(null)}
         />
       )}
     </div>

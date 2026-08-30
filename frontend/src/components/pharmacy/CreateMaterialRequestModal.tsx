@@ -17,6 +17,7 @@ import {
   isMedicalPayload,
   type IsMedicalChoice,
 } from '../ui/IsMedicalSelect'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 const MATERIAL_REQUEST_TYPES = [
   'Purchase',
@@ -367,8 +368,7 @@ export const CreateMaterialRequestModal = ({
 
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Required By</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={scheduleDate}
                 onChange={(e) => setScheduleDate(e.target.value)}
                 className="w-full rounded border border-slate-300 px-3 py-2 text-sm text-slate-800"

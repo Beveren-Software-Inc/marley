@@ -74,6 +74,7 @@ import { SpecialtySalesInvoiceSlideOver } from './SpecialtySalesInvoiceSlideOver
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useAuth } from '../../providers/AuthProvider'
 import { canReconcileInvoiceAdvances } from '../../config/permissions'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'dv' | 'unpaid' | 'paid' | 'payments'
 
@@ -1006,11 +1007,11 @@ const handleMakePayment = async (
       <div className="bg-white rounded-lg border border-slate-200 p-3 flex flex-wrap gap-3 items-end">
         <div>
           <label className="block text-xs text-slate-600 mb-1">From Date</label>
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <DateFilterInput value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-slate-600 mb-1">To Date</label>
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
+          <DateFilterInput value={toDate} onChange={(e) => setToDate(e.target.value)} className="rounded-md border border-slate-300 px-3 py-2 text-sm" />
         </div>
         <button type="button" onClick={() => { setFromDate(''); setToDate('') }} className="inline-flex items-center gap-1 px-3 py-2 text-sm border border-slate-300 rounded-md">
           <X className="w-3 h-3" /> Clear

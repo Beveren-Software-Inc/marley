@@ -20,6 +20,7 @@ import {
   LOCKED_PRACTITIONER_INPUT_CLASS,
   useLockedLinkedPractitioner,
 } from '../../hooks/useLockedLinkedPractitioner'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 interface CreateObservationModalProps {
   onClose: () => void
@@ -583,8 +584,7 @@ export const CreateObservationModal = ({ onClose, onSuccess, initialPatient }: C
               <label className="block text-sm font-medium text-slate-700 mb-1 uppercase">
                 Start Date <span className="text-red-500">*</span>
               </label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={formData.start_date}
                 onChange={(e) => handleChange('start_date', e.target.value)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary"

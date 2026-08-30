@@ -17,6 +17,7 @@ import {
   DAILY_ROUTINE_EDIT_LOCKED_MESSAGE,
   isEditableWithin24hFromCreation,
 } from '../../constants/nursingShift'
+import { DateFilterInput } from '../ui/DateFilterInput'
 
 function formatDate(val?: string): string {
   if (!val) return '—'
@@ -292,8 +293,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
           <div className="flex shrink-0 flex-wrap items-end gap-3 border-b border-slate-100 bg-white px-4 py-3">
             <div className="flex min-w-[120px] flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">From Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={fromDate}
                 onChange={(e) => setFromDate(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"
@@ -301,8 +301,7 @@ export function DiagnosisSymptomsScreen({ allowCreate = true }: { allowCreate?: 
             </div>
             <div className="flex min-w-[120px] flex-col gap-1">
               <label className="text-xs font-medium text-slate-500">To Date</label>
-              <input
-                type="date"
+              <DateFilterInput
                 value={toDate}
                 onChange={(e) => setToDate(e.target.value)}
                 className="rounded-md border border-slate-300 px-2 py-1.5 text-sm"

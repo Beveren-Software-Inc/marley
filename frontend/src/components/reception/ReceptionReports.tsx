@@ -123,6 +123,24 @@ function soaCategoryBranchCells(care: 'IP' | 'OP', branch: string | number | nul
     </tr></tbody></table></td>`
 }
 
+const IP_SOA_CATEGORY_ORDER = [
+  'Standard Admission Assessment Fee',
+  'Room Charge',
+  'Medical Supervision',
+  'Medicines',
+  'Lab Tests',
+  'Services',
+  'Other Services',
+]
+
+function orderedSoaCategoryEntries(cats: Record<string, any[]>, ordered: boolean) {
+  const keys = Object.keys(cats).filter((k) => (cats[k] || []).length)
+  if (!ordered) return keys.map((k) => [k, cats[k]] as [string, any[]])
+  const listed = IP_SOA_CATEGORY_ORDER.filter((k) => keys.includes(k))
+  const rest = keys.filter((k) => !IP_SOA_CATEGORY_ORDER.includes(k))
+  return [...listed, ...rest].map((k) => [k, cats[k]] as [string, any[]])
+}
+
 function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolean }) {
   const summaryCodes = new Set([
     'Medicine',
@@ -137,22 +155,33 @@ function soaCategoryRows(cats: Record<string, any[]>, opts?: { showDays?: boolea
     'Medicine Charges',
     'Lab tests',
   ])
-  return Object.entries(cats)
+  const isIp = Boolean(opts?.showDays)
+  return orderedSoaCategoryEntries(cats, isIp)
     .map(([cat, rows]) =>
       rows
         .map((r, i) => {
           const code = String(r.item_code || '')
           const name = String(r.item_name || '')
           const isMedOrLab =
+            cat === 'Medicines' ||
+            cat === 'Lab Tests' ||
             summaryCodes.has(code) ||
             name === 'Medicine Charges' ||
-            name === 'Lab tests'
+            name === 'Medicines' ||
+            name === 'Lab tests' ||
+            name === 'Lab Tests'
+          const isSessions = isIp && cat === 'Services'
           const rateCell = isMedOrLab || r.rate == null ? '—' : fmtAmt(r.rate)
           const daysCell = opts?.showDays
-            ? `<td class="num">${isMedOrLab ? '' : (r.qty ?? '')}</td>`
+            ? `<td class="num">${isMedOrLab || isSessions ? '' : (r.qty ?? '')}</td>`
             : ''
-          const freqCell = isMedOrLab ? '' : (r.frequency ?? '')
-          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${r.item_code ?? ''}</td><td>${r.item_name ?? ''}</td><td class="num">${rateCell}</td>${daysCell}<td class="num">${freqCell}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
+          const freqCell = isMedOrLab ? '' : isSessions ? (r.frequency ?? r.qty ?? '') : (r.frequency ?? '')
+          const isLab =
+            cat === 'Lab Tests' || name === 'Lab Tests' || name === 'Lab tests' || code === 'IP-LAB' || code === 'OP-LAB'
+          const serviceCode = isIp && isMedOrLab ? (isLab ? 'IP-LAB' : 'IP-MED') : (r.item_code ?? '')
+          const serviceName =
+            isIp && isMedOrLab ? (isLab ? 'Lab Tests' : 'Medicines') : (r.item_name ?? '')
+          return `<tr>${i === 0 ? `<td class="soa-cat" rowspan="${rows.length}">${cat}</td>` : ''}<td>${serviceCode}</td><td>${serviceName}</td><td class="num">${rateCell}</td>${daysCell}<td class="num">${freqCell}</td><td class="num">${fmtAmt(r.amount)}</td></tr>`
         })
         .join(''),
     )
