@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, Pencil } from 'lucide-react'
-import { fetchGroomingCharts, type GroomingChartRow } from '../../services/groomingCharts'
+import { createPortal } from 'react-dom'
+import { FileText, MoreHorizontal, Pencil } from 'lucide-react'
+import { fetchGroomingCharts, fetchGroomingPatternHtml, type GroomingChartRow } from '../../services/groomingCharts'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { GroomingChartDetailPanel } from './GroomingChartDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -60,12 +60,14 @@ export const GroomingChartList = ({
 }: GroomingChartListProps) => {
   const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
+  const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
   const [charts, setCharts] = useState<GroomingChartRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<GroomingChartRow | null>(null)
   const [editRow, setEditRow] = useState<GroomingChartRow | null>(null)
@@ -170,8 +172,59 @@ export const GroomingChartList = ({
     guardClinicalEdit(() => setEditRow(row))
   }
 
+  const exportPdf = async () => {
+    if (!charts.length) {
+      toast.info('No grooming charts to print.')
+      return
+    }
+    const samePatient =
+      charts[0]?.file_no && charts.every((c) => !c.file_no || c.file_no === charts[0].file_no)
+    const patientId = patient || (samePatient ? charts[0].file_no || undefined : undefined)
+    if (!patientId && !charts[0]?.name) {
+      toast.info('Select a patient to print the grooming pattern.')
+      return
+    }
+    setExportingPdf(true)
+    try {
+      const html = await fetchGroomingPatternHtml({
+        patient: patientId || undefined,
+        name: patientId ? undefined : charts[0].name,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      })
+      const win = window.open('', '_blank', 'width=1200,height=800')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export PDF')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const pdfButton = (
+    <button
+      type="button"
+      onClick={() => void exportPdf()}
+      disabled={loading || exportingPdf || !charts.length}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Download PDF"
+    >
+      <FileText className="w-3.5 h-3.5" />
+      {exportingPdf ? 'PDF…' : 'PDF'}
+    </button>
+  )
+
   return (
     <div className="flex flex-col gap-4">
+      {inDashboardCard && headerSlot ? createPortal(pdfButton, headerSlot) : null}
+
       {!inDashboardCard && (
         <div className="flex flex-shrink-0 items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
@@ -180,6 +233,7 @@ export const GroomingChartList = ({
               active={Boolean(showFilters)}
               onClick={() => setShowFiltersInternal((prev) => !prev)}
             />
+            {pdfButton}
             {onAdd ? (
               <button
                 type="button"
@@ -274,7 +328,9 @@ export const GroomingChartList = ({
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Hygiene</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Meals</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Weight</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+                {allowEditWithin24h ? (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -336,8 +392,8 @@ export const GroomingChartList = ({
                       </span>
                     </td>
                     <td className="px-3 py-2 text-slate-700">{c.weight != null ? `${c.weight} kg` : '—'}</td>
+                    {allowEditWithin24h ? (
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      {allowEditWithin24h ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <div className="relative inline-block" ref={openActionRow === c.name ? actionMenuRef : undefined}>
                             <button
@@ -373,24 +429,9 @@ export const GroomingChartList = ({
                               )}
                             </PortalActionsMenu>
                           </div>
-                          <PrintFormatDropdown
-                            doctype="IP Grooming Chart"
-                            docName={c.name}
-                            noLetterhead={0}
-                            triggerPrint={1}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                          />
                         </div>
-                      ) : (
-                        <PrintFormatDropdown
-                          doctype="IP Grooming Chart"
-                          docName={c.name}
-                          noLetterhead={0}
-                          triggerPrint={1}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                        />
-                      )}
                     </td>
+                    ) : null}
                   </tr>
                 )
               })}

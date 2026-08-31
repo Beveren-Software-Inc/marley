@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { MoreHorizontal, Pencil } from 'lucide-react'
-import { fetchMentalStates, type MentalStateRow } from '../../services/mentalState'
+import { createPortal } from 'react-dom'
+import { FileText, MoreHorizontal, Pencil } from 'lucide-react'
+import { fetchMentalStateHtml, fetchMentalStates, type MentalStateRow } from '../../services/mentalState'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MentalStateDetailPanel } from './MentalStateDetailPanel'
 import { DateFilterInput } from '../ui/DateFilterInput'
 import { useCareContext } from '../../providers/CareContextProvider'
@@ -60,12 +60,14 @@ export const MentalStateList = ({
 }: MentalStateListProps) => {
   const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
+  const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
   const [records, setRecords] = useState<MentalStateRow[]>([])
   const [loading, setLoading] = useState(false)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<MentalStateRow | null>(null)
   const [editRow, setEditRow] = useState<MentalStateRow | null>(null)
@@ -173,8 +175,59 @@ export const MentalStateList = ({
     guardClinicalEdit(() => setEditRow(row))
   }
 
+  const exportPdf = async () => {
+    if (!records.length) {
+      toast.info('No mental state records to print.')
+      return
+    }
+    const samePatient =
+      records[0]?.file_no && records.every((r) => !r.file_no || r.file_no === records[0].file_no)
+    const patientId = patient || (samePatient ? records[0].file_no || undefined : undefined)
+    if (!patientId && !records[0]?.name) {
+      toast.info('Select a patient to print the mental state report.')
+      return
+    }
+    setExportingPdf(true)
+    try {
+      const html = await fetchMentalStateHtml({
+        patient: patientId || undefined,
+        name: patientId ? undefined : records[0].name,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      })
+      const win = window.open('', '_blank', 'width=1200,height=800')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export PDF')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const pdfButton = (
+    <button
+      type="button"
+      onClick={() => void exportPdf()}
+      disabled={loading || exportingPdf || !records.length}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Download PDF"
+    >
+      <FileText className="w-3.5 h-3.5" />
+      {exportingPdf ? 'PDF…' : 'PDF'}
+    </button>
+  )
+
   return (
     <div className="flex flex-col gap-4">
+      {inDashboardCard && headerSlot ? createPortal(pdfButton, headerSlot) : null}
+
       {!inDashboardCard && (
         <div className="flex flex-shrink-0 items-center justify-between gap-2">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
@@ -183,6 +236,7 @@ export const MentalStateList = ({
               active={Boolean(showFilters)}
               onClick={() => setShowFiltersInternal((prev) => !prev)}
             />
+            {pdfButton}
             {onAdd ? (
               <button
                 type="button"
@@ -277,7 +331,9 @@ export const MentalStateList = ({
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Trans Shift</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Behaviour</th>
                 <th className="px-3 py-2 text-center font-semibold text-slate-600">Sleep</th>
-                <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+                {allowEditWithin24h ? (
+                  <th className="px-3 py-2 text-left font-semibold text-slate-600">Action</th>
+                ) : null}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -344,8 +400,8 @@ export const MentalStateList = ({
                         {sleepCount}/5
                       </span>
                     </td>
+                    {allowEditWithin24h ? (
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
-                      {allowEditWithin24h ? (
                         <div className="flex items-center justify-end gap-1.5">
                           <div className="relative inline-block" ref={openActionRow === r.name ? actionMenuRef : undefined}>
                             <button
@@ -381,24 +437,9 @@ export const MentalStateList = ({
                               )}
                             </PortalActionsMenu>
                           </div>
-                          <PrintFormatDropdown
-                            doctype="Mental State"
-                            docName={r.name}
-                            noLetterhead={0}
-                            triggerPrint={1}
-                            className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                          />
                         </div>
-                      ) : (
-                        <PrintFormatDropdown
-                          doctype="Mental State"
-                          docName={r.name}
-                          noLetterhead={0}
-                          triggerPrint={1}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                        />
-                      )}
                     </td>
+                    ) : null}
                   </tr>
                 )
               })}
