@@ -722,6 +722,7 @@ import { SampleCollectionList } from '../components/labTests/SampleCollectionLis
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
+import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
 
 type LabTab = 'pending-lab-tests' | 'lab-tests' | 'sample-collection' | 'lab-history'
 
@@ -837,6 +838,7 @@ export const LabPage = () => {
   const [pendingResultCount, setPendingResultCount] = useState(0)
   const [batchSaving, setBatchSaving] = useState(false)
   const batchSaveRef = useRef<LabTestListBatchSaveRef | null>(null)
+  const [hideTestsAndResults, setHideTestsAndResults] = useState(false)
 
   const handleBatchSave = async () => {
     await batchSaveRef.current?.savePendingChanges()
@@ -881,6 +883,20 @@ export const LabPage = () => {
     }
   }, [screen, loadLabSamples, loadSampleTypes])
 
+  useEffect(() => {
+    let cancelled = false
+    fetchHealthcarePortalSettings()
+      .then((s) => {
+        if (!cancelled) setHideTestsAndResults(Boolean(s.hide_test_and_result_from_lab))
+      })
+      .catch(() => {
+        if (!cancelled) setHideTestsAndResults(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
   // Sync selectedPatient and activeTab with URL
   useEffect(() => {
     const patientParam = searchParams.get('patient')
@@ -907,6 +923,12 @@ export const LabPage = () => {
     newSearchParams.set('tab', newTab)
     setSearchParams(newSearchParams, { replace: true })
   }
+
+  useEffect(() => {
+    if (!hideTestsAndResults) return
+    if (activeTab !== 'lab-tests') return
+    handleTabChange('pending-lab-tests')
+  }, [hideTestsAndResults, activeTab])
 
   const handleLabTestCreated = () => {
     setLabTestRefreshKey(prev => prev + 1)
@@ -1140,12 +1162,13 @@ export const LabPage = () => {
   // the default dashboard's "Tests & Results" card (which now carries the status tabs).
 
   // Default view — card-based navigation
-  const labNavCards = NAV_CARDS
-  const resolvedTab = activeTab
+  const labNavCards = hideTestsAndResults
+    ? NAV_CARDS.filter((c) => c.id !== 'lab-tests')
+    : NAV_CARDS
+  const resolvedTab =
+    hideTestsAndResults && activeTab === 'lab-tests' ? 'pending-lab-tests' : activeTab
   const activeCard =
-    labNavCards.find((c) => c.id === resolvedTab) ??
-    labNavCards.find((c) => c.id === 'lab-tests') ??
-    labNavCards[0]
+    labNavCards.find((c) => c.id === resolvedTab) ?? labNavCards[0]
   return (
     <div className="flex flex-col flex-1 min-h-0 h-full min-w-0 overflow-hidden">
       <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
@@ -1201,7 +1224,7 @@ export const LabPage = () => {
               hideAmount={isLabTechnologist}
             />
           )}
-          {resolvedTab === 'lab-tests' && (
+          {resolvedTab === 'lab-tests' && !hideTestsAndResults && (
             <LabTestList
               patient={selectedPatient}
               key={labTestRefreshKey}

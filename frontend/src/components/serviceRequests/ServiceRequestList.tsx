@@ -30,6 +30,7 @@ import { PaginationControls, LoadMoreControls, DEFAULT_PAGE_SIZE, type PageSize 
 import { X } from 'lucide-react'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
+import { useCareContext } from '../../providers/CareContextProvider'
 import { useCardFilters, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import {
   CardRowMetaHint,
@@ -117,6 +118,7 @@ const refetch = (
   patientSearch?: string,
   preferLoadMore: boolean = false,
   page: number = 1,
+  costCenter?: string,
 ) => {
   setLoading(true)
   fetchServiceRequests(
@@ -128,6 +130,12 @@ const refetch = (
     search || undefined,
     practitioner || undefined,
     !patient ? patientSearch?.trim() || undefined : undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    costCenter,
   )
     .then((result) => {
       setServiceRequests((prev) =>
@@ -153,6 +161,7 @@ export const ServiceRequestList = ({
   addButtonTitle,
   practitionerFieldLabel,
 }: ServiceRequestListProps) => {
+  const { userCostCenter } = useCareContext()
   const isLabRequestList = template_dt === 'Lab Test Template'
   const isOtherServicesList = template_dt === HEALTHCARE_SERVICE_TEMPLATE || practitionerFieldLabel === 'Nurse'
   const practitionerColumnLabel = serviceRequestPractitionerLabel(
@@ -261,7 +270,7 @@ export const ServiceRequestList = ({
   // Reset page when filters change
   useEffect(() => {
     setPage(1)
-  }, [patient, refreshKey, templateDtFilter, statusFilter, practitionerFilter, debouncedPatientSearch])
+  }, [patient, refreshKey, templateDtFilter, statusFilter, practitionerFilter, debouncedPatientSearch, userCostCenter])
 
   // Debounced search - reset page
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -304,6 +313,7 @@ export const ServiceRequestList = ({
       debouncedPatientSearch,
       preferLoadMore,
       page,
+      userCostCenter || undefined,
     )
   }, [
     patient,
@@ -317,6 +327,7 @@ export const ServiceRequestList = ({
     pageSize,
     practitionerInitDone,
     preferLoadMore,
+    userCostCenter,
   ])
 
   const doRefetch = () =>
@@ -335,6 +346,7 @@ export const ServiceRequestList = ({
       debouncedPatientSearch,
       preferLoadMore,
       page,
+      userCostCenter || undefined,
     )
 
   const handleConfirmPayment = async (sr: ServiceRequest) => {

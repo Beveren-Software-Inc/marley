@@ -357,6 +357,9 @@ export const CareContextProvider = ({ children }: { children: ReactNode }) => {
           unedit_within_24hour: false,
           allow_doctors_to_create_patient_visit: false,
           lock_doctors_name_choosing: false,
+          remove_collect_sample_button_from_child_test: false,
+          collect_sample_from_request_listing: false,
+          hide_test_and_result_from_lab: false,
         }))
         setLockEditingData(Boolean(portalSettings.lock_editing_data))
         setTherapyNoteUneditableIn24Hour(Boolean(portalSettings.therapy_note_uneditable_in_24_hour))

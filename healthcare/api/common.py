@@ -1,6 +1,7 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
+import hashlib
 import re
 
 import frappe
@@ -70,6 +71,15 @@ def get_healthcare_portal_settings():
 		),
 		"lock_doctors_name_choosing": bool(
 			frappe.db.get_single_value("Healthcare Settings", "lock_doctors_name_choosing")
+		),
+		"remove_collect_sample_button_from_child_test": bool(
+			cint(frappe.db.get_single_value("Healthcare Settings", "remove_collect_sample_button_from_child_test"))
+		),
+		"collect_sample_from_request_listing": bool(
+			cint(frappe.db.get_single_value("Healthcare Settings", "collect_sample_from_request_listing"))
+		),
+		"hide_test_and_result_from_lab": bool(
+			cint(frappe.db.get_single_value("Healthcare Settings", "hide_test_and_result_from_lab"))
 		),
 	}
 
@@ -4700,16 +4710,69 @@ def get_colors(search=None):
 	return [{"name": c.name, "label": c.name} for c in colors]
 
 
+_NAMED_COLOR_HEX = {
+	"red": "#FF0000",
+	"crimson": "#DC143C",
+	"maroon": "#800000",
+	"pink": "#FFC0CB",
+	"purple": "#800080",
+	"lavender": "#E6E6FA",
+	"violet": "#EE82EE",
+	"blue": "#0000FF",
+	"navy": "#000080",
+	"lightblue": "#ADD8E6",
+	"skyblue": "#87CEEB",
+	"cyan": "#00FFFF",
+	"teal": "#008080",
+	"green": "#008000",
+	"lime": "#00FF00",
+	"olive": "#808000",
+	"yellow": "#FFFF00",
+	"gold": "#FFD700",
+	"orange": "#FFA500",
+	"brown": "#A52A2A",
+	"tan": "#D2B48C",
+	"black": "#000000",
+	"white": "#FFFFFF",
+	"grey": "#808080",
+	"gray": "#808080",
+	"silver": "#C0C0C0",
+}
+
+
+def _color_hex_from_name(color_name: str) -> str:
+	"""Color.color is a Color (hex) field — map a name or accept #RGB / #RRGGBB."""
+	raw = (color_name or "").strip()
+	compact = raw.replace(" ", "")
+	m = re.fullmatch(r"#?([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})", compact)
+	if m:
+		h = m.group(1)
+		if len(h) == 3:
+			h = f"{h[0]}{h[0]}{h[1]}{h[1]}{h[2]}{h[2]}"
+		return f"#{h.upper()}"
+	named = _NAMED_COLOR_HEX.get(raw.lower()) or _NAMED_COLOR_HEX.get(compact.lower())
+	if named:
+		return named
+	digest = hashlib.md5(raw.encode("utf-8")).hexdigest()[:6]
+	return f"#{digest.upper()}"
+
+
 @frappe.whitelist()
 def create_color(color_name):
-	"""Create a new Color record."""
+	"""Create a new Color record (name + required hex swatch)."""
 	color_name = (color_name or "").strip()
 	if not color_name:
-		frappe.throw("Color name is required.")
+		frappe.throw(_("Color name is required."))
 	if frappe.db.exists("Color", color_name):
-		frappe.throw(f"Color '{color_name}' already exists.")
-	doc = frappe.new_doc("Color")
-	doc.name = color_name
+		frappe.throw(_("Color '{0}' already exists.").format(color_name))
+	hex_val = _color_hex_from_name(color_name)
+	doc = frappe.get_doc(
+		{
+			"doctype": "Color",
+			"__newname": color_name,
+			"color": hex_val,
+		}
+	)
 	doc.insert(ignore_permissions=True)
 	frappe.db.commit()
 	return {"name": doc.name, "label": doc.name}

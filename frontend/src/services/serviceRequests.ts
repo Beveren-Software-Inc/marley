@@ -4,6 +4,8 @@ export interface ServiceRequest {
   patient_name?: string
   practitioner?: string
   practitioner_name?: string
+  assigned_healthcare_practioner?: string
+  assigned_practitioner_name?: string
   template_dt?: string
   template_dn?: string
   template_name?: string
@@ -26,6 +28,8 @@ export interface ServiceRequest {
   amount?: number
   grand_total?: number
   discount?: number
+  /** 1 when any template on this Lab Request is a By Nurse template. */
+  by_nurse?: number
   /** Raw JSON / parsed basket; may include per-line ``finished`` from Complete. */
   lab_request_items?: string | Array<Record<string, unknown>>
   lab_request_groups?: Array<{
@@ -97,6 +101,7 @@ export async function fetchServiceRequests(
   booked?: boolean | number,
   patientCareType?: string,
   virtualStatus?: string,
+  costCenter?: string,
 ): Promise<PaginatedServiceRequests> {
   const params = new URLSearchParams()
   params.append('limit', limit.toString())
@@ -114,6 +119,7 @@ export async function fetchServiceRequests(
   }
   if (patientCareType?.trim()) params.append('patient_care_type', patientCareType.trim().toUpperCase())
   if (virtualStatus?.trim()) params.append('virtual_status', virtualStatus.trim())
+  if (costCenter?.trim()) params.append('cost_center', costCenter.trim())
 
   const response = await fetch(
     `/api/method/healthcare.api.service_request.get_service_requests?${params.toString()}`
@@ -198,6 +204,8 @@ export interface LabRequestReview {
   group_count: number
   test_count: number
   total_price: number
+  /** When true, hide Collect Sample on child tests; keep it on group rows. */
+  remove_collect_sample_button_from_child_test?: boolean
   lab_tests?: Array<{
     name: string
     template?: string

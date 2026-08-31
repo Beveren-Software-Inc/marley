@@ -588,37 +588,38 @@ def get_service_request_template_pricing(template_dt, template_dn, patient_care_
 	return {'is_group': False, 'pricing': pricing, 'group_templates': []}
 
 
+def _lab_request_template_names(sr, items) -> list[str]:
+	"""Parent, child, and single template codes on a Lab Request."""
+	names: list[str] = []
+	for item in items or []:
+		kind = (item.get("kind") or "").strip().lower()
+		if kind == "group":
+			parent = (item.get("parent") or "").strip()
+			if parent:
+				names.append(parent)
+			names.extend([c for c in (item.get("children") or []) if c])
+		else:
+			tpl = (item.get("template") or "").strip()
+			if tpl:
+				names.append(tpl)
+	fallback = (sr.get("template_dn") or "").strip()
+	if fallback and fallback not in names:
+		names.append(fallback)
+	return names
+
+
 def _compute_lab_request_virtual_status(sr) -> str:
 	"""Compute UI-only virtual status for a Lab Test Service Request.
 
-	Statuses (computed from linked Lab Test records + basket finished flags):
-	  - ``Booked``                    — no Lab Tests linked yet (or pre-sample)
-	  - ``Sample Collected``          — all linked Lab Tests have samples collected
-	  - ``Partial Sample Collected``  — some samples collected, none have results
-	  - ``Partial Results``           — at least one test has results entered, not all
-	  - ``Completed tests``           — all tests have results and/or request finished
+	Statuses (computed from linked Lab Test records):
+	  - ``booked``                   — no Lab Tests linked yet (shown as New Request)
+	  - ``sample-collected``         — all linked Lab Tests have samples collected
+	  - ``partial-sample-collected`` — some samples collected, none have results
+	  - ``partial-results``          — at least one test has results, not all
+	  - ``pending-review``          — all tests at review stage, not all reviewed/rejected
+	  - ``reviewed``                — all tests Reviewed / Approved
+	  - ``rejected``                — all tests Rejected
 	"""
-	import json
-
-	if (sr.get("status") or "").strip() == "completed-Request Status":
-		return "completed-request"
-
-	# Basket items with per-line finished flag (from Finish Group flows)
-	raw = sr.get("lab_request_items") or ""
-	items: list[dict] = []
-	if isinstance(raw, str) and raw.strip():
-		try:
-			parsed = json.loads(raw)
-			if isinstance(parsed, list):
-				items = [i for i in parsed if isinstance(i, dict)]
-		except Exception:
-			items = []
-	if items:
-		lines = [i for i in items if (i.get("template") or i.get("parent") or "").strip()]
-		if lines and all(cint(i.get("finished")) == 1 for i in lines):
-			return "completed-request"
-
-	# Query Lab Tests linked to this Service Request for sample/result progress
 	lab_tests = frappe.get_all(
 		"Lab Test",
 		filters={"service_request": sr.get("name")},
@@ -628,11 +629,16 @@ def _compute_lab_request_virtual_status(sr) -> str:
 	if not lab_tests:
 		return "booked"
 
+	reviewed_like = {"Reviewed", "Approved", "Completed"}
+	rejected_like = {"Rejected"}
+	pending_review_like = {"Pending Review"}
+	review_stage = reviewed_like | rejected_like | pending_review_like
+
+	statuses = [(lt.get("status") or "").strip() for lt in lab_tests]
 	total = len(lab_tests)
 	sample_done = 0
 	result_done = 0
-	for lt in lab_tests:
-		status_str = (lt.get("status") or "").strip()
+	for lt, status_str in zip(lab_tests, statuses):
 		# Sample considered done when linked to a Sample Collection OR status progressed past pre-sample
 		if lt.get("sample") or status_str in (
 			"Sample Collected",
@@ -647,7 +653,6 @@ def _compute_lab_request_virtual_status(sr) -> str:
 			"Partial Result Enter",
 		):
 			sample_done += 1
-		# Result entered when status moved past testing, or custom_result has a value
 		has_result = status_str in (
 			"Pending Review",
 			"Reviewed",
@@ -659,8 +664,15 @@ def _compute_lab_request_virtual_status(sr) -> str:
 		if has_result:
 			result_done += 1
 
-	if result_done == total:
-		return "completed-tests"
+	all_at_review = total > 0 and all(s in review_stage for s in statuses)
+	all_have_results = result_done == total
+	if all_at_review or all_have_results:
+		if all(s in rejected_like for s in statuses):
+			return "rejected"
+		if all(s in reviewed_like for s in statuses):
+			return "reviewed"
+		return "pending-review"
+
 	if result_done > 0:
 		return "partial-results"
 	if sample_done == total:
@@ -685,6 +697,7 @@ def get_service_requests(
 	booked=None,
 	patient_care_type=None,
 	virtual_status=None,
+	cost_center=None,
 ):
 	"""Get list of Service Requests.
 
@@ -693,8 +706,9 @@ def get_service_requests(
 	Optional ``booked``: when set (0/1/true/false), filter by Service Request.booked.
 	Optional ``patient_care_type`` (OP/IP): when no specific visit/admission is passed,
 	hide the other care type (OP → no inpatient_record; IP → inpatient_record set).
+	Optional ``cost_center``: portal branch filter from the top navbar (UI-only).
 	"""
-	from healthcare.api.common import get_permitted_cost_centers
+	from healthcare.api.common import resolve_cost_center_filter
 	filters = {'docstatus': ['!=', 2]}
 
 	if patient:
@@ -737,17 +751,19 @@ def get_service_requests(
 	if booked is not None and str(booked).strip() != '':
 		filters['booked'] = 1 if cint(booked) else 0
 
-	# ── Cost-centre User Permission enforcement ──────────────────────────────
-	# Records with no cost_center are visible regardless (use or_filters).
-	permitted_cc = get_permitted_cost_centers()
+	# Portal navbar branch (UI) + Cost Center User Permission when present.
+	# A selected branch is an exact match (same as visits / admissions).
+	resolved_cc = resolve_cost_center_filter(cost_center)
+	if resolved_cc is False:
+		return {"data": [], "total_count": 0}
 	or_filters = None
-	if permitted_cc is not None:
-		if not permitted_cc:
-			return {"data": [], "total_count": 0}
+	if isinstance(resolved_cc, list):
 		or_filters = [
-			['Service Request', 'cost_center', 'in', permitted_cc],
+			['Service Request', 'cost_center', 'in', resolved_cc],
 			['Service Request', 'cost_center', 'is', 'not set'],
 		]
+	elif resolved_cc:
+		filters['cost_center'] = resolved_cc
 
 	# Resolve human-readable template names for all supported template types
 	_template_name_field = {
@@ -765,6 +781,7 @@ def get_service_requests(
 		filters=filters,
 		fields=[
 			'name', 'patient', 'patient_name', 'practitioner',
+			'assigned_healthcare_practioner',
 			'template_dt', 'template_dn', 'lab_request_items', 'status', 'order_date', 'order_time',
 			'occurrence_date', 'occurrence_time', 'medical_department',
 			'billing_status', 'priority', 'intent', 'patient_accepted_cost',
@@ -788,16 +805,25 @@ def get_service_requests(
 		lab_request_items_summary,
 		parse_lab_request_items,
 	)
+	from healthcare.api.common import _by_nurse_lab_test_template_names
 
 	service_requests = frappe.get_all('Service Request', **fetch_kwargs)
+	nurse_templates = set(_by_nurse_lab_test_template_names())
 	for sr in service_requests:
 		sr['practitioner_name'] = _practitioner_display_name(sr.practitioner)
+		assigned = sr.get('assigned_healthcare_practioner')
+		sr['assigned_practitioner_name'] = (
+			_practitioner_display_name(assigned) if assigned else None
+		)
 
 		# Compute UI-only virtual status (sample progress / result progress) for Lab Requests
 		if sr.template_dt == 'Lab Test Template':
 			sr['virtual_status'] = _compute_lab_request_virtual_status(sr)
 
 		items = parse_lab_request_items(sr)
+		if sr.template_dt == 'Lab Test Template':
+			tpl_names = _lab_request_template_names(sr, items)
+			sr['by_nurse'] = 1 if any(n in nurse_templates for n in tpl_names) else 0
 		if items and sr.template_dt == 'Lab Test Template':
 			sr['template_name'] = lab_request_items_summary(items) or sr.template_dn
 			groups = []
@@ -1220,6 +1246,13 @@ def get_lab_request_review(name):
 		"test_count": sum(int(g.get("test_count") or 0) for g in group_rows),
 		"total_price": stored_total or computed_total,
 		"lab_tests": lab_test_rows,
+		"remove_collect_sample_button_from_child_test": bool(
+			cint(
+				frappe.db.get_single_value(
+					"Healthcare Settings", "remove_collect_sample_button_from_child_test"
+				)
+			)
+		),
 	}
 
 

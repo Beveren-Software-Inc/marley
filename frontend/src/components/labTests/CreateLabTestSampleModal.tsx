@@ -167,7 +167,22 @@ export const CreateLabTestSampleModal = ({ onClose, onSuccess }: CreateLabTestSa
       params.set(paramKey, name)
       const res = await fetch(`/api/method/healthcare.api.common.${endpoint}?${params.toString()}`, { credentials: 'include' })
       const data = await res.json()
-      if (!res.ok) { alert(data.message || 'Failed to create record'); return }
+      if (!res.ok) {
+        let msg = data.message || 'Failed to create record'
+        try {
+          const server = data._server_messages
+          if (server) {
+            const parsed = JSON.parse(typeof server === 'string' ? server : JSON.stringify(server))
+            const first = Array.isArray(parsed) ? parsed[0] : parsed
+            const obj = typeof first === 'string' ? JSON.parse(first) : first
+            msg = obj?.message || msg
+          }
+        } catch {
+          /* keep msg */
+        }
+        alert(typeof msg === 'string' ? msg : 'Failed to create record')
+        return
+      }
 
       const created: LinkFieldOption = data.message
       if (createModal === 'uom') setSampleUom(created.name)
