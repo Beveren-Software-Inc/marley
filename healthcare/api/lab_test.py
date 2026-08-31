@@ -2,12 +2,15 @@
 # Copyright (c) 2025, Healthcare and contributors
 # For license information, please see license.txt
 
+import json
+
 import frappe
 from frappe import _
 from frappe.utils import cint, cstr, flt, strip_html
 
 from healthcare.api.lab_test_doctor_review import follow_up_labels_from_doc, record_results_entered
 from healthcare.healthcare.care_episode_guard import resolve_inpatient_admission_name
+from healthcare.healthcare.editing_lock import assert_editing_allowed
 from healthcare.healthcare.lab_test_result_rules import apply_rules_to_doc
 
 
@@ -3459,39 +3462,21 @@ def create_sample_collection_for_lab_sample(
 	return {"sample_collection": sample_doc.name}
 
 
-@frappe.whitelist()
-def create_sample_collection_for_lab_group(
-	service_request_name: str,
-	sample_details: str | None = None,
-	collection_point: str | None = None,
-	referring_practitioner: str | None = None,
-	collected_by: str | None = None,
-	sample_qty: float | int | str | None = None,
-	lab_test_group: str | None = None,
+def _record_sample_collection_for_lab_tests(
+	lab_tests,
+	sample_details=None,
+	collection_point=None,
+	referring_practitioner=None,
+	collected_by=None,
+	sample_qty=None,
 ):
-	"""Record sample collection for child Lab Tests of one grouped request line.
-
-	When ``lab_test_group`` is set, only that group's children are collected.
-	Without it, every grouped child on the Service Request is collected (legacy).
-	Individual child collection remains available via create_sample_collection_for_lab_sample.
-	"""
-	assert_editing_allowed()
-	if not service_request_name:
-		frappe.throw(_("Service Request name is required"))
-
-	lab_test_group = (lab_test_group or "").strip() or None
-	lab_tests = _get_lab_tests_for_request_group(service_request_name, lab_test_group)
-	if not lab_tests:
-		if lab_test_group:
-			frappe.throw(_("No lab tests found for group {0}").format(lab_test_group))
-		frappe.throw(_("No grouped lab tests found for this Service Request"))
-
+	"""Create/update Sample Collection on each eligible Lab Test. Returns (updated, skipped, collections)."""
 	eligible_statuses = LAB_PRE_SAMPLE_COLLECTION_STATUSES | SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES
 	updated: list[str] = []
 	skipped: list[str] = []
 	collections: list[str] = []
 
-	for lt in lab_tests:
+	for lt in lab_tests or []:
 		status = (lt.get("status") or "").strip()
 		name = lt.get("name")
 		if not name or status == "Cancelled" or status not in eligible_statuses:
@@ -3508,7 +3493,6 @@ def create_sample_collection_for_lab_group(
 			existing = (getattr(row, "sample_collection", None) or "").strip() if row else ""
 			if existing and frappe.db.exists("Sample Collection", existing):
 				if status not in SAMPLE_COLLECTION_EDITABLE_LAB_TEST_STATUSES:
-					# Linked but still Draft/Requested — treat as already recorded.
 					collections.append(existing)
 					continue
 				res = update_sample_collection_for_lab_sample(
@@ -3536,6 +3520,45 @@ def create_sample_collection_for_lab_group(
 
 		updated.append(name)
 
+	return updated, skipped, collections
+
+
+@frappe.whitelist()
+def create_sample_collection_for_lab_group(
+	service_request_name: str,
+	sample_details: str | None = None,
+	collection_point: str | None = None,
+	referring_practitioner: str | None = None,
+	collected_by: str | None = None,
+	sample_qty: float | int | str | None = None,
+	lab_test_group: str | None = None,
+):
+	"""Record sample collection for child Lab Tests of one grouped request line.
+
+	When ``lab_test_group`` is set, only that group's children are collected.
+	Without it, every grouped child on the Service Request is collected (legacy).
+	Individual child collection remains available via create_sample_collection_for_lab_sample.
+	"""
+	assert_editing_allowed()
+	if not service_request_name:
+		frappe.throw(_("Service Request name is required"))
+
+	lab_test_group = (lab_test_group or "").strip() or None
+	lab_tests = _get_lab_tests_for_request_group(service_request_name, lab_test_group)
+	if not lab_tests:
+		if lab_test_group:
+			frappe.throw(_("No lab tests found for group {0}").format(lab_test_group))
+		frappe.throw(_("No grouped lab tests found for this Service Request"))
+
+	updated, skipped, collections = _record_sample_collection_for_lab_tests(
+		lab_tests,
+		sample_details=sample_details,
+		collection_point=collection_point,
+		referring_practitioner=referring_practitioner,
+		collected_by=collected_by,
+		sample_qty=sample_qty,
+	)
+
 	if not updated:
 		if lab_test_group:
 			frappe.throw(_("No lab tests in group {0} are eligible for sample collection").format(lab_test_group))
@@ -3547,6 +3570,86 @@ def create_sample_collection_for_lab_group(
 		"count": len(updated),
 		"sample_collections": collections,
 		"lab_test_group": lab_test_group,
+	}
+
+
+@frappe.whitelist()
+def create_sample_collection_for_lab_requests(
+	service_request_names,
+	sample_details=None,
+	collection_point=None,
+	referring_practitioner=None,
+	collected_by=None,
+	sample_qty=None,
+):
+	"""Record sample collection for every eligible Lab Test on the selected Lab Requests.
+
+	Collected by is always the logged-in user. Quantity and collection point are not used.
+	"""
+	assert_editing_allowed()
+	collected_by = frappe.session.user
+	sample_qty = None
+	collection_point = None
+	if isinstance(service_request_names, str):
+		try:
+			service_request_names = json.loads(service_request_names)
+		except Exception:
+			service_request_names = [service_request_names]
+
+	names = []
+	for raw in service_request_names or []:
+		n = cstr(raw).strip()
+		if n and n not in names:
+			names.append(n)
+	if not names:
+		frappe.throw(_("Select at least one Lab Request"))
+
+	request_results = []
+	total_updated: list[str] = []
+	total_skipped: list[str] = []
+	collections: list[str] = []
+
+	for sr in names:
+		if not frappe.db.exists("Service Request", sr):
+			request_results.append({"name": sr, "updated": 0, "skipped": 0, "error": _("Not found")})
+			continue
+		lab_tests = frappe.get_all(
+			"Lab Test",
+			filters={"service_request": sr, "docstatus": ["<", 2]},
+			fields=["name", "status", "template", "lab_test_group", "is_group_lab_test"],
+			order_by="creation asc",
+			ignore_permissions=True,
+		)
+		updated, skipped, cols = _record_sample_collection_for_lab_tests(
+			lab_tests,
+			sample_details=sample_details,
+			collection_point=collection_point,
+			referring_practitioner=referring_practitioner,
+			collected_by=collected_by,
+			sample_qty=sample_qty,
+		)
+		request_results.append(
+			{
+				"name": sr,
+				"updated": len(updated),
+				"skipped": len(skipped),
+				"error": None if updated else (_("No Lab Tests") if not lab_tests else _("None eligible")),
+			}
+		)
+		total_updated.extend(updated)
+		total_skipped.extend(skipped)
+		collections.extend(cols)
+
+	if not total_updated:
+		frappe.throw(_("No lab tests on the selected requests are eligible for sample collection"))
+
+	return {
+		"updated": total_updated,
+		"skipped": total_skipped,
+		"count": len(total_updated),
+		"sample_collections": collections,
+		"requests": request_results,
+		"request_count": len(names),
 	}
 
 

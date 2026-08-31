@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Layers, Pencil } from 'lucide-react'
+import { Pencil } from 'lucide-react'
 import {
   bulkUpdateLabTestTemplatesQuick,
   fetchLabTestTemplateList,
@@ -33,12 +33,6 @@ type ChildDraft = {
 /** True group template (parent of children). */
 function isGroupTemplate(row: LabTestTemplateListRow): boolean {
   return Boolean(row.is_group)
-}
-
-function childCountForParent(allRows: LabTestTemplateListRow[], parent: LabTestTemplateListRow): number {
-  return allRows.filter(
-    (r) => !r.is_group && (r.lab_group || '').trim() === parent.name && !r.disabled,
-  ).length
 }
 
 function formatRate(value: number | string | null | undefined): string {
@@ -375,77 +369,69 @@ export const LabTestSetupGroups = ({ refreshKey = 0, onEditClick }: LabTestSetup
             </div>
           ) : (
             <div
-              className="overflow-y-auto max-h-40 rounded-md border border-slate-100"
+              className="overflow-y-auto max-h-48 rounded-md border border-slate-100"
               style={{ scrollbarWidth: 'thin' }}
             >
-              <div className="flex flex-col divide-y divide-slate-100">
-                {parents.map((p) => {
-                  const active = p.name === selectedParent
-                  const count = childCountForParent(allRows, p)
-                  return (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() => setSelectedParent(p.name)}
-                      className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition-colors ${
-                        active
-                          ? 'bg-violet-50 text-violet-900'
-                          : 'bg-white text-slate-800 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Layers
-                        className={`h-3.5 w-3.5 shrink-0 ${active ? 'text-violet-600' : 'text-slate-400'}`}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="font-medium">{p.lab_test_name || p.name}</span>
-                        <span className="ml-1.5 font-mono text-[11px] text-slate-400">{p.name}</span>
-                      </span>
-                      <span className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-semibold bg-violet-100 text-violet-700">
-                        Group
-                      </span>
-                      {p.department ? (
-                        <span className="shrink-0 text-[11px] text-slate-500">{p.department}</span>
-                      ) : null}
-                      <span
-                        className="shrink-0 text-[11px] tabular-nums text-slate-600"
-                        title="IP / OP rate"
-                      >
-                        IP {ipRate(p) || '—'} · OP {opRate(p) || '—'}
-                      </span>
-                      <span
-                        className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+              <table className="min-w-full text-sm">
+                <thead className="sticky top-0 z-10 bg-slate-50">
+                  <tr className="text-left">
+                    <th className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">
+                      ID
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      Name
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-right whitespace-nowrap">
+                      IP
+                    </th>
+                    <th className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 text-right whitespace-nowrap">
+                      OP
+                    </th>
+                    <th className="px-2 py-1.5 w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {parents.map((p) => {
+                    const active = p.name === selectedParent
+                    return (
+                      <tr
+                        key={p.name}
+                        onClick={() => setSelectedParent(p.name)}
+                        className={`cursor-pointer transition-colors ${
                           active
-                            ? 'bg-violet-200/80 text-violet-800'
-                            : 'bg-slate-100 text-slate-600'
+                            ? 'bg-violet-50 text-violet-900'
+                            : 'bg-white text-slate-800 hover:bg-slate-50'
                         }`}
                       >
-                        {count}
-                      </span>
-                      {onEditClick ? (
-                        <span
-                          role="button"
-                          tabIndex={0}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            onEditClick(p.name)
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              e.stopPropagation()
-                              e.preventDefault()
-                              onEditClick(p.name)
-                            }
-                          }}
-                          className="shrink-0 rounded border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
-                          title="Edit group template"
-                        >
-                          <Pencil className="h-3 w-3" />
-                        </span>
-                      ) : null}
-                    </button>
-                  )
-                })}
-              </div>
+                        <td className="px-3 py-2 font-mono text-[11px] whitespace-nowrap text-slate-600">
+                          {p.name}
+                        </td>
+                        <td className="px-3 py-2 font-medium min-w-0">
+                          <span className="line-clamp-1">{p.lab_test_name || p.name}</span>
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] text-slate-700 whitespace-nowrap">
+                          {ipRate(p) || '—'}
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums text-[12px] text-slate-700 whitespace-nowrap">
+                          {opRate(p) || '—'}
+                        </td>
+                        <td className="px-2 py-1.5 text-right" onClick={(e) => e.stopPropagation()}>
+                          {onEditClick ? (
+                            <button
+                              type="button"
+                              onClick={() => onEditClick(p.name)}
+                              className="inline-flex items-center rounded border border-slate-200 bg-white p-1 text-slate-500 hover:bg-slate-50 hover:text-slate-700"
+                              title="Edit group template"
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
         </div>

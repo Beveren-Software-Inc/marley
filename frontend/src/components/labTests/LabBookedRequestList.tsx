@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Droplet } from 'lucide-react'
 import {
   fetchServiceRequests,
   type ServiceRequest,
 } from '../../services/serviceRequests'
+import { fetchHealthcarePortalSettings } from '../../services/healthcareSettings'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
 import { StatusPill } from '../ui/StatusPill'
@@ -19,6 +21,7 @@ import {
   useInDashboardCard,
 } from '../../contexts/CardFilterContext'
 import { LabRequestReviewModal } from './LabRequestReviewModal'
+import { LabListingBulkSampleModal } from './LabListingBulkSampleModal'
 
 interface LabBookedRequestListProps {
   patient?: string
@@ -28,33 +31,39 @@ interface LabBookedRequestListProps {
 }
 
 const VIRTUAL_STATUS_TABS = [
-  { key: 'booked', label: 'Booked' },
+  { key: 'booked', label: 'New Request' },
   { key: 'partial-sample-collected', label: 'Partial Sample' },
   { key: 'sample-collected', label: 'Sample Collected' },
   { key: 'partial-results', label: 'Partial Results' },
-  { key: 'completed-tests', label: 'Completed Tests' },
+  { key: 'pending-review', label: 'Pending Review' },
+  { key: 'reviewed', label: 'Reviewed' },
+  { key: 'rejected', label: 'Rejected' },
   { key: 'all', label: 'All' },
 ] as const
 
 type VirtualStatusKey = (typeof VIRTUAL_STATUS_TABS)[number]['key']
 
 const VIRTUAL_STATUS_COLORS: Record<string, string> = {
-  booked: 'default',
+  booked: 'info',
   'sample-collected': 'info',
   'partial-sample-collected': 'warning',
   'partial-results': 'warning',
-  'completed-tests': 'success',
-  'completed-request': 'success',
+  'pending-review': 'warning',
+  reviewed: 'success',
+  rejected: 'danger',
 }
 
 const VIRTUAL_STATUS_LABELS: Record<string, string> = {
-  booked: 'Booked',
+  booked: 'New Request',
   'sample-collected': 'Sample Collected',
   'partial-sample-collected': 'Partial Sample Collected',
   'partial-results': 'Partial Results',
-  'completed-tests': 'Completed Tests',
-  'completed-request': 'Completed',
+  'pending-review': 'Pending Review',
+  reviewed: 'Reviewed',
+  rejected: 'Rejected',
 }
+
+const isNewRequestRow = (sr: ServiceRequest) => (sr.virtual_status || 'booked') === 'booked'
 
 const FilterToggleButton = ({
   active,
@@ -84,9 +93,11 @@ const FilterToggleButton = ({
 
 /**
  * Lab page → Lab Request tab only.
- * Lists booked Lab Test Template Service Requests (one row per request).
+ * Lists Lab Test Template Service Requests (one row per request).
+ * Virtual statuses: New Request (booked), sample progress, Pending Review, Reviewed, Rejected.
  * Click opens a read-only review modal (no edit).
- * Scoped by header OP/IP: OP hides inpatient requests; active visit/admission narrows further.
+ * Scoped by header OP/IP and the top-navbar branch (userCostCenter).
+ * OP hides inpatient requests; active visit/admission narrows further.
  */
 export function LabBookedRequestList({
   patient,
@@ -94,7 +105,7 @@ export function LabBookedRequestList({
   onPatientClick,
   hideAmount = false,
 }: LabBookedRequestListProps) {
-  const { mode, activeVisit, activeAdmission } = useCareContext()
+  const { mode, activeVisit, activeAdmission, userCostCenter } = useCareContext()
   const formatMoney = useFormatMoney()
   const [rows, setRows] = useState<ServiceRequest[]>([])
   const [totalCount, setTotalCount] = useState(0)
@@ -105,6 +116,9 @@ export function LabBookedRequestList({
   const [selectedName, setSelectedName] = useState<string | null>(null)
   const [listTick, setListTick] = useState(0)
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
+  const [collectFromListing, setCollectFromListing] = useState(false)
+  const [selectedNames, setSelectedNames] = useState<Set<string>>(() => new Set())
+  const [showBulkCollect, setShowBulkCollect] = useState(false)
 
   // Virtual status filter (UI-only) — backend computes from linked Lab Tests
   const [virtualStatus, setVirtualStatus] = useState<VirtualStatusKey>('booked')
@@ -122,6 +136,28 @@ export function LabBookedRequestList({
 
   useEffect(() => {
     let cancelled = false
+    fetchHealthcarePortalSettings()
+      .then((s) => {
+        if (!cancelled) setCollectFromListing(Boolean(s.collect_sample_from_request_listing))
+      })
+      .catch(() => {
+        if (!cancelled) setCollectFromListing(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
+    setSelectedNames(new Set())
+  }, [page, virtualStatus, patient, careType, patientVisit, inpatientRecord, userCostCenter])
+
+  useEffect(() => {
+    setPage(1)
+  }, [userCostCenter, patient, careType, patientVisit, inpatientRecord])
+
+  useEffect(() => {
+    let cancelled = false
     fetchServiceRequests(
       pageSize,
       (page - 1) * pageSize,
@@ -136,6 +172,7 @@ export function LabBookedRequestList({
       1, // booked only
       careType,
       virtualStatus === 'all' ? undefined : virtualStatus,
+      userCostCenter || undefined,
     )
       .then((res) => {
         if (cancelled) return
@@ -154,15 +191,64 @@ export function LabBookedRequestList({
     return () => {
       cancelled = true
     }
-  }, [patient, page, pageSize, refreshKey, listTick, careType, patientVisit, inpatientRecord, virtualStatus])
+  }, [patient, page, pageSize, refreshKey, listTick, careType, patientVisit, inpatientRecord, virtualStatus, userCostCenter])
 
   const virtualStatusLabel = (sr: ServiceRequest): string => {
-    return VIRTUAL_STATUS_LABELS[sr.virtual_status || 'booked'] || 'Booked'
+    return VIRTUAL_STATUS_LABELS[sr.virtual_status || 'booked'] || 'New Request'
   }
 
   const virtualStatusColor = (sr: ServiceRequest): string => {
     return VIRTUAL_STATUS_COLORS[sr.virtual_status || 'booked'] || 'default'
   }
+
+  const selectableRows = useMemo(() => rows.filter(isNewRequestRow), [rows])
+  const selectableNames = useMemo(() => selectableRows.map((r) => r.name), [selectableRows])
+  const allVisibleSelected =
+    collectFromListing &&
+    selectableNames.length > 0 &&
+    selectableNames.every((n) => selectedNames.has(n))
+  const selectedRequests = useMemo(
+    () => rows.filter((r) => selectedNames.has(r.name) && isNewRequestRow(r)),
+    [rows, selectedNames]
+  )
+
+  const toggleSelected = (name: string, checked: boolean) => {
+    setSelectedNames((prev) => {
+      const next = new Set(prev)
+      if (checked) next.add(name)
+      else next.delete(name)
+      return next
+    })
+  }
+
+  const toggleSelectAllVisible = (checked: boolean) => {
+    setSelectedNames((prev) => {
+      const next = new Set(prev)
+      if (checked) {
+        for (const n of selectableNames) next.add(n)
+      } else {
+        for (const n of selectableNames) next.delete(n)
+      }
+      return next
+    })
+  }
+
+  const collectButton = collectFromListing ? (
+    <button
+      type="button"
+      disabled={selectedNames.size === 0}
+      title={
+        selectedNames.size
+          ? `Collect sample for ${selectedNames.size} selected request${selectedNames.size === 1 ? '' : 's'}`
+          : 'Select Lab Requests first'
+      }
+      onClick={() => setShowBulkCollect(true)}
+      className="inline-flex items-center gap-1.5 rounded-md border border-cyan-300 bg-cyan-50 px-2.5 py-1.5 text-xs font-semibold text-cyan-800 hover:bg-cyan-100 disabled:cursor-not-allowed disabled:opacity-40"
+    >
+      <Droplet className="h-3.5 w-3.5" />
+      Collect{selectedNames.size ? ` (${selectedNames.size})` : ''}
+    </button>
+  ) : null
 
   // Status tabs + filter toggle — portal into the DashboardCard header (next to the ↗ arrow)
   const statusTabsMarkup = (
@@ -216,9 +302,24 @@ export function LabBookedRequestList({
         </div>
       )}
 
+      {collectFromListing && !loading && selectableRows.length > 0 ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-2 px-1 pb-2">
+          <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-slate-700">
+            <input
+              type="checkbox"
+              checked={allVisibleSelected}
+              onChange={(e) => toggleSelectAllVisible(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+            />
+            Select all on this page
+          </label>
+          {collectButton}
+        </div>
+      ) : null}
+
       <div className="min-h-0 flex-1 overflow-auto p-1">
         {loading && (
-          <div className="px-3 py-8 text-center text-sm text-slate-500">Loading booked Lab Requests…</div>
+          <div className="px-3 py-8 text-center text-sm text-slate-500">Loading Lab Requests…</div>
         )}
         {error && !loading && (
           <div className="mx-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -227,7 +328,7 @@ export function LabBookedRequestList({
         )}
         {!loading && !error && rows.length === 0 && (
           <div className="px-3 py-8 text-center text-sm text-slate-500">
-            No booked Lab Requests
+            No Lab Requests
             {patient ? ' for this patient' : ''}
             {careType === 'OP' && patientVisit
               ? ' for this OP visit'
@@ -250,19 +351,41 @@ export function LabBookedRequestList({
             const vs = sr.virtual_status || 'booked'
             const vLabel = virtualStatusLabel(sr)
             const vColor = virtualStatusColor(sr)
-            const isMinorBooked = vs !== 'booked'
+            const doctorName = (
+              sr.assigned_practitioner_name ||
+              sr.practitioner_name ||
+              ''
+            ).trim()
+            const showReviewDoctor = vs === 'pending-review' || vs === 'reviewed'
             const metaFields = [
               ['Request', sr.name],
               ['Patient', sr.patient_name || sr.patient],
+              ['Doctor', doctorName],
+              Number(sr.by_nurse) === 1 ? (['Nursing', 'Yes'] as const) : null,
               ['Ordered', formatDashboardDate(sr.order_date)],
-              ['Username', sr.practitioner_name],
               ['Status', vLabel],
               ['Tests', childCount || groupCount || '—'],
               !hideAmount ? (['Total', formatMoney(amount)] as const) : null,
             ].filter(Boolean) as Array<readonly [string, string | number | null | undefined]>
 
             return (
-              <li key={sr.name}>
+              <li key={sr.name} className="flex items-stretch gap-2">
+                {collectFromListing && isNewRequestRow(sr) ? (
+                  <label
+                    className="flex shrink-0 items-center px-0.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedNames.has(sr.name)}
+                      onChange={(e) => toggleSelected(sr.name, e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-primary focus:ring-primary"
+                      aria-label={`Select ${sr.name}`}
+                    />
+                  </label>
+                ) : collectFromListing ? (
+                  <span className="w-4 shrink-0" aria-hidden />
+                ) : null}
                 <button
                   type="button"
                   onClick={() => setSelectedName(sr.name)}
@@ -274,15 +397,20 @@ export function LabBookedRequestList({
                         <span className="truncate text-sm font-semibold text-slate-900">
                           {sr.template_name || sr.template_dn || 'Lab Request'}
                         </span>
-                        {/* Minor "Booked" pill always present when the row is still a booked request */}
-                        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
-                          Booked
-                        </span>
-                        {/* Major virtual status pill shows the lab-test progress */}
-                        <StatusPill status={vLabel} color={vColor} />
-                        {isMinorBooked && vs === 'completed-request' ? (
-                          <StatusPill status="Completed" color="success" />
+                        {vs !== 'booked' ? (
+                          <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+                            New Request
+                          </span>
                         ) : null}
+                        {vs === 'booked' && Number(sr.by_nurse) === 1 ? (
+                          <span
+                            className="rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-semibold text-violet-800"
+                            title="This Lab Request uses a By Nurse template"
+                          >
+                            Nursing
+                          </span>
+                        ) : null}
+                        <StatusPill status={vLabel} color={vColor} />
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-slate-500">
                         <span className="font-mono text-slate-600">{sr.name}</span>
@@ -317,6 +445,14 @@ export function LabBookedRequestList({
                             </span>
                           </>
                         )}
+                        {showReviewDoctor && doctorName ? (
+                          <>
+                            <span>·</span>
+                            <span title="Doctor (requested / assigned)">
+                              {doctorName}
+                            </span>
+                          </>
+                        ) : null}
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -355,6 +491,16 @@ export function LabBookedRequestList({
           }}
         />
       )}
+      {showBulkCollect && collectFromListing ? (
+        <LabListingBulkSampleModal
+          requests={selectedRequests}
+          onClose={() => setShowBulkCollect(false)}
+          onSaved={() => {
+            setSelectedNames(new Set())
+            setListTick((n) => n + 1)
+          }}
+        />
+      ) : null}
     </div>
   )
 }

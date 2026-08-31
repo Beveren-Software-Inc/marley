@@ -758,6 +758,31 @@ export async function createSampleCollectionForLabGroup(
   )
 }
 
+/** Apply sample collection to every eligible Lab Test on the selected Lab Requests. */
+export async function createSampleCollectionForLabRequests(
+  serviceRequestNames: string[],
+  sampleDetails?: string
+): Promise<{
+  updated: string[]
+  skipped: string[]
+  count: number
+  sample_collections: string[]
+  requests: Array<{ name: string; updated: number; skipped: number; error?: string | null }>
+  request_count: number
+}> {
+  const { apiRequest } = await import('./apiClient')
+  return apiRequest(
+    '/api/method/healthcare.api.lab_test.create_sample_collection_for_lab_requests',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        service_request_names: serviceRequestNames,
+        sample_details: sampleDetails,
+      }),
+    }
+  )
+}
+
 export async function updateSampleCollectionForLabSample(
   labTestName: string,
   rowIndex: number,

@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowDown, ArrowUp, Droplet, FlaskConical, Printer, X } from 'lucide-react'
-import {
-  fetchLabRequestReview,
+import { fetchLabRequestReview,
   type LabRequestReview,
   type LabRequestReviewGroup,
   type LabRequestReviewTest,
@@ -422,6 +421,8 @@ export function LabRequestReviewModal({
     return review.groups.find((g) => g.template === selectedTemplate) || review.groups[0]
   }, [review, selectedTemplate])
 
+  const hideChildCollectSample = Boolean(review?.remove_collect_sample_button_from_child_test)
+
   const labTestsByName = useMemo(() => {
     const map = new Map<string, NonNullable<LabRequestReview['lab_tests']>[number]>()
     for (const lt of review?.lab_tests || []) {
@@ -574,7 +575,7 @@ export function LabRequestReviewModal({
                   {review.name}
                   {review.patient_name ? ` · ${review.patient_name}` : ''}
                   {review.order_date ? ` · ${formatDashboardDate(review.order_date)}` : ''}
-                  {' · Booked'}
+                  {' · New Request'}
                 </p>
               )}
             </div>
@@ -884,6 +885,14 @@ export function LabRequestReviewModal({
                               </td>
                               <td className="px-3 py-2">
                                 {!sampleDone ? (
+                                  hideChildCollectSample ? (
+                                    <span
+                                      className="text-xs text-slate-400"
+                                      title="Collect sample from the group"
+                                    >
+                                      —
+                                    </span>
+                                  ) : (
                                   <ActionBtn
                                     variant="sample"
                                     disabled={!test.lab_test || (!canSample && !test.lab_test)}
@@ -899,6 +908,7 @@ export function LabRequestReviewModal({
                                     <Droplet className="h-3 w-3" />
                                     Collect Sample
                                   </ActionBtn>
+                                  )
                                 ) : singleLine ? (
                                   <input
                                     type="text"

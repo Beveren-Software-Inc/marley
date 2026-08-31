@@ -70,6 +70,9 @@
   "create_lab_test_on_si_submit",
   "create_observation_on_si_submit",
   "create_sample_collection_for_lab_test",
+  "remove_collect_sample_button_from_child_test",
+  "collect_sample_from_request_listing",
+  "hide_test_and_result_from_lab",
   "column_break_34",
   "lab_test_approval_required",
   "employee_name_and_designation_in_print",
@@ -1084,11 +1087,29 @@
    "fieldtype": "Link",
    "label": "Default Letter Head",
    "options": "Letter Head"
+  },
+  {
+   "default": "0",
+   "fieldname": "remove_collect_sample_button_from_child_test",
+   "fieldtype": "Check",
+   "label": "Remove Collect Sample Button from Child Test"
+  },
+  {
+   "default": "0",
+   "fieldname": "collect_sample_from_request_listing",
+   "fieldtype": "Check",
+   "label": "Collect Sample from Request Listing"
+  },
+  {
+   "default": "0",
+   "fieldname": "hide_test_and_result_from_lab",
+   "fieldtype": "Check",
+   "label": "Hide Test and Result From Lab"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-31 10:42:33.703436",
+ "modified": "2026-09-01 00:42:28.917943",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

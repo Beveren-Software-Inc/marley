@@ -10,6 +10,12 @@ export type HealthcarePortalSettings = {
   allow_doctors_to_create_patient_visit: boolean
   /** When true, doctors linked to a practitioner cannot change auto-chosen doctor name. */
   lock_doctors_name_choosing: boolean
+  /** When true, hide Collect Sample on child tests in the Lab Request modal (group button stays). */
+  remove_collect_sample_button_from_child_test: boolean
+  /** When true, Lab Request listing shows checkboxes + Collect for bulk sample collection. */
+  collect_sample_from_request_listing: boolean
+  /** When true, hide the Tests & Results tab on the Lab page. */
+  hide_test_and_result_from_lab: boolean
 }
 
 export async function fetchHealthcarePortalSettings(): Promise<HealthcarePortalSettings> {
@@ -26,5 +32,10 @@ export async function fetchHealthcarePortalSettings(): Promise<HealthcarePortalS
     unedit_within_24hour: Boolean(msg?.unedit_within_24hour),
     allow_doctors_to_create_patient_visit: Boolean(msg?.allow_doctors_to_create_patient_visit),
     lock_doctors_name_choosing: Boolean(msg?.lock_doctors_name_choosing),
+    remove_collect_sample_button_from_child_test: Boolean(
+      msg?.remove_collect_sample_button_from_child_test,
+    ),
+    collect_sample_from_request_listing: Boolean(msg?.collect_sample_from_request_listing),
+    hide_test_and_result_from_lab: Boolean(msg?.hide_test_and_result_from_lab),
   }
 }
