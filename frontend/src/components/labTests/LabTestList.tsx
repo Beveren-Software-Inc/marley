@@ -1673,6 +1673,7 @@ import {
   getLabTestConsumables,
   requestLabConsumables,
   fetchLabTest,
+  fetchLabResultAssessmentHtml,
   saveAndSubmitLabTest,
   finishGroupLabTests,
   updateLabTestRemarks,
@@ -1716,9 +1717,9 @@ import {
   isGroupedLabRequestFinished,
   labResultLockReason,
 } from '../../config/permissions'
-import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2 } from 'lucide-react'
+import { Search, X, ChevronDown, ChevronRight, ArrowDown, ArrowUp, AlertTriangle, Trash2, Download } from 'lucide-react'
 import { createPortal } from 'react-dom'
-import { useCardFilters, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot, useCardLeadingSlot, useDashboardCompactClinical, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { useBatchLabTestResults } from '../../hooks/useBatchLabTestResults'
 import { LabTestDashboardCardTable, labTestReportDate } from './LabTestDashboardCardTable'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
@@ -2446,7 +2447,7 @@ export const LabTestList = ({
   /** Doctor lab: open Lab Trends with this test name prefilled. */
   onOpenLabTrends?: (testName: string) => void
 }) => {
-  const { selectedPatient: contextPatient, userRole, guardClinicalEdit } = useCareContext()
+  const { selectedPatient: contextPatient, userRole, guardClinicalEdit, userCostCenter } = useCareContext()
   const effectivePatient = patient ?? (contextPatient || undefined)
   const resultsReadOnly = doctorLabDefaults
   const nurseLabContext = Boolean(byNurse)
@@ -2466,6 +2467,8 @@ export const LabTestList = ({
   const cardFilters = useCardFilters()
   const preferLoadMore = usePreferCardLoadMore()
   const leadingSlot = useCardLeadingSlot()
+  const headerSlot = useCardHeaderSlot()
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const inDashboardCard = cardFilters !== undefined
   // Own the filter icon after status tabs (or when the card opts out of forced filters).
@@ -2561,6 +2564,47 @@ export const LabTestList = ({
     }
     setFilters(cleared)
   }
+
+  const exportAssessmentPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const now = new Date()
+      const y = now.getFullYear()
+      const m = String(now.getMonth() + 1).padStart(2, '0')
+      const last = String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, '0')
+      const html = await fetchLabResultAssessmentHtml({
+        dateFrom: filters.fromDate || `${y}-${m}-01`,
+        dateTo: filters.toDate || `${y}-${m}-${last}`,
+        costCenter: userCostCenter || undefined,
+      })
+      const win = window.open('', '_blank', 'width=1400,height=900')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export lab report')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const downloadButton = (
+    <button
+      type="button"
+      onClick={() => void exportAssessmentPdf()}
+      disabled={exportingPdf}
+      className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+      title="Download Lab Result Assessment Report"
+      aria-label="Download Lab Result Assessment Report"
+    >
+      <Download className="h-3.5 w-3.5" strokeWidth={2.25} />
+    </button>
+  )
 
   const { labTests, totalCount, loading, error, refetch } = useLabTests(
     effectivePatient, filters.status || undefined, filters.status === 'Pending Review',
@@ -3793,6 +3837,8 @@ export const LabTestList = ({
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-w-full flex-1 min-h-0 h-full">
+      {inDashboardCard && headerSlot ? createPortal(downloadButton, headerSlot) : null}
+
       {/* Header row */}
       {!inDashboardCard && (
         <div className="flex flex-shrink-0 items-center justify-between gap-2 px-4 py-2.5">
@@ -3805,6 +3851,7 @@ export const LabTestList = ({
               />
             ) : null}
             {headerExtra}
+            {downloadButton}
             {onAdd ? (
               <button
                 type="button"
