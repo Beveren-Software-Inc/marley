@@ -17,6 +17,7 @@ import { DischargeAdmissionView } from '../components/admissions/DischargeAdmiss
 import { PackageDetailView } from '../components/packageDetails/PackageDetailView'
 import { NurseTaskList } from '../components/nurseTask/NurseTaskList'
 import { CreateNurseTaskModal } from '../components/nurseTask/CreateNurseTaskModal'
+import { NursingCarePlanPrintButton } from '../components/nursing/NursingCarePlanPrintButton'
 import { CreateClinicalNoteModal } from '../components/clinicalNotes/CreateClinicalNoteModal'
 import { MainNursingNoteList } from '../components/nursing/MainNursingNoteList'
 import { MedicalRecordChecklistReport } from '../components/nursing/MedicalRecordChecklistReport'
@@ -630,6 +631,7 @@ export const NursePage = () => {
                   Tasks assigned to you, ordered by requested time and status.
                 </p>
               </div>
+              <NursingCarePlanPrintButton patient={selectedPatient} />
             </div>
             <NurseTaskList
               myTasks

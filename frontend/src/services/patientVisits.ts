@@ -561,3 +561,32 @@ export async function updatePatientVisitDocuments(
   return resData.message as { success: boolean; name: string }
 }
 
+export async function fetchPatientVisitReportHtml(name: string): Promise<string> {
+  const params = new URLSearchParams({ name })
+  const res = await fetch(
+    `/api/method/healthcare.api.patient_visit_print.get_patient_visit_report_html?${params}`,
+    { credentials: 'include' }
+  )
+  const data = await res.json()
+  if (data?.exception) {
+    let message = 'Failed to build visit report'
+    try {
+      const raw = data._server_messages
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      const obj = typeof first === 'string' ? JSON.parse(first) : first
+      if (obj?.message) message = String(obj.message)
+    } catch {
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message
+    }
+    throw new Error(message)
+  }
+  const msg = data?.message
+  if (typeof msg === 'string' && msg.trim()) return msg
+  if (msg && typeof msg === 'object' && typeof (msg as { html?: string }).html === 'string') {
+    return (msg as { html: string }).html
+  }
+  throw new Error('Invalid visit report response')
+}
+
+

@@ -165,3 +165,40 @@ export async function updateMentalState(
   const msg = data?.message
   return msg ?? { success: false, message: 'Unknown error' }
 }
+
+export async function fetchMentalStateHtml(opts: {
+  name?: string
+  patient?: string
+  dateFrom?: string
+  dateTo?: string
+}): Promise<string> {
+  const params = new URLSearchParams()
+  if (opts.name) params.set('name', opts.name)
+  if (opts.patient) params.set('patient', opts.patient)
+  if (opts.dateFrom) params.set('date_from', opts.dateFrom)
+  if (opts.dateTo) params.set('date_to', opts.dateTo)
+  const res = await fetch(
+    `/api/method/healthcare.api.mental_state_print.get_mental_state_html?${params}`,
+    { credentials: 'include' }
+  )
+  const data = await res.json()
+  if (data?.exception) {
+    let message = 'Failed to build mental state PDF'
+    try {
+      const raw = data._server_messages
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      const obj = typeof first === 'string' ? JSON.parse(first) : first
+      if (obj?.message) message = String(obj.message)
+    } catch {
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message
+    }
+    throw new Error(message)
+  }
+  const msg = data?.message
+  if (typeof msg === 'string' && msg.trim()) return msg
+  if (msg && typeof msg === 'object' && typeof (msg as { html?: string }).html === 'string') {
+    return (msg as { html: string }).html
+  }
+  throw new Error('Invalid mental state PDF response')
+}

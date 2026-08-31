@@ -3,7 +3,6 @@ import { Brain, Calendar, FileText, Link2, User } from 'lucide-react'
 import { fetchMentalState, type MentalStateDoc, type MentalStateRow } from '../../services/mentalState'
 import { resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 
 interface MentalStateDetailPanelProps {
@@ -148,15 +147,6 @@ export function MentalStateDetailPanel({
       icon={<Brain className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
-      headerActions={
-        <PrintFormatDropdown
-          doctype="Mental State"
-          docName={name}
-          noLetterhead={0}
-          triggerPrint={1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
-        />
-      }
     >
       {loading && !source ? (
         <div className="flex items-center justify-center py-12">

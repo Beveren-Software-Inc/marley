@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
-import { Pencil } from 'lucide-react'
-import { fetchSleepingPatterns, type SleepingPattern } from '../../services/sleepingPattern'
+import { createPortal } from 'react-dom'
+import { FileText, Pencil } from 'lucide-react'
+import { fetchSleepingPatternHtml, fetchSleepingPatterns, type SleepingPattern } from '../../services/sleepingPattern'
 import { fetchDoctorPractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { SleepingPatternDetailPanel } from './SleepingPatternDetailPanel'
 import { EditSleepingPatternModal } from './EditSleepingPatternModal'
 import { DateFilterInput } from '../ui/DateFilterInput'
@@ -71,12 +71,14 @@ export const SleepingPatternList = ({
 }: SleepingPatternListProps) => {
   const { guardClinicalEdit, uneditWithin24Hour } = useCareContext()
   const cardFilters = useCardFilters()
+  const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
 
   const [rows, setRows] = useState<SleepingPattern[]>([])
   const [loading, setLoading] = useState(true)
+  const [exportingPdf, setExportingPdf] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [detailRow, setDetailRow] = useState<SleepingPattern | null>(null)
   const [editRow, setEditRow] = useState<SleepingPattern | null>(null)
@@ -164,9 +166,60 @@ export const SleepingPatternList = ({
   const selectedPractitionerLabel =
     practitionerOptions.find((o) => o.name === practitionerFilter)?.label || practitionerFilter || ''
 
+  const exportPdf = async () => {
+    if (!rows.length) {
+      toast.info('No sleeping pattern records to print.')
+      return
+    }
+    const samePatient =
+      rows[0]?.file_no && rows.every((r) => !r.file_no || r.file_no === rows[0].file_no)
+    const patientId = patient || (samePatient ? rows[0].file_no || undefined : undefined)
+    if (!patientId && !rows[0]?.name) {
+      toast.info('Select a patient to print the sleeping pattern.')
+      return
+    }
+    setExportingPdf(true)
+    try {
+      const html = await fetchSleepingPatternHtml({
+        patient: patientId || undefined,
+        name: patientId ? undefined : rows[0].name,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+      })
+      const win = window.open('', '_blank', 'width=1200,height=800')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export PDF')
+    } finally {
+      setExportingPdf(false)
+    }
+  }
+
+  const pdfButton = (
+    <button
+      type="button"
+      onClick={() => void exportPdf()}
+      disabled={loading || exportingPdf || !rows.length}
+      className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
+      title="Download PDF"
+    >
+      <FileText className="w-3.5 h-3.5" />
+      {exportingPdf ? 'PDF…' : 'PDF'}
+    </button>
+  )
+
   return (
     <>
       <div className="flex flex-col gap-4">
+        {inDashboardCard && headerSlot ? createPortal(pdfButton, headerSlot) : null}
+
         {!inDashboardCard && (
           <div className="flex flex-shrink-0 items-center justify-between gap-2">
             <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
@@ -175,6 +228,7 @@ export const SleepingPatternList = ({
                 active={Boolean(showFilters)}
                 onClick={() => setShowFiltersInternal((prev) => !prev)}
               />
+              {pdfButton}
               {onAdd ? (
                 <button
                   type="button"
@@ -269,7 +323,9 @@ export const SleepingPatternList = ({
                   ) : null}
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Total Hours</th>
                   <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">User</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Action</th>
+                  {manageRows ? (
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase text-slate-600">Action</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
@@ -296,9 +352,9 @@ export const SleepingPatternList = ({
                       {typeof row.total_hours === 'number' ? row.total_hours.toFixed(2) : '—'}
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-700">{row.user || '—'}</td>
+                    {manageRows ? (
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center gap-1">
-                        {manageRows ? (
                           <button
                             type="button"
                             onClick={() => openEdit(row)}
@@ -308,16 +364,9 @@ export const SleepingPatternList = ({
                           >
                             <Pencil className="h-4 w-4" aria-hidden />
                           </button>
-                        ) : null}
-                        <PrintFormatDropdown
-                          doctype="Sleeping Pattern"
-                          docName={row.name}
-                          noLetterhead={0}
-                          triggerPrint={1}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
-                        />
                       </div>
                     </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

@@ -3,7 +3,6 @@ import { Building2, Calendar, FileText, Link2, Sparkles, User } from 'lucide-rea
 import { fetchGroomingChart, type GroomingChartDoc, type GroomingChartRow } from '../../services/groomingCharts'
 import { resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 
 interface GroomingChartDetailPanelProps {
@@ -150,15 +149,6 @@ export function GroomingChartDetailPanel({
       icon={<Sparkles className="h-5 w-5 text-emerald-700" strokeWidth={2} />}
       onClose={onClose}
       maxWidthClass="max-w-2xl"
-      headerActions={
-        <PrintFormatDropdown
-          doctype="IP Grooming Chart"
-          docName={name}
-          noLetterhead={0}
-          triggerPrint={1}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
-        />
-      }
     >
       {loading && !source ? (
         <div className="flex items-center justify-center py-12">

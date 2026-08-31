@@ -7,7 +7,6 @@ import {
 } from '../../services/sleepingPattern'
 import { resolveOwnerUsername } from '../../services/common'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { MODAL_SECTION_CLASS, MODAL_SECTION_TITLE_CLASS } from '../ui/CreateModalChrome'
 
 interface SleepingPatternDetailPanelProps {
@@ -192,24 +191,15 @@ export function SleepingPatternDetailPanel({
       onClose={onClose}
       maxWidthClass="max-w-2xl"
       headerActions={
-        <div className="flex items-center gap-2">
-          {onEdit ? (
-            <button
-              type="button"
-              onClick={onEdit}
-              className="inline-flex h-9 items-center rounded-lg border border-emerald-200/80 bg-white/80 px-3 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
-            >
-              Edit
-            </button>
-          ) : null}
-          <PrintFormatDropdown
-            doctype="Sleeping Pattern"
-            docName={name}
-            noLetterhead={0}
-            triggerPrint={1}
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-emerald-200/80 bg-white/80 text-emerald-700 shadow-sm transition hover:bg-emerald-50"
-          />
-        </div>
+        onEdit ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="inline-flex h-9 items-center rounded-lg border border-emerald-200/80 bg-white/80 px-3 text-xs font-semibold text-emerald-800 shadow-sm transition hover:bg-emerald-50"
+          >
+            Edit
+          </button>
+        ) : undefined
       }
     >
       {loading && !source ? (

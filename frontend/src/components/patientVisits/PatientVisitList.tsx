@@ -13,7 +13,7 @@ import {
 } from '../ui/dashboardCardListing'
 import { PatientVisitDetails } from './PatientVisitDetails'
 import { DetailSlideOver } from '../ui/DetailSlideOver'
-import { cancelVisit, type PatientVisitListRow } from '../../services/patientVisits'
+import { cancelVisit, fetchPatientVisitReportHtml, type PatientVisitListRow } from '../../services/patientVisits'
 import { CreateAdmissionModal } from '../admissions/CreateAdmissionModal'
 import { CancelVisitModal } from './CancelVisitModal'
 import { EditPatientVisitModal } from './EditPatientVisitModal'
@@ -261,6 +261,7 @@ export const PatientVisitList = ({
   const [diagnosisVisit, setDiagnosisVisit] = useState<PatientVisitListRow | null>(null)
   const [uploadDocumentsVisit, setUploadDocumentsVisit] = useState<PatientVisitListRow | null>(null)
   const [editVisit, setEditVisit] = useState<PatientVisitListRow | null>(null)
+  const [printingReport, setPrintingReport] = useState<string | null>(null)
 
 
   // --- Practitioner: debounced search when dropdown is open ---
@@ -474,6 +475,28 @@ export const PatientVisitList = ({
 
   const visitMetaOptions = { patient }
 
+  const handlePrintReport = async (visit: PatientVisitListRow) => {
+    setOpenActionRow(null)
+    if (!visit.value) return
+    setPrintingReport(visit.value)
+    try {
+      const html = await fetchPatientVisitReportHtml(visit.value)
+      const win = window.open('', '_blank', 'width=900,height=1100')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to open the visit report.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to print visit report')
+    } finally {
+      setPrintingReport(null)
+    }
+  }
+
   const renderVisitActionsCell = (visit: PatientVisitListRow, compact = false) => (
     <td
       className={`${
@@ -576,6 +599,14 @@ export const PatientVisitList = ({
               className="block w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50"
             >
               Cancel Visit
+            </button>
+            <button
+              type="button"
+              onClick={() => { void handlePrintReport(visit) }}
+              disabled={printingReport === visit.value}
+              className="block w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-100 disabled:opacity-50"
+            >
+              {printingReport === visit.value ? 'Print Report…' : 'Print Report'}
             </button>
           </PortalActionsMenu>
         </div>

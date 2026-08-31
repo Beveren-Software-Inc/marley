@@ -133,6 +133,7 @@
   "doctor_commission_salary_component",
   "print_settings_section",
   "ui_print_formats",
+  "default_letter_head",
   "section_break_mmer",
   "send_whatsap_notification_on_lab_test_creation",
   "section_break_pfnl",
@@ -1077,11 +1078,17 @@
    "fieldname": "use_old_approach_soa",
    "fieldtype": "Check",
    "label": "Use Old Approach SOA"
+  },
+  {
+   "fieldname": "default_letter_head",
+   "fieldtype": "Link",
+   "label": "Default Letter Head",
+   "options": "Letter Head"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-08-30 12:06:05.226720",
+ "modified": "2026-08-31 10:42:33.703436",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
