@@ -6,6 +6,7 @@ import { useCardFilters } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CardRowTextHint } from '../ui/dashboardCardListing'
+import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import {
   isMainNursingNoteEditable,
   MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE,
@@ -410,9 +411,7 @@ export const MainNursingNoteList = ({
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Admission</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Notes</th>
                 <th className="px-3 py-2 text-left font-semibold text-slate-600">Created / appended by</th>
-                {manageRows ? (
-                  <th className="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
-                ) : null}
+                <th className="px-3 py-2 text-right font-semibold text-slate-600">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -459,53 +458,61 @@ export const MainNursingNoteList = ({
                       </div>
                     ) : null}
                   </td>
-                  {manageRows ? (
-                    <td className="px-3 py-2 text-right">
-                      <div
-                        className="relative inline-block"
-                        ref={openActionRow === row.name ? menuRef : undefined}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <button
-                          type="button"
-                          aria-label="Actions"
-                          onClick={() =>
-                            setOpenActionRow((prev) => (prev === row.name ? null : row.name))
-                          }
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                  <td className="px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                    <div className="inline-flex items-center justify-end gap-1">
+                      {manageRows ? (
+                        <div
+                          className="relative inline-block"
+                          ref={openActionRow === row.name ? menuRef : undefined}
                         >
-                          <MoreHorizontal className="h-4 w-4" aria-hidden />
-                        </button>
-                        <PortalActionsMenu
-                          open={openActionRow === row.name}
-                          onClose={() => setOpenActionRow(null)}
-                          triggerRef={menuRef}
-                          minWidth={160}
-                        >
-                          {canEditRow(row) ? (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOpenActionRow(null)
-                                openEditRow(row)
-                              }}
-                              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
-                            >
-                              <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
-                              Edit
-                            </button>
-                          ) : (
-                            <div
-                              className="px-3 py-2 text-xs text-slate-500"
-                              title={MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE}
-                            >
-                              Edit locked (24h)
-                            </div>
-                          )}
-                        </PortalActionsMenu>
-                      </div>
-                    </td>
-                  ) : null}
+                          <button
+                            type="button"
+                            aria-label="Actions"
+                            onClick={() =>
+                              setOpenActionRow((prev) => (prev === row.name ? null : row.name))
+                            }
+                            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 hover:bg-slate-50"
+                          >
+                            <MoreHorizontal className="h-4 w-4" aria-hidden />
+                          </button>
+                          <PortalActionsMenu
+                            open={openActionRow === row.name}
+                            onClose={() => setOpenActionRow(null)}
+                            triggerRef={menuRef}
+                            minWidth={160}
+                          >
+                            {canEditRow(row) ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenActionRow(null)
+                                  openEditRow(row)
+                                }}
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-100"
+                              >
+                                <Pencil className="h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                                Edit
+                              </button>
+                            ) : (
+                              <div
+                                className="px-3 py-2 text-xs text-slate-500"
+                                title={MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE}
+                              >
+                                Edit locked (24h)
+                              </div>
+                            )}
+                          </PortalActionsMenu>
+                        </div>
+                      ) : null}
+                      <PrintFormatDropdown
+                        doctype="Main Nursing Note"
+                        docName={row.name}
+                        noLetterhead={0}
+                        triggerPrint={1}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                      />
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -522,6 +529,13 @@ export const MainNursingNoteList = ({
             <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between shrink-0">
               <h3 className="text-sm font-semibold text-slate-900">Nursing Note</h3>
               <div className="flex items-center gap-2">
+                <PrintFormatDropdown
+                  doctype="Main Nursing Note"
+                  docName={selected.name}
+                  noLetterhead={0}
+                  triggerPrint={1}
+                  className="inline-flex h-8 w-8 items-center justify-center rounded border border-slate-300 bg-white text-primary hover:bg-slate-50"
+                />
                 {manageRows && canEditRow(selected) ? (
                   <button
                     type="button"
