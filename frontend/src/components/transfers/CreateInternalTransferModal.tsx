@@ -10,10 +10,8 @@ import { searchPatients, type PatientListItem } from '../../services/patients'
 import { fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import {
   fetchInpatientRecords,
-  fetchServiceUnits,
   transferToAnotherCostCenter,
   type InpatientRecord,
-  type ServiceUnit,
 } from '../../services/inpatientRecords'
 
 interface CreateInternalTransferModalProps {
@@ -36,8 +34,6 @@ export const CreateInternalTransferModal = ({
   const [admission, setAdmission] = useState('')
   const [costCenters, setCostCenters] = useState<LinkFieldOption[]>([])
   const [toCostCenter, setToCostCenter] = useState('')
-  const [serviceUnits, setServiceUnits] = useState<ServiceUnit[]>([])
-  const [toServiceUnit, setToServiceUnit] = useState('')
   const [reason, setReason] = useState('')
   const [transferDatetime, setTransferDatetime] = useState(() => {
     // Seed the datetime-local input from LOCAL time, not UTC, so it defaults to "now".
@@ -51,7 +47,7 @@ export const CreateInternalTransferModal = ({
   )
 
   useEffect(() => {
-    fetchCostCenters().then(setCostCenters).catch(() => setCostCenters([]))
+    fetchCostCenters(undefined, undefined, { isHospital: true }).then(setCostCenters).catch(() => setCostCenters([]))
   }, [])
 
   useEffect(() => {
@@ -64,17 +60,6 @@ export const CreateInternalTransferModal = ({
       .then((response) => setAdmissions(response.data))
       .catch(() => setAdmissions([]))
   }, [patient])
-
-  useEffect(() => {
-    if (!toCostCenter) {
-      setServiceUnits([])
-      setToServiceUnit('')
-      return
-    }
-    fetchServiceUnits(undefined, 'Vacant', undefined, undefined, toCostCenter)
-      .then(setServiceUnits)
-      .catch(() => setServiceUnits([]))
-  }, [toCostCenter])
 
   useEffect(() => {
     if (!showPatientResults || !patientQuery.trim() || initialPatient) return
@@ -102,7 +87,6 @@ export const CreateInternalTransferModal = ({
     setSubmitting(true)
     try {
       await transferToAnotherCostCenter(admission, toCostCenter, {
-        toServiceUnit: toServiceUnit || undefined,
         reason: reason || undefined,
         transferDatetime: transferDatetime ? new Date(transferDatetime).toISOString() : undefined,
       })
@@ -219,25 +203,13 @@ export const CreateInternalTransferModal = ({
                 className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
               >
                 <option value="">Select target branch...</option>
-                {costCenters.map((cc) => (
+                {costCenters
+                  .filter((cc) => cc.name !== selectedAdmission?.cost_center)
+                  .map((cc) => (
                   <option key={cc.name} value={cc.name}>{cc.label || cc.name}</option>
                 ))}
               </select>
             </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">To Service Unit (optional)</label>
-            <select
-              value={toServiceUnit}
-              onChange={(e) => setToServiceUnit(e.target.value)}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-primary"
-            >
-              <option value="">Select service unit...</option>
-              {serviceUnits.map((su) => (
-                <option key={su.name} value={su.name}>{su.healthcare_service_unit_name || su.name}</option>
-              ))}
-            </select>
           </div>
 
           <div>

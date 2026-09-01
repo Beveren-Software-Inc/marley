@@ -129,7 +129,9 @@ fixtures = [
                    "Payment Entry-custom_op_or_ip",
                    "Item Group-custom_tracked_by_nhra",
                    "Item-custom_maximum_dosage_details",
-                   "Item-custom_maximum_dosage"
+                   "Item-custom_maximum_dosage",
+                   
+                   "Cost Center-custom_is_hospital"
 
                 ),
             ]

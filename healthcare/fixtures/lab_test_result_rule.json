@@ -80,7 +80,7 @@
   "enabled": 1,
   "lab_test_name": "Globulin",
   "lab_test_template": "LAB-003-008",
-  "modified": "2026-05-17 14:33:41.788770",
+  "modified": "2026-09-01 17:00:45.844444",
   "name": "LAB-003-008",
   "rule_lines": [
    {
@@ -104,7 +104,7 @@
   "enabled": 1,
   "lab_test_name": "Indirect Bilirubin",
   "lab_test_template": "LAB-003-003",
-  "modified": "2026-05-17 22:11:57.485949",
+  "modified": "2026-09-01 16:48:59.727756",
   "name": "LAB-003-003",
   "rule_lines": [
    {
@@ -128,7 +128,7 @@
   "enabled": 1,
   "lab_test_name": "LDL-Cholesterol",
   "lab_test_template": "LAB-004-003",
-  "modified": "2026-05-17 14:39:38.659679",
+  "modified": "2026-09-01 16:56:14.967285",
   "name": "LAB-004-003",
   "rule_lines": [
    {
@@ -152,7 +152,7 @@
   "enabled": 1,
   "lab_test_name": "T.Cholesterol/HDL",
   "lab_test_template": "LAB-004-005",
-  "modified": "2026-05-17 14:43:38.704121",
+  "modified": "2026-09-01 17:00:35.569702",
   "name": "LAB-004-005",
   "rule_lines": [
    {
@@ -176,7 +176,7 @@
   "enabled": 1,
   "lab_test_name": "LDL/HDL",
   "lab_test_template": "LAB-004-006",
-  "modified": "2026-05-17 14:45:29.735059",
+  "modified": "2026-09-01 16:56:28.168410",
   "name": "LAB-004-006",
   "rule_lines": [
    {
