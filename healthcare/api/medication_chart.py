@@ -173,10 +173,11 @@ def get_daily_medication_chart(admission: str, date: str | None = None) -> dict:
 		drug = entry.get("drug")
 		if not drug:
 			continue
+		status = (entry.get("medication_status") or "").strip()
 		if (
 			cint(entry.get("stopped"))
 			or (entry.get("reason_stopped") or "").strip()
-			or (entry.get("medication_status") or "").strip() == "Discontinued"
+			or status in ("Discontinued", "On Hold")
 		):
 			continue
 
