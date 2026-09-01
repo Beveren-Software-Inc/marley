@@ -857,10 +857,15 @@ export async function fetchDefaultCompanyCurrency(company?: string): Promise<Def
   }
 }
 
-export async function fetchCostCenters(company?: string, search?: string): Promise<LinkFieldOption[]> {
+export async function fetchCostCenters(
+  company?: string,
+  search?: string,
+  opts?: { isHospital?: boolean }
+): Promise<LinkFieldOption[]> {
   const params = new URLSearchParams()
   if (company) params.append('company', company)
   if (search) params.append('search', search)
+  if (opts?.isHospital) params.append('is_hospital', '1')
 
   const url =
     `/api/method/healthcare.api.common.get_cost_centers` +

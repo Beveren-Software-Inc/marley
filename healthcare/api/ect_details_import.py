@@ -340,6 +340,8 @@ def _build_fields(row: dict[str, Any]) -> dict[str, Any]:
 
 	if cost_center:
 		fields["cost_center"] = cost_center
+		if frappe.get_meta("ECT Details").has_field("custom_cost_center"):
+			fields["custom_cost_center"] = cost_center
 
 	if reference_doctype and reference_name:
 		fields["reference_doctype"] = reference_doctype

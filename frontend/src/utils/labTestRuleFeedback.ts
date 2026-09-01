@@ -36,14 +36,13 @@ function ruleToastText(msg: RuleMessage): string {
   return text.split('\n\n')[0] || text
 }
 
-function filterFormulaWarnings(
-  warnings: RuleMessage[],
-  calculatedUpdates: LabTest['calculated_updates']
-): RuleMessage[] {
-  if (!calculatedUpdates?.length) return warnings
-  return warnings.filter(
-    (w) => w.type !== 'formula_missing_inputs' && w.type !== 'sum_validation_missing'
-  )
+function filterFormulaWarnings(warnings: RuleMessage[]): RuleMessage[] {
+  return warnings.filter((w) => {
+    if (w.type === 'formula_missing_inputs' || w.type === 'sum_validation_missing') return false
+    const text = (w.short_message || w.message || '').trim()
+    if (/could not calculate/i.test(text)) return false
+    return true
+  })
 }
 
 function dedupeRuleMessages(messages: RuleMessage[]): RuleMessage[] {
@@ -61,9 +60,7 @@ function dedupeRuleMessages(messages: RuleMessage[]): RuleMessage[] {
 /** Show rule validation toasts after saving lab results (one toast set per save action). */
 export function showLabTestRuleFeedback(res: LabTest) {
   const calculatedUpdates = res.calculated_updates || []
-  const warnings = dedupeRuleMessages(
-    filterFormulaWarnings(res.rule_warnings || [], calculatedUpdates)
-  )
+  const warnings = dedupeRuleMessages(filterFormulaWarnings(res.rule_warnings || []))
 
   for (const err of dedupeRuleMessages(res.rule_errors || [])) {
     const text = ruleToastText(err as RuleMessage)

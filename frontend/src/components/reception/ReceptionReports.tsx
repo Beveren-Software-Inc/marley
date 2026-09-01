@@ -23,6 +23,8 @@ function todayInputDate(): string {
   return toInputDate(new Date())
 }
 
+type LetterHeadHtml = { content?: string; footer?: string }
+
 const LETTERHEAD = {
   name: 'SERENE PSYCHIATRY HOSPITAL W.L.L',
   address: 'Building 2093, Road 94, Block 960, Jau Bahrain',
@@ -30,11 +32,60 @@ const LETTERHEAD = {
   web: 'www.serenehospital.com',
 }
 
-const SOA_OLD_FOOTER = {
-  contact:
-    'Tel: 00973-17686060, Mobile: 00973-32177363, Fax: 00973-17686088, Email: serenehospitalbh@gmail.com',
-  address:
-    'Address: Building No. 1301, Road No. 4526, Al-Juffair 345, Kingdom of Bahrain, CR No. 905181-1',
+function letterHeadBlocks(letterHead?: LetterHeadHtml | null) {
+  const content = String(letterHead?.content || '').trim()
+  const footer = String(letterHead?.footer || '').trim()
+  return {
+    top: content ? `<div class="letter-head-top">${content}</div>` : '',
+    footer: footer ? `<div class="letter-head-footer">${footer}</div>` : '',
+  }
+}
+
+function buildLetterhead(
+  reportTitle: string,
+  meta: string,
+  opts?: { soa?: boolean; letterHead?: LetterHeadHtml | null },
+) {
+  const { top } = letterHeadBlocks(opts?.letterHead)
+  if (opts?.soa) {
+    return `
+    ${top}
+    <div class="lh soa-lh${top ? ' soa-lh-cc' : ''}">
+      ${
+        top
+          ? ''
+          : `<div class="lh-box">
+        <div class="lh-name">${LETTERHEAD.name}</div>
+        <div>${LETTERHEAD.address}</div>
+        <div>${LETTERHEAD.contact}</div>
+        <div>${LETTERHEAD.web}</div>
+      </div>`
+      }
+      <div class="lh-title">
+        <h1>${reportTitle}</h1>
+        <div class="lh-meta">${meta}</div>
+        <div class="lh-meta">Printed on: ${new Date().toLocaleString('en-GB')}</div>
+      </div>
+    </div>`
+  }
+  return `
+    ${top}
+    <div class="lh">
+      ${
+        top
+          ? ''
+          : `<div>
+        <div class="lh-name">${LETTERHEAD.name}</div>
+        <div>${LETTERHEAD.address}</div>
+        <div>${LETTERHEAD.contact} · ${LETTERHEAD.web}</div>
+      </div>`
+      }
+      <div class="lh-title">
+        <h1>${reportTitle}</h1>
+        <div>${meta}</div>
+        <div>Printed on: ${new Date().toLocaleString('en-GB')}</div>
+      </div>
+    </div><hr/>`
 }
 
 /** Lab-report palette (maroon labels / navy table headers). */
@@ -73,38 +124,6 @@ function sectionTable(title: string, rows: any[], cols: readonly (readonly [stri
       ? `<tr class="total"><td colspan="${cols.length - 1}">Total</td><td class="num">${fmtAmt(total)}</td></tr>`
       : ''
   return `<h3>${title}</h3><table><thead><tr>${head}</tr></thead><tbody>${body}${totalRow}</tbody></table>`
-}
-
-function buildLetterhead(reportTitle: string, meta: string, opts?: { soa?: boolean }) {
-  if (opts?.soa) {
-    return `
-    <div class="lh soa-lh">
-      <div class="lh-box">
-        <div class="lh-name">${LETTERHEAD.name}</div>
-        <div>${LETTERHEAD.address}</div>
-        <div>${LETTERHEAD.contact}</div>
-        <div>${LETTERHEAD.web}</div>
-      </div>
-      <div class="lh-title">
-        <h1>${reportTitle}</h1>
-        <div class="lh-meta">${meta}</div>
-        <div class="lh-meta">Printed on: ${new Date().toLocaleString('en-GB')}</div>
-      </div>
-    </div>`
-  }
-  return `
-    <div class="lh">
-      <div>
-        <div class="lh-name">${LETTERHEAD.name}</div>
-        <div>${LETTERHEAD.address}</div>
-        <div>${LETTERHEAD.contact} · ${LETTERHEAD.web}</div>
-      </div>
-      <div class="lh-title">
-        <h1>${reportTitle}</h1>
-        <div>${meta}</div>
-        <div>Printed on: ${new Date().toLocaleString('en-GB')}</div>
-      </div>
-    </div><hr/>`
 }
 
 function soaInfoCell(label: string, value: string | number | null | undefined) {
@@ -251,7 +270,10 @@ function buildOldOpSoaHtml(data: any, fromDate: string, toDate: string) {
   const rangeTo = fmtSoaShortDate(data.to_date || toDate)
   const range = rangeFrom && rangeTo ? `(From ${rangeFrom} to ${rangeTo})` : ''
   const cat = 'OP / IOP'
-  let html = buildLetterhead('Patient Statement of Account', range, { soa: true })
+  let html = buildLetterhead('Patient Statement of Account', range, {
+    soa: true,
+    letterHead: data.letter_head,
+  })
   html += `<table class="soa-info soa-old-head"><colgroup><col style="width:50%"/><col style="width:50%"/></colgroup><tbody><tr>
     <td class="soa-head-col"><table class="soa-info"><colgroup><col class="soa-oh-l"/><col class="soa-oh-v"/></colgroup><tbody>
       <tr>${soaInfoCell('File No.', data.file_no)}</tr>
@@ -311,7 +333,7 @@ function buildOldOpSoaHtml(data: any, fromDate: string, toDate: string) {
         <td class="num soa-bal">${fmtAmt(data.balance)}</td></tr>
     </tbody></table>`
   html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
-  html += `<div class="soa-old-footer"><div>${SOA_OLD_FOOTER.contact}</div><div>${SOA_OLD_FOOTER.address}</div></div>`
+  html += letterHeadBlocks(data.letter_head).footer
   return html
 }
 
@@ -320,6 +342,14 @@ function docCss(orientation: 'portrait' | 'landscape' = 'landscape', soa = false
     return `
   body { font-family: Arial, Helvetica, sans-serif; font-size: 11px; color: #000; margin: 14px; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .soa-lh { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+  .soa-lh.soa-lh-cc { display: block; text-align: center; }
+  .letter-head-top { margin-bottom: 10px; }
+  .letter-head-top img, .letter-head-footer img { max-width: 100%; height: auto; }
+  .letter-head-footer { margin-top: 16px; page-break-inside: avoid; }
+  .letter-head-top table, .letter-head-footer table { border: none; margin-bottom: 0; width: 100%; }
+  .letter-head-top td, .letter-head-footer td, .letter-head-top th, .letter-head-footer th {
+    border: none; background: transparent; padding: 0;
+  }
   .lh-box { border: 1px solid #888; padding: 6px 8px; max-width: 48%; }
   .lh-name { font-size: 13px; font-weight: bold; color: #000; }
   .lh-title { text-align: center; flex: 1; }
@@ -692,6 +722,7 @@ export function ReceptionReports() {
         : `Patient ${data.patient_name || selectedPatient || ''} · All OP visits`
       let html = buildLetterhead('Statement of Account (OP)', `${visitMeta}${range ? ` · ${range}` : ''}`, {
         soa: true,
+        letterHead: data.letter_head,
       })
       html += `<table class="soa-info"><colgroup><col class="soa-c-al"/><col class="soa-c-av"/><col class="soa-c-bl"/><col class="soa-c-bv"/></colgroup><tbody>
         <tr>${soaInfoCell('Visit No.', data.visit ?? (resolvedVisit ? resolvedVisit : 'Multiple visits'))}${soaInfoCell('Patient File No.', data.file_no)}</tr>
@@ -705,11 +736,13 @@ export function ReceptionReports() {
       </tbody></table>`
       html += soaPaymentsHtml(data)
       html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+      html += letterHeadBlocks(data.letter_head).footer
       return { html, filename: `soa-op-${data.case_no || data.visit || selectedPatient || 'patient'}` }
     }
     // SOA IP
     let html = buildLetterhead('Statement of Account (IP)', `Case No. ${data.case_no} · ${range}`, {
       soa: true,
+      letterHead: data.letter_head,
     })
     html += `<table class="soa-info"><colgroup><col class="soa-c-al"/><col class="soa-c-av"/><col class="soa-c-bl"/><col class="soa-c-bv"/></colgroup><tbody>
       <tr>${soaInfoCell('Admission No.', data.admission)}${soaInfoCell('Patient File No.', data.file_no)}</tr>
@@ -723,6 +756,7 @@ export function ReceptionReports() {
     </tbody></table>`
     html += soaPaymentsHtml(data)
     html += `<p class="soa-note" style="margin-top:10px">This is not an invoice, all charges are inclusive of VAT.</p>`
+    html += letterHeadBlocks(data.letter_head).footer
     return { html, filename: `soa-${data.case_no || resolvedAdmission}` }
   }
 
@@ -953,6 +987,17 @@ export function ReceptionReports() {
             .rr-doc .lh-name { font-weight: 700; }
             .rr-doc .lh-title { text-align: right; }
             .rr-doc .lh-title h1 { font-weight: 700; text-decoration: underline; }
+            .rr-doc .letter-head-top { margin-bottom: 10px; }
+            .rr-doc .letter-head-top img, .rr-doc .letter-head-footer img { max-width: 100%; height: auto; }
+            .rr-doc .letter-head-footer { margin-top: 16px; }
+            .rr-doc .letter-head-top table, .rr-doc .letter-head-footer table { border: none; margin-bottom: 0; }
+            .rr-doc .letter-head-top td, .rr-doc .letter-head-footer td,
+            .rr-doc .letter-head-top th, .rr-doc .letter-head-footer th { border: none; background: transparent; }
+            .rr-doc .soa-lh { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; margin-bottom: 10px; }
+            .rr-doc .soa-lh.soa-lh-cc { display: block; text-align: center; }
+            .rr-doc .soa-lh .lh-title { text-align: center; flex: 1; }
+            .rr-doc .soa-lh .lh-title h1 { color: #800000; font-size: 18px; }
+            .rr-doc .soa-lh .lh-meta { color: #800000; font-size: 11px; }
           `}</style>
           <div dangerouslySetInnerHTML={{ __html: buildHtml()?.html || '' }} />
         </div>

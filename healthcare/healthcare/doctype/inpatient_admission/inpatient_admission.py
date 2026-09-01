@@ -858,6 +858,16 @@ def transfer_to_another_cost_center(
 	if to_cost_center == from_cost_center:
 		frappe.throw(_("Target cost center must be different from current cost center."))
 
+	if not frappe.db.exists("Cost Center", to_cost_center):
+		frappe.throw(_("Cost Center {0} not found.").format(to_cost_center))
+	if frappe.db.has_column("Cost Center", "custom_is_hospital"):
+		if not cint(frappe.db.get_value("Cost Center", to_cost_center, "custom_is_hospital")):
+			frappe.throw(
+				_("Target branch {0} is not a hospital. Only hospital branches can be used for internal transfer.").format(
+					to_cost_center
+				)
+			)
+
 	# Validate to_cost_center belongs to same company
 	cc_company = frappe.db.get_value("Cost Center", to_cost_center, "company")
 	if cc_company and cc_company != company:

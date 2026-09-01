@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { MoreHorizontal, Pencil } from 'lucide-react'
 import { fetchMainNursingNotes, updateMainNursingNote, type MainNursingNoteEntryRow, type MainNursingNoteRow } from '../../services/mainNursingNote'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
-import { useCardFilters } from '../../contexts/CardFilterContext'
+import { useCardFilters, useCardHeaderSlot } from '../../contexts/CardFilterContext'
 import { ClearFiltersButton } from '../ui/ClearFiltersButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { CardRowTextHint } from '../ui/dashboardCardListing'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
+import { NursingCarePlanPrintButton } from './NursingCarePlanPrintButton'
 import {
   isMainNursingNoteEditable,
   MAIN_NURSING_NOTE_EDIT_LOCKED_MESSAGE,
@@ -139,6 +141,7 @@ export const MainNursingNoteList = ({
 }: MainNursingNoteListProps) => {
   const { guardClinicalEdit } = useCareContext()
   const cardFilters = useCardFilters()
+  const headerSlot = useCardHeaderSlot()
   const inDashboardCard = cardFilters !== undefined
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const showFilters = inDashboardCard ? cardFilters : showFiltersInternal
@@ -279,8 +282,12 @@ export const MainNursingNoteList = ({
     await refreshSelectedNote()
   }
 
+  const carePlanButton = <NursingCarePlanPrintButton patient={patient} />
+
   return (
     <div className="flex flex-col flex-1 min-h-0">
+      {inDashboardCard && headerSlot ? createPortal(carePlanButton, headerSlot) : null}
+
       {!inDashboardCard && (
         <div className="flex items-center justify-between gap-2 mb-3 flex-shrink-0">
           <h2 className="text-xl font-semibold text-slate-900">{title}</h2>
@@ -289,6 +296,7 @@ export const MainNursingNoteList = ({
               active={Boolean(showFilters)}
               onClick={() => setShowFiltersInternal((prev) => !prev)}
             />
+            {carePlanButton}
             {onAdd && (
               <button
                 type="button"

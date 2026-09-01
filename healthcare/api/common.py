@@ -2840,21 +2840,28 @@ def get_default_company_currency(company=None):
 
 
 @frappe.whitelist()
-def get_cost_centers(search=None, company=None):
-	"""Get list of Cost Centers. Optionally filter by company (e.g. for transfer admission)."""
+def get_cost_centers(search=None, company=None, is_hospital=None):
+	"""Get list of Cost Centers. Optionally filter by company (e.g. for transfer admission).
+
+	``is_hospital=1`` limits to Cost Centers with custom_is_hospital ticked
+	(internal transfer between hospital branches).
+	"""
 
 	filters = {}
 	if search:
 		filters["name"] = ["like", f"%{search}%"]
 	if company:
 		filters["company"] = company
+	if cint(is_hospital) and frappe.db.has_column("Cost Center", "custom_is_hospital"):
+		filters["custom_is_hospital"] = 1
+		filters["disabled"] = 0
 
 	cost_centers = frappe.get_all(
 		"Cost Center",
 		filters=filters if filters else None,
 		fields=["name"],
 		order_by="name asc",
-		limit=50
+		limit=50 if not cint(is_hospital) else 200,
 	)
 	return [{"name": c.name, "label": c.name} for c in cost_centers]
 

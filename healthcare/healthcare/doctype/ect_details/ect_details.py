@@ -40,7 +40,21 @@ def _attribute_index(children) -> dict[int, int]:
 
 class ECTDetails(Document):
 	def validate(self):
+		self._sync_cost_centers()
 		self._seed_attributes_from_template()
+
+	def _sync_cost_centers(self):
+		"""Keep native ``cost_center`` and site Custom Field ``custom_cost_center`` in sync.
+
+		``custom_cost_center`` is a mandatory Customize Form field on some sites.
+		The portal writes ``cost_center``; copy it over so insert does not fail.
+		"""
+		native = (self.get("cost_center") or "").strip() or None
+		custom = (self.get("custom_cost_center") or "").strip() or None if self.meta.has_field("custom_cost_center") else None
+		if not custom and native and self.meta.has_field("custom_cost_center"):
+			self.custom_cost_center = native
+		elif not native and custom:
+			self.cost_center = custom
 
 	def _seed_attributes_from_template(self):
 		template_name = (self.template or "").strip()

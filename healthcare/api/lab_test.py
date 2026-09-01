@@ -2717,25 +2717,29 @@ def save_and_submit_lab_test(
             if w.get("type") != "formula_missing_inputs"
         ]
         rule_feedback["warnings"].extend(panel_recalc.get("warnings") or [])
-        if rule_feedback.get("calculated_updates"):
-            rule_feedback["warnings"] = [
-                w
-                for w in (rule_feedback.get("warnings") or [])
-                if w.get("type") != "formula_missing_inputs"
-            ]
+        rule_feedback["warnings"] = [
+            w
+            for w in (rule_feedback.get("warnings") or [])
+            if w.get("type") != "formula_missing_inputs"
+        ]
         # If panel re-run did not persist calculated fields, apply pre-save targets now.
         if not rule_feedback["calculated_updates"] and rule_feedback.get("calculated_targets"):
             from healthcare.healthcare.lab_test_result_rules import (
-                _resolve_panel_template_and_rule,
+                get_enabled_rule_docs_for_panel,
+                get_panel_template_name,
+                merge_rule_docs,
                 _sync_calculated_targets_to_lab_tests,
-                rule_doc_to_dict,
             )
 
-            panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
-            if rule_doc:
+            panel_template = get_panel_template_name(doc.template) or doc.template
+            rules_dict = merge_rule_docs(
+                get_enabled_rule_docs_for_panel(doc.template, getattr(doc, "service_request", None)),
+                panel_template=panel_template,
+            )
+            if rules_dict:
                 rule_feedback["calculated_updates"] = _sync_calculated_targets_to_lab_tests(
                     doc,
-                    rule_doc_to_dict(rule_doc),
+                    rules_dict,
                     rule_feedback.get("calculated_targets") or {},
                     service_request=getattr(doc, "service_request", None),
                     lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,
@@ -2743,16 +2747,21 @@ def save_and_submit_lab_test(
                 )
     elif doc.template and rule_feedback.get("calculated_targets"):
         from healthcare.healthcare.lab_test_result_rules import (
-            _resolve_panel_template_and_rule,
+            get_enabled_rule_docs_for_panel,
+            get_panel_template_name,
+            merge_rule_docs,
             _sync_calculated_targets_to_lab_tests,
-            rule_doc_to_dict,
         )
 
-        panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
-        if rule_doc:
+        panel_template = get_panel_template_name(doc.template) or doc.template
+        rules_dict = merge_rule_docs(
+            get_enabled_rule_docs_for_panel(doc.template, getattr(doc, "service_request", None)),
+            panel_template=panel_template,
+        )
+        if rules_dict:
             rule_feedback["calculated_updates"] = _sync_calculated_targets_to_lab_tests(
                 doc,
-                rule_doc_to_dict(rule_doc),
+                rules_dict,
                 rule_feedback.get("calculated_targets") or {},
                 service_request=getattr(doc, "service_request", None),
                 lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,

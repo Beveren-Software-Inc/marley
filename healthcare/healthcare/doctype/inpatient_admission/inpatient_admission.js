@@ -307,12 +307,6 @@ let transfer_to_cost_center_dialog = function(frm) {
 				reqd: 1,
 			},
 			{
-				fieldtype: 'Link',
-				label: __('To Service Unit (optional)'),
-				fieldname: 'to_service_unit',
-				options: 'Healthcare Service Unit',
-			},
-			{
 				fieldtype: 'Small Text',
 				label: __('Reason'),
 				fieldname: 'reason',
@@ -330,7 +324,6 @@ let transfer_to_cost_center_dialog = function(frm) {
 				args: {
 					inpatient_admission: frm.doc.name,
 					to_cost_center: to_cost_center,
-					to_service_unit: dialog.get_value('to_service_unit') || undefined,
 					reason: dialog.get_value('reason') || undefined,
 				},
 				freeze: true,
@@ -354,24 +347,15 @@ let transfer_to_cost_center_dialog = function(frm) {
 	});
 
 	dialog.fields_dict.to_cost_center.get_query = function() {
-		return {
-			filters: [
-				['company', '=', frm.doc.company],
-				['name', '!=', frm.doc.cost_center || ''],
-			],
-		};
-	};
-	dialog.fields_dict.to_service_unit.get_query = function() {
-		let to_cc = dialog.get_value('to_cost_center');
-		if (!to_cc) return { filters: { name: '__no_such_unit__' } };
-		return {
-			filters: {
-				cost_center: to_cc,
-				is_group: 0,
-				inpatient_occupancy: 1,
-				occupancy_status: 'Vacant',
-			},
-		};
+		let filters = [
+			['company', '=', frm.doc.company],
+			['name', '!=', frm.doc.cost_center || ''],
+			['disabled', '=', 0],
+		];
+		if (frappe.meta.has_field('Cost Center', 'custom_is_hospital')) {
+			filters.push(['custom_is_hospital', '=', 1]);
+		}
+		return { filters: filters };
 	};
 
 	dialog.show();

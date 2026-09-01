@@ -273,7 +273,7 @@ def create_ect_detail(data):
 		"ECT Details", fieldname="trans_num"
 	)
 
-	doc = frappe.get_doc({
+	payload = {
 		"doctype": "ECT Details",
 		"trans_num": trans_num,
 		"patient": data.get("patient"),
@@ -309,7 +309,10 @@ def create_ect_detail(data):
 		"succinycholine_detail": data.get("succinycholine_detail") or None,
 		"psychology_doctor": _sanitize_practitioner_link(data.get("psychology_doctor")),
 		"anaesthetic_doctor": _sanitize_practitioner_link(data.get("anaesthetic_doctor")),
-	})
+	}
+	if frappe.get_meta("ECT Details").has_field("custom_cost_center"):
+		payload["custom_cost_center"] = cost_center
+	doc = frappe.get_doc(payload)
 	doc.insert(ignore_permissions=True)
 
 	return {

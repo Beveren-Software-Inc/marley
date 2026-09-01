@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { transferToAnotherCostCenter, fetchServiceUnits, type ServiceUnit } from '../../services/inpatientRecords'
+import { transferToAnotherCostCenter } from '../../services/inpatientRecords'
 import { fetchCostCenters, type LinkFieldOption } from '../../services/common'
 import { toast } from '../../hooks/useToast'
 import { X } from 'lucide-react'
@@ -19,21 +19,18 @@ interface TransferCostCenterModalProps {
 export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: TransferCostCenterModalProps) => {
   const [toCostCenter, setToCostCenter] = useState('')
   const [toCostCenterQuery, setToCostCenterQuery] = useState('')
-  const [toServiceUnit, setToServiceUnit] = useState('')
-  const [toServiceUnitQuery, setToServiceUnitQuery] = useState('')
   const [reason, setReason] = useState('')
   const [costCenterOptions, setCostCenterOptions] = useState<LinkFieldOption[]>([])
-  const [serviceUnitOptions, setServiceUnitOptions] = useState<ServiceUnit[]>([])
   const [costCenterOpen, setCostCenterOpen] = useState(false)
-  const [serviceUnitOpen, setServiceUnitOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Load branches (same company, exclude current)
   useEffect(() => {
     const load = async () => {
       try {
-        const list = await fetchCostCenters(admission.company || undefined, toCostCenterQuery || undefined)
+        const list = await fetchCostCenters(admission.company || undefined, toCostCenterQuery || undefined, {
+          isHospital: true,
+        })
         const filtered = list.filter((cc) => cc.name !== admission.cost_center)
         setCostCenterOptions(filtered)
       } catch {
@@ -43,32 +40,6 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     const t = setTimeout(load, toCostCenterQuery === '' ? 0 : 300)
     return () => clearTimeout(t)
   }, [admission.company, admission.cost_center, toCostCenterQuery])
-
-  // Vacant units for target branch, plus units with no branch link (branch-agnostic).
-  useEffect(() => {
-    if (!toCostCenter) {
-      setServiceUnitOptions([])
-      setToServiceUnit('')
-      setToServiceUnitQuery('')
-      return
-    }
-    const load = async () => {
-      try {
-        const list = await fetchServiceUnits(
-          undefined,
-          'Vacant',
-          toServiceUnitQuery || undefined,
-          undefined,
-          toCostCenter
-        )
-        setServiceUnitOptions(list)
-      } catch {
-        setServiceUnitOptions([])
-      }
-    }
-    const t = setTimeout(load, toServiceUnitQuery === '' ? 0 : 300)
-    return () => clearTimeout(t)
-  }, [toCostCenter, toServiceUnitQuery])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -80,7 +51,6 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
     try {
       setSubmitting(true)
       const result = await transferToAnotherCostCenter(admission.name, toCostCenter.trim(), {
-        toServiceUnit: toServiceUnit || undefined,
         reason: reason.trim() || undefined,
       })
       const billing = result.billing
@@ -109,9 +79,6 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
   const costCenterLabel = toCostCenter
     ? costCenterOptions.find((c) => c.name === toCostCenter)?.label ?? toCostCenter
     : toCostCenterQuery
-  const serviceUnitLabel = toServiceUnit
-    ? serviceUnitOptions.find((s) => s.name === toServiceUnit)?.healthcare_service_unit_name ?? toServiceUnit
-    : toServiceUnitQuery
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -173,53 +140,6 @@ export const TransferCostCenterModal = ({ admission, onClose, onSuccess }: Trans
                       }}
                     >
                       {cc.label}
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <div className="relative">
-            <label className="block text-sm font-medium text-slate-700 mb-1">To Service Unit (optional)</label>
-            <input
-              type="text"
-              value={serviceUnitLabel}
-              onChange={(e) => {
-                setToServiceUnitQuery(e.target.value)
-                setToServiceUnit('')
-                setServiceUnitOpen(true)
-              }}
-              onFocus={() => toCostCenter && setServiceUnitOpen(true)}
-              placeholder={!toCostCenter ? 'Select a branch first' : 'Search bed/room...'}
-              disabled={!toCostCenter}
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary disabled:bg-slate-50 disabled:text-slate-400"
-            />
-            <p className="mt-1 text-[11px] text-slate-500">
-              Shows vacant units for this branch, plus units not linked to any branch.
-            </p>
-            {serviceUnitOpen && toCostCenter && (
-              <div className="absolute z-10 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg max-h-48 overflow-auto">
-                {serviceUnitOptions.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-slate-500">
-                    No vacant units for this branch (or unlinked)
-                  </div>
-                ) : (
-                  serviceUnitOptions.map((su) => (
-                    <button
-                      key={su.name}
-                      type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-slate-50"
-                      onClick={() => {
-                        setToServiceUnit(su.name)
-                        setToServiceUnitQuery(su.healthcare_service_unit_name)
-                        setServiceUnitOpen(false)
-                      }}
-                    >
-                      <div>{su.healthcare_service_unit_name}</div>
-                      {!su.cost_center ? (
-                        <div className="text-[11px] text-slate-400">No branch link</div>
-                      ) : null}
                     </button>
                   ))
                 )}
