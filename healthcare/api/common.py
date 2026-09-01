@@ -3289,6 +3289,25 @@ def get_billing_cost_center_scope():
 	return {"restricted": permitted is not None}
 
 
+@frappe.whitelist()
+def get_cost_center_letter_head(cost_center=None, patient=None, reference_type=None, reference_name=None):
+	"""Letter Head HTML from Cost Center.custom_letter_head (same as SOA / nursing prints)."""
+	from healthcare.api.reception_reports import _letter_head_for_cost_center
+
+	seed = {}
+	if patient:
+		seed["patient"] = patient
+	ref_type = (reference_type or "").strip()
+	ref_name = (reference_name or "").strip()
+	if ref_type == "Inpatient Admission" and ref_name:
+		seed["inpatient_admission"] = ref_name
+		seed["admission"] = ref_name
+	elif ref_type == "Patient Visit" and ref_name:
+		seed["patient_visit"] = ref_name
+		seed["visit"] = ref_name
+	return _letter_head_for_cost_center(cost_center, **seed)
+
+
 def _normalize_mapper_ip(value):
 	return (value or "").strip()
 

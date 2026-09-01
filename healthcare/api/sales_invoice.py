@@ -274,6 +274,9 @@ def get_patient_billing_cost_center_breakdown(reference_type=None, reference_nam
     Only meaningful when the user is **not** restricted to specific cost centers
     (``get_permitted_cost_centers()`` returns ``None``). Restricted users get
     ``restricted: true`` and an empty ``rows`` list (their lists are already filtered).
+
+    Each row includes ``op`` and ``ip`` sub-totals (by ``custom_reference_type``) so the
+    UI can show both OP and IP on one branch line when no visit/admission is scoped.
     """
     from healthcare.api.common import get_permitted_cost_centers
 
@@ -296,35 +299,57 @@ def get_patient_billing_cost_center_breakdown(reference_type=None, reference_nam
     if not patient and not reference_name:
         return {'restricted': False, 'rows': []}
 
-    orders = frappe.get_all('Sales Order', filters=base_so, fields=['cost_center', 'grand_total'])
+    orders = frappe.get_all(
+        'Sales Order',
+        filters=base_so,
+        fields=['cost_center', 'grand_total', 'custom_reference_type'],
+    )
     invoices = frappe.get_all(
         'Sales Invoice',
         filters=base_inv,
-        fields=['cost_center', 'grand_total', 'outstanding_amount'],
+        fields=['cost_center', 'grand_total', 'outstanding_amount', 'custom_reference_type'],
     )
 
-    agg = defaultdict(
-        lambda: {
+    def _empty_bucket():
+        return {
             'sales_orders': 0,
             'orders_amount': 0.0,
             'invoices': 0,
             'invoices_grand_total': 0.0,
             'outstanding': 0.0,
         }
-    )
+
+    def _care_side(ref_type):
+        rt = (ref_type or '').strip()
+        if rt == 'Inpatient Admission':
+            return 'ip'
+        if rt == 'Patient Visit':
+            return 'op'
+        return 'other'
+
+    agg = defaultdict(lambda: {'total': _empty_bucket(), 'op': _empty_bucket(), 'ip': _empty_bucket(), 'other': _empty_bucket()})
+
+    def _add(bucket, *, sales_orders=0, orders_amount=0.0, invoices=0, invoices_grand_total=0.0, outstanding=0.0):
+        bucket['sales_orders'] += sales_orders
+        bucket['orders_amount'] += flt(orders_amount)
+        bucket['invoices'] += invoices
+        bucket['invoices_grand_total'] += flt(invoices_grand_total)
+        bucket['outstanding'] += flt(outstanding)
 
     for o in orders:
         cc = (o.get('cost_center') or '').strip()
-        bucket = agg[cc]
-        bucket['sales_orders'] += 1
-        bucket['orders_amount'] += flt(o.get('grand_total'))
+        side = _care_side(o.get('custom_reference_type'))
+        amount = flt(o.get('grand_total'))
+        _add(agg[cc]['total'], sales_orders=1, orders_amount=amount)
+        _add(agg[cc][side], sales_orders=1, orders_amount=amount)
 
     for inv in invoices:
         cc = (inv.get('cost_center') or '').strip()
-        bucket = agg[cc]
-        bucket['invoices'] += 1
-        bucket['invoices_grand_total'] += flt(inv.get('grand_total'))
-        bucket['outstanding'] += flt(inv.get('outstanding_amount'))
+        side = _care_side(inv.get('custom_reference_type'))
+        grand = flt(inv.get('grand_total'))
+        outstanding = flt(inv.get('outstanding_amount'))
+        _add(agg[cc]['total'], invoices=1, invoices_grand_total=grand, outstanding=outstanding)
+        _add(agg[cc][side], invoices=1, invoices_grand_total=grand, outstanding=outstanding)
 
     def _cc_label(cc_key):
         if not cc_key:
@@ -334,15 +359,18 @@ def get_patient_billing_cost_center_breakdown(reference_type=None, reference_nam
     rows = []
     for cc_key in sorted(agg.keys(), key=lambda k: (_cc_label(k) or '').lower()):
         d = agg[cc_key]
+        total = d['total']
         rows.append(
             {
                 'cost_center': cc_key,
                 'cost_center_name': _cc_label(cc_key),
-                'sales_orders': d['sales_orders'],
-                'orders_amount': d['orders_amount'],
-                'invoices': d['invoices'],
-                'invoices_grand_total': d['invoices_grand_total'],
-                'outstanding': d['outstanding'],
+                'sales_orders': total['sales_orders'],
+                'orders_amount': total['orders_amount'],
+                'invoices': total['invoices'],
+                'invoices_grand_total': total['invoices_grand_total'],
+                'outstanding': total['outstanding'],
+                'op': d['op'],
+                'ip': d['ip'],
             }
         )
 
