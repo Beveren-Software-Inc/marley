@@ -63,14 +63,41 @@ function toTimeInputValue(time?: string | null): string {
   return value.length >= 5 ? value.slice(0, 5) : value
 }
 
+function isoDateKey(value?: string | null): string {
+  if (!value) return ''
+  const m = String(value).trim().match(/^(\d{4}-\d{2}-\d{2})/)
+  return m ? m[1] : ''
+}
+
+/** Why this line cannot be given on `givenDate`, or null if nurses may select it. */
+function medicineGiveBlockedReason(
+  order: MedicationOrderEntry,
+  givenDate?: string | null,
+  parentEndDate?: string | null,
+): string | null {
+  const status = String(order.medication_status || '').trim()
+  if (status === 'On Hold') return 'On Hold (cannot give)'
+  if (status === 'Discontinued') return 'Discontinued (cannot give)'
+  if (order.stopped || String(order.reason_stopped || '').trim()) return 'Stopped (cannot give)'
+  const end = isoDateKey(order.end_date) || isoDateKey(parentEndDate)
+  const given = isoDateKey(givenDate)
+  if (end && given && given > end) return `Ended ${formatDate(end)} (cannot give)`
+  return null
+}
+
 function pickInitialOrderEntry(
   orders: MedicationOrderEntry[],
-  initialOrderEntry?: string
+  initialOrderEntry: string | undefined,
+  givenDate: string,
+  parentEndFor: (order: MedicationOrderEntry) => string,
 ): string {
-  if (initialOrderEntry && orders.some((o) => o.name === initialOrderEntry)) {
-    return initialOrderEntry
+  const selectable = (o: MedicationOrderEntry) =>
+    !medicineGiveBlockedReason(o, givenDate, parentEndFor(o))
+  if (initialOrderEntry) {
+    const hinted = orders.find((o) => o.name === initialOrderEntry)
+    if (hinted && selectable(hinted)) return hinted.name
   }
-  return orders.length > 0 ? orders[0].name : ''
+  return orders.find(selectable)?.name || ''
 }
 
 function prescriptionNameFromOrder(order?: MedicationOrderEntry | null, fallback = ''): string {
@@ -234,6 +261,15 @@ export const CreateMedicineGivenModal = ({
     ''
   ).trim()
   const selectedRx = prescriptions.find((p) => p.name === selectedPrescription)
+  const parentEndDateFor = (order?: MedicationOrderEntry | null) => {
+    if (!order) return ''
+    const pmo = prescriptionNameFromOrder(order, selectedPrescription)
+    return (prescriptions.find((p) => p.name === pmo)?.end_date || '').trim()
+  }
+  const givenDay = (date || initialDate || localDateInputValue()).trim()
+  const selectedBlockedReason = selectedOrderLine
+    ? medicineGiveBlockedReason(selectedOrderLine, givenDay, parentEndDateFor(selectedOrderLine))
+    : null
   const medicineFromDate = (selectedOrderLine?.date || selectedRx?.start_date || '').trim()
   const medicineToDate = (selectedOrderLine?.end_date || selectedRx?.end_date || '').trim()
   const medicineFieldLabel =
@@ -296,14 +332,21 @@ export const CreateMedicineGivenModal = ({
 
         const loadPrescriptionOrders = async (
           prescriptionName: string,
-          embeddedOrders?: MedicationOrderEntry[]
+          embeddedOrders?: MedicationOrderEntry[],
+          pmoEndByName?: Record<string, string>,
         ) => {
           const ords =
             embeddedOrders?.length
               ? embeddedOrders
               : await fetchMedicationOrders(prescriptionName)
           setOrders(ords)
-          setSelectedOrder(pickInitialOrderEntry(ords, initialOrderEntry))
+          const givenDay = (initialDate || localDateInputValue()).trim()
+          setSelectedOrder(
+            pickInitialOrderEntry(ords, initialOrderEntry, givenDay, (o) => {
+              const pmo = prescriptionNameFromOrder(o, prescriptionName)
+              return (pmoEndByName?.[pmo] || '').trim()
+            }),
+          )
         }
 
         if (isEdit && editRow?.medicine_code) {
@@ -350,7 +393,11 @@ export const CreateMedicineGivenModal = ({
               creation: p.creation,
             }))
           )
-          await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders)
+          const pmoEndByName: Record<string, string> = {}
+          for (const p of byName.values()) {
+            if (p.name && p.end_date) pmoEndByName[p.name] = p.end_date
+          }
+          await loadPrescriptionOrders(currentRx.name, currentRx.medication_orders, pmoEndByName)
         }
 
         const admissionId = propInpatientRecord || adm.name
@@ -390,7 +437,11 @@ export const CreateMedicineGivenModal = ({
               ? initialPrescription
               : signedList[0].name
           setSelectedPrescription(preferred)
-          await loadPrescriptionOrders(preferred)
+          const pmoEndByName: Record<string, string> = {}
+          for (const p of signedList) {
+            if (p.name && p.end_date) pmoEndByName[p.name] = p.end_date
+          }
+          await loadPrescriptionOrders(preferred, undefined, pmoEndByName)
         } else if (list.length > 0) {
           setPrescriptions([])
           setSelectedPrescription('')
@@ -436,6 +487,18 @@ export const CreateMedicineGivenModal = ({
     const pmo = prescriptionNameFromOrder(selected, '')
     if (pmo) setSelectedPrescription(pmo)
   }, [selectedOrder, prescriptionOrders, isEdit])
+
+  useEffect(() => {
+    if (isEdit || !selectedOrder) return
+    const line = orders.find((o) => o.name === selectedOrder)
+    if (!line) return
+    const pmo = prescriptionNameFromOrder(line, selectedPrescription)
+    const parentEnd = (prescriptions.find((p) => p.name === pmo)?.end_date || '').trim()
+    const day = (date || initialDate || localDateInputValue()).trim()
+    if (medicineGiveBlockedReason(line, day, parentEnd)) {
+      setSelectedOrder('')
+    }
+  }, [date, selectedOrder, orders, prescriptions, selectedPrescription, isEdit, initialDate])
 
   useEffect(() => {
     const resetBatchLot = () => {
@@ -691,7 +754,13 @@ export const CreateMedicineGivenModal = ({
       const ords = await fetchMedicationOrders(name)
       setOrders(ords)
       const entryHint = name === initialPrescription ? initialOrderEntry : undefined
-      setSelectedOrder(pickInitialOrderEntry(ords, entryHint))
+      const givenDay = (date || initialDate || localDateInputValue()).trim()
+      setSelectedOrder(
+        pickInitialOrderEntry(ords, entryHint, givenDay, (o) => {
+          const pmo = prescriptionNameFromOrder(o, name)
+          return (prescriptions.find((p) => p.name === pmo)?.end_date || '').trim()
+        }),
+      )
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Failed to load medicines for this prescription'
       setError(msg)
@@ -711,6 +780,14 @@ export const CreateMedicineGivenModal = ({
     if (!isEdit) {
       if (!selectedOrder) {
         toast.error('Select a medicine from the current prescriptions')
+        return
+      }
+      const selectedLine = orders.find((o) => o.name === selectedOrder)
+      const blocked = selectedLine
+        ? medicineGiveBlockedReason(selectedLine, date, parentEndDateFor(selectedLine))
+        : 'Select a medicine from the current prescriptions'
+      if (blocked) {
+        toast.error(blocked)
         return
       }
     }
@@ -954,7 +1031,14 @@ export const CreateMedicineGivenModal = ({
               </label>
               <select
                 value={selectedOrder}
-                onChange={(e) => setSelectedOrder(e.target.value)}
+                onChange={(e) => {
+                  const next = e.target.value
+                  const line = prescriptionOrders.find((o) => o.name === next)
+                  if (line && medicineGiveBlockedReason(line, givenDay, parentEndDateFor(line))) {
+                    return
+                  }
+                  setSelectedOrder(next)
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
                 disabled={loading || !orders.length}
               >
@@ -964,29 +1048,24 @@ export const CreateMedicineGivenModal = ({
                     : 'Select medicine...'}
                 </option>
                 {prescriptionOrders.map((o) => {
-                  const held = o.medication_status === 'On Hold'
-                  const discontinued = o.medication_status === 'Discontinued'
-                  const stopped = Boolean(o.stopped) || Boolean(o.reason_stopped)
+                  const blocked = medicineGiveBlockedReason(o, givenDay, parentEndDateFor(o))
                   const pmo = prescriptionNameFromOrder(o, '')
                   return (
-                    <option key={o.name} value={o.name} disabled={held || discontinued || stopped}>
+                    <option key={o.name} value={o.name} disabled={Boolean(blocked)}>
                       {o.drug_name || o.drug} – {o.dosage}
                       {o.patient_frequency || o.written_frequency || o.frequency
                         ? ` · ${o.patient_frequency || o.written_frequency || o.frequency}`
                         : ''}
                       {pmo ? ` · ${pmo}` : ''}
                       {o.is_prn === 1 ? ' (PRN)' : ''}
-                      {held
-                        ? ' — On Hold (cannot give)'
-                        : discontinued
-                          ? ' — Discontinued (cannot give)'
-                          : stopped
-                            ? ' — Stopped (cannot give)'
-                            : ''}
+                      {blocked ? ` — ${blocked}` : ''}
                     </option>
                   )
                 })}
               </select>
+              {selectedBlockedReason ? (
+                <p className="text-xs text-amber-700">{selectedBlockedReason}</p>
+              ) : null}
             </div>
           </div>
           </>
@@ -1218,7 +1297,7 @@ export const CreateMedicineGivenModal = ({
           <button
             type="submit"
             onClick={handleSubmit}
-            disabled={loading || !admission || (!isEdit && (!selectedPrescription || !selectedOrder))}
+            disabled={loading || !admission || (!isEdit && (!selectedPrescription || !selectedOrder || Boolean(selectedBlockedReason)))}
             className="px-4 py-2 text-sm font-semibold rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md shadow-emerald-600/30 hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? (

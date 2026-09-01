@@ -1,7 +1,7 @@
 import json
 import frappe
 from frappe import _
-from frappe.utils import nowdate, nowtime, now_datetime, cint, cstr, flt, getdate
+from frappe.utils import nowdate, nowtime, now_datetime, cint, cstr, flt, getdate, formatdate
 from healthcare.api.utils.api_utility import get_next_transaction_number
 from healthcare.healthcare.care_episode_guard import assert_inpatient_admission_open_for_create
 from healthcare.healthcare.editing_lock import assert_editing_allowed
@@ -147,6 +147,24 @@ def _date_in_range(target_date, start_date=None, end_date=None) -> bool:
 	if end_date and d > getdate(end_date):
 		return False
 	return True
+
+
+def _medicine_cannot_be_given_reason(entry, given_date=None, parent_end_date=None):
+	"""Why this prescription line cannot be recorded as given, or None if allowed."""
+	if entry is None:
+		return None
+	status = cstr(entry.get("medication_status") or "").strip()
+	if status == "On Hold":
+		return _("This medicine is On Hold by the doctor and cannot be given until it is continued.")
+	if status == "Discontinued":
+		return _("This medicine has been discontinued by the doctor and cannot be given.")
+	if cint(entry.get("stopped")) or cstr(entry.get("reason_stopped") or "").strip():
+		return _("This medicine has been stopped and cannot be given.")
+	end = entry.get("end_date") or parent_end_date
+	when = given_date or nowdate()
+	if end and getdate(when) > getdate(end):
+		return _("This medicine ended on {0} and cannot be given.").format(formatdate(getdate(end)))
+	return None
 
 
 def is_daily_prescription_frequency(freq_name: str | None) -> bool:
@@ -1136,22 +1154,17 @@ def create_medicine_given(
 				).format(frappe.bold(pmo.name))
 			)
 
-		# Block giving a drug the doctor has put On Hold, Discontinued, or Stopped (per-drug status).
-		_entry_status = None
+		# Block On Hold / Discontinued / Stopped, and lines whose end date has passed.
 		_entry = None
 		for _e in pmo.get("medication_orders") or []:
 			if (order_entry and _e.name == order_entry) or (not order_entry and item_code and _e.drug == item_code):
-				_entry_status = (_e.get("medication_status") or "").strip()
 				_entry = _e
 				break
-		if _entry_status == "On Hold":
-			frappe.throw(_("This medicine is On Hold by the doctor and cannot be given until it is continued."))
-		if _entry_status == "Discontinued":
-			frappe.throw(_("This medicine has been discontinued by the doctor and cannot be given."))
-		if _entry is not None and (
-			cint(_entry.get("stopped")) or (cstr(_entry.get("reason_stopped") or "").strip())
-		):
-			frappe.throw(_("This medicine has been stopped and cannot be given."))
+		blocked = _medicine_cannot_be_given_reason(
+			_entry, given_date=date or nowdate(), parent_end_date=getattr(pmo, "end_date", None)
+		)
+		if blocked:
+			frappe.throw(blocked)
 
 	# Derive defaults: quantity is units given; dose is the clinical amount (e.g. 50mg).
 	if qty is None:
