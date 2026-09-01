@@ -34,6 +34,11 @@ def _norm_key(value: str | None) -> str:
 	return (value or "").strip().casefold()
 
 
+def _norm_key_loose(value: str | None) -> str:
+	"""Case-insensitive key with spaces stripped (T.Bilirubin == T. Bilirubin)."""
+	return re.sub(r"\s+", "", (value or "").strip()).casefold()
+
+
 def _parse_float(value) -> float | None:
 	if value is None:
 		return None
@@ -362,12 +367,27 @@ def _template_for_event_label(label: str, panel_template: str) -> str | None:
 	if not label:
 		return None
 	label_n = _norm_key(label)
+	label_loose = _norm_key_loose(label)
 	for child in get_group_child_templates(panel_template):
-		if label_n in (_norm_key(child["lab_test_event"]), _norm_key(child["lab_test_name"])):
+		names = (child["lab_test_event"], child["lab_test_name"])
+		if label_n in (_norm_key(n) for n in names):
+			return child["lab_test_event"]
+		if label_loose in (_norm_key_loose(n) for n in names):
 			return child["lab_test_event"]
 	if frappe.db.exists("Lab Test Template", label):
 		return label
-	return frappe.db.get_value("Lab Test Template", {"lab_test_name": label}, "name")
+	found = frappe.db.get_value("Lab Test Template", {"lab_test_name": label}, "name")
+	if found:
+		return found
+	for row in frappe.get_all(
+		"Lab Test Template",
+		filters={"disabled": 0},
+		fields=["name", "lab_test_name"],
+		limit=500,
+	):
+		if _norm_key_loose(row.lab_test_name) == label_loose or _norm_key_loose(row.name) == label_loose:
+			return row.name
+	return None
 
 
 def _find_lab_test_for_panel_child(
@@ -410,11 +430,14 @@ def _find_lab_test_for_panel_child(
 def _align_values_to_rule_event_names(values: dict[str, float], rules: dict[str, Any]) -> None:
 	"""Copy numeric results onto rule event labels so formulas match (e.g. TOTAL PROTEIN)."""
 	by_norm = {_norm_key(k): v for k, v in values.items() if k}
+	by_loose = {_norm_key_loose(k): v for k, v in values.items() if k}
 
 	def _copy_to_label(label: str):
 		if not label or label in values:
 			return
 		val = by_norm.get(_norm_key(label))
+		if val is None:
+			val = by_loose.get(_norm_key_loose(label))
 		if val is not None:
 			values[label] = val
 
@@ -432,7 +455,7 @@ def _align_values_to_rule_event_names(values: dict[str, float], rules: dict[str,
 		for part in _formula_terms_for_alignment(
 			line.get("formula") or "", (rules.get("lab_test_template") or "").strip()
 		):
-			if part and _norm_key(part) in by_norm:
+			if part:
 				_copy_to_label(part)
 
 
@@ -470,9 +493,19 @@ def _persist_calculated_lab_test_result(lt_name: str, formatted: str) -> None:
 	lt.custom_result = text
 	if lt.meta.has_field("results"):
 		lt.results = text
+	pre_result_statuses = {
+		"",
+		"Requested",
+		"Sample Collected",
+		"Testing in Progress",
+		"Testing in progress",
+		"Awaiting sample collection",
+		"Sample Collection in Progress",
+		"Sample collection in progress",
+	}
 	if text and was_reviewed and text != old_result:
 		lt.status = "Pending Review"
-	elif text and (lt.status or "") in ("", "Requested"):
+	elif text and (lt.status or "") in pre_result_statuses:
 		lt.status = "Pending Review"
 	lt.flags.skip_editing_lock = True
 	if text:
@@ -618,10 +651,27 @@ def _formula_name_boundary_pattern(name: str) -> str:
 	return r"(?<![\w./-])" + re.escape(name) + r"(?![\w./-])"
 
 
+def _formula_name_variants(name: str) -> list[str]:
+	raw = (name or "").strip()
+	if not raw:
+		return []
+	variants = [raw]
+	nospace = re.sub(r"\s+", "", raw)
+	if nospace and nospace not in variants:
+		variants.append(nospace)
+	dotted = re.sub(r"\.(?=\S)", ". ", raw)
+	if dotted and dotted not in variants:
+		variants.append(dotted)
+	return variants
+
+
 def _formula_name_in_formula(name: str, formula: str) -> bool:
 	if not name or not formula:
 		return False
-	return bool(re.search(_formula_name_boundary_pattern(name), formula, re.IGNORECASE))
+	for variant in _formula_name_variants(name):
+		if re.search(_formula_name_boundary_pattern(variant), formula, re.IGNORECASE):
+			return True
+	return False
 
 
 def _formula_operator_split(formula: str) -> list[str]:
@@ -712,9 +762,10 @@ def _missing_formula_operand_labels(
 ) -> list[str]:
 	"""Formula operands that still have no numeric value in ``values``."""
 	by_norm = {_norm_key(k): k for k, v in values.items() if v is not None}
+	by_loose = {_norm_key_loose(k): k for k, v in values.items() if v is not None}
 	missing: list[str] = []
 	for term in _formula_terms_for_alignment(formula, panel_template):
-		if _norm_key(term) not in by_norm:
+		if _norm_key(term) not in by_norm and _norm_key_loose(term) not in by_loose:
 			missing.append(term)
 	return missing
 
@@ -729,16 +780,22 @@ def substitute_formula(formula: str, values: dict[str, float]) -> str | None:
 		val = values.get(name)
 		if val is None:
 			continue
-		if not _formula_name_in_formula(name, text):
+		matched = False
+		for variant in _formula_name_variants(name):
+			if not re.search(_formula_name_boundary_pattern(variant), text, re.IGNORECASE):
+				continue
+			ph = f"#{i}#"
+			text = re.sub(
+				_formula_name_boundary_pattern(variant),
+				ph,
+				text,
+				flags=re.IGNORECASE,
+			)
+			placeholders[ph] = f"({val})"
+			matched = True
+			break
+		if not matched:
 			continue
-		ph = f"#{i}#"
-		text = re.sub(
-			_formula_name_boundary_pattern(name),
-			ph,
-			text,
-			flags=re.IGNORECASE,
-		)
-		placeholders[ph] = f"({val})"
 	for ph, literal in placeholders.items():
 		text = text.replace(ph, literal)
 	if re.search(r"[a-zA-Z_]", text):
@@ -807,6 +864,80 @@ def get_enabled_rule_doc(template: str):
 	if not name:
 		return None
 	return frappe.get_doc("Lab Test Result Rule", name)
+
+
+def get_panel_template_name(template: str) -> str:
+	"""Parent group template for a child test (LAB-003), else the template itself."""
+	template = (template or "").strip()
+	if not template:
+		return ""
+	group = frappe.db.get_value("Lab Test Template", template, "lab_group")
+	return ((group or template) or "").strip()
+
+
+def get_enabled_rule_docs_for_panel(template: str, service_request: str | None = None) -> list:
+	"""All enabled result rules on a panel: the group plus every child template.
+
+	Formulas are often stored on the calculated child (e.g. Indirect Bilirubin /
+	LAB-003-003), not on the group or on the input tests (T.Bilirubin).
+	"""
+	panel = get_panel_template_name(template)
+	if not panel and not template:
+		return []
+	candidates: list[str] = []
+	seen_cand: set[str] = set()
+
+	def _add_cand(value: str | None):
+		v = (value or "").strip()
+		if v and v not in seen_cand:
+			seen_cand.add(v)
+			candidates.append(v)
+
+	_add_cand(panel)
+	_add_cand(template)
+	for child in get_group_child_templates(panel):
+		_add_cand(child.get("lab_test_event"))
+	if service_request:
+		for row in frappe.get_all(
+			"Lab Test",
+			filters={"service_request": service_request, "docstatus": ["!=", 2]},
+			fields=["template"],
+		):
+			_add_cand(row.template)
+			child_group = frappe.db.get_value("Lab Test Template", row.template, "lab_group")
+			_add_cand(child_group)
+			if child_group:
+				for child in get_group_child_templates(child_group):
+					_add_cand(child.get("lab_test_event"))
+
+	docs = []
+	seen_rules: set[str] = set()
+	for cand in candidates:
+		name = frappe.db.get_value(
+			"Lab Test Result Rule",
+			{"lab_test_template": cand, "enabled": 1},
+			"name",
+		)
+		if not name or name in seen_rules:
+			continue
+		seen_rules.add(name)
+		docs.append(frappe.get_doc("Lab Test Result Rule", name))
+	return docs
+
+
+def merge_rule_docs(docs, *, panel_template: str = "") -> dict[str, Any] | None:
+	if not docs:
+		return None
+	merged = rule_doc_to_dict(docs[0])
+	for extra in docs[1:]:
+		part = rule_doc_to_dict(extra)
+		merged["rule_lines"].extend(part.get("rule_lines") or [])
+		merged["sum_events"].extend(part.get("sum_events") or [])
+		if part.get("sum_events"):
+			merged["sum_events_configured"] = True
+	if panel_template:
+		merged["lab_test_template"] = panel_template
+	return merged
 
 
 def rule_doc_to_dict(rule_doc) -> dict[str, Any]:
@@ -985,37 +1116,8 @@ def apply_rules(
 		else:
 			formula = line.get("formula") or ""
 			result_val = evaluate_formula(formula, values)
-			if (
-				result_val is None
-				and formula.strip()
-				and not defer_formula_warnings
-			):
-				missing = _missing_formula_operand_labels(
-					formula, values, panel_template
-				)
-				found = ", ".join(
-					sorted({str(k) for k in values.keys() if values.get(k) is not None})[:12]
-				)
-				if missing:
-					hint = _("Still need results for: {0}.").format(", ".join(missing))
-				else:
-					hint = _("Enter all component results on this panel, then save again.")
-				warnings.append(
-					{
-						"type": "formula_missing_inputs",
-						"message": _(
-							"Could not calculate {0}. Formula: {1}. {2} "
-							"Results found so far: {3}."
-						).format(
-							target,
-							formula,
-							hint,
-							found or _("none yet"),
-						),
-						"ok": False,
-						"block_save": False,
-					}
-				)
+			# Incomplete formulas stay silent until all operands are entered
+			# (e.g. HDL saved before T.Cholesterol / Triglycerides for LDL).
 
 		if result_val is None:
 			continue
@@ -1068,19 +1170,17 @@ def apply_rules(
 
 
 def _resolve_panel_template_and_rule(doc):
-	"""Panel template + rule doc for a child or parent lab test."""
+	"""Panel (group) template + a rule doc for a child or parent lab test.
+
+	The panel template stays the group (e.g. LAB-003) even when the formula
+	is stored on a child such as Indirect Bilirubin.
+	"""
 	template = (getattr(doc, "template", None) or "").strip()
 	if not template:
 		return "", None
-	panel_template = (
-		frappe.db.get_value("Lab Test Template", template, "lab_group") or template
-	).strip()
-	rule_doc = get_enabled_rule_doc(template)
-	if not rule_doc and panel_template != template:
-		rule_doc = get_enabled_rule_doc(panel_template)
-	if rule_doc:
-		panel_template = (rule_doc.lab_test_template or panel_template or template).strip()
-	return panel_template, rule_doc
+	panel_template = get_panel_template_name(template) or template
+	docs = get_enabled_rule_docs_for_panel(template, getattr(doc, "service_request", None))
+	return panel_template, (docs[0] if docs else None)
 
 
 def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bool = True) -> dict[str, Any]:
@@ -1113,7 +1213,10 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 			}
 		)
 
-	rules_dict = rule_doc_to_dict(rule_doc)
+	rules_dict = merge_rule_docs(
+		get_enabled_rule_docs_for_panel(doc.template, getattr(doc, "service_request", None)),
+		panel_template=panel_template,
+	) or rule_doc_to_dict(rule_doc)
 
 	defer_formula_warnings = bool(
 		getattr(doc, "service_request", None) and not persist_siblings
@@ -1121,7 +1224,7 @@ def apply_rules_to_doc(doc, *, block_on_error: bool = True, persist_siblings: bo
 	result = apply_rules(
 		doc.template,
 		items,
-		rule_doc=rule_doc,
+		rule_doc=rules_dict,
 		block_on_error=block_on_error,
 		service_request=getattr(doc, "service_request", None),
 		lab_test_group=getattr(doc, "lab_test_group", None) or panel_template,
@@ -1189,56 +1292,40 @@ def recalculate_panel_for_service_request(
 	triggering = None
 	if triggering_lab_test and triggering_lab_test in lab_test_names:
 		triggering = frappe.get_doc("Lab Test", triggering_lab_test)
+	if not triggering:
+		triggering = frappe.get_doc("Lab Test", lab_test_names[0])
 
-	rule_entries: list[tuple[str, Any, Any]] = []
-	seen_rules: set[str] = set()
-	for lt_name in lab_test_names:
-		doc = frappe.get_doc("Lab Test", lt_name)
-		panel_template, rule_doc = _resolve_panel_template_and_rule(doc)
-		if not rule_doc or rule_doc.name in seen_rules:
-			continue
-		seen_rules.add(rule_doc.name)
-		rule_entries.append((panel_template, rule_doc, doc))
-		if not triggering:
-			triggering = doc
-
-	if not rule_entries or not triggering:
+	panel_template = get_panel_template_name(triggering.template) or (triggering.template or "")
+	docs = get_enabled_rule_docs_for_panel(triggering.template, service_request)
+	if not docs:
 		return empty
 
-	def _rule_pass_order(entry):
-		_rules = rule_doc_to_dict(entry[1])
-		lines = _rules.get("rule_lines") or []
-		has_ratio = any((ln.get("rule_type") or "") == "Ratio" for ln in lines)
-		return (1 if has_ratio else 0, entry[1].name or "")
+	rules_dict = merge_rule_docs(docs, panel_template=panel_template)
+	if not rules_dict:
+		return empty
 
-	rule_entries.sort(key=_rule_pass_order)
-
-	all_updates: list[dict[str, str]] = []
-	all_warnings: list[dict[str, Any]] = []
-	for panel_template, rule_doc, anchor_doc in rule_entries:
-		rules_dict = rule_doc_to_dict(rule_doc)
-		result = apply_rules(
-			anchor_doc.template,
-			[],
-			rule_doc=rule_doc,
-			service_request=service_request,
-			lab_test_group=getattr(anchor_doc, "lab_test_group", None) or panel_template,
-			patient=anchor_doc.patient,
-			current_doc=anchor_doc,
-		)
-		updates = _sync_calculated_targets_to_lab_tests(
-			anchor_doc,
-			rules_dict,
-			result.get("calculated_targets") or {},
-			service_request=service_request,
-			lab_test_group=getattr(anchor_doc, "lab_test_group", None) or panel_template,
-		)
-		all_updates.extend(updates)
-		all_warnings.extend(result.get("warnings") or [])
-
-	if all_updates:
-		all_warnings = [w for w in all_warnings if w.get("type") != "formula_missing_inputs"]
+	result = apply_rules(
+		triggering.template,
+		[],
+		rule_doc=rules_dict,
+		service_request=service_request,
+		lab_test_group=getattr(triggering, "lab_test_group", None) or panel_template,
+		patient=triggering.patient,
+		current_doc=triggering,
+	)
+	updates = _sync_calculated_targets_to_lab_tests(
+		triggering,
+		rules_dict,
+		result.get("calculated_targets") or {},
+		service_request=service_request,
+		lab_test_group=getattr(triggering, "lab_test_group", None) or panel_template,
+	)
+	warnings = [
+		w
+		for w in (result.get("warnings") or [])
+		if w.get("type") != "formula_missing_inputs"
+	]
 	return {
-		"calculated_updates": all_updates,
-		"warnings": all_warnings,
+		"calculated_updates": updates,
+		"warnings": warnings,
 	}

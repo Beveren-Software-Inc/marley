@@ -11,9 +11,11 @@ import {
   fetchLabTest,
   finishGroupLabTests,
   isLabTestSampleCollectionDone,
+  recalculatePanelForServiceRequest,
   saveAndSubmitLabTest,
   type LabTest,
 } from '../../services/labTests'
+import { fetchLabTestResultRules, type LabTestResultRulesConfig } from '../../services/labTestResultRules'
 import { canEditLabTestResultForRow, isGroupedLabRequestFinished } from '../../config/permissions'
 import { useCareContext } from '../../providers/CareContextProvider'
 import { useFormatMoney } from '../../hooks/useFormatMoney'
@@ -24,6 +26,12 @@ import { StatusPill } from '../ui/StatusPill'
 import { LabTestSampleCollectionModal } from './LabTestSampleCollectionModal'
 import { LabTestEnterResultsModal } from './LabTestEnterResultsModal'
 import { openLabSampleBarcodePrint } from '../../utils/printLabSampleBarcodeLabel'
+import { showLabTestRuleFeedback } from '../../utils/labTestRuleFeedback'
+import {
+  evaluateLabResultFormula,
+  formatLabResultFormulaValue,
+  labResultNameKey,
+} from '../../utils/labResultFormula'
 
 const LAB_LINE_STATUS_LABELS: Record<string, string> = {
   'Testing in progress': 'Test In-Progress',
@@ -60,6 +68,19 @@ interface LabRequestReviewModalProps {
 
 function stripHtml(value: string): string {
   return value.replace(/<[^>]*>/g, '').trim()
+}
+
+function parseLabResultNumber(raw: string): number | null {
+  const s = stripHtml(raw).replace(/,/g, '').trim()
+  if (!s) return null
+  const n = parseFloat(s)
+  return Number.isFinite(n) ? n : null
+}
+
+function testMatchesLabEvent(test: LabRequestReviewTest, event: string): boolean {
+  const k = labResultNameKey(event)
+  if (!k) return false
+  return [test.test_name, test.test_code, test.template].some((n) => labResultNameKey(n) === k)
 }
 
 function isSingleResultType(value?: string | null): boolean {
@@ -249,6 +270,7 @@ export function LabRequestReviewModal({
   const [sampleModalError, setSampleModalError] = useState<string | null>(null)
   const [finishingGroup, setFinishingGroup] = useState(false)
   const [enterResultsLabTest, setEnterResultsLabTest] = useState<string | null>(null)
+  const [panelRules, setPanelRules] = useState<LabTestResultRulesConfig | null>(null)
 
   const reload = useCallback(() => setReloadToken((n) => n + 1), [])
 
@@ -333,7 +355,7 @@ export function LabRequestReviewModal({
     })
   }, [])
 
-  const getResultValue = useCallback(
+  const rawResultValue = useCallback(
     (test: LabRequestReviewTest) => {
       const name = test.lab_test
       if (!name) return ''
@@ -343,11 +365,22 @@ export function LabRequestReviewModal({
     [pendingResults]
   )
 
+  const applyCalculatedUpdates = useCallback(
+    (updates?: Array<{ name: string; lab_test_name?: string; custom_result: string }>) => {
+      for (const upd of updates || []) {
+        if (upd.name && upd.custom_result != null && String(upd.custom_result).trim() !== '') {
+          patchTestResult(upd.name, String(upd.custom_result), 'Pending Review')
+        }
+      }
+    },
+    [patchTestResult]
+  )
+
   const saveInlineResult = useCallback(
     async (test: LabRequestReviewTest) => {
       const name = test.lab_test
       if (!name) return
-      const value = (name in pendingResults ? pendingResults[name] : stripHtml(String(test.custom_result || ''))).trim()
+      const value = rawResultValue(test).trim()
       const original = stripHtml(String(test.custom_result || ''))
       if (value === original) {
         setPendingResults((prev) => {
@@ -374,6 +407,8 @@ export function LabRequestReviewModal({
           submit: false,
         })
         patchTestResult(name, value, saved.status)
+        applyCalculatedUpdates(saved.calculated_updates)
+        showLabTestRuleFeedback(saved)
         toast.success(`Result saved for ${test.test_name || test.test_code}`)
       } catch (e) {
         toast.error(e instanceof Error ? e.message : 'Failed to save result')
@@ -381,7 +416,7 @@ export function LabRequestReviewModal({
         setSavingResultFor(null)
       }
     },
-    [pendingResults, userRole, patchTestResult]
+    [rawResultValue, userRole, patchTestResult, applyCalculatedUpdates]
   )
 
   useEffect(() => {
@@ -420,6 +455,96 @@ export function LabRequestReviewModal({
     if (!review?.groups?.length) return null
     return review.groups.find((g) => g.template === selectedTemplate) || review.groups[0]
   }, [review, selectedTemplate])
+
+  useEffect(() => {
+    const tpl = selectedGroup?.template
+    if (!tpl) {
+      setPanelRules(null)
+      return
+    }
+    let cancelled = false
+    fetchLabTestResultRules(tpl)
+      .then((rules) => {
+        if (!cancelled) setPanelRules(rules)
+      })
+      .catch(() => {
+        if (!cancelled) setPanelRules(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedGroup?.template])
+
+  useEffect(() => {
+    if (!review?.name || loading) return
+    let cancelled = false
+    recalculatePanelForServiceRequest(review.name)
+      .then((res) => {
+        if (cancelled) return
+        applyCalculatedUpdates(res.calculated_updates)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [review?.name, reloadToken, loading, applyCalculatedUpdates])
+
+  const formulaLines = useMemo(
+    () =>
+      (panelRules?.rule_lines || []).filter(
+        (line) => (line.rule_type || 'Formula') === 'Formula' && (line.formula || '').trim()
+      ),
+    [panelRules]
+  )
+
+  const formulaComputed = useMemo(() => {
+    const byKey = new Map<string, string>()
+    const tests = selectedGroup?.tests || []
+    if (!formulaLines.length || !tests.length) return byKey
+    const values: Record<string, number> = {}
+    for (const test of tests) {
+      if (formulaLines.some((line) => testMatchesLabEvent(test, line.target_event || ''))) continue
+      const n = parseLabResultNumber(rawResultValue(test))
+      if (n == null) continue
+      for (const key of [test.test_name, test.test_code, test.template]) {
+        if (key) values[key] = n
+      }
+    }
+    for (const line of formulaLines) {
+      const n = evaluateLabResultFormula(line.formula || '', values)
+      if (n == null) continue
+      const formatted = formatLabResultFormulaValue(n)
+      const target = line.target_event || ''
+      byKey.set(labResultNameKey(target), formatted)
+      const match = tests.find((t) => testMatchesLabEvent(t, target))
+      if (match?.template) byKey.set(labResultNameKey(match.template), formatted)
+      if (match?.test_name) byKey.set(labResultNameKey(match.test_name), formatted)
+    }
+    return byKey
+  }, [formulaLines, selectedGroup?.tests, rawResultValue])
+
+  const formulaTargetForTest = useCallback(
+    (test: LabRequestReviewTest) =>
+      formulaLines.find((line) => testMatchesLabEvent(test, line.target_event || '')),
+    [formulaLines]
+  )
+
+  const getResultValue = useCallback(
+    (test: LabRequestReviewTest) => {
+      const name = test.lab_test
+      const line = formulaTargetForTest(test)
+      const computed =
+        formulaComputed.get(labResultNameKey(test.test_name)) ||
+        formulaComputed.get(labResultNameKey(test.template)) ||
+        formulaComputed.get(labResultNameKey(test.test_code))
+      if (line) {
+        if (name && name in pendingResults && !line.readonly) return pendingResults[name]
+        return computed || stripHtml(String(test.custom_result || ''))
+      }
+      return rawResultValue(test)
+    },
+    [pendingResults, formulaTargetForTest, formulaComputed, rawResultValue]
+  )
 
   const hideChildCollectSample = Boolean(review?.remove_collect_sample_button_from_child_test)
 
@@ -861,6 +986,8 @@ export function LabRequestReviewModal({
                             sampleDone &&
                             canEditLabTestResultForRow(resultStub, userRole)
                           const resultValue = getResultValue(test)
+                          const formulaLine = formulaTargetForTest(test)
+                          const isFormulaReadonly = Boolean(formulaLine?.readonly)
                           const isSaving = savingResultFor === test.lab_test
                           const singleLine = isSingleResultType(test.result_type)
                           return (
@@ -913,20 +1040,26 @@ export function LabRequestReviewModal({
                                   <input
                                     type="text"
                                     value={resultValue}
-                                    disabled={!canEditResult || isSaving}
-                                    placeholder="Enter result…"
+                                    disabled={!canEditResult || isSaving || isFormulaReadonly}
+                                    placeholder={isFormulaReadonly ? 'Calculated…' : 'Enter result…'}
                                     title={
-                                      canEditResult
-                                        ? 'Enter result and press Enter or leave the field to save'
-                                        : 'Result locked for this test'
+                                      isFormulaReadonly
+                                        ? `Calculated: ${formulaLine?.formula || 'formula'}`
+                                        : canEditResult
+                                          ? 'Enter result and press Enter or leave the field to save'
+                                          : 'Result locked for this test'
                                     }
                                     onChange={(e) => {
+                                      if (isFormulaReadonly) return
                                       const name = test.lab_test
                                       if (!name) return
                                       const v = e.target.value
                                       setPendingResults((prev) => ({ ...prev, [name]: v }))
                                     }}
-                                    onBlur={() => void saveInlineResult(test)}
+                                    onBlur={() => {
+                                      if (isFormulaReadonly) return
+                                      void saveInlineResult(test)
+                                    }}
                                     onKeyDown={(e) => {
                                       if (e.key === 'Enter') {
                                         e.preventDefault()

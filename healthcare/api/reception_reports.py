@@ -77,6 +77,18 @@ def _full_name(user, cache):
 	return cache[user]
 
 
+def _letter_head_for_cost_center(cost_center=None, **seed):
+	"""Letter Head HTML from Cost Center.custom_letter_head (same as other prints)."""
+	from healthcare.api.nursing_print import get_doc_letter_head
+
+	payload = {k: v for k, v in seed.items() if v}
+	if cost_center:
+		payload["cost_center"] = cost_center
+	if not payload:
+		return {"content": "", "footer": ""}
+	return get_doc_letter_head(payload)
+
+
 @frappe.whitelist()
 def get_patient_receipts_summary(from_date, to_date, cost_center=None):
 	"""Patient Receipts Summary: OP / Payment Only / IP receipt rows + mode totals."""
@@ -1082,7 +1094,11 @@ def get_ip_statement_of_account(admission, from_date=None, to_date=None):
 		"admission_date": str(adm.scheduled_date) if adm.scheduled_date else None,
 		"discharge_date": str(adm.discharge_datetime)[:10] if adm.discharge_datetime else None,
 		"days_charged": days_charged,
+		"cost_center": adm.cost_center,
 		"branch": (adm.cost_center or "").replace(" - SPH", "") or None,
+		"letter_head": _letter_head_for_cost_center(
+			adm.cost_center, inpatient_admission=adm.name
+		),
 		"categories": by_category,
 		"bill_total": bill_total,
 		"discount_total": discount_total,
@@ -1983,6 +1999,7 @@ def _build_op_soa(
 				"practitioner_name",
 				"practitioner",
 				"encounter_date",
+				"cost_center",
 			],
 			limit_page_length=0,
 		):
@@ -2047,6 +2064,7 @@ def _build_op_soa(
 	visit_date = None
 	visit_type = None
 	status = None
+	cost_center = None
 	branch = None
 	case_no = None
 	visit_label = None
@@ -2060,6 +2078,7 @@ def _build_op_soa(
 		visit_date = str(pv.encounter_date) if pv.encounter_date else None
 		visit_type = pv.visit_type
 		status = pv.status
+		cost_center = pv.cost_center
 		branch = (pv.cost_center or "").replace(" - SPH", "") or None
 		case_no = pv.name
 		visit_label = pv.name
@@ -2068,6 +2087,15 @@ def _build_op_soa(
 		visit_label = "Multiple visits"
 		if from_date and to_date:
 			visit_date = f"{from_date} to {to_date}"
+		for name in list(contributor) or visits:
+			meta = visit_meta.get(name) or {}
+			if meta.get("cost_center"):
+				cost_center = meta.get("cost_center")
+				branch = (cost_center or "").replace(" - SPH", "") or None
+				break
+
+	if not cost_center:
+		cost_center = frappe.defaults.get_user_default("cost_center")
 
 	return {
 		"visit": visit_label,
@@ -2084,7 +2112,11 @@ def _build_op_soa(
 		"visit_date": visit_date,
 		"visit_type": visit_type,
 		"status": status,
+		"cost_center": cost_center,
 		"branch": branch,
+		"letter_head": _letter_head_for_cost_center(
+			cost_center, patient_visit=header_visit
+		),
 		"service_category": service_category,
 		"use_old_approach_soa": use_old,
 		"old_lines": old_lines,

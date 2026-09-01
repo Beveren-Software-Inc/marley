@@ -4,7 +4,8 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { isAdmin } from '../../config/permissions'
 import { ECTDetailsList } from './ECTDetailsList'
 import { ConsolidatedECTDetailsList } from './ConsolidatedECTDetailsList'
-import { ECTChart } from './ECTChart'  // ADDED: Import ECTChart
+import { ECTChart } from './ECTChart'
+import { ECTChartPrintButton } from './ECTChartPrintButton'
 import { ECTAdmissionList } from './ECTAdmissionList'
 import { ECTProcedureList } from './ECTProcedureList'
 import { CreateECTAdmissionModal } from './CreateECTAdmissionModal'
@@ -160,13 +161,18 @@ export function ECTDashboard({ selectedPatient }: ECTDashboardProps) {
               <p className="text-xs opacity-75 mt-0.5">{activeCard.desc}</p>
             </div>
           </div>
-          {activeCard.onAdd && (
-            <button
-              onClick={activeCard.onAdd}
-              className="w-7 h-7 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
-              title={`Add ${activeCard.title}`}
-            >+</button>
-          )}
+          <div className="flex items-center gap-2">
+            {ectTab === 'ect-chart' || ectTab === 'ect-details' ? (
+              <ECTChartPrintButton patient={selectedPatient} />
+            ) : null}
+            {activeCard.onAdd && (
+              <button
+                onClick={activeCard.onAdd}
+                className="w-7 h-7 rounded-full bg-white/70 hover:bg-white text-slate-700 flex items-center justify-center text-sm font-bold transition-colors"
+                title={`Add ${activeCard.title}`}
+              >+</button>
+            )}
+          </div>
         </div>
         <div className="p-4 overflow-y-auto" style={{ maxHeight: '65vh', scrollbarWidth: 'thin' }}>
           {sectionContent(ectTab)}

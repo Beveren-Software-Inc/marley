@@ -8,20 +8,31 @@ import frappe
 from healthcare.healthcare.lab_test_result_rules import (
 	apply_rules,
 	get_enabled_rule_doc,
+	get_enabled_rule_docs_for_panel,
 	get_group_child_templates,
+	get_panel_template_name,
+	merge_rule_docs,
 	rule_doc_to_dict,
 )
 
 
 @frappe.whitelist()
 def get_lab_test_result_rules(template):
-	"""Return rule configuration for a Lab Test Template (for result-entry UI)."""
+	"""Return rule configuration for a Lab Test Template (for result-entry UI).
+
+	Includes formulas stored on sibling child tests in the same group
+	(e.g. Indirect Bilirubin on a Liver Function panel).
+	"""
 	if not template:
 		return {}
-	rule_doc = get_enabled_rule_doc(template)
-	if not rule_doc:
-		return {}
-	return rule_doc_to_dict(rule_doc)
+	panel = get_panel_template_name(template) or template
+	docs = get_enabled_rule_docs_for_panel(template)
+	if not docs:
+		rule_doc = get_enabled_rule_doc(template)
+		if not rule_doc:
+			return {}
+		return rule_doc_to_dict(rule_doc)
+	return merge_rule_docs(docs, panel_template=panel) or {}
 
 
 @frappe.whitelist()
@@ -51,14 +62,19 @@ def apply_lab_test_result_rules(
 			"errors": [],
 			"readonly_events": [],
 		}
-	rule_doc = get_enabled_rule_doc(template)
-	rules = rule_doc_to_dict(rule_doc) if rule_doc else None
+	panel = get_panel_template_name(template) or template
+	docs = get_enabled_rule_docs_for_panel(template, service_request or None)
+	if docs:
+		rules = merge_rule_docs(docs, panel_template=panel)
+	else:
+		rule_doc = get_enabled_rule_doc(template)
+		rules = rule_doc_to_dict(rule_doc) if rule_doc else None
 	return apply_rules(
 		template,
 		items,
 		rule_doc=rules,
 		service_request=service_request or None,
-		lab_test_group=lab_test_group or None,
+		lab_test_group=lab_test_group or panel,
 		patient=patient or None,
 	)
 
