@@ -545,7 +545,8 @@ function readSavedTab(): TabId {
 }
 
 export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
-  const { userCostCenter } = useCareContext()
+  const { userCostCenter, selectedPatient: contextPatient } = useCareContext()
+  const effectivePatient = (patient || contextPatient || '').trim() || undefined
   const [activeTab, setActiveTab] = useState<TabId>(readSavedTab)
 
   // Persist the active tab so a page refresh keeps the user on the same tab.
@@ -578,6 +579,12 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
 
   const activeCount = useMemo(() => setups.filter((s) => !!s.is_active).length, [setups])
 
+  const effectivePatientLabel = useMemo(() => {
+    if (!effectivePatient) return ''
+    const match = setups.find((s) => s.patient === effectivePatient)
+    return match?.patient_name || effectivePatient
+  }, [effectivePatient, setups])
+
   const filteredSetups = useMemo(() => {
     return setups.filter((s) => {
       if (statusFilter === 'active' && !s.is_active) return false
@@ -600,7 +607,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
     try {
       setLoading(true)
       const rows = await fetchDailyPatientVisitSetups(
-        patient || undefined,
+        effectivePatient,
         false,
         userCostCenter || undefined
       )
@@ -614,7 +621,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
 
   useEffect(() => {
     loadSetups()
-  }, [patient, refreshKey, userCostCenter])
+  }, [effectivePatient, refreshKey, userCostCenter])
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -705,6 +712,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
               <h3 className="text-sm font-semibold text-emerald-950">Daily Patient Visit Setup</h3>
               <p className="text-xs text-slate-500 mt-0.5">
                 Active setups: {activeCount}
+                {effectivePatient ? ` · Patient: ${effectivePatientLabel}` : ''}
                 {filtersActive && ` · Showing ${filteredSetups.length} of ${setups.length}`}
               </p>
             </div>
@@ -930,10 +938,13 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
         <section className="bg-white border border-emerald-100 rounded-xl p-4 shadow-sm ring-1 ring-emerald-50">
           <div className="mb-3">
             <h3 className="text-sm font-semibold text-emerald-950">Daily Auto Visits</h3>
-            <p className="text-xs text-slate-500 mt-0.5">Shows Patient Visits where Visit Type is Daily Auto Visit.</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Shows Patient Visits where Visit Type is Daily Auto Visit.
+              {effectivePatient ? ` Filtered to ${effectivePatientLabel}.` : ''}
+            </p>
           </div>
           <PatientVisitList
-            patient={patient}
+            patient={effectivePatient}
             refreshKey={refreshKey}
             visitType="Daily Auto Visit"
             hideLabPharmacyAmounts
@@ -944,7 +955,7 @@ export const DailyAutoVisitView = ({ patient }: DailyAutoVisitViewProps) => {
 
       {showCreate && (
         <CreateSetupModal
-          patient={patient}
+          patient={effectivePatient}
           onClose={() => setShowCreate(false)}
           onCreated={() => setRefreshKey((k) => k + 1)}
         />

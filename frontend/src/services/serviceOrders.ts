@@ -150,6 +150,14 @@ export interface BillingCostCenterScope {
   restricted: boolean
 }
 
+export interface PatientBillingCcCareTotals {
+  sales_orders: number
+  orders_amount: number
+  invoices: number
+  invoices_grand_total: number
+  outstanding: number
+}
+
 export interface PatientBillingCcRow {
   cost_center: string
   cost_center_name: string
@@ -158,6 +166,8 @@ export interface PatientBillingCcRow {
   invoices: number
   invoices_grand_total: number
   outstanding: number
+  op?: PatientBillingCcCareTotals
+  ip?: PatientBillingCcCareTotals
 }
 
 export interface PatientBillingCcBreakdown {
@@ -274,6 +284,31 @@ export async function fetchBillingCostCenterScope(): Promise<BillingCostCenterSc
   )
   const data = await response.json()
   return (data.message as BillingCostCenterScope) || { restricted: false }
+}
+
+export interface LetterHeadHtml {
+  content?: string
+  footer?: string
+}
+
+export async function fetchCostCenterLetterHead(
+  costCenter?: string,
+  opts?: { patient?: string; referenceType?: string; referenceName?: string },
+): Promise<LetterHeadHtml> {
+  const params = new URLSearchParams()
+  if (costCenter) params.append('cost_center', costCenter)
+  if (opts?.patient) params.append('patient', opts.patient)
+  if (opts?.referenceType) params.append('reference_type', opts.referenceType)
+  if (opts?.referenceName) params.append('reference_name', opts.referenceName)
+  const response = await fetch(
+    `/api/method/healthcare.api.common.get_cost_center_letter_head?${params.toString()}`,
+    { credentials: 'include', headers: { Accept: 'application/json' } },
+  )
+  const data = await response.json()
+  if (data?.exc) {
+    throw new Error(typeof data.message === 'string' ? data.message : 'Failed to load letter head')
+  }
+  return (data.message as LetterHeadHtml) || { content: '', footer: '' }
 }
 
 export async function fetchPatientBillingCostCenterBreakdown(

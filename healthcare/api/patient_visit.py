@@ -390,7 +390,7 @@ def get_patient_visits_full(search=None, patient=None, practitioner=None, from_d
 		],
 		limit=limit,
 		start=offset,
-		order_by="creation desc",
+		order_by="encounter_date desc, encounter_time desc, creation desc",
 	)
 
 	enrich_patient_visit_practitioner_names(visits)

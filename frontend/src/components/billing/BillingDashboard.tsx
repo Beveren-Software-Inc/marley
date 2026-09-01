@@ -1,5 +1,5 @@
 // components/billing/BillingDashboard.tsx
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 
 import { ServiceOrderServiceCell } from './ServiceOrderServiceCell'
 import { 
@@ -17,6 +17,7 @@ import {
   fetchPaymentEntries,
   fetchPaymentSummary,
   fetchDailyCollectionSummary,
+  fetchCostCenterLetterHead,
   getInvoicesByReference,
   getInvoiceDetails,
   type ServiceOrder,
@@ -26,6 +27,7 @@ import {
   type InpatientBalance,
   type OutpatientBalance,
   type PatientBillingCcRow,
+  type PatientBillingCcCareTotals,
   type PatientCrossBranchPaidRow,
   type PaymentEntryRow,
   type PaymentSummary,
@@ -75,12 +77,71 @@ import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
 import { useAuth } from '../../providers/AuthProvider'
 import { canReconcileInvoiceAdvances } from '../../config/permissions'
 import { DateFilterInput } from '../ui/DateFilterInput'
+import {
+  BILLING_PRINT_LETTERHEAD_STYLES,
+  buildBillingPrintLetterhead,
+  letterHeadBlocks,
+} from '../../utils/billingPrintLetterhead'
 
 type DashboardView = 'overview' | 'orders' | 'invoices' | 'inpatient' | 'outpatient' | 'iop' | 'dv' | 'unpaid' | 'paid' | 'payments'
 
 function normalizePatientId(value?: string | null): string | undefined {
   const trimmed = value?.trim()
   return trimmed || undefined
+}
+
+type CcBreakdownDisplayRow = PatientBillingCcRow & {
+  row_key: string
+  branch_label: string
+  care_type?: 'IP' | 'OP'
+}
+
+function sideHasCharges(side?: PatientBillingCcCareTotals): boolean {
+  if (!side) return false
+  return (
+    Number(side.sales_orders) > 0 ||
+    Number(side.invoices) > 0 ||
+    Number(side.outstanding) > 0 ||
+    Number(side.orders_amount) > 0
+  )
+}
+
+/** One row per branch, or duplicate rows as "Branch IP" / "Branch OP" when unscoped. */
+function expandCcBreakdownForDisplay(
+  rows: PatientBillingCcRow[],
+  splitOpIp: boolean,
+): CcBreakdownDisplayRow[] {
+  if (!splitOpIp) {
+    return rows.map((row) => ({
+      ...row,
+      row_key: row.cost_center || '__none__',
+      branch_label: row.cost_center_name,
+    }))
+  }
+
+  const expanded: CcBreakdownDisplayRow[] = []
+  for (const row of rows) {
+    const sides: Array<{ key: 'op' | 'ip'; label: string }> = [
+      { key: 'ip', label: 'IP' },
+      { key: 'op', label: 'OP' },
+    ]
+    for (const { key, label } of sides) {
+      const side = row[key]
+      if (!sideHasCharges(side)) continue
+      expanded.push({
+        ...row,
+        row_key: `${row.cost_center || '__none__'}|${key}`,
+        branch_label: row.cost_center_name,
+        care_type: label as 'IP' | 'OP',
+        sales_orders: side!.sales_orders,
+        orders_amount: side!.orders_amount,
+        invoices: side!.invoices,
+        invoices_grand_total: side!.invoices_grand_total,
+        outstanding: side!.outstanding,
+      })
+    }
+  }
+  return expanded
 }
 
 // Navigation Button Component
@@ -138,7 +199,7 @@ interface BillingDashboardProps {
 }
 
 export const BillingDashboard = ({ patient, admission, visit }: BillingDashboardProps) => {
-  const { mode, activeAdmission, activeVisit, costCenterCareScope } = useCareContext()
+  const { mode, activeAdmission, activeVisit, costCenterCareScope, userCostCenter } = useCareContext()
   const shiftContext = useReceptionistShift()
   const { user } = useAuth()
   const formatCurrency = useFormatMoney()
@@ -227,6 +288,16 @@ export const BillingDashboard = ({ patient, admission, visit }: BillingDashboard
     : undefined
   const effectiveReferenceType = scopedReferenceType
   const effectiveReferenceName = scopedReferenceName
+
+  const showOpIpBranchSplit = !scopedReferenceName
+  const ccBreakdownDisplay = useMemo(
+    () => expandCcBreakdownForDisplay(ccBreakdown, showOpIpBranchSplit),
+    [ccBreakdown, showOpIpBranchSplit],
+  )
+  const showCcBreakdown =
+    !!(effectivePatient || effectiveReferenceName) &&
+    billingCcRestricted === false &&
+    ccBreakdownDisplay.length > 0
 
   // Save view to localStorage
   const handleViewChange = (view: DashboardView) => {
@@ -1073,12 +1144,118 @@ const handleMakePayment = async (
     URL.revokeObjectURL(url)
   }
 
-  const printPayments = () => {
+  const printPayments = async () => {
     const win = window.open('', '_blank', 'width=1200,height=800')
-    if (!win) return
-    const rows = payments.map((p) => `<tr><td>${p.name}</td><td>${p.posting_date || ''}</td><td>${p.mode_of_payment || ''}</td><td>${formatCurrency(p.paid_amount || 0)}</td><td>${p.party_name || ''}</td><td>${p.cashier_name || p.cashier || ''}</td><td>${p.invoice_name || ''}</td></tr>`).join('')
-    win.document.write(`<html><head><title>Payment Listing</title></head><body><h3>Payment Listing</h3><table border="1" cellspacing="0" cellpadding="6"><thead><tr><th>Payment Entry</th><th>Date</th><th>Mode</th><th>Amount</th><th>Party</th><th>Receptionist</th><th>Invoice</th></tr></thead><tbody>${rows}</tbody></table></body></html>`)
+    if (!win) {
+      toast.error('Pop-up blocked — allow pop-ups to print PDF')
+      return
+    }
+    try {
+      const letterHead = await fetchCostCenterLetterHead(userCostCenter || undefined, {
+        patient: effectivePatient,
+        referenceType: scopedReferenceType,
+        referenceName: scopedReferenceName,
+      })
+      const { footer } = letterHeadBlocks(letterHead)
+      const metaParts: string[] = []
+      if (fromDate || toDate) metaParts.push(`From ${fromDate || '…'} to ${toDate || '…'}`)
+      if (paymentModeFilter) metaParts.push(`Mode: ${paymentModeFilter}`)
+      if (cashierFilter) {
+        const cashierLabel = cashiers.find((c) => c.name === cashierFilter)?.label || cashierFilter
+        metaParts.push(`Receptionist: ${cashierLabel}`)
+      }
+      if (effectivePatient) metaParts.push(`Patient: ${effectivePatient}`)
+      if (effectiveReferenceName) metaParts.push(`${effectiveReferenceType}: ${effectiveReferenceName}`)
+      const meta = metaParts.join(' · ') || 'All payments'
+      const rows = payments
+        .map(
+          (p) =>
+            `<tr>
+              <td>${p.name}</td>
+              <td>${p.posting_date || ''}</td>
+              <td>${p.mode_of_payment || ''}</td>
+              <td class="num">${formatCurrency(p.paid_amount || 0)}</td>
+              <td>${p.party_name || ''}</td>
+              <td>${p.cashier_name || p.cashier || ''}</td>
+              <td>${p.invoice_name || ''}</td>
+            </tr>`,
+        )
+        .join('')
+      win.document.write(`<!DOCTYPE html><html><head><title>Payment Collection</title>
+        <style>${BILLING_PRINT_LETTERHEAD_STYLES}</style></head><body>
+        ${buildBillingPrintLetterhead('Payment Collection', meta, letterHead)}
+        <table class="data">
+          <thead><tr>
+            <th>Payment Entry</th>
+            <th>Date</th>
+            <th>Mode</th>
+            <th class="num">Amount</th>
+            <th>Party</th>
+            <th>Receptionist</th>
+            <th>Invoice</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+        ${footer}
+        </body></html>`)
+      win.document.close()
+      win.focus()
+      win.print()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to print payments')
+    }
+  }
+
+  const printChargesByBranch = () => {
+    const win = window.open('', '_blank', 'width=1200,height=800')
+    if (!win) {
+      toast.error('Pop-up blocked — allow pop-ups to print PDF')
+      return
+    }
+    const subtitleParts: string[] = []
+    if (effectivePatient) subtitleParts.push(`Patient: ${effectivePatient}`)
+    if (effectiveReferenceName) subtitleParts.push(`${effectiveReferenceType}: ${effectiveReferenceName}`)
+    const subtitle = subtitleParts.join(' · ')
+    const rows = ccBreakdownDisplay
+      .map((row) => {
+        const branchCell = row.care_type
+          ? `${row.branch_label} <span style="color:#9333ea;font-weight:600">(${row.care_type})</span>`
+          : row.branch_label
+        return `<tr>
+          <td>${branchCell}</td>
+          <td class="num">${row.sales_orders}</td>
+          <td class="num">${formatCurrency(row.orders_amount)}</td>
+          <td class="num">${row.invoices}</td>
+          <td class="num">${formatCurrency(row.invoices_grand_total)}</td>
+          <td class="num">${formatCurrency(row.outstanding)}</td>
+        </tr>`
+      })
+      .join('')
+    win.document.write(`<!DOCTYPE html><html><head><title>Charges by Branch</title>
+      <style>
+        body { font-family: system-ui, sans-serif; padding: 24px; color: #0f172a; }
+        h3 { margin: 0 0 4px; font-size: 18px; }
+        .sub { color: #64748b; font-size: 12px; margin: 0 0 16px; }
+        table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        th, td { border: 1px solid #cbd5e1; padding: 8px; }
+        th { background: #f8fafc; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #475569; }
+        td.num, th.num { text-align: right; }
+      </style></head><body>
+      <h3>Charges by Branch</h3>
+      ${subtitle ? `<p class="sub">${subtitle}</p>` : ''}
+      <table>
+        <thead><tr>
+          <th>Branch</th>
+          <th class="num">Service orders</th>
+          <th class="num">Orders amount</th>
+          <th class="num">Invoices</th>
+          <th class="num">Invoiced total</th>
+          <th class="num">Outstanding</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table></body></html>`)
     win.document.close()
+    win.focus()
     win.print()
   }
 
@@ -1865,11 +2042,6 @@ const handleMakePayment = async (
   }
 
   // Overview Dashboard
-  const showCcBreakdown =
-    !!(effectivePatient || effectiveReferenceName) &&
-    billingCcRestricted === false &&
-    ccBreakdown.length > 0
-
   return (
     <div className="space-y-6">
       <NavigationRow />
@@ -1893,11 +2065,24 @@ const handleMakePayment = async (
       {showCcBreakdown && (
         <div className="space-y-3">
           <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-200">
-              <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}. Shown when your account is not restricted to a single branch.
-              </p>
+            <div className="px-5 py-4 border-b border-slate-200 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h3 className="font-semibold text-slate-800">Charges by Branch</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  For the selected patient{effectiveReferenceName ? ` · ${effectiveReferenceType}: ${effectiveReferenceName}` : ''}.
+                  {showOpIpBranchSplit
+                    ? ' Separate row per branch for OP and IP when no visit or admission is selected in the navbar.'
+                    : ' Shown when your account is not restricted to a single branch.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={printChargesByBranch}
+                className="inline-flex shrink-0 items-center gap-1 rounded border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+              >
+                <Printer className="w-3 h-3" />
+                PDF
+              </button>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
@@ -1912,9 +2097,14 @@ const handleMakePayment = async (
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {ccBreakdown.map((row) => (
-                    <tr key={row.cost_center || '__none__'} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 text-slate-800 font-medium">{row.cost_center_name}</td>
+                  {ccBreakdownDisplay.map((row) => (
+                    <tr key={row.row_key} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 text-slate-800 font-medium">
+                        {row.branch_label}
+                        {row.care_type ? (
+                          <span className="ml-1 font-semibold text-purple-600">({row.care_type})</span>
+                        ) : null}
+                      </td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.sales_orders}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{formatCurrency(row.orders_amount)}</td>
                       <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{row.invoices}</td>

@@ -545,6 +545,57 @@ SOA_IP_CATEGORY_ORDER = (
 	"Other Services",
 )
 
+SOA_CLOSE_OBSERVATION_SERVICE_CODE = "Close Observation"
+
+
+def _soa_normalized_label(value):
+	return re.sub(r"\s+", " ", (value or "").strip()).casefold()
+
+
+def _soa_close_observation_item_codes():
+	"""Item codes that bill as Close Observation (Observation Level new item / legacy codes)."""
+	cached = getattr(frappe.local, "_soa_close_obs_item_codes", None)
+	if cached is not None:
+		return cached
+	codes: set[str] = set()
+	if frappe.db.exists("DocType", "Observation Level"):
+		for row in frappe.get_all(
+			"Observation Level",
+			fields=["item", "item_code", "new_item", "new_item_name", "observation_level"],
+			limit_page_length=0,
+		):
+			labels = (
+				row.get("new_item_name"),
+				row.get("observation_level"),
+			)
+			if not any(_soa_normalized_label(label) == "close observation" for label in labels if label):
+				continue
+			for key in (row.get("item"), row.get("item_code"), row.get("new_item")):
+				code = (key or "").strip()
+				if code:
+					codes.add(code)
+	frappe.local._soa_close_obs_item_codes = codes
+	return codes
+
+
+def _soa_is_close_observation(code=None, name=None):
+	"""True when a billed line is Close Observation (name or mapped Observation Level item)."""
+	code = (code or "").strip()
+	if code and code in _soa_close_observation_item_codes():
+		return True
+	labels: list[str] = []
+	for val in (name,):
+		if val:
+			labels.append(str(val))
+	if code:
+		item_name = frappe.db.get_value("Item", code, "item_name")
+		if item_name:
+			labels.append(item_name)
+		mapped = _soa_observation_display_map().get(code)
+		if mapped:
+			labels.append(mapped[1])
+	return any(_soa_normalized_label(label) == "close observation" for label in labels)
+
 
 def _soa_room_item_codes():
 	codes = getattr(frappe.local, "_soa_room_item_codes", None)
@@ -814,11 +865,16 @@ def _soa_line_from_item(
 		category = "Medicines" if is_ip else _soa_display_category(group, code=code, name=name)
 	else:
 		code, name = _soa_apply_observation_display(code, name)
+		is_close_obs = _soa_is_close_observation(orig_code, name or orig_name)
+		if is_close_obs:
+			code = SOA_CLOSE_OBSERVATION_SERVICE_CODE
+			if _soa_normalized_label(name) != "close observation":
+				name = SOA_CLOSE_OBSERVATION_SERVICE_CODE
 		if is_ip:
 			category = _soa_ip_display_category(
 				orig_group, code=orig_code, name=orig_name or name, base_reference=base_reference
 			)
-			if category == "Services":
+			if category == "Services" and not is_close_obs:
 				tpl = _soa_template_info_by_item().get((orig_code or "").strip())
 				if tpl and tpl.get("service_name"):
 					name = tpl.service_name
