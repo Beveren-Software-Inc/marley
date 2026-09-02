@@ -14,6 +14,7 @@ import {
 } from '../../services/reportRequests'
 import { viewPatientDocument } from '../ui/PatientDocumentAttachmentPreview'
 import { DashboardCard } from '../ui/DashboardCard'
+import { TruncatedName } from '../ui/dashboardCardListing'
 import { CreateReportRequestModal } from './CreateReportRequestModal'
 
 const statusColor: Record<string, string> = {
@@ -150,31 +151,41 @@ export function ReportRequestList({
                   <td className="px-2 py-2 text-xs text-slate-700 whitespace-nowrap">
                     {row.request_date ? new Date(row.request_date).toLocaleDateString('en-GB') : '—'}
                   </td>
-                  <td className="px-2 py-2 text-xs">
-                    <button
-                      type="button"
-                      className="truncate font-medium text-primary hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        if (row.patient) onPatientClick?.(row.patient)
-                      }}
-                    >
-                      {row.patient_name || row.patient}
-                    </button>
-                    <p className="truncate text-[10px] text-slate-400">
-                      {row.file_no || row.id_number || ''}
-                    </p>
+                  <td
+                    className={`px-2 py-2 text-xs ${compact ? 'overflow-hidden' : 'max-w-[9.5rem]'}`}
+                    onClick={(e) => {
+                      if (!row.patient) return
+                      e.stopPropagation()
+                      onPatientClick?.(row.patient)
+                    }}
+                  >
+                    <TruncatedName
+                      fill={compact}
+                      value={row.patient_name || row.patient}
+                      className={row.patient ? 'font-medium text-primary hover:underline cursor-pointer' : 'font-medium'}
+                    />
+                    {(row.file_no || row.id_number) && (
+                      <TruncatedName
+                        fill={compact}
+                        value={row.file_no || row.id_number}
+                        className="text-[10px] text-slate-400"
+                      />
+                    )}
                   </td>
-                  <td className="px-2 py-2 text-xs text-slate-700">
-                    <p className="truncate">{row.requester_name || row.requester}</p>
-                    <p className="truncate text-[10px] text-slate-400">{row.requester_role}</p>
+                  <td className={`px-2 py-2 text-xs text-slate-700 ${compact ? 'overflow-hidden' : 'max-w-[9.5rem]'}`}>
+                    <TruncatedName fill={compact} value={row.requester_name || row.requester} />
+                    {row.requester_role ? (
+                      <TruncatedName fill={compact} value={row.requester_role} className="text-[10px] text-slate-400" />
+                    ) : null}
                   </td>
                   <td className="px-2 py-2 text-xs">
                     <span className={row.urgency === 'Urgent' ? 'font-semibold text-amber-700' : 'text-slate-600'}>
                       {row.urgency}
                     </span>
                   </td>
-                  <td className="px-2 py-2 text-xs text-slate-700 truncate">{row.recipient}</td>
+                  <td className={`px-2 py-2 text-xs text-slate-700 ${compact ? 'overflow-hidden' : 'max-w-[9.5rem]'}`}>
+                    <TruncatedName fill={compact} value={row.recipient} />
+                  </td>
                   <td className="px-2 py-2">
                     <StatusPill compact={compact} status={row.status} color={statusColor[row.status] || 'default'} />
                   </td>

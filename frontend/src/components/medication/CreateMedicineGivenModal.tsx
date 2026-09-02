@@ -6,6 +6,7 @@ import {
 import type { Prescription, MedicationOrderEntry } from '../../services/prescriptions'
 import { fetchPrescriptions, fetchMedicationOrders, fetchPrescriptionByInpatientOrEncounter } from '../../services/prescriptions'
 import { prescriptionAllowsMedicineGiving } from '../../utils/prescriptionSigning'
+import { isLongActingMedicationOrder } from '../../utils/prescriptionType'
 import { getPatientActiveAdmission, type InpatientRecord } from '../../services/inpatientRecords'
 import {
   createMedicineGiven,
@@ -79,6 +80,7 @@ function medicineGiveBlockedReason(
   if (status === 'On Hold') return 'On Hold (cannot give)'
   if (status === 'Discontinued') return 'Discontinued (cannot give)'
   if (order.stopped || String(order.reason_stopped || '').trim()) return 'Stopped (cannot give)'
+  if (isLongActingMedicationOrder(order)) return 'Long acting medicine (use Long Acting listing)'
   const end = isoDateKey(order.end_date) || isoDateKey(parentEndDate)
   const given = isoDateKey(givenDate)
   if (end && given && given > end) return `Ended ${formatDate(end)} (cannot give)`

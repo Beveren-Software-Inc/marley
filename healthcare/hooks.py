@@ -131,7 +131,8 @@ fixtures = [
                    "Item-custom_maximum_dosage_details",
                    "Item-custom_maximum_dosage",
                    
-                   "Cost Center-custom_is_hospital"
+                   "Cost Center-custom_is_hospital",
+                   "Cost Center-custom_stamp"
 
                 ),
             ]

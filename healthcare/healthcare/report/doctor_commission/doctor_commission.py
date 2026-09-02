@@ -340,50 +340,33 @@ def get_grouped_data(filters, group_by):
 
 
 def get_service_items(filters):
-	conditions = [
-		"so.docstatus = 1",
-		"IFNULL(so.custom_base_reference, '') != ''",
-		"IFNULL(so.custom_base_reference_name, '') != ''",
-	]
-	values = {}
-
-	if filters.get("from_date"):
-		conditions.append("so.transaction_date >= %(from_date)s")
-		values["from_date"] = getdate(filters.from_date)
-	if filters.get("to_date"):
-		conditions.append("so.transaction_date <= %(to_date)s")
-		values["to_date"] = getdate(filters.to_date)
-	if filters.get("company"):
-		conditions.append("so.company = %(company)s")
-		values["company"] = filters.company
-	if filters.get("cost_center"):
-		conditions.append("so.cost_center = %(cost_center)s")
-		values["cost_center"] = filters.cost_center
-	if filters.get("item_code"):
-		conditions.append("soi.item_code = %(item_code)s")
-		values["item_code"] = filters.item_code
-
-	return frappe.db.sql(
-		f"""
-		SELECT
-			so.transaction_date,
-			so.patient,
-			so.custom_patient_name,
-			so.custom_base_reference,
-			so.custom_base_reference_name,
-			soi.item_code,
-			soi.item_name,
-			soi.qty,
-			soi.amount
-		FROM `tabSales Order` so
-		INNER JOIN `tabSales Order Item` soi
-			ON soi.parent = so.name AND soi.parenttype = 'Sales Order'
-		WHERE {" AND ".join(conditions)}
-		ORDER BY so.transaction_date DESC, so.name DESC, soi.idx ASC
-		""",
-		values,
-		as_dict=True,
+	from healthcare.api.doctor_commission import (
+		fetch_commissionable_sales_order_items,
+		filter_commission_sources_for_settings,
+		get_doctor_commission_generation_settings,
+		get_enabled_commission_sources,
 	)
+
+	gen_settings = get_doctor_commission_generation_settings()
+	sources = filter_commission_sources_for_settings(
+		get_enabled_commission_sources(),
+		op_only=gen_settings["op_only"],
+	)
+	source_doctypes = [s.source_doctype for s in sources] if sources else []
+
+	rows = fetch_commissionable_sales_order_items(
+		from_date=filters.get("from_date"),
+		to_date=filters.get("to_date"),
+		company=filters.get("company"),
+		cost_center=filters.get("cost_center"),
+		source_doctypes=source_doctypes,
+		op_only=gen_settings["op_only"],
+		paid_only=gen_settings["paid_only"],
+	)
+	if filters.get("item_code"):
+		item_code = filters["item_code"]
+		rows = [r for r in rows if r.item_code == item_code]
+	return rows
 
 
 def resolve_practitioners(rows):

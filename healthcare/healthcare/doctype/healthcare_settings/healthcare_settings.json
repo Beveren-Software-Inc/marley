@@ -138,6 +138,7 @@
   "print_settings_section",
   "ui_print_formats",
   "default_letter_head",
+  "hospital_stamp",
   "section_break_mmer",
   "send_whatsap_notification_on_lab_test_creation",
   "section_break_pfnl",
@@ -153,6 +154,8 @@
   "apply_age_based_dose_limits",
   "send_missing_lab_request_reminder",
   "whatsapp_appointment_reminder_template",
+  "calculate_doctors_commission_from_op_only",
+  "calculate_doctors_comission_on_paid_service_only",
   "cb_serene_automations",
   "remind_upcoming_nurse_tasks",
   "nurse_task_reminder_lead_minutes",
@@ -1112,11 +1115,28 @@
    "fieldname": "automatically_create_lab_test_for_ip",
    "fieldtype": "Check",
    "label": "Automatically Create Lab Test for IP"
+  },
+  {
+   "fieldname": "hospital_stamp",
+   "fieldtype": "Attach",
+   "label": "Hospital Stamp"
+  },
+  {
+   "default": "0",
+   "fieldname": "calculate_doctors_commission_from_op_only",
+   "fieldtype": "Check",
+   "label": "Calculate Doctors Commission from OP Only"
+  },
+  {
+   "default": "0",
+   "fieldname": "calculate_doctors_comission_on_paid_service_only",
+   "fieldtype": "Check",
+   "label": "Calculate Doctors Comission on Paid Service Only"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-02 13:18:30.738376",
+ "modified": "2026-09-03 01:10:56.123633",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",
