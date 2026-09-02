@@ -149,6 +149,13 @@ def _date_in_range(target_date, start_date=None, end_date=None) -> bool:
 	return True
 
 
+def _entry_is_long_acting_medicine(entry) -> bool:
+	"""Long-acting lines are given via Long Acting Medicine listing, not Record Given Medicine."""
+	if cint(entry.get("is_long_acting_medicine")):
+		return True
+	return cstr(entry.get("medication_type") or "").strip() == "Long Acting Medicine"
+
+
 def _medicine_cannot_be_given_reason(entry, given_date=None, parent_end_date=None):
 	"""Why this prescription line cannot be recorded as given, or None if allowed."""
 	if entry is None:
@@ -160,6 +167,8 @@ def _medicine_cannot_be_given_reason(entry, given_date=None, parent_end_date=Non
 		return _("This medicine has been discontinued by the doctor and cannot be given.")
 	if cint(entry.get("stopped")) or cstr(entry.get("reason_stopped") or "").strip():
 		return _("This medicine has been stopped and cannot be given.")
+	if _entry_is_long_acting_medicine(entry):
+		return _("Long acting medicines must be recorded from the Long Acting Medicine listing.")
 	end = entry.get("end_date") or parent_end_date
 	when = given_date or nowdate()
 	if end and getdate(when) > getdate(end):

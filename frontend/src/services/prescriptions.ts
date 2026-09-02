@@ -412,6 +412,9 @@ export interface MedicationOrderEntry {
   instructions?: string
   /** 1 if this is a PRN (as-needed) medication */
   is_prn?: 0 | 1
+  /** 1 if this is long-acting — given via Long Acting Medicine listing only */
+  is_long_acting_medicine?: 0 | 1 | boolean
+  long_acting_frequency?: string
   is_pink?: 0 | 1 | boolean
   /** Required when is_pink is set (outpatient only; optional for inpatient) */
   reference_no?: string

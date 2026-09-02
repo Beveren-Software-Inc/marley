@@ -50,6 +50,24 @@ export function isLongActingPrescriptionType(medicationType?: string | null): bo
   return normalizePrescriptionType(medicationType) === 'Long Acting Medicine'
 }
 
+/** True when a prescription line is long-acting (not given via Record Given Medicine). */
+export function isLongActingMedicationOrder(
+  order:
+    | {
+        is_long_acting_medicine?: boolean | 0 | 1 | null
+        is_long_acting?: boolean | null
+        medication_type?: string | null
+      }
+    | null
+    | undefined,
+): boolean {
+  if (!order) return false
+  if (order.is_long_acting_medicine === 1 || order.is_long_acting_medicine === true || order.is_long_acting) {
+    return true
+  }
+  return isLongActingPrescriptionType(order.medication_type)
+}
+
 export function isPrnPrescriptionType(medicationType?: string | null): boolean {
   return normalizePrescriptionType(medicationType) === 'PRN'
 }
