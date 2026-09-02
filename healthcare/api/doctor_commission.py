@@ -43,6 +43,37 @@ DOCTYPE_PRACTITIONER_FIELDS = {
 	"IP Service": ["practioner"],
 }
 
+OP_COMMISSION_SOURCE_DOCTYPE = "Patient Visit"
+
+
+def get_doctor_commission_generation_settings() -> dict[str, int]:
+	"""Healthcare Settings that scope commission payroll generation."""
+	return {
+		"op_only": cint(
+			frappe.db.get_single_value(
+				"Healthcare Settings", "calculate_doctors_commission_from_op_only"
+			)
+		),
+		"paid_only": cint(
+			frappe.db.get_single_value(
+				"Healthcare Settings", "calculate_doctors_comission_on_paid_service_only"
+			)
+		),
+	}
+
+
+def filter_commission_sources_for_settings(sources, *, op_only: bool = False):
+	"""When OP-only is enabled, keep only Patient Visit commission sources."""
+	if not op_only:
+		return list(sources or [])
+	filtered = [
+		s
+		for s in (sources or [])
+		if (getattr(s, "source_doctype", None) or s.get("source_doctype") or "").strip()
+		== OP_COMMISSION_SOURCE_DOCTYPE
+	]
+	return filtered
+
 
 def generate_doctor_commission_period(period_doc):
 	"""Fill Doctor Commission Payroll child tables from Sales Order service lines."""
@@ -51,7 +82,16 @@ def generate_doctor_commission_period(period_doc):
 	)
 
 	sources = get_enabled_commission_sources()
+	gen_settings = get_doctor_commission_generation_settings()
+	sources = filter_commission_sources_for_settings(sources, op_only=gen_settings["op_only"])
 	if not sources:
+		if gen_settings["op_only"]:
+			frappe.throw(
+				_(
+					"Calculate Doctors Commission from OP Only is enabled in Healthcare Settings, "
+					"but Patient Visit is not enabled as a Doctor Commission Source."
+				)
+			)
 		frappe.throw(
 			_(
 				"No enabled Doctor Commission Source records found. "
@@ -66,6 +106,8 @@ def generate_doctor_commission_period(period_doc):
 		company=period_doc.company,
 		cost_center=period_doc.cost_center,
 		source_doctypes=source_doctypes,
+		op_only=gen_settings["op_only"],
+		paid_only=gen_settings["paid_only"],
 	)
 	if not service_rows:
 		period_doc.set("doctors", [])
@@ -237,9 +279,22 @@ def get_enabled_commission_sources():
 
 
 def fetch_commissionable_sales_order_items(
-	from_date, to_date, company=None, cost_center=None, source_doctypes=None
+	from_date,
+	to_date,
+	company=None,
+	cost_center=None,
+	source_doctypes=None,
+	op_only: bool = False,
+	paid_only: bool = False,
 ):
 	"""Sales Order item lines billed against configured commission source DocTypes."""
+	if not source_doctypes:
+		return []
+
+	if op_only:
+		source_doctypes = [OP_COMMISSION_SOURCE_DOCTYPE]
+
+	source_doctypes = [dt for dt in (source_doctypes or []) if dt]
 	if not source_doctypes:
 		return []
 
@@ -256,6 +311,12 @@ def fetch_commissionable_sales_order_items(
 		"to_date": getdate(to_date),
 		"source_doctypes": tuple(source_doctypes),
 	}
+
+	if paid_only:
+		# Match Patient Visit billing: commission only when the Sales Order is fully paid.
+		conditions.append(
+			"(COALESCE(so.grand_total, 0) <= 0 OR COALESCE(so.advance_paid, 0) >= COALESCE(so.grand_total, 0))"
+		)
 
 	# cost_center may be on SO header and/or item; prefer header then item
 	has_so_cc = frappe.get_meta("Sales Order").has_field("cost_center")
