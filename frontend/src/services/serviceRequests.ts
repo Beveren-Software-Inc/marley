@@ -37,6 +37,12 @@ export interface ServiceRequest {
     label: string
     children: Array<{ template: string; label: string }>
   }>
+  /** Set when IP auto-book ran on create (Healthcare Settings). */
+  auto_booked?: boolean
+  auto_book_error?: string
+  lab_tests_count?: number
+  lab_tests?: string[]
+  sales_order?: string
 }
 
 const GROUP_FINISHED_SR_STATUS = 'completed-Request Status'
@@ -166,6 +172,8 @@ export interface LabRequestReviewTest {
   lab_test_docstatus?: number | null
   sample_collection?: string | null
   custom_result?: string | null
+  /** High/Low/Normal or Use Status marks (Deficiency, Toxicity, …). */
+  result_flag?: string | null
 }
 
 export interface LabRequestReviewGroup {

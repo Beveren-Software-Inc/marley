@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { FileDown, FileText, MoreHorizontal, Pencil } from 'lucide-react'
-import { fetchVitalSigns, type VitalSign } from '../../services/vitalSigns'
+import { fetchVitalSigns, fetchVitalSignsHtml, type VitalSign } from '../../services/vitalSigns'
 import { fetchHealthcarePractitioners, type LinkFieldOption } from '../../services/common'
 import { useCardFilters, useCardHeaderSlot, usePreferCardLoadMore } from '../../contexts/CardFilterContext'
 import { PrintFormatDropdown } from '../ui/PrintFormatDropdown'
@@ -78,7 +78,7 @@ export const VitalSignsList = ({
   addButtonTitle = 'Add Vital Signs',
   allowEditWithin24h = false,
 }: VitalSignsListProps) => {
-  const { guardClinicalEdit, vitalSignUneditableIn24Hour } = useCareContext()
+  const { guardClinicalEdit, vitalSignUneditableIn24Hour, mode, activeAdmission, activeVisit } = useCareContext()
   const cardFilters = useCardFilters()
   const preferLoadMore = usePreferCardLoadMore()
   const headerSlot = useCardHeaderSlot()
@@ -105,6 +105,7 @@ export const VitalSignsList = ({
   const [practitionerOptions, setPractitionerOptions] = useState<LinkFieldOption[]>([])
   const [practitionerOpen, setPractitionerOpen] = useState(false)
   const [practitionerQuery, setPractitionerQuery] = useState('')
+  const [exportingPdf, setExportingPdf] = useState(false)
   const practitionerFilterRef = useRef<HTMLDivElement>(null)
 
   const hasActiveFilters = Boolean(dateFrom || dateTo || practitionerFilter)
@@ -251,96 +252,48 @@ export const VitalSignsList = ({
     URL.revokeObjectURL(url)
   }
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!vitalSigns.length) {
       toast.info('No vital signs to print.')
       return
     }
-    const win = window.open('', '_blank', 'width=1200,height=800')
-    if (!win) {
-      toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
-      return
-    }
-    const includePatient = !patient
-    const titlePatient = patient
-      ? vitalSigns[0]?.patient_name || patient
-      : 'All patients'
-    const filterNote = [
-      dateFrom ? `From ${dateFrom}` : '',
-      dateTo ? `To ${dateTo}` : '',
-    ]
-      .filter(Boolean)
-      .join(' · ')
-    const rows = vitalSigns
-      .map((vs) => {
-        const patientTd = includePatient
-          ? `<td>${vs.patient_name || vs.patient || ''}</td>`
-          : ''
-        return `<tr>
-          <td>${formatVsDateTime(vs)}</td>
-          ${patientTd}
-          <td>${vs.temperature ?? ''}</td>
-          <td>${vs.pulse ?? ''}</td>
-          <td>${formatBp(vs)}</td>
-          <td>${vs.respiratory_rate ?? ''}</td>
-          <td>${vs.spo2 ?? ''}</td>
-          <td>${vs.weight ?? ''}</td>
-          <td>${vs.bmi ?? ''}</td>
-          <td>${vs.trans_no || vs.name}</td>
-        </tr>`
+    setExportingPdf(true)
+    try {
+      const html = await fetchVitalSignsHtml({
+        patient: patient || undefined,
+        admission: mode === 'IP' ? activeAdmission || undefined : undefined,
+        encounter: mode === 'OP' ? activeVisit || undefined : undefined,
+        dateFrom: dateFrom || undefined,
+        dateTo: dateTo || undefined,
+        practitioner: practitionerFilter || undefined,
       })
-      .join('')
-    const patientTh = includePatient ? '<th>Patient</th>' : ''
-    win.document.write(`<!DOCTYPE html>
-<html>
-<head>
-  <title>Vital Signs</title>
-  <style>
-    body { font-family: system-ui, sans-serif; padding: 24px; color: #0f172a; }
-    h2 { margin: 0 0 4px; font-size: 18px; }
-    .meta { color: #64748b; font-size: 12px; margin-bottom: 16px; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
-    th { background: #f8fafc; }
-  </style>
-</head>
-<body>
-  <h2>Vital Signs</h2>
-  <div class="meta">${titlePatient}${filterNote ? ` · ${filterNote}` : ''} · ${vitalSigns.length} record(s)</div>
-  <table>
-    <thead>
-      <tr>
-        <th>Date &amp; Time</th>
-        ${patientTh}
-        <th>Temp</th>
-        <th>Pulse</th>
-        <th>BP</th>
-        <th>RR</th>
-        <th>SPO2</th>
-        <th>Weight</th>
-        <th>BMI</th>
-        <th>Record</th>
-      </tr>
-    </thead>
-    <tbody>${rows}</tbody>
-  </table>
-  <script>window.onload = function () { window.print(); }<\/script>
-</body>
-</html>`)
-    win.document.close()
+      const win = window.open('', '_blank', 'width=1200,height=800')
+      if (!win) {
+        toast.error('Pop-up blocked. Allow pop-ups to download the PDF.')
+        return
+      }
+      win.document.open()
+      win.document.write(html)
+      win.document.close()
+      win.focus()
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to export PDF')
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const exportButtons = (
     <>
       <button
         type="button"
-        onClick={exportPdf}
-        disabled={loading || !vitalSigns.length}
+        onClick={() => void exportPdf()}
+        disabled={loading || exportingPdf || !vitalSigns.length}
         className="inline-flex items-center gap-1 px-2.5 py-1 text-xs border border-slate-300 rounded-md hover:bg-slate-50 bg-white text-slate-700 font-medium disabled:opacity-40 disabled:cursor-not-allowed"
         title="Download PDF"
       >
         <FileText className="w-3.5 h-3.5" />
-        PDF
+        {exportingPdf ? 'PDF…' : 'PDF'}
       </button>
       <button
         type="button"

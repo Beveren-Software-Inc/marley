@@ -4,11 +4,84 @@
 from __future__ import annotations
 
 import json
+import re
 from typing import Any
 
 import frappe
 from frappe import _
 from frappe.utils import cint, flt
+
+
+def lab_template_sort_key(name: str | None) -> tuple:
+	"""Natural sort for Lab Test Template ids (LAB-001, LAB-001-002, …)."""
+	text = (name or "").strip().upper()
+	if not text:
+		return ("",)
+	parts = re.split(r"(\d+)", text)
+	out: list = []
+	for part in parts:
+		if not part:
+			continue
+		if part.isdigit():
+			out.append(int(part))
+		else:
+			out.append(part)
+	return tuple(out)
+
+
+def sort_lab_template_codes(names: list | None) -> list[str]:
+	"""Unique template codes sorted by lab test id, not display name."""
+	unique: list[str] = []
+	seen: set[str] = set()
+	for raw in names or []:
+		code = (str(raw) if raw is not None else "").strip()
+		if not code or code in seen:
+			continue
+		seen.add(code)
+		unique.append(code)
+	return sorted(unique, key=lab_template_sort_key)
+
+
+def resolve_group_child_templates(
+	parent: str,
+	explicit_children: list | None = None,
+) -> list[str]:
+	"""Child template codes for a group, ordered by lab test id."""
+	children = sort_lab_template_codes([c for c in (explicit_children or []) if c])
+	if children:
+		return children
+	parent = (parent or "").strip()
+	if not parent:
+		return []
+	rows = frappe.get_all(
+		"Lab Test Template",
+		filters={"lab_group": parent, "disabled": 0},
+		pluck="name",
+		ignore_permissions=True,
+	)
+	return sort_lab_template_codes(rows)
+
+
+def sort_lab_request_display_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+	"""Order request lines and group children by lab test template id."""
+	rows: list[dict[str, Any]] = []
+	for item in items or []:
+		row = dict(item)
+		kind = (row.get("kind") or "").strip().lower()
+		if kind == "group":
+			parent = (row.get("parent") or "").strip()
+			row["children"] = resolve_group_child_templates(parent, row.get("children"))
+			rows.append(row)
+		elif kind == "single":
+			rows.append(row)
+
+	def _item_key(it: dict[str, Any]) -> tuple:
+		kind = (it.get("kind") or "").strip().lower()
+		if kind == "group":
+			return lab_template_sort_key((it.get("parent") or "").strip())
+		return lab_template_sort_key((it.get("template") or "").strip())
+
+	return sorted(rows, key=_item_key)
 
 
 def _get_patient_category_multiplier(patient: str) -> tuple[float, str | None]:
@@ -167,10 +240,7 @@ def expand_lab_test_specs(
 			parent = (item.get("parent") or "").strip()
 			if not parent:
 				continue
-			children = item.get("children") or []
-			if not isinstance(children, list):
-				children = []
-			children = [t for t in children if t]
+			children = resolve_group_child_templates(parent, item.get("children"))
 
 			filters: dict[str, Any] = {"lab_group": parent, "disabled": 0}
 			if children:
@@ -186,13 +256,16 @@ def expand_lab_test_specs(
 				"Lab Test Template",
 				filters=filters,
 				fields=child_fields,
-				order_by="lab_test_name asc",
 				ignore_permissions=True,
 			)
+			child_rows.sort(key=lambda row: lab_template_sort_key(row.get("name")))
 
 			group_specs: list[dict[str, Any]] = []
-			for child in child_rows:
-				tpl = child.name
+			child_by_name = {row.name: row for row in child_rows}
+			for tpl in children:
+				child = child_by_name.get(tpl)
+				if not child:
+					continue
 				if not tpl or tpl in seen_templates:
 					continue
 				seen_templates.add(tpl)

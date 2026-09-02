@@ -45,6 +45,7 @@
   "therapy_note_uneditable_in_24_hour",
   "vital_sign_uneditable_in_24_hour",
   "unedit_within_24hour",
+  "automatically_create_lab_test_for_ip",
   "column_break_tobn",
   "block_new_patient_visit_if_open_exist",
   "close_all_cost_before_patient_transfer",
@@ -1105,11 +1106,17 @@
    "fieldname": "hide_test_and_result_from_lab",
    "fieldtype": "Check",
    "label": "Hide Test and Result From Lab"
+  },
+  {
+   "default": "0",
+   "fieldname": "automatically_create_lab_test_for_ip",
+   "fieldtype": "Check",
+   "label": "Automatically Create Lab Test for IP"
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-09-01 00:42:28.917943",
+ "modified": "2026-09-02 13:18:30.738376",
  "modified_by": "Administrator",
  "module": "Healthcare",
  "name": "Healthcare Settings",

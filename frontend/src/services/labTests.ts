@@ -942,6 +942,41 @@ export async function fetchLabTestHistoryMatrix(params: {
   return (resData?.message || { columns: [], rows: [], patient: params.patient }) as LabHistoryMatrixResponse
 }
 
+export async function fetchLabTestSummaryHtml(opts: {
+  dateFrom?: string
+  dateTo?: string
+  costCenter?: string
+}): Promise<string> {
+  const params = new URLSearchParams()
+  if (opts.dateFrom) params.set('date_from', opts.dateFrom)
+  if (opts.dateTo) params.set('date_to', opts.dateTo)
+  if (opts.costCenter) params.set('cost_center', opts.costCenter)
+  const res = await fetch(
+    `/api/method/healthcare.api.lab_test_summary_print.get_lab_test_summary_html?${params}`,
+    { credentials: 'include' }
+  )
+  const data = await res.json()
+  if (data?.exception) {
+    let message = 'Failed to build lab test summary report'
+    try {
+      const raw = data._server_messages
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      const obj = typeof first === 'string' ? JSON.parse(first) : first
+      if (obj?.message) message = String(obj.message)
+    } catch {
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message
+    }
+    throw new Error(message)
+  }
+  const msg = data?.message
+  if (typeof msg === 'string' && msg.trim()) return msg
+  if (msg && typeof msg === 'object' && typeof (msg as { html?: string }).html === 'string') {
+    return (msg as { html: string }).html
+  }
+  throw new Error('Invalid lab test summary report response')
+}
+
 export async function fetchLabResultAssessmentHtml(opts: {
   dateFrom?: string
   dateTo?: string
@@ -975,5 +1010,32 @@ export async function fetchLabResultAssessmentHtml(opts: {
     return (msg as { html: string }).html
   }
   throw new Error('Invalid lab result report response')
+}
+
+export async function fetchLabMasterListHtml(opts?: { costCenter?: string }): Promise<string> {
+  const params = new URLSearchParams()
+  if (opts?.costCenter) params.set('cost_center', opts.costCenter)
+  const qs = params.toString()
+  const res = await fetch(
+    `/api/method/healthcare.api.lab_master_list_print.get_lab_master_list_html${qs ? `?${qs}` : ''}`,
+    { credentials: 'include' },
+  )
+  const data = await res.json()
+  if (data?.exception) {
+    let message = 'Failed to build lab master list'
+    try {
+      const raw = data._server_messages
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      const obj = typeof first === 'string' ? JSON.parse(first) : first
+      if (obj?.message) message = String(obj.message)
+    } catch {
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message
+    }
+    throw new Error(message)
+  }
+  const msg = data?.message
+  if (typeof msg === 'string' && msg.trim()) return msg
+  throw new Error('Invalid lab master list response')
 }
 

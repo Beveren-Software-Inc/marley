@@ -69,6 +69,7 @@ import { CreatePrescriptionModal } from '../components/prescriptions/CreatePresc
 import { PrescriptionList } from '../components/prescriptions/PrescriptionList'
 import { emptyLongActingMedicationRow } from '../services/prescriptions'
 import { RxPage } from '../components/prescriptions/SinglePrescription'
+import { IpMedicationPlanPrintButton } from '../components/prescriptions/IpMedicationPlanPrintButton'
 import { CreateServiceRequestModal } from '../components/serviceRequests/CreateServiceRequestModal'
 import { ServiceRequestList } from '../components/serviceRequests/ServiceRequestList'
 import { CreateSleepingPatternModal } from '../components/sleeping/CreateSleepingPatternModal'
@@ -1719,7 +1720,12 @@ export const DoctorPage = () => {
       <div className="flex flex-col">
         <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
         <div className="p-4">
-          <DashboardCard title="Current Prescription" filterable={false} noHeightLimit>
+          <DashboardCard
+            title="Current Prescription"
+            filterable={false}
+            noHeightLimit
+            headerExtra={<IpMedicationPlanPrintButton />}
+          >
             <RxPage />
           </DashboardCard>
         </div>
@@ -2515,10 +2521,11 @@ export const DoctorPage = () => {
 
       <DashboardCard
         fixedHeight
-        title="Prescription"
+        title="Current Prescription"
         onAdd={() => guardClinicalCreate(() => setShowPrescriptionModal(true))}
         addButtonTitle="Create Prescription"
-        listingScreen="rx"
+        listingScreen="single-prescription"
+        headerExtra={<IpMedicationPlanPrintButton />}
       >
         <PrescriptionList
           patient={selectedPatient || undefined}

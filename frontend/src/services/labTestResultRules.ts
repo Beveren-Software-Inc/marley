@@ -41,10 +41,13 @@ export interface ApplyLabTestResultRulesResult {
 }
 
 export async function fetchLabTestResultRules(
-  template: string
+  template: string,
+  serviceRequest?: string | null,
 ): Promise<LabTestResultRulesConfig | null> {
+  const params = new URLSearchParams({ template })
+  if (serviceRequest) params.set('service_request', serviceRequest)
   const res = await fetch(
-    `/api/method/healthcare.api.lab_test_result_rules.get_lab_test_result_rules?template=${encodeURIComponent(template)}`
+    `/api/method/healthcare.api.lab_test_result_rules.get_lab_test_result_rules?${params.toString()}`
   )
   const data = await res.json()
   const message = data?.message

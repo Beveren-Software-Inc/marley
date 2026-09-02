@@ -52,7 +52,7 @@
   },
   {
    "depends_on": "eval:doc.rule_type=='Formula'",
-   "description": "Use lab test event names as variables, e.g. (WBC * Neutrophils) / 100",
+   "description": "Use lab test event names as variables, e.g. (WBC * Neutrophils) / 100 or TOTAL PROTEIN - Albumin. Supports +, -, *, /, **, min(), max(), and patient tokens @Age (years), @Kappa and @Alpha (CKD-EPI sex constants). Example eGFR (CKD-EPI 2021): 142 * min(Scr/@Kappa, 1)**@Alpha * max(Scr/@Kappa, 1)**(-1.200) * (0.9938)**@Age — replace Scr with your creatinine test name.",
    "fieldname": "formula",
    "fieldtype": "Small Text",
    "label": "Formula",

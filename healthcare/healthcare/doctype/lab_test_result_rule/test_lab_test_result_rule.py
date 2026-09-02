@@ -1,22 +1,48 @@
 # Copyright (c) 2026, earthians Health Informatics Pvt. Ltd. and Contributors
 # See license.txt
 
-# import frappe
-from frappe.tests import IntegrationTestCase
+from frappe.tests import UnitTestCase
+
+from healthcare.healthcare.lab_test_result_rules import evaluate_formula
+
+EXTRA_TEST_RECORD_DEPENDENCIES = []
+IGNORE_TEST_RECORD_DEPENDENCIES = []
 
 
-# On IntegrationTestCase, the doctype test records and all
-# link-field test record dependencies are recursively loaded
-# Use these module variables to add/remove to/from that list
-EXTRA_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
-IGNORE_TEST_RECORD_DEPENDENCIES = []  # eg. ["User"]
+class TestLabTestResultRuleFormulas(UnitTestCase):
+	def test_simple_subtraction_formula(self):
+		values = {"TOTAL PROTEIN": 7.0, "Albumin": 4.0}
+		result = evaluate_formula("TOTAL PROTEIN - Albumin", values)
+		self.assertEqual(result, 3.0)
 
+	def test_ldl_style_formula(self):
+		values = {
+			"T.Cholesterol": 200.0,
+			"HDL-Cholesterol": 50.0,
+			"Triglycerides": 100.0,
+		}
+		result = evaluate_formula(
+			"T.Cholesterol - HDL-Cholesterol - (Triglycerides / 5)", values
+		)
+		self.assertEqual(result, 130.0)
 
+	def test_egfr_style_formula_with_slash_after_operand(self):
+		values = {"S.creatinine": 1.0}
+		patient_context = {"@Age": 40.0, "@Kappa": 0.9, "@Alpha": -0.302}
+		formula = (
+			"142 * min(S.creatinine/@Kappa, 1)**@Alpha * max(S.creatinine/@Kappa, 1)**(-1.200) * (0.9938)**@Age"
+		)
+		result = evaluate_formula(formula, values, patient_context=patient_context)
+		self.assertIsNotNone(result)
+		self.assertAlmostEqual(result, 97.6, delta=0.5)
 
-class IntegrationTestLabTestResultRule(IntegrationTestCase):
-	"""
-	Integration tests for LabTestResultRule.
-	Use this class for testing interactions between multiple components.
-	"""
-
-	pass
+	def test_egfr_female_example(self):
+		values = {"Scr": 1.2}
+		patient_context = {"@Age": 50.0, "@Kappa": 0.7, "@Alpha": -0.241}
+		formula = (
+			"142 * min(Scr/@Kappa, 1)**@Alpha * max(Scr/@Kappa, 1)**(-1.200) * (0.9938)**@Age"
+		)
+		result = evaluate_formula(formula, values, patient_context=patient_context)
+		self.assertIsNotNone(result)
+		self.assertGreater(result, 50)
+		self.assertLess(result, 120)

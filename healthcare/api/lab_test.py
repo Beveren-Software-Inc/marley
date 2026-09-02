@@ -2581,9 +2581,23 @@ def save_and_submit_lab_test(
     if is_multiple_template and doc.normal_test_items:
         status_options = _multiple_result_status_options()
         flags = []
+        template_mr_rows = list(template_doc.get("multiple_result_type") or []) if template_doc else []
+        use_status_only = [
+            r for r in template_mr_rows if cint(getattr(r, "use_status", 0))
+        ]
         for item in doc.normal_test_items:
             event_key = (getattr(item, "lab_test_event", None) or getattr(item, "lab_test_name", None) or "").strip()
             mr = multiple_rows_by_unit.get(event_key)
+            if not mr and event_key:
+                # Loose match: unit / uom case-insensitive
+                for key, row in multiple_rows_by_unit.items():
+                    if (key or "").strip().casefold() == event_key.casefold():
+                        mr = row
+                        break
+            if not mr and len(use_status_only) == 1:
+                mr = use_status_only[0]
+            if not mr and len(multiple_rows_by_unit) == 1:
+                mr = next(iter(multiple_rows_by_unit.values()))
             use_status = cint(getattr(mr, "use_status", 0)) if mr else 0
 
             if use_status and getattr(item, "result_value", None):
@@ -2637,6 +2651,46 @@ def save_and_submit_lab_test(
                     best_p = p
                     best = f
             doc.result_flag = best or ""
+
+        # Fallback: result only on custom_result (or unit key did not match any row)
+        if not (doc.result_flag or "").strip() and (custom_result or "").strip():
+            if use_status_only:
+                suggested = _suggest_multiple_result_status(custom_result, status_options)
+                if suggested:
+                    doc.result_flag = suggested
+            elif template_mr_rows:
+                mr0 = template_mr_rows[0]
+                doc.result_flag = _calculate_result_flag(
+                    custom_result,
+                    patient_gender,
+                    getattr(mr0, "female_min_range", None),
+                    getattr(mr0, "female_max_range", None),
+                    getattr(mr0, "male_min_range", None),
+                    getattr(mr0, "male_max_range", None),
+                    None,
+                    None,
+                ) or ""
+    elif is_multiple_template and (custom_result or "").strip():
+        # Multiple template with result on custom_result and no normal_test_items yet
+        status_options = _multiple_result_status_options()
+        template_mr_rows = list(template_doc.get("multiple_result_type") or []) if template_doc else []
+        use_status_only = [r for r in template_mr_rows if cint(getattr(r, "use_status", 0))]
+        if use_status_only:
+            doc.result_flag = _suggest_multiple_result_status(custom_result, status_options) or ""
+        elif template_mr_rows:
+            mr0 = template_mr_rows[0]
+            doc.result_flag = _calculate_result_flag(
+                custom_result,
+                patient_gender,
+                getattr(mr0, "female_min_range", None),
+                getattr(mr0, "female_max_range", None),
+                getattr(mr0, "male_min_range", None),
+                getattr(mr0, "male_max_range", None),
+                None,
+                None,
+            ) or ""
+        else:
+            doc.result_flag = ""
     else:
         # If no custom_result, try to get from normal_test_items
         if not result_to_evaluate and normal_test_items:

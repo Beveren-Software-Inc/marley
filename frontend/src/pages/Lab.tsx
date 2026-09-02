@@ -720,6 +720,7 @@ import { CreateLabTestSampleModal } from '../components/labTests/CreateLabTestSa
 import { CreateSampleTypeModal } from '../components/labTests/CreateSampleTypeModal'
 import { SampleCollectionList } from '../components/labTests/SampleCollectionList'
 import { LabTestHistory } from '../components/labTests/LabTestHistory' // ADD THIS IMPORT
+import { LabReportsView } from '../components/labTests/LabReportsView'
 import { NursingInventoryDashboard } from '../components/nursingInventory/NursingInventoryDashboard'
 import { fetchLabTestSamples, fetchSampleTypes, type LabTestSampleOption, type LinkFieldOption } from '../services/common'
 import { fetchHealthcarePortalSettings } from '../services/healthcareSettings'
@@ -1148,6 +1149,21 @@ export const LabPage = () => {
           <DashboardCard title="Inventory Dashboard" filterable={false} noHeightLimit>
             <NursingInventoryDashboard warehouseContext="laboratory" />
           </DashboardCard>
+        </div>
+      </div>
+    )
+  }
+
+  if (screen === 'l-reports') {
+    return (
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 overflow-y-auto">
+        <PatientCareHeader selectedPatient={selectedPatient || ''} onPatientSelect={handlePatientSelect} patients={[]} />
+        <div className="p-4">
+          <div className="mb-4">
+            <h2 className="text-xl font-semibold text-slate-900">Reports</h2>
+            <p className="mt-1 text-sm text-slate-600">Lab reports with date range and branch letterhead.</p>
+          </div>
+          <LabReportsView />
         </div>
       </div>
     )

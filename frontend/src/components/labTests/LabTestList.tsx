@@ -2469,6 +2469,9 @@ export const LabTestList = ({
   const leadingSlot = useCardLeadingSlot()
   const headerSlot = useCardHeaderSlot()
   const [exportingPdf, setExportingPdf] = useState(false)
+  const [showAssessmentExportModal, setShowAssessmentExportModal] = useState(false)
+  const [assessmentExportFrom, setAssessmentExportFrom] = useState('')
+  const [assessmentExportTo, setAssessmentExportTo] = useState('')
   const [showFiltersInternal, setShowFiltersInternal] = useState(false)
   const inDashboardCard = cardFilters !== undefined
   // Own the filter icon after status tabs (or when the card opts out of forced filters).
@@ -2565,16 +2568,27 @@ export const LabTestList = ({
     setFilters(cleared)
   }
 
-  const exportAssessmentPdf = async () => {
+  const currentMonthRange = () => {
+    const now = new Date()
+    const y = now.getFullYear()
+    const m = String(now.getMonth() + 1).padStart(2, '0')
+    const last = String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, '0')
+    return { from: `${y}-${m}-01`, to: `${y}-${m}-${last}` }
+  }
+
+  const openAssessmentExportModal = () => {
+    const month = currentMonthRange()
+    setAssessmentExportFrom(filters.fromDate || month.from)
+    setAssessmentExportTo(filters.toDate || month.to)
+    setShowAssessmentExportModal(true)
+  }
+
+  const exportAssessmentPdf = async (dateFrom: string, dateTo: string) => {
     setExportingPdf(true)
     try {
-      const now = new Date()
-      const y = now.getFullYear()
-      const m = String(now.getMonth() + 1).padStart(2, '0')
-      const last = String(new Date(y, now.getMonth() + 1, 0).getDate()).padStart(2, '0')
       const html = await fetchLabResultAssessmentHtml({
-        dateFrom: filters.fromDate || `${y}-${m}-01`,
-        dateTo: filters.toDate || `${y}-${m}-${last}`,
+        dateFrom,
+        dateTo,
         costCenter: userCostCenter || undefined,
       })
       const win = window.open('', '_blank', 'width=1400,height=900')
@@ -2586,6 +2600,7 @@ export const LabTestList = ({
       win.document.write(html)
       win.document.close()
       win.focus()
+      setShowAssessmentExportModal(false)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Failed to export lab report')
     } finally {
@@ -2593,10 +2608,22 @@ export const LabTestList = ({
     }
   }
 
+  const confirmAssessmentExport = () => {
+    if (!assessmentExportFrom || !assessmentExportTo) {
+      toast.error('Select From Date and To Date')
+      return
+    }
+    if (assessmentExportTo < assessmentExportFrom) {
+      toast.error('To Date cannot be before From Date')
+      return
+    }
+    void exportAssessmentPdf(assessmentExportFrom, assessmentExportTo)
+  }
+
   const downloadButton = (
     <button
       type="button"
-      onClick={() => void exportAssessmentPdf()}
+      onClick={openAssessmentExportModal}
       disabled={exportingPdf}
       className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
       title="Download Lab Result Assessment Report"
@@ -3837,6 +3864,40 @@ export const LabTestList = ({
   // ── Render ───────────────────────────────────────────────────────────────
   return (
     <div className="flex flex-col min-w-full flex-1 min-h-0 h-full">
+      <ConfirmActionModal
+        open={showAssessmentExportModal}
+        title="Lab Result Assessment Report"
+        subtitle="Choose the date range to include in the report."
+        tone="primary"
+        loading={exportingPdf}
+        confirmLabel="Download PDF"
+        onClose={() => {
+          if (!exportingPdf) setShowAssessmentExportModal(false)
+        }}
+        onConfirm={confirmAssessmentExport}
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              From Date <span className="text-red-500">*</span>
+            </label>
+            <DateFilterInput
+              value={assessmentExportFrom}
+              onChange={(e) => setAssessmentExportFrom(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600">
+              To Date <span className="text-red-500">*</span>
+            </label>
+            <DateFilterInput
+              value={assessmentExportTo}
+              onChange={(e) => setAssessmentExportTo(e.target.value)}
+            />
+          </div>
+        </div>
+      </ConfirmActionModal>
+
       {inDashboardCard && headerSlot ? createPortal(downloadButton, headerSlot) : null}
 
       {/* Header row */}

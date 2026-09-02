@@ -671,8 +671,10 @@ export const CreateServiceRequestModal = ({
             : labBasket[0].parent
           : form.template_dn
 
+      let created: Awaited<ReturnType<typeof createServiceRequest>> | undefined
+
       if (useLabBasket) {
-        await createServiceRequest({
+        created = await createServiceRequest({
           patient: form.patient,
           template_dt: form.template_dt,
           template_dn: primaryDn,
@@ -706,7 +708,7 @@ export const CreateServiceRequestModal = ({
             : 0
         const usingInsurancePct =
           insuranceDiscountPct > 0 && Math.abs(discountAmount - expectedInsAmt) < 0.01
-        await createServiceRequest({
+        created = await createServiceRequest({
           patient: form.patient,
           template_dt: form.template_dt,
           template_dn: primaryDn,
@@ -726,7 +728,20 @@ export const CreateServiceRequestModal = ({
           selected_group_templates: isGroupTemplate ? selectedGroupTemplates : undefined,
         })
       }
-      toast.success(isLabRequest ? 'Lab request created' : 'Service Request created')
+
+      if (created?.auto_booked && isLabRequest) {
+        const n = created.lab_tests_count ?? created.lab_tests?.length ?? 0
+        toast.success(
+          n > 0
+            ? `Lab request created — payment confirmed and ${n} test${n === 1 ? '' : 's'} booked to the lab`
+            : 'Lab request created — payment confirmed and booked to the lab',
+        )
+      } else if (created?.auto_book_error && isLabRequest) {
+        toast.success('Lab request created')
+        toast.error(created.auto_book_error)
+      } else {
+        toast.success(isLabRequest ? 'Lab request created' : 'Service Request created')
+      }
       onSuccess()
     } catch (err) {
       setError(err instanceof Error ? err.message : isLabRequest ? 'Failed to create lab request' : 'Failed to create service request')

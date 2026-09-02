@@ -27,6 +27,7 @@ import { useCareContext } from '../../providers/CareContextProvider'
 import { CreatePrescriptionModal } from './CreatePrescriptionModal'
 import { SignPrescriptionModal } from './SignPrescriptionModal'
 import { PrescriptionDoseLimitConfirmModal } from './PrescriptionDoseLimitConfirmModal'
+import { IpMedicationPlanPrintButton } from './IpMedicationPlanPrintButton'
 import { PortalActionsMenu } from '../ui/PortalActionsMenu'
 import { toast } from '../../hooks/useToast'
 import { CREATE_MODAL_OVERLAY, createModalShellClass } from '../ui/CreateModalChrome'
@@ -2059,6 +2060,7 @@ export const RxPage = ({ readOnly = false }: { readOnly?: boolean } = {}) => {
 
   const renderHeaderActions = (hasPrescription: boolean, rx?: Prescription | null) => (
     <div className="flex items-center gap-2">
+      <IpMedicationPlanPrintButton />
       <button
         type="button"
         onClick={() => hasPrescription && setShowTypeFilters((prev) => !prev)}

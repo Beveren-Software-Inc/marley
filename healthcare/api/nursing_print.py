@@ -208,6 +208,7 @@ def patient_meta(doc) -> dict:
 		g(doc, "admission_no")
 		or g(doc, "admission")
 		or g(doc, "inpatient_admission")
+		or g(doc, "inpatient_record")
 	)
 	pat = {}
 	if patient_id:
@@ -271,8 +272,6 @@ def patient_info_html(meta: dict) -> str:
 		("Patient Name:", meta.get("patient_name"), "Gender:", meta.get("gender")),
 		("IP Case No.", meta.get("ip_case_no"), "Age:", meta.get("age")),
 	]
-	if meta.get("admission_no"):
-		pairs.append(("Admission No.", meta.get("admission_no"), "", ""))
 	body = "".join(
 		"<tr>"
 		+ (

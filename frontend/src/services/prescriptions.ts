@@ -1037,3 +1037,31 @@ export async function previewPrescriptionDoseValidation(args: {
     }
   )
 }
+
+export async function fetchIpMedicationPlanHtml(opts: {
+  inpatientRecord: string
+}): Promise<string> {
+  const params = new URLSearchParams()
+  params.set('inpatient_record', opts.inpatientRecord)
+  const res = await fetch(
+    `/api/method/healthcare.api.ip_medication_plan_print.get_ip_medication_plan_html?${params}`,
+    { credentials: 'include' },
+  )
+  const data = await res.json()
+  if (data?.exception) {
+    let message = 'Failed to build IP medication plan'
+    try {
+      const raw = data._server_messages
+      const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw
+      const first = Array.isArray(parsed) ? parsed[0] : parsed
+      const obj = typeof first === 'string' ? JSON.parse(first) : first
+      if (obj?.message) message = String(obj.message)
+    } catch {
+      if (typeof data.message === 'string' && data.message.trim()) message = data.message
+    }
+    throw new Error(message)
+  }
+  const msg = data?.message
+  if (typeof msg === 'string' && msg.trim()) return msg
+  throw new Error('Invalid IP medication plan response')
+}

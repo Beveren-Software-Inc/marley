@@ -17,16 +17,18 @@ from healthcare.healthcare.lab_test_result_rules import (
 
 
 @frappe.whitelist()
-def get_lab_test_result_rules(template):
+def get_lab_test_result_rules(template, service_request=None):
 	"""Return rule configuration for a Lab Test Template (for result-entry UI).
 
 	Includes formulas stored on sibling child tests in the same group
 	(e.g. Indirect Bilirubin on a Liver Function panel).
+	When ``service_request`` is set, also merges rules for every lab test on that request
+	(so cross-group formulas like creatinine → eGFR work on multi-group lab requests).
 	"""
 	if not template:
 		return {}
 	panel = get_panel_template_name(template) or template
-	docs = get_enabled_rule_docs_for_panel(template)
+	docs = get_enabled_rule_docs_for_panel(template, service_request or None)
 	if not docs:
 		rule_doc = get_enabled_rule_doc(template)
 		if not rule_doc:
